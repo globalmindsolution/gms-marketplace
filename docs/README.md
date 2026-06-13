@@ -4,9 +4,39 @@ This folder holds the business requirements for turning this repository into a
 **Claude Code plugins marketplace** whose first plugin is **`acs`** — a
 multi-step, agentic software-delivery workflow.
 
-> **Status: DRAFT — requirements gathering.** These documents capture
-> requirements only. No implementation has started. Requirements will continue
-> to be added and refined before implementation begins.
+> **Status: IMPLEMENTED (v0.1.0).** These documents are the business
+> requirements the implementation is built and verified against. The
+> marketplace manifest lives at `.claude-plugin/marketplace.json`, the plugin
+> at `plugins/acs/` (see `plugins/acs/docs/INTERNALS.md` for how requirements
+> map onto the Claude Code plugin API). Requirement changes land here first,
+> then in the implementation.
+
+## Documentation altitude map — why this corpus exists alongside the PRD
+
+acs is a **specification-defined product**: the behavioral contract IS the
+product. So this repo carries four doc sets with deliberately different,
+non-overlapping jobs — none replaces another:
+
+| Set | Question it answers | Normative for |
+|-----|---------------------|---------------|
+| [product/](product/) (PRD, roadmap) | WHY & WHAT, prioritized | intent, goals, priorities |
+| **this corpus (01–08)** | the detailed behavioral contract | every testable MUST/SHOULD/MAY; the decision log |
+| [architecture/](architecture/) (HLD/LLD) | HOW the system is structured | structure, flows, interface contracts |
+| `plugins/acs/docs/` (INTERNALS, AUTHORING) | HOW it is implemented & maintained | implementation conventions |
+
+On conflict: the PRD wins on intent and prioritization; this corpus wins on
+behavior; the decision log records how each conflict was settled.
+
+Consumer repos need a standing behavioral contract too — per-ticket specs
+are change-deltas that get archived, and tests encode how behavior is
+verified, not what was agreed. There it is the **living requirements** doc
+set (`requirements_path`, default `docs/requirements/`): accumulated ticket
+by ticket by the pipeline itself ([02-workflow.md](02-workflow.md#living-requirements)).
+This hand-authored corpus (01–08) is the special case for a
+specification-defined product, where it doubles as the contract-test anchor
+and carries the decision log. (When dogfooding acs on this repo, the corpus
+plays the living-requirements role — ticket-driven requirement changes land
+in these files, per the change-order rule above.)
 
 ## Documents
 
@@ -21,12 +51,40 @@ multi-step, agentic software-delivery workflow.
 | [07-workspace-and-state.md](07-workspace-and-state.md) | Workspace folder, `<ticket-id>` partitioning, state files, worktree support |
 | [08-usage.md](08-usage.md) | Usage walkthroughs: setup, brownfield/greenfield bootstrap, `/ship` vs step-by-step, parallel worktrees, handoff, PRD amendments |
 
+## Sibling doc sets (dogfooding)
+
+This repo is also a **consumer repo of acs itself**. Alongside this
+requirements corpus live the doc sets acs mandates for any product —
+bootstrapped as baselines, amended via `/acs:create-prd` /
+`/acs:create-architecture` re-runs (each a delivery ticket + docs PR):
+
+- [product/](product/) — `prd.md`, `roadmap.md` (`prd_path` default)
+- [architecture/](architecture/) — HLD (C4 1–3, data model, deployment,
+  tech stack) + LLD (flow sequence diagrams, contracts)
+  (`architecture_path` default)
+- [adr/](adr/) — architecture decision records (`adr_path` default; on
+  consumer repos, /code commits each ticket design's accepted decisions here)
+
 ## Decision log
 
 Resolved questions, newest first. Details live in the linked docs.
 
 | Date | Decision |
 |------|----------|
+| 2026-06-13 | **ADRs are default-on**: `adr_path` defaults to `docs/adr` (explicit `null` disables) — `/code` commits the accepted decision records from each ticket's `design.md` by default; the consumer docs structure is now product/ + requirements/ + architecture/ + adr/. This repo dogfoods it: `docs/adr/` holds the retrofitted architecture decision records. See [06-configuration.md](06-configuration.md). |
+| 2026-06-13 | **Living requirements** (`requirements_path`, default `docs/requirements/`): consumer repos get a standing behavioral contract that accumulates ticket by ticket — `/code`'s documentation step merges each merged ticket's acceptance criteria and behavior-defining clarifications into the touched feature area's requirements file; `/create-ticket` and `/create-spec` read it as the current behavior of the area and flag contradictions; the code-verifier's documentation dimension blocks drift. Mirrors the living-architecture induction; no new skill. See [02-workflow.md](02-workflow.md), [03-skills.md](03-skills.md), [06-configuration.md](06-configuration.md). |
+| 2026-06-13 | **`/update` skill + versioned marketplace**: the marketplace manifest carries a `version`; plugin updates reach consumers only on `plugin.json` semver bumps (automated release tagging). `/update` is a user-invoked upgrade assistant — version comparison, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings schema, status-line paths) — never invoked by the model; reloading stays a user action. See [03-skills.md](03-skills.md). |
+| 2026-06-13 | Reflection phases persist their own artifacts: planner/executor/verifier write `iter-<n>-plan.md` / `-execute.json` / `-verify.md` into the partition; XML results carry file references only; the coordinator snapshots every raw XML message at each phase boundary. Native plan mode is not used (planners are spawned subagents with no user to approve a plan). See [04-architecture.md](04-architecture.md). |
+| 2026-06-13 | Grounding rules: every subagent decision/claim/finding cites the file/section or quoted command output it rests on; a missing input is an error, never a guess; unverifiable points are explicit assumptions; verifiers treat ungrounded plans/reports as blocking findings. See [04-architecture.md](04-architecture.md). |
+| 2026-06-13 | Subagent tool restrictions + altitude boundaries: planners/verifiers run on read allowlists (Write only for their own phase artifact), executors cannot spawn agents or invoke skills, coordinators never edit repo source; specs own the WHAT at contract level while the `/code` plan owns the authoritative file map; the code-verifier anchors on the gated contracts (specs/ticket/design) and consumes only the plan's verifier checklist. See [03-skills.md](03-skills.md), [04-architecture.md](04-architecture.md). |
+| 2026-06-13 | Every skill ends a direct invocation with a **standard completion report** (Ticket / Status / Results / Findings / Artifacts / Metrics / Next), rendered only after its post-hook succeeded; under `/ship` the compact XML handoff replaces it. See [03-skills.md](03-skills.md). |
+| 2026-06-13 | **Size control**: a story/task is sized to ONE reviewable PR (rule of thumb ~<=400 changed lines, one concern); `/create-spec` escalates when an honest decomposition exceeds ~4 specs; `/create-ticket split <id>` converts the ticket to an epic **keeping its id** and mints PR-sized children. See [03-skills.md](03-skills.md). |
+| 2026-06-13 | **`docs_only` ticket flag** (planner-recommended, user-confirmed at `/create-ticket`): relaxes `/code`'s tests-first and coverage hard-fail; the full suite still runs once and must stay green; a diff line touching executable code under the flag is a blocking finding. Added to the ticket schema. See [03-skills.md](03-skills.md). |
+| 2026-06-13 | **Requirement clarification ledger**: per-ticket `clarifications.json` — research first, ask once at the cheapest phase (re-asking an answered question is a defect), record every Q&A before acting on it, assumptions are visible debt surfaced until user-confirmed; `/ship` relays answers, the step coordinator records them. See [03-skills.md](03-skills.md), [07-workspace-and-state.md](07-workspace-and-state.md). |
+| 2026-06-13 | **E2E test layer by configuration, not a new skill**: `settings.e2e` (`command`, optional `setup`/`teardown`, `per_iteration` default false); specs declare e2e impact in their test plan, `/code` authors e2e tests in the same changeset, the code-verifier gates on a green suite (no zero-findings verdict without one); `/create-project` scaffolds the harness for user-facing surfaces. See [03-skills.md](03-skills.md), [06-configuration.md](06-configuration.md). |
+| 2026-06-13 | Living-architecture enforcement: the code-verifier makes a positive, evidenced architectural-impact determination per changeset (docs current **by induction**); design/code planners repair area-scoped doc drift (boy-scout) from out-of-band commits; widespread drift triggers a recommended `/create-architecture` re-run. See [02-workflow.md](02-workflow.md). |
+| 2026-06-13 | Optional **status lines** (`statusLine` prompt line: ticket + pipeline glyphs + cost; `subagentStatusLine`: agent-panel rows for reflection subagents) ship as scripts and are wired opt-in by `/init` with resolved absolute paths — user-owned settings, never forced. See [06-configuration.md](06-configuration.md). |
+| 2026-06-12 | Hook event binding resolved at implementation: pre-hooks bind to `PreToolUse` on the `Skill` tool via a dispatcher routing to `pre-<skill>.py` (exit 2 blocks); post-hooks are coordinator-invoked scripts backed by the `runs[-1].status` gate (a skipped post-hook leaves the pipeline closed); a `SessionEnd` hook finalizes abnormal endings as `interrupted`. See [05-hooks.md](05-hooks.md). |
 | 2026-06-12 | Remote ticket import: `/create-ticket <remote-key>` (e.g. a Jira key) pulls the issue from the configured tracker into a local ticket (fresh local id + external mapping, normal analysis applies) so PM-created tickets can be shipped. See [03-skills.md](03-skills.md), [08-usage.md](08-usage.md). |
 | 2026-06-12 | **Every change is a ticket** — including product-level work: each `/create-prd` / `/create-architecture` / `/create-project` run creates its own **delivery ticket** (type task) with a normal id, partition, tracker sync, and archive lifecycle; state files live in the partition; no repo-level state or locks; `/merge-pr` works as for any ticket. Supersedes the reserved-delivery-id scheme below. See [03-skills.md](03-skills.md). |
 | 2026-06-12 | `ticket_prefix` is **required at `/init`, per repo** (suggested from the repo name) — no global `ACS` default; different consumer repos get different prefixes. Doc examples now use `SHOP-…`. The `ACS` PR label stays (it marks the tool, not the project). See [06-configuration.md](06-configuration.md). |

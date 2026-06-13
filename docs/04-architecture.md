@@ -47,6 +47,13 @@ Requirements:
 > changeset (business logic, features, quality, technical standards,
 > architecture, system design, security, documentation). There is no
 > separate review skill — see [03-skills.md](03-skills.md).
+>
+> **Verifier anchoring**: a verifier judges the work against the **gated
+> upstream contracts** (specs, ticket, design), never against the
+> same-iteration plan — an unverified plan must not be able to certify the
+> work it shaped. The plan's contribution to verification is its **verifier
+> checklist** section only (a floor, never a ceiling), and verifiers never
+> read executor reasoning — only artifacts.
 
 ```mermaid
 flowchart TD
@@ -101,7 +108,24 @@ during design:
 ## File-based state instead of conversation memory
 
 - Subagents MUST write their **states, findings, error details, and stop
-  reasons** into JSON files in the workspace folder.
+  reasons** into JSON files in the workspace folder. Concretely, every phase
+  writes its own artifact into `<partition>/phases/<skill>/`: the planner
+  `iter-<n>-plan.md` (the complete plan), each executor
+  `iter-<n>-execute[-<k>].json` (artifacts produced, repo files changed,
+  commands run with outcomes), the verifier `iter-<n>-verify.md` (every check
+  with evidence, every finding in detail). XML results reference these files,
+  never inline their bodies.
+- **Grounding**: every subagent decision, claim, and finding MUST be traceable
+  to a source read or run in that task — cited file/section next to the
+  statement, or the quoted command and output. A missing input is an error,
+  not a guess; an unverifiable point is an explicit assumption with rationale;
+  verifiers treat ungrounded plans/reports as blocking findings.
+- Native **plan mode is not used** for the reflection plan phase: planners are
+  spawned subagents with no user to approve a plan, and resumability comes
+  from the phase artifacts plus gates. The planner's read-only discipline is
+  enforced by its tool allowlist (planners/verifiers: read tools + Write
+  solely for their own phase artifact; executors additionally may not spawn
+  agents or invoke skills).
 - The coordinator MUST persist each phase's output (plan, executor results,
   verifier verdict) to the ticket partition **at the phase boundary**,
   before starting the next phase — a context loss or crash never loses more

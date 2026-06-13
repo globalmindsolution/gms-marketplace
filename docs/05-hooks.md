@@ -125,8 +125,26 @@ examples given in the requirements; exact names to confirm.
   full JSON Schema validation happens at skill level
   ([07-workspace-and-state.md](07-workspace-and-state.md)).
 
-## Open questions
+## Event binding (resolved at implementation)
 
-- **[OPEN]** Which Claude Code hook events to bind to (skill/agent lifecycle
-  vs. tool-call events) — deferred to implementation, to be resolved against
-  the current Claude Code plugin hooks API.
+Resolved against the current Claude Code plugin hooks API (no "skill
+completed" event exists):
+
+- **Pre-hooks** bind to the **`PreToolUse`** event matching the **`Skill`**
+  tool: a dispatcher (`dispatch.py pre`) extracts the skill name from the
+  tool input and routes to the named `pre-<skill>.py` with the same stdin
+  payload; exit 2 blocks the skill before it runs. This fires for user-typed
+  slash commands and model-initiated Skill calls alike (including the steps
+  `/ship` spawns).
+- **Post-hooks** are invoked by the skill's **coordinator as its mandatory
+  final step** (`post-<skill>.py --result-file …`) — their inputs (final
+  status, findings, tokens, cost) exist only in the coordinator's context.
+  Enforcement does not rely on the model: the coordinator registers an
+  `in_progress` run entry at skill start (`skill-start.py`), and every
+  downstream pre-hook gates on `runs[-1].status == "completed"`, so a
+  skipped post-hook leaves the gate closed, never open.
+- A **`SessionEnd`** hook (`dispatch.py session-end`) finalizes any run this
+  checkout left `in_progress` as `interrupted` and releases its lock, so
+  abnormal endings still write state.
+
+See `plugins/acs/docs/INTERNALS.md` for the full implementation contract.

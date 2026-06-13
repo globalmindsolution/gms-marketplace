@@ -1,7 +1,8 @@
 # 03 — Skill Requirements
 
-Twelve skills in total: the bootstrap skill (`/init`), the umbrella command
-(`/ship`), the session-handoff utility (`/handoff`), the product-level
+Thirteen skills in total: the bootstrap skill (`/init`), the umbrella command
+(`/ship`), the session-handoff utility (`/handoff`), the update assistant
+(`/update`), the product-level
 `/create-prd`, `/create-architecture`, and `/create-project`, and six
 workflow skills (one of them, `/create-design`, conditional).
 Every **workflow** skill MUST:
@@ -20,7 +21,16 @@ Every **workflow** skill MUST:
   ([06-configuration.md](06-configuration.md#subagent-models));
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
-  ([02-workflow.md](02-workflow.md#ticket-context)).
+  ([02-workflow.md](02-workflow.md#ticket-context));
+- record every requirement Q&A in the per-ticket **clarification ledger**
+  (`clarifications.json`): research first, ask once at the cheapest phase
+  (re-asking an answered question is a defect), record answers before acting
+  on them, and record unanswerable decisions as visible **assumptions** with
+  rationale ([07-workspace-and-state.md](07-workspace-and-state.md));
+- end every direct invocation with the **standard completion report**
+  (Ticket / Status / Results / Findings / Artifacts / Metrics / Next), rendered
+  only after the post-hook succeeded; under `/ship` the compact XML handoff
+  replaces it.
 
 ---
 
@@ -83,6 +93,26 @@ when the current one grows long
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
 - Workflow coordinators SHOULD trigger the same flush proactively on context
   pressure, without waiting for the user to invoke `/handoff`.
+
+## `/update` (utility)
+
+Purpose: assist the plugin upgrade — Claude Code owns the plugin lifecycle;
+this skill owns the workflow around it.
+
+- **User-invoked only** (`disable-model-invocation`): updating changes the
+  running environment.
+- Compares the installed version (`plugin.json` at the install root) with the
+  latest release; summarizes the CHANGELOG delta between them and calls out
+  breaking changes (MAJOR bumps, settings-key changes, state-shape notes).
+- With user consent, refreshes the marketplace
+  (`claude plugin marketplace update gms`) — updates reach consumers only
+  when the plugin's `version` bumps (semver; automated release tagging).
+- Runs post-update migration checks: settings valid against the new schema,
+  status-line paths still resolve (they hold absolute install paths —
+  re-run `/init` Step 7b when the install moved), workspace reachable.
+- Reloading is the user's action (`/reload-plugins` or a new session); the
+  skill states this explicitly — the current session keeps the old version.
+- Not part of the gated pipeline; no planner/executor/verifier subagents.
 
 ## Product-level delivery (tickets)
 
@@ -202,6 +232,9 @@ architecture, so the ticket pipeline works from the very first ticket.
   - the **test framework and coverage tooling**, wired to measure
     `test_coverage_percent` — the `/code` TDD gates depend on this existing
     from ticket #1;
+  - an **e2e harness** (plus one smoke e2e test and CI wiring, and a proposed
+    `e2e` settings block) when the architecture has a user-facing or
+    cross-component surface;
   - linter/formatter and pre-commit configuration;
   - a CI workflow running build, lint, tests, and coverage;
   - `.gitignore`, README skeleton, and a **minimal green vertical slice**
@@ -225,7 +258,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - MUST analyze and clarify requirements from three sources: the **user
   prompt**, the **codebase**, and existing **docs**.
 - MUST consult the **PRD** when present: tickets SHOULD trace to PRD
-  features/goals, and epics SHOULD derive from the roadmap. When a requested
+  features/goals, and epics SHOULD derive from the roadmap. MUST also read
+  the touched areas' **living requirements** files (`requirements_path`) as
+  the current behavior and flag any contradiction the request implies
+  (deliberate behavior change vs. mistake). When a requested
   capability goes beyond the PRD, `/create-ticket` MUST flag the divergence
   and propose a PRD amendment (a `/create-prd` re-run, user-confirmed)
   before proceeding.
@@ -266,11 +302,25 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   by **asking the user** which side wins.
 - Ticket schema — required fields: **title, type, description, acceptance
   criteria, priority, parent epic, children, status, external mapping,
-  assignee, story points, needs-design flag**. Parent/child links are stored
+  assignee, story points, needs-design flag, docs-only flag**. Parent/child links are stored
   in **both directions** (epic lists `children`; each child stores `parent`).
 - MUST set **`needs_design`** during analysis: always `true` for epics; for
   stories/tasks the planner recommends a value and the user confirms it
   ([02-workflow.md](02-workflow.md)).
+- MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,
+  default `false`): `true` only when the change touches no executable code or
+  tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
+  full suite still runs once and must stay green, and a diff line touching
+  executable code under the flag is a blocking verifier finding.
+- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400
+  changed lines, one concern, grounded in a codebase survey); above the bar the
+  planner recommends an epic with children cut at PR-sized, independently
+  shippable seams.
+- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,
+  typically from `/create-spec`'s escalation): the ticket becomes an epic
+  **keeping its id**, description, and PRD trace; children are minted at the
+  recorded seams; downstream work already present requires user confirmation
+  first.
 
 ## 2. `/create-design` *(conditional)*
 
@@ -318,7 +368,17 @@ Purpose: turn a ticket into implementation specs.
 - Subagents: `create-spec-planner`, `create-spec-executor`,
   `create-spec-verifier`.
 - Spec format: **markdown** with required sections — **scope, approach,
-  API/data changes, test plan, out-of-scope**.
+  API/data changes, test plan, out-of-scope**. The **approach** section stays
+  at contract level (components, interfaces, algorithms, error handling;
+  indicative paths at most) — the authoritative file map belongs to `/code`'s
+  planner. The **test plan** MUST state the **e2e impact** when `e2e` is
+  configured or the change affects user-facing flows (the tests land in the
+  same changeset), else "no e2e impact" with a reason.
+- MUST escalate an **oversized ticket** instead of producing a monster spec
+  set: when an honest decomposition exceeds ~4 specs (or the surface clearly
+  exceeds a reviewable diff), stop, record the split seams, and route to
+  `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
+  one large PR, recorded as a clarification.
 - The **API/data changes** section SHOULD call out the documentation impact
   (which consumer-repo docs the change touches), so `/code` knows what to
   update.
@@ -342,8 +402,11 @@ Purpose: implement the specs in the consumer repo using TDD.
   components, or alters the data model, integrations, or deployment: HLD
   (C4 views, data model, deployment) updated accordingly, and the ticket
   design's new/changed **sequence diagrams merged into `lld/flows/`** —
-  following the repo's existing conventions. Docs work is part of the
-  change, not a follow-up.
+  following the repo's existing conventions. MUST also merge the ticket's
+  acceptance criteria and behavior-defining clarifications into the touched
+  feature area's file under `requirements_path` (the living requirements —
+  [02-workflow.md](02-workflow.md#living-requirements)). Docs work is part
+  of the change, not a follow-up.
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([06-configuration.md](06-configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,
@@ -369,6 +432,16 @@ Purpose: implement the specs in the consumer repo using TDD.
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
   stop, record the achieved coverage and reason in `code-state.json`, and
   leave the `/create-pr` gate closed.
+- On a **`docs_only`** ticket the TDD steps relax (no new tests, no coverage
+  measurement) but the guarantees do not: the full suite still runs once and
+  must stay green, and executable-code diffs under the flag are blocking
+  findings.
+- When **`e2e`** is configured ([06-configuration.md](06-configuration.md)):
+  executors author the e2e tests their specs declared (same changeset) and run
+  the affected subset; the `code-verifier` runs the **full e2e suite** (setup
+  -> command -> teardown, always) — no zero-findings verdict without a green
+  run (`per_iteration: false` only defers it past iterations that already have
+  other blocking findings).
 - `/code` works on a dedicated git branch (and optionally a worktree) per
   ticket; the branch name follows `formats.branch_name` from `settings.json`
   and embeds the `<ticket-id>` so later skills and hooks can resolve ticket

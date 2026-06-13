@@ -53,7 +53,7 @@ consumer repo**, which also enables git-worktree-based parallel work.
 - The marketplace MUST list the `acs` plugin. The structure SHOULD allow
   additional plugins to be added later without restructuring.
 - The `acs` plugin MUST bundle, per standard Claude Code plugin layout:
-  - **Skills** (slash commands): `/init`, `/ship`, `/handoff`,
+  - **Skills** (slash commands): `/init`, `/ship`, `/handoff`, `/update`,
     `/create-prd`, `/create-architecture`, `/create-project`,
     `/create-ticket`, `/create-design`, `/create-spec`, `/code`,
     `/create-pr`, `/merge-pr`.
@@ -64,6 +64,8 @@ consumer repo**, which also enables git-worktree-based parallel work.
   - **Hooks**: a pre and post hook per workflow skill and per product-level
     skill, implemented as Python scripts
     (e.g. `pre-code.py`, `post-code.py`).
+  - MAY bundle optional extras wired by `/init` on user consent — e.g. the
+    status-line scripts (prompt line and agent-panel line).
 
 ## Core principles
 

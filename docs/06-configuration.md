@@ -31,7 +31,9 @@ folder.
 | `ticket_prefix` | string | — | **Yes — user input at init time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/init` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
 | `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
 | `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
-| `adr_path` | string (repo-relative path) | unset | No | When set (e.g. `docs/adr`), `/code` commits the accepted decision records from the ticket's `design.md` to this path in the consumer repo as part of its documentation updates. Unset → designs stay workspace-only. |
+| `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file as part of its documentation work; `/create-ticket` and `/create-spec` read it as the area's current behavior and flag contradictions. Grows organically — no bootstrap skill required. |
+| `adr_path` | string (repo-relative path) or `null` | `"docs/adr"` | No | `/code` commits the accepted decision records from the ticket's `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |
+| `e2e` | object | unset | No | End-to-end test layer: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and the `code-verifier` runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. |
 | `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent role runs on: `models.planner`, `models.executor`, `models.verifier` (optionally `models.coordinator` for `/ship`-spawned coordinators), with per-skill overrides under `models.overrides.<skill>`. Each role accepts a model string or a `{ "model", "effort" }` object. See [Subagent models](#subagent-models). |
 | `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |
 | `formats` | object | built-in defaults | No | Formats for generated artifacts. Short fields are inline template strings with placeholders such as `{ticket_id}`, `{title}`, `{type}`, `{summary}`: `formats.branch_name` (MUST embed `{ticket_id}`), `formats.commit_message`, `formats.pr_title`, and per-ticket-type titles under `formats.tickets.<type>` (`epic`, `story`, `task`). **Descriptions** (PR description, ticket descriptions) use **pre-defined templates** shipped with the plugin, referenced by name; users can select another template or point to a custom template file. |
@@ -143,6 +145,15 @@ for Jira — which manage their own authentication (`gh auth login`,
 `acli auth`). `settings.json` holds only non-secret configuration (URLs,
 project keys, formats). `/init` and the pre-hooks SHOULD check that the
 configured tracker's CLI is installed and authenticated.
+
+### Status lines (optional)
+
+The plugin ships two status-line scripts — a prompt line (active ticket +
+pipeline step glyphs + cost, straight from workspace state) and an
+agent-panel line (live rows for the reflection subagents). `statusLine` /
+`subagentStatusLine` are the **user's** Claude Code settings: `/init` offers
+the wiring opt-in (user or project scope, resolved absolute paths, never
+overwriting an existing value) — the plugin never forces them.
 
 ## Validation rules
 

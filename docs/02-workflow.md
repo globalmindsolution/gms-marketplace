@@ -159,7 +159,9 @@ Changeset review happens **inside `/code`**, performed by the
   automatically run another remediation iteration: re-plan, re-execute (TDD
   still applies), re-verify.
 - **All findings block** — there is no severity threshold; the loop runs
-  until the verifier reports **zero findings**.
+  until the verifier reports **zero findings**. When an `e2e` layer is
+  configured ([06-configuration.md](06-configuration.md)), a **green e2e
+  run** is part of the zero-findings bar.
 - The loop runs at most **3 iterations**; if findings remain, `/code` stops
   and records the findings and stop reason in `code-state.json`.
 - Only when the verifier passes does the `/create-pr` pre-hook gate open.
@@ -259,9 +261,37 @@ flagging any requested capability that diverges from it.
   **LLD**, merging the ticket design's new or changed sequence diagrams
   into `lld/flows/`; the `code-verifier`'s documentation dimension checks
   that consistency.
+- **Enforcement (docs current by induction)**: the `code-verifier` makes a
+  positive, evidenced architectural-impact determination from each diff —
+  impact without matching doc changes in the same changeset is a blocking
+  finding, and "no impact" is a conclusion, never a default. Drift from
+  commits that bypassed the pipeline is repaired **boy-scout style**: design
+  and code planners check the touched area's docs against current code and
+  schedule stale sections for repair with the ticket; widespread drift
+  triggers a recommended `/create-architecture` re-run.
 
 The conformance chain is **PRD → architecture → design → specs → code**,
 each level verified against the one above it.
+
+### Living requirements
+
+Per-ticket specs are change-deltas and are archived with their tickets; the
+**current** behavioral contract of the product accumulates in the living
+requirements doc set (`requirements_path`, default `docs/requirements/`, one
+markdown file per feature area):
+
+- **Input**: `/create-ticket` and `/create-spec` read the touched areas'
+  requirements files as the current behavior; a request or spec that
+  contradicts standing behavior MUST be flagged (deliberate change vs.
+  mistake), like a PRD divergence.
+- **Output**: `/code`'s documentation step merges the merged ticket's
+  acceptance criteria and behavior-defining clarifications (answered/assumed
+  ledger entries that define behavior) into the area's requirements file —
+  same changeset, same induction as the architecture doc set; the
+  `code-verifier`'s documentation dimension blocks a behavioral change whose
+  requirements file was not updated.
+- The set grows organically from ticket #1 — no bootstrap skill; brownfield
+  repos MAY seed area files during `/create-prd`'s baseline analysis.
 
 ## Starting a fresh product
 

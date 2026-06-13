@@ -45,6 +45,8 @@
         ├── .lock                       # held by the session working this ticket
         ├── ticket.json                 # output of /create-ticket (local source of truth); stores parent
         ├── pipeline-state.json         # compact step ledger for /ship and pre-hooks
+        ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
+        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md / -execute.json / -verify.md + XML snapshots
         ├── create-ticket-state.json
         ├── specs/                      # output of /create-spec (1..n specs; conform to the design)
         │   ├── 01-data-model.md
@@ -147,8 +149,8 @@ Each state file MUST capture:
 ```
 
 JSON Schemas for `ticket.json`, `pipeline-state.json`, each
-`<skill>-state.json`, `settings.json`, and `metrics.json` are **shipped with
-the plugin** (`schemas/`). Skills validate against the full schemas; hooks
+`<skill>-state.json`, `settings.json`, `metrics.json`, and
+`clarifications.json` are **shipped with the plugin** (`schemas/`). Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
 ([05-hooks.md](05-hooks.md)).
 
@@ -197,7 +199,10 @@ The workspace records effort and cost at every level; post-hooks maintain
 all of it:
 
 - **Per run**: each `runs` entry records `started_at`/`ended_at` (working
-  time is computed from them), token counts (input/output), and cost.
+  time is computed from them), token counts (input/output), and cost. Runs
+  finalized outside a post-hook — `handed_off` (session handoff) and
+  `interrupted` (SessionEnd safety net) — are counted in the repo aggregates
+  too, so `metrics.json` and the per-ticket roll-up never diverge.
 - **Per ticket**: `pipeline-state.json` rolls up totals across all skills
   and runs for the ticket.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
