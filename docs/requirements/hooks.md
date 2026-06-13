@@ -1,4 +1,4 @@
-# 05 — Hooks
+# Hooks
 
 Pre and post hooks are central to the workflow: they **gate** each skill on
 the pipeline's recorded state and **persist** each skill's own state. Hooks
@@ -15,11 +15,11 @@ memory or goodwill.
   (e.g. `pre-code.py`, `post-code.py`).
 - Hooks MUST read and write files only in the **workspace folder**
   (`<workspace>/<repo>/…`), resolved via the `.acs` `settings.json`
-  (see [06-configuration.md](06-configuration.md)). Most access stays inside
+  (see [configuration.md](configuration.md)). Most access stays inside
   the ticket's own partition, but hooks also maintain the repo-level files
   (`tickets-index.json`, `metrics.json`, `sessions/`), and
   `pre-create-spec.py` MAY read the parent epic's partition to check its
-  design state ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  design state ([workspace-and-state.md](workspace-and-state.md)).
 
 ### Pre-hooks — readiness gating
 
@@ -33,7 +33,7 @@ A pre-hook runs before its skill and checks **readiness**:
   "run /init"), `workspace_path` is valid and outside the repo, and the
   `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
   `.lock` file and exit 2 if another session holds it
-  ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  ([workspace-and-state.md](workspace-and-state.md)).
 
 **Exit code contract:**
 
@@ -56,16 +56,16 @@ file in the workspace partition:
   details produced during the run, plus a new entry in the append-only
   `runs` array (timestamps, tokens, cost, status, stop reason). The **last
   `runs` entry is the current state** — the next pre-hook gates on
-  `runs[-1].status` ([07-workspace-and-state.md](07-workspace-and-state.md));
+  `runs[-1].status` ([workspace-and-state.md](workspace-and-state.md));
   nothing is mirrored at top level.
 - Post-hooks also update the ticket's **`pipeline-state.json`** step ledger,
   and the repo-level **`tickets-index.json`** and **`metrics.json`**
   (working time, tokens, cost per run — see
-  [07-workspace-and-state.md](07-workspace-and-state.md)).
+  [workspace-and-state.md](workspace-and-state.md)).
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
   the previous state in place silently.
-- See [07-workspace-and-state.md](07-workspace-and-state.md) for the state
+- See [workspace-and-state.md](workspace-and-state.md) for the state
   file inventory and schemas.
 
 ## Hook inventory
@@ -96,8 +96,8 @@ examples given in the requirements; exact names to confirm.
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
 | `/create-spec` | `/create-ticket` completed; ticket file exists; if the ticket (or its parent epic) needs design, that design is completed. |
 | `/code` | `/create-spec` completed; specs exist. |
-| `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([02-workflow.md](02-workflow.md#review-feedback-loop)). |
-| `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [03-skills.md](03-skills.md#product-level-delivery-tickets)). Also **user-invoked only**. |
+| `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
+| `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). Also **user-invoked only**. |
 
 ## Runtime & resolution rules
 
@@ -106,9 +106,9 @@ examples given in the requirements; exact names to confirm.
   finalizes it. A hard crash that skips the post-hook therefore still leaves
   `runs[-1].status == "in_progress"` (plus a stale `.lock`) — gates read
   "not completed" and the next run reconciles
-  ([02-workflow.md](02-workflow.md#resuming-a-ticket)). A deliberate session
+  ([workflow.md](workflow.md#resuming-a-ticket)). A deliberate session
   handoff finalizes the entry as `handed_off` and releases the lock
-  ([02-workflow.md](02-workflow.md#session-handoff)).
+  ([workflow.md](workflow.md#session-handoff)).
 - **Ticket id resolution for hooks**: the coordinator writes a
   **per-checkout pointer file** at skill start —
   `<workspace>/<repo>/sessions/<checkout-id>.json` (one per repo
@@ -116,14 +116,14 @@ examples given in the requirements; exact names to confirm.
   resolve the current ticket; the **branch name is the fallback** when no
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
-  skill ([03-skills.md](03-skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
-  branch name ([02-workflow.md](02-workflow.md#ticket-context)).
+  skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
+  branch name ([workflow.md](workflow.md#ticket-context)).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.
 - **Validation**: hooks perform lightweight structural validation of the
   JSON files they read/write (required keys, enum values) in stdlib code;
   full JSON Schema validation happens at skill level
-  ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  ([workspace-and-state.md](workspace-and-state.md)).
 
 ## Event binding (resolved at implementation)
 

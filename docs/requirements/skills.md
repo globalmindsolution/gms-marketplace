@@ -1,4 +1,4 @@
-# 03 — Skill Requirements
+# Skill Requirements
 
 Thirteen skills in total: the bootstrap skill (`/init`), the umbrella command
 (`/ship`), the session-handoff utility (`/handoff`), the update assistant
@@ -9,24 +9,24 @@ Every **workflow** skill MUST:
 
 - run the Reflection cycle (plan → execute → verify) with its own
   `<skill>-planner`, `<skill>-executor`, `<skill>-verifier` subagents
-  ([04-architecture.md](04-architecture.md));
+  ([reflection.md](reflection.md));
 - be gated by a pre-hook and persisted by a post-hook
-  ([05-hooks.md](05-hooks.md));
+  ([hooks.md](hooks.md));
 - read and write **only** inside `<workspace>/<repo>/<ticket-id>/` for state
   (the consumer repo is touched only where the skill's job requires it,
   e.g. `/code` edits source files);
 - read configuration from the `.acs` `settings.json`
-  ([06-configuration.md](06-configuration.md)), and spawn its
+  ([configuration.md](configuration.md)), and spawn its
   planner/executor/verifier on the models and effort levels configured there
-  ([06-configuration.md](06-configuration.md#subagent-models));
+  ([configuration.md](configuration.md#subagent-models));
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
-  ([02-workflow.md](02-workflow.md#ticket-context));
+  ([workflow.md](workflow.md#ticket-context));
 - record every requirement Q&A in the per-ticket **clarification ledger**
   (`clarifications.json`): research first, ask once at the cheapest phase
   (re-asking an answered question is a defect), record answers before acting
   on them, and record unanswerable decisions as visible **assumptions** with
-  rationale ([07-workspace-and-state.md](07-workspace-and-state.md));
+  rationale ([workspace-and-state.md](workspace-and-state.md));
 - end every direct invocation with the **standard completion report**
   (Ticket / Status / Results / Findings / Artifacts / Metrics / Next), rendered
   only after the post-hook succeeded; under `/ship` the compact XML handoff
@@ -68,7 +68,7 @@ Purpose: drive the whole pipeline from one command.
   `/create-ticket` → `/create-design` (when the ticket needs design) →
   `/create-spec` → `/code` → `/create-pr` — and stop before `/merge-pr`,
   which stays a user action
-  ([02-workflow.md](02-workflow.md#umbrella-command-ship)).
+  ([workflow.md](workflow.md#umbrella-command-ship)).
 - MUST NOT bypass any pre/post hook; it adds orchestration only.
 - SHOULD be resumable: re-running it for a ticket continues from the first
   incomplete step recorded in workspace state.
@@ -76,13 +76,13 @@ Purpose: drive the whole pipeline from one command.
   reflection cycle **in a fresh subagent context**, returning only a compact
   XML handoff — `/ship` tracks the pipeline through `pipeline-state.json` so
   its context can be cleared between steps
-  ([02-workflow.md](02-workflow.md#context-handoff-between-steps)).
+  ([workflow.md](workflow.md#context-handoff-between-steps)).
 
 ## `/handoff` (utility)
 
 Purpose: deliberately hand the current ticket/skill off to a fresh session
 when the current one grows long
-([02-workflow.md](02-workflow.md#session-handoff)).
+([workflow.md](workflow.md#session-handoff)).
 
 - Flushes all in-flight work and soft context (user clarifications,
   decisions, partial findings, gotchas) to the ticket partition, finalizes
@@ -150,7 +150,7 @@ else is verified against.
   an **existing** product: reverse-engineers a baseline PRD from the
   codebase and docs, confirming open points with the user.
 - Produces the PRD doc set in the consumer repo at `prd_path` (default
-  `docs/product/` — [06-configuration.md](06-configuration.md)):
+  `docs/product/` — [configuration.md](configuration.md)):
   - `prd.md` — vision, problem statement, target users & personas, goals
     with **measurable success metrics**, prioritized features (e.g.
     MoSCoW), product-level NFRs, constraints & assumptions, out-of-scope;
@@ -166,7 +166,7 @@ else is verified against.
   run creates its own delivery ticket.
 - Downstream: `/create-architecture` is verified against the PRD, and
   `/create-ticket` traces tickets to PRD features and flags divergence
-  ([02-workflow.md](02-workflow.md#product-level-architecture)).
+  ([workflow.md](workflow.md#product-level-architecture)).
 
 ## `/create-architecture` (product-level)
 
@@ -183,7 +183,7 @@ living system documentation the whole pipeline designs and verifies against.
   confirming open points with the user; for a **greenfield** product it
   designs the system to satisfy the PRD.
 - Produces the doc set in the **consumer repo** at `architecture_path`
-  (default `docs/architecture/` — [06-configuration.md](06-configuration.md)),
+  (default `docs/architecture/` — [configuration.md](configuration.md)),
   split into **high-level design (HLD)** and **low-level design (LLD)**:
   - `hld/overview.md` — system context, goals, quality attributes,
     constraints;
@@ -208,14 +208,14 @@ living system documentation the whole pipeline designs and verifies against.
   in the C4 views).
 - State lives in the delivery ticket's partition
   (`create-architecture-state.json`)
-  ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: docs-only PR via the
   [product-level delivery rules](#product-level-delivery-tickets) — each
   run creates its own delivery ticket; the TDD pipeline does not apply to a
   docs-only change.
 - Maintenance afterwards belongs to the pipeline: `/create-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
-  architecture ([02-workflow.md](02-workflow.md#product-level-architecture)).
+  architecture ([workflow.md](workflow.md#product-level-architecture)).
 
 ## `/create-project` (product-level)
 
@@ -245,7 +245,7 @@ architecture, so the ticket pipeline works from the very first ticket.
   verification.
 - State lives in the delivery ticket's partition
   (`create-project-state.json`)
-  ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: bootstrap PR via the
   [product-level delivery rules](#product-level-delivery-tickets) — its own
   delivery ticket. The scaffolded CI workflow runs on this very PR —
@@ -272,10 +272,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   **story**/**task** tickets; each child gets its own `<ticket-id>` and runs
   its own pipeline. The epic's status is auto-managed: **In Progress** when
   work starts on any child, **Done** when all children are merged
-  (see [02-workflow.md](02-workflow.md#epic-fan-out)).
+  (see [workflow.md](workflow.md#epic-fan-out)).
 - Ticket title and description MUST follow the per-type ticket formats
   configured in `settings.json` — epic, story, and task each have their own
-  title/description format ([06-configuration.md](06-configuration.md)).
+  title/description format ([configuration.md](configuration.md)).
 - Tickets are **local-first**: the ticket JSON in the workspace is the local
   source of truth. Optionally, based on the `tracker` config in
   `settings.json`, the ticket syncs **two-way** with a **GitHub Project** or
@@ -306,7 +306,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   in **both directions** (epic lists `children`; each child stores `parent`).
 - MUST set **`needs_design`** during analysis: always `true` for epics; for
   stories/tasks the planner recommends a value and the user confirms it
-  ([02-workflow.md](02-workflow.md)).
+  ([workflow.md](workflow.md)).
 - MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
@@ -345,13 +345,13 @@ tickets where the change is architecturally significant.
   changed flows), impact & risks, rollout/migration**.
 - Child tickets of an epic do NOT repeat design: their `/create-spec` reads
   the **parent epic's** `design.md` (cross-partition read,
-  [07-workspace-and-state.md](07-workspace-and-state.md)).
+  [workspace-and-state.md](workspace-and-state.md)).
 - The `create-design-verifier` checks: alternatives genuinely weighed,
   consistency with the existing codebase and docs, feasibility, NFR
   coverage — all findings block, same 3-iteration reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
   `create-design-verifier`.
-- When `adr_path` is configured ([06-configuration.md](06-configuration.md)),
+- When `adr_path` is configured ([configuration.md](configuration.md)),
   the design's accepted decision records are committed into the consumer
   repo by `/code` as part of its documentation updates.
 
@@ -405,10 +405,10 @@ Purpose: implement the specs in the consumer repo using TDD.
   following the repo's existing conventions. MUST also merge the ticket's
   acceptance criteria and behavior-defining clarifications into the touched
   feature area's file under `requirements_path` (the living requirements —
-  [02-workflow.md](02-workflow.md#living-requirements)). Docs work is part
+  [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
 - Commit messages MUST follow the commit message format configured in
-  `settings.json` ([06-configuration.md](06-configuration.md)).
+  `settings.json` ([configuration.md](configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,
   **features** (does it satisfy the ticket/specs), **quality**, **technical
   standards**, **architecture**, **system design**, **security**, and
@@ -418,14 +418,14 @@ Purpose: implement the specs in the consumer repo using TDD.
   when one exists (the ticket's own or its parent epic's). Blocking findings
   trigger automatic remediation iterations (max 3); findings and stop
   reasons land in `code-state.json`
-  ([02-workflow.md](02-workflow.md#review-feedback-loop)).
+  ([workflow.md](workflow.md#review-feedback-loop)).
 - MUST record progress, findings, errors, and stop reasons so an interrupted
   run can resume; final state lands in `code-state.json` via the post-hook.
 - On start, if the previous run is `in_progress`/`interrupted`/`failed`,
   `/code` MUST **reconcile** before continuing: verify recorded progress
   against reality (e.g. re-run tests for specs marked implemented) and
   resume from the first unfinished spec/phase
-  ([02-workflow.md](02-workflow.md#resuming-a-ticket)).
+  ([workflow.md](workflow.md#resuming-a-ticket)).
 - Pre-hook (`pre-code.py`) MUST verify specs exist and `/create-spec`
   completed; otherwise exit 2 to stop the skill.
 - Subagents: `code-planner`, `code-executor`, `code-verifier`.
@@ -436,7 +436,7 @@ Purpose: implement the specs in the consumer repo using TDD.
   measurement) but the guarantees do not: the full suite still runs once and
   must stay green, and executable-code diffs under the flag are blocking
   findings.
-- When **`e2e`** is configured ([06-configuration.md](06-configuration.md)):
+- When **`e2e`** is configured ([configuration.md](configuration.md)):
   executors author the e2e tests their specs declared (same changeset) and run
   the affected subset; the `code-verifier` runs the **full e2e suite** (setup
   -> command -> teardown, always) — no zero-findings verdict without a green
@@ -460,7 +460,7 @@ Purpose: ship the implementation as a pull request.
 - MUST record the PR reference (number/URL) in the workspace state.
 - Subagents: `create-pr-planner`, `create-pr-executor`, `create-pr-verifier`.
 - PR title and PR description MUST follow the formats configured in
-  `settings.json` ([06-configuration.md](06-configuration.md)).
+  `settings.json` ([configuration.md](configuration.md)).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**
   label.
 - **[ASSUMPTION]** PRs are created ready-for-review (not draft); reviewers
@@ -484,7 +484,7 @@ Purpose: land the change.
   readiness check is **report-only**: `/merge-pr` never routes fixes back to
   `/code` automatically.
 - When the merged ticket is the last open child of an epic, the epic MUST be
-  auto-marked done ([02-workflow.md](02-workflow.md#epic-fan-out)) —
+  auto-marked done ([workflow.md](workflow.md#epic-fan-out)) —
   performed by the `post-merge-pr` hook.
 - Subagents: `merge-pr-planner`, `merge-pr-executor`, `merge-pr-verifier`.
 - Merge strategy is configurable via `merge_strategy` in `settings.json`
@@ -492,4 +492,4 @@ Purpose: land the change.
 - Post-merge actions (all required): **delete the branch**, **clean up the
   worktree** (if one was used), and **mark the ticket done** — in workspace
   state, in the remote tracker (if synced), and by archiving the ticket
-  partition ([07-workspace-and-state.md](07-workspace-and-state.md)).
+  partition ([workspace-and-state.md](workspace-and-state.md)).

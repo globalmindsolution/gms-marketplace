@@ -3,7 +3,7 @@
 > Living architecture doc set for the **acs plugin itself** (dogfooding:
 > this repo is a consumer repo of its own product). Bootstrapped from the
 > implemented system; kept current by the pipeline per the living-architecture
-> rules in `docs/02-workflow.md`. All diagrams are Mermaid.
+> rules in `docs/requirements/workflow.md`. All diagrams are Mermaid.
 
 ## System context
 

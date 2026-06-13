@@ -1,4 +1,4 @@
-# 02 — End-to-End Workflow
+# End-to-End Workflow
 
 ## Pipeline
 
@@ -58,8 +58,8 @@ flowchart LR
   skill's own state into a JSON state file in the workspace
   (e.g. `post-code.py` writes `code-state.json`).
 
-See [05-hooks.md](05-hooks.md) for hook details and
-[07-workspace-and-state.md](07-workspace-and-state.md) for state file
+See [hooks.md](hooks.md) for hook details and
+[workspace-and-state.md](workspace-and-state.md) for state file
 requirements.
 
 ## Umbrella command: `/ship`
@@ -107,7 +107,7 @@ order:
    discussed there).
 3. **Branch name** — the ticket id is parsed from the current git branch
    name, which embeds it by convention (see formats in
-   [06-configuration.md](06-configuration.md)).
+   [configuration.md](configuration.md)).
 
 If no ticket id can be resolved, the skill MUST stop and ask the user.
 
@@ -115,8 +115,8 @@ Note: pre/post **hooks** are deterministic scripts and cannot interpret
 conversation history — they resolve the ticket id from the **per-checkout
 pointer file** written by the coordinator at skill start
 (`<workspace>/<repo>/sessions/<checkout-id>.json`), falling back to the
-branch name. See [05-hooks.md](05-hooks.md) and
-[07-workspace-and-state.md](07-workspace-and-state.md).
+branch name. See [hooks.md](hooks.md) and
+[workspace-and-state.md](workspace-and-state.md).
 
 ## Epic fan-out
 
@@ -143,7 +143,7 @@ Every skill MUST internally run a **plan → execute → verify** cycle using a
 dedicated subagent per phase (e.g. `code-planner`, `code-executor`,
 `code-verifier`). The coordinator orchestrates these subagents and
 communicates with them in XML. Details in
-[04-architecture.md](04-architecture.md).
+[reflection.md](reflection.md).
 
 ## Review feedback loop
 
@@ -160,7 +160,7 @@ Changeset review happens **inside `/code`**, performed by the
   still applies), re-verify.
 - **All findings block** — there is no severity threshold; the loop runs
   until the verifier reports **zero findings**. When an `e2e` layer is
-  configured ([06-configuration.md](06-configuration.md)), a **green e2e
+  configured ([configuration.md](configuration.md)), a **green e2e
   run** is part of the zero-findings bar.
 - The loop runs at most **3 iterations**; if findings remain, `/code` stops
   and records the findings and stop reason in `code-state.json`.
@@ -243,7 +243,7 @@ shared or synced workspace — out of scope for now.
 
 Tickets flow through the pipeline; the **product architecture doc set** —
 bootstrapped by the product-level `/create-architecture` skill
-([03-skills.md](03-skills.md)) at `architecture_path` in the consumer repo —
+([skills.md](skills.md)) at `architecture_path` in the consumer repo —
 is the stable frame around it.
 
 Above the architecture sits the **PRD** (`prd_path`, bootstrapped and
@@ -316,7 +316,7 @@ ticket:
    own review.
 
 Each product-level step (2–4) creates its own **delivery ticket** and PR
-([03-skills.md](03-skills.md#product-level-delivery-tickets)), so even the
+([skills.md](skills.md#product-level-delivery-tickets)), so even the
 bootstrap work is tracked in project management — a fresh product's history
 starts at ticket #1.
 

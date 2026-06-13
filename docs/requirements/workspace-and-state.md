@@ -1,11 +1,11 @@
-# 07 — Workspace & State Management
+# Workspace & State Management
 
 ## Workspace folder
 
 - The workspace is the single home for all pipeline state. **All skills and
   hooks MUST read and write their files in the workspace folder**, located
   via `workspace_path` in `settings.json`
-  ([06-configuration.md](06-configuration.md)).
+  ([configuration.md](configuration.md)).
 - The workspace MUST live **outside the consumer repo**. Rationale: state
   must survive and be shared across git worktrees, enabling **parallel
   tasks** — a worktree per ticket without state colliding or polluting the
@@ -68,7 +68,7 @@ Repo-level files (all maintained by hooks):
   pointer written by the coordinator at skill start; `<checkout-id>` is
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
-  ([05-hooks.md](05-hooks.md)).
+  ([hooks.md](hooks.md)).
 - **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
@@ -78,11 +78,11 @@ delivery ticket, and the skill's state file (`create-prd-state.json`,
 `create-architecture-state.json`, `create-project-state.json`) lives in
 that ticket's partition; the skills' *outputs* (PRD, architecture doc set,
 repo skeleton) live in the consumer repo
-([03-skills.md](03-skills.md#product-level-delivery-tickets)).
+([skills.md](skills.md#product-level-delivery-tickets)).
 
 `ticket.json` is the local source of truth for the ticket. When a remote
 tracker is configured, it MUST hold the local↔remote id mapping used for
-two-way sync ([06-configuration.md](06-configuration.md)), e.g.:
+two-way sync ([configuration.md](configuration.md)), e.g.:
 
 ```json
 "external": { "provider": "jira", "key": "PROJ-456" }
@@ -114,10 +114,10 @@ Each state file MUST capture:
   at skill start and finalized by the post-hook — so even a hard crash that
   skips the post-hook leaves `runs[-1].status == "in_progress"`, which
   downstream gates treat as not completed and the next run reconciles
-  ([02-workflow.md](02-workflow.md#resuming-a-ticket)).
+  ([workflow.md](workflow.md#resuming-a-ticket)).
 - Run statuses: `in_progress`, `completed`, `failed`, `interrupted`, and
   `handed_off` — a deliberate session handoff, where the entry also carries
-  a handoff summary ([02-workflow.md](02-workflow.md#session-handoff)).
+  a handoff summary ([workflow.md](workflow.md#session-handoff)).
 - Working time is **computed** from `started_at`/`ended_at`, never stored.
 - `skill` and `ticket_id` do echo the filename and partition folder — kept
   deliberately so the file stays self-describing once moved to `archive/`,
@@ -152,7 +152,7 @@ JSON Schemas for `ticket.json`, `pipeline-state.json`, each
 `<skill>-state.json`, `settings.json`, `metrics.json`, and
 `clarifications.json` are **shipped with the plugin** (`schemas/`). Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
-([05-hooks.md](05-hooks.md)).
+([hooks.md](hooks.md)).
 
 ## Requirements
 
@@ -162,7 +162,7 @@ perform lightweight stdlib-only structural checks
   `/create-spec` and `/code` read the parent epic's `design.md`);
   cross-partition **writes** are limited to the defined parent-epic status
   updates performed by child hooks
-  ([02-workflow.md](02-workflow.md#epic-fan-out)).
+  ([workflow.md](workflow.md#epic-fan-out)).
 - Re-running a skill for the same ticket updates the **current state** in
   place and **appends to the `runs` array** — run history is append-only.
 - State files MUST be valid JSON and SHOULD be human-readable
@@ -184,9 +184,9 @@ worktree per ticket**:
   ticket partition (containing checkout id, pid, and a timestamp). Pre-hooks
   exit 2 when another session holds the lock; the lock is released by the
   post-hook, or by a session handoff
-  ([02-workflow.md](02-workflow.md#session-handoff)). The lock is **re-entrant for the same checkout id** — resuming
+  ([workflow.md](workflow.md#session-handoff)). The lock is **re-entrant for the same checkout id** — resuming
   from the same worktree reclaims its own lock
-  ([02-workflow.md](02-workflow.md#resuming-a-ticket)). **[ASSUMPTION]** A
+  ([workflow.md](workflow.md#resuming-a-ticket)). **[ASSUMPTION]** A
   stale lock from a *different* checkout (no live process / very old
   timestamp) is reported to the user to clear manually rather than being
   auto-stolen.
@@ -216,7 +216,7 @@ all of it:
 Links are stored in **both directions**: the epic's `ticket.json` lists
 `children`; each child's `ticket.json` stores `parent`. The epic's status is
 auto-managed — **In Progress** when work starts on any child, **Done** when
-all children are merged ([02-workflow.md](02-workflow.md#epic-fan-out)) —
+all children are merged ([workflow.md](workflow.md#epic-fan-out)) —
 with child hooks performing the parent updates (first workflow skill run
 marks In Progress; the last child's `post-merge-pr` marks Done).
 

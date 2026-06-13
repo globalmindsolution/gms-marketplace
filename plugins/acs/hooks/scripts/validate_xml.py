@@ -2,7 +2,7 @@
 """validate_xml.py — validate coordinator/subagent XML messages against acs-messages.xsd.
 
 Skills validate every task/result/handoff message so malformed messages fail fast
-instead of silently degrading the pipeline (docs/04-architecture.md).
+instead of silently degrading the pipeline (docs/requirements/reflection.md).
 
 Strategy (stdlib-only requirement):
   1. When `xmllint` is available (ships with macOS and most Linux distros), run the

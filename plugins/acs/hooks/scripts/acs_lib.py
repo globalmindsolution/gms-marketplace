@@ -11,7 +11,7 @@ This module implements the deterministic half of the acs workflow:
   * locking               (.lock per ticket partition, re-entrant per checkout)
   * pre-hook gating       (exit 2 = blocked) and post-hook persistence
 
-Hook event binding (resolves the open question in docs/05-hooks.md):
+Hook event binding (resolves the open question in docs/requirements/hooks.md):
   * pre-<skill>.py  runs via a PreToolUse hook matching the Skill tool (dispatch.py routes
     by skill name); exit code 2 blocks the skill before it runs.
   * post-<skill>.py is invoked by the skill's coordinator as its mandatory final step
@@ -53,7 +53,7 @@ PRODUCT_TICKET_TITLES = {
     "create-project": "Project scaffold",
 }
 
-# Placeholder vocabulary per inline format field (docs/06-configuration.md).
+# Placeholder vocabulary per inline format field (docs/requirements/configuration.md).
 FORMAT_PLACEHOLDERS = {
     "branch_name": {"ticket_id", "type", "slug", "external_key"},
     "commit_message": {"ticket_id", "type", "summary", "external_key"},
@@ -1190,7 +1190,7 @@ def run_post(skill):
 
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
-    its lock — abnormal endings must still write state (docs/05-hooks.md)."""
+    its lock — abnormal endings must still write state (docs/requirements/hooks.md)."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)

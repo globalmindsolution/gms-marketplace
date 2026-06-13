@@ -1,7 +1,7 @@
 # PRD — acs (Autonomous Coding Skills)
 
-> Bootstrapped as the dogfood baseline, derived from the requirements corpus
-> (`docs/01..08`) and the implemented plugin. Amendments go through
+> Bootstrapped as the dogfood baseline, derived from the requirements set
+> (`docs/requirements/`) and the implemented plugin. Amendments go through
 > `/acs:create-prd` re-runs — each amendment is its own delivery ticket and
 > docs PR.
 
@@ -74,7 +74,7 @@ parallelize work that lives in a conversation window.
 ## Constraints & assumptions
 
 - Claude Code plugin API (skills/agents/hooks as documented) is the only runtime.
-- Delivery is git + GitHub PRs (`gh` assumed); correctness must be checkable by automated tests for the strong-fit domains (see `docs/01-overview.md`).
+- Delivery is git + GitHub PRs (`gh` assumed); correctness must be checkable by automated tests for the strong-fit domains (see `docs/requirements/overview.md`).
 - Subagents cannot interact with the user — all user interaction happens in coordinators (drives the `needs_input` handoff design).
 
 ## Out of scope

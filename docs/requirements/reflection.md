@@ -1,4 +1,4 @@
-# 04 — Architecture Patterns
+# Reflection & Subagent Architecture
 
 ## Coordinator–subagents pattern
 
@@ -11,7 +11,7 @@ The workflow is built on a **coordinator–subagents** architecture:
   executor task per spec), rather than a fixed, hard-coded task list.
 - The coordinator MUST NOT keep conversation history between workflow steps.
   Everything a later step needs is read from JSON files in the workspace
-  (see [07-workspace-and-state.md](07-workspace-and-state.md)).
+  (see [workspace-and-state.md](workspace-and-state.md)).
 
 ## Reflection pattern: plan → execute → verify
 
@@ -40,13 +40,13 @@ Requirements:
 - Each role's **model and reasoning effort are user-configurable** in
   `settings.json` (`models.planner` / `executor` / `verifier`, with
   per-skill overrides); unset values inherit the parent context's model and
-  effort ([06-configuration.md](06-configuration.md#subagent-models)).
+  effort ([configuration.md](configuration.md#subagent-models)).
 
 > **Note:** the `code-verifier` carries the broadest verification scope: in
 > addition to spec conformance, tests, and coverage, it reviews the whole
 > changeset (business logic, features, quality, technical standards,
 > architecture, system design, security, documentation). There is no
-> separate review skill — see [03-skills.md](03-skills.md).
+> separate review skill — see [skills.md](skills.md).
 >
 > **Verifier anchoring**: a verifier judges the work against the **gated
 > upstream contracts** (specs, ticket, design), never against the
@@ -130,7 +130,7 @@ during design:
   verifier verdict) to the ticket partition **at the phase boundary**,
   before starting the next phase — a context loss or crash never loses more
   than the in-flight phase
-  ([02-workflow.md](02-workflow.md#resuming-a-ticket)).
+  ([workflow.md](workflow.md#resuming-a-ticket)).
 - The coordinator reads these files to decide the next action; it never
   depends on having seen earlier messages.
 - This makes every step **resumable** (a crashed or interrupted skill can be

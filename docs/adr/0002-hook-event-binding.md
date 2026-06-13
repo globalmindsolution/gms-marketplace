@@ -5,7 +5,7 @@
 ## Context
 
 Claude Code has no "skill completed" hook event, but the pipeline needs
-enforced pre-gating and reliable post-persistence (docs/05-hooks.md).
+enforced pre-gating and reliable post-persistence (docs/requirements/hooks.md).
 
 ## Decision
 

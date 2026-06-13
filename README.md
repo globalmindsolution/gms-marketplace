@@ -44,6 +44,6 @@ runs resumable and tickets shippable in parallel across git worktrees.
 
 | Where | What |
 |-------|------|
-| [docs/](docs/README.md) | Business requirements (workflow, skills, hooks, configuration, workspace, usage walkthroughs) |
+| [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
 | [plugins/acs/README.md](plugins/acs/README.md) | Plugin usage: install, quick start, skill reference, configuration, troubleshooting |
 | [plugins/acs/docs/INTERNALS.md](plugins/acs/docs/INTERNALS.md) | Implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |

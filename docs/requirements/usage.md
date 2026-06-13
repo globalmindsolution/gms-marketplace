@@ -1,8 +1,8 @@
-# 08 — Usage Walkthroughs
+# Usage Walkthroughs
 
 How a developer drives `acs` day to day. Commands are typed in a Claude Code
 session inside the consumer repo. Everything here follows the requirements
-in docs 01–07; this doc adds no new rules, it shows them in action.
+in the sibling files; this doc adds no new rules, it shows them in action.
 
 ## One-time setup (any repo)
 
