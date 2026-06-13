@@ -23,6 +23,7 @@ Run:  python3 evals/run_evals.py            # free tier only (default)
       python3 evals/run_evals.py --list
 """
 
+import glob
 import json
 import os
 import shutil
@@ -41,18 +42,23 @@ SOURCE_SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 def installed_scripts_dir():
     """Resolve the hook-scripts dir of the *installed* acs build, newest version.
 
-    Falls back to the in-repo source tree when no install is present, so the
-    free tier still runs in a checkout that never installed the plugin. The
-    chosen path is what every gate check executes, so an eval against the
-    installed build is faithful to what consumers actually load.
+    Marketplace-name-agnostic: scans every `<marketplace>/acs/<version>/` under
+    the plugin cache and picks the newest version, so it keeps working across a
+    marketplace rename (e.g. gms-plugins -> gms-marketplace). Falls back to the
+    in-repo source tree when no install is present, so the free tier still runs
+    in a checkout that never installed the plugin. The chosen path is what every
+    gate check executes, so an eval against the installed build is faithful to
+    what consumers actually load.
     """
-    cache = os.path.expanduser("~/.claude/plugins/cache/gms-plugins/acs")
-    if os.path.isdir(cache):
-        versions = [v for v in os.listdir(cache)
-                    if os.path.isdir(os.path.join(cache, v, "hooks", "scripts"))]
-        if versions:
-            newest = max(versions, key=_version_key)
-            return os.path.join(cache, newest, "hooks", "scripts"), newest
+    cache = os.path.expanduser("~/.claude/plugins/cache")
+    candidates = []  # (version, scripts_dir)
+    for scripts in glob.glob(os.path.join(cache, "*", "acs", "*",
+                                          "hooks", "scripts")):
+        if os.path.isdir(scripts):
+            candidates.append((scripts.split(os.sep)[-3], scripts))
+    if candidates:
+        version, scripts = max(candidates, key=lambda c: _version_key(c[0]))
+        return scripts, version
     return SOURCE_SCRIPTS, "source"
 
 

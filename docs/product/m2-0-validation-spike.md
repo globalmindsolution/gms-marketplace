@@ -168,6 +168,11 @@ consumer repo (`/tmp/acs-spike`, workspace `/tmp/acs-spike-workspace`) with a
 real GitHub remote (`ducnd0192/acs-spike-m20`). Every functional `ASSERT`
 passed; no product defects. One documentation nit in this runbook (D1 below).
 
+> Build note: this run validated **v0.1.2** (`acs@gms-plugins`). The latest
+> published build is now **v0.1.3** (`acs@gms-marketplace`) — a rename-only
+> release (gms-plugins → gms-marketplace) with no behavioral change — so these
+> findings carry forward unchanged.
+
 - **Step 0** — v0.1.2 installs and loads clean; no *Duplicate hooks* / *Unrecognized
   key: displayName* errors. (G6) ✅
 - **Step 2 (G1 core)** — gate exits 2 and blocks before the skill runs, in both a
