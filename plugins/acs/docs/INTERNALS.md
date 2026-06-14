@@ -384,9 +384,38 @@ sanctioned way to keep children shippable when a slice alone would break.
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
+- `enforcement` (opt-in, /init Step 7c): repo-side CI that holds *every* PR to
+  the same conventions, so the pipeline can't be silently bypassed. /init copies
+  `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
+  `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
+  is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
+  runs on a CI runner with no acs install — it re-derives the conventions by
+  compiling the committed `formats.*` strings to regexes ({ticket_id} ->
+  `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
+  `.+`), reading `ticket_prefix` + `formats` from the committed project
+  `settings.json`. It is fail-closed and tested by `tests/test_conventions_check.py`.
+  The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
+  so the real gate is a required status check on a protected default branch;
+  `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.
+  The same checker runs three modes off one config: `--mode pr` (CI: branch,
+  commit, pr_title, acs_label, pr_description), `--mode pre-push` (local hook:
+  branch + commit subjects of the push range), `--mode commit-msg` (local hook:
+  the commit subject as written). Each mode's checks are `MODE_CHECKS[mode]`
+  intersected with the `enforcement.checks.*` toggles, so local hooks and CI
+  enforce identical, user-configured `formats.*` — laptop and runner never drift.
+  Local hooks install via the pre-commit framework (tracked/shared) or raw
+  `.git/hooks/*` (per-clone), both `--no-verify`-bypassable. The per-clone
+  install is the unhooked, user-invoked skill `/acs:install-hooks` (wrapping the
+  committed `.acs/ci/install-hooks.sh`, which a teammate can run without the
+  plugin) — the `pre-commit install` equivalent for acs.
 
 ## Consumer-repo prerequisites
 
 `git`, `python3` (3.9+, stdlib only), `gh` (PRs; also tracker sync when
-`tracker.provider=github`), `acli` (only when `tracker.provider=jira`),
-`xmllint` (optional — full XSD validation; structural fallback otherwise).
+`tracker.provider=github`), `pre-commit` (recommended — shared local convention
+hooks), `acli` (only when `tracker.provider=jira`), `xmllint` (optional — full
+XSD validation; structural fallback otherwise). `acs_lib.check_toolchain()` is
+the single source of truth for this list (kind = required | recommended |
+optional, with per-platform install commands); `/init` Step 0b reports it and
+offers to install the missing required/recommended tools before configuring
+anything, so the full workflow is ready rather than failing mid-pipeline.

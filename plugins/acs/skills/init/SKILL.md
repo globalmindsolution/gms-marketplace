@@ -1,6 +1,6 @@
 ---
 name: init
-description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, and subagent models. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:init first", or when the user wants to change any acs setting.
+description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:init first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
 ---
 
 You are the coordinator of `/acs:init`, the acs bootstrap skill. This is NOT a
@@ -34,6 +34,50 @@ If `checkout_root` is empty, stop: tell the user `/acs:init` must run inside
 the consumer repo. Use `main_repo_root` (the main checkout, even from a linked
 worktree) as `<repo>` everywhere below — local settings and `.gitignore`
 belong to the main checkout so linked worktrees inherit them.
+
+## Step 0b — Toolchain preflight (install what the full workflow needs)
+
+Before configuring anything, make sure the machine has the tools the full acs
+pipeline uses, so the user does not hit a missing `gh` or `pre-commit` mid-flow.
+Print the status table (`check_toolchain` is the single source of truth — git,
+python3, gh, pre-commit, xmllint, acli):
+
+```bash
+python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1])
+import acs_lib
+for r in acs_lib.check_toolchain(acs_lib.load_settings(".")[0]):
+    mark = "✓" if r["present"] else ("○" if r["kind"] == "optional" else "✗")
+    print("%s %-11s %-11s %s" % (mark, r["name"], r["kind"], r["version"] or r["why"]))
+print("MISSING:", ", ".join(acs_lib.missing_tools(acs_lib.load_settings(".")[0])) or "none")
+PY
+```
+
+What the kinds mean and how to act:
+
+- **required** (`git`, `python3`; plus `gh` when the github tracker is chosen,
+  `acli` for jira) — the pipeline cannot run without these. `git`/`python3` are
+  already present (this skill is running). If a required tool is missing, install
+  it before continuing.
+- **recommended** (`gh`, `pre-commit`) — a major capability degrades without
+  them: no `gh` means `/acs:create-pr`, `/acs:merge-pr`, labels, and branch
+  protection can't run; no `pre-commit` means the shared local convention hooks
+  fall back to per-clone raw hooks.
+- **optional** (`xmllint`) — graceful fallback exists (structural XML validation
+  instead of full XSD); never block on it.
+
+For every **required + recommended** tool in `MISSING`, offer to install it now
+(never install silently). Detect the platform and use the matching command from
+each tool's `install` map — `uname -s` is `Darwin` → use the `macos` command
+(prefer Homebrew: check `command -v brew`); `Linux` with `apt-get` → the
+`debian` command; otherwise show the `any`/URL hint. Examples:
+`brew install gh`, `brew install pre-commit` (or `pipx install pre-commit`),
+`sudo apt-get install -y libxml2-utils`. Ask once (AskUserQuestion or a compact
+prompt) which missing tools to install; run the chosen commands and re-run the
+table to confirm. If the user declines, continue — but record the gap and repeat
+the install hint in the Step 8 summary so the workflow degradation is explicit.
+Authentication (`gh auth login`, `acli auth login`) is handled per-tracker in
+Step 4; this step only ensures the binaries exist.
 
 ## Step 1 — Detect existing settings (all three scopes)
 
@@ -186,6 +230,11 @@ through (the pre-hooks would exit 2 on it later). `branch_name` MUST embed
 `<repo>/.acs/templates/<name>.md`, then absolute path — if the user names a
 custom one, check the file exists.
 
+These same formats can be enforced in CI (branch name, PR title, PR
+description, commit messages) — offered in Step 7c. If the user asks during
+init to "enforce conventions" or "stop the pipeline being bypassed", that is
+Step 7c.
+
 ### models — optional, default inherit
 
 Ask only if the user wants per-role model control. Shape per role
@@ -335,6 +384,197 @@ relocates the install, re-run /acs:init to refresh the path. Test each once:
 `echo '{"tasks":[]}' | python3 <path>/subagent-statusline.py` must exit 0
 silently.
 
+## Step 7c — CI convention enforcement (opt-in, never silent)
+
+Offer to enforce the acs conventions in the consumer repo's CI so a PR that
+never went through `/acs:create-pr` is still held to the same branch name, PR
+title, PR description, label, and commit-message conventions before it can
+merge. Skip the whole step on a plain "no".
+
+Be honest about what this is. The CI check is **necessary but not sufficient**:
+branch name and PR title are observable conventions, but the proof that work
+actually went through the pipeline (the ticket, specs, TDD) lives in the
+workspace OUTSIDE the repo, which CI cannot see. So this makes the conventions
+**mandatory to merge** (raising the floor), and the real gate is **a required
+status check on a protected default branch**. Explain that before configuring
+anything.
+
+### Precondition — conventions must be committed
+
+The check reads `ticket_prefix` + `formats` (+ `enforcement`) from the committed
+`<repo>/.acs/settings.json`; the CI runner has no acs install. If the user chose
+**user scope** in Step 2, those keys are in `~/.acs/settings.json` and CI will
+not see them. When enabling enforcement, write `ticket_prefix`, `formats`, and
+`enforcement` to the **project** file `<repo>/.acs/settings.json` regardless of
+the chosen shared scope, and tell the user. Then confirm the file and the
+checker dir are not gitignored (a broad `.acs/` ignore rule would hide them):
+
+```bash
+for p in .acs/settings.json .acs/ci/check-conventions.py; do
+  git check-ignore -q "$p" && echo "WARNING: $p is gitignored — add '!.acs/' or narrow the rule, or CI cannot read it"
+done || true
+```
+
+### Choose the checks and exemptions
+
+Confirm (defaults shown — accept silently if the user says "defaults are fine"),
+writing them under `enforcement` in the project settings file:
+
+- `enforcement.checks` — `branch_name`, `pr_title`, `pr_description`, `acs_label`
+  default **on**; `commit_message` defaults **off** (noisy under squash-merge,
+  where only the PR title reaches `main`). Turn it on only if the user wants
+  every PR-branch commit subject linted.
+- `enforcement.exempt_branches` — default `["release/*", "dependabot/*",
+  "renovate/*"]` (fnmatch globs that skip all checks — releases and bot PRs).
+- `enforcement.exempt_label` — default `acs-exempt` (a PR carrying it skips all
+  checks; the deliberate escape hatch for a one-off non-ticket PR).
+- `enforcement.require_label` — default `ACS` (the label `/acs:create-pr`
+  applies).
+- `enforcement.pr_description_sections` — default the section headings of the
+  configured `pr_description_template` (for `pr-default`: `Summary`, `Ticket`,
+  `Changes`, `Test plan`). Only the `pr_description` check uses these.
+
+### Install the workflow + checker (copy, don't hand-write)
+
+Copy the shipped templates verbatim — they are stdlib-only and self-contained.
+Run from `<repo>` (the main checkout root):
+
+```bash
+mkdir -p .acs/ci .github/workflows
+for f in check-conventions.py commit-msg pre-push install-hooks.sh; do
+  cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/$f" ".acs/ci/$f"
+done
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/acs-conventions.yml" .github/workflows/acs-conventions.yml
+chmod +x .acs/ci/check-conventions.py .acs/ci/commit-msg .acs/ci/pre-push .acs/ci/install-hooks.sh
+```
+
+`.acs/ci/` carries the checker, the two hook scripts, and `install-hooks.sh` so a
+teammate who only cloned the repo can install the local hooks without the acs
+plugin.
+
+These are regenerated on every re-run, so changing a format later and re-running
+`/acs:init` refreshes them. Stage `.acs/settings.json`, `.acs/ci/`, and
+`.github/workflows/acs-conventions.yml` for the user to commit (do not commit
+yourself unless asked).
+
+### Ensure the labels exist (tracker = github, or any GitHub remote)
+
+Best-effort; harmless if they already exist:
+
+```bash
+gh label create ACS        --description "Created/validated by the acs pipeline" 2>/dev/null || true
+gh label create acs-exempt --description "Skip acs convention checks for this PR" 2>/dev/null || true
+```
+
+### Optional — local hooks: enforce conventions before push (config-driven)
+
+Offer git hooks that enforce the conventions **locally**, before anything
+reaches GitHub. They run the SAME `check-conventions.py` against the SAME
+committed `formats.*` / `enforcement.*` the user just configured — so a custom
+`commit_message` or `branch_name` format is honoured identically on the laptop
+and in CI. PR title and PR description only exist once a PR is open, so the
+local hooks check what is knowable locally:
+
+- **`commit-msg`** (`--mode commit-msg`) — validates the commit subject against
+  `formats.commit_message` the instant it is written (earliest catch).
+- **`pre-push`** (`--mode pre-push`) — validates `formats.branch_name` plus
+  every commit subject in the push range, the last gate before code leaves the
+  machine.
+
+Both honour the `enforcement.checks.*` toggles and the exempt label/branches,
+and both are `--no-verify`-bypassable per-clone — CI is still the backstop. The
+acs pipeline (`/acs:code`, `/acs:create-pr`) already generates branch, commits,
+PR title, and PR body from these formats+templates, so these hooks only bite on
+work done by hand outside the pipeline.
+
+**Preferred — pre-commit framework (tracked, shared with the team).** If the
+repo uses pre-commit (`.pre-commit-config.yaml` present, or the user agrees to
+add it), add these entries under `repos:` and install both stages with
+`pre-commit install --hook-type commit-msg --hook-type pre-push`. Tracked in the
+repo, so every teammate gets them after `pre-commit install` — not per-clone
+copying:
+
+```yaml
+  - repo: local
+    hooks:
+      - id: acs-commit-msg
+        name: acs commit message convention
+        entry: python3 .acs/ci/check-conventions.py --mode commit-msg --message-file
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true       # pre-commit appends the message-file path
+        always_run: true
+      - id: acs-pre-push
+        name: acs branch + commit conventions
+        entry: python3 .acs/ci/check-conventions.py --mode pre-push
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+```
+
+**Fallback — raw git hooks (per-clone).** When not using pre-commit, run the
+committed installer, which copies `.acs/ci/commit-msg` + `.acs/ci/pre-push` into
+this clone and refuses to clobber a non-acs hook:
+
+```bash
+sh .acs/ci/install-hooks.sh
+```
+
+Either way, hooks are **per-clone** — each teammate runs it once after cloning.
+The dedicated command for that is **`/acs:install-hooks`** (or
+`sh .acs/ci/install-hooks.sh` without the plugin); it ensures the `.acs/ci/`
+files exist and installs the hooks, and is the thing to tell teammates to run.
+Offer to run it now for this clone.
+
+### The actual gate — branch protection (admin, one-time)
+
+The workflow is advisory until the check is **required** and the default branch
+**blocks direct pushes**. This is set once by a repo admin and then binds every
+non-admin teammate — they cannot bypass it. Detect admin and act accordingly:
+
+```bash
+slug=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+admin=$(gh api "repos/$slug" --jq .permissions.admin 2>/dev/null)
+branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+echo "repo=$slug default=$branch admin=$admin"
+```
+
+- **`admin=true` and the user consents** — configure protection so the check is
+  required and a PR is mandatory (which blocks direct pushes). The required
+  status-check **context is the workflow job name** (`Branch / PR / commit
+  conventions`); confirm it matches if the user customized the workflow:
+
+  ```bash
+  gh api -X PUT "repos/$slug/branches/$branch/protection" \
+    -H "Accept: application/vnd.github+json" --input - <<'JSON'
+  {
+    "required_status_checks": { "strict": true, "contexts": ["Branch / PR / commit conventions"] },
+    "enforce_admins": true,
+    "required_pull_request_reviews": { "required_approving_review_count": 0 },
+    "restrictions": null
+  }
+  JSON
+  ```
+
+  (`required_pull_request_reviews` present = a PR is mandatory, so direct pushes
+  to `$branch` are blocked; `restrictions: null` keeps all collaborators able to
+  open PRs.) The check first appears in the contexts list only after one workflow run, so
+  if the API rejects an unknown context, tell the user to open a PR first (to
+  register the check), then re-run the command. Mention GitHub **rulesets** as
+  the modern alternative (repo or org level, same effect) if they prefer the UI.
+
+- **`admin` is not `true`** — do NOT attempt the API call (it will 403). The
+  committed workflow file needs no admin, so it still runs and shows a red X on
+  non-conforming PRs. Print the exact command above for an admin to run once,
+  and state clearly: **enforcement is advisory until a repo admin enables the
+  required check + branch protection.** This is the answer to "teammates aren't
+  admins" — the gate is meant to be set once by an admin and then inherited.
+
+Record everything configured here for Steps 8 and the completion report:
+checks enabled, exemptions, files written, labels, pre-push choice, and the
+branch-protection outcome (configured / printed-for-admin / declined).
+
 ## Step 8 — Summary and next steps
 
 Print a markdown table of every resolved setting, its value, and the file it
@@ -345,6 +585,7 @@ landed in (or "default — not written" for untouched defaults), e.g.:
 | `workspace_path` | `/Users/jane/acs-workspace` | `<repo>/.acs/settings.local.json` |
 | `ticket_prefix` | `SHOP` | `<repo>/.acs/settings.json` |
 | `test_coverage_percent` | `90` | default — not written |
+| `enforcement` (CI) | checks on; gate via required check | `<repo>/.acs/settings.json` + `.github/workflows/acs-conventions.yml` |
 
 Then point the user at the next steps. Decide greenfield vs brownfield by
 looking at the repo (`git ls-files` — an existing product codebase is
@@ -361,6 +602,15 @@ brownfield; an empty or docs-only repo is greenfield):
 If tracker CLI checks were skipped or failed in Step 4, repeat the pending fix
 command (`gh auth login` / `acli auth login`) in the summary.
 
+Confirm the full workflow is ready: a one-line toolchain status (from Step 0b)
+and the reminder that the plugin already provides every skill — bootstrap
+(`/acs:init`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
+`/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` →
+`/acs:create-spec` → `/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
+umbrella `/acs:ship`, and utilities `/acs:handoff`, `/acs:update`,
+`/acs:install-hooks`. Repeat any unmet toolchain install hint here so the gap is
+explicit.
+
 ## Completion report (normative)
 
 Every terminal outcome of a direct invocation — completed, failed,
@@ -373,7 +623,7 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set)
+- **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>

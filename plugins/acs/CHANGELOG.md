@@ -15,6 +15,58 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:init` toolchain preflight (Step 0b).** Init now checks every external
+  tool the full workflow needs up front and offers to install the missing ones
+  (consent-gated, platform-aware) instead of failing mid-pipeline on a missing
+  `gh` or `pre-commit`. Backed by `acs_lib.check_toolchain()` — the single
+  source of truth listing `git`, `python3`, `gh`, `pre-commit`, `xmllint`,
+  `acli` with kind (required | recommended | optional, bumped by tracker
+  provider) and per-platform install commands — plus `acs_lib.missing_tools()`.
+  The Step 8 summary now also confirms the full skill set is ready.
+
+- **CI enforcement of acs conventions (opt-in via `/acs:init`).** A new Step 7c
+  offers to scaffold repo-side enforcement so a PR that never went through
+  `/acs:create-pr` is still held to the same conventions before it can merge.
+  It installs:
+  - `.github/workflows/acs-conventions.yml` — a `pull_request` check (re-runs on
+    title/body edits and label changes) that validates **branch name**, **PR
+    title**, **PR description sections**, the **`ACS` label**, and (opt-in)
+    **commit-message** format.
+  - `.acs/ci/check-conventions.py` — a self-contained, stdlib-only checker that
+    compiles the committed `formats.*` strings into regexes (the same vocabulary
+    the pipeline renders from) and reads `ticket_prefix` + `formats` from the
+    committed `.acs/settings.json`; **no acs install is needed on the runner**.
+    It is FAIL-CLOSED (no committed conventions → error + "run /acs:init") and
+    runs in `--mode pr` (CI), `--mode pre-push`, or `--mode commit-msg` (local
+    hooks) — the same checker and the same configured formats everywhere.
+  - Optional **local git hooks** that enforce conventions *before* push, against
+    the SAME configured `formats.*`/`enforcement.*`: `commit-msg` validates the
+    commit subject against `formats.commit_message` as it is written, and
+    `pre-push` validates `formats.branch_name` + the push range's commit
+    subjects. Installed via the pre-commit framework (tracked, shared across the
+    team) or as raw `.git/hooks/*` (per-clone). PR title/description stay CI-only
+    (they don't exist until a PR is open).
+  - New **`enforcement`** settings block (`schemas/settings.schema.json`):
+    `checks.*` toggles, `exempt_branches` globs, `exempt_label`, `require_label`,
+    and `pr_description_sections`.
+- **New skill `/acs:install-hooks`** — the `pre-commit install` equivalent for
+  acs: installs this clone's local `commit-msg` + `pre-push` hooks (per-clone,
+  user-invoked). It ensures the `.acs/ci/` files exist (copying them from the
+  plugin if needed), then installs via the pre-commit framework when the repo
+  uses it or via raw git hooks otherwise. A committed `.acs/ci/install-hooks.sh`
+  lets a teammate who only cloned the repo run it (`sh .acs/ci/install-hooks.sh`)
+  without the acs plugin. `/acs:init` Step 7c now copies the hook scripts +
+  installer into `.acs/ci/` and points at this command.
+- **No-bypass gate guidance.** Because branch/title are cosmetic and the proof
+  of pipeline use lives in the workspace outside the repo, the check is *mandatory
+  to merge* but the real gate is a **required status check on a protected default
+  branch**. Step 7c detects repo-admin (`gh api .permissions.admin`) and either
+  configures branch protection via `gh api` or prints the one-time admin command,
+  with a configurable **`acs-exempt` label + branch allowlist** escape hatch for
+  releases and bot PRs.
+
 ## [0.1.6] - 2026-06-14
 
 ### Fixed

@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project"]
 WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
-UNHOOKED_SKILLS = ["init", "ship", "handoff", "update"]
+UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks"]
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
@@ -1010,6 +1010,74 @@ def tracker_cli_warning(settings):
     if provider == "jira" and not shutil.which("acli"):
         return "tracker.provider is 'jira' but the acli CLI is not installed — tracker sync will fail."
     return None
+
+
+# Every external tool the full acs workflow touches. kind: required (no pipeline
+# without it), recommended (a major capability needs it), optional (graceful
+# fallback). gh/acli are bumped to required by tracker provider. /init's Step 0b
+# preflight reports these and offers to install the missing ones.
+TOOLCHAIN = [
+    {"name": "git", "kind": "required",
+     "why": "version control — every skill operates on the repo and its branches",
+     "install": {"macos": "xcode-select --install", "debian": "apt-get install -y git"}},
+    {"name": "python3", "kind": "required",
+     "why": "runs the hooks, gates, convention checker, and helper CLIs (stdlib only)",
+     "install": {"macos": "brew install python", "debian": "apt-get install -y python3"}},
+    {"name": "gh", "kind": "recommended",
+     "why": "create-pr / merge-pr, labels, branch protection; required for github tracker sync",
+     "install": {"macos": "brew install gh",
+                 "debian": "see https://github.com/cli/cli/blob/trunk/docs/install_linux.md"}},
+    {"name": "pre-commit", "kind": "recommended",
+     "why": "shared, tracked local convention hooks (commit-msg + pre-push)",
+     "install": {"macos": "brew install pre-commit",
+                 "any": "pipx install pre-commit   # or: pip install --user pre-commit"}},
+    {"name": "xmllint", "kind": "optional",
+     "why": "full XSD validation of acs XML messages (structural fallback otherwise)",
+     "install": {"macos": "preinstalled with libxml2", "debian": "apt-get install -y libxml2-utils"}},
+    {"name": "acli", "kind": "optional",
+     "why": "Jira tracker sync (only when tracker.provider = jira)",
+     "install": {"any": "see https://developer.atlassian.com/cloud/acli/"}},
+]
+
+
+def _tool_version(name):
+    """Best-effort one-line version string for an installed tool, or None."""
+    try:
+        out = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=5)
+        lines = (out.stdout or out.stderr or "").splitlines()
+        return lines[0].strip() if lines else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def check_toolchain(settings=None):
+    """Status of every tool the full acs workflow uses (for /init's preflight).
+
+    Returns a list of dicts: name, kind (required|recommended|optional), present
+    (bool), version (str|None), why, install (platform -> command). A tool's kind
+    is bumped to 'required' when settings make it mandatory (tracker provider).
+    """
+    provider = ((settings or {}).get("tracker") or {}).get("provider", "local")
+    rows = []
+    for spec in TOOLCHAIN:
+        kind = spec["kind"]
+        if spec["name"] == "gh" and provider == "github":
+            kind = "required"
+        if spec["name"] == "acli" and provider == "jira":
+            kind = "required"
+        present = shutil.which(spec["name"]) is not None
+        rows.append({
+            "name": spec["name"], "kind": kind, "present": present,
+            "version": _tool_version(spec["name"]) if present else None,
+            "why": spec["why"], "install": spec["install"],
+        })
+    return rows
+
+
+def missing_tools(settings=None, kinds=("required", "recommended")):
+    """Names of not-present tools in the given kinds — what /init should offer to install."""
+    return [r["name"] for r in check_toolchain(settings)
+            if r["kind"] in kinds and not r["present"]]
 
 
 def run_pre(skill):

@@ -136,6 +136,29 @@
         }
       },
       "additionalProperties": false
+    },
+    "enforcement": {
+      "description": "Repo-side convention enforcement scaffolded by /acs:init: a GitHub Actions check (.github/workflows/acs-conventions.yml) and a checker (.acs/ci/check-conventions.py) that validate branch name, PR title, PR description, labels, and commit messages against formats.* — the same conventions the acs pipeline renders from. Becomes a true merge gate only when made a required status check on a protected default branch. These keys are read by the checker; the convention keys (ticket_prefix + formats) must be committed to <repo>/.acs/settings.json for CI to see them.",
+      "type": "object",
+      "properties": {
+        "checks": {
+          "description": "Which checks the CI workflow runs (absent key = the default shown).",
+          "type": "object",
+          "properties": {
+            "branch_name": {"type": "boolean", "default": true},
+            "pr_title": {"type": "boolean", "default": true},
+            "pr_description": {"type": "boolean", "default": true},
+            "acs_label": {"type": "boolean", "default": true},
+            "commit_message": {"type": "boolean", "default": false, "description": "Lint every PR-branch commit subject against formats.commit_message. Off by default — noisy under squash-merge, where only the PR title reaches main."}
+          },
+          "additionalProperties": false
+        },
+        "require_label": {"type": "string", "default": "ACS", "description": "Label the acs_label check requires on every non-exempt PR (the label /acs:create-pr applies)."},
+        "exempt_label": {"type": "string", "default": "acs-exempt", "description": "A PR carrying this label skips all checks (for legitimate non-ticket PRs)."},
+        "exempt_branches": {"type": "array", "items": {"type": "string"}, "default": ["release/*", "dependabot/*", "renovate/*"], "description": "Branch-name globs (fnmatch) that skip all checks — releases, bot PRs, etc."},
+        "pr_description_sections": {"type": "array", "items": {"type": "string"}, "default": ["Summary", "Ticket", "Changes", "Test plan"], "description": "Markdown section headings the pr_description check requires in the PR body; defaulted from the configured pr_description_template."}
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true
