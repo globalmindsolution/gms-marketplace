@@ -16,10 +16,12 @@ PR CI runs `python3 -m unittest discover -s tests`. Those tests cover the
 **deterministic** layer (hooks, gates, state) by driving the Python scripts
 directly — fast, free, deterministic, and safe to gate every PR.
 
-These evals are different: they spawn `claude -p`, so they **cost money, need
-network + an authenticated `claude` CLI, and are non-deterministic.** They must
-not gate PRs. They run on demand and in the nightly job (E1.4). Keeping them
-out of `tests/` is what stops `unittest discover` from ever picking them up.
+The **paid** scenarios are different: they spawn `claude -p`, so they cost
+money, need an authenticated `claude` CLI, and are non-deterministic — they must
+never gate PRs, and run **locally on demand**. The **free** scenarios are
+deterministic and `$0`; they run as a **pre-commit hook** (`acs-free-evals`) —
+locally on commit and in the *Pre-commit hooks* CI job. Keeping all of this out
+of `tests/` is what stops `unittest discover` from ever picking it up.
 
 ## Scenario tiers
 
@@ -31,10 +33,12 @@ out of `tests/` is what stops `unittest discover` from ever picking them up.
 
 ## Prerequisites
 
-- `claude` CLI authenticated, and the `acs@gms-plugins` plugin installed
-  (the free tier reads `~/.claude/plugins/cache/...`; it falls back to the
-  in-repo source tree when no install is present).
-- For `--paid`: a working model/API credential the `claude` CLI can use.
+- **Free tier:** nothing beyond Python — it uses the installed `acs` plugin if
+  present (`~/.claude/plugins/cache/...`, any marketplace name) and otherwise the
+  in-repo source. Set `ACS_EVAL_SOURCE=1` to force the source tree (the
+  pre-commit hook does this, to test the code being committed).
+- **Paid tier:** an authenticated `claude` CLI with the `acs` plugin installed
+  and a working model/API credential.
 - Python ≥ 3.9, stdlib only (same as the rest of the repo).
 
 ## Run
@@ -48,6 +52,15 @@ python3 evals/run_evals.py --paid --keep    # keep sandbox dirs to inspect
 ```
 
 Exit code is non-zero if any selected scenario has a failing assertion.
+
+## Pre-commit & CI
+
+The **free** tier runs automatically as the `acs-free-evals` pre-commit hook
+whenever `evals/` or `plugins/acs/` change — locally on `git commit` (run
+`pre-commit install` once per clone) and in the *Pre-commit hooks* CI job — with
+`ACS_EVAL_SOURCE=1` so it tests the source being committed. There is **no
+dedicated eval CI workflow**; the **paid** tier is never automated and is run
+locally on demand.
 
 ## Adding a scenario
 
@@ -79,14 +92,11 @@ thing.
   needed). `session_end_safety_net` (free) covers the SessionEnd abnormal-ending
   cleanup against the shipped build. With `install_gate_smoke` (G1), the harness
   now exercises G1–G4 plus cleanup.
-- **E1.4 (done)** — [`evals-nightly.yml`](../.github/workflows/evals-nightly.yml):
-  a **$0** nightly (07:00 UTC) + manual **free-tier smoke**. It installs the
-  plugin from the checkout and runs the deterministic scenarios against the
-  shipped build — catching install/packaging regressions on `main` (the class of
-  bug that blocked the early installs). No repo secret is used.
-
-  The **paid tier is run locally, on demand** (see [Run](#run) above) — it costs
-  money and is non-deterministic, so it stays a developer action rather than
-  recurring CI spend. Flake handling is per-scenario (e.g. `skill_triggers`
-  re-probes a missed case), so a single non-deterministic miss is absorbed
-  without re-running the whole suite.
+- **E1.4 (done)** — the **free** tier is wired into
+  [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) as the `acs-free-evals`
+  hook, so the gate + SessionEnd smoke runs on every commit touching the plugin
+  or harness — locally and in the *Pre-commit hooks* CI job, `$0`, no `claude`.
+  The **paid** tier stays a local, on-demand developer action (see
+  [Run](#run)); flake handling is per-scenario (e.g. `skill_triggers` re-probes
+  a missed case). There is no dedicated eval CI workflow — the deterministic
+  free smoke at commit time replaces it.

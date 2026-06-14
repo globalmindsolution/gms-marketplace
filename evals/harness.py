@@ -50,7 +50,13 @@ def installed_scripts_dir():
     in a checkout that never installed the plugin. The chosen path is what every
     gate check executes, so an eval against the installed build is faithful to
     what consumers actually load.
+
+    Set `ACS_EVAL_SOURCE=1` to force the in-repo source tree regardless of what
+    is installed — used by the pre-commit hook so it tests the code being
+    committed, not a stale installed build.
     """
+    if os.environ.get("ACS_EVAL_SOURCE"):
+        return SOURCE_SCRIPTS, "source"
     cache = os.path.expanduser("~/.claude/plugins/cache")
     candidates = []  # (version, scripts_dir)
     for scripts in glob.glob(os.path.join(cache, "*", "acs", "*",

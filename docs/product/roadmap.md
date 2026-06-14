@@ -59,14 +59,14 @@ cleanup. Validated green against installed v0.1.2.
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
   diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.
-- **E1.4 (done)** — [`evals-nightly.yml`](../../.github/workflows/evals-nightly.yml):
-  a **$0** nightly + manual **free-tier smoke** (install the plugin from the
-  checkout, run the deterministic scenarios against the shipped build). The
-  **paid tier runs locally on demand**, not in CI — it costs money and is
-  non-deterministic, so it stays a developer action. A 2026-06-14 CI dispatch
-  had confirmed the full paid path runs green in CI (install + free + paid,
-  modulo one `merge-pr` trigger flake, now re-probed) before paid was moved
-  local-only.
+- **E1.4 (done)** — the **free** tier is wired into
+  [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml) as the
+  `acs-free-evals` hook (gate + SessionEnd smoke, `$0`, no `claude`), running on
+  every commit that touches the plugin or harness — locally and in the
+  *Pre-commit hooks* CI job (`ACS_EVAL_SOURCE=1`, so it tests the committed
+  source). The **paid** tier is a local, on-demand developer action; there is no
+  dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
+  paid path runs green in CI before paid was moved local-only.)
 
 ### Epic E3 — Dogfood acs on acs
 
