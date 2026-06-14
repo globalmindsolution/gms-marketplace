@@ -1,0 +1,16 @@
+# Keep the GitHub Actions used by the CI / security / release / convention
+# workflows current. Dependabot opens PRs on `dependabot/*` branches, which the
+# acs-style PR-title check auto-exempts (see .github/workflows/pr-title.yml); the
+# other required checks (tests, gitleaks, pre-commit) still gate those PRs.
+#
+# Only github-actions is configured: the plugin tooling is Python stdlib-only, so
+# there is no pip/npm manifest to track.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    open-pull-requests-limit: 5

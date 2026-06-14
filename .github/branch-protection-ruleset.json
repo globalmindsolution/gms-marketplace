@@ -1,10 +1,10 @@
 {
-  "name": "Protect main",
+  "name": "main",
   "target": "branch",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": ["refs/heads/main"],
+      "include": ["~DEFAULT_BRANCH"],
       "exclude": []
     }
   },
@@ -15,23 +15,24 @@
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
+        "required_approving_review_count": 0,
         "dismiss_stale_reviews_on_push": false,
         "require_code_owner_review": false,
         "require_last_push_approval": false,
         "required_review_thread_resolution": true,
-        "automatic_copilot_code_review_enabled": false,
-        "allowed_merge_methods": ["merge", "squash", "rebase"]
+        "allowed_merge_methods": ["squash"]
       }
     },
     {
       "type": "required_status_checks",
       "parameters": {
-        "strict_required_status_checks_policy": true,
-        "do_not_enforce_on_create": false,
+        "strict_required_status_checks_policy": false,
         "required_status_checks": [
+          { "context": "PR title convention" },
           { "context": "Secret scan (gitleaks)" },
-          { "context": "Pre-commit hooks" }
+          { "context": "Pre-commit hooks" },
+          { "context": "Tests & validation (Python 3.9)" },
+          { "context": "Tests & validation (Python 3.12)" }
         ]
       }
     }
