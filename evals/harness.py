@@ -270,8 +270,12 @@ class Sandbox:
     def run_skill(self, prompt, allowed_tools=("Bash", "Read", "Write", "Edit",
                                                "Glob", "Grep", "Task",
                                                "TodoWrite", "Skill"),
-                  timeout=900):
+                  timeout=1800):
         """Drive a headless `claude -p` session in the sandbox repo.
+
+        timeout defaults to 1800s (30 min): a full code TDD cycle (plan →
+        execute → verify, up to 3 iterations, writing tests + impl + coverage)
+        can run well past 15 min locally.
 
         Returns a dict: {ok, is_error, result, cost_usd, num_turns, raw}.
         Uses `--output-format json` for a single parseable envelope. The
