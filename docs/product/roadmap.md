@@ -123,6 +123,9 @@ runs, and the `acs:metrics` dashboard skill ships and passes evals.
   (closed loop). `settings.schema.json` gains `quality_path`/`operations_path`
   and a `suites` map; `/acs:init` defaults them. Skill count 12 → 15. Traces
   **G8**. Design: [ADR 0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md).
+  All design skills also gain a shared **design-time consistency step** — detect
+  doc gaps/staleness across the graph and recommend adjustments in-session, no
+  separate tooling ([ADR 0012](../adr/0012-design-time-doc-consistency.md)).
 - Semver stability promise for state-file schemas (migration notes per minor).
 
 ## Later / icebox
