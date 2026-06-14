@@ -73,22 +73,12 @@ jobs:
           fi
 
       # Run paid evals when the secret exists and either this is the nightly
-      # schedule or a manual dispatch that asked for paid. Retry once: these
-      # sessions are non-deterministic, so a single transient miss shouldn't
-      # red the whole nightly (variance/flake handling).
-      - name: Paid evals (claude; retry once for variance)
+      # schedule or a manual dispatch that asked for paid. Run the suite ONCE:
+      # variance/flake handling lives inside the scenarios (e.g. skill_triggers
+      # re-probes a missed case), so we never re-run the whole expensive suite —
+      # a blanket retry would double the cost and can exhaust the API budget.
+      - name: Paid evals (claude)
         if: ${{ steps.gate.outputs.has_key == 'true' && (github.event_name != 'workflow_dispatch' || inputs.paid) }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          for attempt in 1 2; do
-            echo "::group::paid evals attempt $attempt"
-            if python3 evals/run_evals.py --paid; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "::endgroup::"
-            echo "::warning::paid evals attempt $attempt failed; retrying"
-          done
-          echo "::error::paid evals failed after 2 attempts"
-          exit 1
+        run: python3 evals/run_evals.py --paid

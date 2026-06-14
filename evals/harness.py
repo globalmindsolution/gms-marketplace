@@ -285,7 +285,7 @@ class Sandbox:
             out["ok"] = False
         return out
 
-    def trigger(self, request, allow=("Skill",), timeout=90):
+    def trigger(self, request, allow=("Skill",), timeout=120):
         """Return the first skill the model picks for a natural-language request.
 
         Drives `claude -p <request>` with stream-json and only the `Skill` tool

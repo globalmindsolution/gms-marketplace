@@ -61,8 +61,10 @@ cleanup. Validated green against installed v0.1.2.
   diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.
 - **E1.4 (scaffolded)** — [`evals-nightly.yml`](../../.github/workflows/evals-nightly.yml):
   nightly + manual workflow, free tier always, paid tier when an
-  `ANTHROPIC_API_KEY` secret is set (retry-once for variance). Inert until the
-  secret is added and a manual dispatch validates the claude/plugin-install path.
+  `ANTHROPIC_API_KEY` secret is set (run once; per-scenario flake handling).
+  Inert until the secret is added. First manual dispatch (2026-06-14) validated
+  the install + free + paid path green except a single `merge-pr` trigger flake;
+  the API key then hit its credit limit. Re-validate after topping up credits.
 
 ### Epic E3 — Dogfood acs on acs
 
