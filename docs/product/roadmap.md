@@ -83,8 +83,8 @@ the `acs:metrics` skill land in E1 before the skill ships.
 ### Sequence & exit
 
 ```
-M2-0 spike ─▶ (v0.1.2 if needed) ─▶ E1 harness ─▶ E4 acs:metrics ─▶ E3 dogfood ─▶ M2 exit
-                                                     └──────────────▶ E2 tracker-sync (parallel)
+M2-0 spike ─▶ (v0.1.2 if needed) ─▶ E1 harness ─▶ E3 dogfood ─▶ E4 acs:metrics ─▶ M2 exit
+                                                  └──────────────▶ E2 tracker-sync (parallel)
 ```
 
 **M2 exits → v0.2.0 when:** the eval harness is green nightly, ≥ 1 real acs
