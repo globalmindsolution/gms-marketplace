@@ -103,6 +103,12 @@ class Sandbox:
         self.coverage = coverage
         self.tracker = tracker
         self.scripts, self.build = installed_scripts_dir()
+        # Scrub inherited GIT_* vars (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, …):
+        # when the harness runs inside a git hook (pre-commit), git exports them
+        # and they would override `git -C <sandbox>`, making every subprocess
+        # operate on the OUTER repo instead of the throwaway sandbox.
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith("GIT_")}
 
     def __enter__(self):
         self.tmp = tempfile.mkdtemp(prefix="acs-eval-")
@@ -127,7 +133,7 @@ class Sandbox:
         # repos; settings.local.json stays gitignored).
         self.seed_sha = subprocess.run(
             ["git", "-C", self.repo, "rev-parse", "HEAD"],
-            capture_output=True, text=True).stdout.strip()
+            capture_output=True, text=True, env=self.env).stdout.strip()
         return self
 
     def __exit__(self, *exc):
@@ -141,7 +147,7 @@ class Sandbox:
 
     def _git(self, *args):
         subprocess.run(["git", "-C", self.repo, *args], check=True,
-                       capture_output=True)
+                       capture_output=True, env=self.env)
 
     def _seed_settings(self):
         os.makedirs(os.path.join(self.repo, ".acs"))
@@ -174,7 +180,8 @@ class Sandbox:
     def run_script(self, script, *args, stdin=None):
         return subprocess.run(
             [sys.executable, os.path.join(self.scripts, script)] + list(args),
-            input=stdin, capture_output=True, text=True, cwd=self.repo)
+            input=stdin, capture_output=True, text=True, cwd=self.repo,
+            env=self.env)
 
     def mint_ticket(self, title, ttype="task", needs_design=False, parent=None):
         extra = ["--needs-design", "true" if needs_design else "false"]
@@ -222,6 +229,7 @@ class Sandbox:
         proc = subprocess.run(
             [sys.executable, os.path.join(self.scripts, "dispatch.py"), "pre"],
             input=payload, capture_output=True, text=True, cwd=self.repo,
+            env=self.env,
         )
         return proc.returncode, (proc.stderr or "").strip()
 
@@ -236,7 +244,7 @@ class Sandbox:
             [sys.executable, os.path.join(self.scripts, "dispatch.py"),
              "session-end"],
             input=json.dumps({"cwd": self.repo}), capture_output=True,
-            text=True, cwd=self.repo,
+            text=True, cwd=self.repo, env=self.env,
         )
         return proc.returncode, (proc.stderr or "").strip()
 
@@ -249,7 +257,7 @@ class Sandbox:
         self._git("add", "-A")
         out = subprocess.run(
             ["git", "-C", self.repo, "diff", "--numstat", "--cached",
-             self.seed_sha], capture_output=True, text=True).stdout
+             self.seed_sha], capture_output=True, text=True, env=self.env).stdout
         total = 0
         for line in out.splitlines():
             cols = line.split("\t")
@@ -276,7 +284,7 @@ class Sandbox:
             "--allowedTools", " ".join(allowed_tools),
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True,
-                              cwd=self.repo, timeout=timeout)
+                              cwd=self.repo, timeout=timeout, env=self.env)
         out = {"ok": proc.returncode == 0, "is_error": None, "result": "",
                "cost_usd": None, "num_turns": None, "raw": proc.stdout,
                "stderr": proc.stderr, "returncode": proc.returncode}
@@ -309,7 +317,8 @@ class Sandbox:
             "--allowedTools", " ".join(allow),
         ]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, text=True, cwd=self.repo)
+                                stderr=subprocess.DEVNULL, text=True,
+                                cwd=self.repo, env=self.env)
         found = None
         deadline = time.time() + timeout
         try:
