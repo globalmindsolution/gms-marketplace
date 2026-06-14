@@ -6,12 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Releases are automated: bump `version` in
-`plugins/acs/.claude-plugin/plugin.json`, add a matching section here, and
-merge to `main` — the Release workflow tags `v<version>` and publishes a
-GitHub release using that section as the notes.
+Releases are automated: bump `version` in BOTH
+`.claude-plugin/marketplace.json` and `plugins/acs/.claude-plugin/plugin.json`
+to the same value, point the acs `source.ref` in `marketplace.json` at
+`v<version>`, add a matching section here, and merge to `main` — the Release
+workflow tags `v<version>` and publishes a GitHub release using that section as
+the notes.
 
 ## [Unreleased]
+
+## [0.1.5] - 2026-06-14
+
+### Changed
+
+- Unified release versioning: the marketplace catalog and the `acs` plugin now
+  share **one version** and a single `v<version>` release tag. The separate
+  `marketplace-v<version>` tag scheme and its workflow are retired. Cutting a
+  release now bumps `version` in both `.claude-plugin/marketplace.json` and
+  `plugins/acs/.claude-plugin/plugin.json` to the same value and points the acs
+  `git-subdir` `source.ref` at the new `v<version>` tag; CI enforces that the
+  two versions match. Existing `marketplace-v*` tags remain valid in history.
 
 ## [0.1.3] - 2026-06-13
 
