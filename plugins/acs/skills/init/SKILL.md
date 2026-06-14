@@ -1,6 +1,6 @@
 ---
 name: init
-description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, and subagent models. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:init first", or when the user wants to change any acs setting.
+description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:init first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
 ---
 
 You are the coordinator of `/acs:init`, the acs bootstrap skill. This is NOT a
@@ -186,6 +186,11 @@ through (the pre-hooks would exit 2 on it later). `branch_name` MUST embed
 `<repo>/.acs/templates/<name>.md`, then absolute path — if the user names a
 custom one, check the file exists.
 
+These same formats can be enforced in CI (branch name, PR title, PR
+description, commit messages) — offered in Step 7c. If the user asks during
+init to "enforce conventions" or "stop the pipeline being bypassed", that is
+Step 7c.
+
 ### models — optional, default inherit
 
 Ask only if the user wants per-role model control. Shape per role
@@ -335,6 +340,158 @@ relocates the install, re-run /acs:init to refresh the path. Test each once:
 `echo '{"tasks":[]}' | python3 <path>/subagent-statusline.py` must exit 0
 silently.
 
+## Step 7c — CI convention enforcement (opt-in, never silent)
+
+Offer to enforce the acs conventions in the consumer repo's CI so a PR that
+never went through `/acs:create-pr` is still held to the same branch name, PR
+title, PR description, label, and commit-message conventions before it can
+merge. Skip the whole step on a plain "no".
+
+Be honest about what this is. The CI check is **necessary but not sufficient**:
+branch name and PR title are observable conventions, but the proof that work
+actually went through the pipeline (the ticket, specs, TDD) lives in the
+workspace OUTSIDE the repo, which CI cannot see. So this makes the conventions
+**mandatory to merge** (raising the floor), and the real gate is **a required
+status check on a protected default branch**. Explain that before configuring
+anything.
+
+### Precondition — conventions must be committed
+
+The check reads `ticket_prefix` + `formats` (+ `enforcement`) from the committed
+`<repo>/.acs/settings.json`; the CI runner has no acs install. If the user chose
+**user scope** in Step 2, those keys are in `~/.acs/settings.json` and CI will
+not see them. When enabling enforcement, write `ticket_prefix`, `formats`, and
+`enforcement` to the **project** file `<repo>/.acs/settings.json` regardless of
+the chosen shared scope, and tell the user. Then confirm the file and the
+checker dir are not gitignored (a broad `.acs/` ignore rule would hide them):
+
+```bash
+for p in .acs/settings.json .acs/ci/check-conventions.py; do
+  git check-ignore -q "$p" && echo "WARNING: $p is gitignored — add '!.acs/' or narrow the rule, or CI cannot read it"
+done || true
+```
+
+### Choose the checks and exemptions
+
+Confirm (defaults shown — accept silently if the user says "defaults are fine"),
+writing them under `enforcement` in the project settings file:
+
+- `enforcement.checks` — `branch_name`, `pr_title`, `pr_description`, `acs_label`
+  default **on**; `commit_message` defaults **off** (noisy under squash-merge,
+  where only the PR title reaches `main`). Turn it on only if the user wants
+  every PR-branch commit subject linted.
+- `enforcement.exempt_branches` — default `["release/*", "dependabot/*",
+  "renovate/*"]` (fnmatch globs that skip all checks — releases and bot PRs).
+- `enforcement.exempt_label` — default `acs-exempt` (a PR carrying it skips all
+  checks; the deliberate escape hatch for a one-off non-ticket PR).
+- `enforcement.require_label` — default `ACS` (the label `/acs:create-pr`
+  applies).
+- `enforcement.pr_description_sections` — default the section headings of the
+  configured `pr_description_template` (for `pr-default`: `Summary`, `Ticket`,
+  `Changes`, `Test plan`). Only the `pr_description` check uses these.
+
+### Install the workflow + checker (copy, don't hand-write)
+
+Copy the shipped templates verbatim — they are stdlib-only and self-contained.
+Run from `<repo>` (the main checkout root):
+
+```bash
+mkdir -p .acs/ci .github/workflows
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/check-conventions.py" .acs/ci/check-conventions.py
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/acs-conventions.yml"  .github/workflows/acs-conventions.yml
+chmod +x .acs/ci/check-conventions.py
+```
+
+These are regenerated on every re-run, so changing a format later and re-running
+`/acs:init` refreshes them. Stage `.acs/settings.json`, `.acs/ci/`, and
+`.github/workflows/acs-conventions.yml` for the user to commit (do not commit
+yourself unless asked).
+
+### Ensure the labels exist (tracker = github, or any GitHub remote)
+
+Best-effort; harmless if they already exist:
+
+```bash
+gh label create ACS        --description "Created/validated by the acs pipeline" 2>/dev/null || true
+gh label create acs-exempt --description "Skip acs convention checks for this PR" 2>/dev/null || true
+```
+
+### Optional — local pre-push hook (fast feedback, not the gate)
+
+Offer a pre-push hook that validates the branch name + commit messages before a
+push reaches GitHub. Per-clone and `--no-verify`-bypassable, so it is a
+convenience layer. If the repo uses pre-commit (`.pre-commit-config.yaml`
+present), prefer a tracked, shared entry over clobbering `.git/hooks/pre-push` —
+show this snippet for the user to add under `repos:` and run
+`pre-commit install --hook-type pre-push`:
+
+```yaml
+  - repo: local
+    hooks:
+      - id: acs-conventions
+        name: acs conventions (branch + commits)
+        entry: python3 .acs/ci/check-conventions.py --mode pre-push
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+```
+
+Otherwise install the raw hook (note it is per-clone — each teammate re-runs
+`/acs:init` or copies it):
+
+```bash
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/pre-push" .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+```
+
+### The actual gate — branch protection (admin, one-time)
+
+The workflow is advisory until the check is **required** and the default branch
+**blocks direct pushes**. This is set once by a repo admin and then binds every
+non-admin teammate — they cannot bypass it. Detect admin and act accordingly:
+
+```bash
+slug=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+admin=$(gh api "repos/$slug" --jq .permissions.admin 2>/dev/null)
+branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+echo "repo=$slug default=$branch admin=$admin"
+```
+
+- **`admin=true` and the user consents** — configure protection so the check is
+  required and a PR is mandatory (which blocks direct pushes). The required
+  status-check **context is the workflow job name** (`Branch / PR / commit
+  conventions`); confirm it matches if the user customized the workflow:
+
+  ```bash
+  gh api -X PUT "repos/$slug/branches/$branch/protection" \
+    -H "Accept: application/vnd.github+json" --input - <<'JSON'
+  {
+    "required_status_checks": { "strict": true, "contexts": ["Branch / PR / commit conventions"] },
+    "enforce_admins": true,
+    "required_pull_request_reviews": { "required_approving_review_count": 0 },
+    "restrictions": null
+  }
+  JSON
+  ```
+
+  (`required_pull_request_reviews` present = a PR is mandatory, so direct pushes
+  to `$branch` are blocked; `restrictions: null` keeps all collaborators able to
+  open PRs.) The check first appears in the contexts list only after one workflow run, so
+  if the API rejects an unknown context, tell the user to open a PR first (to
+  register the check), then re-run the command. Mention GitHub **rulesets** as
+  the modern alternative (repo or org level, same effect) if they prefer the UI.
+
+- **`admin` is not `true`** — do NOT attempt the API call (it will 403). The
+  committed workflow file needs no admin, so it still runs and shows a red X on
+  non-conforming PRs. Print the exact command above for an admin to run once,
+  and state clearly: **enforcement is advisory until a repo admin enables the
+  required check + branch protection.** This is the answer to "teammates aren't
+  admins" — the gate is meant to be set once by an admin and then inherited.
+
+Record everything configured here for Steps 8 and the completion report:
+checks enabled, exemptions, files written, labels, pre-push choice, and the
+branch-protection outcome (configured / printed-for-admin / declined).
+
 ## Step 8 — Summary and next steps
 
 Print a markdown table of every resolved setting, its value, and the file it
@@ -345,6 +502,7 @@ landed in (or "default — not written" for untouched defaults), e.g.:
 | `workspace_path` | `/Users/jane/acs-workspace` | `<repo>/.acs/settings.local.json` |
 | `ticket_prefix` | `SHOP` | `<repo>/.acs/settings.json` |
 | `test_coverage_percent` | `90` | default — not written |
+| `enforcement` (CI) | checks on; gate via required check | `<repo>/.acs/settings.json` + `.github/workflows/acs-conventions.yml` |
 
 Then point the user at the next steps. Decide greenfield vs brownfield by
 looking at the repo (`git ls-files` — an existing product codebase is
@@ -373,7 +531,7 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set)
+- **Results**: settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>

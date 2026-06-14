@@ -384,6 +384,19 @@ sanctioned way to keep children shippable when a slice alone would break.
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
+- `enforcement` (opt-in, /init Step 7c): repo-side CI that holds *every* PR to
+  the same conventions, so the pipeline can't be silently bypassed. /init copies
+  `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
+  `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
+  is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
+  runs on a CI runner with no acs install — it re-derives the conventions by
+  compiling the committed `formats.*` strings to regexes ({ticket_id} ->
+  `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
+  `.+`), reading `ticket_prefix` + `formats` from the committed project
+  `settings.json`. It is fail-closed and tested by `tests/test_conventions_check.py`.
+  The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
+  so the real gate is a required status check on a protected default branch;
+  `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.
 
 ## Consumer-repo prerequisites
 

@@ -15,6 +15,36 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **CI enforcement of acs conventions (opt-in via `/acs:init`).** A new Step 7c
+  offers to scaffold repo-side enforcement so a PR that never went through
+  `/acs:create-pr` is still held to the same conventions before it can merge.
+  It installs:
+  - `.github/workflows/acs-conventions.yml` — a `pull_request` check (re-runs on
+    title/body edits and label changes) that validates **branch name**, **PR
+    title**, **PR description sections**, the **`ACS` label**, and (opt-in)
+    **commit-message** format.
+  - `.acs/ci/check-conventions.py` — a self-contained, stdlib-only checker that
+    compiles the committed `formats.*` strings into regexes (the same vocabulary
+    the pipeline renders from) and reads `ticket_prefix` + `formats` from the
+    committed `.acs/settings.json`; **no acs install is needed on the runner**.
+    It is FAIL-CLOSED (no committed conventions → error + "run /acs:init") and
+    runs in `--mode pr` (CI) or `--mode pre-push` (local hook).
+  - An optional **pre-push hook** (raw `.git/hooks/pre-push`, or a tracked
+    pre-commit `pre-push` stage) for fast local feedback before a push reaches
+    GitHub.
+  - New **`enforcement`** settings block (`schemas/settings.schema.json`):
+    `checks.*` toggles, `exempt_branches` globs, `exempt_label`, `require_label`,
+    and `pr_description_sections`.
+- **No-bypass gate guidance.** Because branch/title are cosmetic and the proof
+  of pipeline use lives in the workspace outside the repo, the check is *mandatory
+  to merge* but the real gate is a **required status check on a protected default
+  branch**. Step 7c detects repo-admin (`gh api .permissions.admin`) and either
+  configures branch protection via `gh api` or prints the one-time admin command,
+  with a configurable **`acs-exempt` label + branch allowlist** escape hatch for
+  releases and bot PRs.
+
 ## [0.1.6] - 2026-06-14
 
 ### Fixed
