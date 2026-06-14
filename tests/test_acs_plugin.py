@@ -346,5 +346,38 @@ class TestStatusLines(AcsWorkspaceCase):
                 self.assertEqual(out.returncode, 0, (script, bad, out.stderr))
 
 
+class ToolchainTests(unittest.TestCase):
+    """check_toolchain backs /init Step 0b — the full-workflow dependency preflight."""
+
+    def test_reports_every_known_tool(self):
+        names = [r["name"] for r in lib.check_toolchain()]
+        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit", "xmllint", "acli"})
+
+    def test_core_tools_present_and_required(self):
+        rows = {r["name"]: r for r in lib.check_toolchain()}
+        for name in ("git", "python3"):  # the test runner can't exist without these
+            self.assertTrue(rows[name]["present"], name)
+            self.assertEqual(rows[name]["kind"], "required", name)
+            self.assertTrue(rows[name]["version"], "%s should report a version" % name)
+
+    def test_tracker_bumps_conditional_tools_to_required(self):
+        gh = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "github"}})}["gh"]
+        self.assertEqual(gh["kind"], "required")
+        acli = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "jira"}})}["acli"]
+        self.assertEqual(acli["kind"], "required")
+        # local tracker leaves them at their baseline kinds
+        base = {r["name"]: r for r in lib.check_toolchain()}
+        self.assertEqual(base["gh"]["kind"], "recommended")
+        self.assertEqual(base["acli"]["kind"], "optional")
+
+    def test_missing_tools_excludes_present_and_optional(self):
+        missing = lib.missing_tools()  # required + recommended by default
+        self.assertNotIn("git", missing)
+        self.assertNotIn("python3", missing)
+        self.assertNotIn("xmllint", missing)  # optional, never offered by default
+        for name in missing:
+            self.assertIn(name, {"gh", "pre-commit"})
+
+
 if __name__ == "__main__":
     unittest.main()

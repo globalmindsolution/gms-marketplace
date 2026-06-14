@@ -17,6 +17,15 @@ the notes.
 
 ### Added
 
+- **`/acs:init` toolchain preflight (Step 0b).** Init now checks every external
+  tool the full workflow needs up front and offers to install the missing ones
+  (consent-gated, platform-aware) instead of failing mid-pipeline on a missing
+  `gh` or `pre-commit`. Backed by `acs_lib.check_toolchain()` — the single
+  source of truth listing `git`, `python3`, `gh`, `pre-commit`, `xmllint`,
+  `acli` with kind (required | recommended | optional, bumped by tracker
+  provider) and per-platform install commands — plus `acs_lib.missing_tools()`.
+  The Step 8 summary now also confirms the full skill set is ready.
+
 - **CI enforcement of acs conventions (opt-in via `/acs:init`).** A new Step 7c
   offers to scaffold repo-side enforcement so a PR that never went through
   `/acs:create-pr` is still held to the same conventions before it can merge.

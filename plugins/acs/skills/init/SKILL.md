@@ -35,6 +35,50 @@ the consumer repo. Use `main_repo_root` (the main checkout, even from a linked
 worktree) as `<repo>` everywhere below — local settings and `.gitignore`
 belong to the main checkout so linked worktrees inherit them.
 
+## Step 0b — Toolchain preflight (install what the full workflow needs)
+
+Before configuring anything, make sure the machine has the tools the full acs
+pipeline uses, so the user does not hit a missing `gh` or `pre-commit` mid-flow.
+Print the status table (`check_toolchain` is the single source of truth — git,
+python3, gh, pre-commit, xmllint, acli):
+
+```bash
+python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1])
+import acs_lib
+for r in acs_lib.check_toolchain(acs_lib.load_settings(".")[0]):
+    mark = "✓" if r["present"] else ("○" if r["kind"] == "optional" else "✗")
+    print("%s %-11s %-11s %s" % (mark, r["name"], r["kind"], r["version"] or r["why"]))
+print("MISSING:", ", ".join(acs_lib.missing_tools(acs_lib.load_settings(".")[0])) or "none")
+PY
+```
+
+What the kinds mean and how to act:
+
+- **required** (`git`, `python3`; plus `gh` when the github tracker is chosen,
+  `acli` for jira) — the pipeline cannot run without these. `git`/`python3` are
+  already present (this skill is running). If a required tool is missing, install
+  it before continuing.
+- **recommended** (`gh`, `pre-commit`) — a major capability degrades without
+  them: no `gh` means `/acs:create-pr`, `/acs:merge-pr`, labels, and branch
+  protection can't run; no `pre-commit` means the shared local convention hooks
+  fall back to per-clone raw hooks.
+- **optional** (`xmllint`) — graceful fallback exists (structural XML validation
+  instead of full XSD); never block on it.
+
+For every **required + recommended** tool in `MISSING`, offer to install it now
+(never install silently). Detect the platform and use the matching command from
+each tool's `install` map — `uname -s` is `Darwin` → use the `macos` command
+(prefer Homebrew: check `command -v brew`); `Linux` with `apt-get` → the
+`debian` command; otherwise show the `any`/URL hint. Examples:
+`brew install gh`, `brew install pre-commit` (or `pipx install pre-commit`),
+`sudo apt-get install -y libxml2-utils`. Ask once (AskUserQuestion or a compact
+prompt) which missing tools to install; run the chosen commands and re-run the
+table to confirm. If the user declines, continue — but record the gap and repeat
+the install hint in the Step 8 summary so the workflow degradation is explicit.
+Authentication (`gh auth login`, `acli auth login`) is handled per-tracker in
+Step 4; this step only ensures the binaries exist.
+
 ## Step 1 — Detect existing settings (all three scopes)
 
 Read each of these files if it exists (Read tool; missing file = fresh init):
@@ -558,6 +602,15 @@ brownfield; an empty or docs-only repo is greenfield):
 If tracker CLI checks were skipped or failed in Step 4, repeat the pending fix
 command (`gh auth login` / `acli auth login`) in the summary.
 
+Confirm the full workflow is ready: a one-line toolchain status (from Step 0b)
+and the reminder that the plugin already provides every skill — bootstrap
+(`/acs:init`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
+`/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` →
+`/acs:create-spec` → `/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
+umbrella `/acs:ship`, and utilities `/acs:handoff`, `/acs:update`,
+`/acs:install-hooks`. Repeat any unmet toolchain install hint here so the gap is
+explicit.
+
 ## Completion report (normative)
 
 Every terminal outcome of a direct invocation — completed, failed,
@@ -570,7 +623,7 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined)
+- **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>

@@ -412,5 +412,10 @@ sanctioned way to keep children shippable when a slice alone would break.
 ## Consumer-repo prerequisites
 
 `git`, `python3` (3.9+, stdlib only), `gh` (PRs; also tracker sync when
-`tracker.provider=github`), `acli` (only when `tracker.provider=jira`),
-`xmllint` (optional — full XSD validation; structural fallback otherwise).
+`tracker.provider=github`), `pre-commit` (recommended — shared local convention
+hooks), `acli` (only when `tracker.provider=jira`), `xmllint` (optional — full
+XSD validation; structural fallback otherwise). `acs_lib.check_toolchain()` is
+the single source of truth for this list (kind = required | recommended |
+optional, with per-platform install commands); `/init` Step 0b reports it and
+offers to install the missing required/recommended tools before configuring
+anything, so the full workflow is ready rather than failing mid-pipeline.
