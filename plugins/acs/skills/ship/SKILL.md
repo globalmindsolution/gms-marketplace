@@ -11,11 +11,13 @@ delivery pipeline end-to-end. You orchestrate; you never implement.
 Ground rules, non-negotiable:
 
 - /acs:ship is NOT a hooked skill, but **every step it invokes IS gated** by
-  pre/post hooks (the `PreToolUse` hook fires on the Skill tool inside your
-  step subagents too). You add orchestration only — never bypass, simulate,
-  or work around a hook.
-- You have **no planner/executor/verifier** of your own. Each step skill runs
-  its own reflection cycle inside a fresh subagent context.
+  pre/post hooks (the `PreToolUse` hook fires on the Skill tool whenever you
+  invoke a step skill directly). You add orchestration only — never bypass,
+  simulate, or work around a hook.
+- You have **no planner/executor/verifier** of your own. Each step skill —
+  invoked directly via the Skill tool — runs its OWN reflection cycle (it
+  spawns its own planner/executor/verifier); you never do the step's work and
+  never spawn those roles yourself.
 - Keep your own context tiny. Never read step transcripts, phase XML files,
   specs, or diffs. You read exactly three kinds of things:
   `pipeline-state.json`, `ticket.json`, and the compact `<handoff>` XML each
@@ -25,7 +27,7 @@ Ground rules, non-negotiable:
 
 ## Start
 
-**Step 1 — resolve settings, repo partition id, and the step-coordinator
+**Step 1 — resolve settings, repo partition id, and the coordinator
 model.** Run exactly (the heredoc terminator `PY` must stay at column 0):
 
 ```bash
@@ -63,11 +65,12 @@ stop. Otherwise record `workspace`, `repo_id`, `ticket_prefix`, and
 - Anything else → **new request**: the whole text is the prompt for the
   first step, /acs:create-ticket.
 
-**Step 3 — model note.** `coordinator.model` / `coordinator.effort` (when
-not `"inherit"`) apply to **every step subagent you spawn** — this is
-exactly what `models.coordinator` in settings is for. If the runtime rejects
-the model or effort at spawn, fail the run with that error; never silently
-fall back.
+**Step 3 — model note.** `models.coordinator` (`coordinator.model` /
+`coordinator.effort`, when not `"inherit"`) governs your own ship
+coordinator session/run — you invoke each step skill directly in your own
+context, so there is no separate per-step agent for it to apply to. If the
+runtime rejects the configured model or effort, fail the run with that error;
+never silently fall back.
 
 ## Pipeline order
 
@@ -119,69 +122,63 @@ not your memory, decides what comes next.
 
 ## Running a step
 
-For each step, spawn a FRESH subagent with the Agent tool — one subagent per
-step, never reused: `subagent_type: "general-purpose"`, with
-`coordinator.model` / `coordinator.effort` applied when not `"inherit"`.
+For each step, **invoke the Skill tool directly** with skill `acs:<step>` and
+args `<ticket-id>`, and follow that step skill to completion as its
+coordinator. Run steps **sequentially**, one at a time — you are the step's
+coordinator, in your own context, holding the Agent tool the step needs to
+spawn its own planner/executor/verifier. Keep what you pass lean: the ticket
+id is enough (`<partition>` is derivable from `<workspace>/<repo_id>/<ticket-id>/`).
 
-The subagent prompt is a compact XML task brief plus a fixed instruction.
-Template (substitute `<step>`, `<ticket-id>`, `<partition>`):
+You do not prompt a subagent; you run the step skill yourself. A few
+properties of every step skill you must understand as its coordinator:
 
-```
-<task skill="<step>" phase="coordinate" ticket-id="<ticket-id>" iteration="1">
-  <objective>Run /acs:<step> for <ticket-id> to completion as its coordinator.</objective>
-  <inputs>
-    <file><partition></file>
-    <file><partition>/pipeline-state.json</file>
-  </inputs>
-  <constraints>
-    <constraint name="hooks">Never bypass pre/post hooks. If the Skill invocation is denied (pre-hook exit 2), return a handoff with status="failed" quoting the hook stderr verbatim in the summary.</constraint>
-    <constraint name="no-user">You cannot reach the user. If you need input, return a handoff with status="needs_input" and the questions — never guess.</constraint>
-    <constraint name="final-message">Your final message must be ONLY the handoff XML, nothing before or after.</constraint>
-  </constraints>
-</task>
+- It honors the hooks. If its Skill invocation is denied (pre-hook exit 2),
+  it surfaces a `status="failed"` handoff quoting the hook stderr verbatim —
+  you stop the pipeline on that (see "Handling the handoff").
+- It CAN reach the user under direct invocation, so it asks you/the user
+  directly when it needs input; it only returns `status="needs_input"` if the
+  run is genuinely non-interactive.
+- Its terminal output is the `<handoff>` XML (per acs-messages.xsd): a
+  `<summary>` under 1 KB, `<artifacts>` referencing workspace files (never
+  inlined content), `<questions>` when status is `needs_input`, and a
+  `<next-step>` when known.
 
-Invoke the Skill tool with skill "acs:<step>" and args "<ticket-id>"; follow
-the skill's instructions to completion. Your FINAL message must be ONLY a
-<handoff skill="<step>" ticket-id="<ticket-id>" status="..."> document per
-acs-messages.xsd: <summary> under 1 KB, <artifacts> referencing workspace
-files (never inlined content), <questions> when status="needs_input",
-<next-step> when known.
-```
+You read the step's outcome from its `<handoff>` and from
+`<partition>/pipeline-state.json` — that is the read mechanism that keeps your
+context lean. There is no returning subagent and no per-step task brief to
+compose; the step skill's own argument contract (`acs:<step> <ticket-id>`) is
+the interface.
 
 Step-specific adjustments:
 
-- **create-ticket on a new request**: there is no ticket id yet. Use the
-  placeholder `<ticket_prefix>-0` as the `ticket-id` attribute, put the
-  user's prompt verbatim inside a `<context>` element appended after
-  `<constraints>`, omit the `<inputs>` element (no partition exists yet),
-  and change the instruction to: `Invoke the Skill tool with skill
-  "acs:create-ticket" and args "<the user prompt verbatim>"`. The real
-  ticket id arrives in the returned handoff's `ticket-id` attribute —
-  adopt it for the rest of the run (verify `<partition>` now exists).
+- **create-ticket on a new request**: there is no ticket id yet. Invoke the
+  Skill tool with skill `acs:create-ticket` and args = the user's prompt
+  verbatim (no partition exists yet). The real ticket id arrives in the
+  returned handoff's `ticket-id` attribute — adopt it for the rest of the run
+  (verify `<partition>` now exists).
 - **create-ticket on resume**: args are the ticket id, like every other step.
-- **create-design for a child's parent epic**: the `ticket-id` in the task
-  and in the Skill args is the **parent epic's id**, and `<partition>` is
-  the parent's partition.
-- **Re-spawn after needs_input**: same task XML plus a `<context>` element
-  containing each question with the user's answer
-  (`Q: ... A: ...` lines), appended after `<constraints>`. The re-spawned
-  step coordinator records the relayed answers in the ticket's clarification
-  ledger (per its own "Clarification ledger first" rule) — /ship only
-  relays; it never writes the ledger itself.
+- **create-design for a child's parent epic**: the ticket id you pass in the
+  Skill args is the **parent epic's id**, and `<partition>` is the parent's
+  partition.
+- **Re-invoke after needs_input**: re-invoke the SAME step skill directly,
+  passing each question with the user's answer (`Q: ... A: ...` lines) as
+  context. The re-invoked step coordinator records the relayed answers in the
+  ticket's clarification ledger (per its own "Clarification ledger first"
+  rule) — /ship only relays; it never writes the ledger itself.
 
-Before spawning, validate the task XML you composed:
+If you compose any XML context to hand into a step, validate it first:
 
 ```bash
 echo '<task ...>...</task>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
-Exit 1 means your XML is malformed — fix it and re-validate; never send an
-invalid task. When the subagent returns, validate its final message the same
-way. If the handoff is invalid or missing: first re-read
+Exit 1 means your XML is malformed — fix it and re-validate; never pass
+invalid XML into a step. When the step returns its handoff, validate it the
+same way. If the handoff is invalid or missing: first re-read
 `<partition>/pipeline-state.json` — if the ledger shows the step
-`completed`, trust the ledger and continue; otherwise re-spawn the step once
-with the same brief; if the second handoff is also invalid, stop and report
-(see failed handling below).
+`completed`, trust the ledger and continue; otherwise re-run the step once;
+if the second handoff is also invalid, stop and report (see failed handling
+below).
 
 ## Handling the handoff
 
@@ -191,11 +188,12 @@ Branch strictly on `status`:
   ledger agrees (the step's post-hook wrote it), keep only the one-line
   summary, drop the rest from your working context, and go back to "Picking
   the next step".
-- **needs_input** — ask the user every `<question>` (use AskUserQuestion;
-  plain questions if unavailable). Then re-spawn the SAME step with the
-  answers inside `<context>` as described above. This loop has no fixed cap,
-  but if the same step returns needs_input three times with substantially
-  the same questions, stop and surface the impasse to the user.
+- **needs_input** — a directly-invoked step normally asks the user itself;
+  when it nonetheless returns `needs_input`, ask the user every `<question>`
+  (use AskUserQuestion; plain questions if unavailable). Then re-invoke the
+  SAME step with the answers as context, as described above. This loop has no
+  fixed cap, but if the same step returns needs_input three times with
+  substantially the same questions, stop and surface the impasse to the user.
 - **failed** or **interrupted** — STOP the pipeline. Surface the handoff
   `<summary>` verbatim, say where the state lives (`<partition>` and
   `<partition>/phases/<step>/`), and tell the user how to resume:
@@ -205,10 +203,10 @@ Branch strictly on `status`:
 - **handed_off** — treat as interrupted: stop and print the same resume
   commands; the step flushed its own handoff context to the partition.
 
-Hook-blocked step: if the subagent reports the Skill call was denied
-(pre-hook exit 2), surface that stderr message verbatim and stop — it names
-exactly which skill must run first. Same for a partition `.lock` held by
-another session: surface the skill's message and stop; never delete a lock.
+Hook-blocked step: if the step's Skill call was denied (pre-hook exit 2),
+surface that stderr message verbatim and stop — it names exactly which skill
+must run first. Same for a partition `.lock` held by another session: surface
+the skill's message and stop; never delete a lock.
 
 ## Epic fan-out
 

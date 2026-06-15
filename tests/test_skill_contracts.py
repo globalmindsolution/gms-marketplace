@@ -77,6 +77,17 @@ class TestSkillContracts(unittest.TestCase):
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disallowed-tools", fm, name)
 
+    def test_ship_no_per_step_subagent_spawn(self):
+        # /acs:ship drives the pipeline by invoking each step skill DIRECTLY via
+        # the Skill tool — not by spawning a general-purpose subagent per step
+        # (a subagent cannot spawn the step skill's planner/executor/verifier).
+        # Guard the antipattern, not exact positive wording, so the test stays
+        # stable across legitimate future edits to the direct-invocation prose.
+        body = read(self.skill_path("ship"))
+        self.assertNotIn('subagent_type: "general-purpose"', body)
+        self.assertNotIn("one subagent per step", body)
+        self.assertIsNone(re.search(r"spawn a fresh subagent", body, re.IGNORECASE))
+
     def test_user_action_only_skills(self):
         # merge-pr (human merge gate), update + install-hooks (change the environment)
         user_action = ("merge-pr", "update", "install-hooks")

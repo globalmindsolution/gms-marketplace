@@ -44,9 +44,10 @@ Parse the printed context JSON. Fields you will use:
   feeds the Summary/Changes content.
 - `post_hook` — absolute path to `post-create-pr.py`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not a
-step spawned by /acs:ship), tell the user in one line that `models.coordinator`
-only applies under /acs:ship — never silently diverge from it.
+If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
+typed `/acs:create-pr`, not driven under /acs:ship), tell the user in one line
+that `models.coordinator` governs the ship coordinator's own run under
+/acs:ship, not a directly typed skill — never silently diverge from it.
 
 State inputs (read these; conversation history is NOT an input):
 
@@ -243,8 +244,8 @@ state: the ticket branch has uncommitted or unpushed work not recorded by
 branch no longer exists, or an open PR for the branch was authored outside ACS
 with a conflicting base. Do not guess.
 
-If you are running as a spawned step under /acs:ship (you cannot reach the
-user): do not guess. Write the result document with status `"failed"` and
+If you genuinely cannot reach the user (e.g. a non-interactive run): do not
+guess. Write the result document with status `"failed"` and
 `stop_reason` "needs user input", run the Finish steps, and return as your
 final message a handoff like:
 

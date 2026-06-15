@@ -34,10 +34,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-desi
   `architecture_path`, `prd_path`, optional `adr_path`), `models` (resolved
   planner/executor/verifier model+effort), `reconcile`, `handoff_summary`,
   `design`, `pipeline`, `post_hook`, `checkout_root` (consumer repo root).
-- If `settings.models.coordinator` is set and this is a DIRECT invocation (you were
-  not spawned by /acs:ship): tell the user in one line that `models.coordinator`
-  only applies to coordinators spawned under /acs:ship — a directly invoked skill
-  runs on the session's model. Never silently diverge.
+- If `settings.models.coordinator` is set and this is a DIRECT invocation (a
+  user typed `/acs:create-design`, not driven under /acs:ship): tell the user in
+  one line that `models.coordinator` governs the ship coordinator's own run, not
+  a directly typed skill — a directly invoked skill runs on the session's model.
+  Never silently diverge.
 
 Throughout this file `<partition>` means the `partition` path from the context JSON
 and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -220,7 +221,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
   questions) BEFORE settling the decision. Present the options with their
   trade-offs; record the answer and carry it into design.md's rationale.
 - Do NOT ask about researchable facts — read the code/docs instead.
-- If you are a spawned step under /acs:ship (you cannot reach the user): do not
+- If you genuinely cannot reach the user (e.g. a non-interactive run): do not
   guess. Write result.json with `"status": "handed_off"` plus a
   `handoff_summary`, run the Finish steps, and return as your FINAL message only:
 

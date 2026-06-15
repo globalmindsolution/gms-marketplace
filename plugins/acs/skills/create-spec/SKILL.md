@@ -40,9 +40,10 @@ Parse the printed context JSON. Fields you will use:
   design applies and `design_conformance` will be `null` in the result.
 - `post_hook` — absolute path to `post-create-spec.py`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not a
-step spawned by /acs:ship), tell the user in one line that `models.coordinator`
-only applies under /acs:ship — never silently diverge from it.
+If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
+typed `/acs:create-spec`, not driven under /acs:ship), tell the user in one line
+that `models.coordinator` governs the ship coordinator's own run under
+/acs:ship, not a directly typed skill — never silently diverge from it.
 
 ## Resume & reconcile
 
@@ -196,8 +197,8 @@ the user before executing (AskUserQuestion or plain questions). Do not guess on
 decisions that change what gets built. Record the answers; they belong in the
 specs and in any handoff flush.
 
-If you are running as a spawned step under /acs:ship (you cannot reach the
-user): do not guess. Write the result document with status `"failed"` and
+If you genuinely cannot reach the user (e.g. a non-interactive run): do not
+guess. Write the result document with status `"failed"` and
 `stop_reason` "needs user input", run the Finish steps, and return as your
 final message a handoff like:
 

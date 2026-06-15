@@ -231,8 +231,8 @@ Before a needs_input handoff, record the outgoing questions as `open`
 - **Brownfield**: present the reverse-engineered baseline and ask ONLY the open
   points the planner flagged.
 - **Amend**: confirm exactly which sections change and why before executing.
-- Ask only when genuinely ambiguous; never invent product facts. If running as a
-  spawned step under /acs:ship (you cannot reach the user), return a
+- Ask only when genuinely ambiguous; never invent product facts. If you
+  genuinely cannot reach the user (e.g. a non-interactive run), return a
   `<handoff skill="create-prd" ticket-id="<id>" status="needs_input">` with
   `<questions>` instead of guessing.
 
