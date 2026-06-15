@@ -242,8 +242,10 @@ Ask only if the user wants per-role model control. Shape per role
 `"sonnet"`) or `{"model": "...", "effort": "low|medium|high|xhigh|max|inherit"}`,
 plus per-skill `models.overrides.<skill>.<role>`. Resolution is per field:
 override -> role -> inherit. If the user sets `models.coordinator`, tell them
-it only takes effect for coordinators spawned under `/acs:ship`; direct skill
-invocations run in the user's session on the session's model.
+it governs the `/acs:ship` coordinator's own session — under `/acs:ship` each
+step skill is invoked directly in that session, so there is no separate
+per-step agent for the key to apply to; a directly invoked skill runs in the
+user's session on the session's model.
 
 ## Step 5 — Write the files
 

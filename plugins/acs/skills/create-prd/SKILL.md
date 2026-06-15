@@ -38,9 +38,10 @@ Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`prd_path`, `formats`, `ticket_prefix`), `models` (per-role model/effort),
 `reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not spawned
-by /acs:ship), surface a one-line notice that `models.coordinator` only applies under
-/acs:ship — never silently diverge.
+If `settings.models.coordinator` is set, surface a one-line notice that it governs the
+/acs:ship coordinator's own session — under /acs:ship this skill is invoked directly
+in that session (no separate per-step agent for the key to apply to), and a directly
+typed invocation runs in the user's session on the session's model. Never silently diverge.
 
 Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is planner
 input.

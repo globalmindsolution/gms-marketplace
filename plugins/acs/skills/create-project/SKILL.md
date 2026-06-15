@@ -35,9 +35,11 @@ entry. Parse the printed context JSON; the fields you will use:
 
 If skill-start exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not spawned
-by /acs:ship), surface a one-line notice that `models.coordinator` only applies under
-/acs:ship, then continue on the current model. Never silently diverge.
+If `settings.models.coordinator` is set, surface a one-line notice that it governs the
+/acs:ship coordinator's own session — under /acs:ship this skill is invoked directly
+in that session (no separate per-step agent for the key to apply to), and a directly
+typed invocation runs in the user's session on the session's model — then continue on
+the current model. Never silently diverge.
 
 Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
 the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
