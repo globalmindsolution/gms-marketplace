@@ -38,7 +38,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib  # noqa: E402
 
-PANEL_KEYS = ("1", "2", "3", "4", "5", "6")
+PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
 # phase attribute -> role bucket (panel 6). `coordinate` maps to no bucket (ledger C-5):
 # the role IS the phase; we invent no `role` attribute and add no fourth bucket.
@@ -69,6 +69,35 @@ def _to_float(text):
         return float(text)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _is_number(value):
+    """True for a real int/float, never for bool (mirror the panel-4 guard, line 188)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _safe_avg(numerator, denominator):
+    """Guarded division (AC-1): "no data" when either operand is non-numeric or denominator <= 0.
+
+    Treats bool as non-numeric for both operands, so True/False never act as 1/0. The guard
+    precedes the division, so ZeroDivisionError is never raised.
+    """
+    if not _is_number(numerator) or not _is_number(denominator) or denominator <= 0:
+        return "no data"
+    return numerator / denominator
+
+
+def _elapsed_seconds(start_iso, end_iso):
+    """Wall-clock elapsed `end - start` in whole seconds, or None (AC-2).
+
+    Mirrors acs_lib.run_seconds but returns value-or-None (not 0), so a missing/invalid anchor
+    or a negative interval is distinguishable from a true zero-length interval. Total function:
+    parse_iso returns None on bad/missing input, so this never raises.
+    """
+    start, end = acs_lib.parse_iso(start_iso), acs_lib.parse_iso(end_iso)
+    if start and end and end >= start:
+        return int((end - start).total_seconds())
+    return None
 
 
 def aggregate(workspace, repo_id):
@@ -108,6 +137,7 @@ def aggregate(workspace, repo_id):
     p3_rows = []
     p4_rows = []
     p5_rows = []
+    p7_rows = []
     burn = {role: {"input": 0, "output": 0, "cost": 0.0} for role in ("planner", "executor", "verifier")}
 
     for ticket_id in tickets:
@@ -125,15 +155,35 @@ def aggregate(workspace, repo_id):
         p4_rows.append(_panel4_row(ticket_id, code_state, degrade))
         p5_rows.append(_panel5_row(ticket_id, tdir, code_state, degrade))
 
+        p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
+
         _accumulate_burn(burn, tdir)
 
-    panel2 = {"steps": funnel, "prs": (repo_metrics or {}).get("prs", {"created": 0, "merged": 0})}
-    panel3 = {"tickets": p3_rows, "repo_totals": (repo_metrics or {}).get("totals", {})}
+    prs = (repo_metrics or {}).get("prs", {"created": 0, "merged": 0})
+    totals = (repo_metrics or {}).get("totals", {})
+    merged = prs.get("merged") if isinstance(prs, dict) else None
+    working_seconds = totals.get("working_seconds") if isinstance(totals, dict) else None
+    cost_usd = totals.get("cost_usd") if isinstance(totals, dict) else None
+    ticket_count = meta["ticket_count"]
+
+    panel2 = {"steps": funnel, "prs": prs}
+    panel3 = {
+        "tickets": p3_rows,
+        "repo_totals": totals,
+        "averages": {
+            "avg_working_seconds_per_ticket": _safe_avg(working_seconds, ticket_count),
+            "avg_working_seconds_per_pr": _safe_avg(working_seconds, merged),
+            "avg_cost_per_ticket": _safe_avg(cost_usd, ticket_count),
+            "avg_cost_per_pr": _safe_avg(cost_usd, merged),
+        },
+    }
     panel4 = {"tickets": p4_rows}
     panel5 = {"tickets": p5_rows}
     panel6 = burn
+    panel7 = _panel7(p7_rows)
 
-    panels = {"1": panel1, "2": panel2, "3": panel3, "4": panel4, "5": panel5, "6": panel6}
+    panels = {"1": panel1, "2": panel2, "3": panel3, "4": panel4, "5": panel5,
+              "6": panel6, "7": panel7}
     return {"panels": panels, "meta": meta}
 
 
@@ -207,6 +257,55 @@ def _panel5_row(ticket_id, tdir, code_state, degrade):
         return {"ticket_id": ticket_id, "iterations": max_iter}
     degrade(ticket_id, 5, "no review.iterations and no code/iter-*-verify.xml — iterations unknown")
     return {"ticket_id": ticket_id, "iterations": "no data"}
+
+
+def _panel7_row(ticket_id, tdir, pipeline, degrade):
+    """Per-ticket lead/cycle wall-clock seconds (AC-2). Reads ticket.json.created_at (read-only).
+
+    lead  = merge-pr.ended_at - ticket.json.created_at
+    cycle = merge-pr.ended_at - code.started_at
+    End anchor is merge-pr (NOT create-pr); value is wall-clock elapsed (NOT working_seconds).
+    A value that cannot be computed is the string "no data" plus a panel-7 meta.degraded entry.
+    """
+    ticket = acs_lib.read_json(os.path.join(tdir, "ticket.json"))
+    created_at = ticket.get("created_at") if isinstance(ticket, dict) else None
+
+    steps = pipeline.get("steps") if isinstance(pipeline, dict) else None
+    steps = steps if isinstance(steps, dict) else {}
+    merge_step = steps.get("merge-pr")
+    merge_ended = merge_step.get("ended_at") if isinstance(merge_step, dict) else None
+    code_step = steps.get("code")
+    code_started = code_step.get("started_at") if isinstance(code_step, dict) else None
+
+    lead = _elapsed_seconds(created_at, merge_ended)
+    cycle = _elapsed_seconds(code_started, merge_ended)
+
+    # Degrade reasons (B1): emit the open-ticket reason alone when there is no merge-pr.ended_at
+    # (both unavailable for one root cause); otherwise emit at most one reason per missing input.
+    if acs_lib.parse_iso(merge_ended) is None:
+        degrade(ticket_id, 7, "no merged PR — lead/cycle in progress")
+    else:
+        if lead is None:
+            degrade(ticket_id, 7, "no ticket created_at — lead unavailable")
+        if cycle is None:
+            degrade(ticket_id, 7, "no code step — cycle unavailable")
+
+    return {
+        "ticket_id": ticket_id,
+        "lead_seconds": lead if lead is not None else "no data",
+        "cycle_seconds": cycle if cycle is not None else "no data",
+    }
+
+
+def _panel7(p7_rows):
+    """Assemble panel 7: per-ticket rows plus averages over the subset with a numeric value."""
+    leads = [r["lead_seconds"] for r in p7_rows if _is_number(r["lead_seconds"])]
+    cycles = [r["cycle_seconds"] for r in p7_rows if _is_number(r["cycle_seconds"])]
+    return {
+        "tickets": p7_rows,
+        "avg_lead_seconds": _safe_avg(sum(leads), len(leads)),
+        "avg_cycle_seconds": _safe_avg(sum(cycles), len(cycles)),
+    }
 
 
 def _max_verify_iteration(tdir):

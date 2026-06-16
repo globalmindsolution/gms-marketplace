@@ -139,6 +139,54 @@ def _drive():
         fx.write_index(ws, tickets)
         mod.aggregate(ws, REPO_ID)
 
+    # 6b) panel-3 averages + panel-7 lead/cycle new branches:
+    #     - averages happy path + prs.merged == 0 divide-by-zero + non-numeric totals,
+    #     - lead/cycle happy path (both values), missing-code-step (cycle "no data"),
+    #       missing-created_at (lead "no data"), open-ticket (no merge-pr.ended_at),
+    #     - empty-subset averages ("no data") via the open-only workspace.
+    def _lc_steps(code_started, merge_ended):
+        return {
+            "code": {"started_at": code_started, "status": "completed",
+                     "ended_at": "2026-06-15T11:00:00Z"},
+            "merge-pr": {"started_at": "2026-06-15T12:00:00Z", "status": "completed",
+                         "ended_at": merge_ended},
+        }
+
+    # populated, prs.merged == 0 -> per-PR averages "no data"; per-ticket averages compute;
+    # FULL has both lead+cycle, NOCODE has lead only (cycle "no data" -> drives L291).
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"FULL": {"status": "done", "type": "task"},
+                            "NOCODE": {"status": "done", "type": "task"}})
+        fx.write_metrics(ws, {"prs": {"created": 2, "merged": 0},
+                              "totals": {"working_seconds": 1200, "cost_usd": 4.0}})
+        fx.write_ticket_json(ws, "FULL", "2026-06-15T10:00:00Z")
+        fx.write_pipeline(ws, "FULL", steps=_lc_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"))
+        fx.write_ticket_json(ws, "NOCODE", "2026-06-15T09:00:00Z")
+        fx.write_pipeline(ws, "NOCODE", steps=_lc_steps(None, "2026-06-15T13:00:00Z"))
+        mod.aggregate(ws, REPO_ID)
+
+    # non-numeric totals -> averages "no data" (numerator guard); missing-created_at lead path.
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"NOCREATED": {"status": "done", "type": "task"}})
+        fx.write_metrics(ws, {"prs": {"created": 1, "merged": 1}, "totals": {"working_seconds": None}})
+        # no ticket.json -> created_at absent -> lead "no data"; cycle computes
+        fx.write_pipeline(ws, "NOCREATED",
+                          steps=_lc_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"))
+        mod.aggregate(ws, REPO_ID)
+
+    # open-only workspace -> both lead/cycle "no data" + empty-subset averages "no data".
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"OPEN": {"status": "in_progress", "type": "task"}})
+        fx.write_ticket_json(ws, "OPEN", "2026-06-15T10:00:00Z")
+        fx.write_pipeline(ws, "OPEN", steps=_lc_steps("2026-06-15T10:30:00Z", None))
+        mod.aggregate(ws, REPO_ID)
+
+    # also drive the helpers' guard branches directly.
+    mod._safe_avg(10, 0)            # zero denominator
+    mod._safe_avg(None, 2)          # non-numeric numerator
+    mod._safe_avg(10, True)         # bool denominator treated non-numeric
+    mod._elapsed_seconds(None, None)  # both anchors missing -> None
+
     # 7) main() smoke path (build_context patched so the harness runs without git/settings).
     with tempfile.TemporaryDirectory() as ws:
         fx.write_index(ws, {})
