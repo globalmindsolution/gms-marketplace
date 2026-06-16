@@ -15,6 +15,19 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:metrics` — read-only delivery dashboard (MAR-5).** A new
+  model-invocable utility skill that renders six panels for the current repo —
+  throughput by status/type, pipeline funnel, cost and time per ticket by step,
+  coverage achieved vs target, review iterations before the verifier passed, and
+  token burn by role (planner/executor/verifier) — in a single `show_widget`
+  call, with a Markdown-table fallback. Backed by the stdlib-only
+  `metrics_aggregate.py` helper, which aggregates the panels from existing
+  workspace artifacts and emits one JSON object (every panel key always present;
+  degradation is an in-band "no data" marker, never a missing key). The skill is
+  read-only: it writes no file, makes no network call, and adds no config key.
+
 ## [0.2.0] - 2026-06-14
 
 ### Added
