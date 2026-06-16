@@ -252,20 +252,22 @@ def _term_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
     rows = value.get("tickets") if isinstance(value.get("tickets"), list) else []
-    out = ["  %-12s %12s %12s" % ("ticket", "seconds", "cost_usd")]
+    out = ["  %-12s %12s %12s" % ("ticket", "working time", "cost_usd")]
     if not rows:
         out.append("  " + NO_DATA)
     for row in rows:
         if not isinstance(row, dict):
             continue
         totals = row.get("totals") if isinstance(row.get("totals"), dict) else {}
-        seconds = totals.get("working_seconds", "-")
+        # C-6: humanize the working time; a missing/non-numeric value still renders the
+        # existing no-data cell (B1 — _humanize_seconds returns NO_DATA for any non-number).
+        working_time = _humanize_seconds(totals.get("working_seconds", "-"))
         cost = _fmt_money(totals.get("cost_usd", "-"), empty="-")
-        out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), seconds, cost))
+        out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), working_time, cost))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         out.append("  %-12s %12s %12s"
-                   % ("REPO TOTAL", repo_totals.get("working_seconds", "-"),
+                   % ("REPO TOTAL", _humanize_seconds(repo_totals.get("working_seconds", "-")),
                       _fmt_money(repo_totals.get("cost_usd", "-"), empty="-")))
     # Four averages summary rows after REPO TOTAL (B1 — each value present, "no data" when absent).
     for label, formatted in _average_cells(value):
@@ -519,7 +521,7 @@ def _html_panel2(value):
 def _html_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
-    rows = ["<tr><th>ticket</th><th>seconds</th><th>cost_usd</th></tr>"]
+    rows = ["<tr><th>ticket</th><th>working time</th><th>cost_usd</th></tr>"]
     tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
     if not tickets:
         rows.append('<tr><td colspan="3" class="nodata">%s</td></tr>' % NO_DATA)
@@ -527,13 +529,16 @@ def _html_panel3(value):
         if not isinstance(row, dict):
             continue
         totals = row.get("totals") if isinstance(row.get("totals"), dict) else {}
+        # C-6: humanize the working time; a missing/non-numeric value still renders the existing
+        # no-data text via _humanize_seconds (returns NO_DATA for any non-number — B1 preserved).
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(row.get("ticket_id", "?")), _esc(totals.get("working_seconds", "-")),
+                    % (_esc(row.get("ticket_id", "?")),
+                       _esc(_humanize_seconds(totals.get("working_seconds", "-"))),
                        _esc(_fmt_money(totals.get("cost_usd", "-"), empty="-"))))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         rows.append("<tr><td>REPO TOTAL</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(repo_totals.get("working_seconds", "-")),
+                    % (_esc(_humanize_seconds(repo_totals.get("working_seconds", "-"))),
                        _esc(_fmt_money(repo_totals.get("cost_usd", "-"), empty="-"))))
     # Four averages summary rows (B1 — a "no data" average renders the nodata cell, never omitted).
     for label, formatted in _average_cells(value):

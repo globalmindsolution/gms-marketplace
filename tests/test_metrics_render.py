@@ -171,7 +171,17 @@ class TerminalSurface(unittest.TestCase):
     def test_panel3_cost_time_row(self):
         out = metrics_render.render_terminal(_full_workspace_data())
         self.assertIn("MAR-6", out)
-        self.assertIn("11922", out)  # working_seconds total appears
+        # C-6: the per-ticket working time is humanized (11922s -> "3h 18m"), NOT raw seconds,
+        # and the column header is "working time", NOT "seconds".
+        self.assertIn("working time", out)
+        self.assertIn("3h 18m", out)       # per-ticket working_seconds 11922 -> "3h 18m"
+        self.assertIn("17h 50m", out)      # REPO TOTAL working_seconds 64238 -> "17h 50m"
+        self.assertNotIn("11922", out)     # the old raw per-ticket seconds must be gone
+        self.assertNotIn("64238", out)     # the old raw REPO-TOTAL seconds must be gone
+        # the Panel-3 region's column header is "working time", not the old "seconds"
+        p3 = out[out.index("Panel 3"):out.index("Panel 4")]
+        self.assertIn("working time", p3)
+        self.assertNotIn("seconds", p3)
         self.assertIn("8.31", out)   # per-ticket cost (already 2dp) appears
         # C-5: every money cell renders EXACTLY 2 decimals. The avg cost / merged PR is
         # 18.75 / 4 = 4.6875 -> "4.69" (was a raw-float "4.6875" before the fix); the
@@ -179,6 +189,21 @@ class TerminalSurface(unittest.TestCase):
         self.assertIn("18.75", out)   # repo total cost + avg cost / ticket
         self.assertIn("4.69", out)    # avg cost / merged PR, rounded to 2dp
         self.assertNotIn("4.6875", out)  # the old unrounded money float must be gone
+
+    def test_panel3_working_time_humanized_both_surfaces(self):
+        # C-6: Panel 3's per-ticket AND REPO-TOTAL working time is humanized on BOTH surfaces,
+        # the header is renamed to "working time", and the old raw seconds / "seconds" header gone.
+        data = _full_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out, p4_anchor in ((term, "Panel 4"), (html, "Panel 4")):
+            p3 = out[out.index("Panel 3"):out.index(p4_anchor)]
+            self.assertIn("working time", p3)   # renamed header on this surface
+            self.assertNotIn("seconds", p3)     # old header gone on this surface
+            self.assertIn("3h 18m", p3)         # per-ticket humanized
+            self.assertIn("17h 50m", p3)        # REPO TOTAL humanized
+            self.assertNotIn("11922", p3)       # raw per-ticket seconds gone
+            self.assertNotIn("64238", p3)       # raw REPO-TOTAL seconds gone
 
     def test_panel4_coverage_cell(self):
         out = metrics_render.render_terminal(_full_workspace_data())
@@ -546,6 +571,22 @@ class Panel3Averages(unittest.TestCase):
             self.assertIn("6.00", out)   # avg_cost_per_pr, 2dp
             # the per-ticket / repo-total money cells are also 2dp on this payload
             self.assertIn("5.00", out)   # MAR-6 per-ticket cost 5.0 -> "5.00"
+
+    def test_panel3_missing_working_seconds_still_renders_no_data_both_surfaces(self):
+        # C-6 / B1: a ticket with an empty totals (MAR-OPEN) has no working_seconds; humanizing
+        # the time cell must STILL render the existing no-data handling, never crash or show a raw "-".
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out in (term, html):
+            self.assertIn("MAR-OPEN", out)   # the row is present (never omitted)
+            self.assertIn("no data", out)    # its missing working time renders a no-data cell
+        # the populated MAR-6 row IS humanized on both surfaces (3600s -> "1h")
+        for out in (term, html):
+            p3 = out[out.index("Panel 3"):out.index("Panel 4")]
+            self.assertIn("working time", p3)
+            self.assertIn("1h", p3)          # MAR-6 per-ticket 3600s -> "1h"
+            self.assertIn("2h", p3)          # REPO TOTAL 7200s -> "2h"
 
     def test_no_data_average_renders_cell_both_surfaces(self):
         # zero merged PRs -> per-PR averages are "no data"; cells present, never omitted (B1)
