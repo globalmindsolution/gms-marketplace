@@ -6,5 +6,11 @@
       "owner": "globalmindsolution",
       "project_number": 1
     }
+  },
+  "models": {
+    "planner": "opus",
+    "executor": "sonnet",
+    "verifier": "opus",
+    "coordinator": "opus"
   }
 }
