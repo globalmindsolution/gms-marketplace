@@ -47,6 +47,7 @@ PANEL_HEADERS = (
     "Panel 4",
     "Panel 5",
     "Panel 6",
+    "Panel 7",
 )
 
 
@@ -86,6 +87,37 @@ def _empty_workspace_data():
     """The empty-workspace whole-payload form: every panels[k] is the bare 'no data' string."""
     with TemporaryDirectory() as ws:
         fx.write_index(ws, {})
+        return metrics_aggregate.aggregate(ws, REPO_ID)
+
+
+def _flow_workspace_data():
+    """A flow-metrics payload exercising BOTH populated and 'no data' Panel 3 averages + Panel 7.
+
+    MAR-6 is fully merged: ticket.json.created_at + code.started_at + merge-pr.ended_at all present,
+    so its lead AND cycle are numeric and the four Panel-3 averages are populated. MAR-OPEN has no
+    merged PR (no merge-pr.ended_at), so BOTH its lead and cycle render the 'no data' cell (B1)."""
+    with TemporaryDirectory() as ws:
+        fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"},
+                            "MAR-OPEN": {"status": "in_progress", "type": "task"}})
+        fx.write_metrics(ws, {
+            "tickets": {"by_status": {"done": 1, "in_progress": 1},
+                        "by_type": {"task": 2}},
+            "prs": {"created": 2, "merged": 1},
+            "totals": {"runs": 9, "working_seconds": 7200,
+                       "tokens": {"input": 100000, "output": 20000}, "cost_usd": 6.0},
+        })
+        # MAR-6 — merged: created_at -> merge-pr.ended_at gives a numeric lead; code.started_at ->
+        # merge-pr.ended_at a numeric cycle (lead 10800s = 3h, cycle 9000s = 2h30m).
+        fx.write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
+        fx.write_pipeline(ws, "MAR-6",
+                          steps=fx._lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"),
+                          totals={"runs": 5, "working_seconds": 3600,
+                                  "tokens": {"input": 80000, "output": 16000},
+                                  "cost_usd": 5.0}, archived=True)
+        # MAR-OPEN — unmerged: code started but no merge-pr.ended_at, so lead AND cycle are "no data".
+        fx.write_ticket_json(ws, "MAR-OPEN", "2026-06-15T09:00:00Z")
+        fx.write_pipeline(ws, "MAR-OPEN",
+                          steps=fx._lead_cycle_steps("2026-06-15T09:30:00Z", None))
         return metrics_aggregate.aggregate(ws, REPO_ID)
 
 
@@ -391,6 +423,225 @@ class MainCli(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("<style", out)
         self.assertIn("Panel 1", out)
+
+
+# ---------------------------------------------------------------------------
+# _humanize_seconds — pure duration humanizer (no clock, no locale, no random)
+# ---------------------------------------------------------------------------
+
+class HumanizeSeconds(unittest.TestCase):
+    def test_multi_unit_descending(self):
+        # 2d 3h 4m 5s -> two most significant non-zero units, descending
+        secs = 2 * 86400 + 3 * 3600 + 4 * 60 + 5
+        out = metrics_render._humanize_seconds(secs)
+        self.assertEqual(out, "2d 3h")
+
+    def test_hours_minutes(self):
+        out = metrics_render._humanize_seconds(3 * 3600 + 4 * 60)  # 3h 4m
+        self.assertEqual(out, "3h 4m")
+
+    def test_minutes_seconds(self):
+        out = metrics_render._humanize_seconds(5 * 60 + 12)  # 5m 12s
+        self.assertEqual(out, "5m 12s")
+
+    def test_sub_minute(self):
+        self.assertEqual(metrics_render._humanize_seconds(12), "12s")
+
+    def test_zero(self):
+        self.assertEqual(metrics_render._humanize_seconds(0), "0s")
+
+    def test_minute_or_more_contains_dhm(self):
+        # any duration of a minute or more renders at least one of d/h/m (Test plan contract)
+        out = metrics_render._humanize_seconds(90)
+        self.assertTrue(any(u in out for u in ("d", "h", "m")), out)
+
+    def test_no_data_string_passthrough(self):
+        self.assertEqual(metrics_render._humanize_seconds("no data"),
+                         metrics_render.NO_DATA)
+
+    def test_bool_is_no_data(self):
+        # bool is an int subclass — guard it the way _bar/_bar_pct do
+        self.assertEqual(metrics_render._humanize_seconds(True), metrics_render.NO_DATA)
+
+    def test_non_numeric_is_no_data(self):
+        self.assertEqual(metrics_render._humanize_seconds(None), metrics_render.NO_DATA)
+        self.assertEqual(metrics_render._humanize_seconds("x"), metrics_render.NO_DATA)
+
+    def test_pure_no_clock_repeatable(self):
+        self.assertEqual(metrics_render._humanize_seconds(9000),
+                         metrics_render._humanize_seconds(9000))
+
+
+# ---------------------------------------------------------------------------
+# Flow metrics — Panel 3 averages + new Panel 7 (lead/cycle), BOTH surfaces (AC-3)
+# ---------------------------------------------------------------------------
+
+class Panel3Averages(unittest.TestCase):
+    def test_averages_present_both_surfaces(self):
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out in (term, html):
+            # the two working-time averages are humanized (avg per ticket = 3600s = 1h)
+            self.assertIn("1h", out)
+            # the two cost averages render their numeric values
+            self.assertIn("3.0", out)   # avg_cost_per_ticket
+            self.assertIn("6.0", out)   # avg_cost_per_pr
+
+    def test_no_data_average_renders_cell_both_surfaces(self):
+        # zero merged PRs -> per-PR averages are "no data"; cells present, never omitted (B1)
+        with TemporaryDirectory() as ws:
+            fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            fx.write_metrics(ws, {"tickets": {"by_status": {"done": 1}, "by_type": {"task": 1}},
+                                  "prs": {"created": 1, "merged": 0},
+                                  "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+            fx.write_pipeline(ws, "MAR-6", steps=fx._full_funnel_steps("code"),
+                              totals={"working_seconds": 100, "cost_usd": 1.0}, archived=True)
+            data = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(data["panels"]["3"]["averages"]["avg_working_seconds_per_pr"],
+                             "no data")
+            term = metrics_render.render_terminal(data)
+            html = metrics_render.render_html(data)
+            self.assertIn("no data", term)
+            self.assertIn("no data", html)
+
+
+class Panel7LeadCycle(unittest.TestCase):
+    def test_panel7_frame_present_populated_and_empty(self):
+        for data in (_flow_workspace_data(), _empty_workspace_data()):
+            term = metrics_render.render_terminal(data)
+            html = metrics_render.render_html(data)
+            self.assertIn("Panel 7", term)
+            self.assertIn("Panel 7", html)
+
+    def test_per_ticket_lead_cycle_humanized_both_surfaces(self):
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out in (term, html):
+            self.assertIn("MAR-6", out)
+            self.assertIn("3h", out)      # lead 10800s = 3h
+            self.assertIn("2h 30m", out)  # cycle 9000s = 2h 30m
+
+    def test_no_data_lead_cycle_cell_both_surfaces(self):
+        # MAR-OPEN's lead AND cycle are "no data" -> a "no data" cell, never an omitted row (B1)
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out in (term, html):
+            self.assertIn("MAR-OPEN", out)
+            self.assertIn("no data", out)
+
+    def test_avg_lead_cycle_humanized_both_surfaces(self):
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        for out in (term, html):
+            # avg lead 10800s = 3h, avg cycle 9000s = 2h 30m
+            self.assertRegex(out.lower(), r"avg.*lead")
+            self.assertRegex(out.lower(), r"avg.*cycle")
+
+    def test_lead_cycle_human_readable_not_raw_seconds(self):
+        # Durations human-readable: a humanized unit (d/h/m) appears, not the raw seconds integer.
+        data = _flow_workspace_data()
+        term = metrics_render.render_terminal(data)
+        # find the Panel 7 region and assert a humanized unit is present in it
+        idx = term.index("Panel 7")
+        region = term[idx:]
+        self.assertTrue(any(u in region for u in ("d", "h", "m")), region)
+
+    def test_panel7_whole_panel_no_data_both_surfaces(self):
+        # the empty-workspace whole-panel "no data" form renders a "no data" Panel 7 frame
+        data = _empty_workspace_data()
+        self.assertEqual(data["panels"]["7"], "no data")
+        term = metrics_render.render_terminal(data)
+        html = metrics_render.render_html(data)
+        # the Panel 7 frame is present AND carries a "no data" block
+        self.assertIn("Panel 7", term)
+        self.assertIn("Panel 7", html)
+        self.assertIn("no data", term)
+        self.assertIn("no data", html)
+
+
+class FlowMetricsDeterminism(unittest.TestCase):
+    def test_terminal_byte_identical_on_flow(self):
+        data = _flow_workspace_data()
+        self.assertEqual(metrics_render.render_terminal(data),
+                         metrics_render.render_terminal(data))
+
+    def test_html_byte_identical_on_flow(self):
+        data = _flow_workspace_data()
+        self.assertEqual(metrics_render.render_html(data),
+                         metrics_render.render_html(data))
+
+
+class FlowMetricsSelfContained(unittest.TestCase):
+    def test_no_external_fetch_on_flow_payload(self):
+        out = metrics_render.render_html(_flow_workspace_data())
+        self.assertIn("<style", out)
+        self.assertNotIn("http://", out)
+        self.assertNotIn("https://", out)
+        self.assertNotIn("cdn", out.lower())
+        self.assertNotIn("<script", out)
+        self.assertNotIn("<link", out)
+        self.assertNotIn("src=", out)
+        self.assertNotIn("href=", out)
+        # the dark-mode block is intact with the new panel rows present
+        self.assertIn("prefers-color-scheme: dark", out)
+
+
+class FlowMetricsReadOnly(unittest.TestCase):
+    def _snapshot(self, root):
+        snap = {}
+        for dirpath, _dirs, files in os.walk(root):
+            for f in files:
+                p = os.path.join(dirpath, f)
+                snap[p] = os.stat(p).st_mtime_ns
+        return snap
+
+    def test_render_flow_writes_nothing(self):
+        with TemporaryDirectory() as ws:
+            fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            fx.write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
+            fx.write_metrics(ws, {"prs": {"created": 1, "merged": 1},
+                                  "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+            fx.write_pipeline(ws, "MAR-6",
+                              steps=fx._lead_cycle_steps("2026-06-15T10:30:00Z",
+                                                         "2026-06-15T13:00:00Z"),
+                              totals={"working_seconds": 100, "cost_usd": 1.0}, archived=True)
+            data = metrics_aggregate.aggregate(ws, REPO_ID)
+            # sanity: the flow metrics are populated in this payload
+            self.assertNotEqual(data["panels"]["7"]["avg_lead_seconds"], "no data")
+            before = self._snapshot(os.path.join(ws, REPO_ID))
+            metrics_render.render_terminal(data)
+            metrics_render.render_html(data)
+            after = self._snapshot(os.path.join(ws, REPO_ID))
+            self.assertEqual(before, after, "rendering mutated the workspace — must be read-only")
+
+
+# ---------------------------------------------------------------------------
+# Docs — observability + CHANGELOG describe the new flow metrics (AC-6)
+# ---------------------------------------------------------------------------
+
+class DocsPresence(unittest.TestCase):
+    def _read(self, *parts):
+        path = os.path.join(os.path.dirname(_TESTS_DIR), *parts)
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_observability_documents_lead_cycle_and_seven_panels(self):
+        doc = self._read("docs", "operations", "observability.md").lower()
+        self.assertIn("lead", doc)
+        self.assertIn("cycle", doc)
+        # the wall-clock-vs-working-time distinction is documented
+        self.assertIn("wall-clock", doc)
+        # seven panels (or a Panel 7 heading), not only six
+        self.assertTrue("seven" in doc or "panel 7" in doc or "7 —" in doc, doc[:0])
+
+    def test_changelog_has_mar7_unreleased_entry(self):
+        doc = self._read("plugins", "acs", "CHANGELOG.md")
+        unreleased = doc[doc.index("[Unreleased]"):]
+        self.assertIn("MAR-7", unreleased)
 
 
 if __name__ == "__main__":

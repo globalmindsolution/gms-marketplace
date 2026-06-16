@@ -16,7 +16,7 @@ nothing is silently dropped.
 - **No new config.** It consumes the existing `.acs/settings.json` only (to
   resolve `workspace_path`) and introduces **no new config keys**. Nothing about
   the dashboard needs configuring.
-- **Always six panels.** Every panel key is always present. Missing or partial
+- **Always seven panels.** Every panel key is always present. Missing or partial
   state renders as a **"no data"** marker for that panel — never a missing panel,
   never a crash (see [Degradation](#degradation-and-the-meta-block) below).
 
@@ -35,7 +35,7 @@ Rendering is **deterministic and read-only**: `metrics_render.py` is a pure
 function of the aggregate JSON — identical input produces byte-identical output,
 it reads no clock (`meta.generated_at` is rendered exactly as the aggregator
 stamped it), and it writes nothing. It is stdlib-only (no pip) and never imports
-`show_widget`. The same six panels render on two surfaces:
+`show_widget`. The same seven panels render on two surfaces:
 
 - **Terminal (Claude Code CLI — default).** A deterministic Unicode block-bar
   dashboard printed inline. This is the default surface; ANSI color is off so the
@@ -60,13 +60,13 @@ stamped it), and it writes nothing. It is stdlib-only (no pip) and never imports
 
 Run standalone with no piped input, `metrics_render.py` self-invokes the
 aggregator (resolving the live repo via `acs_lib.build_context()`), so the
-single-command form works too. Either surface draws all six panel frames — an
+single-command form works too. Either surface draws all seven panel frames — an
 empty or partial workspace renders the affected frame as "no data" rather than
 omitting it. The deterministic terminal renderer **supersedes** the former
 model-improvised Markdown fallback: rendering no longer depends on the model
 composing the layout.
 
-## The six panels
+## The seven panels
 
 Each panel is derived from existing workspace artifacts (no schema extension was
 added to back any of them). The sources below are the panel contract — what each
@@ -93,6 +93,17 @@ Per-ticket cost and elapsed time, broken down by pipeline step. Time comes from
 each step's start/end in `pipeline-state.json` (`steps.<skill>` → seconds); the
 per-ticket roll-up is `pipeline-state.json.totals`, cross-checked against the
 repo-level `metrics.json.totals`.
+
+The panel also appends **four averages** as summary rows after the repo total:
+**avg working time per ticket** and **per merged PR**, and **avg cost per ticket**
+and **per merged PR**. The two working-time averages are humanized durations
+(`d`/`h`/`m`/`s`); the two cost averages are plain USD. Each average is
+`total ÷ denominator` — repo-level `metrics.json.totals.working_seconds` /
+`cost_usd` over the ticket count or the merged-PR count (`metrics.json.prs.merged`).
+A **zero denominator** (no tickets, or no merged PR) renders **"no data"** for that
+average rather than dividing by zero. These working-time averages are the
+**working-seconds** the pipeline recorded — distinct from the wall-clock lead/cycle
+times in Panel 7 below.
 
 ### 4 — Coverage achieved vs target
 
@@ -123,9 +134,35 @@ There is **no `role` attribute** — the role IS the phase. Phases that are not 
 of these three (notably the `coordinate` phase) are **not** counted in any role
 bucket. Tickets with no metric-bearing phase XML contribute `0`.
 
+### 7 — Lead + cycle time per ticket
+
+Per-ticket **delivery-flow** times, plus the **average lead** and **average
+cycle** across the tickets that have a value. Definitions:
+
+- **Lead time** = `ticket.json.created_at` → the `merge-pr` step's `ended_at` in
+  `pipeline-state.json` — from when the ticket was created to when its PR merged.
+- **Cycle time** = the `code` step's `started_at` → the `merge-pr` step's
+  `ended_at` — from when coding began to when the PR merged.
+
+**Wall-clock, not working time.** Lead and cycle are **wall-clock elapsed**
+(`ended − started`) durations, *not* the `working_seconds` that Panels 3 and 6
+use: they include idle/overnight gaps. The end anchor is **`merge-pr`** (when the
+PR actually merged), **not** `create-pr`. Both are rendered as humanized
+durations (`d`/`h`/`m`/`s`). The two **averages** are taken only over the tickets
+that have a numeric value — a ticket with `"no data"` lead or cycle does not drag
+the average.
+
+**No-data / degraded behavior.** A ticket with **no merged PR** (no
+`merge-pr.ended_at`) renders **"no data"** for both lead and cycle; a merged
+ticket **with no code step** renders **"no data"** for cycle while lead still
+computes; a ticket with **no `created_at`** renders **"no data"** for lead. Every
+such case appends a `meta.degraded` entry (`panel: 7`) — consistent with the
+degradation contract below. The "no data" cell is always present, never an
+omitted row.
+
 ## Degradation and the `meta` block
 
-Alongside the six panels the dashboard carries a `meta` block:
+Alongside the seven panels the dashboard carries a `meta` block:
 
 ```
 meta = { generated_at, repo_id, ticket_count, degraded: [ { ticket_id, panel, reason } ] }
@@ -140,10 +177,10 @@ The operability contract is explicit and auditable:
   `ticket_id`, the `panel`, and the `reason`. This is what makes the dashboard
   auditable (G5): you can always see *which* panels degraded and *why*.
 - **An empty workspace is valid.** With no tickets, the dashboard renders a valid
-  six-panel "no data" dashboard with `ticket_count == 0` — it does not error.
+  seven-panel "no data" dashboard with `ticket_count == 0` — it does not error.
 
 ## Performance budget
 
-The dashboard aggregates and renders all six panels in **≤ 5 s for ≤ 50
+The dashboard aggregates and renders all seven panels in **≤ 5 s for ≤ 50
 tickets** (the binding G7 NFR). This is the operator's expectation when running
 `/acs:metrics` against a busy repo.

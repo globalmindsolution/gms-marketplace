@@ -98,6 +98,37 @@ def _degraded_data():
         return agg.aggregate(ws, REPO_ID)
 
 
+def _flow_data():
+    """Populated Panel-3 averages + a Panel-7 with a numeric lead/cycle AND a 'no data' ticket."""
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"},
+                            "MAR-OPEN": {"status": "in_progress", "type": "task"}})
+        fx.write_metrics(ws, {"tickets": {"by_status": {"done": 1, "in_progress": 1},
+                                          "by_type": {"task": 2}},
+                              "prs": {"created": 2, "merged": 1},
+                              "totals": {"working_seconds": 7200, "cost_usd": 6.0}})
+        # MAR-6 merged -> numeric lead (10800s) and cycle (9000s).
+        fx.write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
+        fx.write_pipeline(ws, "MAR-6",
+                          steps=fx._lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"),
+                          totals={"working_seconds": 3600, "cost_usd": 5.0}, archived=True)
+        # MAR-OPEN unmerged -> lead AND cycle "no data".
+        fx.write_ticket_json(ws, "MAR-OPEN", "2026-06-15T09:00:00Z")
+        fx.write_pipeline(ws, "MAR-OPEN", steps=fx._lead_cycle_steps("2026-06-15T09:30:00Z", None))
+        return agg.aggregate(ws, REPO_ID)
+
+
+def _flow_nodata_data():
+    """All four Panel-3 averages 'no data' (zero ticket/PR denominators) + Panel-7 'no data'."""
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+        # merged == 0 and missing totals -> every average is "no data"; no merge-pr -> lead/cycle "no data".
+        fx.write_metrics(ws, {"prs": {"created": 1, "merged": 0}, "totals": {}})
+        fx.write_pipeline(ws, "MAR-6", steps=fx._lead_cycle_steps("2026-06-15T10:30:00Z", None),
+                          archived=True)
+        return agg.aggregate(ws, REPO_ID)
+
+
 def _drive():
     """Fresh-import the target and exercise every branch — all inside the traced call."""
     mod = _load_target_fresh()
@@ -105,8 +136,10 @@ def _drive():
     full = _full_data()
     empty = _empty_data()
     degraded = _degraded_data()
+    flow = _flow_data()
+    flow_nodata = _flow_nodata_data()
 
-    # 1) both surfaces on the full happy path (all six populated panels, all bar/table branches).
+    # 1) both surfaces on the full happy path (all populated panels, all bar/table branches).
     mod.render_terminal(full)
     mod.render_html(full)
 
@@ -119,6 +152,14 @@ def _drive():
     mod.render_terminal(degraded)
     mod.render_html(degraded)
 
+    # 3b) both surfaces on the flow payload: populated Panel-3 averages + a Panel-7 with a numeric
+    #     lead/cycle ticket AND a "no data" ticket (exercises the humanizer + nodata-cell branches).
+    mod.render_terminal(flow)
+    mod.render_html(flow)
+    # 3c) both surfaces with EVERY average + every lead/cycle "no data" (the NO_DATA cell branches).
+    mod.render_terminal(flow_nodata)
+    mod.render_html(flow_nodata)
+
     # 4) defensive non-dict / odd inputs (never-crash branches: bad top-level, bad panels/meta,
     #    panel rows that are not dicts, empty ticket lists, degraded entries that are not dicts).
     mod.render_terminal("garbage")
@@ -127,10 +168,14 @@ def _drive():
         "panels": {
             "1": {"by_status": {}, "by_type": {}},
             "2": {"steps": {}, "prs": {}},
-            "3": {"tickets": ["not-a-dict"], "repo_totals": {}},
+            # Panel 3 with a non-dict ticket row AND a non-dict `averages` (the four-NO_DATA branch).
+            "3": {"tickets": ["not-a-dict"], "repo_totals": {}, "averages": "not-a-dict"},
             "4": {"tickets": ["not-a-dict"]},
             "5": {"tickets": ["not-a-dict"]},
             "6": {"planner": "x", "executor": "x", "verifier": "x"},
+            # Panel 7 with a non-dict ticket row + non-list tickets fallback exercised below.
+            "7": {"tickets": ["not-a-dict"], "avg_lead_seconds": "no data",
+                  "avg_cycle_seconds": 9000},
         },
         "meta": {"repo_id": "r", "generated_at": "t", "ticket_count": 0,
                  "degraded": ["not-a-dict", {"ticket_id": "Z", "panel": 4, "reason": "why"}]},
@@ -141,7 +186,9 @@ def _drive():
     empties = {"panels": {"1": "no data", "2": "no data",
                           "3": {"tickets": [], "repo_totals": {}},
                           "4": {"tickets": []}, "5": {"tickets": []},
-                          "6": "no data"},
+                          "6": "no data",
+                          # Panel 7 with non-list tickets -> single "no data" row branch.
+                          "7": {"tickets": "not-a-list"}},
                "meta": {"degraded": None}}
     mod.render_terminal(empties)
     mod.render_html(empties)
@@ -161,6 +208,19 @@ def _drive():
     mod._bar("x", 10)
     mod._is_no_data("no data")
     mod._counts_items("not-a-dict")
+
+    # 6b) _humanize_seconds directly: multi-unit, sub-minute, zero, negative, bool, non-numeric,
+    #     and the NO_DATA string — so every branch of the humanizer executes.
+    mod._humanize_seconds(2 * 86400 + 3 * 3600 + 4 * 60 + 5)  # "2d 3h"
+    mod._humanize_seconds(3 * 3600 + 4 * 60)                  # "3h 4m"
+    mod._humanize_seconds(45)                                 # "45s" (sub-minute)
+    mod._humanize_seconds(0)                                  # "0s"
+    mod._humanize_seconds(-30)                                # negative sign branch
+    mod._humanize_seconds(True)                               # bool -> NO_DATA
+    mod._humanize_seconds("x")                                # non-numeric -> NO_DATA
+    mod._humanize_seconds(mod.NO_DATA)                        # the NO_DATA string -> NO_DATA
+    # the Panel-3 average formatter directly: a cost cell whose value is non-numeric -> NO_DATA.
+    mod._format_average("x", "cost")
 
     # 7) the html bar helpers directly: integer-percent path, the divide-by-zero guard
     #    (panel_max <= 0), the bool/non-numeric guards, and the >100 clamp.
