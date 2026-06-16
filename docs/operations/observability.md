@@ -49,7 +49,9 @@ stamped it), and it writes nothing. It is stdlib-only (no pip) and never imports
 - **HTML (Claude Desktop / claude.ai).** With `--html`, the renderer emits one
   self-contained HTML string — inline CSS only, **no external fetch** (no
   `http(s)` URL, `<link>`, `<script src>`, or web font) — which the skill hands
-  to `show_widget` verbatim.
+  to `show_widget` verbatim. The inline style is **theme-adaptive** (a
+  `prefers-color-scheme: dark` block keeps it readable in both light and dark)
+  and carries deterministic CSS **bar visuals** on panels 1, 2, and 6.
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_aggregate.py" \

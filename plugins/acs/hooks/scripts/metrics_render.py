@@ -274,8 +274,15 @@ def _terminal_degraded(degraded):
 # HTML surface (--html) — ONE self-contained string, inline CSS, NO external fetch
 # ---------------------------------------------------------------------------
 
+# Self-contained, theme-adaptive inline style (C-8). Default colors are LIGHT; an
+# @media (prefers-color-scheme: dark) block inside the SAME <style> element overrides
+# text/surfaces/borders/bars to dark-appropriate tones so the standalone dashboard is
+# readable in BOTH light and dark — no host CSS-variable dependency, no external fetch.
+# .acs-bar is a deterministic CSS bar: a fixed-width track holding a fill whose
+# width:N% is computed (integer percent) from the panel data by _bar_pct.
 _HTML_STYLE = (
     "<style>"
+    # --- light defaults ---
     ".acs-metrics{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;"
     "line-height:1.4;color:#1a1a1a}"
     ".acs-metrics h2{font-size:15px;margin:0 0 4px}"
@@ -286,7 +293,19 @@ _HTML_STYLE = (
     "border-bottom:1px solid #eee}"
     ".acs-metrics .meta{color:#555;font-size:12px}"
     ".acs-metrics .nodata{color:#999;font-style:italic}"
-    ".acs-metrics .bar{color:#3b6ea5;letter-spacing:-1px}"
+    ".acs-metrics .acs-bar-track{display:inline-block;width:120px;height:9px;"
+    "background:#e9edf2;border-radius:3px;overflow:hidden;vertical-align:middle}"
+    ".acs-metrics .acs-bar{display:block;height:9px;background:#3b6ea5;border-radius:3px}"
+    # --- dark overrides (same <style>, no host variable) ---
+    "@media (prefers-color-scheme: dark){"
+    ".acs-metrics{color:#e6e6e6}"
+    ".acs-metrics .panel{border-color:#3a3f46}"
+    ".acs-metrics th,.acs-metrics td{border-bottom-color:#2b2f35}"
+    ".acs-metrics .meta{color:#a8b0ba}"
+    ".acs-metrics .nodata{color:#7c828b}"
+    ".acs-metrics .acs-bar-track{background:#2b2f35}"
+    ".acs-metrics .acs-bar{background:#5a93d6}"
+    "}"
     "</style>"
 )
 
@@ -294,6 +313,36 @@ _HTML_STYLE = (
 def _esc(value):
     """HTML-escape any scalar to text (quotes too) — defends the document frame."""
     return _html.escape(str(value), quote=True)
+
+
+def _bar_pct(value, panel_max):
+    """Deterministic integer bar percent: round(value / panel_max * 100), clamped 0..100.
+
+    panel_max <= 0 (or a non-numeric / bool value) yields 0 — never divides by zero.
+    """
+    if (not isinstance(value, (int, float)) or isinstance(value, bool)
+            or not isinstance(panel_max, (int, float)) or isinstance(panel_max, bool)
+            or panel_max <= 0):
+        return 0
+    pct = int(round((value / panel_max) * 100))
+    return max(0, min(100, pct))
+
+
+def _html_bar_cell(value, panel_max):
+    """A theme-adaptive CSS bar cell sized width:N% (integer percent) for `value`.
+
+    Rendered as a fixed-width track holding a deterministic fill; panel_max <= 0
+    (or a non-numeric value) renders a 0-width fill rather than dividing by zero.
+    """
+    pct = _bar_pct(value, panel_max)
+    return ('<td><span class="acs-bar-track">'
+            '<span class="acs-bar" style="width:%d%%"></span></span></td>') % pct
+
+
+def _panel_max(values):
+    """The max numeric value in `values` (bools/non-numerics ignored); 0 when none."""
+    nums = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    return max(nums) if nums else 0
 
 
 def render_html(data):
@@ -325,32 +374,43 @@ def _html_no_data():
     return '<div class="nodata">%s</div>' % NO_DATA
 
 
-def _html_counts_table(caption, items):
-    rows = ["<tr><th>%s</th><th>count</th></tr>" % _esc(caption)]
+def _html_counts_table(caption, items, panel_max):
+    """A counts table with a deterministic theme-adaptive bar column (width:N% of panel_max)."""
+    rows = ["<tr><th>%s</th><th>count</th><th>bar</th></tr>" % _esc(caption)]
     if not items:
-        rows.append('<tr><td colspan="2" class="nodata">%s</td></tr>' % NO_DATA)
+        rows.append('<tr><td colspan="3" class="nodata">%s</td></tr>' % NO_DATA)
     for label, count in items:
-        rows.append("<tr><td>%s</td><td>%s</td></tr>" % (_esc(label), _esc(count)))
+        rows.append("<tr><td>%s</td><td>%s</td>%s</tr>"
+                    % (_esc(label), _esc(count), _html_bar_cell(count, panel_max)))
     return "<table>" + "".join(rows) + "</table>"
 
 
 def _html_panel1(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
-    return (_html_counts_table("status", _counts_items(value.get("by_status")))
-            + _html_counts_table("type", _counts_items(value.get("by_type"))))
+    status_items = _counts_items(value.get("by_status"))
+    type_items = _counts_items(value.get("by_type"))
+    # Shared panel_max across status+type so the bars are comparable within the panel
+    # (matches the terminal surface's combined peak).
+    panel_max = _panel_max([c for _, c in status_items + type_items])
+    return (_html_counts_table("status", status_items, panel_max)
+            + _html_counts_table("type", type_items, panel_max))
 
 
 def _html_panel2(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
     steps = value.get("steps") if isinstance(value.get("steps"), dict) else {}
-    rows = ["<tr><th>step</th><th>tickets</th></tr>"]
+    counts = [steps.get(skill, 0) for skill in acs_lib.HOOKED_SKILLS]
+    panel_max = _panel_max(counts)
+    rows = ["<tr><th>step</th><th>tickets</th><th>bar</th></tr>"]
     for skill in acs_lib.HOOKED_SKILLS:
-        rows.append("<tr><td>%s</td><td>%s</td></tr>" % (_esc(skill), _esc(steps.get(skill, 0))))
+        count = steps.get(skill, 0)
+        rows.append("<tr><td>%s</td><td>%s</td>%s</tr>"
+                    % (_esc(skill), _esc(count), _html_bar_cell(count, panel_max)))
     prs = value.get("prs") if isinstance(value.get("prs"), dict) else {}
-    rows.append("<tr><td>PRs created</td><td>%s</td></tr>" % _esc(prs.get("created", 0)))
-    rows.append("<tr><td>PRs merged</td><td>%s</td></tr>" % _esc(prs.get("merged", 0)))
+    rows.append('<tr><td>PRs created</td><td>%s</td><td></td></tr>' % _esc(prs.get("created", 0)))
+    rows.append('<tr><td>PRs merged</td><td>%s</td><td></td></tr>' % _esc(prs.get("merged", 0)))
     return "<table>" + "".join(rows) + "</table>"
 
 
@@ -414,12 +474,19 @@ def _html_panel5(value):
 def _html_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
-    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th></tr>"]
+    # Bar on `input` tokens (consistent with the terminal surface's panel-6 peak).
+    inputs = []
     for role in ROLE_ORDER:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(role), _esc(bucket.get("input", 0)), _esc(bucket.get("output", 0)),
-                       _esc(bucket.get("cost", 0))))
+        inputs.append(bucket.get("input", 0))
+    panel_max = _panel_max(inputs)
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th><th>bar</th></tr>"]
+    for role in ROLE_ORDER:
+        bucket = value.get(role) if isinstance(value.get(role), dict) else {}
+        inp = bucket.get("input", 0)
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
+                    % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
+                       _esc(bucket.get("cost", 0)), _html_bar_cell(inp, panel_max)))
     return "<table>" + "".join(rows) + "</table>"
 
 

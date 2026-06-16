@@ -162,6 +162,20 @@ def _drive():
     mod._is_no_data("no data")
     mod._counts_items("not-a-dict")
 
+    # 7) the html bar helpers directly: integer-percent path, the divide-by-zero guard
+    #    (panel_max <= 0), the bool/non-numeric guards, and the >100 clamp.
+    mod._bar_pct(4, 4)        # 100%
+    mod._bar_pct(1, 4)        # 25%
+    mod._bar_pct(5, 0)        # panel_max 0 -> 0 (never divide by zero)
+    mod._bar_pct(True, 10)    # bool value -> 0
+    mod._bar_pct("x", 10)     # non-numeric value -> 0
+    mod._bar_pct(3, True)     # bool panel_max -> 0
+    mod._bar_pct(20, 10)      # clamp to 100
+    mod._panel_max([1, 2, 3])
+    mod._panel_max([])
+    mod._panel_max(["x", True, 2])
+    mod._html_bar_cell(2, 4)
+
 
 class _NonTtyIO(io.StringIO):
     def isatty(self):

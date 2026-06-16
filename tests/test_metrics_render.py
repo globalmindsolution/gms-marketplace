@@ -190,10 +190,49 @@ class HtmlSurface(unittest.TestCase):
         self.assertIn("<style", out)
         self.assertNotIn("http://", out)
         self.assertNotIn("https://", out)
-        self.assertNotIn("<script src", out)
+        self.assertNotIn("cdn", out.lower())
+        self.assertNotIn("<script", out)
         self.assertNotIn("<link", out)
         self.assertNotIn("src=", out)
         self.assertNotIn("href=", out)
+
+    def test_theme_adaptive_dark_mode_block(self):
+        # C-8: the inline style carries a prefers-color-scheme: dark block so the
+        # self-contained dashboard is readable in BOTH light and dark, with no host
+        # CSS-variable dependency and no external fetch.
+        out = metrics_render.render_html(_full_workspace_data())
+        self.assertIn("prefers-color-scheme", out)
+        self.assertIn("prefers-color-scheme: dark", out)
+        # the dark block lives inside the same inline <style> element
+        style_open = out.index("<style")
+        style_close = out.index("</style>")
+        self.assertGreater(style_close, style_open)
+        self.assertIn("prefers-color-scheme",
+                      out[style_open:style_close],
+                      "dark-mode block must live inside the inline <style>")
+
+    def test_deterministic_css_bars_panels_1_2_6(self):
+        # C-8: panels 1 (status/type), 2 (funnel), and 6 (token burn by role) carry
+        # deterministic CSS bars sized width:N% with an integer percent.
+        out = metrics_render.render_html(_full_workspace_data())
+        self.assertIn("acs-bar", out, "stable bar class marker must be present")
+        # bars are deterministic integer-percent inline widths
+        widths = re.findall(r"width:(\d+)%", out)
+        self.assertTrue(widths, "at least one integer-percent bar width must be emitted")
+        for w in widths:
+            self.assertEqual(str(int(w)), w)  # integer percent, no float
+            self.assertLessEqual(int(w), 100)
+        # the panel with the max value in panel 1 (by_status done=4) reaches 100%
+        self.assertIn("width:100%", out)
+
+    def test_bars_never_divide_by_zero_on_empty(self):
+        # panel_max == 0 / no numeric data -> no bar width / 0 width, never raises.
+        out = metrics_render.render_html(_empty_workspace_data())
+        # no negative or >100 widths, and rendering did not raise
+        widths = re.findall(r"width:(\d+)%", out)
+        for w in widths:
+            self.assertGreaterEqual(int(w), 0)
+            self.assertLessEqual(int(w), 100)
 
     def test_meta_and_values_present(self):
         data = _full_workspace_data()
