@@ -32,10 +32,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
-- If `settings.models.coordinator` is set and this is a DIRECT invocation (you were
-  not spawned by /acs:ship with a `<task phase="coordinate">` brief), surface one
-  line: "Note: models.coordinator only applies when run under /acs:ship; this direct
-  run uses the session's model." Never silently diverge.
+- If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
+  typed `/acs:create-ticket`, not driven under /acs:ship), surface one
+  line: "Note: models.coordinator governs the ship coordinator's own run under
+  /acs:ship; this directly typed run uses the session's model." Never silently diverge.
 
 ## Remote import
 
@@ -164,7 +164,7 @@ Do this BEFORE finalizing anything:
    needs_design=false rationale per child) and get user confirmation/edits before
    any child is created.
 
-If you are running as a spawned step under /acs:ship and cannot reach the user,
+If you genuinely cannot reach the user (e.g. a non-interactive run),
 return `<handoff skill="create-ticket" ticket-id="<id>" status="needs_input">` with
 the open `<questions>` instead of guessing — see Finish.
 
@@ -272,9 +272,9 @@ Before a needs_input handoff, record the outgoing questions as `open`
 Ask clarifying questions whenever the request is genuinely ambiguous (scope, type,
 priority, acceptance criteria, PRD divergence) — use AskUserQuestion or plain
 questions, and ask BEFORE finalizing, not after. Do not ask about things the
-codebase or docs already answer. When spawned under /acs:ship (no user reachable):
-return a `<handoff ... status="needs_input">` with `<questions>` instead of
-guessing.
+codebase or docs already answer. When you genuinely cannot reach the user (a
+non-interactive run): return a `<handoff ... status="needs_input">` with
+`<questions>` instead of guessing.
 
 ## Context pressure
 

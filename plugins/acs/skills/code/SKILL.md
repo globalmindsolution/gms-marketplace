@@ -47,9 +47,10 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-code.py`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not a
-step spawned by /acs:ship), tell the user in one line that `models.coordinator`
-only applies under /acs:ship — never silently diverge from it.
+If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
+typed `/acs:code`, not driven under /acs:ship), tell the user in one line that
+`models.coordinator` governs the ship coordinator's own run under /acs:ship, not
+a directly typed skill — never silently diverge from it.
 
 ## Branch — FIRST, before any code
 
@@ -261,8 +262,8 @@ user-visible outcomes — ask the user before executing (AskUserQuestion or
 plain questions). Do not guess on decisions that change behavior. Record the
 answers; they belong in the execute reports and any handoff flush.
 
-If you are running as a spawned step under /acs:ship (you cannot reach the
-user): do not guess. Write the result document with status `"failed"` and
+If you genuinely cannot reach the user (e.g. a non-interactive run): do not
+guess. Write the result document with status `"failed"` and
 `stop_reason` "needs user input", run the Finish steps, and return as your
 final message a handoff like:
 

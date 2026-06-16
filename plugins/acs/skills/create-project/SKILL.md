@@ -35,9 +35,11 @@ entry. Parse the printed context JSON; the fields you will use:
 
 If skill-start exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not spawned
-by /acs:ship), surface a one-line notice that `models.coordinator` only applies under
-/acs:ship, then continue on the current model. Never silently diverge.
+If `settings.models.coordinator` is set, surface a one-line notice that it governs the
+/acs:ship coordinator's own session — under /acs:ship this skill is invoked directly
+in that session (no separate per-step agent for the key to apply to), and a directly
+typed invocation runs in the user's session on the session's model — then continue on
+the current model. Never silently diverge.
 
 Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
 the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
@@ -276,8 +278,8 @@ remote to push to. Use AskUserQuestion (or plain questions) with concrete option
 fold the answers into the planner's `<context>`. Do not re-ask anything the
 architecture doc set already pins.
 
-If you are running as a spawned step (e.g. under /acs:ship) and cannot reach the
-user: do NOT guess. Run Finish with `status: "handed_off"` and the open questions in
+If you genuinely cannot reach the user (e.g. a non-interactive run): do NOT
+guess. Run Finish with `status: "handed_off"` and the open questions in
 `handoff_summary`, and return a `<handoff skill="create-project" ticket-id="..."
 status="needs_input">` carrying the `<questions>` as your final message.
 
@@ -341,8 +343,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --ticket <t
 3. Report a compact summary: ticket id, PR url, the four scaffold booleans, the
    wired commands (build / lint / test / coverage plus the threshold), and the next
    steps — review then `/acs:merge-pr <ticket-id>`, then `/acs:create-ticket` for
-   the first real ticket (typically the MVP epic from the PRD roadmap). If you are
-   a spawned step under /acs:ship: your final message is ONLY the `<handoff>` XML —
+   the first real ticket (typically the MVP epic from the PRD roadmap). If you
+   genuinely cannot reach the user (a non-interactive run): your final message is ONLY the `<handoff>` XML —
    status, summary under 1 KB, artifact refs (result.json, scaffold plan, PR url),
    and `<next-step>`.
 

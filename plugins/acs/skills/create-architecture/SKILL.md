@@ -44,9 +44,10 @@ already created the partition, ticket.json, the lock, the session pointer,
 and the `in_progress` run entry. If `settings.tracker.provider` is `github`
 or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (not
-spawned by /acs:ship), tell the user in one line that `models.coordinator`
-only applies under /acs:ship — never silently diverge.
+If `settings.models.coordinator` is set and this is a DIRECT invocation (a
+user typed `/acs:create-architecture`, not driven under /acs:ship), tell the
+user in one line that `models.coordinator` governs the ship coordinator's own
+run under /acs:ship, not a directly typed skill — never silently diverge.
 
 ## Resume & reconcile
 
@@ -241,8 +242,8 @@ questions) — at minimum: confirm the planner's flow list for `lld/flows/`,
 and confirm open reverse-engineering points on existing codebases. Do not
 ask about things the PRD or the code already answers.
 
-If running as a spawned step (you cannot reach the user), do not guess —
-return a `<handoff skill="create-architecture" ticket-id="<id>"
+If you genuinely cannot reach the user (e.g. a non-interactive run), do not
+guess — return a `<handoff skill="create-architecture" ticket-id="<id>"
 status="needs_input">` with the `<questions>` list instead.
 
 ## Context pressure
@@ -302,8 +303,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --tick
 3. Report a compact summary to the user: mode, files written, verifier
    iterations, PR URL, and that /acs:merge-pr (after their review) lands it
    — for a greenfield product, /acs:create-project is the next step once
-   merged. If you were spawned and cannot reach the user, return ONLY the
-   `<handoff>` XML as your final message: status, summary under 1 KB,
+   merged. If you genuinely cannot reach the user (a non-interactive run),
+   return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,
    artifact refs (doc-set path, result.json, PR URL), and `<next-step>`.
 
 ## Completion report (normative)
