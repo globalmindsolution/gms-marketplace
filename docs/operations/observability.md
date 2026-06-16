@@ -23,10 +23,46 @@ nothing is silently dropped.
 ## How to run
 
 Run `/acs:metrics` in a Claude Code session for the repo you want to inspect.
-The skill runs the read-only aggregation helper and renders the six panels
-inline as a single dashboard (one `show_widget` call). If `show_widget` is
-unavailable, the same six panels render as a Markdown table — no data is lost,
-only the presentation changes.
+The skill **routes** the data through two deterministic stdlib helpers — it does
+not compose the layout itself: the read-only aggregation helper
+(`metrics_aggregate.py`) emits the panel JSON, and the renderer
+(`metrics_render.py`) turns that JSON into the dashboard. See
+[Rendering surfaces](#rendering-surfaces) below for the terminal-vs-HTML split.
+
+## Rendering surfaces
+
+Rendering is **deterministic and read-only**: `metrics_render.py` is a pure
+function of the aggregate JSON — identical input produces byte-identical output,
+it reads no clock (`meta.generated_at` is rendered exactly as the aggregator
+stamped it), and it writes nothing. It is stdlib-only (no pip) and never imports
+`show_widget`. The same six panels render on two surfaces:
+
+- **Terminal (Claude Code CLI — default).** A deterministic Unicode block-bar
+  dashboard printed inline. This is the default surface; ANSI color is off so the
+  output is reproducible.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_aggregate.py" \
+    | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_render.py"
+  ```
+
+- **HTML (Claude Desktop / claude.ai).** With `--html`, the renderer emits one
+  self-contained HTML string — inline CSS only, **no external fetch** (no
+  `http(s)` URL, `<link>`, `<script src>`, or web font) — which the skill hands
+  to `show_widget` verbatim.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_aggregate.py" \
+    | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_render.py" --html
+  ```
+
+Run standalone with no piped input, `metrics_render.py` self-invokes the
+aggregator (resolving the live repo via `acs_lib.build_context()`), so the
+single-command form works too. Either surface draws all six panel frames — an
+empty or partial workspace renders the affected frame as "no data" rather than
+omitting it. The deterministic terminal renderer **supersedes** the former
+model-improvised Markdown fallback: rendering no longer depends on the model
+composing the layout.
 
 ## The six panels
 

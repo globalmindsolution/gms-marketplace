@@ -128,10 +128,14 @@ config key, nothing written.
   of **six panels** — throughput by status/type, pipeline funnel, cost and time
   per ticket by step, coverage achieved vs target, review iterations before the
   verifier passed, and token burn by role (planner/executor/verifier).
-- The coordinator renders all six panels in a **single `show_widget` call**;
-  every panel key is always present (a panel with no data renders as "no data",
-  not a missing frame), and a Markdown-table fallback covers the case where
-  `show_widget` is unavailable.
+- The coordinator **routes** the aggregate JSON through the deterministic stdlib
+  renderer `metrics_render.py` rather than composing the layout itself: the
+  **terminal** Unicode dashboard is the Claude Code CLI default, and `--html`
+  emits a self-contained HTML string handed to `show_widget` on Claude
+  Desktop / claude.ai. Rendering is deterministic and read-only; every panel key
+  is always present (a panel with no data renders as "no data", not a missing
+  frame). The deterministic terminal renderer **supersedes** the former
+  Markdown-table fallback.
 - **Reads only** — writes no file, makes no network/`gh` call, and consumes no
   config key beyond the `.acs/settings.json` the helper already reads.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
