@@ -3,12 +3,12 @@
 > Milestones map to intended epics; each epic fans out into child tickets that
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
-Each feature has its own milestone track. M1/M2/M3 below are the **acs feature**
-track (v0.2.0 shipped; v0.3.0 in progress). The **tabp feature** track follows
+Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
+track (v0.2.0 shipped; v0.3.0 in progress). The **tabp plugin** track follows
 with T-M1 as the urgent next milestone. Future plugins add their own track here
 without restructuring the existing tracks.
 
-## acs feature track
+## acs plugin track
 
 ### M1 — Foundation (v0.1.x) — *implemented*
 
@@ -188,7 +188,7 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
   separate tooling ([ADR 0012](../adr/0012-design-time-doc-consistency.md)).
 - Semver stability promise for state-file schemas (migration notes per minor).
 
-## tabp feature track
+## tabp plugin track
 
 ### T-M1 — screen-cvs *(URGENT — next milestone)*
 
