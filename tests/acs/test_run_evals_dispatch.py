@@ -12,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -66,67 +65,31 @@ class SkillsOnlyPluginTest(unittest.TestCase):
     no acs cache lookup, no hard-fail, no banner."""
 
     def setUp(self):
-        # Build a tmp evals/<TESTPLUGIN>/scenarios/__init__.py OUTSIDE the repo.
-        self.tmp_evals = tempfile.mkdtemp(prefix="acs-test-evals-")
-        self.addCleanup(shutil.rmtree, self.tmp_evals, True)
-
-        plugin_name = "TESTPLUGIN"
-        scenarios_dir = os.path.join(self.tmp_evals, plugin_name, "scenarios")
+        # Drive a COPY of the eval tree from a tmp dir so the skills-only
+        # fixture never touches the tracked repo evals/ (C-3).
+        self.tmp = tempfile.mkdtemp(prefix="acs-eval-skillsonly-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.evals_dir = os.path.join(self.tmp, "evals")
+        shutil.copytree(
+            os.path.join(REPO_ROOT, "evals"),
+            self.evals_dir,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
+        self.plugin_name = "TESTPLUGIN"
+        scenarios_dir = os.path.join(self.evals_dir, self.plugin_name, "scenarios")
         os.makedirs(scenarios_dir)
         with open(os.path.join(scenarios_dir, "__init__.py"), "w") as fh:
             fh.write("SCENARIOS = []\n")
-
-        self.plugin_name = plugin_name
-
-    def _run(self, *extra_args):
-        """Run run_evals.py with --plugin TESTPLUGIN from the tmp evals dir."""
-        # We pass the tmp evals dir as evals_dir via a wrapper that inserts it
-        # onto sys.path — but actually run_evals.py uses its own dirname as
-        # evals_dir, so we place the plugin dir there by adjusting the PATH.
-        # Simpler: symlink or copy the plugin dir into a tmp dir that also
-        # contains run_evals.py.  Instead, we rely on the --evals-dir seam if
-        # it exists, or we place the fixture adjacent to run_evals.py via an
-        # env var ACS_EVAL_EVALS_DIR... but the spec says to build the fixture
-        # in tempfile.mkdtemp and drive subprocess.
-        #
-        # The simplest approach: pass EVALS_DIR via an env variable recognised
-        # by run_evals.py, or use the fact that run_evals.py computes evals_dir
-        # as dirname(abspath(__file__)).  We use a real tmp evals root that
-        # contains the plugin subdir AND a copy of run_evals.py.
-        #
-        # This test drives the actual run_evals.py from REPO_ROOT but we need
-        # the plugin dir to be found under the evals/ dirname.  After the
-        # refactor, run_evals.py computes:
-        #   evals_dir = os.path.dirname(os.path.abspath(__file__))
-        #   plugin_dir = os.path.join(evals_dir, args.plugin)
-        # So we create the plugin dir under evals/ as a temp subdir and remove it
-        # after the test.  The constraint says "no committed evals/tabp/" (C-3);
-        # we create it in-process, run the test, then clean it up — never staged.
-        raise NotImplementedError(
-            "Use _run_with_plugin_in_evals_dir instead"
-        )
+        self.run_evals = os.path.join(self.evals_dir, "run_evals.py")
 
     def _run_list(self):
-        """Drive --plugin TESTPLUGIN --list using a temp dir under evals/."""
-        evals_dir = os.path.join(REPO_ROOT, "evals")
-        plugin_dir = os.path.join(evals_dir, self.plugin_name)
-        scenarios_dir = os.path.join(plugin_dir, "scenarios")
-        os.makedirs(scenarios_dir, exist_ok=True)
-        try:
-            with open(os.path.join(scenarios_dir, "__init__.py"), "w") as fh:
-                fh.write("SCENARIOS = []\n")
-            result = subprocess.run(
-                [sys.executable, RUN_EVALS,
-                 "--plugin", self.plugin_name, "--list"],
-                capture_output=True,
-                text=True,
-                cwd=REPO_ROOT,
-                env=dict(os.environ),  # no ACS_EVAL_SOURCE; test skills-only path
-            )
-        finally:
-            # Always clean up — the plugin dir must never be committed (C-3).
-            shutil.rmtree(plugin_dir, ignore_errors=True)
-        return result
+        return subprocess.run(
+            [sys.executable, self.run_evals, "--plugin", self.plugin_name, "--list"],
+            capture_output=True,
+            text=True,
+            cwd=self.evals_dir,
+            env=dict(os.environ),  # no ACS_EVAL_SOURCE; skills-only path
+        )
 
     def test_skills_only_list_exits_zero(self):
         """Skills-only --plugin --list must exit 0 (no hard-fail)."""
