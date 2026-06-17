@@ -53,6 +53,16 @@ the notes.
   `show_widget`, is read-only, and is deterministic (identical JSON in →
   byte-identical output; no clock read in render) — unit-tested to the same 90%
   coverage bar as the aggregator.
+- **`/acs:metrics` delivery-flow metrics (MAR-7).** The dashboard now surfaces
+  delivery-flow timing on both render surfaces: **Panel 3** gains four **averages**
+  summary rows — avg working time and avg cost, each per ticket and per merged PR
+  (a zero denominator renders "no data") — and a **new Panel 7 — Lead + cycle time
+  per ticket** shows per-ticket **lead** (`ticket.json.created_at` → `merge-pr`
+  end) and **cycle** (`code` start → `merge-pr` end) wall-clock times plus their
+  averages, with humanized `d`/`h`/`m`/`s` durations. Aggregated additively in
+  `metrics_aggregate.py` and rendered in `metrics_render.py` (terminal + HTML),
+  read-only and deterministic, with every "no data" value rendering a present "no
+  data" cell — no schema, config, or network change.
 
 ## [0.2.0] - 2026-06-14
 

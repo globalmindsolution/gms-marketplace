@@ -2,8 +2,8 @@
 """metrics_render.py — deterministic cross-surface renderer for the /acs:metrics dashboard (MAR-5).
 
 Stdlib-only (Python 3.9+, no pip; NEVER imports show_widget). Consumes the spec-01 aggregate JSON
-({panels:{"1".."6"}, meta:{generated_at, repo_id, ticket_count, degraded}}) emitted by
-metrics_aggregate.py and renders the SAME six panels for TWO surfaces:
+({panels:{"1".."7"}, meta:{generated_at, repo_id, ticket_count, degraded}}) emitted by
+metrics_aggregate.py and renders the SAME seven panels for TWO surfaces:
 
     render_terminal(data) -> str   deterministic Unicode block-bar terminal dashboard (CLI default)
     render_html(data)     -> str   ONE self-contained HTML string (Desktop/claude.ai; handed to
@@ -18,7 +18,7 @@ Markdown fallback (former ledger C-4). The aggregate-JSON contract (spec 01 / A1
 no field added, no key renamed; the panel value shapes are exactly those metrics_aggregate emits.
 
 Invariants (AC-8):
-  * B1 — every panel key "1".."6" is ALWAYS rendered as a framed section; a bare "no data" panel
+  * B1 — every panel key "1".."7" is ALWAYS rendered as a framed section; a bare "no data" panel
     draws a "no data" frame and a cell-level {"cell"/"iterations": "no data"} draws a "no data"
     cell — never an omitted frame.
   * Determinism — identical JSON in -> byte-identical output. The renderer reads NO clock and
@@ -42,7 +42,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib  # noqa: E402
 
-PANEL_KEYS = ("1", "2", "3", "4", "5", "6")
+PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
 # Canonical, fixed iteration orders (determinism — never rely on dict insertion order).
 ROLE_ORDER = ("planner", "executor", "verifier")
@@ -54,7 +54,17 @@ PANEL_TITLES = {
     "4": "Panel 4 — Coverage achieved vs target",
     "5": "Panel 5 — Review iterations before pass",
     "6": "Panel 6 — Token burn by role",
+    "7": "Panel 7 — Lead + cycle time per ticket",
 }
+
+# Fixed-key order for the Panel 3 averages summary rows (determinism — read by name, not by
+# dict iteration). The aggregate (spec 01) emits exactly these four keys.
+AVERAGE_ROWS = (
+    ("avg working time / ticket", "avg_working_seconds_per_ticket", "duration"),
+    ("avg working time / merged PR", "avg_working_seconds_per_pr", "duration"),
+    ("avg cost / ticket", "avg_cost_per_ticket", "cost"),
+    ("avg cost / merged PR", "avg_cost_per_pr", "cost"),
+)
 
 NO_DATA = "no data"
 
@@ -83,6 +93,48 @@ def _bar(value, peak):
     return _BAR_FULL * filled + _BAR_EMPTY * (_BAR_WIDTH - filled)
 
 
+def _humanize_seconds(value):
+    """Format a seconds count as a human-readable duration, or NO_DATA for any non-number.
+
+    Pure function of its argument only — NO clock, NO locale, NO random (determinism / R4).
+    A numeric value renders the two most significant non-zero units in descending order
+    (d/h/m/s), e.g. "2d 3h", "3h 4m", "5m 12s", "12s", "0s". bool (an int subclass) and any
+    non-numeric value (including the literal NO_DATA string) return NO_DATA — this is what makes
+    the "no data" cell appear (B1). Mirrors the bool guard in _bar/_bar_pct.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return NO_DATA
+    total = int(value)
+    sign = "-" if total < 0 else ""
+    total = abs(total)
+    units = (("d", 86400), ("h", 3600), ("m", 60), ("s", 1))
+    parts = []
+    remaining = total
+    for label, size in units:
+        count = remaining // size
+        remaining -= count * size
+        if count or (label == "s" and not parts):
+            parts.append("%d%s" % (count, label))
+    # Two most significant units; "0s" for an all-zero duration (parts is then just ["0s"]).
+    return sign + " ".join(parts[:2])
+
+
+def _fmt_money(value, empty=NO_DATA):
+    """Format a USD cost cell to EXACTLY 2 decimals, or the cell's empty marker for any non-number.
+
+    Pure function of its arguments only — NO clock, NO locale, NO random (determinism / R4).
+    A numeric value renders "%.2f" (e.g. 36.0 -> "36.00", 5.142857... -> "5.14", 7.2 -> "7.20").
+    bool (an int subclass) and any non-numeric value (the literal NO_DATA string, a missing-cell
+    default, None) return `empty` — the marker the calling cell uses for its empty state (NO_DATA
+    for the average cells, "-" for the per-ticket / REPO-TOTAL / role cost columns), so the cell's
+    existing empty handling and B1 ("no data" cells still render) are preserved. Mirrors the bool
+    guard in _humanize_seconds.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return empty
+    return "%.2f" % value
+
+
 def _meta_lines(meta):
     """The header lines drawn from meta (rendered as given — generated_at is data, no clock read)."""
     meta = meta if isinstance(meta, dict) else {}
@@ -105,7 +157,7 @@ def _counts_items(mapping):
 # ---------------------------------------------------------------------------
 
 def render_terminal(data):
-    """Deterministic Unicode block-bar dashboard for ALL SIX panels (CLI default). Never raises."""
+    """Deterministic Unicode block-bar dashboard for ALL SEVEN panels (CLI default). Never raises."""
     data = data if isinstance(data, dict) else {}
     panels = data.get("panels") if isinstance(data.get("panels"), dict) else {}
     meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
@@ -170,25 +222,56 @@ def _term_panel2(value):
     return out
 
 
+def _format_average(value, kind):
+    """Format a Panel-3 average cell: duration averages humanized, cost averages numeric.
+
+    A "no data" (or any non-numeric) value renders the NO_DATA cell for either kind (B1).
+    """
+    if _is_no_data(value):
+        return NO_DATA
+    if kind == "duration":
+        return _humanize_seconds(value)
+    # kind == "cost": money to exactly 2 decimals; non-numeric -> NO_DATA cell (B1).
+    return _fmt_money(value, empty=NO_DATA)
+
+
+def _average_cells(value):
+    """The (label, formatted_value) pairs for Panel 3's four averages (fixed order, B1).
+
+    A missing or non-dict `averages` renders four NO_DATA cells — never an omitted row.
+    """
+    averages = value.get("averages") if isinstance(value, dict) else None
+    averages = averages if isinstance(averages, dict) else {}
+    out = []
+    for label, key, kind in AVERAGE_ROWS:
+        out.append((label, _format_average(averages.get(key, NO_DATA), kind)))
+    return out
+
+
 def _term_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
     rows = value.get("tickets") if isinstance(value.get("tickets"), list) else []
-    out = ["  %-12s %12s %12s" % ("ticket", "seconds", "cost_usd")]
+    out = ["  %-12s %12s %12s" % ("ticket", "working time", "cost_usd")]
     if not rows:
         out.append("  " + NO_DATA)
     for row in rows:
         if not isinstance(row, dict):
             continue
         totals = row.get("totals") if isinstance(row.get("totals"), dict) else {}
-        seconds = totals.get("working_seconds", "-")
-        cost = totals.get("cost_usd", "-")
-        out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), seconds, cost))
+        # C-6: humanize the working time; a missing/non-numeric value still renders the
+        # existing no-data cell (B1 — _humanize_seconds returns NO_DATA for any non-number).
+        working_time = _humanize_seconds(totals.get("working_seconds", "-"))
+        cost = _fmt_money(totals.get("cost_usd", "-"), empty="-")
+        out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), working_time, cost))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         out.append("  %-12s %12s %12s"
-                   % ("REPO TOTAL", repo_totals.get("working_seconds", "-"),
-                      repo_totals.get("cost_usd", "-")))
+                   % ("REPO TOTAL", _humanize_seconds(repo_totals.get("working_seconds", "-")),
+                      _fmt_money(repo_totals.get("cost_usd", "-"), empty="-")))
+    # Four averages summary rows after REPO TOTAL (B1 — each value present, "no data" when absent).
+    for label, formatted in _average_cells(value):
+        out.append("  %-30s %12s" % (label, formatted))
     return out
 
 
@@ -241,8 +324,28 @@ def _term_panel6(value):
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
         out.append("  %-10s %12s %12s %10s   %s"
-                   % (role, inp, bucket.get("output", 0), bucket.get("cost", 0),
-                      _bar(inp, peak)))
+                   % (role, inp, bucket.get("output", 0),
+                      _fmt_money(bucket.get("cost", 0), empty="-"), _bar(inp, peak)))
+    return out
+
+
+def _term_panel7(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _term_no_data_block()
+    rows = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    out = ["  %-12s %12s %12s" % ("ticket", "lead", "cycle")]
+    if not rows:
+        out.append("  " + NO_DATA)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        out.append("  %-12s %12s %12s"
+                   % (str(row.get("ticket_id", "?")),
+                      _humanize_seconds(row.get("lead_seconds", NO_DATA)),
+                      _humanize_seconds(row.get("cycle_seconds", NO_DATA))))
+    # Two average summary rows (B1 — humanized, or a "no data" cell when there is no value).
+    out.append("  %-30s %12s" % ("avg lead", _humanize_seconds(value.get("avg_lead_seconds", NO_DATA))))
+    out.append("  %-30s %12s" % ("avg cycle", _humanize_seconds(value.get("avg_cycle_seconds", NO_DATA))))
     return out
 
 
@@ -253,6 +356,7 @@ _TERMINAL_PANELS = {
     "4": _term_panel4,
     "5": _term_panel5,
     "6": _term_panel6,
+    "7": _term_panel7,
 }
 
 
@@ -346,7 +450,7 @@ def _panel_max(values):
 
 
 def render_html(data):
-    """ONE self-contained HTML string rendering the SAME six panels. Inline CSS, no fetch. Never raises."""
+    """ONE self-contained HTML string rendering the SAME seven panels. Inline CSS, no fetch. Never raises."""
     data = data if isinstance(data, dict) else {}
     panels = data.get("panels") if isinstance(data.get("panels"), dict) else {}
     meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
@@ -417,7 +521,7 @@ def _html_panel2(value):
 def _html_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
-    rows = ["<tr><th>ticket</th><th>seconds</th><th>cost_usd</th></tr>"]
+    rows = ["<tr><th>ticket</th><th>working time</th><th>cost_usd</th></tr>"]
     tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
     if not tickets:
         rows.append('<tr><td colspan="3" class="nodata">%s</td></tr>' % NO_DATA)
@@ -425,14 +529,22 @@ def _html_panel3(value):
         if not isinstance(row, dict):
             continue
         totals = row.get("totals") if isinstance(row.get("totals"), dict) else {}
+        # C-6: humanize the working time; a missing/non-numeric value still renders the existing
+        # no-data text via _humanize_seconds (returns NO_DATA for any non-number — B1 preserved).
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(row.get("ticket_id", "?")), _esc(totals.get("working_seconds", "-")),
-                       _esc(totals.get("cost_usd", "-"))))
+                    % (_esc(row.get("ticket_id", "?")),
+                       _esc(_humanize_seconds(totals.get("working_seconds", "-"))),
+                       _esc(_fmt_money(totals.get("cost_usd", "-"), empty="-"))))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         rows.append("<tr><td>REPO TOTAL</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(repo_totals.get("working_seconds", "-")),
-                       _esc(repo_totals.get("cost_usd", "-"))))
+                    % (_esc(_humanize_seconds(repo_totals.get("working_seconds", "-"))),
+                       _esc(_fmt_money(repo_totals.get("cost_usd", "-"), empty="-"))))
+    # Four averages summary rows (B1 — a "no data" average renders the nodata cell, never omitted).
+    for label, formatted in _average_cells(value):
+        cls = ' class="nodata"' if formatted == NO_DATA else ""
+        rows.append('<tr><td>%s</td><td colspan="2"%s>%s</td></tr>'
+                    % (_esc(label), cls, _esc(formatted)))
     return "<table>" + "".join(rows) + "</table>"
 
 
@@ -486,7 +598,39 @@ def _html_panel6(value):
         inp = bucket.get("input", 0)
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
                     % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
-                       _esc(bucket.get("cost", 0)), _html_bar_cell(inp, panel_max)))
+                       _esc(_fmt_money(bucket.get("cost", 0), empty="-")),
+                       _html_bar_cell(inp, panel_max)))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _html_lead_cycle_cell(value):
+    """One lead/cycle <td> — humanized duration, or a nodata cell when the value is "no data" (B1)."""
+    formatted = _humanize_seconds(value)
+    cls = ' class="nodata"' if formatted == NO_DATA else ""
+    return "<td%s>%s</td>" % (cls, _esc(formatted))
+
+
+def _html_panel7(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _html_no_data()
+    rows = ["<tr><th>ticket</th><th>lead</th><th>cycle</th></tr>"]
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        rows.append('<tr><td colspan="3" class="nodata">%s</td></tr>' % NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        rows.append("<tr><td>%s</td>%s%s</tr>"
+                    % (_esc(row.get("ticket_id", "?")),
+                       _html_lead_cycle_cell(row.get("lead_seconds", NO_DATA)),
+                       _html_lead_cycle_cell(row.get("cycle_seconds", NO_DATA))))
+    # Two average summary rows (B1 — humanized, or a nodata cell when there is no value).
+    for label, raw in (("avg lead", value.get("avg_lead_seconds", NO_DATA)),
+                       ("avg cycle", value.get("avg_cycle_seconds", NO_DATA))):
+        formatted = _humanize_seconds(raw)
+        cls = ' class="nodata"' if formatted == NO_DATA else ""
+        rows.append('<tr><td>%s</td><td colspan="2"%s>%s</td></tr>'
+                    % (_esc(label), cls, _esc(formatted)))
     return "<table>" + "".join(rows) + "</table>"
 
 
@@ -497,6 +641,7 @@ _HTML_PANELS = {
     "4": _html_panel4,
     "5": _html_panel5,
     "6": _html_panel6,
+    "7": _html_panel7,
 }
 
 

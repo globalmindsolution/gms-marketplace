@@ -85,6 +85,13 @@ def write_create_pr_state(ws, tid, states=None, archived=False):
                 {"skill": "create-pr", "ticket_id": tid, "states": states or {}, "runs": []})
 
 
+def write_ticket_json(ws, tid, created_at, archived=False):
+    """Write <partition>/ticket.json carrying created_at (lead-time anchor for panel 7)."""
+    tdir = _ticket_dir(ws, tid, archived)
+    _write_json(os.path.join(tdir, "ticket.json"),
+                {"id": tid, "created_at": created_at})
+
+
 _RESULT_XML = (
     '<result skill="code" phase="{phase}" ticket-id="{tid}" iteration="{it}" status="completed">\n'
     '  <outputs><file>x</file></outputs>\n'
@@ -290,6 +297,246 @@ class Panel6TokenBurn(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Panel 3 averages (AC-1) — four averages incl. both divide-by-zero
+# ---------------------------------------------------------------------------
+
+class AveragesPanel3(unittest.TestCase):
+    def test_exact_four_averages(self):
+        with TemporaryDirectory() as ws:
+            # 4 tickets -> ticket_count == 4; prs.merged == 2
+            write_index(ws, {
+                "MAR-1": {"status": "done", "type": "task"},
+                "MAR-2": {"status": "done", "type": "task"},
+                "MAR-3": {"status": "done", "type": "task"},
+                "MAR-4": {"status": "in_progress", "type": "task"},
+            })
+            write_metrics(ws, {"prs": {"created": 4, "merged": 2},
+                               "totals": {"working_seconds": 64238, "cost_usd": 18.76}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            avgs = out["panels"]["3"]["averages"]
+            self.assertEqual(avgs["avg_working_seconds_per_ticket"], 64238 / 4)
+            self.assertEqual(avgs["avg_working_seconds_per_pr"], 64238 / 2)
+            self.assertEqual(avgs["avg_cost_per_ticket"], 18.76 / 4)
+            self.assertEqual(avgs["avg_cost_per_pr"], 18.76 / 2)
+            # existing Panel 3 keys untouched (additive)
+            self.assertIn("tickets", out["panels"]["3"])
+            self.assertIn("repo_totals", out["panels"]["3"])
+
+    def test_divide_by_zero_ticket_count_empty_early_return(self):
+        # ticket_count == 0 -> the empty-workspace early return; averages unreachable, panel "no data".
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["3"], "no data")  # no exception, no ZeroDivisionError
+
+    def test_divide_by_zero_prs_merged_zero(self):
+        # populated workspace (per-ticket averages compute) but prs.merged == 0 -> per-PR "no data".
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_metrics(ws, {"prs": {"created": 3, "merged": 0},
+                               "totals": {"working_seconds": 1200, "cost_usd": 4.0}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            avgs = out["panels"]["3"]["averages"]
+            self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
+            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
+            # per-ticket averages still compute (ticket_count == 1)
+            self.assertEqual(avgs["avg_working_seconds_per_ticket"], 1200.0)
+            self.assertEqual(avgs["avg_cost_per_ticket"], 4.0)
+
+    def test_prs_absent_defaults_merged_zero(self):
+        # no prs key in metrics.json -> defaults to merged == 0 -> per-PR averages "no data".
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_metrics(ws, {"totals": {"working_seconds": 1200, "cost_usd": 4.0}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            avgs = out["panels"]["3"]["averages"]
+            self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
+            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
+
+    def test_non_numeric_totals_are_no_data(self):
+        # totals.working_seconds None / cost_usd absent -> those averages "no data", no exception.
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_metrics(ws, {"prs": {"created": 2, "merged": 2},
+                               "totals": {"working_seconds": None}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            avgs = out["panels"]["3"]["averages"]
+            self.assertEqual(avgs["avg_working_seconds_per_ticket"], "no data")
+            self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
+            self.assertEqual(avgs["avg_cost_per_ticket"], "no data")
+            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
+
+    def test_bool_denominator_treated_non_numeric(self):
+        # a bool merged value must not act as 1 -> "no data" (mirror panel-4 bool guard).
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_metrics(ws, {"prs": {"created": 1, "merged": True},
+                               "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            avgs = out["panels"]["3"]["averages"]
+            self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
+            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
+
+
+# ---------------------------------------------------------------------------
+# Panel 7 lead/cycle wall-clock (AC-2) — exact seconds, edges, subset averages
+# ---------------------------------------------------------------------------
+
+def _lead_cycle_steps(code_started, merge_ended, create_pr_ended=None):
+    """A steps dict carrying the code.started_at and merge-pr.ended_at anchors panel 7 reads.
+
+    create_pr_ended is a deliberately-different create-pr.ended_at so a test can prove the end
+    anchor is merge-pr (not create-pr).
+    """
+    steps = {
+        "code": {"started_at": code_started, "status": "completed",
+                 "ended_at": "2026-06-15T11:00:00Z"},
+        "merge-pr": {"started_at": "2026-06-15T12:00:00Z", "status": "completed",
+                     "ended_at": merge_ended},
+    }
+    if create_pr_ended is not None:
+        steps["create-pr"] = {"started_at": "2026-06-15T11:30:00Z", "status": "completed",
+                              "ended_at": create_pr_ended}
+    return steps
+
+
+class LeadCyclePanel7(unittest.TestCase):
+    def _row(self, out, tid):
+        return next(r for r in out["panels"]["7"]["tickets"] if r["ticket_id"] == tid)
+
+    def test_exact_lead_and_cycle_seconds_merge_pr_anchor(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            # created 10:00:00, code started 10:30:00, merge-pr ended 13:00:00,
+            # create-pr ended 11:45:00 (different -> proves merge-pr is the anchor).
+            write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
+            write_pipeline(ws, "MAR-6",
+                           steps=_lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z",
+                                                   create_pr_ended="2026-06-15T11:45:00Z"),
+                           archived=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-6")
+            # lead = 13:00:00 - 10:00:00 = 3h = 10800s
+            self.assertEqual(row["lead_seconds"], 10800)
+            # cycle = 13:00:00 - 10:30:00 = 2h30m = 9000s
+            self.assertEqual(row["cycle_seconds"], 9000)
+            # NOT the create-pr figure: lead to create-pr would be 6300s; cycle 4500s
+            self.assertNotEqual(row["lead_seconds"], 6300)
+            self.assertNotEqual(row["cycle_seconds"], 4500)
+            # averages over the single ticket with values
+            self.assertEqual(out["panels"]["7"]["avg_lead_seconds"], 10800.0)
+            self.assertEqual(out["panels"]["7"]["avg_cycle_seconds"], 9000.0)
+
+    def test_open_ticket_no_merge_pr_ended_both_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-4": {"status": "in_progress", "type": "task"}})
+            write_ticket_json(ws, "MAR-4", "2026-06-15T10:00:00Z")
+            # code present, but merge-pr.ended_at is None (unmerged)
+            write_pipeline(ws, "MAR-4",
+                           steps=_lead_cycle_steps("2026-06-15T10:30:00Z", None))
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-4")
+            self.assertEqual(row["lead_seconds"], "no data")
+            self.assertEqual(row["cycle_seconds"], "no data")
+            self.assertTrue(any(d["ticket_id"] == "MAR-4" and d["panel"] == 7
+                                and isinstance(d["reason"], str) and d["reason"]
+                                for d in out["meta"]["degraded"]))
+
+    def test_merged_missing_code_step_cycle_no_data_lead_computes(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-1": {"status": "done", "type": "task"}})
+            write_ticket_json(ws, "MAR-1", "2026-06-15T10:00:00Z", archived=True)
+            # merged (merge-pr.ended present) but code.started_at is None
+            write_pipeline(ws, "MAR-1",
+                           steps=_lead_cycle_steps(None, "2026-06-15T13:00:00Z"),
+                           archived=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-1")
+            self.assertEqual(row["lead_seconds"], 10800)        # lead still computes
+            self.assertEqual(row["cycle_seconds"], "no data")   # cycle unavailable
+            self.assertTrue(any(d["ticket_id"] == "MAR-1" and d["panel"] == 7
+                                for d in out["meta"]["degraded"]))
+
+    def test_missing_created_at_lead_no_data_cycle_computes(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-2": {"status": "done", "type": "task"}})
+            # NO ticket.json -> created_at absent
+            write_pipeline(ws, "MAR-2",
+                           steps=_lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"),
+                           archived=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-2")
+            self.assertEqual(row["lead_seconds"], "no data")    # lead unavailable
+            self.assertEqual(row["cycle_seconds"], 9000)        # cycle still computes
+            self.assertTrue(any(d["ticket_id"] == "MAR-2" and d["panel"] == 7
+                                for d in out["meta"]["degraded"]))
+
+    def test_averages_only_over_tickets_with_a_value(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "FULL": {"status": "done", "type": "task"},      # lead + cycle both
+                "OPEN": {"status": "in_progress", "type": "task"},  # neither
+                "NOCODE": {"status": "done", "type": "task"},    # lead only
+            })
+            write_ticket_json(ws, "FULL", "2026-06-15T10:00:00Z")
+            write_pipeline(ws, "FULL",
+                           steps=_lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"))
+            write_ticket_json(ws, "OPEN", "2026-06-15T10:00:00Z")
+            write_pipeline(ws, "OPEN", steps=_lead_cycle_steps("2026-06-15T10:30:00Z", None))
+            write_ticket_json(ws, "NOCODE", "2026-06-15T09:00:00Z")
+            write_pipeline(ws, "NOCODE", steps=_lead_cycle_steps(None, "2026-06-15T13:00:00Z"))
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p7 = out["panels"]["7"]
+            # leads with a value: FULL 10800, NOCODE (13:00-09:00) 14400 -> mean 12600
+            self.assertEqual(p7["avg_lead_seconds"], (10800 + 14400) / 2)
+            # cycles with a value: only FULL 9000 -> mean 9000
+            self.assertEqual(p7["avg_cycle_seconds"], 9000.0)
+
+    def test_no_ticket_has_a_value_averages_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"OPEN": {"status": "in_progress", "type": "task"}})
+            write_ticket_json(ws, "OPEN", "2026-06-15T10:00:00Z")
+            write_pipeline(ws, "OPEN", steps=_lead_cycle_steps("2026-06-15T10:30:00Z", None))
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p7 = out["panels"]["7"]
+            self.assertEqual(p7["avg_lead_seconds"], "no data")
+            self.assertEqual(p7["avg_cycle_seconds"], "no data")
+
+    def test_negative_interval_yields_no_data(self):
+        # merge-pr.ended_at BEFORE created_at -> negative -> lead "no data" (total function).
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_ticket_json(ws, "MAR-9", "2026-06-15T14:00:00Z")
+            write_pipeline(ws, "MAR-9",
+                           steps=_lead_cycle_steps("2026-06-15T10:30:00Z", "2026-06-15T13:00:00Z"))
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-9")
+            self.assertEqual(row["lead_seconds"], "no data")   # 13:00 < 14:00 -> negative
+            self.assertEqual(row["cycle_seconds"], 9000)       # cycle still positive
+
+    def test_pipeline_absent_panel7_open_ticket_row(self):
+        # ticket in index, NO pipeline-state.json -> panel-7 row present, both "no data", degrade.
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-X": {"status": "in_progress", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = self._row(out, "MAR-X")
+            self.assertEqual(row["lead_seconds"], "no data")
+            self.assertEqual(row["cycle_seconds"], "no data")
+            self.assertTrue(any(d["ticket_id"] == "MAR-X" and d["panel"] == 7
+                                for d in out["meta"]["degraded"]))
+
+    def test_never_raises_one_row_per_ticket(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"A": {"status": "done", "type": "task"},
+                             "B": {"status": "in_progress", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ids = [r["ticket_id"] for r in out["panels"]["7"]["tickets"]]
+            self.assertEqual(sorted(ids), ["A", "B"])  # one row per ticket
+            for k in ("1", "2", "3", "4", "5", "6", "7"):
+                self.assertIn(k, out["panels"])
+
+
+# ---------------------------------------------------------------------------
 # Edge-case tests (AC-5)
 # ---------------------------------------------------------------------------
 
@@ -299,7 +546,7 @@ class EmptyWorkspace(unittest.TestCase):
             os.makedirs(_repo_dir(ws), exist_ok=True)  # repo dir, but no tickets-index.json
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["meta"]["ticket_count"], 0)
-            for k in ("1", "2", "3", "4", "5", "6"):
+            for k in ("1", "2", "3", "4", "5", "6", "7"):
                 self.assertIn(k, out["panels"])
                 self.assertEqual(out["panels"][k], "no data")
 
@@ -308,7 +555,7 @@ class EmptyWorkspace(unittest.TestCase):
             write_index(ws, {})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["meta"]["ticket_count"], 0)
-            for k in ("1", "2", "3", "4", "5", "6"):
+            for k in ("1", "2", "3", "4", "5", "6", "7"):
                 self.assertEqual(out["panels"][k], "no data")
 
     def test_main_smoke_exits_zero_on_empty(self):
@@ -339,8 +586,10 @@ class MissingPartialState(unittest.TestCase):
             self.assertTrue(any(d["ticket_id"] == "MAR-X" and d["panel"] == 5 for d in deg))
             # panel 2/3 (pipeline-state) degrade for this ticket
             self.assertTrue(any(d["ticket_id"] == "MAR-X" and d["panel"] in (2, 3) for d in deg))
-            # no exception, all six keys present, reason strings populated
-            for k in ("1", "2", "3", "4", "5", "6"):
+            # panel 7 (no pipeline) degrades for this ticket too
+            self.assertTrue(any(d["ticket_id"] == "MAR-X" and d["panel"] == 7 for d in deg))
+            # no exception, all seven keys present, reason strings populated
+            for k in ("1", "2", "3", "4", "5", "6", "7"):
                 self.assertIn(k, out["panels"])
             self.assertTrue(all(isinstance(d["reason"], str) and d["reason"] for d in deg))
 
@@ -408,6 +657,8 @@ class ReadOnly(unittest.TestCase):
             write_code_state(ws, "MAR-6", {"review": {"iterations": 2},
                                            "tests": {"coverage_percent": 90.0, "coverage_target": 90}},
                              archived=True)
+            # panel-7 lead-time anchor: a per-ticket ticket.json the new read opens read-only
+            write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
             write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=1, to=1, cost=0.1, archived=True)
 
             before = self._snapshot_mtimes(_repo_dir(ws))
