@@ -91,7 +91,7 @@ features.
   (`checks.{branch_name,pr_title,pr_description,acs_label,commit_message}`,
   `require_label`, `exempt_label` default `acs-exempt`, `exempt_branches`,
   `pr_description_sections`). Observed live on this repo: ruleset 17602044 is
-  `active` on `main` with "PR title convention" among the required status-check
+  `active` on `main` with "Branch / PR / commit conventions" among the required status-check
   contexts (`gh api repos/:owner/:repo/rulesets/17602044`).
 - **E5.2 — `/acs:install-hooks` skill** + committed `.acs/ci/install-hooks.sh`.
   The per-clone `pre-commit install` equivalent for acs; the committed script
@@ -101,8 +101,8 @@ features.
   per-platform install commands, so onboarding fails up front with consent.
 - **E5.4 — Repo hardening.** This repo is public under the MIT `LICENSE`; a branch
   ruleset on `main` requires a PR with squash-only merges, linear history,
-  non-fast-forward protection, and the required status checks (PR title
-  convention, secret scan, pre-commit hooks, tests); secret scanning + push
+  non-fast-forward protection, and the required status checks (Branch / PR / commit
+  conventions, secret scan, pre-commit hooks, tests); secret scanning + push
   protection are enabled; Dependabot runs alerts, security updates, and version
   updates. The default `GITHUB_TOKEN` workflow permission is **read**, and
   Actions are restricted to a selected allowlist (`allowed_actions=selected`,
