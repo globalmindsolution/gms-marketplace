@@ -12,6 +12,7 @@ Run:  python3 -m unittest discover -s tests -v
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1036,63 +1037,63 @@ if __name__ == "__main__":
 # MAR-15 spec 01 — due_date schema + write path
 # ---------------------------------------------------------------------------
 
-import jsonschema  # noqa: E402 — stdlib-like; already in the project deps
-
-
 class TestDueDateSchema(unittest.TestCase):
-    """AC-1: due_date is an optional, back-compatible addition to ticket.schema.json."""
+    """AC-1: due_date is an optional, back-compatible addition to ticket.schema.json.
+
+    The repo is stdlib-only (no third-party runtime/test deps), so instead of a
+    full JSON-Schema validator these tests assert the specific contract the
+    schema declares for due_date, reading the rule live from the schema file:
+      - due_date is NOT in `required` (so an absent key conforms);
+      - due_date is `oneOf [{type:string, pattern}, {type:null}]`, so null and a
+        pattern-matching string conform while a non-matching string does not.
+    The string-branch `pattern` is extracted from the loaded schema (not copied)
+    and applied with `re.match`, so the tests track the real schema rule.
+    """
 
     SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
 
     @classmethod
     def setUpClass(cls):
-        import json as _json
         with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = _json.load(fh)
+            cls.schema = json.load(fh)
+        due = cls.schema["properties"]["due_date"]
+        branches = due["oneOf"]
+        # Extract the string branch's pattern and confirm a null branch exists.
+        cls.string_pattern = next(
+            b["pattern"] for b in branches if b.get("type") == "string"
+        )
+        cls.allows_null = any(b.get("type") == "null" for b in branches)
 
-    def _base_ticket(self):
-        return {
-            "id": "SHOP-1",
-            "title": "Test",
-            "type": "task",
-            "description": "",
-            "acceptance_criteria": [],
-            "priority": "medium",
-            "parent": None,
-            "children": [],
-            "status": "open",
-            "external": None,
-            "assignee": None,
-            "story_points": None,
-            "needs_design": False,
-            "created_at": "2026-06-18T00:00:00Z",
-            "updated_at": "2026-06-18T00:00:00Z",
-        }
+    def _due_date_conforms(self, value, *, present=True):
+        """Validate a candidate due_date against the schema's real contract.
+
+        `present=False` models a ticket dict that omits the key entirely.
+        """
+        if not present:
+            # Absent key conforms iff due_date is not required.
+            return "due_date" not in self.schema["required"]
+        if value is None:
+            return self.allows_null
+        if isinstance(value, str):
+            return re.match(self.string_pattern, value) is not None
+        return False
 
     def test_ticket_without_due_date_validates(self):
         """Absent due_date must remain schema-valid (back-compat)."""
-        ticket = self._base_ticket()
-        # no due_date key at all
-        jsonschema.validate(ticket, self.schema)
+        self.assertNotIn("due_date", self.schema["required"])
+        self.assertTrue(self._due_date_conforms(None, present=False))
 
     def test_ticket_with_due_date_null_validates(self):
         """due_date: null must validate."""
-        ticket = self._base_ticket()
-        ticket["due_date"] = None
-        jsonschema.validate(ticket, self.schema)
+        self.assertTrue(self._due_date_conforms(None))
 
     def test_ticket_with_valid_date_validates(self):
         """due_date: '2026-07-01' must validate."""
-        ticket = self._base_ticket()
-        ticket["due_date"] = "2026-07-01"
-        jsonschema.validate(ticket, self.schema)
+        self.assertTrue(self._due_date_conforms("2026-07-01"))
 
     def test_ticket_with_malformed_due_date_fails_validation(self):
-        """due_date: 'not-a-date' must raise ValidationError (pattern mismatch)."""
-        ticket = self._base_ticket()
-        ticket["due_date"] = "not-a-date"
-        with self.assertRaises(jsonschema.ValidationError):
-            jsonschema.validate(ticket, self.schema)
+        """due_date: 'not-a-date' must fail the schema's pattern rule."""
+        self.assertFalse(self._due_date_conforms("not-a-date"))
 
 
 class TestDueDateWritePath(AcsWorkspaceCase):
