@@ -1030,3 +1030,106 @@ class TestBackfillDistinctPRCount(AcsWorkspaceCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# MAR-15 spec 01 — due_date schema + write path
+# ---------------------------------------------------------------------------
+
+import jsonschema  # noqa: E402 — stdlib-like; already in the project deps
+
+
+class TestDueDateSchema(unittest.TestCase):
+    """AC-1: due_date is an optional, back-compatible addition to ticket.schema.json."""
+
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
+
+    @classmethod
+    def setUpClass(cls):
+        import json as _json
+        with open(cls.SCHEMA_PATH) as fh:
+            cls.schema = _json.load(fh)
+
+    def _base_ticket(self):
+        return {
+            "id": "SHOP-1",
+            "title": "Test",
+            "type": "task",
+            "description": "",
+            "acceptance_criteria": [],
+            "priority": "medium",
+            "parent": None,
+            "children": [],
+            "status": "open",
+            "external": None,
+            "assignee": None,
+            "story_points": None,
+            "needs_design": False,
+            "created_at": "2026-06-18T00:00:00Z",
+            "updated_at": "2026-06-18T00:00:00Z",
+        }
+
+    def test_ticket_without_due_date_validates(self):
+        """Absent due_date must remain schema-valid (back-compat)."""
+        ticket = self._base_ticket()
+        # no due_date key at all
+        jsonschema.validate(ticket, self.schema)
+
+    def test_ticket_with_due_date_null_validates(self):
+        """due_date: null must validate."""
+        ticket = self._base_ticket()
+        ticket["due_date"] = None
+        jsonschema.validate(ticket, self.schema)
+
+    def test_ticket_with_valid_date_validates(self):
+        """due_date: '2026-07-01' must validate."""
+        ticket = self._base_ticket()
+        ticket["due_date"] = "2026-07-01"
+        jsonschema.validate(ticket, self.schema)
+
+    def test_ticket_with_malformed_due_date_fails_validation(self):
+        """due_date: 'not-a-date' must raise ValidationError (pattern mismatch)."""
+        ticket = self._base_ticket()
+        ticket["due_date"] = "not-a-date"
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(ticket, self.schema)
+
+
+class TestDueDateWritePath(AcsWorkspaceCase):
+    """AC-2 + C-3: new-ticket.py --due-date sets ticket.json and tickets-index.json."""
+
+    def test_due_date_written_to_ticket_json(self):
+        """--due-date 2026-07-01 must appear in ticket.json.due_date."""
+        ticket_id = self.new_ticket("T", "task", "--due-date", "2026-07-01")
+        ticket = lib.load_ticket(self.tdir(ticket_id))
+        self.assertEqual(ticket["due_date"], "2026-07-01")
+
+    def test_due_date_propagated_to_index(self):
+        """--due-date 2026-07-01 must propagate into tickets-index.json (C-3)."""
+        ticket_id = self.new_ticket("T", "task", "--due-date", "2026-07-01")
+        with open(lib.index_path(self.ws, "acme-shop")) as fh:
+            index = __import__("json").load(fh)
+        self.assertEqual(index["tickets"][ticket_id]["due_date"], "2026-07-01")
+
+    def test_omitting_due_date_yields_null(self):
+        """Omitting --due-date must write due_date: null in ticket.json."""
+        ticket_id = self.new_ticket("T2", "task")
+        ticket = lib.load_ticket(self.tdir(ticket_id))
+        self.assertIsNone(ticket["due_date"])
+
+    def test_malformed_due_date_rejected_non_zero_exit(self):
+        """2026/07/01 (wrong separator) must exit non-zero with 'YYYY-MM-DD' in stderr."""
+        result = self.run_script(
+            "new-ticket.py", "--title", "T3", "--type", "task",
+            "--due-date", "2026/07/01",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("YYYY-MM-DD", result.stderr)
+
+    def test_datetime_string_rejected(self):
+        """2026-07-01T00:00:00Z (datetime, not bare date) must exit non-zero."""
+        result = self.run_script(
+            "new-ticket.py", "--title", "T4", "--type", "task",
+            "--due-date", "2026-07-01T00:00:00Z",
+        )
+        self.assertNotEqual(result.returncode, 0)
