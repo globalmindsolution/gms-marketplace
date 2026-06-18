@@ -1,16 +1,23 @@
 # HLD — Overview
 
-> Living architecture doc set for the **acs plugin itself** (dogfooding:
-> this repo is a consumer repo of its own product). Bootstrapped from the
-> implemented system; kept current by the pipeline per the living-architecture
-> rules in `docs/requirements/workflow.md`. All diagrams are Mermaid.
+> Living architecture doc set for the **GMS Marketplace** — a curated plugin
+> catalog hosting heterogeneous plugins for Claude Code and Cowork (dogfooding:
+> this repo is itself a consumer of acs, one of the marketplace plugins).
+> Bootstrapped from the implemented system; kept current by the pipeline per
+> the living-architecture rules in `docs/requirements/workflow.md`. All
+> diagrams are Mermaid.
 
 ## System context
 
-acs is a Claude Code plugin distributed from this repository (a plugin
-marketplace). Installed into a user's Claude Code, it drives an agentic
-software-delivery workflow on any **consumer repository**, persisting all
-pipeline state into a **workspace folder outside that repo**.
+The GMS Marketplace is a curated plugin catalog that hosts heterogeneous
+plugins distributed from this repository. Plugins differ in shape:
+
+- **acs** (full-shape: `.acs/`, schemas, hooks, agents, skills) — targets
+  **Claude Code**; drives an agentic software-delivery workflow on any
+  **consumer repository**, persisting all pipeline state into a **workspace
+  folder outside that repo**.
+- **tabp** (skills-only: `skills/` only) — targets **Cowork**; provides a
+  screen-CVs recruiting workflow dispatched via the Cowork runtime.
 
 ## Quality attributes (drive the design)
 

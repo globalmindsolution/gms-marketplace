@@ -6,7 +6,7 @@
     "name": "Global Mind Solution"
   },
   "metadata": {
-    "description": "Global Mind Solution plugin marketplace for Claude Code. First plugin: acs (Autonomous Coding Skills). Plugin updates reach users only when the plugin's own version bumps (see plugins/acs/CHANGELOG.md)."
+    "description": "Global Mind Solution plugin marketplace for Claude Code and Claude Cowork. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge) and tabp (Cowork screen-cvs — CV screening with weighted scoring, fairness guardrails, and Excel scorecard). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
   },
   "plugins": [
     {

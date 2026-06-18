@@ -1,7 +1,7 @@
 # Documentation
 
-Product documentation for **`acs`**, organized as the doc sets the acs workflow
-maintains across the **software development lifecycle**. Each set is normative
+Product documentation for the **GMS Marketplace**, organized as the doc sets
+the acs workflow maintains across the **software development lifecycle**. Each set is normative
 for one concern and answers one question — none replaces another. Together they
 cover define → specify → design → decide → **verify → release & operate**.
 
@@ -31,5 +31,7 @@ they're auto-discovered):
 | How to contribute / develop the plugin | [`CONTRIBUTING.md`](../CONTRIBUTING.md) (root) + [`plugins/acs/docs/`](../plugins/acs/docs/) (INTERNALS, AUTHORING) |
 | Install / usage / troubleshooting | [`plugins/acs/README.md`](../plugins/acs/README.md) |
 
-> This repo dogfoods acs on itself, so these are also acs's own product docs:
-> the same sets acs maintains for any consumer repo.
+> This repo dogfoods the marketplace on itself: the **acs** plugin is used as
+> the agentic workflow tool for all active development work here, so these docs
+> are also acs's own product docs — the same sets acs maintains for any
+> consumer repo.
