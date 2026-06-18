@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Decision records for the **acs plugin itself** (dogfooding `adr_path`). On
+Decision records for the **GMS Marketplace** (including acs and its plugins, dogfooding `adr_path`). On
 consumer repos this folder is maintained by `/acs:code`, which commits each
 ticket design's accepted decisions; these first ten are retrofitted from the
 [decision log](../README.md#decision-log) — the log remains the complete,
@@ -29,6 +29,8 @@ context and consequences.
 | [0018](0018-distinct-pr-counting-via-created-pr-numbers.md) | Distinct-PR counting via a recorded `created_pr_numbers` set | Accepted |
 | [0019](0019-split-acs-metrics-into-pm-and-usage-skills.md) | Split `/acs:metrics` into two narrowly-scoped skills: PM delivery and tool usage | Accepted |
 | [0020](0020-ticket-due-date-and-deadline-panel.md) | Deadlines sourced from a `due_date` ticket field (not the GitHub tracker, not deferred) | Accepted |
+| [0021](0021-heterogeneous-plugin-contract-via-directory-convention-shapes.md) | Heterogeneous plugin contract via directory-convention shapes | Accepted |
+| [0022](0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md) | Behavioral evals are local-only; CI runs no LLM calls | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.
