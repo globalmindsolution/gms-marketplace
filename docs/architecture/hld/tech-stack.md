@@ -2,7 +2,7 @@
 
 | Layer | Technology | Why |
 |-------|------------|-----|
-| Skills (12) | Markdown SKILL.md, Claude Code plugin skill format | Coordinator protocols; user-invocable as `/acs:<name>` |
+| acs Skills (16) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (16 skills; tabp has 1 skill — screen-cvs — via Cowork, counted separately) |
 | Subagents (27) | Markdown agent definitions | Separate contexts per reflection phase; tool allowlists in frontmatter |
 | Hooks & helpers | **Python ≥ 3.9, stdlib only** | Deterministic gating/persistence with zero consumer-machine installs |
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
@@ -10,8 +10,8 @@
 | Diagrams | Mermaid (C4, ER, sequence, state) | Diffable, GitHub-rendered, agent-maintainable |
 | VCS / delivery | git, GitHub via `gh` CLI | Branch-per-ticket, PR-based delivery |
 | Trackers (optional) | `gh` (Projects v2), `acli` (Jira) | Two-way sync; CLIs own auth — no secrets in settings |
-| CI / release | GitHub Actions | Tests + validation per PR; tag-on-version-bump releases |
-| Tests | `unittest` (stdlib) | Deterministic-layer integration tests + prose contract tests |
+| CI / release | GitHub Actions | Per-plugin shape-conditional tests + validation per PR (`tests/acs/` + `tests/tabp/`; per-plugin schemas, hooks, skills presence-gated; no eval calls in CI); tag-on-version-bump releases |
+| Tests | `unittest` (stdlib) | Multi-plugin test discovery: `python3 -m unittest discover -s tests` finds `tests/acs/` and `tests/tabp/` automatically; per-plugin `__init__.py` package markers prevent import collisions |
 
 ## Conventions
 
