@@ -16,21 +16,26 @@ for E1.1–E1.4.
 evals/
 ├── run_evals.py        # THIN dispatcher: parses --plugin, delegates to evals/<plugin>/run_evals.py
 ├── README.md
-└── acs/                # acs behavioral eval subtree
-    ├── __init__.py     # acs package marker
-    ├── harness.py      # acs Sandbox + Check (acs-specific; relocated from evals/ root — MAR-33)
-    ├── run_evals.py    # acs runner: tier selection, scenario loop, banner (MAR-33)
-    ├── README.md       # acs eval subtree docs
-    └── scenarios/
-        ├── __init__.py # SCENARIOS registry (imports s01..s05)
-        ├── s01_install_gate_smoke.py
-        ├── s02_create_ticket_artifacts.py
-        ├── s03_resume_and_verify.py
-        ├── s04_skill_triggers.py
-        └── s05_session_end.py
+├── acs/                # acs behavioral eval subtree
+│   ├── __init__.py     # acs package marker
+│   ├── harness.py      # acs Sandbox + Check (acs-specific; relocated from evals/ root — MAR-33)
+│   ├── run_evals.py    # acs runner: tier selection, scenario loop, banner (MAR-33)
+│   ├── README.md       # acs eval subtree docs
+│   └── scenarios/
+│       ├── __init__.py # SCENARIOS registry (imports s01..s05)
+│       ├── s01_install_gate_smoke.py
+│       ├── s02_create_ticket_artifacts.py
+│       ├── s03_resume_and_verify.py
+│       ├── s04_skill_triggers.py
+│       └── s05_session_end.py
+└── tabp/               # tabp behavioral eval subtree (MAR-32, live)
+    ├── __init__.py     # tabp package marker
+    ├── run_evals.py    # tabp runner
+    ├── scenarios/      # tabp scenario package
+    └── fixtures/       # tabp test fixtures
 ```
 
-Future plugins add their own `evals/<plugin>/` subtree, each containing at
+Each plugin owns its eval subtree under `evals/<plugin>/`, containing at
 minimum a `run_evals.py` runner and a `scenarios/` package.
 
 ## Why it lives in `evals/`, not `tests/`
@@ -187,5 +192,6 @@ scenario loop — it simply peels `--plugin` and delegates.
 - **MAR-33 (done)** — `harness.py` and `run_evals.py` relocated under
   `evals/acs/`; `evals/run_evals.py` rewritten as a thin dispatcher; per-plugin
   runner shape fully established.
-- **MAR-32 (planned)** — `evals/tabp/` directory and `screen-cvs` behavioral
-  scenario.
+- **MAR-32 (done)** — `evals/tabp/` scaffold live on main (`run_evals.py`,
+  `scenarios/`, `fixtures/`, `__init__.py`); `screen-cvs` behavioral scenario
+  in place.
