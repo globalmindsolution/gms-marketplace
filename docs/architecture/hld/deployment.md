@@ -13,7 +13,7 @@ flowchart LR
         CC["Claude Code<br/>(plugin host — acs)"]
         CW["Cowork<br/>(plugin host — tabp)"]
         PI_ACS["Installed acs plugin<br/>~/.claude/... (full-shape)"]
-        PI_TABP["Installed tabp plugin<br/>Cowork environment (skills-only)"]
+        PI_TABP["Installed tabp plugin<br/>Cowork environment (fuller shape: skills + helper + schemas + subagent charters)"]
         subgraph checkouts["Consumer repo checkouts"]
             CO1["main checkout"]
             CO2["worktree per ticket (parallel sessions)"]

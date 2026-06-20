@@ -167,16 +167,43 @@ after this pass produces no blocking findings.
 
 **Present results only after the pass finds no blocking findings.**
 
-After the pass is complete (no blocking findings), proceed to Step 6 to deliver
-results. The `decision-write` call that records `verification_passed=true` is
-performed by the step that follows this section (added in the spec 04
-changeset).
+After the pass is complete (no blocking findings), proceed to Step 5b to record
+the decision before delivering results.
 
 **Upgrade path (not implemented here):** an independent Sonnet sub-agent
 verifier may be added in a future iteration (assumption C-7) to provide more
 independence than a single coordinator pass. The charter for that verifier would
 follow the same `plugins/tabp/agents/` convention as the screening and
 synthesis charters defined in this spec.
+
+## Step 5b — Record the decision
+
+After the self-verification pass produces no blocking findings, record the
+decision before presenting results.
+
+1. **Write the decision record.** Invoke:
+   ```
+   python3 plugins/tabp/helpers/tabp_helper.py decision-write \
+     --project-dir <project-folder> \
+     --run-id <run_id> \
+     --verification-passed true \
+     --verification-notes "<summary of the self-verification pass outcome>"
+   ```
+   The helper writes `.tabp/runs/<run_id>/decision.json` atomically with:
+   - `verification_passed: true`
+   - `verification_notes`: the summary string above
+   - `presented_at`: the current UTC timestamp (set by the helper)
+   - `sign_off: null`
+
+2. **If verification failed (blocking findings not resolved).** Write with
+   `--verification-passed false` and include the blocking findings in
+   `--verification-notes`. Do NOT proceed to Step 6 until all blocking
+   findings are resolved and a subsequent pass writes
+   `verification_passed: true`.
+
+3. **Degradation path.** If Bash is unavailable, write `decision.json`
+   directly into `.tabp/runs/<run_id>/` using the file-write capability,
+   populating the fields as described above. Set `sign_off` to `null`.
 
 ## Step 6 — Deliver results
 
