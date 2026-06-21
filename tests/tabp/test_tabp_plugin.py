@@ -5,15 +5,17 @@ Covers:
   AC2 -- screen-cvs SKILL.md + 3 references present, frontmatter intact.
   AC3 -- marketplace.json tabp entry exists, entry name == plugin.json name == "tabp".
   AC4 -- this module is discovered by unittest discover -s tests and is green.
-  AC5 -- skills-only shape proven by the TestSkillsOnlyShape assertions.
+  AC5 -- plugin shape proven by the TestSkillsOnlyShape assertions.
+  AC6 -- namespace guard enforced by TestNamespaceGuard.
 
-No model call. No subprocess. Stdlib only.
+No model call. Stdlib only.
 Run: python3 -m unittest tests.tabp.test_tabp_plugin -v
 """
 
 import json
 import os
 import re
+import subprocess
 import unittest
 
 # Three dirname calls: __file__ is tests/tabp/test_tabp_plugin.py
@@ -67,40 +69,41 @@ class TestPluginJson(unittest.TestCase):
 
 
 class TestSkillsOnlyShape(unittest.TestCase):
-    """Group 2 -- skills-only shape (AC1, AC5).
+    """Group 2 -- plugin shape assertions (AC5, AC6).
 
-    Asserts that none of the full-shape directories are present under
-    plugins/tabp/. Their absence ensures the CI shape-conditional steps
-    (JSON Schema, settings validation, XSD, hook byte-compile) all skip
-    for tabp -- see spec 02 CI table.
+    After MAR-2: plugins/tabp/ gains schemas/ (spec 01 JSON schemas) and
+    agents/ (spec 03 subagent charters). These directories MUST exist.
+    plugins/tabp/hooks/ and plugins/tabp/.acs/ must NOT exist:
+    the tabp helper lives under helpers/ (not hooks/) and tabp does
+    not use the acs partition.
     """
 
     def test_no_acs_dir(self):
         acs_dir = os.path.join(TABP_DIR, ".acs")
         self.assertFalse(
             os.path.isdir(acs_dir),
-            "plugins/tabp/.acs/ must not exist for a skills-only plugin",
+            "plugins/tabp/.acs/ must not exist for a tabp plugin",
         )
 
     def test_no_schemas_dir(self):
         schemas_dir = os.path.join(TABP_DIR, "schemas")
-        self.assertFalse(
+        self.assertTrue(
             os.path.isdir(schemas_dir),
-            "plugins/tabp/schemas/ must not exist for a skills-only plugin",
+            "plugins/tabp/schemas/ must exist after MAR-2 (spec 01 adds JSON schemas)",
         )
 
     def test_no_hooks_dir(self):
         hooks_dir = os.path.join(TABP_DIR, "hooks")
         self.assertFalse(
             os.path.isdir(hooks_dir),
-            "plugins/tabp/hooks/ must not exist for a skills-only plugin",
+            "plugins/tabp/hooks/ must not exist",
         )
 
     def test_no_agents_dir(self):
         agents_dir = os.path.join(TABP_DIR, "agents")
-        self.assertFalse(
+        self.assertTrue(
             os.path.isdir(agents_dir),
-            "plugins/tabp/agents/ must not exist for a skills-only plugin",
+            "plugins/tabp/agents/ must exist after MAR-2 (spec 03 adds subagent charters)",
         )
 
 
@@ -202,6 +205,91 @@ class TestMarketplaceRegistration(unittest.TestCase):
             pj.get("name"),
             "tabp",
             "plugin.json name must be 'tabp' (AC3 cross-check), got %r" % pj.get("name"),
+        )
+
+
+class TestNamespaceGuard(unittest.TestCase):
+    """Group N -- CI-enforced HARD C-3 namespace guard (AC-6).
+
+    Asserts that no acs: prefix or .acs/ token exists anywhere in
+    plugins/tabp/. Implements design R2 (design.md:922) as a unit test
+    so the guard runs on every CI pass.
+    """
+
+    def test_no_acs_namespace_tokens_in_plugins_tabp(self):
+        result = subprocess.run(
+            ["grep", "-rE", r"\.acs/|acs:", "plugins/tabp"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        # grep exits 1 when no match is found (which is the passing condition).
+        # grep exits 0 when at least one match is found (which is a failure).
+        self.assertNotEqual(
+            result.returncode,
+            0,
+            "HARD C-3 VIOLATION: acs: or .acs/ token found in plugins/tabp:\n"
+            + result.stdout,
+        )
+
+
+class TestSkillMdDecisionWrite(unittest.TestCase):
+    """Group D -- SKILL.md decision-write wiring assertions (AC-5, AC-3 audit).
+
+    Verifies that SKILL.md contains the Step 5b decision-write section (TC-06),
+    that the decision-write invocation appears after the self-verification step
+    (TC-07), and that SKILL.md contains no acs: token (TC-08).
+    """
+
+    def _read_skill_md(self):
+        with open(SKILL_MD, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_tc06_decision_write_present(self):
+        """TC-06 (AC-5): SKILL.md contains the Step 5b Record the decision section."""
+        content = self._read_skill_md()
+        self.assertIn(
+            "## Step 5b",
+            content,
+            "SKILL.md must contain '## Step 5b' heading (Step 5b wiring, spec 04, AC-5)",
+        )
+        self.assertIn(
+            "decision-write",
+            content,
+            "SKILL.md must contain 'decision-write' invocation in Step 5b (spec 04, AC-5)",
+        )
+
+    def test_tc07_decision_write_after_self_verification(self):
+        """TC-07 (AC-5): decision-write invocation appears AFTER the self-verification heading."""
+        content = self._read_skill_md()
+        # Find the Step 5b heading position (this is the section containing decision-write)
+        step5b_idx = content.find("## Step 5b")
+        self.assertNotEqual(
+            step5b_idx,
+            -1,
+            "SKILL.md must contain '## Step 5b' heading (spec 04)",
+        )
+        # Find the self-verification heading position (Step 5a)
+        self_verification_idx = content.find("## Step 5a")
+        self.assertNotEqual(
+            self_verification_idx,
+            -1,
+            "SKILL.md must contain '## Step 5a' heading (spec 03)",
+        )
+        self.assertGreater(
+            step5b_idx,
+            self_verification_idx,
+            "Step 5b (decision-write) must appear AFTER Step 5a (self-verification) in SKILL.md "
+            "(design.md:769 ordering: verification pass then decision-write)",
+        )
+
+    def test_tc08_no_acs_token_in_skill_md(self):
+        """TC-08 (AC-6): SKILL.md contains no acs: token."""
+        content = self._read_skill_md()
+        self.assertNotIn(
+            "acs:",
+            content,
+            "SKILL.md must not contain 'acs:' token (AC-6, HARD C-3 namespace invariant)",
         )
 
 
