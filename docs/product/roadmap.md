@@ -186,6 +186,24 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
   All design skills also gain a shared **design-time consistency step** — detect
   doc gaps/staleness across the graph and recommend adjustments in-session, no
   separate tooling ([ADR 0012](../adr/0012-design-time-doc-consistency.md)).
+- **Epic: principles & standards doc layer + brownfield standardization** — acs
+  maintains two more living doc sets for consumers: **principles/** (engineering
+  principles, e.g. `/acs:create-principles`) and **standards/** (coding
+  standards/conventions, e.g. `/acs:create-standards`), each a product-level
+  producer with templates and a planner/executor/verifier triad, following ADR
+  0011's one-skill-per-set pattern. The sets extend the conformance chain to
+  **PRD → architecture → standards → design → specs → code** — design and code
+  verifiers check conformance (no silent waivers). `/acs:create-architecture`'s
+  output set gains a **project-structure target** document (intended repo layout
+  from the C4 views). A new brownfield skill **`/acs:standardize-project`**
+  (separate from greenfield-only `/acs:create-project`) audits an existing repo
+  against its standards docs, that project-structure target, and acs-readiness
+  tooling, then **additively** sets up the missing docs/config/tooling as one
+  reviewed PR — **never moving or renaming existing source**; structural gaps
+  become recommended follow-up tickets (additive-only guardrail, C-2). Maps to
+  PRD G10 and the acs Could-have features. `settings.schema.json` gains
+  `principles_path`/`standards_path`; `/acs:init` defaults them. Skill count grows
+  accordingly. Traces **G10** (+ the Tech-lead persona).
 - Semver stability promise for state-file schemas (migration notes per minor).
 
 ## tabp plugin track
