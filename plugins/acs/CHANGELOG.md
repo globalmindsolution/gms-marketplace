@@ -15,6 +15,20 @@ the notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`acs-conventions` workflow no longer cancels its own required check (MAR-43).**
+  The concurrency block previously used `cancel-in-progress: true`. When a PR is
+  created with `gh pr create --label ACS`, the `pull_request` trigger fires for
+  both `opened` and `labeled` near-simultaneously, producing two runs in the same
+  concurrency group. The cancelled run left a non-SUCCESS conclusion on the
+  required "Branch / PR / commit conventions" check, which branch protection
+  treated as unmet and blocked the PR (observed as PR #96). Setting
+  `cancel-in-progress: false` in both `plugins/acs/templates/ci/acs-conventions.yml`
+  and `.github/workflows/acs-conventions.yml` lets all concurrent runs complete;
+  GitHub records the latest run's conclusion. The per-PR concurrency group is
+  retained for cross-PR isolation.
+
 ### Added
 
 - **Two-skill metrics split: `/acs:metrics` (PM view) + `/acs:usage` (usage view) (MAR-14).**
