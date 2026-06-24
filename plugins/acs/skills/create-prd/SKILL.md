@@ -24,13 +24,41 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 
 - Otherwise (fresh PRD or amendment — every run gets a NEW delivery ticket):
 
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-prd --allocate
-  ```
+  Before calling `skill-start.py --allocate`, detect whether this is an **amend** run
+  by checking if `prd.md` already exists at the resolved `settings.prd_path` (default
+  `docs/product/`). This mirrors the planner's amend definition (see Plan below).
+
+  - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
+
+    ```bash
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" \
+      --skill create-prd --allocate \
+      --title "Amend PRD: <≤~10-word summary of what changed>"
+    ```
+
+    A usable `$ARGUMENTS` request (clarification C-2): after stripping any leading
+    delivery-ticket id (a token matching the repo prefix pattern, e.g. `MAR-51`),
+    `$ARGUMENTS` contains free text describing what the amendment changes from which a
+    short (about 10 words or fewer) summary can be formed. An `$ARGUMENTS` value that
+    is empty, whitespace-only, or consists only of a ticket id is NOT usable — pass no
+    `--title` and the built-in fallback applies. This is coordinator judgment, not
+    parsing machinery; keep the free text of `$ARGUMENTS` as planner input (see below).
+
+    The `--title` value MUST be prefixed `"Amend PRD: "` and MUST name what the
+    amendment changes in at most ~10 words total (prefix included), derived from the
+    free text of `$ARGUMENTS`. Example:
+    `--title "Amend PRD: add org-level enforcement policy"`
+
+  - **All other cases** (greenfield/brownfield — no `prd.md` at `prd_path` — or an
+    amendment where `$ARGUMENTS` carries no usable request): pass no `--title`:
+
+    ```bash
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-prd --allocate
+    ```
 
   `--allocate` creates the delivery ticket (type `task`, built-in title
-  "Product definition (PRD)"), its workspace partition, the `.lock`, the session
-  pointer, and the `in_progress` run entry.
+  `"Product definition (PRD)"` unless overridden by `--title`), its workspace
+  partition, the `.lock`, the session pointer, and the `in_progress` run entry.
 
 If skill-start exits non-zero: STOP and surface its stderr verbatim.
 
@@ -137,7 +165,7 @@ git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAUL
 
 `<branch>` renders `settings.formats.branch_name` (default
 `{type}/{ticket_id}-{slug}`) with `ticket_id` = delivery ticket id, `type` = `task`,
-`slug` = slugified ticket title — e.g. `task/SHOP-1-product-definition-prd`. On a
+`slug` = slugified ticket title — e.g. `task/MAR-51-amend-prd-add-org-enforcement-policy`. On a
 fresh repo with no remote default branch yet, `git checkout -b "<branch>"` from the
 current HEAD instead. If checkout fails (conflicting local changes), surface the git
 error and ask the user. Iterations 2-3 stay on the branch.
@@ -199,7 +227,7 @@ gh pr view "<branch>" --json number,url
 ```
 
 - PR title renders `settings.formats.pr_title` (default `[{ticket_id}] {title}`),
-  e.g. `[SHOP-1] Product definition (PRD)`.
+  e.g. `[MAR-51] Amend PRD: add org-level enforcement policy`.
 - PR body: resolve `settings.formats.pr_description_template` (default
   `pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; a custom name ->
   `<repo>/.acs/templates/<name>.md`; else an absolute path). Fill `{ticket_id}`,
@@ -264,7 +292,7 @@ MANDATORY final step — never skipped, also on failure.
      "stop_reason": "PRD created and docs-only PR opened",
      "states": {
        "prd": {"path": "docs/product", "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
-       "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/SHOP-1-product-definition-prd"}
+       "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-amend-prd-add-org-enforcement-policy"}
      },
      "findings": [],
      "errors": [],
