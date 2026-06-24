@@ -242,6 +242,20 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
   family as the `principles_path`/`standards_path`/`quality_path`/`operations_path`
   path-config work above. Maps to PRD extended G6 and the acs Could-have
   configurable-doc-set-storage-location feature.
+- **Epic: org-level enforcement policy (org & department layers)** — acs gains an ordered
+  **policy-source chain** above today's user + team(project) layers. An organization (and
+  optionally a department/sub-group) defines **shared defaults** (overridable convenience
+  config, resolved most-specific-wins by extending the existing cascade) and **enforcement
+  mandates** (non-overridable floors — required convention/security/standards checks; repo
+  may tighten not loosen; no repo self-exemption; org-granted, audited exemptions; rule
+  provenance). The enforceable part comes from an org-controlled source the repo cannot
+  edit (e.g. GitHub org rulesets / org-required workflows / a versioned policy pack) and/or
+  inverted floor precedence — never a developer-home file. Additive and non-breaking
+  (no org source ⇒ today's behavior). Connects to the standards layer (org policy can
+  mandate G10 conformance as a floor once it ships). Maps to PRD **G12** and the new acs
+  Could-have feature. The MECHANISM is settled in this epic's **design phase / an ADR**,
+  consistent with how the tabp-upgrade and standards epics defer mechanism. Traces **G12**
+  (+ the Org/Platform-admin persona).
 - Semver stability promise for state-file schemas (migration notes per minor).
 
 ## tabp plugin track

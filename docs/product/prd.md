@@ -61,6 +61,7 @@ that protected characteristics played no role.
 | **Team on a shared repo** | Parallel tickets in worktrees without state collisions; team-shared settings; tracker sync to Jira / GitHub Projects. |
 | **Team with a tracker-only PO** | Deliver requirements that live only in a remote tracker (Jira), with no PRD/roadmap/architecture and no need to author one — the tracker issue governs, and the full gated pipeline (TDD, coverage, review, audit) still applies. |
 | **TABP recruiter / hiring team** | Screen one CV or a batch against a job description in Claude Cowork or Claude Code, receive evidence-based and reproducible Recommend/Hold/Reject recommendations with a downloadable scorecard, and demonstrate fairness to auditors. |
+| **Org / Platform admin (Security/Compliance owner)** | Apply organization-wide enforcement policy — required convention checks, security gates, standards/conventions floors — across *all* of the org's repos from one place; guarantee repos cannot silently loosen or self-exempt from a mandate; see which layer each effective rule came from and who can change it (provenance/audit). |
 
 ## Goals & success metrics
 
@@ -79,6 +80,7 @@ that protected characteristics played no role.
 | G9 — Enforceable conventions | The configured branch/PR/commit formats are enforceable as a required merge gate on the consumer repo, blocking non-exempt violating PRs even when they bypassed `/acs:create-pr` (escape hatch: the `acs-exempt` label / release-branch allowlist). MAR-9 (PR #50, pending merge) completes the consumer side of that escape hatch: a legitimate non-ticket exempt PR lands via the sanctioned `/acs:merge-pr --pr` path (same readiness + branch/worktree cleanup as the ticket path, no ticket/partition/tracker/archive; it refuses and redirects ticket-backed PRs), and `/acs:init` Step 7e writes an idempotent `CLAUDE.md` acs-managed block that makes the pipeline the *default* for in-repo agent sessions (steering changes through `/acs:ship` rather than ad-hoc PRs). The gate itself is existence-proven by the live required-check ruleset on this repo's own `main` (ruleset 17602044, `active`; "Branch / PR / commit conventions" is a required status-check context). |
 | G10 — Standards conformance & repo standardization | New design/code conforms to the principles + standards doc sets, verifier-checked: **100% of `/code` runs whose changeset touches a standards-governed area produce zero unwaived standards-conformance findings** (a violation is a blocking finding, never a silent pass), measured per release on the dogfood repo. Brownfield onboarding is additive and reviewable: **`/acs:standardize-project` lands its setup as exactly one reviewed PR that adds only docs/config/tooling and moves or renames zero existing source files** (0 source relocations; verified by the PR diff), with every target-layout structural gap emitted as a recommended follow-up ticket rather than an in-place move. |
 | G11 — Tracker-first delivery / graceful degradation | A repo with **no PRD/architecture** delivers a remote-tracker-defined ticket end-to-end through the **same gates** (TDD, coverage hard-fail, 11-dimension review, audit, merge readiness) with **zero gate escapes** and **zero "missing PRD" hard-blocks** — the absent upstream artifact makes only its own trace step N/A, never blocking the run. Target: **100% of tracker-first runs (PRD absent) complete without a missing-upstream hard-block AND with 0 gate escapes**, validated on **≥ 1 real PRD-less repo within 1 release of the capability shipping**; tracker-issue acceptance criteria are carried into the spec for **100%** of such runs. |
+| G12 — Org-level enforceable policy | An organization can define enforcement policy (required convention checks, security gates, standards/conventions floors) once and have it apply as a **non-overridable floor** across all its repos, with repos able to tighten but not loosen it, exemptions granted only at the org layer, and every effective rule traceable to the layer it came from. **Measurable success metric:** on a pilot org of **≥ 3 repos**, **100% of those repos enforce the org-mandated convention/security checks as required status checks with 0 repo-level self-exemptions of a mandated rule**, and a deliberately non-conforming PR in any pilot repo is **blocked from merge** — first validated within **1 release** of the org-policy capability shipping (mirrors how G1/G9 are validated by an observed live gate, e.g. ruleset 17602044, prd.md). |
 
 ### tabp feature — success metrics
 
@@ -150,6 +152,24 @@ feature sections here.
   product-doc set **only when they ask for it**. Never automatic; tracker-first
   delivery works **without** it. Traces **G11**. *(Proposed; opt-in only — see the
   C-5 guardrail in Constraints & assumptions.)*
+- **Org-level enforcement policy (organization & department layers).** acs gains an
+  ordered **policy-source chain** above today's user + team(project) layers so an
+  organization (and, optionally, a department/sub-group) can define both **shared
+  defaults** (overridable convenience config — doc paths, models, tracker, formats:
+  resolved most-specific-wins, extending the existing cascade) and **enforcement
+  mandates** (non-overridable floors — required convention/security/standards checks:
+  a repo may tighten but never loosen, may not self-exempt, and exemptions are granted
+  only at the org layer, time-boxed and audited). Because a CI gate sees only the
+  checked-out repo and the cascade is most-specific-wins, the enforceable part **cannot
+  live in a developer-home or repo-editable file** — it must come from an org-controlled,
+  non-overridable source and/or inverted floor precedence, and every effective rule
+  exposes its **provenance** (which layer, who may change it). Adding the layers is
+  **additive and non-breaking**: with no org source configured, resolution is identical
+  to today. Connects to G10 (when the standards doc layer ships, org policy can mandate
+  conformance as a floor). Traces **G12** (+ the new Org/Platform-admin persona).
+  *(Proposed — the MECHANISM (cascade extension vs GitHub org rulesets / org-required
+  workflows vs a versioned policy pack the repo cannot edit; the non-overridable mandate
+  encoding) is deferred to a future design epic / ADR, per Constraints.)*
 
 **Won't have (now)** *(acs feature scope)*
 - Non-GitHub forges (GitLab/Bitbucket); non-Claude-Code runtimes for the acs pipeline.
@@ -257,6 +277,7 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
   block. This guardrail is deliberate — a parallel "tracker pipeline" or
   auto-PRD-generation would repeat the abandoned MAR-16..24 over-engineering (see Out
   of scope).
+- **acs feature — org enforcement uses an org-controlled, non-overridable source; layers are additive (C-6).** Org-level *defaults* extend today's most-specific-wins cascade (a new org source resolved below user, fully overridable). Org-level *mandates* are the opposite: because a CI gate sees only the checked-out repo (the convention checker reads the committed project `.acs/settings.json`, not a developer home dir) and the cascade is most-specific-wins (a repo layer would silently override an org layer), an enforceable org mandate MUST come from an org-controlled source the repo cannot edit and/or use inverted **floor** precedence (repo may tighten, never loosen), with exemptions granted only at the org layer (a repo cannot self-exempt from a mandate) and every effective rule carrying provenance (which layer it came from). Introducing org/department layers is **additive and non-breaking**: with no org source configured, resolution is identical to today's user + team(project) behavior. The MECHANISM (cascade extension vs GitHub org rulesets / org-required workflows vs a versioned policy pack) is deferred to a future design epic / ADR (this PRD states the WHAT).
 
 ## Out of scope
 
@@ -315,3 +336,11 @@ report-only; every attempt is audited," with agent-invoked merges additionally r
 approved review (m6). `/acs:ship` still deliberately stops at create-pr (review separation, not
 a merge prohibition). This is a product-level Vision change only; the detailed `/acs:merge-pr`
 behavior lives in `docs/requirements/skills.md` and the skill prose and is delivered by MAR-42.
+
+Non-GitHub org-policy backends are out of scope — org enforcement targets the GitHub
+org-controlled surface first (org rulesets / org-required workflows); other forges remain
+Won't-have, consistent with the acs Won't-have above. Automatic org-wide migration or bulk
+retrofitting of existing repos to an org policy is out of scope — applying org policy to a
+repo is an opt-in/rollout action surfaced per repo, never an automatic mass rewrite (same
+additive, no-wholesale-restructure discipline as C-2 above and the MAR-16..24 reset note
+above). A general non-GitHub policy distribution system is out of scope.
