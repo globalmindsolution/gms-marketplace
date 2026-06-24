@@ -39,6 +39,25 @@ claude plugin marketplace add globalmindsolution/gms-marketplace
 
 (Or run `/plugin` inside a Claude Code session and install from the UI.)
 
+### First run
+
+Installing a plugin only makes its skills available — it does not configure your
+repo. After installing **`acs`**, the required first step in each repo is to
+initialize it:
+
+```text
+cd your-repo
+/acs:init      # choose scope = project; sets workspace path, ticket prefix, etc.
+```
+
+Project scope writes a committed `.acs/settings.json` (shared with the team) plus
+a gitignored `.acs/settings.local.json` (your machine-local `workspace_path`).
+Until you run `/acs:init`, the other acs skills refuse to run with a
+"run /init first" message. See
+[plugins/acs/README.md](plugins/acs/README.md#quick-start) for the full quick
+start. (**`tabp`** needs no init — its `tabp settings.json` is optional; just use
+the skill in a Cowork session.)
+
 For a team, pin the marketplace centrally via managed settings so members
 cannot drift onto unreleased versions — upgrade by changing `ref` to a
 newer `v<version>` tag:
