@@ -16,7 +16,7 @@ document and running the post-hook — always, even on failure.
 
 /acs:merge-pr is invocable by the user OR an authorized agent/model — there is
 no longer a human-only gate on invocation (MAR-42; see
-`docs/adr/0027-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
+`docs/adr/0028-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
 human must press merge" but "a merge happens only when the readiness gate
 (CI, approvals, conflicts, protections) AND the repo's branch protection pass,
 by whoever invokes; failures are report-only; every attempt is audited." The
@@ -24,13 +24,24 @@ readiness review below is the load-bearing brake — agent invocation does NOT
 bypass it. The **approvals** dimension requires an **approved** review:
 because the coordinator cannot reliably distinguish an agent invocation from a
 direct human one, an approving review is required for every invocation (the
-conservative fallback of mitigation m6; ADR-0027). /acs:ship still deliberately
+conservative fallback of mitigation m6; ADR-0028). /acs:ship still deliberately
 stops at /acs:create-pr so a reviewer sees the PR before merge — it never
 invokes /acs:merge-pr itself.
 
 A failed readiness check is REPORT-ONLY: record what blocks, tell the user,
 stop. NEVER route fixes back to /acs:code automatically, never push commits to
 the PR branch, never amend the PR to make it mergeable.
+
+**BEHIND-only carve-out (the ONE sanctioned branch mutation):** When
+`mergeStateStatus == BEHIND` AND every other readiness dimension (ci, approvals,
+conflicts, protections-other-than-BEHIND) passes, running
+`gh pr update-branch <number>` (merge-update — no `--rebase`, no force-push) to
+bring the branch up to date is permitted. After a successful update-branch the
+same run polls required CI checks (15-second intervals, up to 5 minutes) and
+then merges in the same invocation. An update-branch conflict or a CI poll
+timeout following a successful update-branch is still REPORT-ONLY — the
+carve-out does not change these outcomes. The carve-out is BEHIND-only and
+merge-update-only; no other branch mutation is ever sanctioned.
 
 ## Exempt non-ticket PR mode
 
@@ -68,8 +79,22 @@ artifacts to):
    the same `gh pr view` / `gh pr checks --required` reads described under
    "Plan — readiness review". A failing dimension is the same REPORT-ONLY stop:
    do not merge, tell the user exactly what blocks, stop.
-2. **Merge (only when all four pass)** — merge with the configured strategy and
-   delete the remote branch:
+2. **Merge (only when all four pass, or after the BEHIND carve-out succeeds)**
+   — when `mergeStateStatus == BEHIND` and all other three dimensions pass,
+   apply the identical BEHIND carve-out as the ticket path (user-confirmed
+   extension C-10): run `gh pr update-branch <pr.number>` (merge-update — no
+   `--rebase`, no force-push), then poll `gh pr checks <pr.number> --required`
+   at 15-second intervals for up to 5 minutes (same C-6/C-8 parameters as the
+   ticket path — up to 2 total update-branch attempts). On conflict: REPORT-ONLY
+   with `stop_reason: "update-branch conflict — base cannot be merged into PR
+   branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. On
+   poll timeout: REPORT-ONLY with `stop_reason: "branch updated but required CI
+   still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
+   On base advancing again beyond 2 attempts: REPORT-ONLY with `stop_reason:
+   "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once
+   the base stabilizes"`. When all four dimensions pass (or after a successful
+   update-branch sub-flow), merge with the configured strategy and delete the
+   remote branch:
 
    ```bash
    gh pr merge <pr.number> --<settings.merge_strategy> --delete-branch
@@ -96,8 +121,9 @@ artifacts (no phase files, no `result.json` — there is no partition), NO
 tracker sync (no `ticket.external`), NO ticket archiving, NO ticket status
 flip, NO epic auto-done. Contrast with the ticket path's
 `post-merge-pr.py --ticket … --result-file …` (Finish, below). Report a compact
-summary to the user — merged or blocked (per dimension), strategy used, branch
-and worktree cleanup performed — then stop.
+summary to the user — merged or blocked (per dimension), whether an
+update-branch step was performed (when BEHIND), strategy used, branch and
+worktree cleanup performed — then stop.
 
 
 ## Start
@@ -214,13 +240,20 @@ and judge the four readiness dimensions, each reported as `"pass"` or
   and `CHANGES_REQUESTED` all fail. Rationale: agent-invoked merges must carry
   an approving review (mitigation m6); because the coordinator cannot reliably
   distinguish an agent invocation from a direct human one, the requirement
-  applies to all invocations (the require-APPROVED-for-all fallback, ADR-0027).
+  applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
 - **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
   `mergeStateStatus` `DIRTY`) is a fail.
 - **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch
-  protection rules) and not `BEHIND` (base requires the branch to be updated
-  first). The PR must also be `OPEN` and not a draft — anything else fails
-  this dimension with the actual state in the reason.
+  protection rules that cannot be auto-resolved). `BLOCKED` is a flat fail and
+  a REPORT-ONLY stop. `BEHIND` (base is ahead of the branch) is NOT a flat
+  fail when all other three dimensions pass — instead it routes to the
+  update-branch sub-flow in the Execute step below; the protections verdict for
+  a successfully auto-updated run is
+  `"pass (was BEHIND; auto-updated via gh pr update-branch)"`. A BEHIND PR
+  where any other dimension also fails still fails this dimension as
+  `"fail: BEHIND"` — the carve-out fires only when ci, approvals, and
+  conflicts all pass. The PR must also be `OPEN` and not a draft — anything
+  else fails this dimension with the actual state in the reason.
 
 The plan must also cover the cleanup inventory for the executor: does a local
 branch `<pr.branch>` exist (`git branch --list <branch>`), does a worktree
@@ -231,13 +264,23 @@ planner writes the full readiness report and executor task list to
 `<result>` outputs. On iterations 2-3 the plan must address every verifier
 finding from the previous iteration explicitly.
 
-**Readiness verdict — coordinator decision.** If ANY dimension fails: this is
-a REPORT-ONLY stop. Do not spawn the executor, do not retry, do not fix.
-Persist the plan XML, then go straight to Finish with status `"failed"`,
-`states.merged: false`, the per-dimension verdicts in `states.readiness`, and
-a `stop_reason` listing exactly what blocks (e.g. "readiness failed: CI check
-'build' failing; changes requested by reviewer"). Tell the user what blocks
-and that resolving it (and re-invoking /acs:merge-pr) is theirs to do.
+**Readiness verdict — coordinator decision.** If ANY dimension fails (ci red,
+changes-requested, conflicts, BLOCKED protections, or BEHIND while another
+dimension also fails): this is a REPORT-ONLY stop. Do not spawn the executor,
+do not retry, do not fix. Persist the plan XML, then go straight to Finish
+with status `"failed"`, `states.merged: false`, the per-dimension verdicts in
+`states.readiness`, and a `stop_reason` listing exactly what blocks (e.g.
+"readiness failed: CI check 'build' failing; changes requested by reviewer").
+Tell the user what blocks and that resolving it (and re-invoking /acs:merge-pr)
+is theirs to do.
+
+**BEHIND carve-out — when to spawn the executor with update-branch sub-flow.**
+If `mergeStateStatus == BEHIND` AND ci, approvals, and conflicts all pass,
+spawn the executor with the update-branch sub-flow (step 1a below). The
+coordinator passes this sub-flow intent to the executor in its `<objective>`.
+The executor records the final protections verdict as
+`"pass (was BEHIND; auto-updated via gh pr update-branch)"` after a successful
+update-and-merge run.
 
 ### Execute — merge and cleanup (only when all four dimensions pass)
 
@@ -245,6 +288,30 @@ Send ONE executor a `<task phase="execute">` with the plan artifact in
 `<inputs>`. The executor performs, in order, all from the MAIN checkout (never
 from inside the ticket worktree it is about to remove — resolve the main
 checkout via `git rev-parse --git-common-dir`):
+
+1a. **Update branch (ONLY when `mergeStateStatus == BEHIND` at step 0 — SKIP
+    entirely if `mergeStateStatus != BEHIND`)** — run:
+
+    ```bash
+    gh pr update-branch <number>
+    ```
+
+    (merge-update; no `--rebase`; no `--force`; no force-push). If exit
+    non-zero (conflict detected): STOP report-only with
+    `stop_reason: "update-branch conflict — base cannot be merged into PR
+    branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. Do NOT
+    push fix commits; do NOT amend the PR. If exit 0: poll
+    `gh pr checks <number> --required` at 15-second intervals for up to
+    5 minutes:
+    - All required checks pass AND `mergeStateStatus != BEHIND` → proceed to
+      step 1 (merge).
+    - `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run
+      step 1a if total update-branch attempts < 2 (C-8), else STOP report-only
+      with `stop_reason: "base advanced again after 2 update attempts —
+      re-invoke /acs:merge-pr once the base stabilizes"`.
+    - Poll timeout (5 minutes elapsed) → STOP report-only with `stop_reason:
+      "branch updated but required CI still running after 5 min — re-invoke
+      /acs:merge-pr to merge once CI passes"`.
 
 1. Merge with the configured strategy (the `--delete-branch` flag deletes the
    remote branch):

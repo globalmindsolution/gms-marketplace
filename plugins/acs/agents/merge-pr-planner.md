@@ -49,17 +49,30 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
      review). `REVIEW_REQUIRED` or `CHANGES_REQUESTED` fails.
    - **conflicts** — `mergeable` is `MERGEABLE`; `CONFLICTING` (or
      `mergeStateStatus` `DIRTY`) fails.
-   - **protections** — `mergeStateStatus` is neither `BLOCKED` (unmet
-     protection rules) nor `BEHIND` (base requires updating), and the PR is
-     `OPEN` and not a draft — anything else fails with the actual state in
-     the reason.
+   - **protections** — distinguish `BLOCKED` from `BEHIND`:
+     - `BLOCKED` (unmet branch protection rules): `fail: BLOCKED — <reason>`.
+       This is a flat fail and a REPORT-ONLY stop; it cannot be auto-resolved.
+     - `BEHIND` (base is ahead of this branch): when ci, approvals, and
+       conflicts ALL pass, this is NOT a flat fail. Emit the verdict
+       `"pass (was BEHIND; auto-updated via gh pr update-branch)"` and include
+       the update-branch sub-flow in the executor task list (step 1a — run
+       `gh pr update-branch <number>`, merge-update only, no `--rebase`, no
+       force-push; then poll required CI at 15-second intervals for up to
+       5 minutes, up to 2 total update-branch attempts; then merge). When the
+       branch is BEHIND but another dimension also fails, emit
+       `"fail: BEHIND"` for this dimension as before — the carve-out fires
+       only when ci, approvals, and conflicts all pass.
+     - `OPEN` and not a draft: required. Any other PR state (`CLOSED`,
+       `MERGED`, draft) fails this dimension with the actual state in the reason.
 4. **Inventory the cleanup** the executor must perform: does a local branch
    `<pr.branch>` exist (`git branch --list <branch>`)? does a worktree hold it
    (`git worktree list --porcelain`)? is a tracker transition needed
    (`tracker_provider` != `local` AND `ticket.external` set — record provider
    and key)? Resolve the main checkout (`git rev-parse --git-common-dir`) and
    write it down: the executor runs everything from there.
-5. **Spell out the executor's ordered task list**: (1) merge —
+5. **Spell out the executor's ordered task list**: when `mergeStateStatus ==
+   BEHIND` and all other dimensions pass, list step 1a first (update-branch +
+   CI re-poll, see protections note above); then (1) merge —
    `gh pr merge <number> --<merge_strategy> --delete-branch`; (2) remove the
    ticket worktree if one exists; (3) delete the local branch if it survives;
    (4) tracker sync when needed. Then the risks (branch checked out in the

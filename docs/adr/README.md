@@ -36,6 +36,8 @@ context and consequences.
 | [0025](0025-tabp-independent-verifier-subagent.md) | tabp independent verifier: inline-artifact input contract and bounded (N=3) remediate-and-re-verify loop | Accepted |
 | [0026](0026-tabp-hybrid-cost-sourcing.md) | tabp hybrid cost sourcing: transcript-actuals plus settings-configurable dated-snapshot pricing | Accepted |
 | [0027](0027-tabp-dual-runtime-detection.md) | tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback (cwd-as-project-dir on Claude Code) | Accepted |
+| [0028](0028-merge-pr-agent-invocable.md) | merge-pr is agent/model-invocable; readiness gate + m6 require-APPROVED-for-all | Accepted |
+| [0029](0029-merge-pr-auto-update-behind-branch.md) | merge-pr auto-updates a BEHIND branch then merges in the same run | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.
