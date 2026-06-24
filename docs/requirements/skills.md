@@ -183,7 +183,11 @@ skills, while not running the ticket pipeline, MUST each create their own
   counter, a normal workspace partition, tracker sync when configured (so
   PRD/architecture/scaffold work is visible in Jira / GitHub Projects), and
   the standard archive lifecycle. Re-running a product-level skill (e.g. a
-  PRD amendment) creates a **new ticket** for that change.
+  PRD amendment) creates a **new ticket** for that change. Re-running
+  `/create-prd` for an amendment creates a new ticket with a specific title
+  (e.g. `SHOP-5 — Amend PRD: add org-level enforcement policy`) when a
+  usable request is provided; without a usable request the built-in
+  `"Product definition (PRD)"` title applies.
 - All formats apply with the real ticket id: the skill creates the branch
   (`formats.branch_name`), commits (`formats.commit_message`), and opens
   the PR (PR formats, `ACS` label) itself — `/create-design`,
