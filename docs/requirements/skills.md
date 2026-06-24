@@ -557,3 +557,16 @@ Purpose: land the change.
   worktree** (if one was used), and **mark the ticket done** — in workspace
   state, in the remote tracker (if synced), and by archiving the ticket
   partition ([workspace-and-state.md](workspace-and-state.md)).
+- **BEHIND auto-update (standing behavior, MAR-47):** When
+  `mergeStateStatus == BEHIND` and every other readiness dimension (ci,
+  approvals, conflicts, protections-other-than-BEHIND) passes, the standing
+  behavior is to run `gh pr update-branch <number>` (merge-update — no
+  `--rebase`, no force-push), poll required CI checks at 15-second intervals
+  for up to 5 minutes (C-6), and then merge in the same invocation. Up to 2
+  total update-branch attempts are made if the base advances again mid-poll
+  (C-8); after the cap → report-only. An update-branch conflict or a CI poll
+  timeout falls back to report-only — bounded exceptions, not the standing
+  behavior. This carve-out applies to **both** the ticket path and the exempt
+  `--pr` path (C-10). All other clauses above (agent-invocable, m6
+  require-APPROVED, report-only for other failures, post-merge cleanup, merge
+  strategy) remain intact and unchanged.

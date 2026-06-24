@@ -327,7 +327,7 @@ epic's design phase.
 
 **Reversal note (MAR-42):** this amendment reverses the prior Vision guardrail that the
 human owns "the merge button" — i.e. that `/acs:merge-pr` is invocable only by a human. Per
-MAR-42 (design approved; **ADR-0027** — "merge-pr is agent/model-invocable; readiness gate +
+MAR-42 (design approved; **ADR-0028** — "merge-pr is agent/model-invocable; readiness gate +
 branch protection are the merge brakes"), `/acs:merge-pr` is now agent/model-invocable. The
 human still owns **requirement decisions**. The safety guarantee shifts from "a human must
 press merge" to "merge happens only when the readiness gate (CI/approvals/conflicts/

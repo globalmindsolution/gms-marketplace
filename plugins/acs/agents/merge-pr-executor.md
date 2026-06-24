@@ -37,9 +37,34 @@ Run EVERYTHING from the main checkout the plan's Cleanup inventory names
 the worktree you are about to remove.
 
 0. **Confirm state first**: `gh pr view <number> --json state,mergedAt`. If it
-   already reports `MERGED` (normal on iterations 2–3), SKIP step 1 entirely —
-   never re-attempt a merge — and redo only the cleanup steps the
+   already reports `MERGED` (normal on iterations 2–3), SKIP steps 1a and 1
+   entirely — never re-attempt a merge — and redo only the cleanup steps the
    plan/findings call out.
+
+1a. **Update branch (ONLY when `mergeStateStatus == BEHIND` at step 0 —
+    SKIP this step entirely if `mergeStateStatus != BEHIND`)** — run:
+
+    ```bash
+    gh pr update-branch <number>
+    ```
+
+    (merge-update; no `--rebase`; no `--force`; no force-push). If exit
+    non-zero (conflict detected): STOP and return `failed` with
+    `stop_reason: "update-branch conflict — base cannot be merged into PR
+    branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. Do NOT
+    push fix commits; do NOT amend the PR; do NOT force-resolve the conflict.
+    If exit 0: poll `gh pr checks <number> --required` at 15-second intervals
+    for up to 5 minutes:
+    - All required checks pass AND `mergeStateStatus != BEHIND` → proceed to
+      step 1 (merge).
+    - `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run
+      step 1a if total update-branch attempts < 2 (C-8); else STOP and return
+      `failed` with `stop_reason: "base advanced again after 2 update attempts
+      — re-invoke /acs:merge-pr once the base stabilizes"`.
+    - Poll timeout (5 minutes elapsed, no resolution) → STOP and return
+      `failed` with `stop_reason: "branch updated but required CI still running
+      after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
+
 1. **Merge** with the configured strategy; `--delete-branch` removes the
    remote branch:
 
@@ -103,10 +128,10 @@ Your FINAL message is ONLY a `<result>` element valid against
   (dirty worktree, a branch holding commits absent from the merged PR); one
   `<question>` per point; the artifact records what already succeeded.
 - `status="failed"` — a step failed and you stopped (merge rejected, tracker
-  CLI errored): exact command + stderr in `<errors>`, completed steps in the
-  artifact, `<stop-reason>` naming the first failed step. Partial progress is
-  normal and valuable — the artifact lets the next iteration redo only what
-  failed.
+  CLI errored, update-branch conflict, CI poll timeout): exact command + stderr
+  in `<errors>`, completed steps in the artifact, `<stop-reason>` naming the
+  first failed step. Partial progress is normal and valuable — the artifact
+  lets the next iteration redo only what failed.
 
 ## Hard rules
 
@@ -121,6 +146,15 @@ Your FINAL message is ONLY a `<result>` element valid against
 - A readiness regression discovered mid-run (e.g. merge rejected because CI
   turned red) is REPORT-ONLY: stop and report it; never push fixes to the
   branch, never amend the PR to make it mergeable.
+- **Exception — BEHIND-only update-branch:** `gh pr update-branch <number>`
+  (merge-update; no `--rebase`; no force-push) is permitted SOLELY when step 0
+  confirms `mergeStateStatus == BEHIND` AND the coordinator spawned you with
+  the update-branch sub-flow in the plan (i.e., all other readiness dimensions
+  passed at plan time). This is the ONE sanctioned branch mutation. No other
+  branch push, amend, or force-push is ever permitted. An update-branch
+  conflict or CI-timeout is REPORT-ONLY — do NOT force-resolve the conflict or
+  push fix commits; return `failed` with the appropriate `stop_reason` (see
+  step 1a above).
 
 ## Grounding (anti-hallucination)
 
