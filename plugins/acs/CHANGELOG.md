@@ -23,7 +23,7 @@ the notes.
   by whoever invokes. Because invocation source (agent vs user) is not reliably
   detectable, an **approving review is now required for every merge** (mitigation
   m6, the require-APPROVED-for-all fallback; see
-  [ADR 0027](../../docs/adr/0027-merge-pr-agent-invocable.md)) — including on
+  [ADR 0028](../../docs/adr/0028-merge-pr-agent-invocable.md)) — including on
   repos that require no review. `/acs:ship` still stops at create-pr. Authorised
   by the PRD Vision amendment in MAR-45.
 

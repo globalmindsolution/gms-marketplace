@@ -16,7 +16,7 @@ document and running the post-hook — always, even on failure.
 
 /acs:merge-pr is invocable by the user OR an authorized agent/model — there is
 no longer a human-only gate on invocation (MAR-42; see
-`docs/adr/0027-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
+`docs/adr/0028-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
 human must press merge" but "a merge happens only when the readiness gate
 (CI, approvals, conflicts, protections) AND the repo's branch protection pass,
 by whoever invokes; failures are report-only; every attempt is audited." The
@@ -24,7 +24,7 @@ readiness review below is the load-bearing brake — agent invocation does NOT
 bypass it. The **approvals** dimension requires an **approved** review:
 because the coordinator cannot reliably distinguish an agent invocation from a
 direct human one, an approving review is required for every invocation (the
-conservative fallback of mitigation m6; ADR-0027). /acs:ship still deliberately
+conservative fallback of mitigation m6; ADR-0028). /acs:ship still deliberately
 stops at /acs:create-pr so a reviewer sees the PR before merge — it never
 invokes /acs:merge-pr itself.
 
@@ -240,7 +240,7 @@ and judge the four readiness dimensions, each reported as `"pass"` or
   and `CHANGES_REQUESTED` all fail. Rationale: agent-invoked merges must carry
   an approving review (mitigation m6); because the coordinator cannot reliably
   distinguish an agent invocation from a direct human one, the requirement
-  applies to all invocations (the require-APPROVED-for-all fallback, ADR-0027).
+  applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
 - **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
   `mergeStateStatus` `DIRTY`) is a fail.
 - **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch
