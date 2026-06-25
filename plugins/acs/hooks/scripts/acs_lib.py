@@ -100,9 +100,39 @@ def derive_lane(size, stakes, needs_design, ticket_type):
     return "STANDARD"  # conservative fallback for absent/unknown size
 
 
+def recommend_stakes(paths, settings):
+    """Match a collection of file paths against high_stakes_paths globs from settings.
+
+    Returns 'high' if any path matches any glob; returns 'normal' otherwise.
+    Pure function — never writes stakes to ticket.json or any state file.
+
+    Arguments:
+      paths    -- iterable of file path strings (changed files, owned paths, surveyed paths).
+                  Empty collection -> 'normal'.
+      settings -- the merged settings dict; high_stakes_paths resolved from it
+                  (falls back to DEFAULT_SETTINGS seed list if absent or settings is None).
+
+    Returns 'high' or 'normal'. This is a RECOMMENDATION only; the caller (SKILL.md planner)
+    presents it to the user. The function never silently floors a previously-confirmed value.
+    """
+    globs = (settings or {}).get("high_stakes_paths", DEFAULT_SETTINGS["high_stakes_paths"])
+    for path in (paths or []):
+        for pattern in globs:
+            if fnmatch.fnmatch(path, pattern):
+                return "high"
+    return "normal"
+
+
 DEFAULT_SETTINGS = {
     "test_coverage_percent": 90,
     "merge_strategy": "squash",
+    "high_stakes_paths": [
+        "auth/**",
+        "payments/**",
+        "migrations/**",
+        "public-api/**",
+        "security/**",
+    ],
     "prd_path": "docs/product",
     "architecture_path": "docs/architecture",
     "requirements_path": "docs/requirements",

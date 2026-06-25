@@ -1451,3 +1451,226 @@ class TestLaneWrites(AcsWorkspaceCase):
         # We only assert it did not crash — the key may or may not be present
         # depending on whether the setUp mint already wrote it.
         self.assertIsInstance(data, dict)  # no crash
+
+
+# ---------------------------------------------------------------------------
+# MAR-56 spec 02 — high_stakes_paths settings, recommend_stakes, AC-7 consistency
+# ---------------------------------------------------------------------------
+
+class TestHighStakesPathsSettings(unittest.TestCase):
+    """AC-5: settings.schema.json defines high_stakes_paths as an array-of-strings
+    with the seed default; DEFAULT_SETTINGS has the seed list; absent key resolves
+    to the seed.
+
+    Uses the same stdlib-only approach as TestDueDateSchema (no jsonschema import).
+    """
+
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+
+    SEED_LIST = [
+        "auth/**",
+        "payments/**",
+        "migrations/**",
+        "public-api/**",
+        "security/**",
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        with open(cls.SCHEMA_PATH) as fh:
+            cls.schema = json.load(fh)
+
+    def test_high_stakes_paths_in_schema(self):
+        """settings.schema.json must define high_stakes_paths."""
+        self.assertIn("high_stakes_paths", self.schema["properties"])
+
+    def test_high_stakes_paths_is_array_type(self):
+        """high_stakes_paths must be type:array."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        self.assertEqual(prop["type"], "array")
+
+    def test_high_stakes_paths_items_are_strings(self):
+        """high_stakes_paths.items must be type:string."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        self.assertEqual(prop["items"]["type"], "string")
+
+    def test_high_stakes_paths_schema_default_is_seed(self):
+        """The schema's default for high_stakes_paths must be the 5-element seed list."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        self.assertEqual(prop.get("default"), self.SEED_LIST)
+
+    def test_default_settings_has_seed_list(self):
+        """DEFAULT_SETTINGS['high_stakes_paths'] must equal the 5-element seed list."""
+        self.assertEqual(lib.DEFAULT_SETTINGS["high_stakes_paths"], self.SEED_LIST)
+
+    def test_absent_key_resolves_to_seed(self):
+        """When high_stakes_paths is absent from settings, fall back to DEFAULT_SETTINGS seed."""
+        settings = {}  # no high_stakes_paths key
+        result = settings.get("high_stakes_paths",
+                               lib.DEFAULT_SETTINGS["high_stakes_paths"])
+        self.assertEqual(result, self.SEED_LIST)
+
+    def test_project_override_replaces_seed(self):
+        """A project-supplied high_stakes_paths replaces (not extends) the seed."""
+        settings = {"high_stakes_paths": ["src/payments/**"]}
+        result = settings.get("high_stakes_paths",
+                               lib.DEFAULT_SETTINGS["high_stakes_paths"])
+        self.assertEqual(result, ["src/payments/**"])
+        # seed patterns must NOT appear
+        self.assertNotIn("auth/**", result)
+
+    def test_string_array_passes_items_rule(self):
+        """A list of strings is accepted by the items.type==string rule (stdlib check)."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        items_type = prop["items"]["type"]
+        candidate = ["auth/**", "payments/**"]
+        for item in candidate:
+            self.assertIsInstance(item, str), "item %r should be a string" % item
+
+    def test_non_array_rejected_by_type_rule(self):
+        """A plain string is not an array (stdlib type check)."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        self.assertEqual(prop["type"], "array")
+        self.assertNotIsInstance("auth/**", list)  # string != array
+
+    def test_array_of_non_strings_rejected_by_items_rule(self):
+        """Items of type other than string must not satisfy items.type==string."""
+        prop = self.schema["properties"]["high_stakes_paths"]
+        items_type = prop["items"]["type"]
+        self.assertEqual(items_type, "string")
+        for bad_item in [42, True]:
+            self.assertNotIsInstance(bad_item, str,
+                                     "non-string item %r should fail items.type==string" % bad_item)
+
+
+class TestRecommendStakes(unittest.TestCase):
+    """AC-6: recommend_stakes(paths, settings) returns 'high' on any glob match,
+    'normal' otherwise; never writes; override supersedes seed.
+    """
+
+    SEED_SETTINGS = None  # None triggers fallback to DEFAULT_SETTINGS seed
+
+    def _rec(self, paths, settings=None):
+        return lib.recommend_stakes(paths, settings)
+
+    def test_match_auth(self):
+        """paths=['auth/login.py'] + default settings -> 'high'."""
+        self.assertEqual(self._rec(["auth/login.py"]), "high")
+
+    def test_match_payments(self):
+        """paths=['payments/stripe_hook.py'] + default settings -> 'high'."""
+        self.assertEqual(self._rec(["payments/stripe_hook.py"]), "high")
+
+    def test_match_migrations(self):
+        """paths=['migrations/0042_add_column.py'] + default settings -> 'high'."""
+        self.assertEqual(self._rec(["migrations/0042_add_column.py"]), "high")
+
+    def test_match_public_api(self):
+        """paths=['public-api/v2/endpoints.py'] + default settings -> 'high'."""
+        self.assertEqual(self._rec(["public-api/v2/endpoints.py"]), "high")
+
+    def test_match_security(self):
+        """paths=['security/certs.py'] + default settings -> 'high'."""
+        self.assertEqual(self._rec(["security/certs.py"]), "high")
+
+    def test_no_match_returns_normal(self):
+        """paths with no glob match -> 'normal'."""
+        self.assertEqual(
+            self._rec(["src/utils.py", "tests/test_utils.py"]),
+            "normal",
+        )
+
+    def test_empty_paths_returns_normal(self):
+        """Empty paths list -> 'normal'."""
+        self.assertEqual(self._rec([]), "normal")
+
+    def test_custom_glob_override_match(self):
+        """Custom glob replaces seed: src/billing/** match -> 'high'."""
+        settings = {"high_stakes_paths": ["src/billing/**"]}
+        self.assertEqual(self._rec(["src/billing/invoice.py"], settings), "high")
+
+    def test_custom_glob_override_no_match(self):
+        """Custom glob replaces seed: non-matching path -> 'normal'."""
+        settings = {"high_stakes_paths": ["src/billing/**"]}
+        self.assertEqual(self._rec(["src/utils.py"], settings), "normal")
+
+    def test_custom_override_supersedes_seed(self):
+        """Custom glob replaces seed; a seed-pattern path does NOT match."""
+        settings = {"high_stakes_paths": ["src/billing/**"]}
+        # auth/login.py would match the seed but NOT the override
+        self.assertEqual(self._rec(["auth/login.py"], settings), "normal")
+
+    def test_none_settings_uses_seed(self):
+        """settings=None falls back to DEFAULT_SETTINGS seed; auth path -> 'high'."""
+        self.assertEqual(self._rec(["auth/login.py"], None), "high")
+
+    def test_multi_path_first_match_short_circuit(self):
+        """Multiple paths: first glob match returns 'high' (short-circuit)."""
+        # src/utils.py does not match; auth/login.py does
+        result = self._rec(["src/utils.py", "auth/login.py"])
+        self.assertEqual(result, "high")
+
+    def test_recommend_stakes_never_returns_low(self):
+        """recommend_stakes never returns 'low'; it only returns 'high' or 'normal'."""
+        for paths in ([], ["src/x.py"], ["auth/y.py"]):
+            result = self._rec(paths)
+            self.assertIn(result, ("high", "normal"))
+            self.assertNotEqual(result, "low")
+
+
+class TestLaneConsistency(AcsWorkspaceCase):
+    """AC-7: lane == derive_lane(size, stakes, needs_design, type) for a minted ticket;
+    inconsistent lane is detectable.
+    """
+
+    def test_minted_ticket_lane_is_consistent(self):
+        """A ticket minted with size=small, stakes=high must have a lane consistent
+        with its axes (stakes=high floor -> STANDARD)."""
+        ticket_id = self.new_ticket("Consistency test", "story",
+                                    "--size", "small", "--stakes", "high")
+        ticket = lib.load_ticket(self.tdir(ticket_id))
+        expected_lane = lib.derive_lane(
+            ticket["size"], ticket["stakes"], ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(ticket["lane"], expected_lane)
+
+    def test_conservative_defaults_are_consistent(self):
+        """A ticket minted with no size/stakes uses standard/normal -> STANDARD;
+        the lane must be consistent with those axes."""
+        ticket_id = self.new_ticket("Default test", "story")
+        ticket = lib.load_ticket(self.tdir(ticket_id))
+        expected_lane = lib.derive_lane(
+            ticket["size"], ticket["stakes"], ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(ticket["lane"], expected_lane)
+        self.assertEqual(ticket["lane"], "STANDARD")
+
+    def test_inconsistent_lane_is_detectable(self):
+        """A hand-written ticket with lane inconsistent with axes is detectable by
+        the derive_lane consistency check (verifier re-check, spec 02 §4e)."""
+        # Build a ticket dict with an inconsistent lane (trivial/low should give TRIVIAL,
+        # but we write COMPLEX — a mis-written cache)
+        ticket = {
+            "id": "T-99", "title": "x", "type": "story",
+            "size": "trivial", "stakes": "low", "needs_design": False,
+            "lane": "COMPLEX",  # deliberately inconsistent
+        }
+        correct_lane = lib.derive_lane(
+            ticket["size"], ticket["stakes"], ticket["needs_design"], ticket["type"]
+        )
+        # The verifier check: lane != derive_lane(...) means inconsistency detected
+        self.assertNotEqual(ticket["lane"], correct_lane)
+        self.assertEqual(correct_lane, "TRIVIAL")
+
+    def test_epic_fan_out_child_uses_conservative_defaults(self):
+        """Child minted via new-ticket.py WITHOUT --size/--stakes must get
+        standard/normal/STANDARD (conservative defaults for fan-out)."""
+        # Create the epic first
+        epic_id = self.new_ticket("Epic test", "epic")
+        # Mint child without size/stakes (fan-out pattern)
+        child_id = self.new_ticket("Child test", "story", "--parent", epic_id,
+                                   "--needs-design", "false")
+        child = lib.load_ticket(self.tdir(child_id))
+        self.assertEqual(child["size"], "standard")
+        self.assertEqual(child["stakes"], "normal")
+        self.assertEqual(child["lane"], "STANDARD")
