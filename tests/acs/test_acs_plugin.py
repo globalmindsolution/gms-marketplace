@@ -1763,3 +1763,164 @@ class TestLaneConsistency(AcsWorkspaceCase):
         self.assertEqual(child["size"], "standard")
         self.assertEqual(child["stakes"], "normal")
         self.assertEqual(child["lane"], "STANDARD")
+
+
+## MAR-57 spec 01 — TestLaneRank
+
+
+class TestLaneRank(unittest.TestCase):
+    """AC-1/AC-7: lane_rank(lane) returns the integer rank for each canonical lane
+    and falls back to STANDARD's rank (2) for absent/None/unrecognized values.
+    LANE_ORDER ordering is strictly monotone.
+    """
+
+    def test_trivial_rank_is_0(self):
+        self.assertEqual(lib.lane_rank("TRIVIAL"), 0)
+
+    def test_small_rank_is_1(self):
+        self.assertEqual(lib.lane_rank("SMALL"), 1)
+
+    def test_standard_rank_is_2(self):
+        self.assertEqual(lib.lane_rank("STANDARD"), 2)
+
+    def test_complex_rank_is_3(self):
+        self.assertEqual(lib.lane_rank("COMPLEX"), 3)
+
+    def test_none_defaults_to_standard_rank(self):
+        """Conservative floor: absent lane treated as STANDARD (rank 2)."""
+        self.assertEqual(lib.lane_rank(None), 2)
+
+    def test_empty_string_defaults_to_standard_rank(self):
+        self.assertEqual(lib.lane_rank(""), 2)
+
+    def test_unknown_string_defaults_to_standard_rank(self):
+        self.assertEqual(lib.lane_rank("MEGA"), 2)
+
+    def test_lowercase_unrecognized_defaults_to_standard_rank(self):
+        """Only uppercase canonical strings recognized; lowercase 'trivial' is unknown."""
+        self.assertEqual(lib.lane_rank("trivial"), 2)
+
+    def test_ordering_is_strictly_monotone(self):
+        """TRIVIAL < SMALL < STANDARD < COMPLEX rank ordering is strict."""
+        self.assertLess(lib.lane_rank("TRIVIAL"), lib.lane_rank("SMALL"))
+        self.assertLess(lib.lane_rank("SMALL"), lib.lane_rank("STANDARD"))
+        self.assertLess(lib.lane_rank("STANDARD"), lib.lane_rank("COMPLEX"))
+
+    def test_lane_order_constant_has_four_entries(self):
+        """LANE_ORDER must list exactly the four canonical lanes."""
+        self.assertEqual(lib.LANE_ORDER, ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"])
+
+
+## MAR-57 spec 01 — TestEscalateLane
+
+
+class TestEscalateLane(unittest.TestCase):
+    """AC-1/AC-3/AC-4/AC-7: escalate_lane returns the HIGHER of (current_lane,
+    recomputed lane from derive_lane) as a (lane, depth, ceiling) triple.
+    The clamp is upward-only: equal or lower candidates never lower current_lane.
+    """
+
+    def _escalate(self, current_lane, size, stakes, needs_design=False, ticket_type="story"):
+        return lib.escalate_lane(current_lane, size, stakes, needs_design, ticket_type)
+
+    # --- upward escalation cases ---
+
+    def test_raise_trivial_to_small(self):
+        """current=TRIVIAL, axes produce SMALL -> returned lane is SMALL."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "small", "normal")
+        self.assertEqual(lane, "SMALL")
+
+    def test_raise_trivial_to_standard(self):
+        """current=TRIVIAL, axes produce STANDARD -> returned lane is STANDARD."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_trivial_to_complex(self):
+        """current=TRIVIAL, size=large -> COMPLEX (Rule 2)."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    def test_raise_small_to_standard(self):
+        """current=SMALL, axes produce STANDARD -> returned lane is STANDARD."""
+        lane, depth, ceiling = self._escalate("SMALL", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_small_to_standard_via_high_stakes(self):
+        """current=SMALL, trivial size but high stakes -> STANDARD (Rule 3 floor)."""
+        lane, depth, ceiling = self._escalate("SMALL", "trivial", "high")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_standard_to_complex(self):
+        """current=STANDARD, size=large -> COMPLEX."""
+        lane, depth, ceiling = self._escalate("STANDARD", "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    # --- hold cases (equal or lower candidate -> return current unchanged) ---
+
+    def test_hold_same_lane(self):
+        """current=STANDARD, candidate=STANDARD (equal) -> hold at STANDARD."""
+        lane, depth, ceiling = self._escalate("STANDARD", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_lower_candidate_returns_current_standard(self):
+        """current=STANDARD, axes produce TRIVIAL (lower) -> hold at STANDARD (AC-3/AC-7)."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_lower_candidate_returns_current_complex(self):
+        """current=COMPLEX, axes produce STANDARD (lower) -> hold at COMPLEX."""
+        lane, depth, ceiling = self._escalate("COMPLEX", "standard", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    # --- conservative None/unknown current_lane handling ---
+
+    def test_none_current_floors_to_standard_rank_raises_to_complex(self):
+        """current=None floors at STANDARD rank (2); COMPLEX rank (3) > 2 -> raises to COMPLEX."""
+        lane, depth, ceiling = self._escalate(None, "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    def test_none_current_floors_prevents_drop(self):
+        """current=None floors at STANDARD; TRIVIAL candidate (rank 0) < STANDARD (rank 2) -> hold.
+        Result lane rank must be >= STANDARD rank (AC-3/AC-7)."""
+        lane, depth, ceiling = self._escalate(None, "trivial", "normal")
+        self.assertGreaterEqual(lib.lane_rank(lane), lib.lane_rank("STANDARD"))
+
+    # --- AC-4 recompute via derive_lane (single authority) ---
+
+    def test_candidate_equals_derive_lane(self):
+        """Returned lane for a raising case equals derive_lane(axes) — AC-4."""
+        expected_lane = lib.derive_lane("large", "normal", False, "story")
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(lane, expected_lane)
+
+    def test_returned_depth_matches_verify_depth(self):
+        """Returned depth equals verify_depth(returned_lane, stakes) — AC-4."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        expected_depth = lib.verify_depth(lane, "normal")
+        self.assertEqual(depth, expected_depth)
+
+    def test_returned_ceiling_matches_verify_iteration_cap(self):
+        """Returned ceiling equals VERIFY_ITERATION_CAP[depth] — AC-4."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(ceiling, lib.VERIFY_ITERATION_CAP[depth])
+
+    def test_hold_returned_depth_matches_verify_depth(self):
+        """When holding current_lane, depth is verify_depth(current_lane, stakes)."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(depth, lib.verify_depth("STANDARD", "normal"))
+
+    def test_hold_returned_ceiling_matches_verify_iteration_cap(self):
+        """When holding, ceiling is VERIFY_ITERATION_CAP[depth]."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(ceiling, lib.VERIFY_ITERATION_CAP[lib.verify_depth("STANDARD", "normal")])
+
+    def test_pure_no_state_mutation(self):
+        """escalate_lane is a pure function: it must not write any files.
+        Calling it with no-I/O inputs must not create pipeline-state.json or ticket.json."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            before_files = set(os.listdir(tmpdir))
+            lib.escalate_lane("SMALL", "large", "normal", False, "story")
+            after_files = set(os.listdir(tmpdir))
+        self.assertEqual(before_files, after_files)

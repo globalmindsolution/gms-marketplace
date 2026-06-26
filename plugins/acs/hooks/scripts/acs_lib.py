@@ -139,6 +139,70 @@ Used by the /acs:code coordinator to bound the reflection loop:
 """
 
 
+# ---------------------------------------------------------------------------
+# Lane-rank primitives (MAR-57 / ADR 0030)
+# ---------------------------------------------------------------------------
+
+LANE_ORDER: list = ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]
+"""Canonical lane ordering from lowest to highest rigor (ADR 0030).
+
+Index 0 = TRIVIAL (lowest) … index 3 = COMPLEX (highest).
+Used by lane_rank() for comparisons only; never use this list to produce
+a lane value — derive_lane() is the single authoritative producer (ADR 0030:56-61).
+"""
+
+
+def lane_rank(lane):
+    """Return the integer rank of *lane* in LANE_ORDER (0=TRIVIAL … 3=COMPLEX).
+
+    Rule evaluation order:
+      - Recognized uppercase lane value ('TRIVIAL', 'SMALL', 'STANDARD', 'COMPLEX')
+        -> its index in LANE_ORDER.
+      - Absent (None), empty, or any unrecognized string (including lowercase)
+        -> 2 (STANDARD rank, conservative floor — design.md invariant (c) / AC-7).
+
+    This function is a *comparison helper* only: it never produces a lane value.
+    The single authoritative producer remains derive_lane() (ADR 0030:56-61).
+    Pure function; no I/O, no side effects; stdlib only.
+    """
+    try:
+        return LANE_ORDER.index(lane)
+    except (ValueError, TypeError):
+        return LANE_ORDER.index("STANDARD")  # conservative floor for absent/unknown
+
+
+def escalate_lane(current_lane, size, stakes, needs_design, ticket_type, settings=None):
+    """Return the higher of (current_lane, candidate) as a (lane, depth, ceiling) triple.
+
+    The candidate lane is computed exclusively via derive_lane(size, stakes,
+    needs_design, ticket_type) — never hand-set (ADR 0030:56-61 / AC-4).
+
+    Clamp semantics (upward-only, AC-1 / AC-3 / AC-7):
+      - candidate rank > current rank -> escalate: return candidate lane.
+      - candidate rank <= current rank -> hold: return current_lane unchanged.
+      - current_lane is None/unknown -> treated as STANDARD rank (2) for comparison,
+        conservative floor: a COMPLEX candidate still fires; TRIVIAL/SMALL do not.
+
+    The returned triple is always consistent:
+      lane    — the higher of current_lane or candidate (string)
+      depth   — verify_depth(lane, stakes)
+      ceiling — VERIFY_ITERATION_CAP[depth]
+
+    Pure function: no file I/O, no state mutations, no side effects.
+    Mirrors recommend_stakes() (acs_lib.py: "Pure function — never writes
+    stakes to ticket.json or any state file").
+    """
+    candidate_lane = derive_lane(size, stakes, needs_design, ticket_type)
+    if lane_rank(candidate_lane) > lane_rank(current_lane):
+        result_lane = candidate_lane
+    else:
+        # Hold at current; for None/unknown current_lane fall back to the STANDARD
+        # floor (the conservative default, not the candidate — AC-7 invariant (c)).
+        result_lane = current_lane if current_lane in LANE_ORDER else "STANDARD"
+    depth = verify_depth(result_lane, stakes)
+    ceiling = VERIFY_ITERATION_CAP[depth]
+    return result_lane, depth, ceiling
+
 
 def recommend_stakes(paths, settings):
     """Match a collection of file paths against high_stakes_paths globs from settings.
