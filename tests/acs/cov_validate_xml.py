@@ -304,7 +304,43 @@ def _drive():
         os.unlink(tmp_valid_file)
         os.unlink(tmp_bad_file)
 
-    # 5) ACS_XML_AUTHORITATIVE opt-in path in main() (only when xmllint present)
+    # 5) validate_batch / batch_overall_ok (Spec 02 batch API, T2)
+    # 5a) Mixed batch: some valid, some invalid — exercises the loop + tuple construction
+    batch_mixed = [VALID_TASK, MALFORMED_BAD_ROOT, VALID_RESULT, MALFORMED_MISSING_SKILL]
+    batch_results = mod.validate_batch(batch_mixed)
+    assert len(batch_results) == 4, "Expected 4 results from 4-message batch"
+    assert batch_results[0] == (True, []), "First (valid_task) should be (True, [])"
+    assert batch_results[1][0] is False, "Second (bad_root) should have ok=False"
+    assert len(batch_results[1][1]) > 0, "Second (bad_root) should have non-empty errors"
+    assert batch_results[2] == (True, []), "Third (valid_result) should be (True, [])"
+    assert batch_results[3][0] is False, "Fourth (missing_skill) should have ok=False"
+
+    # 5b) batch_overall_ok False when any member invalid
+    assert mod.batch_overall_ok(batch_results) is False, \
+        "batch_overall_ok should be False when any member is invalid"
+
+    # 5c) All-valid batch: batch_overall_ok True
+    batch_all_valid = [VALID_TASK, VALID_RESULT, VALID_HANDOFF]
+    all_valid_results = mod.validate_batch(batch_all_valid)
+    assert all(ok for ok, _ in all_valid_results), "All members should be ok=True"
+    assert mod.batch_overall_ok(all_valid_results) is True, \
+        "batch_overall_ok should be True for all-valid batch"
+
+    # 5d) Empty batch edge case
+    empty_results = mod.validate_batch([])
+    assert empty_results == [], "validate_batch([]) should return []"
+    assert mod.batch_overall_ok([]) is True, \
+        "batch_overall_ok([]) should be True (vacuously)"
+
+    # 5e) Single-message batch parity with validate_structurally
+    for xml in (VALID_TASK, MALFORMED_BAD_ROOT, MALFORMED_MISSING_SKILL):
+        vs_errors = mod.validate_structurally(xml)
+        expected = (len(vs_errors) == 0, vs_errors)
+        batch_single = mod.validate_batch([xml])[0]
+        assert batch_single == expected, \
+            "Parity mismatch: batch=%r expected=%r for %.40r" % (batch_single, expected, xml)
+
+    # 6) ACS_XML_AUTHORITATIVE opt-in path in main() (only when xmllint present)
     if shutil.which("xmllint") and os.path.isfile(mod.XSD_PATH):
         with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as fh:
             fh.write(VALID_TASK)

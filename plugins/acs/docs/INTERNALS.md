@@ -75,6 +75,13 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
        <partition>/phases/<skill>/iter-<n>-<phase>.xml at the phase boundary,
        before starting the next phase
      - validate every XML message:  validate_xml.py <file>   (or pipe with `-`)
+       For Python callers that need to validate multiple messages without a
+       subprocess per message, use the batch API:
+           from validate_xml import validate_batch, batch_overall_ok
+           results = validate_batch([msg1, msg2, ...])   # list of (ok, errors) tuples
+           if not batch_overall_ok(results): ...         # False if any member invalid
+       validate_batch() calls the in-process validate_structurally() engine in a
+       plain loop — zero subprocess, zero third-party dependency.
      - verifier findings == 0 -> done; findings > 0 -> feed findings into next iteration
      - iteration 3 still failing -> stop; final status "failed", findings recorded
 4. Write the result document <partition>/phases/<skill>/result.json

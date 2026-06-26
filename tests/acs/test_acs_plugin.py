@@ -624,6 +624,129 @@ class TestValidators(AcsWorkspaceCase):
         # Usage text goes to stderr (the __doc__ string)
         self.assertIn("validate_xml.py", result.stderr)
 
+    # -----------------------------------------------------------------------
+    # AC-4: Batched validation entry point (T2, Spec 02)
+    # Tests written FIRST (TDD RED step) — validate_batch / batch_overall_ok
+    # do not exist yet when these tests are added.
+    # -----------------------------------------------------------------------
+
+    def test_ac4_mixed_batch_correct_per_message_verdicts(self):
+        """Mixed batch returns correct per-message (ok, errors) tuples (AC-4).
+
+        A 4-message batch [valid_task, bad_root, valid_result, missing_skill]:
+        - index 0: (True, [])
+        - index 1: (False, non-empty errors)
+        - index 2: (True, [])
+        - index 3: (False, non-empty errors)
+        batch_overall_ok must be False when any member is invalid.
+        """
+        mod = self._load_validate_xml()
+        messages = [
+            self.VALID_TASK,
+            self.MALFORMED_BAD_ROOT,
+            self.VALID_RESULT,
+            self.MALFORMED_MISSING_SKILL,
+        ]
+        results = mod.validate_batch(messages)
+
+        # One result per input
+        self.assertEqual(len(results), 4)
+
+        # Index 0: valid task
+        self.assertEqual(results[0], (True, []),
+                         "Expected (True, []) for valid_task, got %r" % (results[0],))
+
+        # Index 1: bad root
+        self.assertFalse(results[1][0],
+                         "Expected ok=False for MALFORMED_BAD_ROOT")
+        self.assertGreater(len(results[1][1]), 0,
+                           "Expected non-empty errors for MALFORMED_BAD_ROOT")
+
+        # Index 2: valid result
+        self.assertEqual(results[2], (True, []),
+                         "Expected (True, []) for valid_result, got %r" % (results[2],))
+
+        # Index 3: missing skill
+        self.assertFalse(results[3][0],
+                         "Expected ok=False for MALFORMED_MISSING_SKILL")
+        self.assertGreater(len(results[3][1]), 0,
+                           "Expected non-empty errors for MALFORMED_MISSING_SKILL")
+
+        # Overall must be False (at least one member invalid)
+        self.assertFalse(mod.batch_overall_ok(results),
+                         "batch_overall_ok should be False when any member is invalid")
+
+    def test_ac4_all_valid_batch_overall_ok_true(self):
+        """All-valid batch: all ok=True tuples and batch_overall_ok returns True (AC-4)."""
+        mod = self._load_validate_xml()
+        all_valid = [self.VALID_TASK, self.VALID_RESULT, self.VALID_HANDOFF]
+        all_results = mod.validate_batch(all_valid)
+
+        self.assertTrue(all(ok for ok, _ in all_results),
+                        "Expected all ok=True in all-valid batch, got: %r" % all_results)
+        self.assertTrue(mod.batch_overall_ok(all_results),
+                        "batch_overall_ok should be True for all-valid batch")
+
+    def test_ac4_per_message_parity_with_validate_structurally(self):
+        """validate_batch([msg])[0] matches (len(vs)==0, vs) from validate_structurally (AC-4)."""
+        mod = self._load_validate_xml()
+        for name, xml in list(self.VALID_CORPUS) + list(self.MALFORMED_CORPUS):
+            vs_errors = mod.validate_structurally(xml)
+            expected = (len(vs_errors) == 0, vs_errors)
+            batch_result = mod.validate_batch([xml])[0]
+            self.assertEqual(batch_result, expected,
+                             "Parity mismatch for %s: batch=%r vs_expected=%r"
+                             % (name, batch_result, expected))
+
+    def test_ac4_no_subprocess_in_batch_path(self):
+        """validate_batch spawns zero subprocesses on the default (in-process) path (AC-1/AC-4)."""
+        mod = self._load_validate_xml()
+        messages = [self.VALID_TASK, self.MALFORMED_BAD_ROOT, self.VALID_RESULT]
+        with mock.patch("validate_xml.subprocess.run") as mock_run:
+            mod.validate_batch(messages)
+        self.assertEqual(mock_run.call_count, 0,
+                         "validate_batch must not call subprocess.run; got %d call(s)"
+                         % mock_run.call_count)
+
+    def test_ac4_single_call_atomicity_n5(self):
+        """validate_batch with N=5 messages returns exactly 5 entries in one call (AC-4)."""
+        mod = self._load_validate_xml()
+        messages = [
+            self.VALID_TASK,
+            self.VALID_RESULT,
+            self.VALID_HANDOFF,
+            self.MALFORMED_BAD_ROOT,
+            self.MALFORMED_MISSING_SKILL,
+        ]
+        # The whole batch is processed in a single expression — no iteration at the call site
+        results = mod.validate_batch(messages)
+        self.assertEqual(len(results), 5,
+                         "Expected exactly 5 results for N=5 batch, got %d" % len(results))
+
+    def test_ac4_empty_input_returns_empty_list(self):
+        """validate_batch([]) returns [] (empty, no error); batch_overall_ok([]) is True (AC-4)."""
+        mod = self._load_validate_xml()
+        results = mod.validate_batch([])
+        self.assertEqual(results, [],
+                         "Expected [] for empty input, got %r" % results)
+        self.assertTrue(mod.batch_overall_ok([]),
+                        "batch_overall_ok([]) should be True (vacuously)")
+
+    def test_ac4_error_detail_is_meaningful(self):
+        """validate_batch returns meaningful error strings for known malformed messages (AC-4)."""
+        mod = self._load_validate_xml()
+        # MALFORMED_MISSING_SKILL is missing required attribute 'skill'
+        results = mod.validate_batch([self.MALFORMED_MISSING_SKILL])
+        ok, errors = results[0]
+        self.assertFalse(ok, "Expected ok=False for MALFORMED_MISSING_SKILL")
+        self.assertGreater(len(errors), 0, "Expected non-empty errors list")
+        # The error should mention 'skill' or 'attribute' or 'missing' or 'INVALID'
+        joined = " ".join(errors).lower()
+        self.assertTrue(
+            any(kw in joined for kw in ("skill", "attribute", "missing", "invalid")),
+            "Error detail should mention a relevant keyword; got: %r" % errors
+        )
+
 
 class TestStatusLines(AcsWorkspaceCase):
     def payload(self, cwd):

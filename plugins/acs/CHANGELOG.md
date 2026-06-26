@@ -27,6 +27,14 @@ the notes.
   (`TestValidators` in `tests/acs/test_acs_plugin.py`) asserts identical
   pass/fail verdicts for every XSD violation class across both paths.
 
+- **`validate_batch()` / `batch_overall_ok()` — new Python-callable batch
+  validation API (MAR-61 AC-4).** `validate_batch(messages)` accepts a list
+  of XML message strings and returns a per-message `(ok, errors)` tuple list
+  in a single call with zero subprocess spawns; `batch_overall_ok(results)`
+  returns `False` when any member is invalid.  The batch API calls the
+  in-process `validate_structurally()` engine and is importable directly from
+  `validate_xml.py`; `main()` and the CLI are unchanged (AC-6 back-compat).
+
 - **`/acs:merge-pr` is now agent/model-invocable (MAR-42).** Removed
   `disable-model-invocation` from the skill; the readiness gate (CI, approvals,
   conflicts, protections) and the repo's branch protection are the merge brakes,

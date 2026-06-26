@@ -30,6 +30,22 @@ Usage:
   ACS_XML_AUTHORITATIVE=1 validate_xml.py <file.xml>   # opt-in xmllint check
 
 Exit codes: 0 = valid, 1 = invalid (details on stderr).
+
+Batch API (Python-callable; no subprocess):
+  from validate_xml import validate_batch, batch_overall_ok
+
+  results = validate_batch([msg1, msg2, msg3])
+  # returns [(True, []), (False, ["<foo> root …"]), …] — one (ok, errors) per message
+
+  if not batch_overall_ok(results):
+      # at least one message is invalid
+      ...
+
+  validate_batch() calls validate_structurally() in a plain for-loop; no thread
+  pool, no subprocess, no xmllint invocation.  An empty messages list returns [].
+  The ACS_XML_AUTHORITATIVE env var is NOT honoured by the batch path (it is a
+  per-message CLI concern); callers needing authoritative xmllint validation call
+  validate_with_xmllint() directly.
 """
 
 import os
@@ -142,6 +158,44 @@ def validate_with_xmllint(path):
         capture_output=True, text=True, timeout=20,
     )
     return proc.returncode == 0, proc.stderr.strip()
+
+
+def validate_batch(messages):
+    """Validate a list of XML message strings in one call.
+
+    Returns a list of (ok, errors) tuples — one per input message, in order.
+    ``ok`` is True when the message is valid; ``errors`` is an empty list when
+    ok and a non-empty list of error strings otherwise.
+
+    No subprocess is spawned; each message is validated in-process via
+    validate_structurally().  An empty messages list returns [].
+    The ACS_XML_AUTHORITATIVE env var is NOT honoured here — this is strictly
+    the in-process fast path.
+
+    Args:
+        messages: list[str] — XML message strings to validate.
+
+    Returns:
+        list[tuple[bool, list[str]]] — one (ok, errors) per input, in order.
+    """
+    results = []
+    for text in messages:
+        errors = validate_structurally(text)
+        results.append((len(errors) == 0, errors))
+    return results
+
+
+def batch_overall_ok(batch_results):
+    """Return True iff every (ok, errors) tuple in batch_results has ok=True.
+
+    Args:
+        batch_results: list[tuple[bool, list[str]]] — as returned by validate_batch().
+
+    Returns:
+        bool — True when all members are valid, False when any member is invalid.
+        An empty batch_results returns True (vacuously true: no invalid members).
+    """
+    return all(ok for ok, _ in batch_results)
 
 
 def main():
