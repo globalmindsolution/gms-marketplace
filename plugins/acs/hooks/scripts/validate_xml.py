@@ -16,12 +16,14 @@ Strategy (stdlib-only requirement):
   the in-process engine runs silently.  This preserves AC-5 (strict stdlib): no
   mandatory third-party dependency; a stdlib-only interpreter always gets a verdict.
 
-  Gap-closure audit (MAR-61): confirmed no structural gap between the in-process
-  validator (_attr_errors/_child_errors) and acs-messages.xsd at implementation time.
-  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is the binding
-  proof — every XSD violation class (bad root, missing/invalid attr, bad ticket-id
-  pattern, out-of-order children, wrong list item, bad status enum, bad severity enum)
-  was verified to produce identical pass/fail verdicts under both paths.
+  Gap-closure audit (MAR-61, iteration 2): the in-process validator matches xmllint
+  for the following covered violation classes: bad root element, missing/invalid
+  attribute, bad ticket-id pattern, out-of-order children, wrong list-item tag,
+  bad status/severity enum, duplicate maxOccurs=1 sequence children (cardinality),
+  and xs:decimal grammar for cost-usd (no exponent, no inf/nan, no underscores).
+  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is the
+  binding proof — every listed class produces identical pass/fail verdicts under
+  both paths.  Classes not explicitly listed are not guaranteed to match.
 
 Usage:
   validate_xml.py <file.xml> [more.xml ...]
@@ -99,6 +101,18 @@ def _attr_errors(root):
     return errors
 
 
+def _is_xs_decimal(value):
+    """Return True iff *value* conforms to the xs:decimal lexical space.
+
+    xs:decimal allows: optional leading sign (+ or -), one or more decimal
+    digits, and an optional single decimal point anywhere in the digit sequence.
+    It does NOT allow exponent notation (1e5), inf, nan, underscores (1_000),
+    or an empty string.  This matches the W3C XML Schema Part 2 definition and
+    the behaviour of xmllint --schema when validating xs:decimal attributes.
+    """
+    return bool(re.fullmatch(r"[+-]?(\d+\.?\d*|\d*\.\d+)", value))
+
+
 def _child_errors(root):
     errors = []
     tag = root.tag
@@ -111,6 +125,15 @@ def _child_errors(root):
     for required in REQUIRED_CHILDREN[tag]:
         if required not in seen:
             errors.append("<%s> is missing required element <%s>" % (tag, required))
+
+    # Cardinality: every element in the xs:sequence has maxOccurs=1 (the XSD
+    # default).  Count occurrences of each known child and reject duplicates.
+    for child_tag in allowed:
+        count = seen.count(child_tag)
+        if count > 1:
+            errors.append("<%s> contains %d occurrences of <%s>; at most 1 is allowed"
+                          % (tag, count, child_tag))
+
     positions = [allowed.index(t) for t in seen if t in allowed]
     if positions != sorted(positions):
         errors.append("<%s> children out of order; expected order: %s" % (tag, ", ".join(allowed)))
@@ -135,10 +158,12 @@ def _child_errors(root):
                 errors.append("<metrics %s=%r> must be a non-negative integer" % (attr, value))
         cost = metrics.get("cost-usd")
         if cost is not None:
-            try:
-                float(cost)
-            except ValueError:
-                errors.append("<metrics cost-usd=%r> must be a decimal" % cost)
+            if not _is_xs_decimal(cost):
+                errors.append(
+                    "<metrics cost-usd=%r> must be a valid xs:decimal "
+                    "(digits with optional sign and/or decimal point; "
+                    "no exponent, no inf/nan, no underscores)" % cost
+                )
     return errors
 
 

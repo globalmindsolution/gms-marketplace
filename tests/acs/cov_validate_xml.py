@@ -116,6 +116,30 @@ MALFORMED_MISSING_SUMMARY_HANDOFF = (
     '<handoff skill="code" ticket-id="SHOP-1" status="completed">'
     '</handoff>'
 )
+# (vi) cardinality: duplicate maxOccurs=1 sequence children
+MALFORMED_DUP_OBJECTIVE = (
+    '<task skill="code" phase="execute" ticket-id="SHOP-1">'
+    '<objective>first</objective>'
+    '<objective>second</objective>'
+    '</task>'
+)
+MALFORMED_DUP_METRICS = (
+    '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+    '<metrics tokens-input="100" tokens-output="50" cost-usd="0.01"/>'
+    '<metrics tokens-input="200" tokens-output="100" cost-usd="0.02"/>'
+    '</result>'
+)
+# (vii) xs:decimal grammar violations
+MALFORMED_COST_USD_INF = (
+    '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+    '<metrics tokens-input="100" tokens-output="50" cost-usd="inf"/>'
+    '</result>'
+)
+MALFORMED_COST_USD_EXPONENT = (
+    '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+    '<metrics tokens-input="100" tokens-output="50" cost-usd="1e5"/>'
+    '</result>'
+)
 
 
 def _load_target_fresh():
@@ -154,6 +178,12 @@ def _drive():
         MALFORMED_HANDOFF_BAD_STATUS,
         MALFORMED_UNEXPECTED_CHILD,
         MALFORMED_MISSING_SUMMARY_HANDOFF,
+        # (vi) cardinality — duplicate maxOccurs=1 sequence children
+        MALFORMED_DUP_OBJECTIVE,
+        MALFORMED_DUP_METRICS,
+        # (vii) xs:decimal grammar violations
+        MALFORMED_COST_USD_INF,
+        MALFORMED_COST_USD_EXPONENT,
     ):
         errors = mod.validate_structurally(xml)
         assert errors, "Expected errors for %r but got empty list" % xml[:40]

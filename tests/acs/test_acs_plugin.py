@@ -393,6 +393,81 @@ class TestValidators(AcsWorkspaceCase):
         '</result>'
     )
 
+    # (vi) CARDINALITY: duplicate maxOccurs=1 sequence children
+    # xs:sequence in acs-messages.xsd has maxOccurs=1 (default) for every element;
+    # duplicate children must be rejected (XSD rejects them via xs:sequence constraint).
+
+    # duplicate <objective> in <task> (required, maxOccurs=1)
+    MALFORMED_DUP_OBJECTIVE = (
+        '<task skill="code" phase="execute" ticket-id="SHOP-1">'
+        '<objective>first</objective>'
+        '<objective>second</objective>'
+        '</task>'
+    )
+
+    # duplicate <summary> in <handoff> (required, maxOccurs=1)
+    MALFORMED_DUP_SUMMARY = (
+        '<handoff skill="create-spec" ticket-id="SHOP-1" status="completed">'
+        '<summary>first</summary>'
+        '<summary>second</summary>'
+        '</handoff>'
+    )
+
+    # duplicate <metrics> in <result> (optional, maxOccurs=1)
+    MALFORMED_DUP_METRICS = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd="0.01"/>'
+        '<metrics tokens-input="200" tokens-output="100" cost-usd="0.02"/>'
+        '</result>'
+    )
+
+    # duplicate <inputs> container in <task> (optional, maxOccurs=1)
+    MALFORMED_DUP_INPUTS = (
+        '<task skill="code" phase="execute" ticket-id="SHOP-1">'
+        '<objective>obj</objective>'
+        '<inputs><file>/a.py</file></inputs>'
+        '<inputs><file>/b.py</file></inputs>'
+        '</task>'
+    )
+
+    # duplicate <next-step> in <handoff> (optional, maxOccurs=1)
+    MALFORMED_DUP_NEXT_STEP = (
+        '<handoff skill="create-spec" ticket-id="SHOP-1" status="completed">'
+        '<summary>s</summary>'
+        '<next-step>step one</next-step>'
+        '<next-step>step two</next-step>'
+        '</handoff>'
+    )
+
+    # (vii) xs:decimal grammar: cost-usd must match optional-sign + digits +
+    # optional single decimal point — NO exponent, NO inf/nan, NO underscores.
+    # Each of these is accepted by Python float() but rejected by xs:decimal.
+    MALFORMED_COST_USD_INF = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd="inf"/>'
+        '</result>'
+    )
+    MALFORMED_COST_USD_NAN = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd="nan"/>'
+        '</result>'
+    )
+    MALFORMED_COST_USD_EXPONENT = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd="1e5"/>'
+        '</result>'
+    )
+    MALFORMED_COST_USD_UNDERSCORE = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd="1_000"/>'
+        '</result>'
+    )
+    MALFORMED_COST_USD_EMPTY = (
+        '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
+        '<metrics tokens-input="100" tokens-output="50" cost-usd=""/>'
+        '</result>'
+    )
+
     VALID_CORPUS = [
         ("valid_task", VALID_TASK),
         ("valid_result", VALID_RESULT),
@@ -407,6 +482,18 @@ class TestValidators(AcsWorkspaceCase):
         ("wrong_list_item", MALFORMED_WRONG_LIST_ITEM),
         ("bad_status_enum", MALFORMED_BAD_STATUS_ENUM),
         ("bad_severity_enum", MALFORMED_BAD_SEVERITY_ENUM),
+        # (vi) cardinality — duplicate maxOccurs=1 sequence elements
+        ("dup_objective", MALFORMED_DUP_OBJECTIVE),
+        ("dup_summary", MALFORMED_DUP_SUMMARY),
+        ("dup_metrics", MALFORMED_DUP_METRICS),
+        ("dup_inputs", MALFORMED_DUP_INPUTS),
+        ("dup_next_step", MALFORMED_DUP_NEXT_STEP),
+        # (vii) xs:decimal grammar — cost-usd values Python float() accepts but xs:decimal rejects
+        ("cost_usd_inf", MALFORMED_COST_USD_INF),
+        ("cost_usd_nan", MALFORMED_COST_USD_NAN),
+        ("cost_usd_exponent", MALFORMED_COST_USD_EXPONENT),
+        ("cost_usd_underscore", MALFORMED_COST_USD_UNDERSCORE),
+        ("cost_usd_empty", MALFORMED_COST_USD_EMPTY),
     ]
 
     def _load_validate_xml(self):
@@ -456,6 +543,119 @@ class TestValidators(AcsWorkspaceCase):
                 in_process_ok, xmllint_ok,
                 "PARITY GAP on %r: in-process=%s xmllint=%s detail=%r errors=%r"
                 % (name, in_process_ok, xmllint_ok, xmllint_detail, in_process_errors)
+            )
+
+    # -----------------------------------------------------------------------
+    # AC-2 parity: cardinality (maxOccurs=1 on sequence members)
+    # -----------------------------------------------------------------------
+
+    def test_ac2_cardinality_duplicate_children_rejected_in_process(self):
+        """Duplicate maxOccurs=1 sequence children must be rejected by validate_structurally.
+
+        xs:sequence in acs-messages.xsd has maxOccurs=1 (default) for every element.
+        Two <objective>, two <summary>, two <metrics>, two <inputs>, two <next-step>
+        must each produce at least one error (AC-2 cardinality gap closure).
+        """
+        mod = self._load_validate_xml()
+        cardinality_cases = [
+            ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
+            ("dup_summary", self.MALFORMED_DUP_SUMMARY),
+            ("dup_metrics", self.MALFORMED_DUP_METRICS),
+            ("dup_inputs", self.MALFORMED_DUP_INPUTS),
+            ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
+        ]
+        for name, xml in cardinality_cases:
+            errors = mod.validate_structurally(xml)
+            self.assertTrue(
+                errors,
+                "Expected cardinality error for %s but validate_structurally returned []. "
+                "Duplicate maxOccurs=1 child must be rejected." % name,
+            )
+
+    @unittest.skipUnless(shutil.which("xmllint"), "xmllint not on PATH")
+    def test_ac2_cardinality_parity_with_xmllint(self):
+        """Cardinality violations: in-process and xmllint must both return INVALID."""
+        mod = self._load_validate_xml()
+        cardinality_cases = [
+            ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
+            ("dup_summary", self.MALFORMED_DUP_SUMMARY),
+            ("dup_metrics", self.MALFORMED_DUP_METRICS),
+            ("dup_inputs", self.MALFORMED_DUP_INPUTS),
+            ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
+        ]
+        for name, xml in cardinality_cases:
+            in_process_ok = (mod.validate_structurally(xml) == [])
+            with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as fh:
+                fh.write(xml)
+                tmp_path = fh.name
+            try:
+                xmllint_ok, xmllint_detail = mod.validate_with_xmllint(tmp_path)
+            finally:
+                os.unlink(tmp_path)
+            self.assertEqual(
+                in_process_ok, xmllint_ok,
+                "PARITY GAP on cardinality case %r: in-process=%s xmllint=%s detail=%r"
+                % (name, in_process_ok, xmllint_ok, xmllint_detail),
+            )
+            self.assertFalse(
+                xmllint_ok,
+                "xmllint should reject duplicate child %r (maxOccurs=1 violation)" % name,
+            )
+
+    # -----------------------------------------------------------------------
+    # AC-2 parity: xs:decimal grammar for cost-usd
+    # -----------------------------------------------------------------------
+
+    def test_ac2_cost_usd_decimal_grammar_rejected_in_process(self):
+        """cost-usd values valid for Python float() but invalid for xs:decimal must be rejected.
+
+        xs:decimal lexical space: optional sign, digits, optional single decimal point.
+        No exponent (1e5), no inf, no nan, no underscores (1_000), no empty string.
+        """
+        mod = self._load_validate_xml()
+        decimal_cases = [
+            ("cost_usd_inf", self.MALFORMED_COST_USD_INF),
+            ("cost_usd_nan", self.MALFORMED_COST_USD_NAN),
+            ("cost_usd_exponent", self.MALFORMED_COST_USD_EXPONENT),
+            ("cost_usd_underscore", self.MALFORMED_COST_USD_UNDERSCORE),
+            ("cost_usd_empty", self.MALFORMED_COST_USD_EMPTY),
+        ]
+        for name, xml in decimal_cases:
+            errors = mod.validate_structurally(xml)
+            self.assertTrue(
+                errors,
+                "Expected xs:decimal error for %s but validate_structurally returned []. "
+                "Python float()-parseable but xs:decimal-invalid values must be rejected." % name,
+            )
+
+    @unittest.skipUnless(shutil.which("xmllint"), "xmllint not on PATH")
+    def test_ac2_cost_usd_decimal_parity_with_xmllint(self):
+        """cost-usd xs:decimal violations: in-process and xmllint must both return INVALID."""
+        mod = self._load_validate_xml()
+        decimal_cases = [
+            ("cost_usd_inf", self.MALFORMED_COST_USD_INF),
+            ("cost_usd_nan", self.MALFORMED_COST_USD_NAN),
+            ("cost_usd_exponent", self.MALFORMED_COST_USD_EXPONENT),
+            ("cost_usd_underscore", self.MALFORMED_COST_USD_UNDERSCORE),
+            ("cost_usd_empty", self.MALFORMED_COST_USD_EMPTY),
+        ]
+        for name, xml in decimal_cases:
+            in_process_ok = (mod.validate_structurally(xml) == [])
+            with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as fh:
+                fh.write(xml)
+                tmp_path = fh.name
+            try:
+                xmllint_ok, xmllint_detail = mod.validate_with_xmllint(tmp_path)
+            finally:
+                os.unlink(tmp_path)
+            self.assertEqual(
+                in_process_ok, xmllint_ok,
+                "PARITY GAP on xs:decimal case %r: in-process=%s xmllint=%s detail=%r"
+                % (name, in_process_ok, xmllint_ok, xmllint_detail),
+            )
+            self.assertFalse(
+                xmllint_ok,
+                "xmllint should reject cost-usd=%r (xs:decimal violation)" % name,
             )
 
     # -----------------------------------------------------------------------

@@ -22,10 +22,14 @@ the notes.
   `validate_structurally()` engine (pure stdlib, zero subprocess) instead of
   spawning `xmllint` per message.  `xmllint` is retained as an opt-in
   authoritative check via `ACS_XML_AUTHORITATIVE=1` (PATH-guarded; absent
-  xmllint never blocks a verdict).  The in-process engine was audited against
-  `acs-messages.xsd` and confirmed XSD-equivalent; a parity corpus
-  (`TestValidators` in `tests/acs/test_acs_plugin.py`) asserts identical
-  pass/fail verdicts for every XSD violation class across both paths.
+  xmllint never blocks a verdict).  The in-process engine matches xmllint for
+  the following covered violation classes: bad root element, missing/invalid
+  attribute, bad ticket-id pattern, out-of-order children, wrong list-item tag,
+  bad status/severity enum, duplicate maxOccurs=1 sequence children
+  (cardinality), and xs:decimal grammar for cost-usd (no exponent, no
+  inf/nan, no underscores).  A parity corpus (`TestValidators` in
+  `tests/acs/test_acs_plugin.py`) asserts identical pass/fail verdicts for each
+  of these classes across both paths.
 
 - **`validate_batch()` / `batch_overall_ok()` — new Python-callable batch
   validation API (MAR-61 AC-4).** `validate_batch(messages)` accepts a list
