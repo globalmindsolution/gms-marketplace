@@ -634,5 +634,241 @@ class TestStageReintroduction(unittest.TestCase):
                 "a negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
 
 
+class TestMidFlightEscalationContract(unittest.TestCase):
+    """MAR-57 Spec 04 (AC-3, AC-6, AC-7, AC-8): pin the mid-flight escalation
+    contract in docs/requirements/skills.md.
+
+    Doc-assertion tests reading skills.md and verifying the standing contract
+    is present. RED before the 'Mid-flight lane escalation' subsection is added;
+    GREEN after.
+    """
+
+    def _skills_md_path(self):
+        return os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
+
+    def _body(self):
+        return read(self._skills_md_path())
+
+    # --- AC-6: exactly three triggers, each enumerated ---
+
+    def test_skills_md_contains_escalation_trigger_a(self):
+        """AC-6: skills.md must enumerate trigger (a) — verifier finding signaling
+        higher stakes/size."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(verifier finding.{0,100}(higher|stakes|size)|"
+                r"finding.{0,60}(higher.{0,30}(stakes|size)|stakes|size))",
+                body),
+            "skills.md must enumerate trigger (a): verifier finding signaling "
+            "higher stakes/size (MAR-57 AC-6)")
+
+    def test_skills_md_contains_escalation_trigger_b(self):
+        """AC-6: skills.md must enumerate trigger (b) — high_stakes_paths glob match."""
+        body = self._body()
+        self.assertIn(
+            "high_stakes_paths", body,
+            "skills.md must enumerate trigger (b): high_stakes_paths glob match "
+            "(MAR-57 AC-6)")
+
+    def test_skills_md_contains_escalation_trigger_c(self):
+        """AC-6: skills.md must enumerate trigger (c) — explicit user/agent escalation
+        request."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(explicit.{0,60}(user|agent).{0,60}(escalat|request)|"
+                r"user.{0,40}agent.{0,60}escalat)",
+                body),
+            "skills.md must enumerate trigger (c): explicit user/agent escalation "
+            "request (MAR-57 AC-6)")
+
+    def test_skills_md_trigger_set_is_exactly_three(self):
+        """AC-6: skills.md must enumerate exactly triggers (a), (b), (c) in the
+        escalation section — no fourth trigger listed."""
+        body = self._body()
+        # Find the escalation subsection
+        section_match = re.search(
+            r"(?i)mid.?flight.{0,20}(lane.{0,20}escalation|escalation)", body)
+        self.assertIsNotNone(
+            section_match,
+            "skills.md must have a mid-flight escalation section (MAR-57 AC-6)")
+        section_start = section_match.start()
+        # Take up to 3000 chars after the section heading
+        section = body[section_start:section_start + 3000]
+        # Exactly three labeled triggers (a), (b), (c) in the trigger list
+        trigger_labels = re.findall(r"\(([abc])\)", section)
+        for label in ("a", "b", "c"):
+            self.assertIn(
+                label, trigger_labels,
+                "skills.md escalation section must label trigger (%s) (MAR-57 AC-6)" % label)
+        # Must not list a (d) trigger
+        self.assertNotIn(
+            "d", trigger_labels,
+            "skills.md escalation section must NOT list a fourth trigger (d) "
+            "(MAR-57 AC-6 — bounded trigger set)")
+
+    # --- AC-3/AC-8: upward-only automatic escalation ---
+
+    def test_skills_md_upward_only_contract(self):
+        """AC-3/AC-8: skills.md must state the upward-only automatic escalation contract."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(upward.only|upward only|only.{0,30}rais|automatically escalat|"
+                r"automatic.{0,30}escalat)",
+                body),
+            "skills.md must state upward-only automatic escalation contract "
+            "(MAR-57 AC-3/AC-8)")
+
+    # --- AC-3: negative guarantee (no automatic downgrade) ---
+
+    def test_skills_md_negative_guarantee(self):
+        """AC-3: skills.md must state that no automatic/unattended code path lowers
+        the lane or authoritative axes below a user-confirmed value."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(never automatic|no automatic.{0,60}(lower|lowers|de.escalat)|"
+                r"automatic.{0,30}(never|not|never).{0,60}(lower|lowers)|"
+                r"negative guarantee|automatic.{0,50}silent)",
+                body),
+            "skills.md must state the negative guarantee: no automatic/unattended "
+            "path lowers the lane or axes below a user-confirmed value (MAR-57 AC-3)")
+
+    # --- AC-3/AC-8: user-confirmed-only de-escalation + interactive downgrade deferred ---
+
+    def test_skills_md_user_confirmed_only_de_escalation(self):
+        """AC-3/AC-8: skills.md must state that de-escalation requires explicit user
+        confirmation and that interactive downgrade is deferred."""
+        body = self._body()
+        # Must state user confirmation required for de-escalation
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(de.escalat.{0,100}(user.confirm|explicit.confirm|explicit.user)|"
+                r"(user.confirm|explicit).{0,100}de.escalat|"
+                r"lower.{0,60}user.confirm)",
+                body),
+            "skills.md must state de-escalation requires explicit user confirmation "
+            "(MAR-57 AC-3/AC-8)")
+        # Must state the interactive downgrade command is deferred
+        self.assertIsNotNone(
+            re.search(
+                r"(defer|deferred|out.of.scope).{0,200}(downgrade|de.escalat|interactiv)|"
+                r"(downgrade|de.escalat|interactiv).{0,200}(defer|deferred|out.of.scope)",
+                body, re.IGNORECASE | re.DOTALL),
+            "skills.md must state the interactive downgrade command is deferred "
+            "(MAR-57 AC-3/AC-8)")
+
+    # --- AC-5/AC-8: stage re-introduction mentioned ---
+
+    def test_skills_md_stage_reintroduction_mentioned(self):
+        """AC-5/AC-8: skills.md must mention stage re-introduction (picking up
+        create-spec rigor on fast-lane escalation)."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(stage re.?introduc|re.?introduc.{0,60}(stage|create.spec)|"
+                r"create.spec.{0,100}(rigor|skip|pick.?up)|"
+                r"fast.lane.{0,200}escalat.{0,200}create.spec)",
+                body, re.DOTALL),
+            "skills.md must mention stage re-introduction (picking up create-spec "
+            "rigor on fast-lane escalation) (MAR-57 AC-5/AC-8)")
+
+    # --- AC-8: sibling behaviors MAR-59 / MAR-60 stated unchanged ---
+
+    def test_skills_md_mar59_fold_unchanged(self):
+        """AC-8: skills.md must state that the fast-lane fold (MAR-59) is unchanged
+        for non-escalating tickets."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(MAR.59|fast.lane fold|fast.?lane.{0,60}fold)"
+                r".{0,300}(unchanged|unaffected|not changed|intact)|"
+                r"(unchanged|unaffected|not changed).{0,300}(MAR.59|fast.lane fold)",
+                body, re.DOTALL),
+            "skills.md must state the fast-lane fold (MAR-59) is unchanged for "
+            "non-escalating tickets (MAR-57 AC-8)")
+
+    def test_skills_md_mar60_apply_tier_unchanged(self):
+        """AC-8: skills.md must state that apply-tier inlining (MAR-60) is unchanged."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(MAR.60|apply.tier).{0,300}(unchanged|unaffected|not changed|intact)|"
+                r"(unchanged|unaffected|not changed).{0,300}(MAR.60|apply.tier)",
+                body, re.DOTALL),
+            "skills.md must state apply-tier inlining (MAR-60) is unchanged "
+            "(MAR-57 AC-8)")
+
+    # --- AC-6: routing always via derive_lane ---
+
+    def test_skills_md_derive_lane_as_single_authority(self):
+        """AC-6: skills.md must state routing always via derive_lane (no caller
+        re-implements routing)."""
+        body = self._body()
+        self.assertIn(
+            "derive_lane", body,
+            "skills.md must reference derive_lane as the single routing authority "
+            "(MAR-57 AC-6)")
+
+
+class TestReflectionMdEscalationCeiling(unittest.TestCase):
+    """MAR-57 Spec 04 (AC-1, AC-7, AC-8): pin the in-loop ceiling-raise contract
+    in docs/requirements/reflection.md.
+
+    Doc-assertion tests reading reflection.md and verifying the escalation
+    ceiling-raise prose is present and invariants are retained. RED before the
+    ADD-only ceiling-raise paragraph is added; GREEN after.
+    """
+
+    def _reflection_md_path(self):
+        return os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md")
+
+    def _body(self):
+        return read(self._reflection_md_path())
+
+    def test_reflection_md_exists_at_expected_path(self):
+        """AC-8: docs/requirements/reflection.md must exist at the expected path."""
+        self.assertTrue(
+            os.path.isfile(self._reflection_md_path()),
+            "docs/requirements/reflection.md must exist (MAR-57 AC-8)")
+
+    def test_reflection_md_in_loop_ceiling_raise(self):
+        """AC-8/AC-1: reflection.md must describe the in-loop ceiling raise on
+        escalation (e.g. 'escalation', 'mid-run', 'ceiling' adjustment, or monotone raise)."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(escalat.{0,200}(ceiling|ceiling raise|mid.run|in.loop|raise)|"
+                r"ceiling.{0,200}(raise|escalat|mid.run)|"
+                r"mid.run.{0,100}ceiling|in.loop.{0,100}ceiling)",
+                body, re.DOTALL),
+            "reflection.md must describe the in-loop ceiling raise on escalation "
+            "(MAR-57 AC-8/AC-1)")
+
+    def test_reflection_md_invariants_preserved(self):
+        """AC-7: reflection.md must retain language about absolute invariants
+        (verifier always runs; TDD/coverage gate immutable) — the existing
+        invariant text is not removed or weakened by this spec's edit."""
+        body = self._body()
+        # Check both invariants are still stated
+        self.assertIn(
+            "Absolute invariants", body,
+            "reflection.md must retain the 'Absolute invariants' block "
+            "(MAR-57 AC-7 — ADD-only, must not remove)")
+        self.assertIsNotNone(
+            re.search(r"(?i)(verifier.{0,60}(always runs|every lane)|every lane.{0,60}verifier)",
+                      body),
+            "reflection.md must retain 'verifier always runs in every lane' invariant "
+            "(MAR-57 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?i)(TDD.{0,60}coverage.{0,60}(gate|immutable|never trimmed)|"
+                      r"coverage.{0,60}gate.{0,60}(immutable|never trimmed|full))",
+                      body),
+            "reflection.md must retain 'TDD/coverage gate immutable' invariant "
+            "(MAR-57 AC-7)")
+
+
 if __name__ == "__main__":
     unittest.main()
