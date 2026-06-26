@@ -363,5 +363,226 @@ class TestMergePrBehindAutoUpdate(unittest.TestCase):
             "of its heading (MAR-47 C-10)")
 
 
+class TestApplyTierInline(unittest.TestCase):
+    """MAR-60 (spec 05): pin the apply-tier inline contract across create-pr,
+    merge-pr, and create-ticket. Assertions enforce MAR-55 invariant (b) —
+    'Apply-work (create-pr, merge-pr, create-ticket) is always
+    deterministic-inline (coordinator + at most one executor), never a triad'
+    — and the AC-1 through AC-7 acceptance criteria from the ticket.
+    These tests are written first (TDD RED) and turn green after specs 01-04
+    apply the SKILL.md and doc rewrites. No existing assertion is modified."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def doc_path(self, *parts):
+        return os.path.join(REPO_ROOT, *parts)
+
+    # ------------------------------------------------------------------ Group 1
+    # AC-1, AC-2: no planner / no verifier spawn in each apply-work SKILL.md.
+
+    def test_create_pr_no_planner_verifier_spawn(self):
+        """AC-1/AC-2 [create-pr]: SKILL.md must not spawn -planner or -verifier."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNone(
+            re.search(r"acs:create-pr-planner", body),
+            "AC-1 [create-pr]: SKILL.md must not spawn acs:create-pr-planner subagent")
+        self.assertIsNone(
+            re.search(r"acs:create-pr-verifier", body),
+            "AC-1 [create-pr]: SKILL.md must not spawn acs:create-pr-verifier subagent")
+        self.assertIsNone(
+            re.search(r"\bcreate-pr-planner\b", body),
+            "AC-2 [create-pr]: SKILL.md must carry no bare create-pr-planner token")
+        self.assertIsNone(
+            re.search(r"\bcreate-pr-verifier\b", body),
+            "AC-2 [create-pr]: SKILL.md must carry no bare create-pr-verifier token")
+
+    def test_merge_pr_no_planner_verifier_spawn(self):
+        """AC-1/AC-2 [merge-pr]: SKILL.md must not spawn -planner or -verifier."""
+        body = read(self.skill_path("merge-pr"))
+        self.assertIsNone(
+            re.search(r"acs:merge-pr-planner", body),
+            "AC-1 [merge-pr]: SKILL.md must not spawn acs:merge-pr-planner subagent")
+        self.assertIsNone(
+            re.search(r"acs:merge-pr-verifier", body),
+            "AC-1 [merge-pr]: SKILL.md must not spawn acs:merge-pr-verifier subagent")
+        self.assertIsNone(
+            re.search(r"\bmerge-pr-planner\b", body),
+            "AC-2 [merge-pr]: SKILL.md must carry no bare merge-pr-planner token")
+        self.assertIsNone(
+            re.search(r"\bmerge-pr-verifier\b", body),
+            "AC-2 [merge-pr]: SKILL.md must carry no bare merge-pr-verifier token")
+
+    def test_create_ticket_no_planner_verifier_spawn(self):
+        """AC-1/AC-2 [create-ticket]: SKILL.md must not spawn -planner or -verifier."""
+        body = read(self.skill_path("create-ticket"))
+        self.assertIsNone(
+            re.search(r"acs:create-ticket-planner", body),
+            "AC-1 [create-ticket]: SKILL.md must not spawn acs:create-ticket-planner subagent")
+        self.assertIsNone(
+            re.search(r"acs:create-ticket-verifier", body),
+            "AC-1 [create-ticket]: SKILL.md must not spawn acs:create-ticket-verifier subagent")
+        self.assertIsNone(
+            re.search(r"\bcreate-ticket-planner\b", body),
+            "AC-2 [create-ticket]: SKILL.md must carry no bare create-ticket-planner token")
+        self.assertIsNone(
+            re.search(r"\bcreate-ticket-verifier\b", body),
+            "AC-2 [create-ticket]: SKILL.md must carry no bare create-ticket-verifier token")
+
+    # ------------------------------------------------------------------ Group 2
+    # AC-2: no plan->execute->verify triad instruction in any apply-work SKILL.md.
+
+    def test_apply_skills_no_triad_instruction(self):
+        """AC-2: no ASCII-arrow, Unicode-arrow, or prose triad instruction."""
+        for skill in ("create-pr", "merge-pr", "create-ticket"):
+            body = read(self.skill_path(skill))
+            self.assertIsNone(
+                re.search(r"plan\s*->\s*execute\s*->\s*verify", body, re.IGNORECASE),
+                "AC-2 [%s]: SKILL.md must not contain 'plan -> execute -> verify'" % skill)
+            self.assertIsNone(
+                re.search(r"plan\s*→\s*execute\s*→\s*verify", body, re.IGNORECASE),
+                "AC-2 [%s]: SKILL.md must not contain 'plan → execute → verify'" % skill)
+            self.assertIsNone(
+                re.search(r"plan to execute to verify", body, re.IGNORECASE),
+                "AC-2 [%s]: SKILL.md must not contain 'plan to execute to verify'" % skill)
+
+    # ------------------------------------------------------------------ Group 3
+    # AC-1 positive shape: planner and verifier token count must be zero.
+
+    def test_apply_skills_executor_token_allowed(self):
+        """AC-1: planner and verifier counts are zero; executor is unconstrained."""
+        for skill in ("create-pr", "merge-pr", "create-ticket"):
+            body = read(self.skill_path(skill))
+            self.assertEqual(
+                len(re.findall(r"\b%s-planner\b" % skill, body)), 0,
+                "AC-1 [%s]: SKILL.md must have 0 occurrences of %s-planner" % (skill, skill))
+            self.assertEqual(
+                len(re.findall(r"\b%s-verifier\b" % skill, body)), 0,
+                "AC-1 [%s]: SKILL.md must have 0 occurrences of %s-verifier" % (skill, skill))
+
+    # ------------------------------------------------------------------ Group 4
+    # AC-3: no lane keyword co-occurs with a planner/verifier spawn in any apply
+    # SKILL.md — no lane must conditionally re-introduce the triad.
+
+    def test_apply_skills_no_lane_conditional_triad(self):
+        """AC-3: no lane keyword co-occurs within 500 chars of a planner/verifier spawn."""
+        for skill in ("create-pr", "merge-pr", "create-ticket"):
+            body = read(self.skill_path(skill))
+            for lane in ("TRIVIAL", "SMALL", "STANDARD", "COMPLEX"):
+                self.assertIsNone(
+                    re.search(
+                        r"(?s)" + lane + r".{0,500}acs:" + skill + r"-(planner|verifier)"
+                        + r"|acs:" + skill + r"-(planner|verifier).{0,500}" + lane,
+                        body),
+                    "AC-3 [%s]: lane '%s' must not co-occur with planner/verifier spawn"
+                    % (skill, lane))
+
+    # ------------------------------------------------------------------ Group 5
+    # AC-4: load-bearing step tokens and post-hook references survive the inline
+    # rewrite in each apply-work SKILL.md.
+
+    def test_apply_skills_preserved_load_bearing_steps(self):
+        """AC-4: canonical states keys and post-hook references must survive."""
+        # create-pr: states.pr nested object plus post-hook
+        create_pr_body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r'"states"\s*:\s*\{\s*"pr"\s*:', create_pr_body),
+            "AC-4 [create-pr]: Finish must declare the canonical states.pr object")
+        self.assertIn('"number"', create_pr_body,
+                      "AC-4 [create-pr]: states.pr.number field must survive")
+        self.assertIn('"url"', create_pr_body,
+                      "AC-4 [create-pr]: states.pr.url field must survive")
+        self.assertIn('"branch"', create_pr_body,
+                      "AC-4 [create-pr]: states.pr.branch field must survive")
+        self.assertIn('"base"', create_pr_body,
+                      "AC-4 [create-pr]: states.pr.base field must survive")
+        self.assertIn("post-create-pr.py", create_pr_body,
+                      "AC-4 [create-pr]: post-hook reference must survive inline rewrite")
+
+        # merge-pr: canonical key set plus post-hook
+        merge_pr_body = read(self.skill_path("merge-pr"))
+        self.assertIn("merged", merge_pr_body,
+                      "AC-4 [merge-pr]: Finish must name states.merged key")
+        self.assertIn("merge_strategy", merge_pr_body,
+                      "AC-4 [merge-pr]: Finish must name states.merge_strategy key")
+        self.assertIn("readiness", merge_pr_body,
+                      "AC-4 [merge-pr]: Finish must name states.readiness key")
+        self.assertIn("post-merge-pr.py", merge_pr_body,
+                      "AC-4 [merge-pr]: post-hook reference must survive")
+
+        # create-ticket: canonical key set plus confirmation-gate tokens and post-hook
+        create_ticket_body = read(self.skill_path("create-ticket"))
+        self.assertIn("ticket_id", create_ticket_body,
+                      "AC-4 [create-ticket]: Finish must name states.ticket_id key")
+        self.assertIn("type", create_ticket_body,
+                      "AC-4 [create-ticket]: Finish must name states.type key")
+        self.assertIn("needs_design", create_ticket_body,
+                      "AC-4 [create-ticket]: Finish must name states.needs_design key "
+                      "(also a confirmation-gate token)")
+        self.assertIn("children", create_ticket_body,
+                      "AC-4 [create-ticket]: Finish must name states.children key")
+        self.assertIn("prd_trace", create_ticket_body,
+                      "AC-4 [create-ticket]: Finish must name states.prd_trace key")
+        self.assertIn("post-create-ticket.py", create_ticket_body,
+                      "AC-4 [create-ticket]: post-hook reference must survive")
+        self.assertIn("size", create_ticket_body,
+                      "AC-4 [create-ticket]: user-confirmation gate token size must survive")
+        self.assertIn("stakes", create_ticket_body,
+                      "AC-4 [create-ticket]: user-confirmation gate token stakes must survive")
+        self.assertIn("lane", create_ticket_body,
+                      "AC-4 [create-ticket]: user-confirmation gate token lane must survive")
+
+    # ------------------------------------------------------------------ Group 6
+    # AC-6: the six triad-keeping skills still reference planner and verifier.
+
+    def test_triad_skills_still_reference_planner_and_verifier(self):
+        """AC-6: workflow/product skills must still reference their planner+verifier."""
+        for skill in ("create-spec", "code", "create-prd",
+                      "create-design", "create-architecture", "create-project"):
+            body = read(self.skill_path(skill))
+            self.assertIsNotNone(
+                re.search(r"acs:" + skill + r"-planner", body),
+                "AC-6 [%s]: must still reference acs:%s-planner" % (skill, skill))
+            self.assertIsNotNone(
+                re.search(r"acs:" + skill + r"-verifier", body),
+                "AC-6 [%s]: must still reference acs:%s-verifier" % (skill, skill))
+
+    # ------------------------------------------------------------------ Group 7
+    # AC-7: requirements docs updated to reflect inline shape.
+
+    def test_skills_md_apply_skills_no_triad_in_subagents(self):
+        """AC-7: skills.md must not list planner for apply skills and must carry
+        an inline/apply-work carve-out token."""
+        body = read(self.doc_path("docs", "requirements", "skills.md"))
+        self.assertIsNone(
+            re.search(
+                r"(?s)(create-pr|merge-pr|create-ticket).{0,500}Subagents.{0,300}planner",
+                body),
+            "AC-7: skills.md per-skill Subagents must not list planner for apply skills")
+        self.assertIsNotNone(
+            re.search(r"(?i)(inline|deterministic.inline|apply.work)", body),
+            "AC-7: skills.md must carry an inline/apply-work carve-out token")
+
+    def test_reflection_md_no_all_skills_triad_claim(self):
+        """AC-7: reflection.md must not describe apply skills as running their own
+        planner+verifier triad, and must carry a carve-out or drop the
+        unconditional all-skills triad claim."""
+        body = read(self.doc_path("docs", "requirements", "reflection.md"))
+        self.assertIsNone(
+            re.search(
+                r"(?s)(create-pr|merge-pr|create-ticket).{0,300}planner.{0,300}verifier",
+                body),
+            "AC-7: reflection.md must not describe apply skills as running "
+            "planner+verifier")
+        unconditional = re.search(
+            r"Every workflow skill MUST apply the Reflection pattern", body)
+        carve_out = re.search(
+            r"(?i)(apply.work|create-pr.*inline|inline.*create-pr)", body)
+        self.assertTrue(
+            unconditional is None or carve_out is not None,
+            "AC-7: reflection.md must either drop the all-skills triad claim or "
+            "carry an apply-work carve-out")
+
+
 if __name__ == "__main__":
     unittest.main()
