@@ -479,5 +479,160 @@ class TestCodeSkillEscalation(unittest.TestCase):
             "re-persist (MAR-57 AC-4)")
 
 
+class TestStageReintroduction(unittest.TestCase):
+    """MAR-57 Spec 03 (AC-5, AC-8): pin the stage re-introduction contract in
+    create-spec/SKILL.md and the cross-reference in code/SKILL.md.
+
+    These doc-assertion tests are RED before the 'Escalation pickup' subsection
+    is added to create-spec/SKILL.md and the cross-reference is added to
+    code/SKILL.md; GREEN after.
+
+    Per plan Q1 resolution: since MAR-59 fold prose is not yet on disk, the
+    MAR-59-unchanged assertion targets the NEW pickup subsection's own statement
+    that fold behavior is unchanged for non-escalating tickets — not absent
+    pre-existing fold prose.
+    """
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def _create_spec_body(self):
+        return read(self.skill_path("create-spec"))
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    # --- AC-5: create-spec/SKILL.md has an 'Escalation pickup' subsection ---
+
+    def test_skill_md_documents_escalation_pickup(self):
+        """AC-5: create-spec/SKILL.md must contain an 'Escalation pickup' heading
+        (or equivalent) describing the mid-/code invocation path."""
+        body = self._create_spec_body()
+        self.assertIsNotNone(
+            re.search(r"(?i)escalation pickup|escalation pick.?up", body),
+            "create-spec/SKILL.md must have an 'Escalation pickup' subsection "
+            "(MAR-57 AC-5)")
+
+    # --- AC-5: pickup subsection states create-spec rigor is invoked, not skipped ---
+
+    def test_skill_md_pickup_does_not_skip_spec_stage(self):
+        """AC-5: the pickup subsection must state that create-spec rigor is invoked
+        (not skipped) when a ticket escalates from a fast lane into STANDARD/COMPLEX."""
+        body = self._create_spec_body()
+        # Must state the escalation pickup runs full create-spec rigor.
+        # Patterns: 'create-spec' near 'rigor' near 'invok/run/not skipped', OR
+        # 'rigor' near 'not skip/invok', OR 'spec.rigor' directly adjacent.
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)"
+                r"create.spec.{0,30}rigor.{0,300}(invok|not skip|pick.?up)|"
+                r"(invok|not skip|pick.?up).{0,300}create.spec.{0,30}rigor|"
+                r"(rigor).{0,200}(not skip|invok)",
+                body, re.DOTALL),
+            "create-spec/SKILL.md pickup subsection must state create-spec rigor "
+            "is invoked (not skipped) on fast-lane escalation (MAR-57 AC-5)")
+
+    # --- AC-5: pickup subsection references higher verify ceiling ---
+
+    def test_skill_md_pickup_adopts_higher_ceiling(self):
+        """AC-5: the pickup subsection must reference adoption of the higher verify
+        ceiling after escalation."""
+        body = self._create_spec_body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(higher.{0,30}(ceiling|verify)|verify.{0,30}ceiling.{0,30}(higher|raise|adopt)|"
+                r"ceiling.{0,30}(raise|adopt|higher))",
+                body),
+            "create-spec/SKILL.md pickup subsection must reference the higher verify "
+            "ceiling adopted on escalation (MAR-57 AC-5)")
+
+    # --- AC-8 sibling-no-regression: pickup subsection states fold is unchanged for
+    #     non-escalating tickets (per Q1: assert the NEW subsection's own statement,
+    #     NOT pre-existing fold prose from MAR-59 which is not yet on disk) ---
+
+    def test_mar59_fold_behavior_stated_unchanged_for_noescalation(self):
+        """AC-8: the pickup subsection must state that for non-escalating TRIVIAL/SMALL
+        tickets the fast-lane fold behavior is unchanged — the new subsection is a
+        NEW branch only, not a change to the normal fast-lane flow."""
+        body = self._create_spec_body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(non.escalat|not escalat).{0,300}(unchanged|unaffected|fold|fast.lane|normal|intact)|"
+                r"(fast.lane|fold).{0,300}(unchanged|unaffected|unmodified|intact|not.{0,20}changed).{0,100}"
+                r"(non.escalat|not escalat|without escalat)",
+                body, re.DOTALL),
+            "create-spec/SKILL.md pickup subsection must state fast-lane fold is "
+            "unchanged for non-escalating tickets (MAR-57 AC-8 / Q1 resolution)")
+
+    # --- AC-5: code/SKILL.md cross-references the create-spec pickup subsection ---
+
+    def test_code_skill_md_cross_references_create_spec_pickup(self):
+        """AC-5: code/SKILL.md must contain a cross-reference to the
+        create-spec/SKILL.md 'Escalation pickup' subsection."""
+        body = self._code_body()
+        # Must mention create-spec in the context of escalation pickup or stage reintroduction
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)create.spec.{0,300}(escalation pickup|pickup|stage.reintroduc|"
+                r"fold.boundar|fast.lane.{0,40}escalat)|"
+                r"(escalation pickup|stage.reintroduc).{0,300}create.spec",
+                body, re.DOTALL),
+            "code/SKILL.md must cross-reference the create-spec 'Escalation pickup' "
+            "subsection (MAR-57 AC-5)")
+
+    # --- guard_axes must be referenced in code/SKILL.md escalation sequence ---
+
+    def test_code_skill_md_references_guard_axes(self):
+        """AC-3/Spec 03: code/SKILL.md must reference guard_axes in the escalation
+        sequence (the axis-guard step added by Spec 03)."""
+        body = self._code_body()
+        self.assertIn("guard_axes", body,
+                      "code/SKILL.md must reference guard_axes in the escalation "
+                      "sequence (MAR-57 AC-3/Spec 03)")
+
+    # --- AC-3: no automatic-downgrade code path exists in either SKILL ---
+
+    def test_no_automatic_downgrade_path_in_code_skill(self):
+        """AC-3: code/SKILL.md must NOT describe an automatic de-escalation or
+        downgrade path (outside of the out-of-scope / negative-guarantee note).
+        Assertive phrases (e.g. 'will automatically lower the lane') must be absent;
+        negating phrases (e.g. 'never lowered', 'no automatic path lowers') are
+        the negative-guarantee language and are acceptable."""
+        body = self._code_body()
+        # Detect assertive automatic-downgrade phrases: patterns where the automatic
+        # downgrade is affirmed, not denied.  We exclude lines containing 'never',
+        # 'not', 'no automatic' etc. that express the negative guarantee itself.
+        # Strategy: search for matches, then verify none is assertive (not negated).
+        matches = list(re.finditer(
+            r"(?i)(automatic(ally)?.{0,50}(lower.{0,20}lane|de.escalat|downgrad)|"
+            r"(lower.{0,20}lane|de.escalat|downgrad).{0,50}automatic)",
+            body))
+        for m in matches:
+            # Allow matches that are explicitly negated (part of the safety contract)
+            surrounding = body[max(0, m.start()-30):m.end()+10]
+            if re.search(r"(?i)(never|not|no |cannot|must not|does not)", surrounding):
+                continue  # this is a negating / negative-guarantee statement
+            self.fail(
+                "code/SKILL.md describes an automatic downgrade path outside of a "
+                "negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
+
+    def test_no_automatic_downgrade_path_in_create_spec_skill(self):
+        """AC-3: create-spec/SKILL.md must NOT describe an automatic de-escalation or
+        downgrade path. Negating / negative-guarantee statements ('does not introduce
+        an automatic...', 'never') are acceptable."""
+        body = self._create_spec_body()
+        matches = list(re.finditer(
+            r"(?i)(automatic(ally)?.{0,50}(lower.{0,20}lane|de.escalat|downgrad)|"
+            r"(lower.{0,20}lane|de.escalat|downgrad).{0,50}automatic)",
+            body))
+        for m in matches:
+            surrounding = body[max(0, m.start()-30):m.end()+10]
+            if re.search(r"(?i)(never|not|no |cannot|must not|does not)", surrounding):
+                continue  # negating / negative-guarantee statement: allowed
+            self.fail(
+                "create-spec/SKILL.md describes an automatic downgrade path outside of "
+                "a negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -204,6 +204,60 @@ def escalate_lane(current_lane, size, stakes, needs_design, ticket_type, setting
     return result_lane, depth, ceiling
 
 
+# Axis ordering for guard_axes (MAR-57 Spec 03 / design.md:29 invariant (e)).
+_SIZE_ORDER: list = ["trivial", "small", "standard", "large"]
+_STAKES_ORDER: list = ["low", "normal", "high"]
+
+
+def guard_axes(current_size, current_stakes, proposed_size, proposed_stakes):
+    """Return (effective_size, effective_stakes) taking the higher of each axis.
+
+    Axis orderings (from lowest to highest rigor):
+      size:   trivial < small < standard < large
+      stakes: low < normal < high
+
+    Rules (axis-level realization of design.md:29 invariant (e)):
+      - None current  -> treated as the lowest known rank; any explicit proposed wins.
+      - None proposed -> effective = current (absent signal leaves current unchanged).
+      - Unrecognized string -> treated as the lowest known rank for that axis
+        (conservative: never block an upward proposal due to an unknown value).
+      - effective rank >= current rank for both axes (upward-only, never lower).
+
+    This function is the axis-guard step in the in-loop escalation sequence:
+    it must be called BEFORE escalate_lane so the axis values passed in are
+    already monotone-clamped.  No automatic/unattended code path may write a
+    size or stakes value that is strictly lower than the current confirmed value
+    without first passing through guard_axes.
+
+    Pure function: no I/O, no side effects; stdlib only.
+    """
+    def _rank(value, order):
+        try:
+            return order.index(value)
+        except (ValueError, TypeError):
+            return -1  # None / unrecognized -> below the lowest recognized value
+
+    def _pick_higher(current, proposed, order):
+        if proposed is None:
+            # No new signal: leave current unchanged (or fall back to lowest if
+            # current is also unknown, since there is nothing to preserve).
+            return current if current is not None else order[0]
+        c_rank = _rank(current, order)
+        p_rank = _rank(proposed, order)
+        if p_rank > c_rank:
+            return proposed
+        # current rank >= proposed rank (or current is None/-1): return whichever
+        # is a recognized value; prefer current when both are known.
+        if current is None or c_rank < 0:
+            # current unknown: proposed is known and >= current rank (both -1), take it
+            return proposed
+        return current
+
+    eff_size = _pick_higher(current_size, proposed_size, _SIZE_ORDER)
+    eff_stakes = _pick_higher(current_stakes, proposed_stakes, _STAKES_ORDER)
+    return eff_size, eff_stakes
+
+
 def recommend_stakes(paths, settings):
     """Match a collection of file paths against high_stakes_paths globs from settings.
 

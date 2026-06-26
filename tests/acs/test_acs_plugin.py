@@ -2113,3 +2113,308 @@ class TestInLoopEscalation(AcsWorkspaceCase):
         # Confirm lane equals derive_lane (single authority, AC-4)
         expected = lib.derive_lane("trivial", "high", False, "story")
         self.assertEqual(new_lane, expected)
+
+
+## MAR-57 spec 03 — TestGuardAxes
+
+
+class TestGuardAxes(unittest.TestCase):
+    """AC-3: guard_axes(current_size, current_stakes, proposed_size, proposed_stakes)
+    returns (effective_size, effective_stakes) by taking the higher of each axis:
+      stakes ordering: low < normal < high
+      size ordering:   trivial < small < standard < large
+    Effective rank >= current rank for both axes (upward-only, negative guarantee).
+    Pure function: no I/O, no side effects.
+    """
+
+    def _guard(self, cs, ck, ps, pk):
+        return lib.guard_axes(cs, ck, ps, pk)
+
+    # --- stakes axis: raise and hold ---
+
+    def test_guard_raises_stakes(self):
+        """current=normal, proposed=high -> effective=high."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "high")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_holds_stakes_on_lower_proposal(self):
+        """current=high, proposed=normal -> effective=high (not lowered)."""
+        _, eff_stakes = self._guard("standard", "high", "standard", "normal")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_stakes_same(self):
+        """current=normal, proposed=normal -> effective=normal (equal, hold)."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "normal")
+        self.assertEqual(eff_stakes, "normal")
+
+    def test_guard_raises_stakes_from_low(self):
+        """current=low, proposed=high -> effective=high."""
+        _, eff_stakes = self._guard("standard", "low", "standard", "high")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_holds_stakes_low_on_lower_proposal(self):
+        """current=normal, proposed=low -> effective=normal (not lowered)."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "low")
+        self.assertEqual(eff_stakes, "normal")
+
+    # --- size axis: raise and hold ---
+
+    def test_guard_raises_size(self):
+        """current=small, proposed=standard -> effective=standard."""
+        eff_size, _ = self._guard("small", "normal", "standard", "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_holds_size_on_lower_proposal(self):
+        """current=standard, proposed=trivial -> effective=standard (not lowered)."""
+        eff_size, _ = self._guard("standard", "normal", "trivial", "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_raises_size_from_trivial(self):
+        """current=trivial, proposed=large -> effective=large."""
+        eff_size, _ = self._guard("trivial", "normal", "large", "normal")
+        self.assertEqual(eff_size, "large")
+
+    def test_guard_holds_size_large_on_lower_proposal(self):
+        """current=large, proposed=standard -> effective=large (not lowered)."""
+        eff_size, _ = self._guard("large", "normal", "standard", "normal")
+        self.assertEqual(eff_size, "large")
+
+    # --- both axes ---
+
+    def test_guard_both_axes_raise(self):
+        """Both proposed > current -> both effective = proposed."""
+        eff_size, eff_stakes = self._guard("trivial", "low", "standard", "high")
+        self.assertEqual(eff_size, "standard")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_both_axes_hold(self):
+        """Both proposed < current -> both effective = current."""
+        eff_size, eff_stakes = self._guard("large", "high", "trivial", "low")
+        self.assertEqual(eff_size, "large")
+        self.assertEqual(eff_stakes, "high")
+
+    # --- None current: treated as lowest, any explicit proposed wins ---
+
+    def test_guard_none_current_size_floors_conservatively(self):
+        """current_size=None -> treated as lowest; proposed 'trivial' wins."""
+        eff_size, _ = self._guard(None, "normal", "trivial", "normal")
+        self.assertEqual(eff_size, "trivial")
+
+    def test_guard_none_current_stakes_floors_conservatively(self):
+        """current_stakes=None -> treated as lowest; proposed 'low' wins."""
+        _, eff_stakes = self._guard("standard", None, "standard", "low")
+        self.assertEqual(eff_stakes, "low")
+
+    def test_guard_none_current_both_proposed_wins(self):
+        """Both current None -> both proposed win (they are the only known values)."""
+        eff_size, eff_stakes = self._guard(None, None, "standard", "high")
+        self.assertEqual(eff_size, "standard")
+        self.assertEqual(eff_stakes, "high")
+
+    # --- None proposed: effective = current ---
+
+    def test_guard_none_proposed_size_leaves_current(self):
+        """proposed_size=None -> effective_size = current_size."""
+        eff_size, _ = self._guard("standard", "normal", None, "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_none_proposed_stakes_leaves_current(self):
+        """proposed_stakes=None -> effective_stakes = current_stakes."""
+        _, eff_stakes = self._guard("standard", "high", "standard", None)
+        self.assertEqual(eff_stakes, "high")
+
+    # --- AC-3 property: effective rank >= current rank for all pairs ---
+
+    def test_effective_rank_ge_current_rank_size_grid(self):
+        """AC-3 property: for every (current_size, proposed_size) pair, effective rank
+        is always >= current rank (upward-only negative guarantee on size)."""
+        sizes = ["trivial", "small", "standard", "large"]
+        size_rank = {s: i for i, s in enumerate(sizes)}
+        for current in sizes:
+            for proposed in sizes:
+                eff_size, _ = self._guard(current, "normal", proposed, "normal")
+                self.assertGreaterEqual(
+                    size_rank.get(eff_size, 0),
+                    size_rank.get(current, 0),
+                    "guard_axes lowered size from %r to %r (proposed=%r)" % (
+                        current, eff_size, proposed))
+
+    def test_effective_rank_ge_current_rank_stakes_grid(self):
+        """AC-3 property: for every (current_stakes, proposed_stakes) pair, effective
+        rank is always >= current rank (upward-only negative guarantee on stakes)."""
+        stakes = ["low", "normal", "high"]
+        stakes_rank = {s: i for i, s in enumerate(stakes)}
+        for current in stakes:
+            for proposed in stakes:
+                _, eff_stakes = self._guard("standard", current, "standard", proposed)
+                self.assertGreaterEqual(
+                    stakes_rank.get(eff_stakes, 0),
+                    stakes_rank.get(current, 0),
+                    "guard_axes lowered stakes from %r to %r (proposed=%r)" % (
+                        current, eff_stakes, proposed))
+
+    def test_guard_axes_is_pure_no_files_written(self):
+        """guard_axes is a pure function: calling it must not write any files."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            before = set(os.listdir(tmpdir))
+            lib.guard_axes("standard", "normal", "trivial", "low")
+            after = set(os.listdir(tmpdir))
+        self.assertEqual(before, after)
+
+    def test_guard_none_current_unrecognized_proposed_returns_proposed(self):
+        """None current + unrecognized proposed: conservatively return proposed
+        (the only value we have; it is not lower than the unknown current)."""
+        # Both unrecognized: c_rank == -1, p_rank == -1, p_rank not > c_rank,
+        # but current is None so the conservative branch returns proposed.
+        eff_size, _ = self._guard(None, "normal", "unknown-size", "normal")
+        # proposed 'unknown-size' is returned (it's the best known value)
+        self.assertEqual(eff_size, "unknown-size")
+
+
+## MAR-57 spec 03 — TestNegativeGuarantee
+
+
+class TestNegativeGuarantee(AcsWorkspaceCase):
+    """AC-3/AC-7: no automatic/unattended path lowers lane, size, or stakes below
+    a user-confirmed value. Tests exercise the full escalation sequence:
+      guard_axes -> escalate_lane -> save_ticket
+    and assert the persisted values never go below the current confirmed values.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Seed a ticket at STANDARD (size=standard, stakes=normal)
+        self.ticket_id = self.new_ticket("Guard test", "story",
+                                         "--size", "standard", "--stakes", "normal")
+        self._tdir = self.tdir(self.ticket_id)
+
+    def _run_escalation_sequence(self, tdir, ticket, proposed_size, proposed_stakes):
+        """Simulate the coordinator's in-loop escalation sequence:
+          1. guard_axes -> effective axes (upward-only)
+          2. escalate_lane(current_lane, eff_size, eff_stakes, ...) -> (new_lane, depth, ceiling)
+          3. save_ticket(tdir, ticket) if lane raised
+        Returns the reloaded ticket after the sequence.
+        """
+        eff_size, eff_stakes = lib.guard_axes(
+            ticket.get("size"), ticket.get("stakes"),
+            proposed_size, proposed_stakes
+        )
+        new_lane, _, _ = lib.escalate_lane(
+            ticket.get("lane"), eff_size, eff_stakes,
+            ticket.get("needs_design", False), ticket.get("type", "story")
+        )
+        # Only persist if strictly higher (coordinator no-op rule)
+        if lib.lane_rank(new_lane) > lib.lane_rank(ticket.get("lane")):
+            ticket["size"] = eff_size
+            ticket["stakes"] = eff_stakes
+            ticket["lane"] = new_lane
+            lib.save_ticket(tdir, ticket)
+        return lib.load_ticket(tdir)
+
+    # --- AC-3: no automatic path lowers lane ---
+
+    def test_no_automatic_path_lowers_lane(self):
+        """AC-3: property grid over (current_lane, proposed_lower_lane) pairs.
+        After running the full escalation sequence with a lower-ranked proposed
+        lane, the persisted ticket['lane'] must be >= current_lane rank."""
+        seeds = [
+            ("SMALL",    "small",    "normal"),
+            ("STANDARD", "standard", "normal"),
+            ("COMPLEX",  "large",    "normal"),
+        ]
+        # Lower-ranked proposals for each seed
+        lower_proposals = {
+            "SMALL":    [("trivial", "normal")],
+            "STANDARD": [("trivial", "normal"), ("small", "normal")],
+            "COMPLEX":  [("trivial", "normal"), ("small", "normal"), ("standard", "normal")],
+        }
+        for seed_lane, seed_size, seed_stakes in seeds:
+            # Mint a ticket at seed lane
+            tid = self.new_ticket("NegGuard-%s" % seed_lane, "story",
+                                  "--size", seed_size, "--stakes", seed_stakes)
+            tdir = self.tdir(tid)
+            ticket = lib.load_ticket(tdir)
+            self.assertEqual(ticket["lane"], seed_lane)
+
+            for p_size, p_stakes in lower_proposals[seed_lane]:
+                reloaded = self._run_escalation_sequence(tdir, ticket, p_size, p_stakes)
+                self.assertGreaterEqual(
+                    lib.lane_rank(reloaded["lane"]),
+                    lib.lane_rank(seed_lane),
+                    "Automatic path lowered lane from %r to %r "
+                    "(proposed size=%r stakes=%r)" % (
+                        seed_lane, reloaded["lane"], p_size, p_stakes)
+                )
+                # Reload ticket for next iteration (must not have changed)
+                ticket = lib.load_ticket(tdir)
+
+    # --- AC-3: no automatic path lowers stakes ---
+
+    def test_no_automatic_path_lowers_stakes(self):
+        """AC-3: seed ticket at high stakes; escalation sequence with proposed_stakes=normal
+        must not write stakes=normal to ticket.json — guard_axes clamps it to 'high'."""
+        # Mint a ticket at STANDARD + high stakes
+        tid = self.new_ticket("StakesGuard", "story",
+                               "--size", "standard", "--stakes", "high")
+        tdir = self.tdir(tid)
+        ticket = lib.load_ticket(tdir)
+        self.assertEqual(ticket["stakes"], "high")
+
+        # Simulate: coordinator proposes to lower stakes to 'normal'
+        reloaded = self._run_escalation_sequence(tdir, ticket, "standard", "normal")
+        self.assertEqual(reloaded["stakes"], "high",
+                         "Automatic path must not lower stakes from 'high' to 'normal' "
+                         "(AC-3 negative guarantee)")
+
+    # --- AC-3: no automatic path lowers size ---
+
+    def test_no_automatic_path_lowers_size(self):
+        """AC-3: seed ticket at large size; escalation sequence with proposed_size=trivial
+        must not write size=trivial to ticket.json — guard_axes clamps it to 'large'."""
+        # Mint a ticket at COMPLEX (large) size
+        tid = self.new_ticket("SizeGuard", "story",
+                               "--size", "large", "--stakes", "normal")
+        tdir = self.tdir(tid)
+        ticket = lib.load_ticket(tdir)
+        self.assertEqual(ticket["size"], "large")
+
+        # Simulate: coordinator proposes to lower size to 'trivial'
+        reloaded = self._run_escalation_sequence(tdir, ticket, "trivial", "normal")
+        self.assertEqual(reloaded["size"], "large",
+                         "Automatic path must not lower size from 'large' to 'trivial' "
+                         "(AC-3 negative guarantee)")
+
+    # --- AC-3/AC-7: absent/ambiguous signals leave STANDARD ticket at STANDARD ---
+
+    def test_no_unattended_path_lowers_standard_ticket(self):
+        """AC-3/AC-7: seed ticket confirmed at STANDARD; run escalation sequence
+        with absent/ambiguous signals (None proposed axes); ticket stays at STANDARD."""
+        ticket = lib.load_ticket(self._tdir)
+        self.assertEqual(ticket["lane"], "STANDARD")
+
+        # Absent signals: proposed axes are None
+        reloaded = self._run_escalation_sequence(
+            self._tdir, ticket, None, None  # no new signal
+        )
+        self.assertEqual(reloaded["lane"], "STANDARD",
+                         "Absent signals must not change STANDARD lane (AC-3/AC-7)")
+
+    # --- AC-7: guard_axes + escalate_lane sequence never produces lower lane than derive_lane ---
+
+    def test_sequence_effective_size_stakes_consistent_with_result(self):
+        """AC-3/AC-4: after guard_axes -> escalate_lane, the resulting lane equals
+        derive_lane(eff_size, eff_stakes, ...) — single routing authority preserved."""
+        ticket = lib.load_ticket(self._tdir)
+        eff_size, eff_stakes = lib.guard_axes(
+            ticket.get("size"), ticket.get("stakes"), "large", "high"
+        )
+        new_lane, _, _ = lib.escalate_lane(
+            ticket.get("lane"), eff_size, eff_stakes,
+            ticket.get("needs_design", False), ticket.get("type", "story")
+        )
+        expected = lib.derive_lane(eff_size, eff_stakes,
+                                   ticket.get("needs_design", False),
+                                   ticket.get("type", "story"))
+        self.assertEqual(new_lane, expected,
+                         "escalate_lane must route via derive_lane (AC-4 single authority)")

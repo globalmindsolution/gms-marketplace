@@ -158,10 +158,15 @@ states a higher lane or axis value.
 
 **On-trigger escalation sequence (when any trigger fires):**
 
-1. Determine new axes: `size` and `stakes` may only be raised (never lowered
-   automatically). For trigger (b), raise `stakes` to `"high"`. For trigger
-   (a)/(c), raise whichever axis the signal indicates.
-2. Call `escalate_lane(current_lane, new_size, new_stakes, needs_design,
+1. Determine new axes via `guard_axes(current_size, current_stakes, proposed_size,
+   proposed_stakes)` (`acs_lib.py`). `guard_axes` returns `(effective_size,
+   effective_stakes)` by taking the higher of each axis — it is the axis-level
+   realization of the negative guarantee (design.md:29 invariant (e)):
+   no automatic/unattended path can write a `size` or `stakes` value that is
+   strictly lower than the currently confirmed value (AC-3). For trigger (b) the
+   proposed stakes is `"high"`; for trigger (a)/(c), pass the axis value the
+   signal indicates. Call `guard_axes` BEFORE `escalate_lane`.
+2. Call `escalate_lane(current_lane, eff_size, eff_stakes, needs_design,
    ticket_type)` (`acs_lib.py`) to obtain `(new_lane, new_depth, new_ceiling)`.
    Lane is never hand-set — `derive_lane` inside `escalate_lane` is the single
    authoritative producer (ADR 0031).
@@ -179,6 +184,17 @@ states a higher lane or axis value.
       ceiling (AC-1/AC-7).
    f. Log the escalation event (ticket id, from-lane, to-lane, trigger source,
       new ceiling) as a coordinator note in the run state.
+   g. **Stage re-introduction (fold-boundary crossing):** When the origin lane
+      was a fast lane (TRIVIAL or SMALL) and the new lane is a full lane
+      (STANDARD or COMPLEX), invoke the `create-spec` stage before proceeding
+      to the next implementation iteration. Spawn `acs:create-spec-planner`,
+      `acs:create-spec-executor`, and `acs:create-spec-verifier` following the
+      full `create-spec/SKILL.md` protocol — including the **"Escalation pickup"
+      subsection** of that skill, which describes how to read the existing partial
+      implementation as ground truth and produce an additive spec set. The
+      coordinator does NOT inline the create-spec logic; it delegates to the
+      `create-spec` skill as documented. Only once `create-spec` has passed
+      (zero verifier findings) does `/code` resume implementation.
 
 **Absent or ambiguous signals — no-op (AC-7 conservative default):**
 When none of the three triggers fires in an iteration, the coordinator makes no
