@@ -53,6 +53,20 @@ Requirements:
   - The **TDD/coverage gate runs in full in every lane and is never trimmed by
     verify-depth selection** (invariant a, MAR-55). Depth selection is not a
     verify dimension that light mode drops.
+
+  **Mid-flight ceiling raise on escalation (MAR-57).** The lane-driven ceiling
+  stated above is the *initial* ceiling, computed at the start of the `/code`
+  run. If an in-flight escalation trigger fires mid-run (verifier finding of
+  higher stakes/size, a `high_stakes_paths` glob match on a touched file, or an
+  explicit user/agent request), the coordinator recomputes the ceiling via
+  `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raises the
+  in-flight ceiling **monotonically** — it is never lowered. A ticket that
+  starts at a TRIVIAL/SMALL ceiling (1 iteration) and escalates to
+  STANDARD/COMPLEX (3 iterations) immediately acquires the full 3-iteration
+  ceiling for all remaining iterations. The absolute invariants above (verifier
+  always runs in every lane; TDD/coverage gate immutable in every lane) hold
+  regardless of any in-flight ceiling change.
+
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
   `<skill>-verifier` for all six workflow skills, plus the product-level
   `/create-prd`, `/create-architecture`, and `/create-project` triples —

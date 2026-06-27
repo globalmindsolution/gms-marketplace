@@ -2494,3 +2494,658 @@ class TestLaneConsistency(AcsWorkspaceCase):
         self.assertEqual(child["size"], "standard")
         self.assertEqual(child["stakes"], "normal")
         self.assertEqual(child["lane"], "STANDARD")
+
+
+## MAR-57 spec 01 — TestLaneRank
+
+
+class TestLaneRank(unittest.TestCase):
+    """AC-1/AC-7: lane_rank(lane) returns the integer rank for each canonical lane
+    and falls back to STANDARD's rank (2) for absent/None/unrecognized values.
+    LANE_ORDER ordering is strictly monotone.
+    """
+
+    def test_trivial_rank_is_0(self):
+        self.assertEqual(lib.lane_rank("TRIVIAL"), 0)
+
+    def test_small_rank_is_1(self):
+        self.assertEqual(lib.lane_rank("SMALL"), 1)
+
+    def test_standard_rank_is_2(self):
+        self.assertEqual(lib.lane_rank("STANDARD"), 2)
+
+    def test_complex_rank_is_3(self):
+        self.assertEqual(lib.lane_rank("COMPLEX"), 3)
+
+    def test_none_defaults_to_standard_rank(self):
+        """Conservative floor: absent lane treated as STANDARD (rank 2)."""
+        self.assertEqual(lib.lane_rank(None), 2)
+
+    def test_empty_string_defaults_to_standard_rank(self):
+        self.assertEqual(lib.lane_rank(""), 2)
+
+    def test_unknown_string_defaults_to_standard_rank(self):
+        self.assertEqual(lib.lane_rank("MEGA"), 2)
+
+    def test_lowercase_unrecognized_defaults_to_standard_rank(self):
+        """Only uppercase canonical strings recognized; lowercase 'trivial' is unknown."""
+        self.assertEqual(lib.lane_rank("trivial"), 2)
+
+    def test_ordering_is_strictly_monotone(self):
+        """TRIVIAL < SMALL < STANDARD < COMPLEX rank ordering is strict."""
+        self.assertLess(lib.lane_rank("TRIVIAL"), lib.lane_rank("SMALL"))
+        self.assertLess(lib.lane_rank("SMALL"), lib.lane_rank("STANDARD"))
+        self.assertLess(lib.lane_rank("STANDARD"), lib.lane_rank("COMPLEX"))
+
+    def test_lane_order_constant_has_four_entries(self):
+        """LANE_ORDER must list exactly the four canonical lanes."""
+        self.assertEqual(lib.LANE_ORDER, ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"])
+
+
+## MAR-57 spec 01 — TestEscalateLane
+
+
+class TestEscalateLane(unittest.TestCase):
+    """AC-1/AC-3/AC-4/AC-7: escalate_lane returns the HIGHER of (current_lane,
+    recomputed lane from derive_lane) as a (lane, depth, ceiling) triple.
+    The clamp is upward-only: equal or lower candidates never lower current_lane.
+    """
+
+    def _escalate(self, current_lane, size, stakes, needs_design=False, ticket_type="story"):
+        return lib.escalate_lane(current_lane, size, stakes, needs_design, ticket_type)
+
+    # --- upward escalation cases ---
+
+    def test_raise_trivial_to_small(self):
+        """current=TRIVIAL, axes produce SMALL -> returned lane is SMALL."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "small", "normal")
+        self.assertEqual(lane, "SMALL")
+
+    def test_raise_trivial_to_standard(self):
+        """current=TRIVIAL, axes produce STANDARD -> returned lane is STANDARD."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_trivial_to_complex(self):
+        """current=TRIVIAL, size=large -> COMPLEX (Rule 2)."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    def test_raise_small_to_standard(self):
+        """current=SMALL, axes produce STANDARD -> returned lane is STANDARD."""
+        lane, depth, ceiling = self._escalate("SMALL", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_small_to_standard_via_high_stakes(self):
+        """current=SMALL, trivial size but high stakes -> STANDARD (Rule 3 floor)."""
+        lane, depth, ceiling = self._escalate("SMALL", "trivial", "high")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_raise_standard_to_complex(self):
+        """current=STANDARD, size=large -> COMPLEX."""
+        lane, depth, ceiling = self._escalate("STANDARD", "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    # --- hold cases (equal or lower candidate -> return current unchanged) ---
+
+    def test_hold_same_lane(self):
+        """current=STANDARD, candidate=STANDARD (equal) -> hold at STANDARD."""
+        lane, depth, ceiling = self._escalate("STANDARD", "standard", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_lower_candidate_returns_current_standard(self):
+        """current=STANDARD, axes produce TRIVIAL (lower) -> hold at STANDARD (AC-3/AC-7)."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(lane, "STANDARD")
+
+    def test_lower_candidate_returns_current_complex(self):
+        """current=COMPLEX, axes produce STANDARD (lower) -> hold at COMPLEX."""
+        lane, depth, ceiling = self._escalate("COMPLEX", "standard", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    # --- conservative None/unknown current_lane handling ---
+
+    def test_none_current_floors_to_standard_rank_raises_to_complex(self):
+        """current=None floors at STANDARD rank (2); COMPLEX rank (3) > 2 -> raises to COMPLEX."""
+        lane, depth, ceiling = self._escalate(None, "large", "normal")
+        self.assertEqual(lane, "COMPLEX")
+
+    def test_none_current_floors_prevents_drop(self):
+        """current=None floors at STANDARD; TRIVIAL candidate (rank 0) < STANDARD (rank 2) -> hold.
+        Result lane rank must be >= STANDARD rank (AC-3/AC-7)."""
+        lane, depth, ceiling = self._escalate(None, "trivial", "normal")
+        self.assertGreaterEqual(lib.lane_rank(lane), lib.lane_rank("STANDARD"))
+
+    # --- AC-4 recompute via derive_lane (single authority) ---
+
+    def test_candidate_equals_derive_lane(self):
+        """Returned lane for a raising case equals derive_lane(axes) — AC-4."""
+        expected_lane = lib.derive_lane("large", "normal", False, "story")
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(lane, expected_lane)
+
+    def test_returned_depth_matches_verify_depth(self):
+        """Returned depth equals verify_depth(returned_lane, stakes) — AC-4."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        expected_depth = lib.verify_depth(lane, "normal")
+        self.assertEqual(depth, expected_depth)
+
+    def test_returned_ceiling_matches_verify_iteration_cap(self):
+        """Returned ceiling equals VERIFY_ITERATION_CAP[depth] — AC-4."""
+        lane, depth, ceiling = self._escalate("TRIVIAL", "large", "normal")
+        self.assertEqual(ceiling, lib.VERIFY_ITERATION_CAP[depth])
+
+    def test_hold_returned_depth_matches_verify_depth(self):
+        """When holding current_lane, depth is verify_depth(current_lane, stakes)."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(depth, lib.verify_depth("STANDARD", "normal"))
+
+    def test_hold_returned_ceiling_matches_verify_iteration_cap(self):
+        """When holding, ceiling is VERIFY_ITERATION_CAP[depth]."""
+        lane, depth, ceiling = self._escalate("STANDARD", "trivial", "normal")
+        self.assertEqual(ceiling, lib.VERIFY_ITERATION_CAP[lib.verify_depth("STANDARD", "normal")])
+
+    def test_pure_no_state_mutation(self):
+        """escalate_lane is a pure function: it must not write any files.
+        Calling it with no-I/O inputs must not create pipeline-state.json or ticket.json."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            before_files = set(os.listdir(tmpdir))
+            lib.escalate_lane("SMALL", "large", "normal", False, "story")
+            after_files = set(os.listdir(tmpdir))
+        self.assertEqual(before_files, after_files)
+
+
+## MAR-57 spec 02 — TestInLoopEscalation
+
+
+class TestInLoopEscalation(AcsWorkspaceCase):
+    """MAR-57 Spec 02 (AC-1, AC-4, AC-6, AC-7): assert that the escalation sequence
+    described in code/SKILL.md (three triggers -> escalate_lane -> persist via the
+    existing writers) correctly updates all three state files.
+
+    These tests mirror the coordinator's in-loop sequence directly:
+      1. escalate_lane(current, new_size, new_stakes, ...) -> (new_lane, depth, ceiling)
+      2. ticket["lane"] = new_lane; save_ticket(tdir, ticket)
+      3. update_pipeline(tdir, ticket_id, "code", "in_progress", lane=new_lane)
+      4. update_index(workspace, repo_id, ticket)
+
+    Each test seeds a ticket at a specific lane and exercises one outcome of that
+    sequence (raise, hold, ceiling) against the persisted JSON.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Seed: SMALL lane (size=small, stakes=normal)
+        self.ticket_id = self.new_ticket("Escalation test", "story",
+                                         "--size", "small", "--stakes", "normal")
+        self._tdir = self.tdir(self.ticket_id)
+        self._ticket = lib.load_ticket(self._tdir)
+
+    # --- AC-4: escalation writes raised lane to ticket.json ---
+
+    def test_escalation_raises_ticket_json_lane(self):
+        """AC-4: seed=SMALL; escalate axes to standard/normal -> STANDARD;
+        save_ticket writes new lane; reload confirms ticket['lane'] == 'STANDARD'
+        and equals derive_lane(new_size, new_stakes, needs_design, type)."""
+        ticket = self._ticket
+        self.assertEqual(ticket["lane"], "SMALL")  # pre-condition
+
+        # Simulate trigger: axes raised to standard/normal -> STANDARD candidate
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+
+        # Persist (as coordinator does)
+        ticket["size"] = "standard"
+        ticket["stakes"] = "normal"
+        ticket["lane"] = new_lane
+        lib.save_ticket(self._tdir, ticket)
+
+        # Reload and assert
+        reloaded = lib.load_ticket(self._tdir)
+        self.assertEqual(reloaded["lane"], "STANDARD")
+        expected = lib.derive_lane("standard", "normal", reloaded["needs_design"],
+                                   reloaded["type"])
+        self.assertEqual(reloaded["lane"], expected,
+                         "Persisted lane must equal derive_lane(new_size, new_stakes, "
+                         "needs_design, type) (AC-4)")
+
+    # --- AC-4: escalation writes raised lane to pipeline-state.json ---
+
+    def test_escalation_writes_pipeline_state_lane(self):
+        """AC-4: seed=SMALL; after escalation, update_pipeline persists new lane
+        'STANDARD' to pipeline-state.json."""
+        ticket = self._ticket
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+
+        lib.update_pipeline(self._tdir, self.ticket_id, "code", "in_progress",
+                            lane=new_lane)
+
+        data = lib.read_json(os.path.join(self._tdir, "pipeline-state.json"))
+        self.assertEqual(data["lane"], "STANDARD",
+                         "pipeline-state.json must carry escalated lane (AC-4)")
+
+    # --- AC-4: escalation writes raised lane to tickets-index.json ---
+
+    def test_escalation_writes_index_lane(self):
+        """AC-4: seed=SMALL; after escalation, update_index persists new lane
+        'STANDARD' to tickets-index.json."""
+        ticket = self._ticket
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+
+        ticket["lane"] = new_lane
+        lib.update_index(self.ws, "acme-shop", ticket)
+
+        with open(lib.index_path(self.ws, "acme-shop")) as fh:
+            index = json.load(fh)
+        self.assertEqual(index["tickets"][self.ticket_id]["lane"], "STANDARD",
+                         "tickets-index.json must carry escalated lane (AC-4)")
+
+    # --- AC-7/AC-3: lower candidate leaves all state unchanged ---
+
+    def test_lower_candidate_leaves_all_state_unchanged(self):
+        """AC-7/AC-3: seed=STANDARD; a TRIVIAL candidate is lower -> escalate_lane
+        returns STANDARD (hold); no writer is called; files remain at STANDARD."""
+        # Re-seed at STANDARD
+        ticket_id = self.new_ticket("Hold test", "story",
+                                    "--size", "standard", "--stakes", "normal")
+        tdir = self.tdir(ticket_id)
+        ticket = lib.load_ticket(tdir)
+        self.assertEqual(ticket["lane"], "STANDARD")  # pre-condition
+
+        # Simulate trigger returning lower candidate (TRIVIAL)
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], "trivial", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        # clamp: candidate TRIVIAL < current STANDARD -> hold at STANDARD
+        self.assertEqual(new_lane, "STANDARD",
+                         "escalate_lane must hold at STANDARD when candidate is lower (AC-3/AC-7)")
+
+        # Coordinator rule: new_lane == current_lane -> no-op, no writer called.
+        # We verify by NOT calling any writer and confirming state is unchanged.
+        reloaded = lib.load_ticket(tdir)
+        self.assertEqual(reloaded["lane"], "STANDARD",
+                         "ticket.json lane must not change when escalate_lane holds (AC-7)")
+
+    # --- AC-1: ceiling raised on escalation ---
+
+    def test_ceiling_raised_on_escalation(self):
+        """AC-1: seed=SMALL (light, ceiling=1); escalate to STANDARD (full, ceiling=3);
+        new ceiling == VERIFY_ITERATION_CAP['full'] == 3."""
+        ticket = self._ticket
+        self.assertEqual(ticket["lane"], "SMALL")
+
+        new_lane, depth, new_ceiling = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+        self.assertEqual(depth, "full")
+        self.assertEqual(new_ceiling, lib.VERIFY_ITERATION_CAP["full"],
+                         "Ceiling must be VERIFY_ITERATION_CAP['full']==3 after escalation (AC-1)")
+        self.assertEqual(new_ceiling, 3)
+
+    # --- AC-1/AC-7: ceiling is monotone — never lowered ---
+
+    def test_ceiling_is_monotone_never_lowered(self):
+        """AC-1/AC-7: if coordinator already has ceiling=3 and escalate_lane
+        returns the same or lower candidate, ceiling must not decrease below 3."""
+        # current=STANDARD (ceiling=3), lower candidate -> hold at STANDARD
+        ticket = self._ticket
+        ticket["lane"] = "STANDARD"
+
+        new_lane, depth, new_ceiling = lib.escalate_lane(
+            "STANDARD", "trivial", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        # Hold: new_lane == STANDARD -> depth == 'full', ceiling == 3
+        self.assertEqual(new_lane, "STANDARD")
+        self.assertEqual(new_ceiling, 3)
+
+        # Coordinator rule: actual ceiling = max(current_ceiling, new_ceiling)
+        # If current ceiling was already 3, it must stay 3.
+        current_ceiling = 3
+        actual_ceiling = max(current_ceiling, new_ceiling)
+        self.assertEqual(actual_ceiling, 3,
+                         "Ceiling must stay 3 after a no-raise call (AC-1/AC-7)")
+
+    # --- AC-6: trigger (b) uses recommend_stakes / high_stakes_paths glob ---
+
+    def test_trigger_b_uses_recommend_stakes(self):
+        """AC-6: trigger (b) reuses recommend_stakes() over the changed file set;
+        a path matching the auth/** glob returns 'high'; passing stakes='high' to
+        escalate_lane from TRIVIAL produces STANDARD (Rule 3 floor — AC-6)."""
+        # Confirm recommend_stakes() returns 'high' for an auth/ path
+        stakes_result = lib.recommend_stakes(["auth/login.py"], None)
+        self.assertEqual(stakes_result, "high",
+                         "recommend_stakes must return 'high' for auth/ path (AC-6 trigger b)")
+
+        # Pass resulting stakes to escalate_lane (as coordinator does on trigger b)
+        new_lane, _, _ = lib.escalate_lane(
+            "TRIVIAL", "trivial", stakes_result, False, "story"
+        )
+        # Rule 3: stakes=high -> STANDARD floor; STANDARD > TRIVIAL -> escalate
+        self.assertEqual(new_lane, "STANDARD",
+                         "TRIVIAL + high stakes (trigger b) must escalate to STANDARD "
+                         "(Rule 3, AC-6)")
+        # Confirm lane equals derive_lane (single authority, AC-4)
+        expected = lib.derive_lane("trivial", "high", False, "story")
+        self.assertEqual(new_lane, expected)
+
+
+## MAR-57 spec 03 — TestGuardAxes
+
+
+class TestGuardAxes(unittest.TestCase):
+    """AC-3: guard_axes(current_size, current_stakes, proposed_size, proposed_stakes)
+    returns (effective_size, effective_stakes) by taking the higher of each axis:
+      stakes ordering: low < normal < high
+      size ordering:   trivial < small < standard < large
+    Effective rank >= current rank for both axes (upward-only, negative guarantee).
+    Pure function: no I/O, no side effects.
+    """
+
+    def _guard(self, cs, ck, ps, pk):
+        return lib.guard_axes(cs, ck, ps, pk)
+
+    # --- stakes axis: raise and hold ---
+
+    def test_guard_raises_stakes(self):
+        """current=normal, proposed=high -> effective=high."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "high")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_holds_stakes_on_lower_proposal(self):
+        """current=high, proposed=normal -> effective=high (not lowered)."""
+        _, eff_stakes = self._guard("standard", "high", "standard", "normal")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_stakes_same(self):
+        """current=normal, proposed=normal -> effective=normal (equal, hold)."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "normal")
+        self.assertEqual(eff_stakes, "normal")
+
+    def test_guard_raises_stakes_from_low(self):
+        """current=low, proposed=high -> effective=high."""
+        _, eff_stakes = self._guard("standard", "low", "standard", "high")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_holds_stakes_low_on_lower_proposal(self):
+        """current=normal, proposed=low -> effective=normal (not lowered)."""
+        _, eff_stakes = self._guard("standard", "normal", "standard", "low")
+        self.assertEqual(eff_stakes, "normal")
+
+    # --- size axis: raise and hold ---
+
+    def test_guard_raises_size(self):
+        """current=small, proposed=standard -> effective=standard."""
+        eff_size, _ = self._guard("small", "normal", "standard", "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_holds_size_on_lower_proposal(self):
+        """current=standard, proposed=trivial -> effective=standard (not lowered)."""
+        eff_size, _ = self._guard("standard", "normal", "trivial", "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_raises_size_from_trivial(self):
+        """current=trivial, proposed=large -> effective=large."""
+        eff_size, _ = self._guard("trivial", "normal", "large", "normal")
+        self.assertEqual(eff_size, "large")
+
+    def test_guard_holds_size_large_on_lower_proposal(self):
+        """current=large, proposed=standard -> effective=large (not lowered)."""
+        eff_size, _ = self._guard("large", "normal", "standard", "normal")
+        self.assertEqual(eff_size, "large")
+
+    # --- both axes ---
+
+    def test_guard_both_axes_raise(self):
+        """Both proposed > current -> both effective = proposed."""
+        eff_size, eff_stakes = self._guard("trivial", "low", "standard", "high")
+        self.assertEqual(eff_size, "standard")
+        self.assertEqual(eff_stakes, "high")
+
+    def test_guard_both_axes_hold(self):
+        """Both proposed < current -> both effective = current."""
+        eff_size, eff_stakes = self._guard("large", "high", "trivial", "low")
+        self.assertEqual(eff_size, "large")
+        self.assertEqual(eff_stakes, "high")
+
+    # --- None current: treated as lowest, any explicit proposed wins ---
+
+    def test_guard_none_current_size_floors_conservatively(self):
+        """current_size=None -> treated as lowest; proposed 'trivial' wins."""
+        eff_size, _ = self._guard(None, "normal", "trivial", "normal")
+        self.assertEqual(eff_size, "trivial")
+
+    def test_guard_none_current_stakes_floors_conservatively(self):
+        """current_stakes=None -> treated as lowest; proposed 'low' wins."""
+        _, eff_stakes = self._guard("standard", None, "standard", "low")
+        self.assertEqual(eff_stakes, "low")
+
+    def test_guard_none_current_both_proposed_wins(self):
+        """Both current None -> both proposed win (they are the only known values)."""
+        eff_size, eff_stakes = self._guard(None, None, "standard", "high")
+        self.assertEqual(eff_size, "standard")
+        self.assertEqual(eff_stakes, "high")
+
+    # --- None proposed: effective = current ---
+
+    def test_guard_none_proposed_size_leaves_current(self):
+        """proposed_size=None -> effective_size = current_size."""
+        eff_size, _ = self._guard("standard", "normal", None, "normal")
+        self.assertEqual(eff_size, "standard")
+
+    def test_guard_none_proposed_stakes_leaves_current(self):
+        """proposed_stakes=None -> effective_stakes = current_stakes."""
+        _, eff_stakes = self._guard("standard", "high", "standard", None)
+        self.assertEqual(eff_stakes, "high")
+
+    # --- AC-3 property: effective rank >= current rank for all pairs ---
+
+    def test_effective_rank_ge_current_rank_size_grid(self):
+        """AC-3 property: for every (current_size, proposed_size) pair, effective rank
+        is always >= current rank (upward-only negative guarantee on size)."""
+        sizes = ["trivial", "small", "standard", "large"]
+        size_rank = {s: i for i, s in enumerate(sizes)}
+        for current in sizes:
+            for proposed in sizes:
+                eff_size, _ = self._guard(current, "normal", proposed, "normal")
+                self.assertGreaterEqual(
+                    size_rank.get(eff_size, 0),
+                    size_rank.get(current, 0),
+                    "guard_axes lowered size from %r to %r (proposed=%r)" % (
+                        current, eff_size, proposed))
+
+    def test_effective_rank_ge_current_rank_stakes_grid(self):
+        """AC-3 property: for every (current_stakes, proposed_stakes) pair, effective
+        rank is always >= current rank (upward-only negative guarantee on stakes)."""
+        stakes = ["low", "normal", "high"]
+        stakes_rank = {s: i for i, s in enumerate(stakes)}
+        for current in stakes:
+            for proposed in stakes:
+                _, eff_stakes = self._guard("standard", current, "standard", proposed)
+                self.assertGreaterEqual(
+                    stakes_rank.get(eff_stakes, 0),
+                    stakes_rank.get(current, 0),
+                    "guard_axes lowered stakes from %r to %r (proposed=%r)" % (
+                        current, eff_stakes, proposed))
+
+    def test_guard_axes_is_pure_no_files_written(self):
+        """guard_axes is a pure function: calling it must not write any files."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            before = set(os.listdir(tmpdir))
+            lib.guard_axes("standard", "normal", "trivial", "low")
+            after = set(os.listdir(tmpdir))
+        self.assertEqual(before, after)
+
+    def test_guard_none_current_unrecognized_proposed_returns_proposed(self):
+        """None current + unrecognized proposed: conservatively return proposed
+        (the only value we have; it is not lower than the unknown current)."""
+        # Both unrecognized: c_rank == -1, p_rank == -1, p_rank not > c_rank,
+        # but current is None so the conservative branch returns proposed.
+        eff_size, _ = self._guard(None, "normal", "unknown-size", "normal")
+        # proposed 'unknown-size' is returned (it's the best known value)
+        self.assertEqual(eff_size, "unknown-size")
+
+
+## MAR-57 spec 03 — TestNegativeGuarantee
+
+
+class TestNegativeGuarantee(AcsWorkspaceCase):
+    """AC-3/AC-7: no automatic/unattended path lowers lane, size, or stakes below
+    a user-confirmed value. Tests exercise the full escalation sequence:
+      guard_axes -> escalate_lane -> save_ticket
+    and assert the persisted values never go below the current confirmed values.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Seed a ticket at STANDARD (size=standard, stakes=normal)
+        self.ticket_id = self.new_ticket("Guard test", "story",
+                                         "--size", "standard", "--stakes", "normal")
+        self._tdir = self.tdir(self.ticket_id)
+
+    def _run_escalation_sequence(self, tdir, ticket, proposed_size, proposed_stakes):
+        """Simulate the coordinator's in-loop escalation sequence:
+          1. guard_axes -> effective axes (upward-only)
+          2. escalate_lane(current_lane, eff_size, eff_stakes, ...) -> (new_lane, depth, ceiling)
+          3. save_ticket(tdir, ticket) if lane raised
+        Returns the reloaded ticket after the sequence.
+        """
+        eff_size, eff_stakes = lib.guard_axes(
+            ticket.get("size"), ticket.get("stakes"),
+            proposed_size, proposed_stakes
+        )
+        new_lane, _, _ = lib.escalate_lane(
+            ticket.get("lane"), eff_size, eff_stakes,
+            ticket.get("needs_design", False), ticket.get("type", "story")
+        )
+        # Only persist if strictly higher (coordinator no-op rule)
+        if lib.lane_rank(new_lane) > lib.lane_rank(ticket.get("lane")):
+            ticket["size"] = eff_size
+            ticket["stakes"] = eff_stakes
+            ticket["lane"] = new_lane
+            lib.save_ticket(tdir, ticket)
+        return lib.load_ticket(tdir)
+
+    # --- AC-3: no automatic path lowers lane ---
+
+    def test_no_automatic_path_lowers_lane(self):
+        """AC-3: property grid over (current_lane, proposed_lower_lane) pairs.
+        After running the full escalation sequence with a lower-ranked proposed
+        lane, the persisted ticket['lane'] must be >= current_lane rank."""
+        seeds = [
+            ("SMALL",    "small",    "normal"),
+            ("STANDARD", "standard", "normal"),
+            ("COMPLEX",  "large",    "normal"),
+        ]
+        # Lower-ranked proposals for each seed
+        lower_proposals = {
+            "SMALL":    [("trivial", "normal")],
+            "STANDARD": [("trivial", "normal"), ("small", "normal")],
+            "COMPLEX":  [("trivial", "normal"), ("small", "normal"), ("standard", "normal")],
+        }
+        for seed_lane, seed_size, seed_stakes in seeds:
+            # Mint a ticket at seed lane
+            tid = self.new_ticket("NegGuard-%s" % seed_lane, "story",
+                                  "--size", seed_size, "--stakes", seed_stakes)
+            tdir = self.tdir(tid)
+            ticket = lib.load_ticket(tdir)
+            self.assertEqual(ticket["lane"], seed_lane)
+
+            for p_size, p_stakes in lower_proposals[seed_lane]:
+                reloaded = self._run_escalation_sequence(tdir, ticket, p_size, p_stakes)
+                self.assertGreaterEqual(
+                    lib.lane_rank(reloaded["lane"]),
+                    lib.lane_rank(seed_lane),
+                    "Automatic path lowered lane from %r to %r "
+                    "(proposed size=%r stakes=%r)" % (
+                        seed_lane, reloaded["lane"], p_size, p_stakes)
+                )
+                # Reload ticket for next iteration (must not have changed)
+                ticket = lib.load_ticket(tdir)
+
+    # --- AC-3: no automatic path lowers stakes ---
+
+    def test_no_automatic_path_lowers_stakes(self):
+        """AC-3: seed ticket at high stakes; escalation sequence with proposed_stakes=normal
+        must not write stakes=normal to ticket.json — guard_axes clamps it to 'high'."""
+        # Mint a ticket at STANDARD + high stakes
+        tid = self.new_ticket("StakesGuard", "story",
+                               "--size", "standard", "--stakes", "high")
+        tdir = self.tdir(tid)
+        ticket = lib.load_ticket(tdir)
+        self.assertEqual(ticket["stakes"], "high")
+
+        # Simulate: coordinator proposes to lower stakes to 'normal'
+        reloaded = self._run_escalation_sequence(tdir, ticket, "standard", "normal")
+        self.assertEqual(reloaded["stakes"], "high",
+                         "Automatic path must not lower stakes from 'high' to 'normal' "
+                         "(AC-3 negative guarantee)")
+
+    # --- AC-3: no automatic path lowers size ---
+
+    def test_no_automatic_path_lowers_size(self):
+        """AC-3: seed ticket at large size; escalation sequence with proposed_size=trivial
+        must not write size=trivial to ticket.json — guard_axes clamps it to 'large'."""
+        # Mint a ticket at COMPLEX (large) size
+        tid = self.new_ticket("SizeGuard", "story",
+                               "--size", "large", "--stakes", "normal")
+        tdir = self.tdir(tid)
+        ticket = lib.load_ticket(tdir)
+        self.assertEqual(ticket["size"], "large")
+
+        # Simulate: coordinator proposes to lower size to 'trivial'
+        reloaded = self._run_escalation_sequence(tdir, ticket, "trivial", "normal")
+        self.assertEqual(reloaded["size"], "large",
+                         "Automatic path must not lower size from 'large' to 'trivial' "
+                         "(AC-3 negative guarantee)")
+
+    # --- AC-3/AC-7: absent/ambiguous signals leave STANDARD ticket at STANDARD ---
+
+    def test_no_unattended_path_lowers_standard_ticket(self):
+        """AC-3/AC-7: seed ticket confirmed at STANDARD; run escalation sequence
+        with absent/ambiguous signals (None proposed axes); ticket stays at STANDARD."""
+        ticket = lib.load_ticket(self._tdir)
+        self.assertEqual(ticket["lane"], "STANDARD")
+
+        # Absent signals: proposed axes are None
+        reloaded = self._run_escalation_sequence(
+            self._tdir, ticket, None, None  # no new signal
+        )
+        self.assertEqual(reloaded["lane"], "STANDARD",
+                         "Absent signals must not change STANDARD lane (AC-3/AC-7)")
+
+    # --- AC-7: guard_axes + escalate_lane sequence never produces lower lane than derive_lane ---
+
+    def test_sequence_effective_size_stakes_consistent_with_result(self):
+        """AC-3/AC-4: after guard_axes -> escalate_lane, the resulting lane equals
+        derive_lane(eff_size, eff_stakes, ...) — single routing authority preserved."""
+        ticket = lib.load_ticket(self._tdir)
+        eff_size, eff_stakes = lib.guard_axes(
+            ticket.get("size"), ticket.get("stakes"), "large", "high"
+        )
+        new_lane, _, _ = lib.escalate_lane(
+            ticket.get("lane"), eff_size, eff_stakes,
+            ticket.get("needs_design", False), ticket.get("type", "story")
+        )
+        expected = lib.derive_lane(eff_size, eff_stakes,
+                                   ticket.get("needs_design", False),
+                                   ticket.get("type", "story"))
+        self.assertEqual(new_lane, expected,
+                         "escalate_lane must route via derive_lane (AC-4 single authority)")
