@@ -84,7 +84,7 @@ that protected characteristics played no role.
 | G3 — Quality via reflection | ≥ 90% of `/code` runs reach zero verifier findings within the 3-iteration cap; coverage target met or hard-failed (never silently waived). |
 | G4 — Reviewable delivery | ≥ 80% of story/task PRs ≤ ~400 changed lines; every PR carries ticket trace, test plan, and findings. |
 | G5 — Auditability | Every decision (clarification, assumption, finding, phase output) recoverable from the ticket partition; cost/tokens/time recorded per run, ticket, and repo. First measured 2026-06-13 (acs v0.1.2, M2-0 spike, 5 runs): ~$2.43 total, ~385k in / ~72k out tokens, ~1770 working-seconds, all recoverable from the partition. |
-| G6 — Portability | Works on any git repo with `python3` + `gh`; zero pip installs; one `/acs:init` to onboard. First validated 2026-06-13 (acs v0.1.2, M2-0 spike): clean install + `/acs:init` in a throwaway repo, no Duplicate-hooks load failure. Each acs doc set (`prd`, `architecture`, `requirements`, `adr`, and future `standards`/`principles`/`quality`/`operations`) is independently relocatable to an external/absolute filesystem path via configuration; 100% of producer-skill runs preserve the per-backend reviewability + Git-audit guarantee (local/external-local = reviewable diff / repo PR; remote = backend-native review); 0 doc-set writes bypass the configured backend review path; measured per release. The acs pipeline is **runtime-portable**: the same gated pipeline (gating, TDD, coverage hard-fail, 11-dimension review, audit) runs on **≥ 2 supported runtimes** (Claude Code today + OpenAI Codex CLI), with **0 gate escapes and 0 lost audit-trail artifacts** on a published end-to-end run on the second runtime, **validated within 1 release of the Codex CLI runtime capability shipping** (mirrors how G1/G2/G6 were first validated by the M2-0 spike). |
+| G6 — Portability | Works on any git repo with `python3` + `gh`; zero pip installs; one `/acs:init` to onboard. First validated 2026-06-13 (acs v0.1.2, M2-0 spike): clean install + `/acs:init` in a throwaway repo, no Duplicate-hooks load failure. Each acs doc set (`prd`, `architecture`, `requirements`, `adr`, and future `standards`/`principles`/`quality`/`operations`) is independently relocatable to an external/absolute filesystem path via configuration; 100% of producer-skill runs preserve the per-backend reviewability + Git-audit guarantee (local/external-local = reviewable diff / repo PR; remote = backend-native review); 0 doc-set writes bypass the configured backend review path; measured per release. The acs pipeline is **runtime-portable**: the same gated pipeline (gating, TDD, coverage hard-fail, 11-dimension review, audit) runs on **≥ 2 supported runtimes** (Claude Code today + OpenAI Codex CLI). Gate-integrity strength is **runtime-dependent**: on Claude Code the pre-gate is non-bypassable (kernel `PreToolUse(Skill)` → exit 2); on Codex CLI — whose `PreToolUse` is documented as a guardrail rather than a complete enforcement boundary, which exposes **no skill-invocation matcher and no `SessionEnd` event**, and whose plugin hooks run only once user-trusted — gating is **best-effort by default**, with **non-bypassable enforcement available only via org-managed hooks** (`requirements.toml`). The second-runtime metric is **0 lost audit-trail artifacts** on a published end-to-end run, plus **0 gate escapes under managed-hook enforcement**, **validated within 1 release of the Codex CLI runtime capability shipping** (mirrors how G1/G2/G6 were first validated by the M2-0 spike). |
 | G7 — Observability | Dashboard renders all 6 panels (throughput, pipeline funnel, cost/time per step, coverage vs target, review iterations, token burn by role) in ≤ 5 s for ≤ 50 tickets; reads only workspace artifacts; requires no network calls and no new config beyond `.acs/settings.json`. In-session status lines, when wired, preserve 100% of Claude Code's default status-line fields and add acs state on top (zero default fields lost), render in < 100 ms per refresh, and never crash — any failure falls back to a valid line. |
 | G8 — Skill quality coverage | Structure, gating, and routing covered for 100% of skills (free, every PR); every critical-path skill has behavioral (artifact-level) eval coverage; no new skill ships without ≥ a trigger eval (CI guardrail). |
 | G9 — Enforceable conventions | The configured branch/PR/commit formats are enforceable as a required merge gate on the consumer repo, blocking non-exempt violating PRs even when they bypassed `/acs:create-pr` (escape hatch: the `acs-exempt` label / release-branch allowlist). MAR-9 (PR #50, pending merge) completes the consumer side of that escape hatch: a legitimate non-ticket exempt PR lands via the sanctioned `/acs:merge-pr --pr` path (same readiness + branch/worktree cleanup as the ticket path, no ticket/partition/tracker/archive; it refuses and redirects ticket-backed PRs), and `/acs:init` Step 7e writes an idempotent `CLAUDE.md` acs-managed block that makes the pipeline the *default* for in-repo agent sessions (steering changes through `/acs:ship` rather than ad-hoc PRs). The gate itself is existence-proven by the live required-check ruleset on this repo's own `main` (ruleset 17602044, `active`; "Branch / PR / commit conventions" is a required status-check context). |
@@ -92,8 +92,8 @@ that protected characteristics played no role.
 | G11 — Tracker-first delivery / graceful degradation | A repo with **no PRD/architecture** delivers a remote-tracker-defined ticket end-to-end through the **same gates** (TDD, coverage hard-fail, 11-dimension review, audit, merge readiness) with **zero gate escapes** and **zero "missing PRD" hard-blocks** — the absent upstream artifact makes only its own trace step N/A, never blocking the run. Target: **100% of tracker-first runs (PRD absent) complete without a missing-upstream hard-block AND with 0 gate escapes**, validated on **≥ 1 real PRD-less repo within 1 release of the capability shipping**; tracker-issue acceptance criteria are carried into the spec for **100%** of such runs. |
 | G12 — Org-level enforceable policy | An organization can define enforcement policy (required convention checks, security gates, standards/conventions floors) once and have it apply as a **non-overridable floor** across all its repos, with repos able to tighten but not loosen it, exemptions granted only at the org layer, and every effective rule traceable to the layer it came from. **Measurable success metric:** on a pilot org of **≥ 3 repos**, **100% of those repos enforce the org-mandated convention/security checks as required status checks with 0 repo-level self-exemptions of a mandated rule**, and a deliberately non-conforming PR in any pilot repo is **blocked from merge** — first validated within **1 release** of the org-policy capability shipping (mirrors how G1/G9 are validated by an observed live gate, e.g. ruleset 17602044, prd.md). |
 | G13 — Enforceable e2e integrity | When the optional e2e merge gate is enabled on a consumer repo, **0 PRs merge with a red e2e suite** (the required e2e status check is a fail-closed merge brake, symmetric to the G9 convention gate and the G3 coverage hard-fail), AND **100% of specs whose changeset touches a user-facing / cross-component surface declare e2e impact** (the spec's Test plan states e2e impact or an explicit "no e2e impact" reason — the code-verifier blocks any declared-impact spec lacking matching e2e test diffs; no zero-findings verdict without a green e2e run). The opt-in invariant holds: a repo with `settings.e2e` unset has no e2e suite and no e2e gate. Measured per release on the dogfood repo (gate-enabled repos). Traces the Tech-lead persona. |
-| G14 — Complexity-adaptive delivery efficiency | A trivial, human-supervised ticket is delivered for substantially less wall-clock time and token/cost than the full pipeline. **Metric:** median wall-clock time AND median token/cost for a trivial-tier ticket are each reduced **≥ 60%** vs the same ticket run through the full plan-execute-verify ladder, measured on the dogfood repo within **1 release** of the capability shipping. |
-| G15 — Fast-lane adoption | A meaningful share of tickets flow through the trivial/standard fast lanes rather than the full ladder. **Metric:** **≥ 50%** of delivered tickets use the trivial- or standard-tier fast lane (vs the full complex/unattended ladder), measured per release on the dogfood repo once the tiers ship. |
+| G14 — Complexity-adaptive delivery efficiency | A trivial, human-supervised ticket is delivered for substantially less wall-clock time and token/cost than the full pipeline. **Metric:** median wall-clock time AND median token/cost for a TRIVIAL-lane ticket are each reduced **≥ 60%** vs the same ticket run through the full plan-execute-verify ladder, measured on the dogfood repo within **1 release** of the capability shipping. |
+| G15 — Fast-lane adoption | A meaningful share of tickets flow through the TRIVIAL/SMALL fast lanes (light verify) rather than the full ladder. **Metric:** **≥ 50%** of delivered tickets use the TRIVIAL or SMALL fast lane (vs the full STANDARD/COMPLEX ladder), measured per release on the dogfood repo once the lanes ship. |
 | G16 — Rigor preserved where it matters (no regression) | Reducing process volume on simple work must not lower defect-catch. The verifier gates on every lane (autonomous-first); lighter lanes reduce only the verify-iteration ceiling, never whether the verifier or the TDD/coverage gate runs. **Metric:** **0 regression** in the code verifier's defect-catch rate — the TDD/coverage gate's hard-fail behavior is 100% in force on every lane, and full verify (the 11-dimension review) stays 100% on standard/complex lanes; measured by the existing eval harness (E1) showing no drop in verifier-caught findings per release vs the pre-feature baseline. |
 
 ### tabp feature — success metrics
@@ -119,7 +119,7 @@ feature sections here.
 - 14 skills: `/init`, `/ship`, `/handoff`, `/update`, `/install-hooks`, 3 product-level, 6 workflow.
 - Hook-enforced step gating (PreToolUse dispatch, exit-2 blocks, SessionEnd safety net).
 - Workspace partitioned by repo/ticket, outside the consumer repo; locks, worktree parallelism.
-- Reflection cycle (planner/executor/verifier, 27 agents) with XML messaging (XSD) and phase artifacts.
+- Reflection cycle (planner/executor/verifier) with XML messaging (XSD) and phase artifacts. The six triad-keeping skills (create-prd, create-architecture, create-project, create-design, create-spec, code) each spawn the full planner/executor/verifier triad; the three apply-work skills (create-ticket, create-pr, merge-pr) run **inline** (coordinator + at most one executor, no planner/verifier) since MAR-60. 27 agent files exist on disk (9 skills × 3 roles) but only 21 are reachable — 18 active triad agents + 3 apply-work executors; the 6 apply-work planner/verifier files are orphaned (MAR-62 tracks cleanup).
 - TDD `/code` with coverage hard-fail and the 11-dimension changeset review loop (≤ 3 iterations).
 - Local-first tickets: epics with child fan-out, per-repo id sequence, archive lifecycle.
 - Resume at three levels (gates, `/ship` ledger, mid-skill reconcile) + deliberate handoff.
@@ -144,7 +144,7 @@ feature sections here.
   persona). *(Must have — urgent; see roadmap E6.)* The mechanism (config key name,
   explicit opt-in vs auto-detect, design-step optionality) is **deferred to the
   tracker-first epic's design phase** — this PRD states the requirement (what).
-- **Complexity-adaptive delivery** — acs scales the amount of process/structure it
+- **Complexity-adaptive delivery** *(shipped — MAR-55 epic: MAR-56/57/58/59/60/61 merged to main)* — acs scales the amount of process/structure it
   applies to a ticket based on the ticket's **complexity** AND the level of **human
   supervision**, instead of running the full plan-execute-verify ladder on every
   ticket. **Framing principle (autonomous-first):** acs is autonomous-first — the
@@ -231,15 +231,20 @@ feature sections here.
   can adopt acs without switching agent runtimes. acs stays authored and distributed
   as a Claude plugin; this adds a **second execution runtime for the pipeline**, not a
   second product. The **MECHANISM** — how the Claude-Code-specific mechanisms map onto
-  Codex CLI (the PreToolUse/SessionEnd hook gating, the planner/executor/verifier
-  reflection-subagent protocol, skill/agent dispatch, per-role model/effort config,
-  self-reported cost/tokens) and which gates are enforced natively vs via a portable
-  shim — is **deferred to a dedicated future multi-runtime epic's design phase**,
-  mirroring how this PRD defers the Notion/remote-docs and org-policy mechanisms. The
+  Codex CLI (hook gating, the planner/executor/verifier reflection-subagent protocol,
+  skill/agent dispatch, per-role model/effort config, self-reported cost/tokens) — is
+  **deferred to a dedicated future multi-runtime epic's design phase**, mirroring how
+  this PRD defers the Notion/remote-docs and org-policy mechanisms. That design MUST
+  account for documented Codex-platform constraints rather than assume a 1:1 mapping:
+  Codex exposes **no skill-invocation hook matcher and no `SessionEnd` event**, its
+  `PreToolUse` is a **guardrail, not a complete enforcement boundary** (so pipeline
+  gating is best-effort unless deployed as org-managed `requirements.toml` hooks), and
+  Codex spawns subagents **only on explicit request** via a different custom-agent
+  format — so the reflection cycle is a genuine runtime divergence, not a thin shim. The
   deterministic layer is already stdlib-only Python (Portability NFR), which is the
   portable substrate this builds on. Traces **extended G6** (runtime portability).
-  *(Proposed — the MECHANISM is deferred to the multi-runtime epic's design phase /
-  an ADR, per Constraints. Reverses the prior acs Won't-have — see Reversal note
+  **Lowest-priority Could-have — scheduled behind v0.4.0:** not started, designed, or ticketed until the v0.4.0 epics ship; it does not compete with the v0.4.0 epics for capacity. *(Proposed — the MECHANISM is deferred to the multi-runtime epic's design
+  phase / an ADR, per Constraints. Reverses the prior acs Won't-have — see Reversal note
   (MAR-2) in Out of scope.)*
 
 **Won't have (now)** *(acs feature scope)*
@@ -343,10 +348,15 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
   clarification/gates; they do **not** need an iterating plan-execute-verify reflection
   loop. create-ticket's structural checks (schema-completeness, link bidirectionality)
   are a **script check, not an LLM verifier**.
-- **Message-validation / per-send performance**: in-process / batched XML message
-  validation instead of a `validate_xml.py` subprocess on every send AND receive (a
-  simple ticket currently fires ~24–30 subprocess spawns); batch `clarify.py`
-  record-before-act calls.
+- **Message-validation / per-send performance**: XML message validation runs
+  **in-process** by default — `validate_xml.py`'s `validate_structurally()` (pure
+  stdlib `xml.etree`, raised to XSD-equivalent coverage) is the fast path and spawns
+  **no subprocess per send/receive**; a `validate_batch()` API validates a list in one
+  in-process loop. `xmllint` is invoked **opt-in only** when `ACS_XML_AUTHORITATIVE=1`
+  (and `xmllint` is on PATH and the XSD is present); its absence never blocks (MAR-61).
+  Clarifications are **batched** at the coordinator level — when ≥ 2 are open they are
+  presented in one grouped `AskUserQuestion`, each answer recorded as its own
+  `clarify.py` entry.
 
 ## Constraints & assumptions
 
