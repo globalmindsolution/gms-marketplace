@@ -243,9 +243,7 @@ feature sections here.
   format — so the reflection cycle is a genuine runtime divergence, not a thin shim. The
   deterministic layer is already stdlib-only Python (Portability NFR), which is the
   portable substrate this builds on. Traces **extended G6** (runtime portability).
-  **Lowest-priority Could-have — scheduled behind v0.3.0:** not started, designed, or
-  ticketed until v0.3.0 (M3 GA) ships; it does not compete with the M3 epics for v0.3.0
-  capacity. *(Proposed — the MECHANISM is deferred to the multi-runtime epic's design
+  **Lowest-priority Could-have — scheduled behind v0.4.0:** not started, designed, or ticketed until the v0.4.0 epics ship; it does not compete with the v0.4.0 epics for capacity. *(Proposed — the MECHANISM is deferred to the multi-runtime epic's design
   phase / an ADR, per Constraints. Reverses the prior acs Won't-have — see Reversal note
   (MAR-2) in Out of scope.)*
 
