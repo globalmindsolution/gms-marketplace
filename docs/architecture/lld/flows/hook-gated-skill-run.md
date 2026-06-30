@@ -75,7 +75,7 @@ The iteration ceiling for the reflection loop is **lane-driven**:
 - **TRIVIAL/SMALL lanes** (low/normal stakes): cap = **1** iteration — light
   verify (single verifier pass that may iterate once on blocking findings).
 - **STANDARD/COMPLEX lanes** (or any high-stakes ticket): cap = **3** iterations
-  — full verify (existing plan→execute→verify loop + full 11-dimension review
+  — full verify (existing plan→execute→verify loop + full 12-dimension review
   + e2e when configured), unchanged.
 
 The ceiling is determined by `verify_depth(ticket.lane, ticket.stakes)` in
