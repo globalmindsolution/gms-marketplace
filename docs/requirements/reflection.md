@@ -52,7 +52,7 @@ Requirements:
       cap = `VERIFY_ITERATION_CAP["light"]` = 1).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
       **3 iterations** (full verify — existing plan→execute→verify loop + full
-      11-dimension review + e2e when configured, unchanged; cap =
+      12-dimension review + e2e when configured, unchanged; cap =
       `VERIFY_ITERATION_CAP["full"]` = 3).
     - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
       conservatively to full (3-iteration ceiling).
