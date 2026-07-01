@@ -52,7 +52,7 @@ Requirements:
       cap = `VERIFY_ITERATION_CAP["light"]` = 1).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
       **3 iterations** (full verify — existing plan→execute→verify loop + full
-      11-dimension review + e2e when configured, unchanged; cap =
+      12-dimension review + e2e when configured, unchanged; cap =
       `VERIFY_ITERATION_CAP["full"]` = 3).
     - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
       conservatively to full (3-iteration ceiling).
@@ -102,8 +102,9 @@ Requirements:
 > **Note:** the `code-verifier` carries the broadest verification scope: in
 > addition to spec conformance, tests, and coverage, it reviews the whole
 > changeset (business logic, features, quality, technical standards,
-> architecture, system design, security, documentation). There is no
-> separate review skill — see [skills.md](skills.md).
+> architecture, system design, security, documentation, and
+> **Simplicity & scope** — overcomplication and out-of-scope edits are
+> blocking). There is no separate review skill — see [skills.md](skills.md).
 >
 > **Verifier anchoring**: a verifier judges the work against the **gated
 > upstream contracts** (specs, ticket, design), never against the

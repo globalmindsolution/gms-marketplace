@@ -35,7 +35,7 @@ Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
    at low/normal stakes.
 
 4. **Full verify** = the existing up-to-3-iteration plan→execute→verify loop
-   + full 11-dimension review + e2e when configured. Applies to STANDARD/COMPLEX
+   + full 12-dimension review + e2e when configured. Applies to STANDARD/COMPLEX
    tickets and ALL high-stakes tickets. This behavior is **unchanged**.
 
 5. **Two invariants hold in every lane**, unconditionally:
