@@ -233,11 +233,38 @@ git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
    `<partition>/phases/create-project/pr-body.md`.
 
 3. Open the PR with the `ACS` label (create the label first; ignore "already exists"),
-   title per `settings.formats.pr_title` (default `[{ticket_id}] {title}`):
+   title per `settings.formats.pr_title` (default `[{ticket_id}] {title}`) —
+   rendered via the helper, NOT LLM prose composition, capturing its stdout
+   as `<rendered title>`:
 
 ```bash
 gh label create ACS --color 5319E7 --description "Created by the acs pipeline" 2>/dev/null || true
-gh pr create --title "[SHOP-3] Project scaffold" --body-file <partition>/phases/create-project/pr-body.md --label ACS
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
+  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type task \
+  --title "Project scaffold" --summary "<summary>" --external-key "<ticket.external.key or empty>"
+```
+
+   **Pre-open self-check** — before `gh pr create`, self-check the rendered
+   title and filled body with the helper's `check` subcommand (a
+   deterministic CLI call, never a spawned subagent):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
+  --title "<rendered title>" --body-file <partition>/phases/create-project/pr-body.md \
+  --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
+  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
+  --ticket-prefix <settings.ticket_prefix>
+```
+
+   On pass, proceed to `gh pr create` unchanged. On failure, this check
+   blocks/retries: apply a bounded local re-render/re-check (up to 2
+   attempts) rather than opening a non-conforming PR; if still failing after
+   the bounded retries, STOP — do not call `gh pr create` — surface the
+   blocking finding with the failing heading(s)/detail(s) in the result
+   document.
+
+```bash
+gh pr create --title "<rendered title>" --body-file <partition>/phases/create-project/pr-body.md --label ACS
 gh pr view --json number,url,headRefName
 ```
 
