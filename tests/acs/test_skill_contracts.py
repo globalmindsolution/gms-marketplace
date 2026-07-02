@@ -652,6 +652,37 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn("acli jira workitem comment", body,
                       "AC-5 [create-pr]: jira tracker-sync invocation must survive")
 
+    def test_render_title_call_includes_provider(self):
+        """MAR-80 spec 03 AC-1/AC-2/AC-3: the render-title call site passes
+        --provider so build_title's compute_ticket_ref (spec 01) can compute
+        the tracker-native reference. Bounded-window co-occurrence pattern,
+        mirroring test_title_rendered_via_helper_not_prose."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
+            "MAR-80 [create-pr]: render-title must co-occur with --provider within a bounded window")
+
+    def test_pre_open_check_and_render_share_same_pr_title_format(self):
+        """MAR-80 spec 03: step 4's --pr-title-format and step 2's --template
+        must be documented as resolving the SAME committed
+        settings.formats.pr_title value -- no per-provider template
+        branching, no independently-hardcoded literal."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?s)--pr-title-format.{0,600}(SAME|same).{0,200}settings\.formats\.pr_title", body),
+            "MAR-80 [create-pr]: step 4 narrative must state --pr-title-format "
+            "resolves the SAME settings.formats.pr_title value step 2's --template uses")
+
+    def test_r4_closes_linkage_fence_untouched(self):
+        """MAR-80 R4 fence: the Closes #{external_key} body-fill mechanism
+        (MAR-75) is a separate mechanism from title rendering and must not be
+        touched by spec 03's wiring."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIn("Closes #{external_key}", body,
+                      "R4 fence: Closes #{external_key} bullet must survive untouched")
+        self.assertIn("GitHub-native issue link", body,
+                      "R4 fence: GitHub-native issue link mechanism must survive untouched")
+
 
 class TestProductSkillConventionWiring(unittest.TestCase):
     """MAR-72 spec 03: pin the identical deterministic-render + pre-open
@@ -721,6 +752,17 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn("states.pr", body)
         self.assertIn("gh pr checks", body)
         self.assertIn("--watch", body)
+
+    def test_render_title_call_includes_provider(self):
+        """MAR-80 spec 03 AC-1/AC-2/AC-3: each product skill's render-title
+        call site passes --provider so build_title's compute_ticket_ref
+        (spec 01) can compute the tracker-native reference -- the same
+        uniform mechanism as create-pr, no per-skill carve-out."""
+        for skill in self.SKILLS:
+            body = read(self.skill_path(skill))
+            self.assertIsNotNone(
+                re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
+                "%s: render-title must co-occur with --provider within a bounded window" % skill)
 
 
 class TestCodeSkillEscalation(unittest.TestCase):
