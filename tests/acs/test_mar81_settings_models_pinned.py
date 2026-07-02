@@ -5,14 +5,18 @@ version-stable model ids (claude-opus-4-8 / claude-sonnet-5) instead of the
 generic runtime aliases ("opus" / "sonnet"), and that the file remains valid
 against plugins/acs/schemas/settings.schema.json.
 
+Uses the same stdlib-only approach as TestHighStakesPathsSettings /
+TestDueDateSchema in test_acs_plugin.py (no jsonschema import) -- the CI
+"Tests & validation" job does not install jsonschema (only a separate,
+dedicated settings-schema-validation CI step does; see .github/workflows/ci.yml
+around line 170).
+
 Run:  python3 -m unittest tests.acs.test_mar81_settings_models_pinned -v
 """
 
 import json
 import os
 import unittest
-
-from jsonschema import Draft202012Validator
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
@@ -42,9 +46,24 @@ class SettingsModelsPinnedCase(unittest.TestCase):
         self.assertEqual(self.settings["models"]["executor"], "claude-sonnet-5")
 
     def test_settings_schema_valid(self):
-        validator = Draft202012Validator(self.schema)
-        errors = sorted(validator.iter_errors(self.settings), key=str)
-        self.assertEqual(errors, [], msg="\n".join(str(e) for e in errors))
+        """Stdlib-only structural check (no jsonschema dependency): the schema's
+        $defs.roleModel accepts a plain non-empty string for each models.* role
+        (settings.schema.json's roleModel oneOf first branch), and the four
+        committed values satisfy that shape."""
+        role_model_def = self.schema["$defs"]["roleModel"]
+        string_branch = next(
+            branch for branch in role_model_def["oneOf"]
+            if branch.get("type") == "string"
+        )
+        self.assertEqual(string_branch.get("minLength"), 1)
+
+        models = self.settings["models"]
+        self.assertIsInstance(models, dict)
+        for role in ("planner", "executor", "verifier", "coordinator"):
+            self.assertIn(role, self.schema["properties"]["models"]["properties"])
+            value = models[role]
+            self.assertIsInstance(value, str)
+            self.assertGreaterEqual(len(value), 1)
 
     def test_no_alias_literals_remain(self):
         models = self.settings["models"]
