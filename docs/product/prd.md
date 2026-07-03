@@ -64,16 +64,30 @@ supervision level.
 fairness — hiring managers cannot reproduce scoring decisions or demonstrate
 that protected characteristics played no role.
 
+**acs team-scale problem:** acs's durable delivery state (ticket ids, the tickets
+index, locks, per-repo metrics, clarification ledgers) lives in a **per-user local
+workspace**, while the repo id/prefix a workspace resolves to is shared (derived from
+the git remote). A team of engineers working the same repo therefore computes the
+**same** ticket prefix but writes to **separate, unsynced local workspaces**: ticket-id
+allocation collides across engineers (two engineers can independently mint the same
+ticket id), there is no shared visibility into which teammate holds the lock on an
+in-progress ticket, and metrics/observability stay per-person rather than team-wide.
+Beyond delivery state, the settings cascade has no org- or department-level source
+today (only user → project → local) — a team-shared *non-enforcement* default (models,
+tracker, doc paths, formats) or a shared-workspace convention can only be distributed
+by hand-copying the committed project file to every repo, and org-wide policy
+enforcement (G12) does not yet cover this defaults/distribution half.
+
 ## Target users & personas
 
 | Persona | Need |
 |---------|------|
 | **Solo developer** | Ship features end-to-end with one command (`/acs:ship`), trust the gates instead of self-discipline, resume after any interruption. |
 | **Tech lead** | Enforce a delivery process (design gates, TDD, review dimensions, PR size) uniformly across repos and teammates; inspect any ticket's full audit trail. |
-| **Team on a shared repo** | Parallel tickets in worktrees without state collisions; team-shared settings; tracker sync to Jira / GitHub Projects. |
+| **Team on a shared repo** | Parallel tickets in worktrees without state collisions; team-shared settings; tracker sync to Jira / GitHub Projects; shared ticket/id/lock/metrics state across engineers (not just worktrees on one machine), so no cross-engineer id collisions and every teammate can see who holds an in-progress ticket's lock. |
 | **Team with a tracker-only PO** | Deliver requirements that live only in a remote tracker (Jira), with no PRD/roadmap/architecture and no need to author one — the tracker issue governs, and the full gated pipeline (TDD, coverage, review, audit) still applies. |
 | **TABP recruiter / hiring team** | Screen one CV or a batch against a job description in Claude Cowork or Claude Code, receive evidence-based and reproducible Recommend/Hold/Reject recommendations with a downloadable scorecard, and demonstrate fairness to auditors. |
-| **Org / Platform admin (Security/Compliance owner)** | Apply organization-wide enforcement policy — required convention checks, security gates, standards/conventions floors — across *all* of the org's repos from one place; guarantee repos cannot silently loosen or self-exempt from a mandate; see which layer each effective rule came from and who can change it (provenance/audit). |
+| **Org / Platform admin (Security/Compliance owner)** | Apply organization-wide enforcement policy — required convention checks, security gates, standards/conventions floors — across *all* of the org's repos from one place; guarantee repos cannot silently loosen or self-exempt from a mandate; see which layer each effective rule came from and who can change it (provenance/audit); ALSO distribute org-wide shared, overridable defaults (models, tracker, doc paths, formats) and a shared/central workspace convention to all org repos, without hand-duplicating settings per repo. |
 
 ## Goals & success metrics
 
@@ -103,6 +117,8 @@ that protected characteristics played no role.
 | G20 — Marketplace catalog growth & quality bar | The GMS Marketplace grows its plugin catalog through a documented, gated onboarding path while every catalog plugin meets a shared quality bar. **Metric:** a new plugin is added to the catalog through the documented path in **≤ 5 steps** (manifest entry, `marketplace.json` registration, namespace-isolation check, trigger-eval baseline, README), **AND 100%** of catalog plugins (currently 2: acs, tabp) pass the shared quality bar — a trigger eval baseline (mirrors G8's per-skill trigger-eval requirement) plus a verified namespace-isolation check (no cross-plugin prefix/token leakage, mirrors the tabp namespace rule) — measured per release. |
 | G21 — Complete-configuration onboarding (init offers every user-configurable setting) | A fresh `/acs:init` actively offers every user-configurable acs setting — no user-settable capability is reachable only by hand-editing `.acs/settings.json` — and per-role model (at specific version), per-role reasoning effort, and e2e are each explicitly offered. **Measurable success metric:** on a fresh init, **100% of user-configurable `settings.schema.json` keys are reachable via the interactive `/acs:init` flow**, AND **per-role model (specific version, e.g. `claude-opus-4-8` / `claude-sonnet-5`), per-role reasoning effort, and e2e configuration are each explicitly offered** (not silently defaulted) — verified by a **fresh-init walkthrough on the dogfood repo within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Extends **G7** (config-surface discoverability). Traces the **Solo-developer + Tech-lead personas**. |
 | G22 — Complete tracker and PR metadata sync across the pipeline lifecycle | On a tracker-configured repo (provider `github`, a Project configured), **100%** of acs-opened PRs carry an assignee — **always the PR author (the authenticated `gh` user who runs the pipeline)**, so 0 PRs are ever left unassigned — plus the existing `Closes #<issue>` link, **AND 100%** of pipeline tickets show a GitHub Project **Status** matching their true pipeline stage across the full lifecycle (create → in-progress at create-ticket → **in-review at create-pr** → done at merge-pr), with **0 tickets left stale at "in-progress"** after their PR is open or after merge — first validated on **1** real end-to-end `/acs:ship` run within **1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). A field with no resolvable value is skipped as expected data, never a hard block (mirrors the create-ticket null-assignee rule). |
+| G23 — Team-shared delivery state (no cross-engineer collisions) | Multiple engineers delivering on one repo share ticket/id/lock/metrics state so there are **0 duplicate ticket-id allocations across engineers** and **100% of active tickets are visible (with their lock holder) to every teammate** from shared state. **Metric (measurable at plan time):** on a **≥ 2-engineer, 1-repo pilot**, **0 id collisions** across **≥ 20 concurrently-allocated tickets AND** every in-progress ticket's lock holder is resolvable by a second engineer — first validated on **1 real 2-engineer concurrent run within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Traces the **Team-on-a-shared-repo persona**. Reconciles with (does not duplicate) **G12**: G12 governs *policy floors* (what rules apply); G23 governs *shared delivery state* (tickets/ids/locks/metrics) — a distinct, narrower gap G12 does not cover. MECHANISM (shared vs synced workspace, tracker-as-id-authority vs a shared counter service, how locks federate) is deferred to the implementing epic's design phase. |
+| G24 — Org-scale settings & workspace distribution (additive, non-breaking) | An org distributes **shared non-enforcement defaults** (models, tracker, doc paths, formats) and a **shared/central workspace convention** to all its repos through an org-level source above today's user → project → local cascade — resolved most-specific-wins so a repo can still override a *default* (distinct from a G12 *mandate* a repo cannot loosen). **Metric:** on a **≥ 3-repo pilot org**, **100%** of those repos resolve the org-distributed defaults with **0 manual per-repo settings duplication**, and with **no org source configured, resolution is byte-identical to today** (additive/non-breaking, mirrors C-6) — first validated within **1 release** of the capability shipping. **Extends G12** (the org layer) and the settings cascade — G12 stays the *mandate/floor* half (non-overridable), G24 is the *defaults/distribution* half (overridable); this amendment does not restate G12's enforcement floor. Traces the **Org/Platform-admin + Team-on-a-shared-repo personas**. MECHANISM (org source format, distribution transport) is deferred to the implementing epic's design phase. |
 
 ### tabp feature — success metrics
 
@@ -240,6 +256,16 @@ feature sections here.
 
 **Could have**
 - Scheduled background tracker sync; cross-machine handoff (shared workspace) — both sequenced into v0.7.0 (see roadmap M6); additional description templates.
+- **Team-shared delivery state (shared/central workspace + collision-free ids)** — a
+  configurable **shared workspace** (or a shared allocation authority / tracker-issued
+  identity) so a team on one repo shares tickets/ids/locks/index/metrics with **0
+  cross-engineer id collisions** and cross-engineer lock visibility. **Builds on** the
+  "cross-machine handoff (shared workspace)" Could-have above (roadmap M6) — this
+  generalizes it from *handoff* (one engineer, different machines) to *concurrent team
+  delivery* (multiple engineers, same repo, at once). Traces **G23** + the
+  Team-on-a-shared-repo persona. **MECHANISM** (shared-mount vs synced workspace vs
+  tracker-as-id-authority vs a shared counter service; how locks federate) is **deferred
+  to the implementing epic's design phase.**
 - **Discoverability — skill index / next-step advisor** — with 16 acs skills + 2
   tabp skills there is no in-plugin "what can I do / where am I in the pipeline /
   what's the next step" surface today; `install-hooks` and `update` are
@@ -280,6 +306,14 @@ feature sections here.
   *(Proposed — the MECHANISM (cascade extension vs GitHub org rulesets / org-required
   workflows vs a versioned policy pack the repo cannot edit; the non-overridable mandate
   encoding) is deferred to a future design epic / ADR, per Constraints.)*
+- **Org-scale settings & workspace distribution** — extends the **Org-level enforcement
+  policy** Could-have above with the *defaults* half: an org-controlled source
+  distributes shared non-enforcement defaults + a workspace convention across all org
+  repos, resolved most-specific-wins (a repo may override a default), additive and
+  non-breaking. Traces **G24** (extends **G12**: G12 is the non-overridable
+  mandate/floor half, this feature is the overridable defaults/distribution half — no
+  restatement of G12's enforcement floor). **MECHANISM** deferred to the org epic's
+  design phase / an ADR (same deferral as C-6).
 
 - **Multi-runtime support — OpenAI Codex CLI as an acs pipeline runtime** — the acs
   gated pipeline (ordering/gating, TDD, coverage hard-fail, the 12-dimension review
@@ -493,6 +527,7 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
 - **acs feature — release versioning is additive to the existing roadmap/release model; the cut mechanism is deferred (C-8).** Modeling release versions as first-class planning units is **additive and non-breaking**: the roadmap already labels milestones with versions (e.g. "M3 — v0.4.0") and that labeling stays valid; this amendment adds an explicit version → milestone/epic mapping and a capability to cut a release — it does not restructure the existing milestone tracks. The **release-cut mechanism** (new skill name/shape, version-object schema, changelog-aggregation source, tag/GitHub-release implementation, and its coupling to the existing `marketplace.json`/`plugin.json` version-bump + Release workflow described in the README) is **deferred to the implementing epic's design phase / an ADR**, mirroring the Notion/org-policy deferrals above. Auth stays via `gh` (no secrets in settings — consistent with the Safety NFR).
 - **acs feature — guided architecture selection is select/refine over an acs-shipped catalog; it never overrides the user's decision, and the catalog source-of-truth is deferred (C-9).** The catalog **augments** `/acs:create-architecture` — it offers a pre-filtered/ranked shortlist across the four categories, and the **user still owns the final selection** (decision-support framing, consistent with the human-owns-requirement-decisions Vision). It **adds no new doc set** and does not change the architecture doc-set outputs. The **catalog source-of-truth and the selection/ranking UX are MECHANISM — deferred to the implementing epic's design phase.**
 - **acs feature — tracker/PR metadata sync is additive over the existing sync, and the value source-of-truth is deferred (C-10).** Setting PR assignee/reviewers and the intermediate ticket-Status transition is **additive and non-breaking**: create-ticket already fills Type/Status/Labels/Assignee/Milestone and merge-pr already sets Status→Done; this amendment adds the missing PR-side metadata and the in-review status transition, and NEVER reduces or reorders existing sync behavior. The PR **assignee is decided** — always the PR author (the authenticated `gh` user who runs the pipeline); the **value source-of-truth for the other fields** (which reviewers; which Project Status option maps to "in review"; the priority/story-points/parent field-to-column mapping) is **MECHANISM deferred to the implementing epic's design/spec phase**. A field with no resolvable value is skipped as expected data (mirrors the create-ticket null-assignee rule), never a hard block. Auth stays via `gh`/`acli` — **no secrets in settings** (Safety NFR).
+- **acs feature — team-shared state is additive, honors the Safety + Auditability NFRs, and its mechanism is deferred (C-11).** A shared workspace / shared allocation authority for team delivery state (G23) **must not** weaken the "stale locks reported, never stolen" rule or the append-only/never-deleted audit invariant (Product-level NFRs above); with **no shared source configured, behavior is identical to today's per-user local workspace** (additive/non-breaking, mirrors C-6/C-8/C-10). The org-distributed defaults source (G24) is a *default* layer — overridable per repo — distinct from a **G12** *mandate*, which a repo cannot loosen. **MECHANISM** (shared-mount vs synced workspace vs tracker-as-id-authority vs a shared counter service; the org source's distribution transport) is **deferred to the implementing epic's design phase / an ADR**, mirroring the C-6/C-8/C-9/C-10 precedent.
 
 ## Out of scope
 
@@ -596,3 +631,8 @@ above). A general non-GitHub policy distribution system is out of scope.
 
 Automatic downgrade of a ticket's complexity/supervision tier without explicit user
 confirmation — tiers are always user-confirmed; the system never silently reduces rigor.
+
+A hosted / multi-tenant acs server operated as a running service for shared team
+delivery state is out of scope — team-shared state (G23) and org-distributed defaults
+(G24) stay config + shared-filesystem/tracker conventions, not a new backend service
+the org must run and operate.
