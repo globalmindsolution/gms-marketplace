@@ -233,7 +233,7 @@ Three small, independently shippable fast-follows sequenced after the v0.3.4 ini
 
 ### M3 — v0.4.0
 
-Epics: full-SDLC verify & operate (G8); principles & standards + brownfield standardize-project (G10); enforceable e2e integrity (G13); org-level enforcement policy (G12); onboarding polish + discoverability (G7-adjacent); documentation site; configurable doc-set storage; semver stability promise; per-role model + effort configuration polish (G7); first-class release versions + one-command release cut (G17); guided architecture selection (G18); failure-mode/pipeline-health observability (G19); behavioral eval coverage for dashboard skills + orphaned-agent cleanup (G8); marketplace catalog growth & quality bar (G20). *(Init-prompt configuration-completeness for G21 ships in v0.3.4 — see M2.5; M3 retains up-front model-id/effort validation, docs, broader guided flows, and the e2e CI merge gate.)*
+Epics: full-SDLC verify & operate (G8); principles & standards + brownfield standardize-project (G10); enforceable e2e integrity (G13); org-level enforcement policy (G12); onboarding polish + discoverability (G7-adjacent); documentation site; configurable doc-set storage; semver stability promise; per-role model + effort configuration polish (G7); first-class release versions + one-command release cut (G17); guided architecture selection (G18); failure-mode/pipeline-health observability (G19); behavioral eval coverage for dashboard skills + orphaned-agent cleanup (G8); marketplace catalog growth & quality bar (G20); team-shared delivery state (G23); org-scale settings & workspace distribution (G24). *(Init-prompt configuration-completeness for G21 ships in v0.3.4 — see M2.5; M3 retains up-front model-id/effort validation, docs, broader guided flows, and the e2e CI merge gate.)*
 
 - **Epic: onboarding polish** — `/acs:init` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
@@ -304,6 +304,28 @@ Epics: full-SDLC verify & operate (G8); principles & standards + brownfield stan
   Could-have feature. The MECHANISM is settled in this epic's **design phase / an ADR**,
   consistent with how the tabp-upgrade and standards epics defer mechanism. Traces **G12**
   (+ the Org/Platform-admin persona).
+- **Epic: team-shared delivery state (G23)** — a configurable shared workspace (or a
+  shared allocation authority / tracker-issued identity) so a team on one repo shares
+  tickets/ids/locks/index/metrics with **0 cross-engineer id collisions** and
+  cross-engineer lock visibility. Builds on Epic E2 (tracker-sync depth) and
+  generalizes the M6 "cross-machine handoff (shared workspace)" Could-have from
+  *handoff* (one engineer, different machines) to *concurrent team delivery* (multiple
+  engineers, same repo, at once). Maps to PRD **G23** and the acs Could-have
+  "Team-shared delivery state" feature. **Traces G23** (+ the Team-on-a-shared-repo
+  persona). The MECHANISM (shared-mount vs synced workspace vs tracker-as-id-authority
+  vs a shared counter service; how locks federate) is settled in this epic's design
+  phase / an ADR, consistent with how this milestone's other epics defer mechanism.
+- **Epic: org-scale settings & workspace distribution (G24)** — adds the *defaults*
+  half to the org-policy layer: an org-controlled source distributes shared
+  non-enforcement defaults (models, tracker, doc paths, formats) + a workspace
+  convention across all org repos, resolved most-specific-wins (a repo may override a
+  default), additive and non-breaking (no org source ⇒ today's behavior). Sequenced
+  alongside the org-level enforcement policy epic above — G12 stays the
+  non-overridable mandate/floor half, G24 is the overridable defaults/distribution
+  half. Maps to PRD **G24** and the acs Could-have "Org-scale settings & workspace
+  distribution" feature. **Traces G24 (extends G12; + the Org/Platform-admin and
+  Team-on-a-shared-repo personas).** The MECHANISM (org source format, distribution
+  transport) is settled in this epic's design phase / an ADR.
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (the supported-effort enum currently lives only in the advisory `settings.schema.json`, unenforced by the runtime gate, with no model-id validation at all). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: first-class release versions + one-command release cut** — acs models release **versions as first-class planning units** distinct from milestones, with an explicit version → milestone/epic mapping, AND gains a capability to **cut a release**: aggregate the merged tickets belonging to a version into changelog/release notes, bump the version, tag the commit, and create the GitHub release — filling today's manual "release: cut vX.Y.Z" gap. Likely a new producer/apply-work skill (e.g. `/acs:release`) — name/shape is MECHANISM. Reuses `gh` and the existing `marketplace.json`/`plugin.json` version-bump + Release-workflow precedent (README "Releasing & updating"). Maps to PRD **G17** and the acs Should-have "First-class release versions + one-command release cut" feature. **Traces G17 (+ the Tech-lead persona).** The MECHANISM (skill name/shape, version-object schema, changelog-aggregation source, tag/GitHub-release implementation) is settled in this epic's design phase / an ADR, consistent with how this milestone's other epics defer mechanism.
