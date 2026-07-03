@@ -58,7 +58,12 @@ supervised changes cost disproportionate wall-clock time and token/cost. The rig
 that is the product is right for unattended and complex work, but is double-paid on
 interactive simple work where a human is already the reviewer. Rigor is scaled today
 by design-significance (the `needs_design` flag) but never by implementation size or
-supervision level.
+supervision level. A residual problem remains even once a lane is assigned: the lane
+fixed once at create-ticket can be **wrong for what the change turns out to be** — a
+fast-lane ticket can, mid-implementation, touch a high-stakes surface (auth,
+migrations, money paths) that was not visible at ticket creation, so the pipeline
+needs to **re-decide the lane in flight** rather than under-verify on a stale
+create-time assumption.
 
 **tabp feature problem:** Manual CV-vs-JD screening is slow, inconsistent, and hard to audit for
 fairness — hiring managers cannot reproduce scoring decisions or demonstrate
@@ -119,6 +124,7 @@ enforcement (G12) does not yet cover this defaults/distribution half.
 | G22 — Complete tracker and PR metadata sync across the pipeline lifecycle | On a tracker-configured repo (provider `github`, a Project configured), **100%** of acs-opened PRs carry an assignee — **always the PR author (the authenticated `gh` user who runs the pipeline)**, so 0 PRs are ever left unassigned — plus the existing `Closes #<issue>` link, **AND 100%** of pipeline tickets show a GitHub Project **Status** matching their true pipeline stage across the full lifecycle (create → in-progress at create-ticket → **in-review at create-pr** → done at merge-pr), with **0 tickets left stale at "in-progress"** after their PR is open or after merge — first validated on **1** real end-to-end `/acs:ship` run within **1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). A field with no resolvable value is skipped as expected data, never a hard block (mirrors the create-ticket null-assignee rule). |
 | G23 — Team-shared delivery state (no cross-engineer collisions) | Multiple engineers delivering on one repo share ticket/id/lock/metrics state so there are **0 duplicate ticket-id allocations across engineers** and **100% of active tickets are visible (with their lock holder) to every teammate** from shared state. **Metric (measurable at plan time):** on a **≥ 2-engineer, 1-repo pilot**, **0 id collisions** across **≥ 20 concurrently-allocated tickets AND** every in-progress ticket's lock holder is resolvable by a second engineer — first validated on **1 real 2-engineer concurrent run within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Traces the **Team-on-a-shared-repo persona**. Reconciles with (does not duplicate) **G12**: G12 governs *policy floors* (what rules apply); G23 governs *shared delivery state* (tickets/ids/locks/metrics) — a distinct, narrower gap G12 does not cover. MECHANISM (shared vs synced workspace, tracker-as-id-authority vs a shared counter service, how locks federate) is deferred to the implementing epic's design phase. |
 | G24 — Org-scale settings & workspace distribution (additive, non-breaking) | An org distributes **shared non-enforcement defaults** (models, tracker, doc paths, formats) and a **shared/central workspace convention** to all its repos through an org-level source above today's user → project → local cascade — resolved most-specific-wins so a repo can still override a *default* (distinct from a G12 *mandate* a repo cannot loosen). **Metric:** on a **≥ 3-repo pilot org**, **100%** of those repos resolve the org-distributed defaults with **0 manual per-repo settings duplication**, and with **no org source configured, resolution is byte-identical to today** (additive/non-breaking, mirrors C-6) — first validated within **1 release** of the capability shipping. **Extends G12** (the org layer) and the settings cascade — G12 stays the *mandate/floor* half (non-overridable), G24 is the *defaults/distribution* half (overridable); this amendment does not restate G12's enforcement floor. Traces the **Org/Platform-admin + Team-on-a-shared-repo personas**. MECHANISM (org source format, distribution transport) is deferred to the implementing epic's design phase. |
+| G25 — Dynamic (mid-flight) lane correctness | A ticket whose real implementation turns out to touch a higher-stakes / larger surface than its create-time lane assumed is **automatically escalated to the correct lane before the verify gate runs**, so the change is verified at the rigor its actual content demands — not the rigor guessed at create-ticket. **Measurable success metric:** on the dogfood repo, within **1 release** of the capability shipping, **100% of tickets that touch a high-stakes surface after starting in a TRIVIAL/SMALL lane are escalated to ≥ STANDARD (full verify) before results are presented** (0 fast-lane merges of a change that touched a high-stakes surface), **AND 0 lane escalations are silently reversed** (escalation is upward-only and sticky — automatic; a **user-confirmed** mid-flight de-escalation is supported but is never a silent reversal, since it requires explicit user confirmation) — first validated by **≥ 1 real escalation event** observed on the dogfood repo (mirrors how G1/G9/G11 are first validated by an observed live run). **Extends G16** (rigor preserved / no regression) with the *dynamic* dimension — G16 keeps the static per-lane gate invariant; G25 adds that the lane itself self-corrects in flight. Traces the **Solo-developer + Tech-lead personas**. |
 
 ### tabp feature — success metrics
 
@@ -216,10 +222,16 @@ feature sections here.
   verify) regardless of size — a defense-in-depth floor a small lane value can
   never bypass. **Mid-flight escalation** raises a ticket to a higher lane (and
   re-introduces any skipped stage) on the first higher-stakes signal, upward-only
-  and automatic; de-escalation is never automatic. The lane is set once,
+  and automatic; de-escalation is never automatic. The escalation trigger is a
+  **defined in-flight higher-stakes / larger-scope signal observed during
+  implementation** — escalation MUST be driven by an observable in-flight signal,
+  not left to model goodwill — with the exact signal set and detection point
+  **deferred to the implementing epic's design phase**. A **user-confirmed**
+  mid-flight de-escalation is also supported — the lane can be lowered only with
+  explicit user confirmation, never automatically. The lane is set once,
   user-confirmed, at create-ticket alongside `needs_design`; default is
   full/standard rigor; lighter lanes are opt-in and rigor is never silently
-  dropped. Traces **G14, G15, G16**.
+  dropped. Traces **G14, G15, G16, G25**.
 
 **Should have** *(shipped in v0.1, maturing)*
 - Two-way tracker sync (GitHub Projects / Jira via `gh` / `acli`), remote import.
@@ -483,7 +495,13 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
   Gates fail closed — the gate is never the thing dropped; the lighter lane only
   reduces *iteration ceiling and decomposition stages*. (Composes with "Graceful
   degradation of the conformance chain" above: lane-driven depth scales
-  *process volume*, the chain's gates still fail closed.)
+  *process volume*, the chain's gates still fail closed.) A mid-flight escalation
+  **re-selects `verify_depth` upward** (and re-introduces any skipped
+  decomposition stage) **before the verifier runs**, so a ticket that escalates
+  in flight is verified at the escalated lane's depth — the escalation is a lane
+  change, never a gate bypass, and never lowers depth; if a user-confirmed
+  mid-flight de-escalation occurs, `verify_depth` follows the confirmed lane —
+  still never a silent reduction.
 - **Deterministic apply-tier executors**: apply-tier skills (create-ticket, create-pr,
   merge-pr) have deterministic executors with judgment front-loaded into
   clarification/gates; they do **not** need an iterating plan-execute-verify reflection
@@ -528,6 +546,7 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
 - **acs feature — guided architecture selection is select/refine over an acs-shipped catalog; it never overrides the user's decision, and the catalog source-of-truth is deferred (C-9).** The catalog **augments** `/acs:create-architecture` — it offers a pre-filtered/ranked shortlist across the four categories, and the **user still owns the final selection** (decision-support framing, consistent with the human-owns-requirement-decisions Vision). It **adds no new doc set** and does not change the architecture doc-set outputs. The **catalog source-of-truth and the selection/ranking UX are MECHANISM — deferred to the implementing epic's design phase.**
 - **acs feature — tracker/PR metadata sync is additive over the existing sync, and the value source-of-truth is deferred (C-10).** Setting PR assignee/reviewers and the intermediate ticket-Status transition is **additive and non-breaking**: create-ticket already fills Type/Status/Labels/Assignee/Milestone and merge-pr already sets Status→Done; this amendment adds the missing PR-side metadata and the in-review status transition, and NEVER reduces or reorders existing sync behavior. The PR **assignee is decided** — always the PR author (the authenticated `gh` user who runs the pipeline); the **value source-of-truth for the other fields** (which reviewers; which Project Status option maps to "in review"; the priority/story-points/parent field-to-column mapping) is **MECHANISM deferred to the implementing epic's design/spec phase**. A field with no resolvable value is skipped as expected data (mirrors the create-ticket null-assignee rule), never a hard block. Auth stays via `gh`/`acli` — **no secrets in settings** (Safety NFR).
 - **acs feature — team-shared state is additive, honors the Safety + Auditability NFRs, and its mechanism is deferred (C-11).** A shared workspace / shared allocation authority for team delivery state (G23) **must not** weaken the "stale locks reported, never stolen" rule or the append-only/never-deleted audit invariant (Product-level NFRs above); with **no shared source configured, behavior is identical to today's per-user local workspace** (additive/non-breaking, mirrors C-6/C-8/C-10). The org-distributed defaults source (G24) is a *default* layer — overridable per repo — distinct from a **G12** *mandate*, which a repo cannot loosen. **MECHANISM** (shared-mount vs synced workspace vs tracker-as-id-authority vs a shared counter service; the org source's distribution transport) is **deferred to the implementing epic's design phase / an ADR**, mirroring the C-6/C-8/C-9/C-10 precedent.
+- **acs feature — dynamic lane re-decision is additive, upward-only-automatic, and its trigger/mechanism is deferred (C-12).** Mid-flight lane re-decision **extends** the C-7 confirmed-flag model without replacing it: the lane is still *set once, user-confirmed, at create-ticket* (C-7, above); dynamic re-decision only **raises** it in flight on an observed higher-stakes/larger signal — **automatic, upward-only, and sticky**. Automatic **downgrade** stays out of scope (see Out of scope); a lane is never silently reduced. A **user-confirmed mid-flight de-escalation** is permitted **only with explicit user confirmation** — never automatic — which is consistent with, and does not contradict, the Out-of-scope entry (which bars only *automatic* downgrade). With **no higher-stakes signal observed, behavior is identical to today's static lane** (additive/non-breaking, mirrors C-6/C-7/C-8/C-11). The **MECHANISM** — the exact in-flight signal set (which surfaces/paths count as higher-stakes), the detection point in the pipeline, how re-decision re-enters a skipped stage, and how a user-confirmed de-escalation is requested/applied — is **deferred to the implementing epic's design phase / an ADR**, consistent with the C-6…C-11 deferral precedent.
 
 ## Out of scope
 
@@ -631,6 +650,8 @@ above). A general non-GitHub policy distribution system is out of scope.
 
 Automatic downgrade of a ticket's complexity/supervision tier without explicit user
 confirmation — tiers are always user-confirmed; the system never silently reduces rigor.
+A **user-confirmed** mid-flight de-escalation (G25/C-12) is in scope; only
+**automatic** downgrade remains out of scope.
 
 A hosted / multi-tenant acs server operated as a running service for shared team
 delivery state is out of scope — team-shared state (G23) and org-distributed defaults
