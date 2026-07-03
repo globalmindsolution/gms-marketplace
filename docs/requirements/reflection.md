@@ -112,6 +112,18 @@ Requirements:
 > work it shaped. The plan's contribution to verification is its **verifier
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
+>
+> **Spec-time vs. code-time simplicity (MAR-88)**: `/create-spec`'s planner
+> evaluates each decomposition for a **materially** simpler alternative
+> meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
+> finding to the user/spec owner for a **decision** — a spec-time check on
+> the chosen **approach**, before any code exists. `code-verifier` dimension
+> 12 ("Simplicity & scope") is a code-time, **blocking** check on the
+> **code** the executor wrote against the already-accepted spec. The two
+> never double-count: they inspect different artifacts (approach vs. diff) at
+> different times, so a decomposition accepted at spec time is never
+> re-litigated by dimension 12 — it only judges conformance and internal
+> simplicity of the code against that accepted spec.
 
 ```mermaid
 flowchart TD

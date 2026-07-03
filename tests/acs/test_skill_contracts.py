@@ -2004,6 +2004,177 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
             "of the '(MAR-2)' entry (MAR-2 AC-7)")
 
 
+class TestSpecSimplicityGate(unittest.TestCase):
+    """Pin the spec-time simplicity gate added to /acs:create-spec (MAR-88):
+    the create-spec-planner evaluates each decomposition for a materially-
+    simpler alternative meeting the same acceptance criteria and surfaces
+    (never blocks) a finding to the user/spec owner for a decision. Mirrors
+    the TestSimplicityScopeRestraintLayer (MAR-2) pattern, deconflicted from
+    code-verifier dimension 12 (spec-time vs code-time simplicity, AC-7)."""
+
+    def agent_path(self, skill, role):
+        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def _planner(self):
+        return read(self.agent_path("create-spec", "planner"))
+
+    def _skill(self):
+        return read(self.skill_path("create-spec"))
+
+    def _verifier(self):
+        return read(self.agent_path("create-spec", "verifier"))
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def _reflection_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md"))
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    # --- AC-1 / AC-3: planner gate wording + spec-time placement ---
+
+    def test_planner_gate_wording_present(self):
+        """AC-1/AC-3: create-spec-planner.md must co-locate 'materially'
+        (simpler) and 'same acceptance criteria' within a bounded window —
+        passing only if the clause lives in the planner charter (spec-time
+        placement, before any spec file is written)."""
+        body = self._planner()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)materially.{0,400}same acceptance criteria|"
+                r"same acceptance criteria.{0,400}materially",
+                body, re.DOTALL),
+            "create-spec-planner.md must co-locate 'materially' and 'same "
+            "acceptance criteria' within 400 chars (MAR-88 AC-1/AC-3)")
+
+    # --- AC-3: SKILL.md documents the new question type ---
+
+    def test_skill_documents_surface_question(self):
+        """AC-3: create-spec SKILL.md Plan-phase section must co-locate
+        'materially' and 'surface' (the planner may surface this question
+        type through the existing User-interaction path)."""
+        body = self._skill()
+        self.assertIsNotNone(
+            re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
+                      body, re.DOTALL),
+            "create-spec SKILL.md must co-locate 'materially' and 'surface' "
+            "within 400 chars (MAR-88 AC-3)")
+
+    # --- AC-4: requirements SoT coverage ---
+
+    def test_skills_req_carries_gate(self):
+        """AC-4: docs/requirements/skills.md's /create-spec block must
+        co-locate 'materially' and 'surface'."""
+        body = self._skills_req()
+        self.assertIsNotNone(
+            re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
+                      body, re.DOTALL),
+            "docs/requirements/skills.md must co-locate 'materially' and "
+            "'surface' within 400 chars (MAR-88 AC-4)")
+
+    def test_reflection_req_carries_deconfliction(self):
+        """AC-4/AC-7: docs/requirements/reflection.md must co-locate
+        'surface' and 'decision' (the spec-time-vs-code-time deconfliction
+        clause)."""
+        body = self._reflection_req()
+        self.assertIsNotNone(
+            re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
+                      body, re.DOTALL),
+            "docs/requirements/reflection.md must co-locate 'surface' and "
+            "'decision' within 400 chars (MAR-88 AC-4/AC-7)")
+
+    # --- AC-5: CHANGELOG entry ---
+
+    def test_changelog_unreleased_mar88_entry(self):
+        """AC-5: '(MAR-88)' must appear within 500 chars of '[Unreleased]' in
+        CHANGELOG.md."""
+        body = self._changelog()
+        self.assertIsNotNone(
+            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-88\)|\(MAR-88\).{0,500}\[Unreleased\]",
+                      body, re.DOTALL),
+            "CHANGELOG.md must contain '(MAR-88)' within 500 chars of "
+            "'[Unreleased]' (MAR-88 AC-5)")
+
+    # --- AC-2: SURFACE not BLOCK, scoped to the gate's own text window ---
+
+    def test_gate_surface_decision_present(self):
+        """AC-2: 'surface' and 'decision' framing must be present in the
+        gate window in BOTH create-spec-planner.md and SKILL.md."""
+        planner = self._planner()
+        skill = self._skill()
+        self.assertIsNotNone(
+            re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
+                      planner, re.DOTALL),
+            "create-spec-planner.md must co-locate 'surface' and 'decision' "
+            "within 400 chars (MAR-88 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
+                      skill, re.DOTALL),
+            "create-spec SKILL.md must co-locate 'surface' and 'decision' "
+            "within 400 chars (MAR-88 AC-2)")
+
+    # BLOCK-as-disposition framing: bare 'block'/'loopback'/'auto-reject', but
+    # NOT the correct negated SURFACE-not-BLOCK phrasing ("never/not/nor
+    # blocks") the gate's own description is expected to use to state its
+    # disposition explicitly.
+    _BLOCK_DISPOSITION_RE = re.compile(
+        r"(?i)(?<!never )(?<!never-)(?<!not )(?<!nor )"
+        r"\bblock(s|ed|ing)?\b|\bloopback\b|\bauto-reject\b")
+
+    def test_gate_no_block_wording_in_window(self):
+        """AC-2: 'block'/'loopback'/'auto-reject' framing (as the gate's own
+        disposition, not the negated 'never blocks' SURFACE statement) must
+        be ABSENT from the gate's own co-location window in
+        create-spec-planner.md and in SKILL.md's Plan-phase section —
+        window-scoped, NEVER whole-file, since both files legitimately use
+        'block' elsewhere for unrelated concerns (verifier findings,
+        escalation, handoff)."""
+        planner = self._planner()
+        match = re.search(
+            r"(?i)materially.{0,400}same acceptance criteria|"
+            r"same acceptance criteria.{0,400}materially",
+            planner, re.DOTALL)
+        self.assertIsNotNone(match, "planner gate window must exist to scope this check")
+        window = planner[max(0, match.start() - 200):match.end() + 200]
+        self.assertNotRegex(
+            window, self._BLOCK_DISPOSITION_RE,
+            "create-spec-planner.md gate window must not use 'block'/"
+            "'loopback'/'auto-reject' as its own disposition (MAR-88 AC-2)")
+
+        skill = self._skill()
+        plan_phase = skill[skill.index("### Plan (per iteration)"):skill.index("### Execute (per iteration)")]
+        skill_match = re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
+                                 plan_phase, re.DOTALL)
+        self.assertIsNotNone(skill_match, "SKILL.md Plan-phase gate window must exist to scope this check")
+        skill_window = plan_phase[max(0, skill_match.start() - 200):skill_match.end() + 200]
+        self.assertNotRegex(
+            skill_window, self._BLOCK_DISPOSITION_RE,
+            "create-spec SKILL.md Plan-phase gate window must not use 'block'/"
+            "'loopback'/'auto-reject' as its own disposition (MAR-88 AC-2)")
+
+    # --- AC-7: verifier dimension count unchanged (regression guard) ---
+
+    def test_create_spec_verifier_still_four_dimensions(self):
+        """AC-7/C-4: create-spec-verifier.md must still declare exactly four
+        numbered dimensions, and no fifth/'spec-simplicity' dimension may be
+        added — regression guard, green from the start."""
+        body = self._verifier()
+        dimensions = re.findall(r"^[0-9]+\.\s+\*\*", body, re.M)
+        self.assertEqual(
+            len(dimensions), 4,
+            "create-spec-verifier.md must declare exactly 4 numbered "
+            "dimensions (MAR-88 AC-7/C-4); found %d" % len(dimensions))
+        self.assertNotIn(
+            "spec-simplicity", body.lower(),
+            "create-spec-verifier.md must not add a 'spec-simplicity' "
+            "dimension (MAR-88 C-4 — planner-only scope)")
+
+
 class TestReconcileTicketIssueLinkage(unittest.TestCase):
     """MAR-75 spec 02: pin the reconciliation prose contract (acs ticket id <->
     GitHub issue/PR) that spec 01 introduces across create-ticket, create-pr,

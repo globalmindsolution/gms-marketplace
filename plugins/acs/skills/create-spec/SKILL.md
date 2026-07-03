@@ -112,6 +112,16 @@ files/docs. The planner must return (in its `<result>` outputs/body):
   criterion of the ticket MUST be assigned to at least one spec.
 - On iterations 2-3: the plan must address every verifier finding from the
   previous iteration explicitly.
+- **Spec-simplicity gate (MAR-88):** the planner may return, inside this same
+  `<questions>` list, a question noting that a **materially** simpler
+  decomposition would meet the **same acceptance criteria**. This is not a
+  new mechanism: it flows through the *existing* User interaction step below
+  — grouped with any other open questions, answered by the user, and
+  recorded as its own `clarify.py` ledger entry — and it only ever
+  **surfaces** the finding for the user's **decision**, never blocks the run
+  or auto-loops back to re-plan. The chosen direction (current approach or
+  the simpler alternative) is passed into the executor's `<context>`, exactly
+  like any other recorded clarification.
 
 `<constraints>` to include: design conformance is mandatory when
 `design.required` (cite `<design.dir>/design.md`); specs must not overlap or

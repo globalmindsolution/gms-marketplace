@@ -502,6 +502,16 @@ Purpose: turn a ticket into implementation specs.
   exceeds a reviewable diff), stop, record the split seams, and route to
   `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
   one large PR, recorded as a clarification.
+- **Spec-simplicity gate (MAR-88):** the `create-spec-planner` MUST evaluate
+  each candidate decomposition for a **materially** simpler alternative that
+  meets the **same acceptance criteria** with materially less
+  code/complexity, before the spec gate closes. A found alternative is
+  **surfaced** (never blocked or auto-looped back) to the user/spec owner for
+  a **decision**, through the coordinator's existing User-interaction path —
+  the threshold is "materially" simpler, never a naming or style preference.
+  Deconflicted from `code-verifier` dimension 12 (spec-time vs code-time
+  simplicity; see [reflection.md](reflection.md)) — planner-charter-only, no
+  `create-spec-verifier` dimension or meta-check is added.
 - The **API/data changes** section SHOULD call out the documentation impact
   (which consumer-repo docs the change touches), so `/code` knows what to
   update.
