@@ -15,6 +15,23 @@ the notes.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-03
+
+### Added
+
+- **`/acs:init` offers version-pinned per-role models, per-role effort, and an
+  explicit e2e choice (MAR-89).** A fresh `/acs:init` now actively offers, as
+  first-class setup prompts: version-pinned model ids (`claude-opus-4-8` /
+  `claude-sonnet-5`) for all four roles (planner/executor/verifier/coordinator)
+  instead of only the coarse `opus`/`sonnet` tiers; per-role reasoning effort
+  (`low|medium|high|xhigh|max|inherit`) as an explicit choice, including the
+  coordinator-scope caveat; and the e2e suite as an explicit, candidate-detected
+  offer rather than a silently-defaultable Step 4 key — so no user-settable
+  configuration is reachable only by hand-editing `.acs/settings.json` (goal
+  G21). Prose-only change to `init/SKILL.md` guarded by a new prose-contract
+  test; no settings-schema, model-id/effort-validation, or broader guided-flow
+  changes (those remain v0.4.0).
+
 ### Changed
 
 - **`/acs:code` enforces Simplicity First + Surgical Changes restraint layer
@@ -49,6 +66,17 @@ the notes.
   (`Merged {ticket_id} via PR #{pr.number} — {pr.url}`). `local`/unsynced
   tickets are unaffected; no enforced `pr_title`/`branch_name`/`commit_message`
   format string and no placeholder vocabulary changed.
+- **`/acs:create-pr` renders the PR title from the tracker's native reference
+  when the ticket is synced (MAR-80).** A new `{ticket_ref}` token for
+  `formats.pr_title` renders `[#<issue-number>]` for a GitHub-synced ticket
+  (`[<JIRA-KEY>]` for Jira) and falls back to the local acs ticket id
+  (`[<ticket_id>]`) when unsynced — via a new `compute_ticket_ref` helper and a
+  `--provider` flag threaded through the render-title call sites in the four
+  tracker-aware skills; `branch_name` and `commit_message` stay id-based. The CI
+  convention checker (`check-conventions.py`) and `acs_lib.validate_formats`
+  both learn the `{ticket_ref}` token so the rendered title still passes the
+  enforced conventions, and the default `pr_title` becomes
+  `[{ticket_ref}] {title}`. Decisions recorded as ADRs.
 
 ### Fixed
 
@@ -578,7 +606,8 @@ Initial release.
   release from the matching changelog section when the plugin manifest
   version changes on `main`.
 
-[Unreleased]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.3.3...v0.3.4
 [0.3.1]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/globalmindsolution/gms-marketplace/compare/v0.1.6...v0.2.0
