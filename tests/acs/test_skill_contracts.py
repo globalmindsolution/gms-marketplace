@@ -1980,29 +1980,28 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
             self.assertIn("Surgical Changes", body,
                           "code-%s.md must contain 'Surgical Changes' (MAR-2 AC-6)" % role)
 
-    # --- AC-7: CHANGELOG [Unreleased] entry ---
+    # --- AC-7: MAR-2 has a CHANGELOG entry (in [Unreleased] before release,
+    #     or a released [X.Y.Z] section once cut — anchored on the entry itself
+    #     so a release that moves it out of [Unreleased] stays green) ---
 
     def test_changelog_unreleased_mar2_entry(self):
-        """AC-7: '(MAR-2)' must appear within 500 chars of '[Unreleased]' in
-        CHANGELOG.md."""
+        """AC-7: a '(MAR-2)' entry must be documented in CHANGELOG.md."""
         body = self._changelog()
-        self.assertIsNotNone(
-            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-2\)|\(MAR-2\).{0,500}\[Unreleased\]",
-                      body, re.DOTALL),
-            "CHANGELOG.md must contain '(MAR-2)' within 500 chars of '[Unreleased]' "
-            "(MAR-2 AC-7)")
+        self.assertIn(
+            "(MAR-2)", body,
+            "CHANGELOG.md must contain a '(MAR-2)' entry (MAR-2 AC-7)")
 
     def test_changelog_unreleased_restraint_layer_token(self):
-        """AC-7: 'restraint' or 'Simplicity' must appear within 500 chars of
-        '[Unreleased]' in CHANGELOG.md."""
+        """AC-7: 'restraint' or 'Simplicity' must appear within 500 chars of the
+        '(MAR-2)' CHANGELOG entry."""
         body = self._changelog()
         self.assertIsNotNone(
             re.search(
-                r"(?i)\[Unreleased\].{0,500}(restraint|Simplicity)|"
-                r"(restraint|Simplicity).{0,500}\[Unreleased\]",
+                r"(?i)\(MAR-2\).{0,500}(restraint|Simplicity)|"
+                r"(restraint|Simplicity).{0,500}\(MAR-2\)",
                 body, re.DOTALL),
             "CHANGELOG.md must contain 'restraint'/'Simplicity' within 500 chars "
-            "of '[Unreleased]' (MAR-2 AC-7)")
+            "of the '(MAR-2)' entry (MAR-2 AC-7)")
 
 
 class TestReconcileTicketIssueLinkage(unittest.TestCase):
