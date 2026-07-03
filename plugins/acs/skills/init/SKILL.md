@@ -159,9 +159,11 @@ gets its own prefix; the sequence counter lives in the workspace.
 
 Present these as a batch (AskUserQuestion or a compact list) with their
 defaults; accept the defaults silently if the user says "defaults are fine".
-The one exception is **`### models`** below: on a fresh init, present the
-model-selection choice explicitly (it is a first-class setup decision, not a
-silently-defaulted key) — see that subsection.
+Two exceptions are always asked explicitly on a fresh init, never
+silently-defaulted: **`### models`** (below) AND **`e2e`** (the bullet in this
+list) — both are first-class setup decisions, so present each as its own choice
+even when the user takes the defaults for everything else. See the `### models`
+subsection and the `e2e` bullet for how each is offered.
 
 - `test_coverage_percent` — default `90`. Validate: a number in `(0, 100]`;
   reject and re-ask otherwise. Hard-fail target for the `/acs:code` TDD cycle.
@@ -176,13 +178,16 @@ silently-defaulted key) — see that subsection.
   accepted decision records from each ticket's design.md there. Write the key
   only when the user changes it; explicit `null` disables (designs stay
   workspace-only).
-- `e2e` — default UNSET (repo has no e2e suite). Detect candidates first
-  (`package.json` scripts containing `e2e`, `playwright.config.*`,
-  `cypress.config.*`, Makefile targets) and suggest what you find. When the
-  user configures it, collect `e2e.command` (required), optional
+- `e2e` — **always ask** this explicitly on a fresh init (it is a first-class
+  setup decision, not a silently-defaultable key); default UNSET (repo has no
+  e2e suite). Detect candidates first (`package.json` scripts containing `e2e`,
+  `playwright.config.*`, `cypress.config.*`, Makefile targets) and lead with
+  what you find, so the offer is candidate-driven rather than a blank prompt.
+  When the user configures it, collect `e2e.command` (required), optional
   `e2e.setup`/`e2e.teardown` (environment bring-up/teardown), and
   `e2e.per_iteration` (default `false` — the code-verifier then runs the
-  suite only on the final, otherwise-passing iteration; e2e is slow).
+  suite only on the final, otherwise-passing iteration; e2e is slow). If the
+  user declines, leave it UNSET — but the decision was offered, not defaulted.
   Configured e2e makes the suite part of every /acs:code verification.
 
 ### tracker — default `{"provider": "local"}`
@@ -257,14 +262,27 @@ and `merge-pr` for the full mechanism.
 **On a fresh init, ALWAYS ask this** (not only on request) — model choice is a
 first-class setup decision. Present the choice with AskUserQuestion, offering:
 
-1. **Recommended (default)** — `planner: opus`, `executor: sonnet`,
-   `verifier: opus`, `coordinator: opus`: strong reasoning for planning/review,
-   a faster/cheaper model for the mechanical execution role. Pick this and move
-   on if unsure.
+1. **Recommended (default)** — offer the version-pinned ids, not the coarse
+   tier aliases: `planner: claude-opus-4-8`, `executor: claude-sonnet-5`,
+   `verifier: claude-opus-4-8`, `coordinator: claude-opus-4-8` (opus for
+   strong reasoning on planning/review, the faster/cheaper sonnet for the
+   mechanical execution role). These are the ids this repo's own
+   `.acs/settings.json` pins (MAR-81), so a fresh init lands on a stable,
+   explicit model rather than a runtime alias. Pick this and move on if unsure.
 2. **Inherit the session model** — set nothing; every role runs on whatever
    model the user's Claude Code session is using (cheapest to reason about, no
    per-role split).
 3. **Custom** — let the user set any of the four roles individually.
+
+**Reasoning effort per role** is a first-class choice here too, not only the
+object-shape note below: for any role the user pins (in Recommended or Custom),
+offer an explicit reasoning-effort level — one of
+`low | medium | high | xhigh | max | inherit` (`inherit` = leave it to the
+model's default). Present it as its own decision alongside the model id, e.g.
+the pinned default sets `high` for planner/executor/verifier and `medium` for
+coordinator (as `.acs/settings.json` does). Coordinator scope caveat: the
+`coordinator` effort governs the `/acs:ship` coordinator's own run — see the
+shape note below for exactly what it does and does not affect.
 
 On a **re-run**, show the currently-resolved per-role models (and where each
 came from) and ask only whether to change them — do not force a re-pick.
