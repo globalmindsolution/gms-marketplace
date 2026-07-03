@@ -4,7 +4,7 @@
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
-track (v0.2.0 shipped; **v0.3.0 through v0.3.3 shipped** — complexity-adaptive delivery landed in the v0.3.x line; the near-term **v0.3.4** interim release delivers the `/acs:init` configuration-completeness fix (G21), and the **v0.3.5–v0.3.7** fast-follows deliver complete tracker & PR metadata sync (G22); **v0.4.0** is the next major milestone after them), followed by a **tentative pre-GA
+track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22), with **v0.3.5** the next uncut version; **v0.4.0** (M3) remains the next major milestone after them), followed by a **tentative pre-GA
 sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once v0.4.0 ships. The
 **tabp plugin** track follows with T-M1 as the urgent next milestone. Future plugins
 add their own track here without restructuring the existing tracks.
@@ -210,22 +210,22 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
 
 **Complexity-adaptive delivery shipped to main in v0.3.0** (MAR-56/57/58/59/60/61 merged): the size × stakes four-lane model (TRIVIAL/SMALL/STANDARD/COMPLEX via `derive_lane()`), verifier-as-gate + lane-driven verify depth, mid-flight lane escalation, apply-tier inlining (create-pr/merge-pr/create-ticket inline), in-process XML validation + clarify batching, and create-ticket classification + lane assembly. Traces **G14** (complexity-scaled delivery), **G15** (autonomous fast-lane), **G16** (human-gate on high-stakes).
 
-### M2.5 — v0.3.4 (near-term)
+### M2.5 — v0.3.4 *(shipped)*
 
-A small, near-term interim release that closes the `/acs:init` configuration-completeness gap ahead of the larger v0.4.0 milestone.
+A small, near-term interim release that closed the `/acs:init` configuration-completeness gap ahead of the larger v0.4.0 milestone. **Shipped** via MAR-89 / PR #176 (squash `ad2cafc`); tag v0.3.4 published 2026-07-03.
 
-- **Epic: `/acs:init` configuration completeness (G21).** A fresh `/acs:init` actively OFFERS every user-configurable `settings.schema.json` key (no user-settable capability reachable only by hand-editing `.acs/settings.json`), closing the three concrete init-prompt gaps:
+- **Delivered (MAR-89, PR #176): `/acs:init` init-prompt configuration-completeness slice (part of G21).** A fresh `/acs:init` now actively OFFERS every user-configurable `settings.schema.json` key (no user-settable capability reachable only by hand-editing `.acs/settings.json`), closing the three concrete init-prompt gaps:
   1. **Per-role model at specific-version granularity** — the model prompt offers version-pinned choices (e.g. `claude-opus-4-8`, `claude-sonnet-5`) for all four roles, not only coarse tiers (`opus`/`sonnet`). (Strengthens the existing prompt at `init/SKILL.md`; not a new prompt.)
-  2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (today effort is only an object-shape note, never surfaced as a choice).
+  2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (previously effort was only an object-shape note, never surfaced as a choice).
   3. **Explicit e2e offer** — e2e is explicitly offered on a fresh init (candidate-detected), not left in the silently-defaultable optional batch.
-- **Delivers G21** and its metric (100% user-configurable keys reachable + the three named offers, verified by a fresh-init walkthrough on the dogfood repo within 1 release).
-- **Reconcile note (no duplication):** v0.4.0's model+effort polish epic, onboarding polish epic, and e2e integrity E2E-1 (below, in M3) build ON TOP of this init-prompt fix — v0.4.0 owns only the up-front fail-closed model-id/effort validation, the docs, the broader guided flows, and the e2e CI merge gate; the init-PROMPT piece itself is v0.3.4.
+- **Delivered the init-prompt slice of G21** and its metric (100% user-configurable keys reachable + the three named offers, verified by a fresh-init walkthrough on the dogfood repo within 1 release).
+- **Reconcile note (no duplication):** v0.4.0's model+effort polish epic, onboarding polish epic, and e2e integrity E2E-1 (below, in M3) build ON TOP of this init-prompt fix — v0.4.0 owns only the up-front fail-closed model-id/effort validation, the docs, the broader guided flows, and the e2e CI merge gate; the init-PROMPT piece itself shipped in v0.3.4.
 - **Mechanism deferral:** the exact init UX (prompt shape, option ordering, version-pin catalog source) is settled in the implementing ticket's design/spec phase — mirrors the other epics' deferral convention.
 - **Traces G21** (extends G7; Solo-developer + Tech-lead personas).
 
 ### M2.6 — v0.3.5–v0.3.7 fast-follows — complete tracker & PR metadata sync
 
-Three small, independently shippable fast-follows sequenced after the v0.3.4 init release and ahead of M3 — v0.4.0. Together they deliver PRD **G22** and the acs Should-have "Two-way tracker sync" feature (Group A + Group B). **Traces G22** (+ the Team-on-a-shared-repo and Tech-lead personas). MECHANISM (reviewer source, Project Status option mapping per stage, the priority/story-points/parent field-to-column mapping) is deferred to each slice's design/spec phase, mirroring the other epics' deferral convention.
+Three small, independently shippable fast-follows sequenced after the shipped v0.3.4 init release and ahead of M3 — v0.4.0. Together they deliver PRD **G22** and the acs Should-have "Two-way tracker sync" feature (Group A + Group B). **Traces G22** (+ the Team-on-a-shared-repo and Tech-lead personas). MECHANISM (reviewer source, Project Status option mapping per stage, the priority/story-points/parent field-to-column mapping) is deferred to each slice's design/spec phase, mirroring the other epics' deferral convention.
 
 - **v0.3.5 — PR metadata acs sets on create/update (Group A core).** `/acs:create-pr` sets the PR **assignee** (always the PR author — the authenticated `gh` user running the pipeline, so 0 PRs are left unassigned), **labels beyond `ACS`** (e.g. the type label, mirroring the issue), and adds the **PR itself to the GitHub Project** with field values — on top of the existing `Closes #`/milestone. Delivers G22's PR-assignee metric.
 - **v0.3.6 — full-lifecycle ticket Status (Group B status).** Extends the shipped create-ticket (in-progress at create) and merge-pr (Status→Done) transitions with the missing **in-review** transition when `/acs:create-pr` opens the PR, so the GitHub Project Status matches the ticket's true pipeline stage at every stage. Delivers G22's status metric (0 tickets left stale at "in-progress" after PR/merge).
