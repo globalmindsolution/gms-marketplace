@@ -63,7 +63,19 @@ ticket-id="SHOP-123" iteration="n">` (schema: `schemas/acs-messages.xsd`) with:
    seams in the plan artifact, and return `status="needs_input"` with one
    question recommending the split — the coordinator escalates it (the fix is
    restructuring the ticket via /acs:create-ticket, never a monster spec
-   set). For each spec record: filename
+   set). **Spec-simplicity gate:** while choosing this decomposition,
+   evaluate whether a **materially** simpler alternative decomposition would
+   satisfy the **same acceptance criteria** with materially less
+   code/complexity — mirror the "would a senior engineer call this
+   overcomplicated?" bar (naming and style preferences are never material).
+   If one is found, do not implement it silently and do not decide it
+   yourself: record the current approach vs. the simpler alternative, the
+   shared AC set both satisfy, and the material saving, using the *same*
+   ambiguity-surfacing seam as step 1 above — as an explicit question in
+   `## Open questions` and `<questions>` — so the coordinator can **surface**
+   it to the user/spec owner for a **decision**. This is a surfaced question,
+   never a block: continue planning against the current approach while the
+   question is open. For each spec record: filename
    `NN-<slug>.md`, scope summary, the AC indexes it covers, the design sections
    that bind it, the repo files/areas it touches, and notes for each of the five
    required sections (Scope, Approach, API/data changes, Test plan, Out of

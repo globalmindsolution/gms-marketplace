@@ -40,6 +40,9 @@ context and consequences.
 | [0029](0029-merge-pr-auto-update-behind-branch.md) | merge-pr auto-updates a BEHIND branch then merges in the same run | Accepted |
 | [0035](0035-pr-title-ticket-ref-token.md) | Introduce a `pr_title`-only `{ticket_ref}` alternation token instead of overloading `{ticket_id}` | Accepted |
 | [0036](0036-compute-ticket-ref-in-build-title.md) | Compute `ticket_ref` inside `build_title` via a `provider` parameter and a `--provider` CLI flag, one uniform template for every caller | Accepted |
+| [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md) | Add a spec-time simplicity-evaluation step to the `create-spec-planner` charter, surfaced by the coordinator | Accepted |
+| [0038](0038-spec-simplicity-gate-surfaces-never-blocks.md) | The spec-simplicity gate surfaces found alternatives; it never blocks or auto-loops back to re-plan | Accepted |
+| [0039](0039-spec-simplicity-gate-planner-only-scope.md) | The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

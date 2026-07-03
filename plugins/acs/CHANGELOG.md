@@ -15,6 +15,14 @@ the notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **`/acs:create-spec` gains a spec-time simplicity gate (MAR-88).** The
+  planner evaluates each decomposition for a **materially** simpler
+  alternative meeting the **same acceptance criteria**; the coordinator
+  **surfaces** (never blocks) a finding for the user's **decision** —
+  deconflicted from `code-verifier` dim. 12, planner-charter-only.
+
 ## [0.3.4] - 2026-07-03
 
 ### Added
