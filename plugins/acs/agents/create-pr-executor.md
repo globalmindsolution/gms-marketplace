@@ -71,9 +71,15 @@ with:
      "fix" it back), then resolve the item id via
      `gh project item-list <project_number> --owner <owner> --format json --limit 500`
      parsed `strict=False`, then `gh project field-list <project_number> --owner <owner> --format json`
-     and `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
-     to set Status. A field the Project schema does not define is surfaced as
-     an info finding, never silently skipped.
+     to find the Status field's id/option ids. Resolve the in-review
+     option's `<oid>` by case-insensitive name match — first **In Review**,
+     else **Review** — and feed it to
+     `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
+     to set Status, on both the create and edit paths. When neither name
+     matches, add an info finding naming the missing option and how to add
+     it (single-select options aren't creatable via `gh`), leave Status
+     unchanged, never fail the PR. A field the Project schema does not
+     define is surfaced as an info finding, never silently skipped.
    - Every call above is individually guarded: a failure is captured as a
      finding (command + error) and never aborts the PR create/edit. When the
      guard condition does not hold (local/unsynced), this entire step is

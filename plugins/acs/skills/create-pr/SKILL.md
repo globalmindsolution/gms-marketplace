@@ -247,12 +247,21 @@ exact error — no silent fallback.
      `gh project item-list <project_number> --owner <owner> --format json --limit 500`
      parsed `strict=False` (`--limit 500` because Projects can carry more
      items than the tool default). Then `gh project field-list <project_number> --owner <owner> --format json`
-     to find the Status field's id/option ids, and
+     to find the Status field's id/option ids. Resolve the in-review option's
+     `<oid>` by **case-insensitive name match** against the Status field's
+     options — first an option named **In Review**, else one named
+     **Review** — and feed that `<oid>` to
      `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
-     to set Status. For any Project field this repo's schema does not define,
-     add an info-severity finding naming exactly which field was skipped and
-     why — the field is surfaced, not silently skipped, mirroring
-     create-ticket Step 5d's schema-undefined-field rule.
+     to set Status, on **both the create and edit paths** (this sub-bullet
+     already runs after step 6 Record, so the PR number is known either
+     way). When neither name matches (the board defines no in-review
+     option), add an **info**-severity finding naming the missing option and
+     how to add it (single-select options cannot be created via the `gh`
+     CLI; add it in the Project UI or via the GraphQL API) — Status is
+     left **unchanged** and the PR is never failed. For any Project field
+     this repo's schema does not define, add an info-severity finding naming
+     exactly which field was skipped and why — the field is surfaced, not silently
+     skipped, mirroring create-ticket Step 5d's schema-undefined-field rule.
    - **Failure handling.** Every `gh` call above is individually guarded: a
      non-zero exit or error response is captured as a finding (the exact
      command plus the error) that must never abort the PR create/edit that

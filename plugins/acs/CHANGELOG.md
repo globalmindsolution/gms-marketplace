@@ -15,6 +15,14 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:create-pr` moves the ticket's Project Status to In Review (MAR-102).**
+  The tracker-metadata-fill Status-set call resolves the in-review option by
+  case-insensitive name (`In Review`, then `Review`) on both the create and
+  edit paths. When the board defines no such option, an info finding names
+  it and how to add it; Status is left unchanged and the PR is unaffected.
+
 ## [0.3.5] - 2026-07-04
 
 ### Changed

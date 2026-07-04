@@ -698,6 +698,11 @@ Purpose: ship the implementation as a pull request.
   silently skipped (mirroring the create-ticket standing behavior above).
   `local`/unsynced tickets are unaffected (byte-identical no-op), and a
   failed `gh` metadata call is surfaced as a finding and never aborts the PR.
+- **In Review Status transition (standing behavior, MAR-102):** the
+  tracker-metadata fill's Status-set call resolves the in-review option by
+  case-insensitive name (`In Review`, then `Review`) on both the create and
+  edit paths. When the board defines no such option, an info finding names
+  it and how to add it; Status is left unchanged and the PR is unaffected.
 
 ## 6. `/merge-pr`
 
