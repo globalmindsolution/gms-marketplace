@@ -15,6 +15,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-04
+
 ### Changed
 
 - **`/acs:create-spec` gains a spec-time simplicity gate (MAR-88).** The
