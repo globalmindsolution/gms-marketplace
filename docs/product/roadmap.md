@@ -5,9 +5,13 @@
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
 track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.8** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5** the next uncut version; the **v0.4.0→v0.4.3+ delivery waves** (M3) remain the next major milestone track after them), followed by a **tentative pre-GA
-sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship. The
-**tabp plugin** track follows with T-M1 as the urgent next milestone. Future plugins
-add their own track here without restructuring the existing tracks.
+sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
+**The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
+sequenced by what flagship external-consumer-product delivery needs first** — see
+**G30** (`prd.md`) — ahead of any features that do not serve that near-term
+delivery-readiness priority. The **tabp plugin track is retired** — see the
+retired stub below; it is no longer a committed milestone. Future plugins add
+their own track here without restructuring the existing tracks.
 
 ## acs plugin track
 
@@ -370,8 +374,8 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   Additive and non-breaking (no org source ⇒ today's behavior). Connects to the standards
   layer (org policy can mandate G10 conformance as a floor once it ships). Maps to PRD
   **G12** and the new acs Could-have feature. The MECHANISM is settled in this epic's
-  **design phase / an ADR**, consistent with how the tabp-upgrade and standards epics
-  defer mechanism. Traces **G12** (+ the Org/Platform-admin persona).
+  **design phase / an ADR**, consistent with how the Notion/remote-docs and standards
+  epics defer mechanism. Traces **G12** (+ the Org/Platform-admin persona).
 - **Epic: org-scale settings & workspace distribution (G24)** — adds the *defaults*
   half to the org-policy layer: an org-controlled source distributes shared
   non-enforcement defaults (models, tracker, doc paths, formats) + a workspace
@@ -485,7 +489,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   marketplace plugins" from the icebox into a committed, documented onboarding
   path: a new plugin is added to the catalog through a gated checklist (manifest
   entry, `marketplace.json` registration, namespace-isolation check, trigger-eval
-  baseline, README), and every catalog plugin (today: acs, tabp) is checked
+  baseline, README), and every catalog plugin (today: acs; tabp retired) is checked
   against the shared quality bar. Maps to PRD **G20** and the marketplace-level
   Vision framing. **Traces G20.** The MECHANISM (exact checklist tooling, whether
   scripted or documentation-only) is settled in this epic's design/spec phase.
@@ -540,7 +544,7 @@ Make the acs gated pipeline runnable on **OpenAI Codex CLI** in addition to Clau
 **Deferral:** the MECHANISM (the hook-gating / subagent-protocol / dispatch mapping and
 which gates are native vs shimmed on Codex CLI) is deferred to this epic's dedicated
 design phase / an ADR; this epic requires its own `/acs:create-design` run before
-implementation. Mirrors the Notion/remote-docs and tabp-upgrade deferrals.
+implementation. Mirrors the Notion/remote-docs and org-policy deferrals.
 
 **Implementation note:** this is a future epic pending design — this entry defines what
 to deliver and its scope boundary; the design and implementation tickets carry the build.
@@ -602,95 +606,34 @@ implementation tickets carry the build work for each.
 GA/v1.0 is a later milestone; its epics are not yet committed and will be defined once
 the pre-GA bucket (v0.4.0–v0.7.0) ships.
 
-## tabp plugin track
+## tabp plugin track *(RETIRED — superseded by an external consumer product; see the `prd.md` MAR-97 Reversal note)*
 
-### T-M1 — screen-cvs *(URGENT — next milestone)*
+tabp was built and run as a **team demo** of talent screening; it is no longer
+used. Its CV-screening capability is superseded by the external commercial
+consumer product acs now delivers as a consumer repo (see `prd.md` **G30**,
+**C-16**). What was T-M1 (screen-cvs) and T-M2 (tabp upgrade) is retired in
+lockstep with the retired `prd.md` tabp feature — no tabp milestone is part of
+the committed delivery sequence.
 
-Maps to PRD: [`prd.md`](prd.md#features-moscow)
-tabp Must-have screen-cvs feature and metrics T1–T5.
+- **T-M1 — screen-cvs** *(was: URGENT — next milestone)* — retired. Full scope
+  (JD parsing, evidence-based scoring, weighted match score, band +
+  recommendation, output artifacts, fairness guardrails, batch fan-out, input
+  handling) and its success-exit metrics (T1-T5) are preserved in this file's
+  git history as of the MAR-97 amendment commit and in `prd.md`'s retired tabp
+  success-metrics table (frozen, not deleted).
+- **T-M2 — tabp upgrade** *(was: core capabilities shipped; follow-on epic
+  remained for the rest)* — retired. The shipped capabilities (tabp
+  `settings.json`, `.tabp/` workspace state, `/tabp:usage`, resumable runs,
+  verifier-as-gate) and the follow-on-epic remainder (rich Claude artifact,
+  recruiter sign-off UX, Claude Cowork-runtime verification) are preserved in
+  git history and in `prd.md`'s retired tabp feature stub; none of the
+  remaining items carry forward as committed work.
 
-Deliver the screen-cvs capability in Claude Cowork or Claude Code:
-
-- **JD parsing** — parse a job description into must-have vs nice-to-have requirements.
-- **Evidence-based scoring** — per requirement: Met/Partial/Missing determination with
-  explicit CV evidence cited for each judgment.
-- **Weighted match score** — 0–100 overall score; missing a must-have requirement caps
-  the result regardless of nice-to-have scores.
-- **Band + recommendation** — Strong/Moderate/Weak band with a Recommend/Hold/Reject
-  recommendation per CV.
-- **Output artifacts** — inline summary per CV + two-sheet Excel scorecard (one sheet
-  per-requirement breakdown, one sheet ranked summary for batch runs).
-- **Fairness guardrails** — job-relevant criteria only; decision-support framing
-  (tool assists, does not decide); bias-relevant JD flags surfaced.
-- **Batch fan-out** — one Sonnet subagent per CV with Opus synthesis for the final
-  ranked summary.
-- **Input handling** — reads CVs and JD from the project folder; falls back to
-  chat attachments.
-
-**Success exit (release gate + ongoing adoption):**
-
-| Metric | Gate type | Target |
-|--------|-----------|--------|
-| T1 — Speed | Adoption (1 month) | 20-CV batch ≥ 70% faster than manual |
-| T2 — Reproducibility | Release gate (per release) | ≥ 95% on fixed 10-CV set |
-| T3 — Evidence/auditability | Release gate (every run) | 100% judgments cite evidence + scorecard |
-| T4 — Fairness | Release gate (per release) | 0 protected/proxy criteria; 100% bias-relevant flags on ≥ 15-pair set |
-| T5 — Adoption | Ongoing (3 months) | ≥ 80% of new TABP role openings use screen-cvs |
-
-**Implementation note:** the tabp plugin build (plugin.json, screen-cvs skill,
-`marketplace.json` entry, CI version-coupling removal) is a **separate follow-up
-ticket** — this roadmap entry defines what to deliver and how to measure success;
-the implementation ticket carries the build work.
-
-### T-M2 — tabp upgrade *(core capabilities shipped; follow-on epic remains for the rest)*
-
-Maps to PRD: [`prd.md`](prd.md#features-moscow)
-tabp re-scoped Must-have capabilities and the engineering-rigor NFR (MAR-35 amendment,
-updated MAR-85).
-
-**Delivered** (verified on disk: `plugins/tabp/README.md`,
-`plugins/tabp/agents/*`, `plugins/tabp/helpers/tabp_helper.py`,
-`plugins/tabp/schemas/*`, `plugins/tabp/skills/usage/SKILL.md`):
-
-- **tabp settings.json** — configurable models and default CV/JD folder paths; stored
-  in the project folder; schema-validated (`settings.schema.json`), no secrets.
-- **.tabp/ workspace state** — run history and a per-screening archive (the `.xlsx`
-  scorecard and a JSON record per run); persisted in the project folder; atomic
-  writes, spin-lock, schema validation via `tabp_helper.py`.
-- **/tabp:usage skill** — per-run usage metrics: cost, time, and tokens; read-only.
-- **Resumable runs** — all intermediate states persisted as a human-reviewable audit
-  trail; the run can be resumed from the persisted state.
-- **Reflection/self-verification (verifier-as-gate)** — an always-on independent
-  verifier subagent (`screen-verifier-subagent.md`) gates result delivery; on
-  blocking findings the coordinator remediates and re-verifies, capped at N=3; no
-  results presented on an unresolved cap-hit.
-
-**Remaining (follow-on epic — genuinely unbuilt):**
-
-- **Rich Claude artifact** — results rendered as a rich Claude artifact for recruiter
-  review (today: inline summary + Excel scorecard only).
-- **Recruiter sign-off UX** — completed result presented as an explicit recruiter
-  sign-off step (today: presented after clean verifier pass, no explicit sign-off
-  UX).
-- **Claude Cowork-runtime verification** — confirm the shipped shape above (config
-  resolution, `.tabp/` writes, always-on verifier, resumability) behaves
-  identically under Claude Cowork specifically, not only Claude Code.
-
-**Engineering-rigor NFR** *(shipped)*: the tabp upgrade adopts proven quality
-patterns in tabp's own namespace: coordinator-plus-subagents (the Sonnet-per-CV +
-Opus-synthesis shape), reflection/self-verification before presenting results,
-structured JSON state, source-grounded evidence (anti-hallucination), and decision
-recording for human review. No `acs` naming or `acs:` prefixes in tabp's surface.
-Adds tabp metrics **T6** (verifier-as-gate) and **T7** (resumability) — see
-`prd.md` tabp success metrics.
-
-**Delivery mechanism (realized):** instruction-driven coordinator+subagent protocol
-(not hook-gated) — confirmed on Claude Code; Claude Cowork-specific verification is
-the one remaining item above.
-
-**Implementation note:** the core tabp-upgrade capabilities shipped directly (no
-separate design/build epic was needed beyond the initial build); only the three
-remaining items above carry forward as a follow-on epic.
+**Physical removal is a recommended follow-up delivery ticket** — deleting
+`plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry
+is explicitly **not** performed by this docs-only amendment; this roadmap and
+`prd.md` record the retirement, and the removal ticket is the next
+recommended step.
 
 ### acs M-future — Notion/remote-docs backend
 
@@ -702,8 +645,8 @@ remaining items above carry forward as a follow-on epic.
 
 ## Later / icebox
 
-Additional marketplace plugins beyond acs and tabp (candidate future plugin
-capabilities, not yet scoped). **Note:** the marketplace-level *growth-path and
+Additional marketplace plugins beyond acs (candidate future plugin
+capabilities, not yet scoped; tabp retired). **Note:** the marketplace-level *growth-path and
 quality-bar* goal itself is no longer in the icebox — it is scheduled as the
 "Epic: marketplace catalog growth & quality bar" in **M3 Wave 4 (v0.4.3+)** (see
 above, traces PRD **G20**); what remains in the icebox is only the open-ended "what

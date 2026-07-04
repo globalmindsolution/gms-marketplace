@@ -4,18 +4,27 @@
 > (`docs/requirements/`) and the implemented plugin. Amendments go through
 > `/acs:create-prd` re-runs — each amendment is its own delivery ticket and
 > docs PR. This PRD covers the GMS Marketplace product and its plugin features
-> (acs, tabp, and future plugins); each plugin is a distinct capability delivered
-> and updated through one marketplace.
+> (acs, active; tabp, retired — see the MAR-97 Reversal note in Out of scope;
+> and future plugins); each plugin is a distinct capability delivered and
+> updated through one marketplace.
 
 ## Vision
 
 The GMS Marketplace is a curated catalog of Global Mind Solution Claude plugins,
-each plugin a distinct team capability — coding delivery, talent screening, and
-future capabilities — delivered and kept current through one marketplace. Teams
-adopt exactly the plugins they need; the marketplace ensures versioning,
-discoverability, and consistent quality across all plugins. The catalog grows
-through a documented, gated onboarding path, and every catalog plugin meets a
-shared quality bar (trigger-eval baseline + namespace isolation) — see **G20**.
+each plugin a distinct team capability — coding delivery today, with future
+capabilities added through a documented, gated onboarding path (see **G20**) —
+delivered and kept current through one marketplace. Teams adopt exactly the
+plugins they need; the marketplace ensures versioning, discoverability, and
+consistent quality across all plugins. The catalog grows through that gated
+onboarding path, and every catalog plugin meets a shared quality bar
+(trigger-eval baseline + namespace isolation) — see **G20**.
+
+acs's primary near-term consumer, alongside this repo's own dogfooding, is an
+**external commercial consumer product** (an agentic hiring SaaS) delivered
+*using* acs: acs runs the same gated pipeline against that product's codebase
+as it does against this one. That consumer product is **not a marketplace
+plugin** — it is a consumer of acs like any other repo, not a catalog entry —
+see **G30** and the Out-of-scope external-consumer-product scope-clarity note.
 
 The **acs** feature delivers: every software change — from product definition to
 merged PR — driven through one auditable, resumable, hook-enforced agentic
@@ -38,9 +47,11 @@ required to deliver, and none is ever auto-authored without opt-in.
 ## Problem
 
 GMS teams need a single curated source of vetted, versioned Claude plugins that
-each solve a distinct team problem — coding delivery via acs, talent screening
-via tabp — instead of ad-hoc one-off tools with no shared versioning, quality
-bar, or discoverability.
+each solve a distinct team problem — coding delivery via acs today — instead
+of ad-hoc one-off tools with no shared versioning, quality bar, or
+discoverability. Future problem domains are added through the catalog's
+documented, gated onboarding path and quality bar (**G20**), not by
+proliferating one-off tools outside the marketplace.
 
 **acs feature problem:** Agentic coding today loses state between sessions, skips steps when the model
 forgets, mixes planning with implementation in one context, and leaves no
@@ -68,9 +79,11 @@ migrations, money paths) that was not visible at ticket creation, so the pipelin
 needs to **re-decide the lane in flight** rather than under-verify on a stale
 create-time assumption.
 
-**tabp feature problem:** Manual CV-vs-JD screening is slow, inconsistent, and hard to audit for
+**tabp feature problem — *(RETIRED — superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*:** Manual CV-vs-JD screening is slow, inconsistent, and hard to audit for
 fairness — hiring managers cannot reproduce scoring decisions or demonstrate
-that protected characteristics played no role.
+that protected characteristics played no role. tabp was a team-demo answer to
+this problem; it is retired, and the problem is now addressed by the external
+consumer product, not by a marketplace plugin.
 
 **acs team-scale problem:** acs's durable delivery state (ticket ids, the tickets
 index, locks, per-repo metrics, clarification ledgers) lives in a **per-user local
@@ -111,8 +124,9 @@ and neither option ratchets new code upward while tolerating pre-existing legacy
 | **Tech lead** | Enforce a delivery process (design gates, TDD, review dimensions, PR size) uniformly across repos and teammates; inspect any ticket's full audit trail. |
 | **Team on a shared repo** | Parallel tickets in worktrees without state collisions; team-shared settings; tracker sync to Jira / GitHub Projects; shared ticket/id/lock/metrics state across engineers (not just worktrees on one machine), so no cross-engineer id collisions and every teammate can see who holds an in-progress ticket's lock. |
 | **Team with a tracker-only PO** | Deliver requirements that live only in a remote tracker (Jira), with no PRD/roadmap/architecture and no need to author one — the tracker issue governs, and the full gated pipeline (TDD, coverage, review, audit) still applies. |
-| **TABP recruiter / hiring team** | Screen one CV or a batch against a job description in Claude Cowork or Claude Code, receive evidence-based and reproducible Recommend/Hold/Reject recommendations with a downloadable scorecard, and demonstrate fairness to auditors. |
 | **Org / Platform admin (Security/Compliance owner)** | Apply organization-wide enforcement policy — required convention checks, security gates, standards/conventions floors — across *all* of the org's repos, cascading through **department** and project layers (most-specific-wins, floors compose down, never loosen); guarantee repos cannot silently loosen or self-exempt from a mandate; see which layer each effective rule came from and who can change it (provenance/audit); ALSO distribute org- and department-wide shared, overridable defaults (models, tracker, doc paths, formats) and a shared/central workspace convention to all org repos, without hand-duplicating settings per repo; consume/maintain **shared, versioned/pinned context doc sets** (standards, principles) at the org/department level, with drift and provenance surfaced to consuming projects. |
+
+*(Retired: the TABP recruiter / hiring team persona is removed — tabp is retired; see the MAR-97 Reversal note in Out of scope.)*
 
 ## Goals & success metrics
 
@@ -139,7 +153,7 @@ and neither option ratchets new code upward while tolerating pre-existing legacy
 | G17 — First-class release-version planning & one-command release cut | **100%** of roadmap versions carry an explicit version → milestone/epic mapping (every committed milestone resolves to exactly one release version, 0 orphan milestones), **AND** a release is cut in **1 command** producing an aggregated changelog/release notes from the merged tickets in that version, a version bump, a tag, and a GitHub release with **0 manual `release: cut vX.Y.Z` steps** — first validated by cutting **1** real acs release end-to-end within **1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). |
 | G18 — Guided architecture selection (select-not-author) | For a repo with a PRD present, `/acs:create-architecture` presents a **pre-filtered/ranked shortlist across all FOUR catalog categories** (techstack, NFR templates, architecture patterns, design patterns) such that **≥ 80%** of finalized architecture selections are **chosen or refined from the offered shortlist rather than authored from scratch**, and the top-ranked shortlist is **non-empty for 100%** of the four categories on a PRD-present run — measured per release on the dogfood repo within **1 release** of the capability shipping. |
 | G19 — Failure-mode / pipeline-health observability | A tech lead can see verifier cap-hits, gate-block counts, coverage hard-fail incidents, stale locks, abandoned/handed-off tickets, and out-of-band-merge / bypass-rate signals (see **G26**) over time — not just success/throughput. **Metric:** the cap-hit rate and gate-block count are visible for **100%** of tickets in the workspace, rendered in **≤ 5 s** for ≤ 50 tickets, read-only from existing workspace artifacts (no new config) — measured per release on the dogfood repo within **1 release** of the capability shipping. Extends G7's observability goal with failure-signal coverage. |
-| G20 — Marketplace catalog growth & quality bar | The GMS Marketplace grows its plugin catalog through a documented, gated onboarding path while every catalog plugin meets a shared quality bar. **Metric:** a new plugin is added to the catalog through the documented path in **≤ 5 steps** (manifest entry, `marketplace.json` registration, namespace-isolation check, trigger-eval baseline, README), **AND 100%** of catalog plugins (currently 2: acs, tabp) pass the shared quality bar — a trigger eval baseline (mirrors G8's per-skill trigger-eval requirement) plus a verified namespace-isolation check (no cross-plugin prefix/token leakage, mirrors the tabp namespace rule) — measured per release. |
+| G20 — Marketplace catalog growth & quality bar | The GMS Marketplace grows its plugin catalog through a documented, gated onboarding path while every catalog plugin meets a shared quality bar. **Metric:** a new plugin is added to the catalog through the documented path in **≤ 5 steps** (manifest entry, `marketplace.json` registration, namespace-isolation check, trigger-eval baseline, README), **AND 100%** of catalog plugins (currently 1: acs; tabp retired) pass the shared quality bar — a trigger eval baseline (mirrors G8's per-skill trigger-eval requirement) plus a verified namespace-isolation check (no cross-plugin prefix/token leakage, mirrors the tabp namespace rule, kept as a historical precedent) — measured per release. |
 | G21 — Complete-configuration onboarding (init offers every user-configurable setting) | A fresh `/acs:init` actively offers every user-configurable acs setting — no user-settable capability is reachable only by hand-editing `.acs/settings.json` — and per-role model (at specific version), per-role reasoning effort, and e2e are each explicitly offered. **Measurable success metric:** on a fresh init, **100% of user-configurable `settings.schema.json` keys are reachable via the interactive `/acs:init` flow**, AND **per-role model (specific version, e.g. `claude-opus-4-8` / `claude-sonnet-5`), per-role reasoning effort, and e2e configuration are each explicitly offered** (not silently defaulted) — verified by a **fresh-init walkthrough on the dogfood repo within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Extends **G7** (config-surface discoverability). Traces the **Solo-developer + Tech-lead personas**. |
 | G22 — Complete tracker and PR metadata sync across the pipeline lifecycle | On a tracker-configured repo (provider `github`, a Project configured), **100%** of acs-opened PRs carry an assignee — **always the PR author (the authenticated `gh` user who runs the pipeline)**, so 0 PRs are ever left unassigned — plus the existing `Closes #<issue>` link, **AND 100%** of pipeline tickets show a GitHub Project **Status** matching their true pipeline stage across the full lifecycle (create → in-progress at create-ticket → **in-review at create-pr** → done at merge-pr), with **0 tickets left stale at "in-progress"** after their PR is open or after merge — first validated on **1** real end-to-end `/acs:ship` run within **1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). A field with no resolvable value is skipped as expected data, never a hard block (mirrors the create-ticket null-assignee rule). |
 | G23 — Team-shared delivery state (no cross-engineer collisions) | Multiple engineers delivering on one repo share ticket/id/lock/metrics state so there are **0 duplicate ticket-id allocations across engineers** and **100% of active tickets are visible (with their lock holder) to every teammate** from shared state. **Metric (measurable at plan time):** on a **≥ 2-engineer, 1-repo pilot**, **0 id collisions** across **≥ 20 concurrently-allocated tickets AND** every in-progress ticket's lock holder is resolvable by a second engineer — first validated on **1 real 2-engineer concurrent run within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Traces the **Team-on-a-shared-repo persona**. Reconciles with (does not duplicate) **G12**: G12 governs *policy floors* (what rules apply); G23 governs *shared delivery state* (tickets/ids/locks/metrics) — a distinct, narrower gap G12 does not cover. MECHANISM (shared vs synced workspace, tracker-as-id-authority vs a shared counter service, how locks federate) is deferred to the implementing epic's design phase. |
@@ -149,24 +163,29 @@ and neither option ratchets new code upward while tolerating pre-existing legacy
 | G27 — Brownfield-adaptive coverage policy | A repo can configure coverage as a **baseline ratchet** (no coverage regression vs the recorded baseline + a configurable new-code coverage target) OR **per-path targets**, instead of only a single repo-wide `test_coverage_percent` hard-fail. **Metric:** on a legacy repo below the global target, **100% of `/code` runs hard-fail on a coverage REGRESSION or an unmet NEW-CODE target while never hard-failing solely because the pre-existing repo-wide percentage is below the global default** — measured per release; with **no coverage-policy config set, behavior is byte-identical to today's single repo-wide hard-fail** (additive/non-breaking, mirrors C-6). Extends **G3** (coverage hard-fail, never silently waived — the ratchet still fails closed) and the **G6** onboarding/portability story. First validated on 1 real legacy-repo run within 1 release of the capability shipping. Traces the Tech-lead + brownfield-onboarding story. MECHANISM (ratchet vs per-path, config key shape, baseline storage) is deferred to the implementing epic. |
 | G28 — Org/department-shared context lifecycle | Orgs/departments keep **shared, versioned/pinned context doc sets**; projects consume a pinned version; verifiers surface **drift + provenance** (feature + M3 epic). **Metric:** on a pilot org, **100%** of projects resolve pinned context with provenance and drift within **1 verifier run**, validated within **1 release**. MECHANISM deferred. |
 | G29 — Human-readable doc management (first-class) | Every acs producer skill keeps docs human-friendly; each verifier gates readability as blocking findings, mirroring G10 (detail in the feature + C-15). **Metric (new/amended content only; backlog phased via C-15):** **0** unwaived readability findings/release; **0** new lines > 500 chars; new cells ≤ ~50 words. |
+| G30 — External-consumer delivery readiness | acs delivers an **external commercial consumer product's** codebase (an agentic hiring SaaS, GMS-internal today with future external sale) end-to-end through the **same gated pipeline** used for this repo's dogfooding — **0 gate escapes** and **100%** of that product's delivery tickets carry the full audit trail (ticket → spec → code → PR → merge) — first validated on **1 real delivery run on that repo within 1 release** of its onboarding kickoff (mirrors how G1/G9/G11 are first validated by an observed live run). Traces the external-consumer-product context in Vision; see **C-16**. |
 
-### tabp feature — success metrics
+### tabp feature — success metrics *(RETIRED — tabp superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*
 
-| Metric | Measurable success metric |
+Historical record only — T1-T7 are frozen (not renumbered, not deleted) and no
+longer tracked as live metrics; tabp is retired.
+
+| Metric | Measurable success metric *(historical)* |
 |--------|---------------------------|
-| T1 — Speed | Screen a 20-CV batch ≥ 70% faster than manual screening, measured within 1 month of the feature's first use. |
-| T2 — Reproducibility | ≥ 95% reproducible band/recommendation on a fixed 10-CV regression set, per release. |
-| T3 — Evidence & auditability | 100% of judgments cite evidence and produce a scorecard, every run — no recommendation without a traceable rationale. |
-| T4 — Fairness | 0 protected/proxy criteria used AND 100% of bias-relevant JD requirements flagged, measured on a ≥ 15-pair test set, per release. |
-| T5 — Adoption | ≥ 80% of new TABP role openings use screen-cvs within 3 months of the feature's first use. |
-| T6 — Verifier-as-gate | 100% of screen-cvs runs present results only after a clean verifier `pass` verdict from `screen-verifier-subagent.md` (0 results shown on cap-hit at N=3 unresolved-finding remediation attempts), measured per release on the run history in `.tabp/history.json`. |
-| T7 — Resumability | 100% of interrupted screen-cvs runs resumable from `.tabp/` persisted state alone (run.json, evidence-*.json, decision.json, history.json), verified by 1 real interrupted-and-resumed run per release. |
+| T1 — Speed *(retired)* | Screen a 20-CV batch ≥ 70% faster than manual screening, measured within 1 month of the feature's first use. |
+| T2 — Reproducibility *(retired)* | ≥ 95% reproducible band/recommendation on a fixed 10-CV regression set, per release. |
+| T3 — Evidence & auditability *(retired)* | 100% of judgments cite evidence and produce a scorecard, every run — no recommendation without a traceable rationale. |
+| T4 — Fairness *(retired)* | 0 protected/proxy criteria used AND 100% of bias-relevant JD requirements flagged, measured on a ≥ 15-pair test set, per release. |
+| T5 — Adoption *(retired)* | ≥ 80% of new TABP role openings use screen-cvs within 3 months of the feature's first use. |
+| T6 — Verifier-as-gate *(retired)* | 100% of screen-cvs runs present results only after a clean verifier `pass` verdict from `screen-verifier-subagent.md` (0 results shown on cap-hit at N=3 unresolved-finding remediation attempts), measured per release on the run history in `.tabp/history.json`. |
+| T7 — Resumability *(retired)* | 100% of interrupted screen-cvs runs resumable from `.tabp/` persisted state alone (run.json, evidence-*.json, decision.json, history.json), verified by 1 real interrupted-and-resumed run per release. |
 
 ## Features (MoSCoW)
 
-The GMS Marketplace currently delivers two plugin features — **acs** and **tabp** —
-each prioritized internally via MoSCoW. Future plugins will be added as additional
-feature sections here.
+The GMS Marketplace currently delivers **one active plugin feature — acs** —
+prioritized internally via MoSCoW (tabp is retired; see the stub below). Future
+plugins will be added as additional feature sections here, through the **G20**
+growth path.
 
 ### Feature: acs (Autonomous Coding Skills)
 
@@ -308,9 +327,9 @@ feature sections here.
   persona** and the hierarchy goals (**G24**; relates to **G19** observability).
   MECHANISM (rollup source, org/dept grouping key) deferred to the implementing
   ticket's design/spec phase.
-- **Discoverability — skill index / next-step advisor** — with 16 acs skills + 2
-  tabp skills there is no in-plugin "what can I do / where am I in the pipeline /
-  what's the next step" surface today; `install-hooks` and `update` are
+- **Discoverability — skill index / next-step advisor** — with 16 acs skills
+  (2 tabp skills retired) there is no in-plugin "what can I do / where am I in
+  the pipeline / what's the next step" surface today; `install-hooks` and `update` are
   `disable-model-invocation: true` (verified in frontmatter) so they are
   discoverable only if the user already knows them. Adds a read-only skill index /
   next-step advisor (e.g. `/acs:help`) that lists available skills and the current
@@ -433,108 +452,47 @@ feature sections here.
 - Automatic downgrade of a ticket's complexity/supervision tier without explicit user confirmation — tiers are always user-confirmed; the system never silently reduces rigor.
 - Claude Code plugin LSP servers (`.lsp.json`), background monitors (`monitors.json`), and `bin/` PATH executables — evaluated (MAR-82) and not adopted as acs features. **LSP** is an anti-fit: it breaks the G6 zero-install/language-agnostic portability guarantee (Portability NFR) and is redundant with Claude Code's official LSP plugins. **Background monitors** are session-scoped and overlap already-planned work — the `/acs:test` closed-loop (v0.4.0) and Scheduled background tracker sync (v0.7.0) Could-haves — so they are at most a deferred mechanism of those items, not a new feature. **`bin/` PATH executables** sit below PRD altitude: an internal helper-invocation mechanism with no user-facing change that would not serve the deliberately install-free CI path (Portability NFR). Revisit only if a concrete acs need appears.
 
-### Feature: tabp (recruiting/talent toolkit for the TABP team)
+### Feature: tabp *(RETIRED — team demo, superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*
 
-Runs in **both Claude Cowork and Claude Code**. tabp is a fuller plugin; screen-cvs is
-one capability within it, targeting a project-folder-based workflow. In Claude Code the
-project folder need not be a git repo (dual-runtime support driven by MAR-40, per
-clarification C-1 on the MAR-36 epic).
+**What tabp was:** a recruiting/talent-screening plugin running in both Claude
+Cowork and Claude Code. Its Must-have capability was **screen-cvs** — screen a
+CV or a batch against a job description, producing evidence-based
+Met/Partial/Missing per-requirement judgments, a weighted 0-100 match score, a
+Strong/Moderate/Weak band with a Recommend/Hold/Reject recommendation, and an
+inline summary + two-sheet Excel scorecard (one Sonnet subagent per CV, Opus
+synthesis). It also shipped `tabp settings.json` (configurable models + CV/JD
+folder paths), `.tabp/` workspace state (run history, per-screening archive,
+atomic writes + spin-lock), the `/tabp:usage` skill (per-run cost/time/token
+metrics), resumable runs, and an always-on verifier-as-gate
+(`screen-verifier-subagent.md`, capped at N=3 remediation attempts). Its
+namespace rule (never `.acs/`/`acs:` prefixes; canonical forms `.tabp/`, `tabp
+settings.json`, `/tabp:usage`) and its engineering-rigor NFR (coordinator-plus-
+subagents, reflection/self-verification, structured JSON state, source-grounded
+evidence, decision recording) are historical record only.
 
-**Must have** *(shipped — tabp upgrade, verified on disk: `plugins/tabp/README.md`)*
-- **screen-cvs** — screen one CV or a batch against a job description; parse the JD
-  into must-have vs nice-to-have requirements; produce evidence-based Met/Partial/Missing
-  per requirement; compute a weighted 0–100 match score where missing a must-have
-  requirement caps the result; assign a Strong/Moderate/Weak band with a
-  Recommend/Hold/Reject recommendation; output an inline summary and a two-sheet Excel
-  scorecard; apply fairness guardrails (job-relevant criteria only, decision-support
-  framing); batch screening fans out one Sonnet subagent per CV with Opus synthesis;
-  inputs read from the project folder, falling back to chat attachments.
-  Traces T1, T2, T3, T4, T5.
-- **tabp settings.json** *(shipped)* — configurable models (`screening_model`,
-  `synthesis_model`) and default CV/JD folder paths (`cv_folder`, `jd_folder`);
-  stored in the project folder (`tabp settings.json`, root of the project folder);
-  validated via `tabp_helper.py settings-validate` against
-  `plugins/tabp/schemas/settings.schema.json`; no secrets accepted (validator
-  rejects a `workspace_path` key or any secret-shaped key).
-- **.tabp/ workspace state** *(shipped)* — run history and a per-screening archive
-  (the `.xlsx` scorecard and a JSON record per run); persisted in the project
-  folder under `.tabp/runs/<run-id>/`, `evidence-<id>.json`, `decision.json`,
-  `history.json`, `lock`; written atomically via `tabp_helper.py` with a spin-lock
-  and schema validation against `plugins/tabp/schemas/*.schema.json`.
-- **/tabp:usage skill** *(shipped)* — surfaces per-run usage metrics: cost, time,
-  and tokens, reading `.tabp/history.json` and per-run `run.json` via
-  `tabp_helper.py usage-read`; renders a per-run table plus an aggregate totals
-  summary; labels derived cost as `cost_basis="estimate"` with a
-  `pricing_snapshot_date`; read-only, no writes, no re-screening, no network
-  calls. Verified on disk: `plugins/tabp/skills/usage/SKILL.md`.
-- **Resumable runs** *(shipped)* — all intermediate states persisted as a
-  human-reviewable audit trail in `.tabp/`; the run can be resumed from the
-  persisted state.
-- **Reflection/self-verification (verifier-as-gate)** *(shipped)* — an
-  independent verifier subagent (`plugins/tabp/agents/screen-verifier-subagent.md`)
-  runs always-on (no skip path) after synthesis, confirming all evidence is cited
-  and fairness guardrails were followed; on blocking findings the coordinator
-  remediates and re-verifies, capped at N=3 total verifier invocations; results
-  are delivered only after a clean `pass` verdict — on cap-hit with unresolved
-  findings, no results are presented and the recruiter is notified instead.
+**Why retired:** tabp was built and run as a **team demo** of talent
+screening; it is no longer used. Its CV-screening capability is **superseded
+by the external commercial consumer product** (an agentic hiring SaaS) that
+acs now delivers as a consumer repo — see **G30** and the Vision's
+external-consumer-product context — rather than by a marketplace plugin.
 
-**Should have** *(genuinely unbuilt — verified: no rich-artifact rendering or
-Cowork-runtime verification found on disk)*
-- **Rich Claude artifact** — results rendered as a rich Claude artifact (distinct
-  from the shipped inline summary + Excel scorecard) for recruiter review.
-- **Recruiter sign-off UX** — the completed result presented as an explicit
-  recruiter sign-off step (distinct from today's "present after clean verifier
-  pass" delivery).
-- **Claude Cowork-runtime verification** — confirm the shipped capabilities above
-  (settings resolution, `.tabp/` writes, always-on verifier, resumability)
-  actually behave identically when tabp runs inside Claude Cowork, not only
-  Claude Code; the plugin is authored runtime-agnostic but this verification has
-  not been performed/recorded.
+**Superseded by:** the external consumer product (unnamed in this PRD; see the
+MAR-97 Reversal note). tabp's Should-have items (rich Claude artifact,
+recruiter sign-off UX, Claude Cowork-runtime verification) and its Won't-have
+(ATS integrations, automated hiring decisions) are retired along with the
+feature and are not carried forward as acs or marketplace work.
 
-**Namespace rule:** tabp operates in its own namespace and must never use `.acs/` or
-`acs:` prefixes. No `acs` token appears in tabp's external surface. The canonical
-tabp-namespaced forms are `.tabp/` (workspace state), `tabp settings.json`
-(configuration), and `/tabp:usage` (the usage-metrics skill).
-
-**Engineering-rigor NFR (tabp upgrade)** *(shipped — verified:
-`plugins/tabp/README.md`, `plugins/tabp/agents/*`, `plugins/tabp/schemas/*`)*:
-the fuller tabp workflow adopts the same proven quality patterns in tabp's own
-namespace:
-
-- **Coordinator-plus-subagents** — the Sonnet-per-CV + Opus-synthesis shape already
-  present in screen-cvs continues across the fuller tabp workflow.
-- **Reflection/self-verification** — the rubric's own consistency check; tabp presents
-  results only after a self-verification step (the always-on verifier subagent above).
-- **Structured JSON state** — tabp persists all run state in structured, human-readable
-  JSON (in `.tabp/`), schema-validated against `plugins/tabp/schemas/*.schema.json`.
-- **Source-grounded evidence / anti-hallucination** — screen-cvs already cites CV
-  evidence per requirement; the fuller tabp workflow extends this discipline; tabp
-  never invents or assumes evidence the source does not support.
-- **Decision recording for human review** — the `.tabp/` audit trail and the
-  present-for-review step form the decision record.
-
-The mechanism shipped as **instruction-driven** coordinator+subagent protocol
-(not hook-gated) — verified: `plugins/tabp/README.md`, `plugins/tabp/agents/*`.
-Verification against Claude Cowork specifically (as opposed to Claude Code, where
-the shape above is confirmed) remains outstanding — see the tabp Should-have
-"Claude Cowork-runtime verification" item above.
-
-**Remaining deferral:** the **rich Claude artifact** rendering and the
-**recruiter sign-off UX** mechanisms (see the tabp Should-have items above), plus
-final **Claude Cowork-runtime verification** of the shipped shape (config
-resolution, hooks, self-reported cost/tokens under Cowork specifically), are
-**deferred to the tabp-upgrade epic's remaining follow-on work**. This PRD states
-the requirements (what) for those two items; the design (how) is determined
-then.
-
-**Won't have (now)** *(tabp feature scope)*
-- Integrations with ATS platforms; automated hiring decisions (tabp is
-  decision-support only, not a hiring authority).
+**Git-history pointer:** the full pre-retirement feature text (Must/Should/
+Won't-have bullets, the namespace rule, and the engineering-rigor NFR) is
+preserved in this file's git history as of the MAR-97 amendment commit, and in
+`plugins/tabp/` on disk pending its physical-removal follow-up ticket (see the
+MAR-97 Reversal note in Out of scope; **docs_only** — this amendment does not
+remove `plugins/tabp/**`).
 
 ## Product-level NFRs
 
 These NFRs apply across all marketplace features. Each feature realizes them through
-its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patterns).
+its own mechanisms (acs via stdlib Python + hooks; future plugins via their own patterns).
 
 - **Determinism where possible**: ordering, gating, state writes, id allocation are scripts, never prose; gates fail closed.
 - **Portability**: hooks and helpers are stdlib-only Python ≥ 3.9; no network dependencies of their own. `/acs:init` Step 0b runs a toolchain preflight — it detects and offers to install the tools acs leans on (`git`, `python3`, `gh`, `pre-commit`, `xmllint`, `acli`) so onboarding fails up front with consent rather than mid-pipeline; the convention checker stays stdlib-only so no acs install is needed on the CI runner. Runtime coupling is **isolated**: the deterministic layer (gating, state, id allocation, metrics, convention checks) stays runtime-agnostic stdlib-only Python so the acs pipeline can target a second agent runtime (e.g. OpenAI Codex CLI) without rewriting that core; runtime-specific glue (hook dispatch, subagent protocol) is the only part that varies per runtime (mechanism deferred to the multi-runtime epic).
@@ -583,16 +541,17 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
 
 ## Constraints & assumptions
 
-- **acs feature (runtime, revised MAR-2):** Claude Code is the **primary / today-shipping** runtime for the acs pipeline (Claude Code plugin API — skills/agents/hooks as documented). acs is **no longer Claude-Code-only**: **OpenAI Codex CLI is a supported pipeline runtime** (Could-have; see Features), so the pipeline targets **≥ 1 of an open set of agent runtimes** rather than Claude Code exclusively. The deterministic layer stays runtime-agnostic stdlib-only Python (Portability NFR); the runtime-specific MECHANISM (hook gating, reflection-subagent protocol, skill/agent dispatch on Codex CLI) is **deferred to the multi-runtime epic's design phase**. Different features may still target different runtimes — tabp targets both Claude Cowork and Claude Code.
+- **acs feature (runtime, revised MAR-2):** Claude Code is the **primary / today-shipping** runtime for the acs pipeline (Claude Code plugin API — skills/agents/hooks as documented). acs is **no longer Claude-Code-only**: **OpenAI Codex CLI is a supported pipeline runtime** (Could-have; see Features), so the pipeline targets **≥ 1 of an open set of agent runtimes** rather than Claude Code exclusively. The deterministic layer stays runtime-agnostic stdlib-only Python (Portability NFR); the runtime-specific MECHANISM (hook gating, reflection-subagent protocol, skill/agent dispatch on Codex CLI) is **deferred to the multi-runtime epic's design phase**. Different features may still target different runtimes (historical precedent: the retired tabp feature targeted both Claude Cowork and Claude Code).
 - Delivery is git + GitHub PRs (`gh` assumed); correctness must be checkable by automated tests for the strong-fit domains (see `docs/requirements/overview.md`).
 - Subagents cannot interact with the user — all user interaction happens in coordinators (drives the `needs_input` handoff design).
 - **acs feature — brownfield standardization is additive-only (C-2).** `/acs:standardize-project` operates on an existing repo by ADDITION only: it adds principles/standards docs, config, and missing readiness tooling (coverage/CI/pre-commit/e2e — including scaffolding a repo-side e2e CI workflow/runner and opt-in wiring of a required e2e merge-gate status check), and it MUST NOT move, rename, delete, or rewrite existing source files. **The e2e layer stays OPT-IN: a repo with `settings.e2e` unset has no e2e suite and no e2e merge gate; the gate is configured only on explicit opt-in.** Structural gaps versus the architecture project-structure target are surfaced as recommended follow-up tickets for the user to decide on — never executed as an automatic restructure. This guardrail is deliberate: a wholesale-restructure mandate is explicitly out of scope (it is the over-engineering this product reset once before — see Out of scope). The greenfield/brownfield split is fixed: `/acs:create-project` is greenfield-only and refuses on any repo with substantive sources; brownfield onboarding is `/acs:standardize-project`'s job (C-1).
-- **tabp feature:** tabp runs in both Claude Cowork and Claude Code as a fuller plugin; inputs are
-  read from the project folder (in Claude Code the folder need not be a git repo; dual-runtime
+- **tabp feature — *(RETIRED — see the MAR-97 Reversal note in Out of scope)*.** tabp ran
+  in both Claude Cowork and Claude Code as a fuller plugin; inputs were read from the
+  project folder (in Claude Code the folder need not be a git repo; dual-runtime
   driven by MAR-40), falling back to chat attachments; the screen-cvs capability
-  uses one Sonnet subagent per CV with Opus synthesis; outputs include a two-sheet Excel
-  scorecard and a per-run `.tabp/` archive. tabp is not skills-only — the fuller feature
-  shape is defined in the tabp feature section above.
+  used one Sonnet subagent per CV with Opus synthesis; outputs included a two-sheet Excel
+  scorecard and a per-run `.tabp/` archive. Historical record only — see the retired
+  tabp feature stub above.
 - **acs feature — doc-set storage & docs backend (MAR-48).** Doc producer skills today read/write `*_path` keys and deliver **docs-only PRs to the repo** — that is how review + Git-auditability work. Configurable external-local paths and remote backends change that delivery/audit model. **Requirement:** reviewability + auditability are preserved per configured backend — *mirror/publish* and *external-local* keep a reviewable diff / repo PR (repo stays source of truth); *authoritative-remote* uses backend-native review/audit (Notion is the system of record). **Deferral:** the MECHANISM (Notion API/auth, markdown→blocks mapping, PR-less vs sync delivery, per-mode review/audit) is deferred to the future Notion/remote-docs epic's design phase, mirroring how this PRD already defers tabp's mechanism. Auth via external CLI/integration; **no secrets in settings** (consistent with the `tracker.provider` precedent and the Safety NFR). The local filesystem backend with external/absolute paths is the near-term committed deliverable; the Notion/remote backend is future + deferred.
 - **acs feature — tracker-first is graceful degradation, not a parallel pipeline (C-5).**
   Tracker-first / PRD-optional mode reuses the **one existing gated pipeline** (same
@@ -614,6 +573,7 @@ its own mechanisms (acs via stdlib Python + hooks; tabp via its own plugin patte
 - **acs feature — invoker-scoped merge governance preserves ADR-0028's safety model; the invocation-source signal is deferred (C-13).** The readiness gate + branch protection remain the two independent brakes unchanged (ADR-0028 m1/m2/m3/m4); this narrows ONLY the require-APPROVED fallback (m6) from "all invocations" to "agent invocations," which is exactly the narrowing ADR-0028 line 47 anticipates once a reliable invocation-source signal exists. Out-of-band reconciliation is additive — a repo that never merges out-of-band sees no change. **MECHANISM** (the invocation-source signal, out-of-band detection + reconciliation) is **deferred to the implementing epic's design phase / an ADR update**. Serves G26.
 - **acs feature — brownfield coverage policy is additive; the policy mechanism is deferred (C-14).** With no coverage-policy config set, behavior is byte-identical to today's single repo-wide `test_coverage_percent` hard-fail (additive/non-breaking, mirrors C-6); the ratchet/per-path policy still fails closed (never silently waived — consistent with G3 and the Verifier-as-gate NFR). **MECHANISM** (ratchet vs per-path, key shape, baseline storage) is **deferred to the implementing epic's design phase**. Serves G27.
 - **acs feature — amendments archive evidence, they do not inline it (C-15).** Historical/validation evidence goes to **appendix/history docs**, not inline in goal/feature cells (cells state goal + metric only, evidence linked); this makes **G29** durable. **Phasing:** applies to new/amended content; the pre-existing inlined-evidence backlog is remediated by the separate content-preserving restructure follow-up, not this amendment.
+- **acs feature — the external consumer product is a consumer repo, not a marketplace plugin; no pipeline fork (C-16).** The external commercial consumer product (an agentic hiring SaaS) that acs delivers per **G30** is treated exactly like any other consumer repo acs runs against — it is **not** an entry in `marketplace.json`, not a catalog plugin, and not designed or built inside this repo. acs delivers its codebase through the **standard gated pipeline**, with **no consumer-specific pipeline fork or special-cased skill/gate behavior** (mirrors the "one pipeline, not a parallel workflow" discipline already used for tracker-first delivery, C-5). This repo's own dogfooding and that consumer's delivery are two separate consumer repos running the same acs pipeline, not two products.
 
 ## Out of scope
 
@@ -622,10 +582,12 @@ testing, model training pipelines, registry distribution beyond the GitHub URL.
 
 Per-plugin separate PRDs and per-plugin acs configuration are out of scope — this
 single `prd.md` covers the GMS Marketplace product and all its plugin features. The
-MAR-17 restructure (separate per-plugin PRDs) was abandoned. The tabp plugin
-implementation (plugin.json, screen-cvs skill, marketplace.json entry, CI
-version-coupling removal) is a separate follow-up ticket — this PRD defines the
-feature; the build is out of scope here.
+MAR-17 restructure (separate per-plugin PRDs) was abandoned. **tabp is now retired**
+(see the MAR-97 Reversal note below); its physical removal — deleting
+`plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry, plus
+any tabp-coupled CI version logic — is a **recommended follow-up delivery ticket**,
+explicitly **not** performed by this docs-only amendment (this PRD and the roadmap
+record the retirement; the removal is out of scope here).
 
 Automatic wholesale repository restructuring is out of scope. Brownfield
 standardization (`/acs:standardize-project`) is additive-only by constraint
@@ -724,3 +686,56 @@ A hosted / multi-tenant acs server operated as a running service for shared team
 delivery state is out of scope — team-shared state (G23) and org-distributed defaults
 (G24) stay config + shared-filesystem/tracker conventions, not a new backend service
 the org must run and operate.
+
+**Reversal note (MAR-97) — tabp retired; external consumer product introduced:**
+this amendment **retires the tabp feature**. tabp was built and run as a **team
+demo** of talent screening; it is no longer used, and its CV-screening
+capability is **superseded by an external commercial consumer product** (an
+agentic hiring SaaS, GMS-internal today with future external sale — not named
+in this PRD; the name lands in a later amendment at launch) that acs delivers
+as a consumer repo (see **G30**, **C-16**). Consequences of this retirement,
+recorded across this PRD:
+
+- The **tabp feature section** collapses to a retired stub (what tabp was, why
+  retired, superseded-by, git-history pointer) — see Features above.
+- The **tabp success metrics (T1-T7)** are frozen — retitled RETIRED, kept in
+  place (not renumbered, not deleted) as a historical record.
+- The **TABP recruiter / hiring team persona** is removed from Target users &
+  personas (see the retirement note beneath that table).
+- The **tabp feature constraint** and the runtime constraint's tabp clause are
+  marked historical.
+- The Marketplace's active catalog is now **1 plugin (acs)**; the **G20**
+  catalog-growth/quality-bar goal is unchanged in intent and metric-corrected
+  (no longer counting tabp as a passing catalog plugin) — it remains the path
+  by which future plugins, including a possible reintroduction of a
+  screening-adjacent capability, would join the catalog.
+- **Physical removal is a recommended follow-up ticket, not this PR.** This
+  amendment changes only `docs/product/prd.md` and `docs/product/roadmap.md`;
+  `plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry
+  remain on disk pending that follow-up ticket.
+- **MAR-94 / PR #182 re-scope flag.** Open PR #182 (MAR-94, currently
+  `CONFLICTING`, pending a rebase) proposed a tabp eval-coverage half — tabp
+  trigger + namespace evals, reserved as goal/target **T8** — alongside an
+  acs-behavioral eval-coverage half. **tabp's eval-coverage half is mooted by
+  this retirement**; only PR #182's acs-behavioral eval-coverage half remains
+  valid. This amendment does not edit PR #182 (separate ticket/PR); it records
+  the dependency so the #182 owner re-scopes it on the rebase that PR already
+  needs.
+
+**External consumer product — scope clarity:** the external commercial
+consumer product referenced by **G30** is an **external product delivered
+using acs**, not a marketplace plugin and not a catalog entry. acs treats it as
+a **consumer repo, like any other** — its codebase never lives in this repo,
+and acs runs the **same gated pipeline** against it with **no
+consumer-specific pipeline fork** (see **C-16**; mirrors the "one pipeline, not
+a parallel workflow" discipline used for tracker-first delivery, C-5). This
+repo's own dogfooding and that consumer's delivery are two separate consumer
+repos running the same pipeline, not two products.
+
+**Platform-strategy direction — deferred, not designed here:** a separately
+discussed platform-strategy direction — a **headless runner**, an **MCP
+connector layer**, **persona-lane segmentation**, and **vertical frontends** —
+is explicitly **out of scope for this amendment**. It is a **candidate future
+amendment**, not a rejected one; this amendment stays focused on the
+tabp-retirement / marketplace-refocus pivot so it remains reviewable, and does
+not design, goal, or roadmap the platform-strategy direction.
