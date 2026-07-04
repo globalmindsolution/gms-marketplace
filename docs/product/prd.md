@@ -128,6 +128,36 @@ and neither option ratchets new code upward while tolerating pre-existing legacy
 
 *(Retired: the TABP recruiter / hiring team persona is removed — tabp is retired; see the MAR-97 Reversal note in Out of scope.)*
 
+### AI-native operating model (personas extension)
+
+This subsection extends the persona table above with **how the personas above
+operate the pipeline day to day** on an AI-native team: roles are framed as
+**decision rights over the conformance chain**, not headcount or job titles
+(see **C-19**). **AI triads (planner/executor/verifier) do the labor; humans
+own the decisions and gates** — the pipeline's existing gate/review model
+(Vision; Verifier-as-gate NFR) is the mechanism, the seats below are who holds
+each decision right.
+
+**Operating rule (governs all seats):** **work-in-progress (WIP) is capped by
+human review bandwidth** — a team runs only as many parallel worktree
+pipelines as its humans can actually review (PR review, design sign-off,
+merge-pr judgment), never more just because the AI capacity exists. This is
+the load-bearing constraint the five seats below orbit.
+
+**Five seats**, instantiated per product team on the org structure (**G23**,
+**G24**), plus one rotation hat:
+
+| Seat | Owns (decision rights) | Operates (skills) |
+|------|------------------------|--------------------|
+| **Product Manager (PdM)** | PRD / roadmap / ticket requirements; clarification answers | `/acs:create-prd`, `/acs:create-ticket`, `/acs:metrics` |
+| **Principal AI Platform** | Architecture sign-off; design sign-off; standards/principles; platform + org policy — at a **declared capacity split** (a per-team-declared attribute of this role, not a number this PRD fixes) | `/acs:create-architecture`, `/acs:create-standards`/`/acs:create-principles`, org-policy configuration |
+| **AI Product Builder** ×N | Spec/code/PR/merge execution judgment within the gated pipeline; runs **parallel worktree pipelines**; subject to a **cross-review quota** (a per-team policy knob — see **C-3**; the normative rule is WIP capped by human review bandwidth, above) | `/acs:create-spec`, `/acs:code`, `/acs:create-pr`, `/acs:merge-pr`, `/acs:ship`, `/acs:handoff` |
+| **AI Quality & Evals Engineer** *(renamed from "AI QA")* | The verification **system**: eval suites, e2e config, coverage policy, verifier efficacy, failure-mode dashboards | `/acs:create-quality`, `/acs:test`, eval-harness maintenance, `/acs:metrics`/failure-observability panels |
+| **Ops/Release** *(a rotation hat, not a seat)* | Release cut; operations runbooks | `/acs:create-operations`, the release-cut capability (**G17**) |
+
+Each seat maps to skills it operates and decisions it owns; no seat's decision
+right duplicates another's. **Traces G33, G35** (below).
+
 ## Goals & success metrics
 
 ### acs feature — goals & success metrics
@@ -166,6 +196,9 @@ and neither option ratchets new code upward while tolerating pre-existing legacy
 | G30 — External-consumer delivery readiness | acs delivers an **external commercial consumer product's** codebase (an agentic hiring SaaS, GMS-internal today with future external sale) end-to-end through the **same gated pipeline** used for this repo's dogfooding — **0 gate escapes** and **100%** of that product's delivery tickets carry the full audit trail (ticket → spec → code → PR → merge) — first validated on **1 real delivery run on that repo within 1 release** of its onboarding kickoff (mirrors how G1/G9/G11 are first validated by an observed live run). Traces the external-consumer-product context in Vision; see **C-16**. |
 | G31 — Full behavioral eval coverage for every active plugin (per-skill coverage ratio) | **100% of each active catalog plugin's user-facing skills have a runnable behavioral (artifact-level) eval** — today acs (16 skills), the sole active plugin — measured as `skills-with-a-runnable-behavioral-scenario / total-skills` per plugin, reported per release; the ratio is **monotonically non-decreasing release over release** and reaches **100% within 2 releases** of the delivering capability shipping (N=2). Behavioral = asserts on produced artifacts, never prose (mirrors the harness discipline, `evals/README.md`). **Extends G8** (which names only the three dashboards as the behavioral gap); G31 generalizes the behavioral-coverage obligation to *all* skills of every active plugin and makes the per-plugin ratio the tracked progress number — it does not restate G8's dashboard clause. Traces the **Tech-lead persona**. |
 | G32 — Marketplace-wide eval baseline enforced per plugin (trigger + namespace + release-gate obligation) | **100% of catalog plugins (today 1: acs) satisfy the eval baseline every release**, and the obligation applies to every future catalog plugin on onboarding = (i) a **trigger/routing eval** covering 100% of the plugin's skills, (ii) a **namespace-isolation eval** for any non-acs plugin proving no cross-plugin `.acs/`/`acs:` prefix or token leakage, and (iii) the plugin's **paid eval tier passes as a pre-release gate**, with **0 released versions cut on a failing eval suite** — measured per release. **Extends G20** (which states the baseline as a one-time onboarding checklist) by making it a **recurring per-release obligation** with a measurable pass/fail; cross-references G8/G20 without restating them. Traces the **Tech-lead + Org/Platform-admin personas**. |
+| G33 — Full-SDLC phase coverage (every phase has an operating skill + a named accountable role) | **100% of the defined SDLC phases** (define → design → spec → code → PR → merge → release → quality → operate → standards/principles) **have both (a) an operating acs skill and (b) a named accountable role** from the AI-native operating model, with **0 phases reachable only by ad-hoc work** — first validated by an operating-model coverage walkthrough on the dogfood repo within **1 release** of the last committed tail skill (`/acs:create-quality`, `/acs:create-operations`, `/acs:test`, the release-cut capability) shipping. **Deploy is a deliberate exception, recorded as an explicit position:** there is **no deploy skill** — `/acs:create-project` scaffolds CI/CD, `/acs:create-operations` documents runbooks, and the release tag triggers the consumer repo's own CD. Extends the coverage story of **G8** (skill-quality coverage) without restating it. Traces the AI-native operating model + the full-SDLC coverage feature. |
+| G34 — Headless unattended runner (canonical unattended execution mode) | **100% of runner-triggered (unattended) executions run the COMPLEX/UNATTENDED lane (full verify) and stop before `/merge-pr`; 0 unattended runs execute a fast lane and 0 unattended runs auto-merge** — first validated by **≥ 1 real runner-triggered `/acs:ship` run** (triggered from a tracker label / chat / CLI) on the dogfood repo within **1 release** of the runner capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Extends **G6** (runtime portability) and **G30** (external-consumer delivery readiness). The **normative safety invariant** is stated as **C-18**. MECHANISM (SDK vs CI-runner host, trigger transport, auth) is **deferred to the implementing epic's design phase**. Traces the headless-runner feature + the Codex-rescope note (Features, Out of scope). |
+| G35 — Operating-model role accountability (named owner per skill) | **100% of acs operating skills map to exactly one accountable role** in the AI-native operating model (0 orphan skills, 0 skills with no named owner), and the **WIP-cap = human-review-bandwidth rule** is recorded as the governing operating constraint — verified by the operating-model table on the dogfood repo at this amendment's landing release, re-checked each release the skill set changes. Traces the AI-native operating model (personas). |
 
 ### tabp feature — success metrics *(RETIRED — tabp superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*
 
@@ -277,6 +310,18 @@ growth path.
   user-confirmed, at create-ticket alongside `needs_design`; default is
   full/standard rigor; lighter lanes are opt-in and rigor is never silently
   dropped. Traces **G14, G15, G16, G25**.
+- **Full-SDLC coverage (framing note, not a new skill)** — every SDLC phase
+  has both an operating acs skill and a named accountable role (see the
+  AI-native operating model, above Goals): release (**G17**, roadmap Wave 3),
+  create-quality + `/acs:test` (**G8**, roadmap Wave 1 LEAD), create-operations
+  (**G19**, roadmap Wave 1/4), standards/principles (**G10**, roadmap Wave 2).
+  Records the deliberate **no-deploy-skill position**: `/acs:create-project`
+  scaffolds CI/CD, `/acs:create-operations` documents runbooks, and the
+  release tag triggers the consumer repo's own CD — acs never ships a deploy
+  skill. The existing **`/acs:help`** discoverability feature (Could-have,
+  below) gains importance for the operating model's non-builder roles (PdM,
+  Principal, Quality) as an existing feature, cross-referenced here, not
+  re-scoped. Traces **G33**.
 
 **Should have** *(shipped in v0.1, maturing)*
 - Two-way tracker sync (GitHub Projects / Jira via `gh` / `acli`), remote import.
@@ -311,6 +356,48 @@ growth path.
   G7). Mechanism (standalone panel vs a new `acs:metrics` section) is deferred to
   the implementing ticket's design/spec phase. Traces **G19** (extends G7). See
   roadmap M3 Wave 4 (v0.4.3+) for the committed delivery item.
+- **Workflow-gap promotions (four items, AI-native operating model follow-through)**:
+  1. **Team-shared delivery state (G23/G24) promoted to a P0 prerequisite for
+     multi-person teams**, with **tracker-first (G11) recorded as the
+     sanctioned INTERIM team protocol** until G23/G24 ship (residual risks:
+     cross-machine id collisions in branch names; lock visibility gaps across
+     engineers). Extends the existing G23/G24 features (above) without
+     restating them. Traces **G23, G24, G11**.
+  2. **Team-mode init option** — an `/acs:init` option that scaffolds
+     **CODEOWNERS** mirroring `high_stakes_paths` plus docs-path ownership.
+     **Role gates live at the forge, not in acs** (the **C-19** discipline) —
+     acs scaffolds the CODEOWNERS file; GitHub enforces it. **MECHANISM**
+     (exact CODEOWNERS template, path-to-owner mapping) is **deferred to the
+     implementing epic's design phase**. Traces **G12, G24** + the AI-native
+     operating model.
+  3. **Design sign-off surface** — for `needs_design` tickets, publish the
+     approved `design.md` to a **shared reviewable surface** (a tracker issue
+     or a docs PR) for **Principal AI Platform sign-off** — today `design.md`
+     is machine-local, the one real role-separation break in the pipeline.
+     **MECHANISM** (which surface, transport) is **deferred to the
+     implementing epic's design phase**. Traces the AI-native operating model
+     + **G10**.
+  4. **create-spec planner user-confirmed stakes-bump** — on discovering a
+     high-stakes surface during spec authoring, the `/acs:create-spec` planner
+     **may propose a user-confirmed ticket stakes bump** (a metadata-accuracy
+     correction; verify depth is unaffected by this proposal alone — composes
+     with **C-7**/**C-12** and does not alter **G25**'s in-flight escalation
+     mechanism). **MECHANISM** deferred to the implementing epic's design
+     phase. Traces **G25, C-12** (metadata-accuracy dimension).
+- **Headless unattended runner** — a canonical **unattended execution mode**,
+  mechanically an **autonomous `/acs:ship`** (Agent SDK / CI runner),
+  triggerable from a **tracker label / chat / CLI**. Governed by the **C-18
+  safety invariant**: unattended execution **always** runs the
+  **COMPLEX/UNATTENDED lane (full verify)** — no configuration can assign a
+  fast lane to an unattended run — and **always stops before `/merge-pr`**.
+  Traces **G34** (extends G6, G30). **MECHANISM** (trigger wiring, Agent-SDK
+  vs CI-runner host, auth) is **deferred to the implementing epic's design
+  phase**. *Consequence:* the v0.5.0 multi-runtime (Codex) epic (roadmap M4)
+  **re-scopes in intent** from a full-pipeline port to **triggering the runner
+  + light authoring skills**, consistent with the already-documented Codex
+  constraints (no skill-invocation hook matcher, no `SessionEnd` event,
+  `PreToolUse` a guardrail rather than a complete enforcement boundary — see
+  the Multi-runtime Could-have below and Reversal note MAR-2).
 
 **Could have**
 - Scheduled background tracker sync; cross-machine handoff (shared workspace) — both sequenced into v0.7.0 (see roadmap M6); additional description templates.
@@ -454,6 +541,22 @@ growth path.
 - Non-Notion remote docs providers (Confluence, Google Docs, SharePoint) — Notion is the only named remote provider; general CMS / doc-graph re-architecture is out of scope; bidirectional Notion→repo editing is out of scope now (authoritative-remote means Notion is the system of record with no repo copy, not a two-way file sync).
 - Automatic downgrade of a ticket's complexity/supervision tier without explicit user confirmation — tiers are always user-confirmed; the system never silently reduces rigor.
 - Claude Code plugin LSP servers (`.lsp.json`), background monitors (`monitors.json`), and `bin/` PATH executables — evaluated (MAR-82) and not adopted as acs features. **LSP** is an anti-fit: it breaks the G6 zero-install/language-agnostic portability guarantee (Portability NFR) and is redundant with Claude Code's official LSP plugins. **Background monitors** are session-scoped and overlap already-planned work — the `/acs:test` closed-loop (v0.4.0) and Scheduled background tracker sync (v0.7.0) Could-haves — so they are at most a deferred mechanism of those items, not a new feature. **`bin/` PATH executables** sit below PRD altitude: an internal helper-invocation mechanism with no user-facing change that would not serve the deliberately install-free CI path (Portability NFR). Revisit only if a concrete acs need appears.
+- **GMS-built desktop app / agent host** — rationale: vendor velocity; this
+  would be a **5th runtime anti-pattern** (the runtime surface today is already
+  Claude Code + Codex CLI; a GMS-built host multiplies runtime coupling rather
+  than reducing it, contrary to the Portability NFR). The tabp-on-Cowork
+  precedent stands: build feature content on an existing host, never the host
+  itself.
+- **GMS-built coding SaaS for developers** — rationale: vendor surface; the
+  **headless runner (G34) is the internal delegation service** — it, not a
+  hosted coding product, is how unattended delivery gets triggered. Editors
+  stay plural (any runtime a consumer already uses); forge-level enforcement
+  (G9, G12) is what makes that heterogeneity safe, not a GMS-operated SaaS.
+- **Per-department bespoke agent stacks** — rationale: **one shared core**.
+  The org-structure goals (G23, G24) already provide department-level
+  cascading defaults and shared delivery state; a department building its own
+  agent stack instead of consuming the shared acs core would fragment the
+  conformance chain. Frontend + skill content vary; the pipeline core does not.
 
 ### Feature: tabp *(RETIRED — team demo, superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*
 
@@ -578,6 +681,8 @@ its own mechanisms (acs via stdlib Python + hooks; future plugins via their own 
 - **acs feature — amendments archive evidence, they do not inline it (C-15).** Historical/validation evidence goes to **appendix/history docs**, not inline in goal/feature cells (cells state goal + metric only, evidence linked); this makes **G29** durable. **Phasing:** applies to new/amended content; the pre-existing inlined-evidence backlog is remediated by the separate content-preserving restructure follow-up, not this amendment.
 - **acs feature — the external consumer product is a consumer repo, not a marketplace plugin; no pipeline fork (C-16).** The external commercial consumer product (an agentic hiring SaaS) that acs delivers per **G30** is treated exactly like any other consumer repo acs runs against — it is **not** an entry in `marketplace.json`, not a catalog plugin, and not designed or built inside this repo. acs delivers its codebase through the **standard gated pipeline**, with **no consumer-specific pipeline fork or special-cased skill/gate behavior** (mirrors the "one pipeline, not a parallel workflow" discipline already used for tracker-first delivery, C-5). This repo's own dogfooding and that consumer's delivery are two separate consumer repos running the same acs pipeline, not two products.
 - **acs feature — full eval coverage is additive over the shipped harness; the local-only, artifact-not-prose discipline and the pre-release paid gate are preserved (C-17).** Full-eval-coverage work (G31/G32) **extends** the shipped E1 harness and its per-plugin `evals/<plugin>/` seam; it does **not** move evals into CI (behavioral/LLM evals stay local-only, the paid tier remains a manual pre-release gate) and does **not** change the artifact-not-prose assertion rule. With no new scenarios added, behavior is identical to today (additive/non-breaking, mirrors C-6/C-14). **MECHANISM** (exact scenario list, coverage-ratio reporting surface, namespace-isolation check implementation) is **deferred to the implementing epic's design/spec phase**.
+- **acs feature — headless runner safety invariant, NORMATIVE (C-18).** Unattended execution **ALWAYS** runs the **COMPLEX/UNATTENDED lane (full verify)** — **no configuration can assign a fast lane to an unattended run** — and **always stops before `/merge-pr`**. This composes with (does not weaken) the Verifier-as-gate NFR (above), **C-7** (lane set once, user-confirmed), and the existing `/acs:ship`-stops-before-merge rule. It is a **floor a fast-lane value can never bypass**, mirroring the existing high-stakes floor (Complexity-adaptive delivery feature, above). Serves **G34**. **MECHANISM** (how the runner forces the lane, trigger auth) is **deferred to the implementing epic's design phase**.
+- **acs feature — the operating model is a role/decision-rights artifact, not a hiring/titles doc; role gates live at the forge (C-19).** The five-seat AI-native operating model (above) describes **decision rights over the conformance chain**, not headcount or job titles; concrete hiring/titles remain out of scope (see Out of scope). Role **enforcement** (who may approve, merge, or sign off) lives **at the forge** (CODEOWNERS, branch protection, org rulesets — **G9**, **G12**), **not inside acs skills** — acs itself stays role-agnostic; the forge is the gate. **Additive:** with no operating-model roles declared, acs behavior is unchanged.
 
 ## Out of scope
 
@@ -717,14 +822,13 @@ recorded across this PRD:
   amendment changes only `docs/product/prd.md` and `docs/product/roadmap.md`;
   `plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry
   remain on disk pending that follow-up ticket.
-- **MAR-94 / PR #182 re-scope flag.** Open PR #182 (MAR-94, currently
-  `CONFLICTING`, pending a rebase) proposed a tabp eval-coverage half — tabp
-  trigger + namespace evals, reserved as goal/target **T8** — alongside an
-  acs-behavioral eval-coverage half. **tabp's eval-coverage half is mooted by
-  this retirement**; only PR #182's acs-behavioral eval-coverage half remains
-  valid. This amendment does not edit PR #182 (separate ticket/PR); it records
-  the dependency so the #182 owner re-scopes it on the rebase that PR already
-  needs.
+- **MAR-94 / PR #182 re-scope flag — resolved.** MAR-94 (PR #182) landed
+  **acs-only** (merged as `62b4c99`, "Amend PRD: full evaluation coverage for
+  plugins"): its acs-behavioral eval-coverage half shipped as **G31/G32/C-17**
+  (above); the tabp eval-coverage half it originally proposed — tabp trigger +
+  namespace evals under the reserved goal/target **T8** — was **mooted by this
+  retirement** and never built; **T8** stays frozen/historical alongside T1-T7
+  (Feature: tabp, above). No further re-scope action is pending.
 
 **External consumer product — scope clarity:** the external commercial
 consumer product referenced by **G30** is an **external product delivered
@@ -736,10 +840,43 @@ a parallel workflow" discipline used for tracker-first delivery, C-5). This
 repo's own dogfooding and that consumer's delivery are two separate consumer
 repos running the same pipeline, not two products.
 
-**Platform-strategy direction — deferred, not designed here:** a separately
-discussed platform-strategy direction — a **headless runner**, an **MCP
-connector layer**, **persona-lane segmentation**, and **vertical frontends** —
-is explicitly **out of scope for this amendment**. It is a **candidate future
-amendment**, not a rejected one; this amendment stays focused on the
-tabp-retirement / marketplace-refocus pivot so it remains reviewable, and does
-not design, goal, or roadmap the platform-strategy direction.
+**Platform-strategy direction — now split between in-scope and still-out-of-scope:**
+the platform-strategy direction flagged by the prior (MAR-97) amendment as a
+candidate future amendment is **now partially activated** by this amendment:
+
+- **NOW IN scope (this amendment):** the **headless runner** (see **G34**, the
+  Headless unattended runner feature, and the **C-18** safety invariant);
+  **persona-lane segmentation**, delivered as the **AI-native operating model**
+  (the five-seat personas extension + **G35** role accountability, above); and
+  **vertical frontends**, recorded as **guidance** rather than a committed
+  feature — see the vertical-frontend ladder immediately below.
+- **STILL OUT of scope:** GMS-internal **MCP connector infrastructure** —
+  recorded as a context note only, not designed here (see immediately below);
+  the **desktop-app / coding-SaaS / per-department-bespoke-stacks** direction,
+  now explicit **Won't-haves** (Features, above); and concrete hiring/titles
+  beyond what the operating model states as decision rights (**C-19**).
+
+**Vertical-frontend ladder (guidance, not a committed feature):** if/when a
+vertical (non-CLI) frontend for acs is warranted, the climb is: (1) **Desktop /
+Cowork chat** surface first: (2) a **thin read/trigger web portal** next; (3)
+**embed in an existing system of record** (e.g. the tracker or a docs tool)
+after that; (4) a **standalone app** only as a last resort. Each rung is
+climbed only on **observed adoption signals**, never speculatively; no rung of
+this ladder is a committed deliverable of this amendment.
+
+**MCP connector infrastructure (context note, not designed here):** a
+GMS-internal MCP connector layer was part of the platform-strategy direction
+this amendment activates in part. It remains **out of scope / context-only**:
+this amendment does not goal, feature, or roadmap MCP connector infrastructure;
+it is recorded here so a future amendment has the context without re-deriving
+it.
+
+**External-consumer-product PRD pointer:** the external consumer product's own
+PRD and roadmap live in **its own repo**, authored via the same greenfield
+`/acs:create-prd` chain acs uses for any consumer repo — never in this PRD, and
+the external consumer product is **never named** here (see the MAR-97
+confidentiality rule, above). The retired tabp feature's **T1-T7** quality
+themes migrate conceptually to that product's own PRD, where its
+CV-screening-adjacent capability is now delivered — this PRD carries T1-T7 only
+as the frozen historical record (Feature: tabp, above); it does not restate
+them there.

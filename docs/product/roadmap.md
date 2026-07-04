@@ -274,6 +274,20 @@ v0.4.4, v0.4.5… without renumbering anything above.
 M3 retains up-front model-id/effort validation, docs, broader guided flows,
 and the e2e CI merge gate — see Wave 4 below.)*
 
+**G33 full-SDLC phase-coverage note:** Waves 1-4, **together**, deliver PRD
+**G33**'s phase-coverage commitment — Wave 1 (v0.4.0) closes quality/operate
+(`/acs:create-quality`, `/acs:create-operations`, `/acs:test`, **G8**), Wave 2
+(v0.4.1) closes standards/principles (**G10**), Wave 3 (v0.4.2) closes release
+(**G17**), and Wave 4 (v0.4.3+) closes the remaining observability item
+(**G19**). No version reshuffle: this is a mapping note over the four waves
+already committed above, plus the deliberate **no-deploy-skill position** they
+collectively encode (`/acs:create-project` scaffolds CI/CD,
+`/acs:create-operations` documents runbooks, the release tag triggers the
+consumer repo's own CD — no acs deploy skill). **G35 (operating-model role
+accountability)** is a documentation artifact **satisfied at this amendment's
+landing release** — no separate epic; re-checked each release the skill set
+changes.
+
 #### Wave 1 — v0.4.0 (LEAD)
 
 Starts now, in parallel with M2.6 — ADR 0011 already settles its design.
@@ -506,6 +520,29 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   eval (for any non-acs plugin), and paid-suite pre-release gate are re-checked
   every release, with 0 released versions cut on a failing eval suite. Maps to
   PRD **G32** (extends G20). **Traces G32.**
+- **Epic: workflow-gap promotions (AI-native operating model follow-through)**
+  — four items, **in no committed order** (consistent with Wave 4's
+  open-ended framing):
+  1. **Team-shared delivery state promoted to a P0 team prerequisite**, with
+     tracker-first (**G11**) recorded as the sanctioned interim team protocol
+     until **G23**/**G24** (Wave 3 / Wave 4, above) ship. Maps to PRD's
+     workflow-gap-promotions Should-have. **Traces G23, G24, G11.**
+  2. **Team-mode init option (CODEOWNERS scaffolding)** — an `/acs:init`
+     option scaffolding CODEOWNERS mirroring `high_stakes_paths` + docs-path
+     ownership; role gates live at the forge (**C-19**), not in acs. Maps to
+     PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner
+     mapping) is settled in this epic's design phase.
+  3. **Design sign-off surface** — publish approved `design.md` (for
+     `needs_design` tickets) to a shared reviewable surface (tracker issue or
+     docs PR) for Principal AI Platform sign-off, closing today's
+     machine-local role-separation gap. Maps to PRD's workflow-gap-promotions
+     Should-have + **G10**. The MECHANISM (which surface, transport) is
+     settled in this epic's design phase.
+  4. **create-spec planner user-confirmed stakes-bump** — `/acs:create-spec`'s
+     planner may propose a user-confirmed ticket stakes bump on discovering a
+     high-stakes surface (metadata-accuracy only; composes with **C-7**/**C-12**,
+     does not alter **G25**'s escalation mechanism). Maps to PRD **G25, C-12**.
+     The MECHANISM is settled in this epic's design phase.
 
 #### Sequence & exit
 
@@ -519,44 +556,64 @@ is not committed.
 
 ### M4 — v0.5.0 *(tentative — sequenced after the v0.4.x waves ship)*
 
-Maps to PRD extended G6 (runtime portability) and the acs Could-have **Multi-runtime
-support — OpenAI Codex CLI** feature ([`prd.md`](prd.md#features-moscow)). Reverses the
-prior acs "non-Claude-Code runtimes" Won't-have (Reversal note MAR-2).
+**Re-scoped (this amendment):** M4 is no longer solely a full-pipeline Codex CLI
+port. Its **LEAD epic is now the headless unattended runner (G34)** — the
+AI-native operating model's canonical unattended execution mode — and the
+Codex CLI work **re-scopes in intent** to **triggering the runner + light
+authoring skills** rather than a full reflection-cycle port, consistent with
+the documented Codex-platform constraints below. Maps to PRD **G34** (extends
+G6, G30), the **C-18** safety invariant, extended **G6** (runtime
+portability), and the acs Should-have **Headless unattended runner** feature
+plus the Could-have **Multi-runtime support — OpenAI Codex CLI**
+feature ([`prd.md`](prd.md#features-moscow)). Reverses the prior acs
+"non-Claude-Code runtimes" Won't-have (Reversal note MAR-2) — Codex remains a
+supported runtime, now triggered via the runner rather than ported wholesale.
 
 **Priority & sequencing — tentative, behind the committed roadmap.** This is a
-low-priority **Could-have**, scheduled **after the v0.4.x waves ship**, with a tentative
+**Should-have**, scheduled **after the v0.4.x waves ship**, with a tentative
 version home at **v0.5.0**. Nothing in the v0.3.0 or v0.4.x line depends on it, and it
 does not compete with the v0.4.x-wave epics (Verify & Operate — v0.4.0; Standards &
 Principles — v0.4.1; Org enforcement — v0.4.3+) for capacity — it is not started,
-designed, or ticketed until the v0.4.x waves are out. A first prior attempt (PR #134,
-MAR-5) was rejected for not matching the official Codex platform; the eventual epic
-must be re-scoped from scratch against the documented Codex primitives (see the
-Correction note in
+designed, or ticketed until the v0.4.x waves are out. **An early throwaway spike is
+permitted as dogfooding outside this committed scope** (does not pull the epic
+forward). A first prior Codex attempt (PR #134, MAR-5) was rejected for not
+matching the official Codex platform; the eventual epic must be re-scoped from
+scratch against the documented Codex primitives (see the Correction note in
 [`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)).
 
-Make the acs gated pipeline runnable on **OpenAI Codex CLI** in addition to Claude Code:
+- **Epic: headless unattended runner (LEAD, G34).** Deliver the canonical
+  **unattended execution mode** — mechanically an **autonomous `/acs:ship`**
+  (Agent SDK or CI-runner host), triggerable from a **tracker label / chat /
+  CLI**. Governed by the **C-18 safety invariant**: unattended execution
+  **always** runs the COMPLEX/UNATTENDED lane (full verify) — no configuration
+  can assign it a fast lane — and **always stops before `/merge-pr`**.
+  **Validation:** ≥ 1 real runner-triggered `/acs:ship` run on the dogfood
+  repo within 1 release of the capability shipping (the G34 metric). Maps to
+  PRD **G34** and the acs Should-have "Headless unattended runner" feature.
+  **The MECHANISM** (SDK vs CI-runner host, trigger transport, auth) is
+  **deferred to this epic's design phase**.
+- **Epic: Codex CLI trigger + light authoring skills (re-scoped from a
+  full-pipeline port).** Make the headless runner **triggerable from Codex
+  CLI**, and give Codex CLI a set of **light authoring skills** (not the full
+  reflection-cycle protocol), consistent with the documented Codex-platform
+  constraints: Codex exposes **no skill-invocation hook matcher and no
+  `SessionEnd` event**, its `PreToolUse` is a **guardrail rather than a
+  complete enforcement boundary**, and its subagent model (explicit-spawn,
+  custom-agent TOML format) differs from the coordinator-driven reflection
+  cycle — so a genuine runtime divergence, not a thin shim (see
+  [`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)
+  lines 13-14, 53-54, 128-131). Preserve the **full audit trail**; gate
+  integrity stays **best-effort by default, non-bypassable only via
+  org-managed (`requirements.toml`) hooks**. **Validation (extended G6):**
+  publish an end-to-end run with **0 lost audit-trail artifacts** and **0 gate
+  escapes under managed-hook enforcement**, within 1 release of the capability
+  shipping. Maps to PRD extended **G6** and the acs Could-have "Multi-runtime
+  support — OpenAI Codex CLI" feature.
 
-- **Runtime abstraction.** Identify which pipeline mechanisms are Claude-Code-specific
-  (PreToolUse/SessionEnd hook gating, the planner/executor/verifier reflection-subagent
-  protocol, skill/agent dispatch, per-role model/effort config, self-reported
-  cost/tokens) vs runtime-agnostic (the stdlib-only deterministic layer: gating, state,
-  ids, metrics, convention checks).
-- **Codex CLI runtime adapter.** Map each Claude-Code-specific mechanism onto Codex
-  CLI's primitives where they exist, and account for the gaps where they do not — Codex
-  exposes **no skill-invocation hook matcher and no `SessionEnd` event**, its
-  `PreToolUse` is a **guardrail rather than a complete enforcement boundary**, and its
-  subagent model (explicit-spawn, custom-agent TOML format) differs from the
-  coordinator-driven reflection cycle. Preserve the **full audit trail** on the second
-  runtime; gate integrity is **best-effort by default, non-bypassable only via
-  org-managed (`requirements.toml`) hooks**.
-- **Validation (extended G6).** Publish an end-to-end run of the acs pipeline on Codex
-  CLI with **0 lost audit-trail artifacts**, and **0 gate escapes under managed-hook
-  enforcement**, within 1 release of the capability shipping (the G6 runtime-portability
-  metric).
-
-**Deferral:** the MECHANISM (the hook-gating / subagent-protocol / dispatch mapping and
-which gates are native vs shimmed on Codex CLI) is deferred to this epic's dedicated
-design phase / an ADR; this epic requires its own `/acs:create-design` run before
+**Deferral:** the MECHANISM for both epics (the hook-gating / subagent-protocol /
+dispatch mapping, which gates are native vs shimmed on Codex CLI, the runner's
+trigger transport and host) is deferred to each epic's own dedicated design
+phase / an ADR; each requires its own `/acs:create-design` run before
 implementation. Mirrors the Notion/remote-docs and org-policy deferrals.
 
 **Implementation note:** this is a future epic pending design — this entry defines what
