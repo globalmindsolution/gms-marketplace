@@ -2450,20 +2450,33 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
 
     def test_changelog_unreleased_mar101_entry(self):
-        """AC-7: '(MAR-101)' must appear within 500 chars of '[Unreleased]'
-        in CHANGELOG.md, and the pre-existing '(MAR-88)' mention must remain
-        within its own 500-char window (no regression)."""
+        """AC-7: '(MAR-101)' and '(MAR-88)' must each be locatable relative
+        to '[Unreleased]' in CHANGELOG.md. Uses the same section-slice
+        technique as test_changelog_unreleased_mar102_entry (see
+        TestCreatePrInReviewStatusDocs) rather than a fixed-width DOTALL
+        bleed-through window: a raw '.{0,500}' budget is consumed almost
+        entirely by CHANGELOG.md's frozen [0.3.5] preamble and cannot
+        tolerate any real [Unreleased] entry (discovered MAR-102; not a
+        weakening of intent, only of the fragile distance mechanism)."""
         body = self._changelog()
-        self.assertIsNotNone(
-            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-101\)|\(MAR-101\).{0,500}\[Unreleased\]",
-                      body, re.DOTALL),
-            "CHANGELOG.md must contain '(MAR-101)' within 500 chars of "
-            "'[Unreleased]' (MAR-101 AC-7)")
-        self.assertIsNotNone(
-            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-88\)|\(MAR-88\).{0,500}\[Unreleased\]",
-                      body, re.DOTALL),
-            "CHANGELOG.md must still contain '(MAR-88)' within 500 chars of "
-            "'[Unreleased]' (regression guard, MAR-88 AC-5)")
+        unreleased_idx = body.find("## [Unreleased]")
+        self.assertNotEqual(unreleased_idx, -1, "CHANGELOG.md must carry an [Unreleased] heading")
+        search_from = unreleased_idx + len("## [Unreleased]")
+        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
+        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
+        unreleased_section_end = search_from + next_heading.start()
+        # (MAR-101) was swept into [0.3.5] by the v0.3.5 release cut, so it is
+        # searched for across the whole remainder of the document, not just
+        # inside [Unreleased] — the pre-existing intent (the entry must still
+        # exist somewhere in the CHANGELOG) is preserved.
+        self.assertIn("(MAR-101)", body[unreleased_idx:],
+                      "CHANGELOG.md must contain '(MAR-101)' (MAR-101 AC-7)")
+        self.assertIn("(MAR-88)", body[unreleased_idx:],
+                      "CHANGELOG.md must still contain '(MAR-88)' "
+                      "(regression guard, MAR-88 AC-5)")
+        self.assertNotIn("(MAR-101)", body[unreleased_idx:unreleased_section_end],
+                          "sanity: (MAR-101) belongs to the dated [0.3.5] "
+                          "section, not [Unreleased], post release-cut")
 
     def test_changelog_no_new_version_section(self):
         """AC-7: the section following [Unreleased] is a well-formed dated
@@ -2591,6 +2604,210 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         self.assertIn("ACS", body)
         self.assertIsNotNone(re.search(r"(?i)assignee", body))
         self.assertIsNotNone(re.search(r"(?i)milestone", body))
+
+
+class TestCreatePrInReviewStatus(unittest.TestCase):
+    """MAR-102: pin the in-review Project-Status resolution prose contract
+    extending MAR-101's tracker-metadata-fill Status-set call, in
+    create-pr/SKILL.md and create-pr-executor.md. Written TDD-first (RED
+    before MAR-102's edits land); turns GREEN once MAR-102 is implemented.
+    Additive only — no existing assertion in this file is modified."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def agent_path(self, skill, role):
+        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
+
+    def test_create_pr_resolves_in_review_option_case_insensitively(self):
+        """AC-1: create-pr/SKILL.md's Status-set call co-locates a
+        case-insensitive in-review option-name resolution naming both
+        'In Review' and 'Review' within a bounded window of the existing
+        item-edit/field-list Status-set call."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?is)(In Review.{0,400}\bReview\b|Review.{0,400}In Review)"
+                      r".{0,600}(item-edit|field-list|single-select-option-id)|"
+                      r"(item-edit|field-list|single-select-option-id)"
+                      r".{0,600}(In Review.{0,400}\bReview\b|Review.{0,400}In Review)",
+                      body),
+            "create-pr/SKILL.md must resolve the in-review option by "
+            "case-insensitive name (In Review, then Review) co-located with "
+            "the Status-set call (MAR-102 AC-1)")
+
+    def test_create_pr_in_review_status_both_create_and_edit_paths(self):
+        """AC-1: the in-review Status resolution is placed after step 6
+        Record (i.e. after the PR number is known) and the block still
+        states it applies on both create and edit paths."""
+        body = read(self.skill_path("create-pr"))
+        record_idx = body.find("**Record.**")
+        self.assertNotEqual(record_idx, -1, "create-pr/SKILL.md must still carry the Record step")
+        review_idx = body.find("In Review")
+        self.assertNotEqual(review_idx, -1, "in-review option resolution must exist")
+        self.assertGreater(
+            review_idx, record_idx,
+            "MAR-102: in-review Status resolution must be placed after step 6 "
+            "Record, not before the PR number is known")
+        self.assertIsNotNone(
+            re.search(r"(?i)\bboth\b.{0,120}(create and edit|create.{0,10}edit)|"
+                      r"(create and edit|create.{0,10}edit).{0,120}\bboth\b", body),
+            "create-pr/SKILL.md must explicitly say the metadata-fill "
+            "(incl. Status resolution) applies on both create and edit "
+            "paths (MAR-102 AC-1)")
+
+    def test_create_pr_missing_in_review_option_is_info_finding(self):
+        """AC-2: when no in-review option is defined, an info finding names
+        the missing option and how to add it; Status is left unchanged; the
+        PR is unaffected — all within a bounded window of the resolution
+        rule."""
+        body = read(self.skill_path("create-pr"))
+        review_idx = body.find("In Review")
+        self.assertNotEqual(review_idx, -1, "in-review option resolution must exist")
+        window = body[max(0, review_idx - 200):review_idx + 1200]
+        self.assertIsNotNone(
+            re.search(r"(?i)info", window),
+            "must co-locate an info-severity finding with the in-review "
+            "resolution rule (MAR-102 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?is)Status.{0,200}(unchanged|left unchanged)|"
+                      r"(unchanged|left unchanged).{0,200}Status", window),
+            "must state Status is left unchanged when no in-review option "
+            "is defined (MAR-102 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)how to add", window),
+            "must name how to add the missing in-review option (MAR-102 AC-2)")
+
+    def test_create_pr_in_review_resolution_inside_guarded_block(self):
+        """AC-3/AC-4: the new in-review resolution sits inside MAR-101's
+        guarded metadata-fill block — the local/unsynced no-op and
+        failure-surfaced-never-abort guarantees still cover the span from
+        the assignee-fill marker to step 7 Tracker sync."""
+        body = read(self.skill_path("create-pr"))
+        assignee_idx = None
+        for m in re.finditer(r"(?i)--add-assignee|@me", body):
+            assignee_idx = m.start()
+            break
+        self.assertIsNotNone(assignee_idx, "metadata-fill block must exist")
+        step7_idx = body.find("**Tracker sync.**")
+        self.assertNotEqual(step7_idx, -1, "step 7 Tracker sync must still exist")
+        window = body[assignee_idx:step7_idx]
+        self.assertIn("In Review", window,
+                      "MAR-102: the in-review Status resolution must sit "
+                      "inside the guarded metadata-fill block (between the "
+                      "assignee fill and step 7 Tracker sync)")
+        self.assertIsNotNone(
+            re.search(r"(?i)(local|unsynced).{0,300}(no-?op|skip)|"
+                      r"(no-?op|skip).{0,300}(local|unsynced)|byte-identical", window),
+            "the local/unsynced no-op guarantee must still cover the whole "
+            "guarded block, incl. the new in-review resolution (MAR-102 AC-3)")
+        self.assertIsNotNone(
+            re.search(r"(?is)finding.{0,300}(never abort|does not abort|do(es)? not abort)|"
+                      r"(never abort|does not abort|do(es)? not abort).{0,300}finding", window),
+            "the failure-surfaced-never-abort guarantee must still cover the "
+            "whole guarded block, incl. the new in-review resolution "
+            "(MAR-102 AC-4)")
+
+    def test_create_pr_executor_mirrors_in_review_resolution(self):
+        """AC-1 (executor surface): create-pr-executor.md carries the
+        identical in-review option-name resolution (In Review/Review)
+        co-located with its item-edit/field-list sequence."""
+        body = read(self.agent_path("create-pr", "executor"))
+        self.assertIsNotNone(
+            re.search(r"(?is)(In Review.{0,400}\bReview\b|Review.{0,400}In Review)"
+                      r".{0,600}(item-edit|field-list|single-select-option-id)|"
+                      r"(item-edit|field-list|single-select-option-id)"
+                      r".{0,600}(In Review.{0,400}\bReview\b|Review.{0,400}In Review)",
+                      body),
+            "create-pr-executor.md must mirror the in-review option "
+            "resolution (In Review, then Review) co-located with the "
+            "Status-set call (MAR-102 AC-1)")
+
+
+class TestCreatePrInReviewStatusDocs(unittest.TestCase):
+    """MAR-102: pin the CHANGELOG + living-requirements documentation of the
+    in-review Status resolution. Additive only, strictly on
+    CHANGELOG.md/skills.md prose — no assertion here touches create-pr's
+    SKILL.md apply-flow body (that surface belongs to
+    TestCreatePrInReviewStatus)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def test_changelog_unreleased_mar102_entry(self):
+        """AC-7: '(MAR-102)' must appear inside the [Unreleased] section
+        span (sliced from '## [Unreleased]' to the next '\\n## [' heading),
+        NOT via a bleed-through DOTALL window that could match text swept
+        into a prior dated release section. The entry must also acknowledge
+        the graceful-degradation wording."""
+        body = self._changelog()
+        unreleased_idx = body.find("## [Unreleased]")
+        self.assertNotEqual(unreleased_idx, -1, "CHANGELOG.md must carry an [Unreleased] heading")
+        search_from = unreleased_idx + len("## [Unreleased]")
+        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
+        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
+        section_end = search_from + next_heading.start()
+        section = body[unreleased_idx:section_end]
+        self.assertIn(
+            "(MAR-102)", section,
+            "CHANGELOG.md must contain '(MAR-102)' inside the [Unreleased] "
+            "section span, not bled through from a later dated release "
+            "(MAR-102 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?i)In Review|info finding|unchanged", section),
+            "the MAR-102 CHANGELOG entry must acknowledge the "
+            "graceful-degradation wording (MAR-102 AC-2/AC-7)")
+
+    def test_changelog_no_new_version_section(self):
+        """AC-7: the section following [Unreleased] is still a well-formed
+        dated semver release heading — this ticket does not bump the
+        version."""
+        body = self._changelog()
+        unreleased_idx = body.find("## [Unreleased]")
+        search_from = unreleased_idx + len("## [Unreleased]")
+        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
+        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
+        next_heading_text = next_heading.group(0)
+        self.assertRegex(next_heading_text, r"\n## \[\d+\.\d+\.\d+\]",
+                         "the heading after [Unreleased] must be a dated semver "
+                         "release section (MAR-102 AC-7: feature changesets never "
+                         "insert version headings)")
+
+    def test_skills_md_create_pr_section_has_mar102_standing_behavior(self):
+        """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
+        carries a '(standing behavior, MAR-102)' bullet referencing the
+        in-review Status resolution, and the pre-existing MAR-101 and
+        reviewers-ASSUMPTION bullets remain untouched."""
+        body = self._skills_req()
+        section_start = body.index("## 5. `/create-pr`")
+        section_end = body.index("## 6. `/merge-pr`")
+        section = body[section_start:section_end]
+        self.assertIn("(standing behavior, MAR-102)", section,
+                      "docs/requirements/skills.md '/create-pr' section must "
+                      "carry a '(standing behavior, MAR-102)' bullet (MAR-102 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?i)In Review", section),
+            "the MAR-102 standing-behavior bullet must reference the "
+            "In Review option (MAR-102 AC-7)")
+        self.assertIn("(standing behavior, MAR-101)", section,
+                      "the pre-existing MAR-101 standing-behavior bullet must "
+                      "remain untouched (MAR-102 out-of-scope guard)")
+        self.assertIsNotNone(
+            re.search(r"(?s)reviewers\s+are left to repo conventions\.", section),
+            "the pre-existing reviewers ASSUMPTION bullet must remain "
+            "untouched (MAR-102 out-of-scope guard)")
+
+    def test_merge_pr_done_transition_unaffected(self):
+        """AC-5: merge-pr/SKILL.md Step 2 cleanup still sets Status to Done
+        — pins that this changeset leaves the Done transition intact and is
+        not itself edited."""
+        body = read(os.path.join(PLUGIN, "skills", "merge-pr", "SKILL.md"))
+        self.assertIsNotNone(
+            re.search(r"(?is)single-select-option-id.{0,200}Done|Done.{0,200}single-select-option-id", body),
+            "merge-pr/SKILL.md must still set Project Status to Done via "
+            "single-select-option-id in Step 2 cleanup (MAR-102 AC-5)")
 
 
 if __name__ == "__main__":
