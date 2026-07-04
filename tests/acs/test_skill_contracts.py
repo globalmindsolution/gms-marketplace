@@ -2466,18 +2466,19 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
             "'[Unreleased]' (regression guard, MAR-88 AC-5)")
 
     def test_changelog_no_new_version_section(self):
-        """AC-7: no version bump — [Unreleased] stays the section directly
-        preceding the existing [0.3.4] dated section; no new dated heading
-        is inserted between them."""
+        """AC-7: the section following [Unreleased] is a well-formed dated
+        semver release heading — feature tickets never insert one (only a
+        release cut may), and a malformed or undated heading is a defect."""
         body = self._changelog()
         unreleased_idx = body.find("## [Unreleased]")
         search_from = unreleased_idx + len("## [Unreleased]")
         next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
         self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
         next_heading_text = next_heading.group(0)
-        self.assertIn("[0.3.4]", next_heading_text,
-                      "no new dated version section may be inserted between "
-                      "[Unreleased] and the existing [0.3.4] section (MAR-101 AC-7)")
+        self.assertRegex(next_heading_text, r"\n## \[\d+\.\d+\.\d+\]",
+                         "the heading after [Unreleased] must be a dated semver "
+                         "release section (MAR-101 AC-7: feature changesets never "
+                         "insert version headings; release cuts do)")
 
     def test_skills_md_create_pr_section_has_mar101_standing_behavior(self):
         """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
