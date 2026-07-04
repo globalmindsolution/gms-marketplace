@@ -688,6 +688,16 @@ Purpose: ship the implementation as a pull request.
   `local`/unsynced tickets. Independently, the enforced `pr_title` format now
   renders the tracker's native reference when the ticket is synced (MAR-80) —
   see the `/create-pr` section above for the title-rendering mechanics.
+- **Tracker-metadata fill (standing behavior, MAR-101):** on GitHub tracker
+  sync (i.e. `ticket.external.provider == "github"` and the ticket is synced),
+  an acs-opened/updated PR carries assignee = PR author (the authenticated
+  `gh` user, resolved via `@me`) on both the create and edit paths; the
+  ticket-type label alongside the required `ACS` label, both created
+  idempotently; and Project membership with its Status field set — any
+  Project-schema-undefined field is surfaced as an info finding rather than
+  silently skipped (mirroring the create-ticket standing behavior above).
+  `local`/unsynced tickets are unaffected (byte-identical no-op), and a
+  failed `gh` metadata call is surfaced as a finding and never aborts the PR.
 
 ## 6. `/merge-pr`
 

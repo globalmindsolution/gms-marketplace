@@ -227,6 +227,42 @@ exact error — no silent fallback.
 6. **Record.** `gh pr view <branch> --json number,url,baseRefName,headRefName,isDraft,labels`
    → capture `{number, url, branch, base}` for `states.pr`.
 
+6a. **Tracker-metadata fill (github-tracker only).** When
+   `settings.tracker.provider == "github"` AND `ticket.external.key` is set
+   (the same guard step 7 below already uses), fill the PR's tracker metadata
+   on **both** the create and edit paths of step 5 above, now that the PR
+   number is known from step 6:
+   - **Assignee.** `gh pr edit <number> --add-assignee @me` — `@me` resolves
+     to the authenticated `gh` user running the pipeline, i.e. the PR author,
+     with no extra round-trip.
+   - **Type label.** `gh label create <ticket.type> --description "Created by the acs pipeline" 2>/dev/null || true`
+     then `gh pr edit <number> --add-label <ticket.type>` — applies the
+     ticket-type label (`epic`/`story`/`task`) alongside the existing `ACS`
+     label from step 3, idempotently.
+   - **Project membership + Status.** `gh project item-add <project_number> --owner <owner> --url <pr-url>`
+     (deliberately WITHOUT `--format json` — that flag was observed to parse
+     poorly against this repo's Project; this is a permanent, intentional
+     deviation from create-ticket Step 5's `item-add` call, which pairs that
+     flag with the add, not one to "fix" back). Resolve the item id instead via
+     `gh project item-list <project_number> --owner <owner> --format json --limit 500`
+     parsed `strict=False` (`--limit 500` because Projects can carry more
+     items than the tool default). Then `gh project field-list <project_number> --owner <owner> --format json`
+     to find the Status field's id/option ids, and
+     `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
+     to set Status. For any Project field this repo's schema does not define,
+     add an info-severity finding naming exactly which field was skipped and
+     why — the field is surfaced, not silently skipped, mirroring
+     create-ticket Step 5d's schema-undefined-field rule.
+   - **Failure handling.** Every `gh` call above is individually guarded: a
+     non-zero exit or error response is captured as a finding (the exact
+     command plus the error) that must never abort the PR create/edit that
+     steps 5–6 already completed — the flow simply continues to the next
+     metadata sub-step.
+   - **Local/unsynced no-op.** When the guard above does not hold (provider
+     is not `github`, or the ticket has no `external.key`), this entire
+     metadata-fill block is skipped — the PR produced is byte-identical to
+     today's output; no assignee call, no type-label call, no Project call.
+
 7. **Tracker sync.** When `settings.tracker.provider` is `github` or `jira`
    AND `ticket.external.key` is set, comment on the remote issue with the PR
    URL:
@@ -242,8 +278,9 @@ exact error — no silent fallback.
 Write a phase artifact `<partition>/phases/create-pr/iter-1-execute.json`
 (commands run with outcomes, pushed SHA, PR number/url/base, sync result,
 problems hit, the pre-open self-check's pass/fail result and, on retry, how
-many attempts were used). Validate any `<task>`/`<result>` XML with
-validate_xml.py.
+many attempts were used, plus the tracker-metadata-fill result — assignee/
+label/Project outcomes and any findings — additive, alongside the existing
+fields). Validate any `<task>`/`<result>` XML with validate_xml.py.
 
 ## User interaction
 

@@ -58,6 +58,26 @@ with:
    — capture `{number, url, branch, base}` into your execute report. The
    coordinator persists this for the /acs:merge-pr gate; never report a PR you did
    not confirm live.
+5a. **Tracker-metadata fill (github-tracker only)** — only when
+   `tracker_provider == "github"` AND `ticket.external.key` is set (the same
+   guard step 6 below uses); applies on **both** the create and edit paths of
+   step 4, now that the PR number is known from step 5:
+   - `gh pr edit <number> --add-assignee @me` (assignee = PR author).
+   - `gh label create <ticket.type> --description "Created by the acs pipeline" 2>/dev/null || true`
+     then `gh pr edit <number> --add-label <ticket.type>` (type label
+     alongside `ACS`, idempotent).
+   - `gh project item-add <project_number> --owner <owner> --url <pr-url>`
+     (deliberately WITHOUT `--format json` — a permanent deviation, do not
+     "fix" it back), then resolve the item id via
+     `gh project item-list <project_number> --owner <owner> --format json --limit 500`
+     parsed `strict=False`, then `gh project field-list <project_number> --owner <owner> --format json`
+     and `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
+     to set Status. A field the Project schema does not define is surfaced as
+     an info finding, never silently skipped.
+   - Every call above is individually guarded: a failure is captured as a
+     finding (command + error) and never aborts the PR create/edit. When the
+     guard condition does not hold (local/unsynced), this entire step is
+     skipped — no-op.
 6. **Tracker sync** — only when `tracker_provider` is `github` or `jira` AND
    `ticket.external.key` is set (skip for `local`; when the provider is configured
    but the ticket was never synced, record an info finding instead):
@@ -81,6 +101,7 @@ Write `<partition>/phases/create-pr/iter-<n>-execute.json` (`<n>` = the task's
   "mode": "created",
   "commands_run": [{"cmd": "git push -u origin task/SHOP-123-bulk-import", "outcome": "pushed 0f3c2ab9"}],
   "tracker_sync": {"provider": "github", "key": "acme/shop#88", "result": "comment posted"},
+  "metadata_fill": {"assignee": "added @me", "type_label": "task", "project": {"added": true, "status_set": true}, "findings": []},
   "problems": [], "clarifications_used": []
 }
 ```

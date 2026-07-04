@@ -2306,6 +2306,202 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "(MAR-80 AC-4 scope-fence)")
 
 
+class TestCreatePrTrackerMetadataFill(unittest.TestCase):
+    """MAR-101 spec 01: pin the tracker-metadata fill (assignee, type label,
+    Project membership + Status) prose contract in create-pr/SKILL.md and
+    create-pr-executor.md. Written TDD-first (RED before spec 01's edits
+    land); turns GREEN once spec 01 is implemented. Additive only — no
+    existing assertion in this file is modified."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def agent_path(self, skill, role):
+        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
+
+    def test_create_pr_fills_assignee_type_label_project_status(self):
+        """AC-1/AC-2/AC-3: create-pr/SKILL.md references an assignee fill
+        (--add-assignee / @me), a type-label fill distinct from the existing
+        ACS label, and a Project item-add co-occurring with a Status-set
+        call, all within bounded windows."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?i)--add-assignee|@me", body),
+            "create-pr/SKILL.md must reference the --add-assignee/@me fill (MAR-101 AC-1)")
+        self.assertIsNotNone(
+            re.search(r"(?i)type.label", body),
+            "create-pr/SKILL.md must reference a type-label fill distinct from ACS (MAR-101 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?s)item-add.{0,600}(item-edit|field-list)|"
+                      r"(item-edit|field-list).{0,600}item-add", body),
+            "create-pr/SKILL.md must co-locate 'item-add' with a Status-set "
+            "call ('item-edit'/'field-list') within a bounded window (MAR-101 AC-3)")
+
+    def test_create_pr_project_schema_undefined_field_is_info_finding(self):
+        """AC-3: a Project-schema-undefined field is surfaced, not silently
+        skipped — same phrasing already pinned for create-ticket."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?i)(surfaced|surfac\w*).{0,200}(not silently|never silently)|"
+                      r"(not silently|never silently).{0,200}(surfaced|surfac\w*)", body),
+            "create-pr/SKILL.md must state a schema-undefined Project field is "
+            "surfaced, not silently skipped (MAR-101 AC-3)")
+
+    def test_create_pr_metadata_fill_both_create_and_edit_paths(self):
+        """AC-1: the metadata-fill instruction is stated to apply on both the
+        create and edit paths, placed after step 6 Record (i.e. after the PR
+        number is known) rather than nested only in the create-only branch."""
+        body = read(self.skill_path("create-pr"))
+        record_idx = body.find("**Record.**")
+        self.assertNotEqual(record_idx, -1, "create-pr/SKILL.md must still carry the Record step")
+        metadata_idx = None
+        for m in re.finditer(r"(?i)--add-assignee|@me", body):
+            metadata_idx = m.start()
+            break
+        self.assertIsNotNone(metadata_idx, "metadata-fill block must exist")
+        self.assertGreater(
+            metadata_idx, record_idx,
+            "AC-1: metadata-fill must be placed after step 6 Record, not inside "
+            "the create-only sub-branch of step 5 (MAR-101 AC-1)")
+        self.assertIsNotNone(
+            re.search(r"(?i)\bboth\b.{0,120}(create and edit|create.{0,10}edit)|"
+                      r"(create and edit|create.{0,10}edit).{0,120}\bboth\b", body),
+            "create-pr/SKILL.md must explicitly say the metadata-fill applies "
+            "on both create and edit paths (MAR-101 AC-1)")
+
+    def test_create_pr_metadata_local_unsynced_noop(self):
+        """AC-4: the metadata-fill block itself (not step 7's pre-existing
+        tracker-sync guard) states it is skipped for local/unsynced tickets,
+        within the bounded span from the assignee-fill marker to the start
+        of step 7 Tracker sync."""
+        body = read(self.skill_path("create-pr"))
+        assignee_idx = None
+        for m in re.finditer(r"(?i)--add-assignee|@me", body):
+            assignee_idx = m.start()
+            break
+        self.assertIsNotNone(assignee_idx, "metadata-fill block must exist")
+        step7_idx = body.find("**Tracker sync.**")
+        self.assertNotEqual(step7_idx, -1, "step 7 Tracker sync must still exist")
+        window = body[assignee_idx:step7_idx]
+        self.assertIsNotNone(
+            re.search(r"(?i)(local|unsynced).{0,300}(no-?op|skip)|"
+                      r"(no-?op|skip).{0,300}(local|unsynced)|byte-identical", window),
+            "create-pr/SKILL.md's metadata-fill section itself (between the "
+            "assignee fill and step 7 Tracker sync) must state the "
+            "local/unsynced no-op (MAR-101 AC-4)")
+
+    def test_create_pr_metadata_failure_surfaced_not_aborting(self):
+        """AC-5: a failed gh metadata call is captured as a finding and does
+        not abort PR creation."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?is)finding.{0,300}(never abort|does not abort|do(es)? not abort)|"
+                      r"(never abort|does not abort|do(es)? not abort).{0,300}finding", body),
+            "create-pr/SKILL.md must state a failed gh metadata call is "
+            "surfaced as a finding and never aborts the PR (MAR-101 AC-5)")
+
+    def test_create_pr_deviates_from_item_add_format_json(self):
+        """Guards the named deviation: the actual gh project item-add
+        command (inside its own backtick/code span) is NOT paired with
+        --format json in the metadata-fill section; item-list instead
+        carries --limit 500 with strict=False-equivalent language."""
+        body = read(self.skill_path("create-pr"))
+        item_add_commands = re.findall(r"`[^`]*item-add[^`]*`", body)
+        self.assertTrue(item_add_commands, "create-pr/SKILL.md must reference a gh project item-add command")
+        for call in item_add_commands:
+            self.assertNotIn(
+                "--format json", call,
+                "create-pr/SKILL.md's actual item-add command must NOT pair "
+                "with --format json — this is a deliberate, permanent "
+                "deviation from the create-ticket precedent (MAR-101)")
+        self.assertIsNotNone(
+            re.search(r"(?is)item-list.{0,200}--limit 500.{0,200}strict=False|"
+                      r"item-list.{0,200}strict=False.{0,200}--limit 500", body),
+            "create-pr/SKILL.md must resolve the item id via item-list "
+            "--limit 500 parsed strict=False (MAR-101)")
+
+    def test_create_pr_executor_charter_has_metadata_fill_step(self):
+        """Executor coverage: create-pr-executor.md carries the same
+        assignee/type-label/Project-Status fill instruction the SKILL
+        carries — the executor enumerates the flow and must not omit it."""
+        body = read(self.agent_path("create-pr", "executor"))
+        self.assertIsNotNone(
+            re.search(r"(?i)--add-assignee|@me", body),
+            "create-pr-executor.md must reference the assignee fill (MAR-101)")
+        self.assertIsNotNone(
+            re.search(r"(?i)type.label", body),
+            "create-pr-executor.md must reference the type-label fill (MAR-101)")
+        self.assertIsNotNone(
+            re.search(r"(?i)item-add", body),
+            "create-pr-executor.md must reference the Project item-add call (MAR-101)")
+
+
+class TestCreatePrMetadataFillDocs(unittest.TestCase):
+    """MAR-101 spec 02: pin the CHANGELOG + living-requirements documentation
+    of spec 01's tracker-metadata-fill behavior. Additive only, strictly on
+    CHANGELOG.md/skills.md prose — no assertion here touches create-pr's
+    SKILL.md apply-flow body (that surface belongs to
+    TestCreatePrTrackerMetadataFill / spec 01)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def test_changelog_unreleased_mar101_entry(self):
+        """AC-7: '(MAR-101)' must appear within 500 chars of '[Unreleased]'
+        in CHANGELOG.md, and the pre-existing '(MAR-88)' mention must remain
+        within its own 500-char window (no regression)."""
+        body = self._changelog()
+        self.assertIsNotNone(
+            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-101\)|\(MAR-101\).{0,500}\[Unreleased\]",
+                      body, re.DOTALL),
+            "CHANGELOG.md must contain '(MAR-101)' within 500 chars of "
+            "'[Unreleased]' (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-88\)|\(MAR-88\).{0,500}\[Unreleased\]",
+                      body, re.DOTALL),
+            "CHANGELOG.md must still contain '(MAR-88)' within 500 chars of "
+            "'[Unreleased]' (regression guard, MAR-88 AC-5)")
+
+    def test_changelog_no_new_version_section(self):
+        """AC-7: no version bump — [Unreleased] stays the section directly
+        preceding the existing [0.3.4] dated section; no new dated heading
+        is inserted between them."""
+        body = self._changelog()
+        unreleased_idx = body.find("## [Unreleased]")
+        search_from = unreleased_idx + len("## [Unreleased]")
+        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
+        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
+        next_heading_text = next_heading.group(0)
+        self.assertIn("[0.3.4]", next_heading_text,
+                      "no new dated version section may be inserted between "
+                      "[Unreleased] and the existing [0.3.4] section (MAR-101 AC-7)")
+
+    def test_skills_md_create_pr_section_has_mar101_standing_behavior(self):
+        """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
+        carries a '(standing behavior, MAR-101)' bullet referencing
+        assignee/type label/Project/Status, and the pre-existing reviewers
+        ASSUMPTION bullet remains untouched."""
+        body = self._skills_req()
+        section_start = body.index("## 5. `/create-pr`")
+        section_end = body.index("## 6. `/merge-pr`")
+        section = body[section_start:section_end]
+        self.assertIn("(standing behavior, MAR-101)", section,
+                      "docs/requirements/skills.md '/create-pr' section must carry "
+                      "a '(standing behavior, MAR-101)' bullet (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?is)assignee.{0,300}(type label|Project|Status)|"
+                      r"(type label|Project|Status).{0,300}assignee", section),
+            "the MAR-101 standing-behavior bullet must reference assignee "
+            "co-occurring with type label/Project/Status (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?s)reviewers\s+are left to repo conventions\.", section),
+            "the pre-existing reviewers ASSUMPTION bullet must remain "
+            "untouched (MAR-101 out-of-scope guard)")
+
+
 class TestFanoutTrackerSyncLoop(unittest.TestCase):
     """MAR-84 spec 01: pin the fan-out tracker-sync loop prose contract across
     create-ticket/SKILL.md and create-ticket-executor.md. Written TDD-first
