@@ -22,6 +22,16 @@ the notes.
   case-insensitive name (`In Review`, then `Review`) on both the create and
   edit paths. When the board defines no such option, an info finding names
   it and how to add it; Status is left unchanged and the PR is unaffected.
+- **`/acs:create-pr` requests CODEOWNERS-derived reviewers and syncs the
+  remaining Project fields (MAR-103).** A new stdlib-only `codeowners.py`
+  helper resolves PR reviewers from the repo's CODEOWNERS file
+  (last-match-wins, team-slug-aware); the PR author is always dropped, and
+  an empty or author-only result skips gracefully with an info finding
+  instead of a hard failure. `/acs:create-pr` and `/acs:create-ticket` also
+  sync Priority, Story Points, and Parent to the board's matching named
+  Project field (fixed case-insensitive table, type-driven value mapping);
+  a schema-undefined field is surfaced as an info finding, same as the
+  existing Type/Status fallback.
 
 ## [0.3.5] - 2026-07-04
 

@@ -28,6 +28,7 @@ of messages in one in-process loop (MAR-61).
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes …]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes `handed_off`, releases lock, prints `continue_with` |
+| `codeowners.py resolve --repo-root --changed-files [--codeowners-path]` | stdout: `{source, owners[], reason}`; exit 0 on all data outcomes, exit 2 on malformed invocation |
 
 Exit codes: 0 ok; 2 blocked/invalid with actionable stderr.
 
