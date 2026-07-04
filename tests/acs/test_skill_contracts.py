@@ -2436,6 +2436,72 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             "create-pr-executor.md must reference the Project item-add call (MAR-101)")
 
 
+class TestCreatePrMetadataFillDocs(unittest.TestCase):
+    """MAR-101 spec 02: pin the CHANGELOG + living-requirements documentation
+    of spec 01's tracker-metadata-fill behavior. Additive only, strictly on
+    CHANGELOG.md/skills.md prose — no assertion here touches create-pr's
+    SKILL.md apply-flow body (that surface belongs to
+    TestCreatePrTrackerMetadataFill / spec 01)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def test_changelog_unreleased_mar101_entry(self):
+        """AC-7: '(MAR-101)' must appear within 500 chars of '[Unreleased]'
+        in CHANGELOG.md, and the pre-existing '(MAR-88)' mention must remain
+        within its own 500-char window (no regression)."""
+        body = self._changelog()
+        self.assertIsNotNone(
+            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-101\)|\(MAR-101\).{0,500}\[Unreleased\]",
+                      body, re.DOTALL),
+            "CHANGELOG.md must contain '(MAR-101)' within 500 chars of "
+            "'[Unreleased]' (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-88\)|\(MAR-88\).{0,500}\[Unreleased\]",
+                      body, re.DOTALL),
+            "CHANGELOG.md must still contain '(MAR-88)' within 500 chars of "
+            "'[Unreleased]' (regression guard, MAR-88 AC-5)")
+
+    def test_changelog_no_new_version_section(self):
+        """AC-7: no version bump — [Unreleased] stays the section directly
+        preceding the existing [0.3.4] dated section; no new dated heading
+        is inserted between them."""
+        body = self._changelog()
+        unreleased_idx = body.find("## [Unreleased]")
+        search_from = unreleased_idx + len("## [Unreleased]")
+        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
+        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
+        next_heading_text = next_heading.group(0)
+        self.assertIn("[0.3.4]", next_heading_text,
+                      "no new dated version section may be inserted between "
+                      "[Unreleased] and the existing [0.3.4] section (MAR-101 AC-7)")
+
+    def test_skills_md_create_pr_section_has_mar101_standing_behavior(self):
+        """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
+        carries a '(standing behavior, MAR-101)' bullet referencing
+        assignee/type label/Project/Status, and the pre-existing reviewers
+        ASSUMPTION bullet remains untouched."""
+        body = self._skills_req()
+        section_start = body.index("## 5. `/create-pr`")
+        section_end = body.index("## 6. `/merge-pr`")
+        section = body[section_start:section_end]
+        self.assertIn("(standing behavior, MAR-101)", section,
+                      "docs/requirements/skills.md '/create-pr' section must carry "
+                      "a '(standing behavior, MAR-101)' bullet (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?is)assignee.{0,300}(type label|Project|Status)|"
+                      r"(type label|Project|Status).{0,300}assignee", section),
+            "the MAR-101 standing-behavior bullet must reference assignee "
+            "co-occurring with type label/Project/Status (MAR-101 AC-7)")
+        self.assertIsNotNone(
+            re.search(r"(?s)reviewers\s+are left to repo conventions\.", section),
+            "the pre-existing reviewers ASSUMPTION bullet must remain "
+            "untouched (MAR-101 out-of-scope guard)")
+
+
 class TestFanoutTrackerSyncLoop(unittest.TestCase):
     """MAR-84 spec 01: pin the fan-out tracker-sync loop prose contract across
     create-ticket/SKILL.md and create-ticket-executor.md. Written TDD-first

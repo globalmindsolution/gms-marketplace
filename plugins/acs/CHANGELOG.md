@@ -23,6 +23,17 @@ the notes.
   **surfaces** (never blocks) a finding for the user's **decision** —
   deconflicted from `code-verifier` dim. 12, planner-charter-only.
 
+### Added
+
+- **`/acs:create-pr` now sets PR assignee, ticket-type label, and GitHub
+  Project membership (MAR-101).** For github-tracker-synced tickets, on both
+  the create and edit paths, the PR carries assignee = PR author (via `gh`'s
+  `@me`), the ticket-type label alongside `ACS` (idempotent creation), and is
+  added to the configured GitHub Project with Status set; a schema-undefined
+  Project field is surfaced as an info finding, not silently skipped.
+  `local`/unsynced tickets are unaffected; a failed `gh` metadata call is
+  surfaced as a finding and never aborts the PR.
+
 ## [0.3.4] - 2026-07-03
 
 ### Added
