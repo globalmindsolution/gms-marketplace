@@ -484,7 +484,14 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
   disk equals reachable-agent count (today 27 vs 21 reachable). Maps to PRD **G8**
-  (both metric clauses). **Traces G8.**
+  (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
+  extends the eval harness to **all** currently-uncovered acs skills — not only
+  the three dashboards — adding behavioral (artifact-level) scenarios for the
+  four product-producer skills (`create-prd`, `create-architecture`,
+  `create-project`, `create-design`) and for `create-pr`, `merge-pr`, `ship`,
+  and reports a **per-plugin behavioral-coverage ratio** (skills-with-a-runnable-
+  behavioral-scenario / total-skills), tracked release over release toward the
+  100%-within-2-releases target. Maps to PRD **G31** (extends G8). **Traces G31.**
 - **Epic: marketplace catalog growth & quality bar** — promotes "additional
   marketplace plugins" from the icebox into a committed, documented onboarding
   path: a new plugin is added to the catalog through a gated checklist (manifest
@@ -493,6 +500,12 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   against the shared quality bar. Maps to PRD **G20** and the marketplace-level
   Vision framing. **Traces G20.** The MECHANISM (exact checklist tooling, whether
   scripted or documentation-only) is settled in this epic's design/spec phase.
+  **Broadened scope (G32):** the same epic makes the quality bar a **recurring
+  per-release obligation**, not only a one-time onboarding checklist — every
+  catalog plugin's trigger/routing eval (100% of its skills), namespace-isolation
+  eval (for any non-acs plugin), and paid-suite pre-release gate are re-checked
+  every release, with 0 released versions cut on a failing eval suite. Maps to
+  PRD **G32** (extends G20). **Traces G32.**
 
 #### Sequence & exit
 
