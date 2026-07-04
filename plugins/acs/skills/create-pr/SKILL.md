@@ -239,6 +239,24 @@ exact error — no silent fallback.
      then `gh pr edit <number> --add-label <ticket.type>` — applies the
      ticket-type label (`epic`/`story`/`task`) alongside the existing `ACS`
      label from step 3, idempotently.
+   - **Reviewer request (CODEOWNERS-derived).** `gh pr diff <number> --name-only`
+     to get the changed-file list, then feed it to
+     `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codeowners.py" resolve --repo-root <checkout_root> --changed-files -`
+     (via stdin) to resolve the raw matched-owner set. Drop any entry equal to
+     the already-resolved `@me` login (the PR author) — no reviewer request
+     ever names the author. If the remaining set is non-empty:
+     `gh pr edit <number> --add-reviewer <owners minus author, comma-joined>`
+     — `@org/team` entries are requested through this identical call, no
+     separate API path for team owners. If the remaining set is empty —
+     whether because `codeowners.py` returned `reason: "no_codeowners_file"`,
+     `reason: "no_pattern_matched"`, or because every matched owner was the
+     author — **never call `gh pr edit --add-reviewer`**; add exactly one
+     **info**-severity finding naming the reason:
+     - `"No CODEOWNERS file found"` when `reason` was `no_codeowners_file`.
+     - `"No CODEOWNERS pattern matched the changed files"` when `reason` was
+       `no_pattern_matched`.
+     - `"Only eligible reviewer is the PR author; skipped (self-review
+       impossible)"` when every matched owner was dropped as the author.
    - **Project membership + Status.** `gh project item-add <project_number> --owner <owner> --url <pr-url>`
      (deliberately WITHOUT `--format json` — that flag was observed to parse
      poorly against this repo's Project; this is a permanent, intentional
@@ -262,6 +280,39 @@ exact error — no silent fallback.
      this repo's schema does not define, add an info-severity finding naming
      exactly which field was skipped and why — the field is surfaced, not silently
      skipped, mirroring create-ticket Step 5d's schema-undefined-field rule.
+   - **Group-B PR-item field-fill (Priority, Story Points, Parent).** Reuse
+     the SAME `gh project field-list` JSON already fetched above for
+     Status — no new list call. For each of Priority, Story Points, and
+     Parent: resolve the board field by **case-insensitive name match**
+     against the fixed table (`priority` → `Priority`; `story_points` →
+     `Story Points`, `Points`, or `Estimate`; `parent` → `Parent` or `Epic`).
+     A board defining none of these names for a given field → **info**
+     finding naming exactly which field was skipped and why (same
+     schema-undefined-field rule above) — field left unset, never a wrong
+     write. When the field IS defined, map its value by the resolved field's
+     `dataType`:
+     - **Priority → SINGLE_SELECT.** Resolve the target option by
+       case-insensitive name match against the ticket's `priority` value
+       (`critical`/`high`/`medium`/`low`) directly against the field's
+       option names — the identical resolver pattern already used for
+       Status above. No synonym table. No match (e.g. `P0`/`P1`/`P2`
+       options) → info finding, field left unset. A Priority field of any
+       other `dataType` → info finding, never a wrong-type write attempt.
+     - **Story Points → NUMBER.** `gh project item-edit --project-id <pid>
+       --id <item-id> --field-id <fid> --number <ticket.story_points>`. If
+       the matched field is `SINGLE_SELECT` instead (bucketed points, e.g.
+       "XS/S/M/L"), match the number's string form against the option names
+       using the same resolver; no match → info finding.
+     - **Parent → TEXT.** `gh project item-edit --project-id <pid> --id
+       <item-id> --field-id <fid> --text <parent-tracker-key>`, where
+       `<parent-tracker-key>` is the parent ticket's external tracker key
+       (e.g. `#42`). Any other `dataType` for the matched field is
+       unresolvable → info finding.
+     Every `gh project item-edit` call in this loop is individually guarded
+     exactly like the Status call above: a non-zero exit or error → finding
+     (command + error), never abort. This loop runs after the Status
+     sub-step, on both the create and edit paths (same guard as the
+     existing sub-step).
    - **Failure handling.** Every `gh` call above is individually guarded: a
      non-zero exit or error response is captured as a finding (the exact
      command plus the error) that must never abort the PR create/edit that
@@ -270,7 +321,8 @@ exact error — no silent fallback.
    - **Local/unsynced no-op.** When the guard above does not hold (provider
      is not `github`, or the ticket has no `external.key`), this entire
      metadata-fill block is skipped — the PR produced is byte-identical to
-     today's output; no assignee call, no type-label call, no Project call.
+     today's output; no assignee call, no type-label call, no reviewer call,
+     no Project call.
 
 7. **Tracker sync.** When `settings.tracker.provider` is `github` or `jira`
    AND `ticket.external.key` is set, comment on the remote issue with the PR
@@ -289,7 +341,9 @@ Write a phase artifact `<partition>/phases/create-pr/iter-1-execute.json`
 problems hit, the pre-open self-check's pass/fail result and, on retry, how
 many attempts were used, plus the tracker-metadata-fill result — assignee/
 label/Project outcomes and any findings — additive, alongside the existing
-fields). Validate any `<task>`/`<result>` XML with validate_xml.py.
+fields, plus the additive `reviewers{requested, skipped_reason, findings}`
+and `project_fields{priority, story_points, parent, findings}` keys).
+Validate any `<task>`/`<result>` XML with validate_xml.py.
 
 ## User interaction
 
