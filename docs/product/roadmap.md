@@ -364,23 +364,52 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   may tighten not loosen; no repo self-exemption; org-granted, audited exemptions; rule
   provenance). The enforceable part comes from an org-controlled source the repo cannot
   edit (e.g. GitHub org rulesets / org-required workflows / a versioned policy pack) and/or
-  inverted floor precedence — never a developer-home file. Additive and non-breaking
-  (no org source ⇒ today's behavior). Connects to the standards layer (org policy can
-  mandate G10 conformance as a floor once it ships). Maps to PRD **G12** and the new acs
-  Could-have feature. The MECHANISM is settled in this epic's **design phase / an ADR**,
-  consistent with how the tabp-upgrade and standards epics defer mechanism. Traces **G12**
-  (+ the Org/Platform-admin persona).
+  inverted floor precedence — never a developer-home file. Floors **compose down the
+  hierarchy**: a department may tighten the org floor (never loosen it), a project may
+  tighten both, and exemptions are granted only at the layer that owns the mandate.
+  Additive and non-breaking (no org source ⇒ today's behavior). Connects to the standards
+  layer (org policy can mandate G10 conformance as a floor once it ships). Maps to PRD
+  **G12** and the new acs Could-have feature. The MECHANISM is settled in this epic's
+  **design phase / an ADR**, consistent with how the tabp-upgrade and standards epics
+  defer mechanism. Traces **G12** (+ the Org/Platform-admin persona).
 - **Epic: org-scale settings & workspace distribution (G24)** — adds the *defaults*
   half to the org-policy layer: an org-controlled source distributes shared
   non-enforcement defaults (models, tracker, doc paths, formats) + a workspace
-  convention across all org repos, resolved most-specific-wins (a repo may override a
-  default), additive and non-breaking (no org source ⇒ today's behavior). Sequenced
-  alongside the org-level enforcement policy epic above — G12 stays the
-  non-overridable mandate/floor half, G24 is the overridable defaults/distribution
-  half. Maps to PRD **G24** and the acs Could-have "Org-scale settings & workspace
-  distribution" feature. **Traces G24 (extends G12; + the Org/Platform-admin and
-  Team-on-a-shared-repo personas).** The MECHANISM (org source format, distribution
-  transport) is settled in this epic's design phase / an ADR.
+  convention across the full **org → department → project** cascade, resolved
+  most-specific-wins (a repo may override a default), additive and non-breaking (no
+  org source ⇒ today's behavior). Sequenced alongside the org-level enforcement policy
+  epic above — G12 stays the non-overridable mandate/floor half, G24 is the overridable
+  defaults/distribution half. Maps to PRD **G24** and the acs Could-have "Org-scale
+  settings & workspace distribution" feature. **Traces G24 (extends G12; + the
+  Org/Platform-admin and Team-on-a-shared-repo personas).** The MECHANISM (org/department
+  source format, distribution transport) is settled in this epic's design phase / an ADR.
+- **Epic: org/department-shared context lifecycle (G28)** — organizations and
+  departments maintain shared, versioned/pinned context doc sets (standards,
+  principles, similar sources); projects consume at a pinned version; acs verifiers
+  surface drift (pinned vs current version) and provenance (which level a rule came
+  from). Builds on the org/department cascade above and the principles/standards
+  doc-set epic. Maps to PRD **G28** and the acs Could-have "Org/department-shared
+  context lifecycle" feature. **Traces G28 (+ the Org/Platform-admin persona).** The
+  MECHANISM (versioning/pinning format, drift-detection transport) is settled in this
+  epic's design phase.
+- **Epic: department metrics rollups** — extends the `acs:metrics`/`acs:usage`
+  dashboard surface with project → department → org rollups of delivery
+  throughput/cost metrics, read-only from existing workspace artifacts (same
+  no-new-config discipline as G7). Maps to PRD **G24**/**G19** and the acs Could-have
+  "Department metrics rollups" feature. **Traces the Org/Platform-admin persona +
+  G24 (relates to G19).** The MECHANISM (rollup source, org/dept grouping key) is
+  settled in the implementing ticket's design/spec phase.
+- **Epic: human-readable doc management (readability verifier-gate, G29)** — every
+  acs producer skill's verifier gains readability checks — progressive disclosure,
+  evidence archived to appendices, TOC on long docs, no mega table cells — enforced as
+  blocking findings, mirroring the G10 standards-conformance verifier-gate. Pairs with
+  constraint C-15 (evidence archived, not inlined). This epic commits the
+  **capability** (the per-producer verifier readability gate); it does NOT include the
+  one-off content-preserving restructure of the existing `prd.md`/`roadmap.md`, which
+  is a separate scope-guarded follow-up run. Maps to PRD **G29** and the acs Could-have
+  "Human-readable doc management" feature. **Traces G29 (+ all producer-skill
+  personas).** The MECHANISM (per-producer readability checks, appendix/history
+  layout) is settled in the implementing epic's design phase.
 - **Epic: onboarding polish** — `/acs:init` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
   read-only skill index / next-step advisor (e.g. `/acs:help`) listing available
