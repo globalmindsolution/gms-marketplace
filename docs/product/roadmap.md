@@ -402,6 +402,33 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   family as the `principles_path`/`standards_path`/`quality_path`/`operations_path`
   path-config work above. Maps to PRD extended G6 and the acs Could-have
   configurable-doc-set-storage-location feature.
+- **Epic: invoker-scoped merge governance + out-of-band reconciliation (G26)** —
+  scopes ADR-0028's approved-review mandate (m6) by invoker: agent-invoked merges
+  keep the APPROVED requirement; human-invoked merges defer to the repo's own
+  branch protection. Detects an out-of-band-merged PR whose ticket is still
+  `in_review` and reconciles state (ticket→done, archive partition, update
+  metrics) instead of leaving it stranded, and surfaces bypass-rate as a new
+  failure signal on the failure-mode/pipeline-health observability epic's
+  dashboard (below, this wave) — a direct tie-in with G19. Preserves ADR-0028's core safety
+  guarantee (readiness gate + branch protection remain the two independent
+  brakes); narrows ONLY the require-APPROVED-for-ALL fallback to
+  require-APPROVED-for-AGENT, exactly the narrowing ADR-0028 line 47
+  anticipates. Maps to PRD **G26** and the acs Could-have "Invoker-scoped merge
+  governance + out-of-band reconciliation" feature. **Traces G26** (+ the
+  Solo-developer and Tech-lead personas). The MECHANISM (a reliable
+  invocation-source signal, out-of-band detection, reconciliation transport) is
+  settled in this epic's design phase / an ADR update to 0028.
+- **Epic: brownfield-adaptive coverage policy (G27)** — a configurable coverage
+  policy — baseline ratchet (no regression + a new-code coverage target) or
+  per-path targets — instead of only today's single repo-wide
+  `test_coverage_percent` hard-fail; additive (no coverage-policy config set =
+  today's single hard-fail, byte-identical). Natural companion to the M3
+  brownfield standardize-project epic (above) and its E2E-2 brownfield e2e
+  scaffolding — a coverage baseline pairs naturally with brownfield readiness
+  setup. Maps to PRD **G27** (extends G3, G6) and the acs Could-have
+  "Brownfield-adaptive coverage policy" feature. **Traces G27** (+ the
+  Tech-lead / brownfield-onboarding story). The MECHANISM (ratchet vs per-path,
+  config key shape, baseline storage) is settled in this epic's design phase.
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (the supported-effort enum currently lives only in the advisory `settings.schema.json`, unenforced by the runtime gate, with no model-id validation at all). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
