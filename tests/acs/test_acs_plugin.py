@@ -3184,6 +3184,123 @@ class TestInLoopEscalation(AcsWorkspaceCase):
         expected = lib.derive_lane("trivial", "high", False, "story")
         self.assertEqual(new_lane, expected)
 
+    # --- MAR-107 D4 AC-2: monotone ceiling raise via the full three-function interplay ---
+
+    def test_d4_monotone_ceiling_raise_full_interplay(self):
+        """MAR-107 AC-2: seed=SMALL (ceiling 1); escalate_lane(..., "standard",
+        "normal", ...) -> STANDARD; assert new_ceiling ==
+        VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)] AND
+        new_ceiling > prior_ceiling. Distinct from test_ceiling_raised_on_escalation
+        (:3124): that test only pins escalate_lane's own ceiling return; this test
+        additionally re-derives the ceiling independently via the
+        escalate_lane -> verify_depth -> VERIFY_ITERATION_CAP chain and asserts
+        the two computations agree, proving the full interplay, not just one
+        function's output."""
+        ticket = self._ticket
+        prior_ceiling = lib.VERIFY_ITERATION_CAP[lib.verify_depth(ticket["lane"], ticket["stakes"])]
+        self.assertEqual(prior_ceiling, 1)  # SMALL/normal -> light -> 1
+
+        new_lane, new_depth, new_ceiling = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+        independently_derived_ceiling = lib.VERIFY_ITERATION_CAP[lib.verify_depth(new_lane, "normal")]
+        self.assertEqual(new_ceiling, independently_derived_ceiling,
+                         "new_ceiling must equal the independently re-derived "
+                         "VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)] (MAR-107 AC-2)")
+        self.assertGreater(new_ceiling, prior_ceiling,
+                           "escalation must strictly raise the ceiling (MAR-107 AC-2)")
+
+    # --- MAR-107 D4 AC-2: never-lower across a hold ---
+
+    def test_d4_ceiling_never_lowers_across_hold_full_interplay(self):
+        """MAR-107 AC-2: current ceiling already at the full cap (3);
+        escalate_lane("STANDARD", "trivial", "normal", ...) (a lower candidate)
+        holds STANDARD; assert max(current_ceiling=3, new_ceiling) == 3 does not
+        regress. Distinct from test_ceiling_is_monotone_never_lowered (:3142):
+        that test only asserts escalate_lane's return value; this test exercises
+        the identical escalate_lane -> verify_depth -> VERIFY_ITERATION_CAP
+        interplay and explicitly re-derives new_ceiling from new_lane/new_depth
+        before taking the max, per the full three-function chain (MAR-107 AC-2)."""
+        current_ceiling = lib.VERIFY_ITERATION_CAP["full"]
+        self.assertEqual(current_ceiling, 3)
+
+        new_lane, new_depth, new_ceiling = lib.escalate_lane(
+            "STANDARD", "trivial", "normal", False, "story"
+        )
+        self.assertEqual(new_lane, "STANDARD")  # hold: TRIVIAL candidate is lower
+        independently_derived_ceiling = lib.VERIFY_ITERATION_CAP[lib.verify_depth(new_lane, "normal")]
+        self.assertEqual(new_ceiling, independently_derived_ceiling)
+
+        actual_ceiling = max(current_ceiling, new_ceiling)
+        self.assertEqual(actual_ceiling, 3,
+                         "ceiling must never regress below the already-raised "
+                         "value across a hold (MAR-107 AC-2)")
+
+    # --- MAR-107 D4 AC-2: lane_rank ordering underlies the guarantee ---
+
+    def test_d4_lane_rank_ordering_underlies_escalation_decision(self):
+        """MAR-107 AC-2: lane_rank orders TRIVIAL < SMALL < STANDARD < COMPLEX,
+        and escalate_lane's raise/hold decision is consistent with that ordering
+        across >= 1 fast->full and >= 1 full->full transition."""
+        self.assertLess(lib.lane_rank("TRIVIAL"), lib.lane_rank("SMALL"))
+        self.assertLess(lib.lane_rank("SMALL"), lib.lane_rank("STANDARD"))
+        self.assertLess(lib.lane_rank("STANDARD"), lib.lane_rank("COMPLEX"))
+
+        # Fast -> full transition: SMALL current, STANDARD candidate -> raise.
+        fast_to_full_lane, _, _ = lib.escalate_lane(
+            "SMALL", "standard", "normal", False, "story"
+        )
+        self.assertEqual(fast_to_full_lane, "STANDARD")
+        self.assertGreater(lib.lane_rank(fast_to_full_lane), lib.lane_rank("SMALL"))
+
+        # Full -> full transition: STANDARD current, COMPLEX candidate -> raise.
+        full_to_full_lane, _, _ = lib.escalate_lane(
+            "STANDARD", "large", "normal", False, "story"
+        )
+        self.assertEqual(full_to_full_lane, "COMPLEX")
+        self.assertGreater(lib.lane_rank(full_to_full_lane), lib.lane_rank("STANDARD"))
+
+    # --- MAR-107 D4 AC-3: no-restart property at the state level ---
+
+    def test_d4_escalation_recompute_preserves_completed_run_state(self):
+        """MAR-107 AC-3: seed a ticket, put a COMPLETED run entry on
+        code-state.json via append_in_progress_run/finalize_run, then simulate
+        an escalation recomputation (escalate_lane/guard_axes + the
+        save_ticket/update_pipeline/update_index persist sequence); reload
+        code-state.json and assert the previously-appended completed run entry
+        is still present and unmodified — escalation is additive to run
+        history, never a reset."""
+        ticket = self._ticket
+        lib.append_in_progress_run(self._tdir, "code", self.ticket_id)
+        state, completed_entry = lib.finalize_run(
+            self._tdir, "code", self.ticket_id,
+            {"status": "completed", "stop_reason": "iteration 1 done",
+             "tokens": {"input": 10, "output": 5}, "cost_usd": 0.01})
+        completed_snapshot = dict(completed_entry)
+
+        # Simulate the in-loop escalation recomputation + persist sequence.
+        eff_size, eff_stakes = lib.guard_axes(
+            ticket["size"], ticket["stakes"], "standard", "normal")
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], eff_size, eff_stakes,
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+        ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
+        lib.save_ticket(self._tdir, ticket)
+        lib.update_pipeline(self._tdir, self.ticket_id, "code", "in_progress", lane=new_lane)
+        lib.update_index(self.ws, "acme-shop", ticket)
+
+        reloaded_state = lib.load_state(self._tdir, "code", self.ticket_id)
+        reloaded_entry = reloaded_state["runs"][0]
+        self.assertEqual(reloaded_entry, completed_snapshot,
+                         "the previously-completed run entry must survive an "
+                         "escalation recomputation unmodified (MAR-107 AC-3 "
+                         "no-restart guarantee, state-level)")
+        self.assertEqual(reloaded_entry["status"], "completed")
+
 
 class TestRecordEscalationEvent(AcsWorkspaceCase):
     """MAR-106 (D1/AC-1/AC-2/AC-3/AC-6): record_escalation_event(tdir, skill,

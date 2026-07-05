@@ -955,6 +955,52 @@ class TestCodeSkillEscalation(unittest.TestCase):
                          "code/SKILL.md must not introduce a recommend_size-style "
                          "deterministic scope helper (MAR-106 AC-5/D2, frozen set)")
 
+    # --- MAR-107 D4 AC-1: named iteration-start escalation detection point ---
+
+    def test_d4_named_detection_point(self):
+        """MAR-107 AC-1: code/SKILL.md must contain an explicit label for the
+        iteration-start escalation detection point."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(r"(?i)detection point", body),
+            "code/SKILL.md must name the iteration-start escalation "
+            "'detection point' as a normative contract (MAR-107 AC-1)")
+
+    # --- MAR-107 D4 AC-1: before-the-verifier ordering ---
+
+    def test_d4_before_the_verifier_ordering(self):
+        """MAR-107 AC-1: code/SKILL.md must state that re-selection happens
+        after the prior verifier and before the current execute, guaranteeing
+        escalation lands before the NEXT verifier pass. Distinct from
+        test_first_signal_evaluated_immediately (:820), which only pins
+        'first signal', not the before/after verifier ordering framing."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(r"(?i)before the (next )?verifier", body),
+            "code/SKILL.md must state escalation lands before the next "
+            "verifier pass (MAR-107 AC-1)")
+
+    # --- MAR-107 D4 AC-3: no-restart guarantee, D4-framed (anchored near the detection point) ---
+
+    def test_d4_no_restart_guarantee_anchored_near_detection_point(self):
+        """MAR-107 AC-3: code/SKILL.md must state the no-restart /
+        completed-work-preserved guarantee co-located with the named
+        detection-point label (within 400 chars), not merely anywhere in the
+        document. Distinct from test_no_restart_property (:831), which pins
+        the general MAR-57 no-restart statement anywhere in the body; this
+        test requires the guarantee to be near the D4 detection-point anchor
+        specifically."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)detection point.{0,400}(no.restart|without restart|"
+                r"without discard|completed work)|"
+                r"(no.restart|without restart|without discard|completed work)"
+                r".{0,400}detection point",
+                body, re.DOTALL),
+            "code/SKILL.md must state the no-restart guarantee co-located "
+            "with the named detection point (MAR-107 AC-3)")
+
 
 class TestStageReintroduction(unittest.TestCase):
     """MAR-57 Spec 03 (AC-5, AC-8): pin the stage re-introduction contract in
@@ -1109,6 +1155,46 @@ class TestStageReintroduction(unittest.TestCase):
             self.fail(
                 "create-spec/SKILL.md describes an automatic downgrade path outside of "
                 "a negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
+
+    # --- MAR-107 D4 AC-4: fold-boundary condition pinned code-side (step g) ---
+
+    def test_d4_step_g_states_fold_condition_and_pickup_invocation(self):
+        """MAR-107 AC-4: code/SKILL.md step (g) must state the fold condition
+        (origin lane TRIVIAL or SMALL, and new lane STANDARD or COMPLEX) and
+        name the create-spec triad invocation in Escalation-pickup mode. This
+        is the first test targeting code/SKILL.md step (g) specifically
+        (distinct from the create-spec-side tests in this class, which pin
+        create-spec/SKILL.md, not code/SKILL.md)."""
+        body = self._code_body()
+        self.assertIsNotNone(
+            re.search(r"(?i)(TRIVIAL|fast lane).{0,120}(SMALL).{0,200}"
+                      r"(STANDARD|full lane).{0,60}(COMPLEX)|"
+                      r"fast lane.{0,80}(TRIVIAL or SMALL).{0,300}"
+                      r"full lane.{0,80}(STANDARD or COMPLEX)",
+                      body, re.DOTALL),
+            "code/SKILL.md step (g) must state the fold condition: origin "
+            "lane TRIVIAL or SMALL and new lane STANDARD or COMPLEX "
+            "(MAR-107 AC-4)")
+        self.assertIsNotNone(
+            re.search(r"(?i)create.spec.{0,200}(triad|escalation.pickup)|"
+                      r"(triad|escalation.pickup).{0,200}create.spec",
+                      body, re.DOTALL),
+            "code/SKILL.md step (g) must name the create-spec triad "
+            "invocation in Escalation-pickup mode (MAR-107 AC-4)")
+
+    # --- MAR-107 D4 AC-4: resume-only-after-zero-findings pinned code-side (step g) ---
+
+    def test_d4_step_g_states_resume_only_after_zero_findings(self):
+        """MAR-107 AC-4: code/SKILL.md step (g) must state that /code resumes
+        implementation only once create-spec has passed at zero verifier
+        findings."""
+        body = self._code_body()
+        self.assertIsNotNone(
+            re.search(r"(?i)only once.{0,10}create.spec.{0,120}(passed|pass).{0,120}"
+                      r"zero.{0,20}(verifier )?findings.{0,60}resume",
+                      body, re.DOTALL),
+            "code/SKILL.md step (g) must state /code resumes only once "
+            "create-spec passes at zero verifier findings (MAR-107 AC-4)")
 
 
 class TestMidFlightEscalationContract(unittest.TestCase):
@@ -1290,6 +1376,44 @@ class TestMidFlightEscalationContract(unittest.TestCase):
             "(MAR-57 AC-6)")
 
 
+class TestAdr0042D4Section(unittest.TestCase):
+    """MAR-107 (AC-5): pin the additive D4 section appended to
+    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    defers D4 (:22-23); this class asserts the deferred section now exists."""
+
+    def _adr_path(self):
+        return os.path.join(REPO_ROOT, "docs", "adr",
+                            "0042-dynamic-mid-flight-lane-correctness.md")
+
+    def _adr_body(self):
+        return read(self._adr_path())
+
+    def test_adr_0042_has_d4_heading_naming_reselection_and_stage_reentry(self):
+        """AC-5: docs/adr/0042 must contain a '### D4' heading naming
+        verify_depth re-selection and stage re-entry."""
+        body = self._adr_body()
+        self.assertIsNotNone(
+            re.search(r"(?i)### D4.{0,120}(verify_depth|re.selection).{0,120}"
+                      r"(stage.re.entry|re.introduc)",
+                      body, re.DOTALL),
+            "docs/adr/0042 must contain a '### D4' heading naming "
+            "verify_depth re-selection and stage re-entry (MAR-107 AC-5)")
+
+    def test_adr_0042_d4_records_option_a_chosen(self):
+        """AC-5: the D4 section must state Option A was chosen (formalize the
+        shipped detection point unchanged)."""
+        body = self._adr_body()
+        d4_start = body.find("### D4")
+        self.assertGreater(d4_start, -1, "### D4 heading must exist")
+        d4_section = body[d4_start:]
+        self.assertIsNotNone(
+            re.search(r"(?i)option a.{0,300}(unchanged|formaliz)|"
+                      r"(unchanged|formaliz).{0,300}option a",
+                      d4_section, re.DOTALL),
+            "docs/adr/0042 D4 section must record Option A chosen "
+            "(formalize the shipped detection point unchanged) (MAR-107 AC-5)")
+
+
 class TestReflectionMdEscalationCeiling(unittest.TestCase):
     """MAR-57 Spec 04 (AC-1, AC-7, AC-8): pin the in-loop ceiling-raise contract
     in docs/requirements/reflection.md.
@@ -1345,6 +1469,26 @@ class TestReflectionMdEscalationCeiling(unittest.TestCase):
                       body),
             "reflection.md must retain 'TDD/coverage gate immutable' invariant "
             "(MAR-57 AC-7)")
+
+    # --- MAR-107 D4 AC-6: names the detection point + fold-boundary re-entry ---
+
+    def test_reflection_md_names_d4_detection_point_and_fold_boundary_reentry(self):
+        """MAR-107 AC-6: the mid-flight ceiling-raise paragraph must name the
+        iteration-start detection point and the fold-boundary stage re-entry
+        in D4 terms. Does not edit test_reflection_md_in_loop_ceiling_raise or
+        test_reflection_md_invariants_preserved (both remain unchanged)."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(r"(?i)detection point", body),
+            "reflection.md must name the iteration-start 'detection point' "
+            "(MAR-107 AC-6)")
+        self.assertIsNotNone(
+            re.search(r"(?i)fold.boundary.{0,200}(re.entry|re.introduc)|"
+                      r"(re.entry|re.introduc).{0,200}fold.boundary",
+                      body, re.DOTALL),
+            "reflection.md must name the fold-boundary stage re-entry "
+            "(MAR-107 AC-6)")
+
 
 class TestClarifyBatchingContract(unittest.TestCase):
     """MAR-61 (spec 03): pin the grouped-ask clarify-batching contract across
@@ -3036,6 +3180,69 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
             re.search(r"(?is)single-select-option-id.{0,200}Done|Done.{0,200}single-select-option-id", body),
             "merge-pr/SKILL.md must still set Project Status to Done via "
             "single-select-option-id in Step 2 cleanup (MAR-102 AC-5)")
+
+
+class TestContractsMdD4FoldBoundaryReentry(unittest.TestCase):
+    """MAR-107 (AC-6): pin the additive sentence in the existing
+    'Escalation-event audit trail (MAR-106)' section of
+    docs/architecture/lld/contracts.md naming the D4 detection point and
+    fold-boundary re-entry — no new section, since the event shape is
+    unchanged by D4."""
+
+    def _contracts_body(self):
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
+
+    def test_escalation_audit_trail_section_names_d4_detection_point_and_reentry(self):
+        """AC-6: the 'Escalation-event audit trail (MAR-106)' section must
+        name the D4 detection point and the fold-boundary re-entry."""
+        body = self._contracts_body()
+        section_start = body.index("## Escalation-event audit trail (MAR-106)")
+        next_heading = re.search(r"\n## ", body[section_start + 1:])
+        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
+        section = body[section_start:section_end]
+        self.assertIsNotNone(
+            re.search(r"(?i)detection point", section),
+            "contracts.md's escalation-event audit trail section must name "
+            "the D4 detection point (MAR-107 AC-6)")
+        self.assertIsNotNone(
+            re.search(r"(?i)fold.boundary.{0,200}(re.entry|re.introduc)|"
+                      r"(re.entry|re.introduc).{0,200}fold.boundary",
+                      section, re.DOTALL),
+            "contracts.md's escalation-event audit trail section must name "
+            "the fold-boundary re-entry (MAR-107 AC-6)")
+
+
+class TestChangelogMar107Entry(unittest.TestCase):
+    """MAR-107 (AC-6): durable-invariant CHANGELOG entry — never pins the
+    literal '[Unreleased]' string as a fixed anchor (the recurring
+    release-cut gotcha hit at v0.3.5/v0.3.6; MAR-88/101/102 fixed style)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def test_changelog_mar107_entry_in_topmost_section(self):
+        """AC-6: '(MAR-107)' must appear inside the top-most changelog
+        section span, whose heading is either [Unreleased] or a dated semver
+        release heading (sliced heading-to-heading, never a literal
+        '[Unreleased]' anchor)."""
+        body = self._changelog()
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section = None
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if "(MAR-107)" in candidate:
+                section = candidate
+                break
+        self.assertIsNotNone(
+            section,
+            "CHANGELOG.md must contain '(MAR-107)' inside a section span "
+            "(MAR-107 AC-6)")
+        heading = section[:section.index("\n")] if "\n" in section else section
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the '(MAR-107)' entry must live under [Unreleased] or a dated "
+            "semver release heading (MAR-107 AC-6; release cuts legitimately "
+            "graduate the entry)")
 
 
 if __name__ == "__main__":
