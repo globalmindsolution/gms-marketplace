@@ -17,11 +17,6 @@ the notes.
 
 ### Added
 
-- **`/acs:create-pr` moves the ticket's Project Status to In Review (MAR-102).**
-  The tracker-metadata-fill Status-set call resolves the in-review option by
-  case-insensitive name (`In Review`, then `Review`) on both the create and
-  edit paths. When the board defines no such option, an info finding names
-  it and how to add it; Status is left unchanged and the PR is unaffected.
 - **`/acs:create-pr` requests CODEOWNERS-derived reviewers and syncs the
   remaining Project fields (MAR-103).** A new stdlib-only `codeowners.py`
   helper resolves PR reviewers from the repo's CODEOWNERS file
@@ -32,6 +27,16 @@ the notes.
   Project field (fixed case-insensitive table, type-driven value mapping);
   a schema-undefined field is surfaced as an info finding, same as the
   existing Type/Status fallback.
+
+## [0.3.6] - 2026-07-05
+
+### Added
+
+- **`/acs:create-pr` moves the ticket's Project Status to In Review (MAR-102).**
+  The tracker-metadata-fill Status-set call resolves the in-review option by
+  case-insensitive name (`In Review`, then `Review`) on both the create and
+  edit paths. When the board defines no such option, an info finding names
+  it and how to add it; Status is left unchanged and the PR is unaffected.
 
 ## [0.3.5] - 2026-07-04
 

@@ -2875,24 +2875,29 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
 
     def test_changelog_unreleased_mar102_entry(self):
-        """AC-7: '(MAR-102)' must appear inside the [Unreleased] section
-        span (sliced from '## [Unreleased]' to the next '\\n## [' heading),
-        NOT via a bleed-through DOTALL window that could match text swept
-        into a prior dated release section. The entry must also acknowledge
-        the graceful-degradation wording."""
+        """AC-7: '(MAR-102)' must appear inside exactly one well-formed
+        section span — [Unreleased] before the release cut, or a dated
+        semver release section after it (sliced heading-to-heading, never
+        matched via a bleed-through DOTALL window). The entry must also
+        acknowledge the graceful-degradation wording."""
         body = self._changelog()
-        unreleased_idx = body.find("## [Unreleased]")
-        self.assertNotEqual(unreleased_idx, -1, "CHANGELOG.md must carry an [Unreleased] heading")
-        search_from = unreleased_idx + len("## [Unreleased]")
-        next_heading = re.search(r"\n## \[[^\]]*\]", body[search_from:])
-        self.assertIsNotNone(next_heading, "CHANGELOG.md must still have a dated section after [Unreleased]")
-        section_end = search_from + next_heading.start()
-        section = body[unreleased_idx:section_end]
-        self.assertIn(
-            "(MAR-102)", section,
-            "CHANGELOG.md must contain '(MAR-102)' inside the [Unreleased] "
-            "section span, not bled through from a later dated release "
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section = None
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if "(MAR-102)" in candidate:
+                section = candidate
+                break
+        self.assertIsNotNone(
+            section,
+            "CHANGELOG.md must contain '(MAR-102)' inside a section span "
             "(MAR-102 AC-7)")
+        heading = section[:section.index("\n")] if "\n" in section else section
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the '(MAR-102)' entry must live under [Unreleased] or a dated "
+            "semver release heading (MAR-102 AC-7; release cuts legitimately "
+            "graduate the entry)")
         self.assertIsNotNone(
             re.search(r"(?i)In Review|info finding|unchanged", section),
             "the MAR-102 CHANGELOG entry must acknowledge the "
