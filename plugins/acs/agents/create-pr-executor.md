@@ -66,6 +66,19 @@ with:
    - `gh label create <ticket.type> --description "Created by the acs pipeline" 2>/dev/null || true`
      then `gh pr edit <number> --add-label <ticket.type>` (type label
      alongside `ACS`, idempotent).
+   - **Reviewer request (CODEOWNERS-derived).** `gh pr diff <number> --name-only`
+     for the changed-file list, feed it to
+     `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codeowners.py" resolve --repo-root <checkout_root> --changed-files -`
+     via stdin, drop any entry equal to the already-resolved `@me` login
+     (the PR author). If the remaining set is non-empty:
+     `gh pr edit <number> --add-reviewer <owners minus author, comma-joined>`
+     — `@org/team` entries go through this identical call, no separate path.
+     If the remaining set is empty (no CODEOWNERS file, no pattern matched,
+     or every matched owner was the author) — never call
+     `gh pr edit --add-reviewer`; add exactly one info finding naming the
+     reason: `"No CODEOWNERS file found"`, `"No CODEOWNERS pattern matched
+     the changed files"`, or `"Only eligible reviewer is the PR author;
+     skipped (self-review impossible)"`.
    - `gh project item-add <project_number> --owner <owner> --url <pr-url>`
      (deliberately WITHOUT `--format json` — a permanent deviation, do not
      "fix" it back), then resolve the item id via
@@ -80,6 +93,21 @@ with:
      it (single-select options aren't creatable via `gh`), leave Status
      unchanged, never fail the PR. A field the Project schema does not
      define is surfaced as an info finding, never silently skipped.
+   - **Group-B PR-item field-fill (Priority, Story Points, Parent).** Reuse
+     the SAME `field-list` JSON already fetched above for Status — no new
+     list call. For each of Priority, Story Points, Parent: resolve the
+     board field by case-insensitive name match against the fixed table
+     (`priority` → `Priority`; `story_points` → `Story Points`, `Points`, or
+     `Estimate`; `parent` → `Parent` or `Epic`); undefined on the board →
+     info finding, field left unset. When defined, map by the field's
+     `dataType`: Priority → `SINGLE_SELECT` (case-insensitive option-name
+     match against `critical`/`high`/`medium`/`low`, no match → info
+     finding); Story Points → `NUMBER` (`item-edit --number
+     <ticket.story_points>`, or the same option-name resolver if the field
+     is `SINGLE_SELECT`-bucketed); Parent → `TEXT` (`item-edit --text
+     <parent-tracker-key>`), any other `dataType` unresolvable → info
+     finding. Every `item-edit` call in this loop is individually guarded
+     like the Status call, on both create and edit paths.
    - Every call above is individually guarded: a failure is captured as a
      finding (command + error) and never aborts the PR create/edit. When the
      guard condition does not hold (local/unsynced), this entire step is
@@ -107,7 +135,7 @@ Write `<partition>/phases/create-pr/iter-<n>-execute.json` (`<n>` = the task's
   "mode": "created",
   "commands_run": [{"cmd": "git push -u origin task/SHOP-123-bulk-import", "outcome": "pushed 0f3c2ab9"}],
   "tracker_sync": {"provider": "github", "key": "acme/shop#88", "result": "comment posted"},
-  "metadata_fill": {"assignee": "added @me", "type_label": "task", "project": {"added": true, "status_set": true}, "findings": []},
+  "metadata_fill": {"assignee": "added @me", "type_label": "task", "project": {"added": true, "status_set": true}, "reviewers": {"requested": ["@alice", "@org/team-frontend"], "skipped_reason": null, "findings": []}, "project_fields": {"priority": "High", "story_points": 3, "parent": "#42", "findings": []}, "findings": []},
   "problems": [], "clarifications_used": []
 }
 ```

@@ -444,6 +444,15 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   `external` stays `null` for a later retry. `external` is written into each
   synced ticket's own `ticket.json` by the deterministic write seam
   `record-external.py`.
+- **Group-B issue-item field sync (standing behavior, MAR-103):** at
+  creation, Priority, Story Points, and Parent sync to the board's matching
+  named field (fixed case-insensitive table: `Priority`; `Story
+  Points`/`Points`/`Estimate`; `Parent`/`Epic`) using type-driven value
+  mapping, reusing the existing Project `field-list` call. A
+  schema-undefined field is surfaced as an info finding (mirroring the
+  GitHub-native reconciliation bullet above); a `null` ticket value for a
+  defined field is skipped silently as expected data, mirroring the
+  null-assignee rule.
 
 ## 2. `/create-design` *(conditional)*
 
@@ -677,8 +686,7 @@ Purpose: ship the implementation as a pull request.
   `settings.json` ([configuration.md](configuration.md)).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**
   label.
-- **[ASSUMPTION]** PRs are created ready-for-review (not draft); reviewers
-  are left to repo conventions.
+- **[ASSUMPTION]** PRs are created ready-for-review (not draft).
 - **GitHub-native issue linking (standing behavior, MAR-75):** for a ticket
   synced to GitHub the PR body carries a `Closes #<external.key>` reference (a
   distinct bullet in the `## Ticket` section) so GitHub auto-links and
@@ -703,6 +711,19 @@ Purpose: ship the implementation as a pull request.
   case-insensitive name (`In Review`, then `Review`) on both the create and
   edit paths. When the board defines no such option, an info finding names
   it and how to add it; Status is left unchanged and the PR is unaffected.
+- **CODEOWNERS-derived reviewers (standing behavior, MAR-103):** on GitHub
+  tracker sync, an acs-opened/updated PR requests reviewers derived from a
+  CODEOWNERS-derived resolution over the PR's changed files (last-match-wins,
+  team-slug-aware); the PR author is always dropped from the candidate set.
+  An empty or author-only result skips the reviewer request gracefully with
+  an info finding naming the exact reason — never a hard failure, and
+  `--add-reviewer` is never called on an empty set.
+- **Group-B PR-item field sync (standing behavior, MAR-103):** Priority,
+  Story Points, and Parent sync to the board's matching named field (fixed
+  case-insensitive table: `Priority`; `Story Points`/`Points`/`Estimate`;
+  `Parent`/`Epic`) using type-driven value mapping, reusing the existing
+  Project `field-list` call. A schema-undefined field is surfaced as an
+  info finding, mirroring the existing fallback above.
 
 ## 6. `/merge-pr`
 

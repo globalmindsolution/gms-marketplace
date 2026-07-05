@@ -43,6 +43,8 @@ context and consequences.
 | [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md) | Add a spec-time simplicity-evaluation step to the `create-spec-planner` charter, surfaced by the coordinator | Accepted |
 | [0038](0038-spec-simplicity-gate-surfaces-never-blocks.md) | The spec-simplicity gate surfaces found alternatives; it never blocks or auto-loops back to re-plan | Accepted |
 | [0039](0039-spec-simplicity-gate-planner-only-scope.md) | The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added | Accepted |
+| [0040](0040-codeowners-derived-pr-reviewers.md) | CODEOWNERS-derived PR reviewers (not a settings key) | Accepted |
+| [0041](0041-fixed-field-name-table-group-b-sync.md) | Fixed case-insensitive field-name table for Priority/Story Points/Parent, with type-driven value mapping and tracker-key-valued Parent field | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

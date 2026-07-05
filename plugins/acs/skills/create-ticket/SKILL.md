@@ -293,6 +293,42 @@ content, not new GitHub-facing behavior; this is expected and not a regression
      field was skipped and why ("Project schema has no `<Field>` field;
      skipped — add it via `gh project field-create` if wanted") — a
      schema-undefined field is explicitly surfaced, never silently ignored.
+
+     After the Type/Status fill above, loop over three more fields against
+     the **same** `field-list` JSON — no new list call — resolving each by a
+     fixed case-insensitive name table: `priority` → a field named
+     **Priority**; `story_points` → a field named **Story Points**,
+     **Points**, or **Estimate**; `parent` → a field named **Parent** or
+     **Epic**. When the board defines none of these names for a given acs
+     field, add the same schema-undefined-field info finding used above,
+     naming that field. When the board **does** define the matching field but
+     this ticket's own `priority`/`story_points`/`parent` value is `null`,
+     skip that field silently, no finding — this mirrors the null-assignee
+     rule above (a null value is expected data, not a gap to surface); note
+     `priority` is realistically never null, but `story_points` and `parent`
+     legitimately are for many tickets, and each field is evaluated
+     independently. When both a board field and a non-null ticket value
+     exist, map the value by the resolved field's `dataType` from the
+     `field-list` JSON: **Priority** → `SINGLE_SELECT`, resolved by
+     case-insensitive name match against the option names (the same resolver
+     `/acs:create-pr`'s Status fill uses); no matching option → info finding,
+     field left unset. **Story Points** → `NUMBER` dataType, set via
+     `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid>
+     --number <ticket.story_points>`; a `SINGLE_SELECT`-typed points field
+     instead matches the number's string form against the option names, same
+     resolver; no match → info finding. **Parent** → `TEXT` dataType, set to
+     the parent ticket's external tracker key via
+     `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid>
+     --text <parent-tracker-key>`; any other `dataType` → info finding — this
+     Project-level Parent field is distinct from and does not affect the
+     existing issue-level parent link `new-ticket.py --parent` already sets.
+     Any `dataType` outside the mapping named for that field → info finding,
+     never a wrong-type write. Each `gh project item-edit` call here is
+     individually guarded like every other call in this checklist: a failure
+     produces a per-ticket finding (command + error) and never aborts the
+     batch. Record the outcome as an additive `project_fields` object
+     (`{"priority": ..., "story_points": ..., "parent": ..., "findings": []}`)
+     per synced ticket, alongside this step's existing outcome shape.
 - `jira` (`tracker.jira.base_url`, `tracker.jira.project_key`): for each
   `ticket_to_sync` in the set defined above, run the sequence below, once per
   ticket. `acli jira workitem create --project <project_key> --type "Epic"

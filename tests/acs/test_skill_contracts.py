@@ -2091,14 +2091,20 @@ class TestSpecSimplicityGate(unittest.TestCase):
     # --- AC-5: CHANGELOG entry ---
 
     def test_changelog_unreleased_mar88_entry(self):
-        """AC-5: '(MAR-88)' must appear within 500 chars of '[Unreleased]' in
-        CHANGELOG.md."""
+        """AC-5: '(MAR-88)' must appear somewhere in CHANGELOG.md at/after
+        '[Unreleased]' — uses the same section-slice technique as
+        test_changelog_unreleased_mar101_entry rather than a fixed-width
+        DOTALL bleed-through window: a raw '.{0,500}' budget is consumed by
+        whatever [Unreleased] entries accumulate ahead of (MAR-88) as later
+        tickets land (MAR-103 pushed the distance past 500 chars; not a
+        weakening of intent, only of the fragile distance mechanism, same
+        discovery as MAR-102's CHANGELOG test fix)."""
         body = self._changelog()
-        self.assertIsNotNone(
-            re.search(r"(?i)\[Unreleased\].{0,500}\(MAR-88\)|\(MAR-88\).{0,500}\[Unreleased\]",
-                      body, re.DOTALL),
-            "CHANGELOG.md must contain '(MAR-88)' within 500 chars of "
-            "'[Unreleased]' (MAR-88 AC-5)")
+        unreleased_idx = body.find("[Unreleased]")
+        self.assertNotEqual(unreleased_idx, -1, "CHANGELOG.md must carry an [Unreleased] heading")
+        self.assertIn("(MAR-88)", body[unreleased_idx:],
+                      "CHANGELOG.md must contain '(MAR-88)' at or after "
+                      "'[Unreleased]' (MAR-88 AC-5)")
 
     # --- AC-2: SURFACE not BLOCK, scoped to the gate's own text window ---
 
@@ -2435,6 +2441,128 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             re.search(r"(?i)item-add", body),
             "create-pr-executor.md must reference the Project item-add call (MAR-101)")
 
+    def test_create_pr_calls_codeowners_resolve_in_step_6a(self):
+        """MAR-103 AC-2: create-pr/SKILL.md's Step 6a references a call to
+        codeowners.py (or codeowners.py resolve) to derive PR reviewers."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"codeowners\.py(\s+resolve)?", body),
+            "create-pr/SKILL.md Step 6a must reference codeowners.py "
+            "(MAR-103 AC-2)")
+
+    def test_create_pr_add_reviewer_drops_author(self):
+        """MAR-103 AC-2: --add-reviewer co-occurs with an author-drop/@me-
+        exclusion phrase within a bounded window (mirrors the item-add/
+        item-edit co-occurrence pattern already pinned above)."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?is)--add-reviewer.{0,600}(drop|exclu\w*).{0,120}author|"
+                      r"(drop|exclu\w*).{0,120}author.{0,600}--add-reviewer", body),
+            "create-pr/SKILL.md must co-locate --add-reviewer with an "
+            "author-drop/@me-exclusion phrase within a bounded window "
+            "(MAR-103 AC-2)")
+
+    def test_create_pr_reviewer_graceful_skip_info_finding(self):
+        """MAR-103 AC-2: the empty-reviewer-set outcome is an info finding
+        naming at least one of the three exact reason phrases, never a
+        hard failure."""
+        body = read(self.skill_path("create-pr"))
+        self.assertIsNotNone(
+            re.search(r"(?i)No CODEOWNERS file found|"
+                      r"No CODEOWNERS pattern matched the changed files|"
+                      r"self-review impossible", body),
+            "create-pr/SKILL.md must name at least one of the three exact "
+            "graceful-skip reason phrases for the reviewer request "
+            "(MAR-103 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)\binfo\b.{0,120}finding", body),
+            "create-pr/SKILL.md must characterize the reviewer skip as an "
+            "info-severity finding, not a hard failure (MAR-103 AC-2)")
+
+    def test_create_pr_groupb_fields_in_project_field_fill_window(self):
+        """MAR-103 AC-3: Priority/Story Points/Parent field resolution is
+        named within the existing Project field-fill window (extends the
+        already-pinned undefined-field-is-info-finding assertion above to
+        also require these three field names)."""
+        body = read(self.skill_path("create-pr"))
+        for name in ("Priority", "Story Points", "Parent"):
+            self.assertIn(
+                name, body,
+                "create-pr/SKILL.md must name the '%s' Project field within "
+                "its field-fill window (MAR-103 AC-3)" % name)
+
+    def test_create_pr_executor_mirrors_reviewer_and_groupb(self):
+        """Executor coverage: create-pr-executor.md mirrors the reviewer
+        codeowners.py call and the Group-B field names (MAR-103)."""
+        body = read(self.agent_path("create-pr", "executor"))
+        self.assertIsNotNone(
+            re.search(r"codeowners\.py(\s+resolve)?", body),
+            "create-pr-executor.md must reference codeowners.py (MAR-103 AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)--add-reviewer", body),
+            "create-pr-executor.md must reference --add-reviewer (MAR-103 AC-2)")
+        for name in ("Priority", "Story Points", "Parent"):
+            self.assertIn(
+                name, body,
+                "create-pr-executor.md must name the '%s' Project field "
+                "(MAR-103 AC-3)" % name)
+
+
+class TestCreateTicketGroupBFields(unittest.TestCase):
+    """MAR-103 spec 03: pin the create-ticket Group-B (Priority, Story
+    Points, Parent) creation-time Project-field-fill prose contract in
+    create-ticket/SKILL.md and create-ticket-executor.md. Written TDD-first
+    (RED before spec 03's edits land); turns GREEN once spec 03 is
+    implemented. Additive only — no existing assertion in this file is
+    modified."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def agent_path(self, skill, role):
+        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
+
+    def test_create_ticket_groupb_fields_in_step5_item_d_window(self):
+        """MAR-103 AC-3: Priority/Story Points/Parent are named within Step
+        5 item d's field-fill window."""
+        body = read(self.skill_path("create-ticket"))
+        item_d_idx = body.find("**Project fields.**")
+        self.assertNotEqual(item_d_idx, -1,
+                             "create-ticket/SKILL.md must still carry Step 5 "
+                             "item d 'Project fields'")
+        for name in ("Priority", "Story Points", "Parent"):
+            self.assertIn(
+                name, body[item_d_idx:],
+                "create-ticket/SKILL.md Step 5 item d must name the '%s' "
+                "Project field (MAR-103 AC-3)" % name)
+
+    def test_create_ticket_groupb_null_value_silent_skip(self):
+        """MAR-103 AC-3/C-4 constraint: a null Group-B ticket value is
+        skipped silently (expected data, not missing data) — mirrors the
+        existing null-assignee rule already stated for Step 5 item b."""
+        body = read(self.skill_path("create-ticket"))
+        self.assertIsNotNone(
+            re.search(r"(?is)null.{0,200}(expected data|not (a|to) (gap|surface))|"
+                      r"(expected data|not (a|to) (gap|surface)).{0,200}null", body),
+            "create-ticket/SKILL.md must state the Group-B null-value "
+            "silent-skip rule mirroring the null-assignee 'expected data, "
+            "not missing data' pattern (MAR-103 AC-3)")
+
+    def test_create_ticket_executor_mirrors_groupb(self):
+        """Executor coverage: create-ticket-executor.md names the same three
+        Group-B fields and the null-value silent-skip rule (MAR-103)."""
+        body = read(self.agent_path("create-ticket", "executor"))
+        for name in ("Priority", "Story Points", "Parent"):
+            self.assertIn(
+                name, body,
+                "create-ticket-executor.md must name the '%s' Project "
+                "field (MAR-103 AC-3)" % name)
+        self.assertIsNotNone(
+            re.search(r"(?is)null.{0,200}(expected data|skip)|"
+                      r"(expected data|skip).{0,200}null", body),
+            "create-ticket-executor.md must mirror the null-value "
+            "silent-skip rule (MAR-103 AC-3)")
+
 
 class TestCreatePrMetadataFillDocs(unittest.TestCase):
     """MAR-101 spec 02: pin the CHANGELOG + living-requirements documentation
@@ -2496,8 +2624,12 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
     def test_skills_md_create_pr_section_has_mar101_standing_behavior(self):
         """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
         carries a '(standing behavior, MAR-101)' bullet referencing
-        assignee/type label/Project/Status, and the pre-existing reviewers
-        ASSUMPTION bullet remains untouched."""
+        assignee/type label/Project/Status. MAR-103 retires the
+        '[ASSUMPTION] ... reviewers are left to repo conventions' clause
+        (it is no longer true) and replaces it with a Group-A
+        CODEOWNERS-derived standing-behavior bullet — this assertion is
+        REWRITTEN (not deleted) to assert the retired state, per MAR-103
+        Spec 04's required regression-assertion update."""
         body = self._skills_req()
         section_start = body.index("## 5. `/create-pr`")
         section_end = body.index("## 6. `/merge-pr`")
@@ -2510,10 +2642,16 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
                       r"(type label|Project|Status).{0,300}assignee", section),
             "the MAR-101 standing-behavior bullet must reference assignee "
             "co-occurring with type label/Project/Status (MAR-101 AC-7)")
-        self.assertIsNotNone(
+        self.assertIsNone(
             re.search(r"(?s)reviewers\s+are left to repo conventions\.", section),
-            "the pre-existing reviewers ASSUMPTION bullet must remain "
-            "untouched (MAR-101 out-of-scope guard)")
+            "the retired reviewers-left-to-repo-conventions ASSUMPTION "
+            "clause must be GONE from the '/create-pr' section (MAR-103 AC-6)")
+        self.assertIsNotNone(
+            re.search(r"(?is)CODEOWNERS.{0,300}(last-match-wins|author)|"
+                      r"(last-match-wins|author).{0,300}CODEOWNERS", section),
+            "the '/create-pr' section must carry the new Group-A "
+            "CODEOWNERS-derived reviewers standing-behavior bullet "
+            "(MAR-103 AC-2/AC-6)")
 
 
 class TestFanoutTrackerSyncLoop(unittest.TestCase):
@@ -2778,8 +2916,12 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
     def test_skills_md_create_pr_section_has_mar102_standing_behavior(self):
         """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
         carries a '(standing behavior, MAR-102)' bullet referencing the
-        in-review Status resolution, and the pre-existing MAR-101 and
-        reviewers-ASSUMPTION bullets remain untouched."""
+        in-review Status resolution, and the pre-existing MAR-101 bullet
+        remains untouched. MAR-103 retires the reviewers-ASSUMPTION clause
+        (see the MAR-101 sibling assertion above) — this assertion is
+        REWRITTEN (not deleted) to assert that retired state instead of the
+        old bullet's persistence, per MAR-103 Spec 04's required
+        regression-assertion update."""
         body = self._skills_req()
         section_start = body.index("## 5. `/create-pr`")
         section_end = body.index("## 6. `/merge-pr`")
@@ -2794,10 +2936,16 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
         self.assertIn("(standing behavior, MAR-101)", section,
                       "the pre-existing MAR-101 standing-behavior bullet must "
                       "remain untouched (MAR-102 out-of-scope guard)")
-        self.assertIsNotNone(
+        self.assertIsNone(
             re.search(r"(?s)reviewers\s+are left to repo conventions\.", section),
-            "the pre-existing reviewers ASSUMPTION bullet must remain "
-            "untouched (MAR-102 out-of-scope guard)")
+            "the retired reviewers-left-to-repo-conventions ASSUMPTION "
+            "clause must be GONE from the '/create-pr' section (MAR-103 AC-6)")
+        self.assertIsNotNone(
+            re.search(r"(?is)CODEOWNERS.{0,300}(last-match-wins|author)|"
+                      r"(last-match-wins|author).{0,300}CODEOWNERS", section),
+            "the '/create-pr' section must carry the new Group-A "
+            "CODEOWNERS-derived reviewers standing-behavior bullet "
+            "(MAR-103 AC-2/AC-6)")
 
     def test_merge_pr_done_transition_unaffected(self):
         """AC-5: merge-pr/SKILL.md Step 2 cleanup still sets Status to Done
