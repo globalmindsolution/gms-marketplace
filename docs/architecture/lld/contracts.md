@@ -47,6 +47,19 @@ Exit codes: 0 ok; 2 blocked/invalid with actionable stderr.
 `pipeline-state.json` records `lane` alongside `flow` (written by `update_pipeline`).
 `tickets-index.json` mirrors `lane` per entry alongside `needs_design` (written by `update_index`).
 
+## Escalation-event audit trail (MAR-106)
+
+`code-state.json` run entries carry an additive, optional `escalations` array
+(`runs[-1].escalations: [{...}]`), appended by `record_escalation_event(tdir,
+skill, event)` (`acs_lib.py`) — creates the list when absent, persists via the
+existing pretty-printed `write_json`. Each event is a fixed 13-field dict:
+`ts, from_lane, to_lane, from_size, from_stakes, to_size, to_stakes, trigger,
+source, ceiling_before, ceiling_after, direction, confirmation_ref` —
+`direction` is `"up"` or `"down"`; `trigger` is `"a"`, `"b"`, `"c"`, or
+`"user_confirmed_deescalation"`; `confirmation_ref` is `null` for every
+upward/automatic event. No schema file edit is required — run-entry items
+already declare `additionalProperties: true`.
+
 ## Inter-step contract (state files)
 
 The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:

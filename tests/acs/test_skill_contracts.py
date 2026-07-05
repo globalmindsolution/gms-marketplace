@@ -880,6 +880,81 @@ class TestCodeSkillEscalation(unittest.TestCase):
             "code/SKILL.md must mention tickets-index.json or update_index for "
             "re-persist (MAR-57 AC-4)")
 
+    # --- MAR-106 AC-4: step (f) names the helper ---
+
+    def test_step_f_names_record_escalation_event(self):
+        """AC-4: code/SKILL.md step (f) must call record_escalation_event
+        (replacing the prior free-text coordinator-note phrasing)."""
+        body = self._body()
+        self.assertIn("record_escalation_event", body,
+                      "code/SKILL.md must name record_escalation_event in the "
+                      "escalation section (MAR-106 AC-4)")
+
+    # --- MAR-106 AC-4: persist-then-record ordering ---
+
+    def test_record_escalation_event_follows_persistence_steps(self):
+        """AC-4: record_escalation_event must be called AFTER the
+        save_ticket/update_pipeline/update_index persistence steps (b-d) and
+        the ceiling raise (e) — never before/interleaved."""
+        body = self._body()
+        save_pos = body.find("save_ticket")
+        update_pipeline_pos = body.find("update_pipeline")
+        update_index_pos = body.find("update_index")
+        record_pos = body.find("record_escalation_event")
+        self.assertGreater(save_pos, -1)
+        self.assertGreater(update_pipeline_pos, -1)
+        self.assertGreater(update_index_pos, -1)
+        self.assertGreater(record_pos, -1)
+        self.assertGreater(record_pos, save_pos,
+                           "record_escalation_event must appear after save_ticket (AC-4)")
+        self.assertGreater(record_pos, update_pipeline_pos,
+                           "record_escalation_event must appear after update_pipeline (AC-4)")
+        self.assertGreater(record_pos, update_index_pos,
+                           "record_escalation_event must appear after update_index (AC-4)")
+
+    # --- MAR-106 AC-6: idempotency-on-resume statement ---
+
+    def test_idempotency_on_resume_stated(self):
+        """AC-6: code/SKILL.md must state the no-duplicate-on-resume argument:
+        a resumed run re-reads the already-escalated axes, so the recompute is
+        a no-op and no duplicate event is appended."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(r"(?is)resum.{0,300}(no-op|no duplicate)", body),
+            "code/SKILL.md must state the resume idempotency argument "
+            "(MAR-106 AC-6)")
+
+    # --- MAR-106 AC-5/D2: frozen three-trigger statement ---
+
+    def test_signal_set_frozen_at_three_triggers(self):
+        """AC-5/D2: code/SKILL.md must state the signal set is frozen/complete
+        at exactly three triggers, with (b) named sole deterministic and
+        (a)/(c) named judgment."""
+        body = self._body()
+        self.assertIsNotNone(
+            re.search(r"(?i)(frozen|exactly three).{0,200}trigger|trigger.{0,200}(frozen|exactly three)", body),
+            "code/SKILL.md must state the signal set is frozen at exactly "
+            "three triggers (MAR-106 AC-5/D2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)sole deterministic", body),
+            "code/SKILL.md must name trigger (b) as the sole deterministic "
+            "signal (MAR-106 AC-5/D2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)judgment", body),
+            "code/SKILL.md must name triggers (a)/(c) as judgment "
+            "(MAR-106 AC-5/D2)")
+
+    # --- MAR-106 AC-5/D2: no new deterministic helper/tunable (negative) ---
+
+    def test_no_new_deterministic_scope_helper_in_prose(self):
+        """AC-5/D2 negative: code/SKILL.md's escalation section must not
+        introduce a new settings key or scope/size helper name (e.g. no
+        recommend_size-style mechanism)."""
+        body = self._body()
+        self.assertNotIn("recommend_size", body,
+                         "code/SKILL.md must not introduce a recommend_size-style "
+                         "deterministic scope helper (MAR-106 AC-5/D2, frozen set)")
+
 
 class TestStageReintroduction(unittest.TestCase):
     """MAR-57 Spec 03 (AC-5, AC-8): pin the stage re-introduction contract in

@@ -1521,6 +1521,15 @@ class TestManagedBlock(unittest.TestCase):
             body = fh.read()
         self.assertIn("(MAR-104)", body)
 
+    def test_mar106_changelog_entry_present(self):
+        # AC-7: durable-invariant CHANGELOG assertion — findable anywhere in
+        # the file body, never pinned to [Unreleased] or a line window (the
+        # anti-pattern that broke at the v0.3.5 and v0.3.6 release cuts).
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        with open(changelog_path, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("(MAR-106)", body)
+
 
 class TestExemptPrMerge(AcsWorkspaceCase):
     """Spec 02 + 03 — exempt non-ticket merge-pr --pr path: the classifier, the
@@ -3174,6 +3183,165 @@ class TestInLoopEscalation(AcsWorkspaceCase):
         # Confirm lane equals derive_lane (single authority, AC-4)
         expected = lib.derive_lane("trivial", "high", False, "story")
         self.assertEqual(new_lane, expected)
+
+
+class TestRecordEscalationEvent(AcsWorkspaceCase):
+    """MAR-106 (D1/AC-1/AC-2/AC-3/AC-6): record_escalation_event(tdir, skill,
+    event) appends a fixed-shape event to runs[-1].escalations on
+    <skill>-state.json, creating the list when absent, persisting via the
+    existing pretty-printed write_json path.
+    """
+
+    FIELDS = ("ts", "from_lane", "to_lane", "from_size", "from_stakes",
+              "to_size", "to_stakes", "trigger", "source", "ceiling_before",
+              "ceiling_after", "direction", "confirmation_ref")
+
+    def _event(self, **overrides):
+        event = {
+            "ts": "2026-07-08T10:15:00Z",
+            "from_lane": "SMALL",
+            "to_lane": "STANDARD",
+            "from_size": "small",
+            "from_stakes": "normal",
+            "to_size": "small",
+            "to_stakes": "high",
+            "trigger": "b",
+            "source": "recommend_stakes: matched auth/session.py against high_stakes_paths",
+            "ceiling_before": 1,
+            "ceiling_after": 3,
+            "direction": "up",
+            "confirmation_ref": None,
+        }
+        event.update(overrides)
+        return event
+
+    def setUp(self):
+        super().setUp()
+        self.ticket_id = self.new_ticket("Escalation audit test", "story",
+                                         "--size", "small", "--stakes", "normal")
+        self._tdir = self.tdir(self.ticket_id)
+        lib.append_in_progress_run(self._tdir, "code", self.ticket_id)
+
+    def _reload_escalations(self):
+        state = lib.load_state(self._tdir, "code", self.ticket_id)
+        return lib.last_run(state)["escalations"]
+
+    # --- AC-1: creation-when-absent ---
+
+    def test_creates_escalations_list_when_absent(self):
+        """AC-1: runs[-1] has no 'escalations' key before the first call; after
+        one call it is a length-1 list containing exactly the passed event."""
+        state_before = lib.load_state(self._tdir, "code", self.ticket_id)
+        self.assertNotIn("escalations", lib.last_run(state_before))
+
+        event = self._event()
+        lib.record_escalation_event(self._tdir, "code", event)
+
+        escalations = self._reload_escalations()
+        self.assertEqual(escalations, [event])
+
+    # --- Append (no clobber) ---
+
+    def test_append_does_not_clobber_prior_events(self):
+        """Two distinct events, called twice, both persist in order (append,
+        not overwrite)."""
+        first = self._event(trigger="b")
+        second = self._event(trigger="c", source="explicit user request")
+        lib.record_escalation_event(self._tdir, "code", first)
+        lib.record_escalation_event(self._tdir, "code", second)
+
+        escalations = self._reload_escalations()
+        self.assertEqual(len(escalations), 2)
+        self.assertEqual(escalations[0], first)
+        self.assertEqual(escalations[1], second)
+
+    # --- AC-2: frozen 13-field shape round-trips exactly ---
+
+    def test_field_shape_round_trips_exact_types(self):
+        """AC-2: every one of the frozen 13 fields round-trips with exact
+        types after persist + reload."""
+        event = self._event()
+        lib.record_escalation_event(self._tdir, "code", event)
+
+        reloaded = self._reload_escalations()[0]
+        self.assertEqual(set(reloaded.keys()), set(self.FIELDS))
+        self.assertIsInstance(reloaded["direction"], str)
+        self.assertIsNone(reloaded["confirmation_ref"])
+        self.assertIsInstance(reloaded["ceiling_before"], int)
+        self.assertIsInstance(reloaded["ceiling_after"], int)
+        self.assertEqual(reloaded, event)
+
+    # --- AC-3: upward-event guarantee ---
+
+    def test_upward_event_direction_and_null_confirmation_ref(self):
+        """AC-3: an event built the step-(f) way (direction='up',
+        confirmation_ref=None) round-trips with those exact values; this class
+        constructs no direction='down' event anywhere."""
+        event = self._event(direction="up", confirmation_ref=None)
+        lib.record_escalation_event(self._tdir, "code", event)
+
+        reloaded = self._reload_escalations()[0]
+        self.assertEqual(reloaded["direction"], "up")
+        self.assertIsNone(reloaded["confirmation_ref"])
+        # No test in this class ever writes a "down" event.
+        for candidate in (event, reloaded):
+            self.assertNotEqual(candidate["direction"], "down")
+
+    # --- Pretty-printed persistence ---
+
+    def test_persists_via_pretty_printed_write_json(self):
+        """The written code-state.json is valid JSON, 2-space indented,
+        matching write_json's existing convention (acs_lib.py write_json)."""
+        lib.record_escalation_event(self._tdir, "code", self._event())
+
+        path = lib.state_path(self._tdir, "code")
+        with open(path, encoding="utf-8") as fh:
+            raw = fh.read()
+        # Re-parses cleanly (valid JSON) and uses 2-space indentation.
+        json.loads(raw)
+        self.assertIn("\n  \"skill\"", raw)
+
+    # --- AC-5/D2: no new deterministic scope helper introduced ---
+
+    def test_no_deterministic_scope_helper_introduced(self):
+        """AC-5/D2 (Signal-set over-reach risk): no recommend_size-style
+        deterministic scope/size helper is exposed on the lib module beyond
+        the frozen recommend_stakes. Regression guard against a future silent
+        deterministic scope heuristic, not a general-purpose module scan."""
+        for name in dir(lib):
+            lowered = name.lower()
+            self.assertFalse(
+                "recommend_size" in lowered,
+                "no recommend_size-style deterministic scope helper may be "
+                "added to acs_lib (D2 frozen signal set, user decision C-5); "
+                "found: %s" % name)
+
+    # --- AC-6: idempotency-on-resume proof via escalate_lane no-op ---
+
+    def test_resume_recompute_is_noop_when_already_escalated(self):
+        """AC-6: a ticket already escalated to STANDARD; re-running
+        escalate_lane with the axes that originally triggered the escalation
+        recomputes a no-op (new_lane == current_lane), proving the step-3
+        short-circuit makes record_escalation_event unreachable a second time
+        for the same already-applied escalation."""
+        ticket = lib.load_ticket(self._tdir)
+        new_lane, _, _ = lib.escalate_lane(
+            ticket["lane"], "standard", "normal",
+            ticket["needs_design"], ticket["type"]
+        )
+        self.assertEqual(new_lane, "STANDARD")
+        ticket["size"], ticket["stakes"], ticket["lane"] = "standard", "normal", new_lane
+        lib.save_ticket(self._tdir, ticket)
+
+        # Simulated resume: re-read the already-escalated axes and recompute.
+        resumed = lib.load_ticket(self._tdir)
+        recomputed_lane, _, _ = lib.escalate_lane(
+            resumed["lane"], resumed["size"], resumed["stakes"],
+            resumed["needs_design"], resumed["type"]
+        )
+        self.assertEqual(recomputed_lane, resumed["lane"],
+                         "resumed recompute against already-escalated axes "
+                         "must be a no-op (AC-6)")
 
 
 ## MAR-57 spec 03 — TestGuardAxes

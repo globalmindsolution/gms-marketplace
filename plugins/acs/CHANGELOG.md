@@ -15,6 +15,19 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:code`'s in-loop escalation now writes a durable audit-event trail
+  and freezes its signal set (MAR-106).** A new `acs_lib.py` helper
+  `record_escalation_event(tdir, skill, event)` appends a fixed 13-field event
+  (from/to lane, from/to axes, trigger, source, ceiling before/after,
+  direction, confirmation ref) to `runs[-1].escalations` on `code-state.json`,
+  called from step (f) of the on-trigger escalation sequence after the
+  axis/lane persistence — replacing the prior free-text coordinator note. The
+  three shipped escalation triggers are normatively frozen, with the
+  `high_stakes_paths` glob match as the sole deterministic, unit-tested
+  signal; no new deterministic scope heuristic is introduced.
+
 ### Fixed
 
 - **`/acs:init`'s CLAUDE.md managed-block writer (`upsert_managed_block`) now
