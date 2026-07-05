@@ -4,7 +4,7 @@
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
-track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.8** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5** the next uncut version; the **v0.4.0→v0.4.3+ delivery waves** (M3) remain the next major milestone track after them), followed by a **tentative pre-GA
+track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.6 shipped** and **v0.3.7** the next uncut version; the **v0.4.0→v0.4.3+ delivery waves** (M3) remain the next major milestone track after them), followed by a **tentative pre-GA
 sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
 **The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
 sequenced by what flagship external-consumer-product delivery needs first** — see
@@ -227,14 +227,14 @@ A small, near-term interim release that closed the `/acs:init` configuration-com
 - **Mechanism deferral:** the exact init UX (prompt shape, option ordering, version-pin catalog source) is settled in the implementing ticket's design/spec phase — mirrors the other epics' deferral convention.
 - **Traces G21** (extends G7; Solo-developer + Tech-lead personas).
 
-### M2.6 — v0.3.5–v0.3.8 fast-follows — complete tracker & PR metadata sync; dynamic lane correctness
+### M2.6 — v0.3.5–v0.3.7 fast-follows — complete tracker & PR metadata sync; dynamic lane correctness
 
 Four small, independently shippable fast-follows sequenced after the shipped v0.3.4 init release and ahead of M3's delivery waves (v0.4.0→v0.4.3+). The first three deliver PRD **G22** and the acs Should-have "Two-way tracker sync" feature (Group A + Group B); the fourth delivers **dynamic (mid-flight) lane correctness (G25)**. **Traces G22, G25** (+ the Team-on-a-shared-repo, Tech-lead, and Solo-developer personas). MECHANISM (reviewer source, Project Status option mapping per stage, the priority/story-points/parent field-to-column mapping; the in-flight signal set, detection point, and stage re-entry for G25) is deferred to each slice's design/spec phase, mirroring the other epics' deferral convention.
 
 - **v0.3.5 — PR metadata acs sets on create/update (Group A core).** `/acs:create-pr` sets the PR **assignee** (always the PR author — the authenticated `gh` user running the pipeline, so 0 PRs are left unassigned), **labels beyond `ACS`** (e.g. the type label, mirroring the issue), and adds the **PR itself to the GitHub Project** with field values — on top of the existing `Closes #`/milestone. Delivers G22's PR-assignee metric.
 - **v0.3.6 — full-lifecycle ticket Status (Group B status).** Extends the shipped create-ticket (in-progress at create) and merge-pr (Status→Done) transitions with the missing **in-review** transition when `/acs:create-pr` opens the PR, so the GitHub Project Status matches the ticket's true pipeline stage at every stage. Delivers G22's status metric (0 tickets left stale at "in-progress" after PR/merge).
-- **v0.3.7 — remaining sync fields (Group A reviewers + Group B fields).** Adds PR **reviewers** (source deferred to design) and syncs the remaining ticket fields — **priority**, **story points**, and **parent/epic link** as an explicit named Project field — completing G22's field coverage.
-- **v0.3.8 — Epic: dynamic (mid-flight) lane correctness (G25).** Hardens the
+- **v0.3.6 (same cut) — remaining sync fields (Group A reviewers + Group B fields).** Adds PR **reviewers** (source deferred to design) and syncs the remaining ticket fields — **priority**, **story points**, and **parent/epic link** as an explicit named Project field — completing G22's field coverage.
+- **v0.3.7 — Epic: dynamic (mid-flight) lane correctness (G25).** Hardens the
   v0.3.0-shipped mid-flight escalation (`prd.md` Complexity-adaptive delivery
   feature) from an implicit rider into a validated capability: define the in-flight
   higher-stakes/larger-scope signal set, wire escalation to re-select `verify_depth`
@@ -547,7 +547,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
 #### Sequence & exit
 
 ```
-M2.6 (v0.3.5–v0.3.8) ∥ Wave 1 (v0.4.0, LEAD) ─▶ Wave 2 (v0.4.1) ─▶ Wave 3 (v0.4.2) ─▶ Wave 4 (v0.4.3+)
+M2.6 (v0.3.5–v0.3.7) ∥ Wave 1 (v0.4.0, LEAD) ─▶ Wave 2 (v0.4.1) ─▶ Wave 3 (v0.4.2) ─▶ Wave 4 (v0.4.3+)
 ```
 
 M2.6 runs in parallel with Wave 1 (independent tracks); Waves 2–4 queue in
