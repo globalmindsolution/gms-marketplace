@@ -15,6 +15,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-07-05
+
 ### Added
 
 - **`/acs:create-pr` requests CODEOWNERS-derived reviewers and syncs the
@@ -27,11 +29,6 @@ the notes.
   Project field (fixed case-insensitive table, type-driven value mapping);
   a schema-undefined field is surfaced as an info finding, same as the
   existing Type/Status fallback.
-
-## [0.3.6] - 2026-07-05
-
-### Added
-
 - **`/acs:create-pr` moves the ticket's Project Status to In Review (MAR-102).**
   The tracker-metadata-fill Status-set call resolves the in-review option by
   case-insensitive name (`In Review`, then `Review`) on both the create and
