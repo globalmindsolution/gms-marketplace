@@ -781,20 +781,24 @@ def upsert_managed_block(existing_text, block_body):
     survive a heal. When no markers are present, append the block separated by
     exactly one blank line; an empty (or marker-only) existing_text yields just the
     block. Idempotent: a second call with the same block_body yields output
-    byte-identical to the first (and self-healing is itself idempotent)."""
+    byte-identical to the first (and self-healing is itself idempotent). Every
+    return path ends with exactly one trailing newline."""
     block = "%s\n%s\n%s" % (ACS_BLOCK_BEGIN, _managed_body(block_body), ACS_BLOCK_END)
     begin = existing_text.find(ACS_BLOCK_BEGIN)
     end = existing_text.rfind(ACS_BLOCK_END)
     if begin != -1 and end != -1 and end > begin:
         before = _strip_stray_markers(existing_text[:begin])
         after = _strip_stray_markers(existing_text[end + len(ACS_BLOCK_END):])
-        return before + block + after
-    # No full pair: drop any lone orphan marker, then append after existing content.
-    stripped = _strip_stray_markers(existing_text)
-    if not stripped.strip():
-        return block
-    # Append, separated from preceding content by exactly one blank line.
-    return stripped.rstrip("\n") + "\n\n" + block
+        result = before + block + after
+    else:
+        # No full pair: drop any lone orphan marker, then append after existing content.
+        stripped = _strip_stray_markers(existing_text)
+        if not stripped.strip():
+            result = block
+        else:
+            # Append, separated from preceding content by exactly one blank line.
+            result = stripped.rstrip("\n") + "\n\n" + block
+    return result.rstrip("\n") + "\n"
 
 
 def managed_block_is_malformed(text):

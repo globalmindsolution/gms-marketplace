@@ -1459,6 +1459,68 @@ class TestManagedBlock(unittest.TestCase):
                 self.assertIn("/acs:ship", out)
                 self.assertEqual(lib.upsert_managed_block(out, body), out, name)
 
+    # -- MAR-104: every upsert_managed_block return path ends with exactly one
+    # trailing newline, so /acs:init Step 7e never writes a CLAUDE.md missing an
+    # EOF newline (which trips pre-commit's end-of-file-fixer in consumer CI). --
+
+    def _assert_single_trailing_newline(self, out):
+        self.assertTrue(out.endswith("\n"))
+        self.assertFalse(out.endswith("\n\n"))
+
+    def test_mar104_empty_insert_ends_with_single_newline(self):
+        # AC-1: fresh/empty-existing insert path (`return block`).
+        out = lib.upsert_managed_block("", "body text")
+        self._assert_single_trailing_newline(out)
+
+    def test_mar104_append_after_content_ends_with_single_newline(self):
+        # AC-1: append-after-content path (no existing markers).
+        out = lib.upsert_managed_block("# Repo\n\nnotes\n", "body text")
+        self._assert_single_trailing_newline(out)
+        self.assertIn("body text", out)
+
+    def test_mar104_replace_span_empty_after_ends_with_single_newline(self):
+        # AC-1: replace-span path where `after` (text past END) is empty — the
+        # path the pre-fix code left with no EOF newline at all.
+        first = lib.upsert_managed_block("# Top\n\nintro\n", "b1")
+        out = lib.upsert_managed_block(first, "b2")
+        self._assert_single_trailing_newline(out)
+        self.assertIn("b2", out)
+        self.assertNotIn("b1", out)
+
+    def test_mar104_self_heal_ends_with_single_newline(self):
+        # AC-1: self-heal path with no user suffix after the last END.
+        legacy = self._legacy_doubled_file("intro\n\n", "")
+        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
+        healed = lib.upsert_managed_block(legacy, body)
+        self._assert_single_trailing_newline(healed)
+        self.assertFalse(lib.managed_block_is_malformed(healed))
+
+    def test_mar104_collapses_multiple_trailing_newlines_to_one(self):
+        # AC-1 guard: exactly one trailing newline, never more, even when the
+        # surrounding content would otherwise yield several.
+        first = lib.upsert_managed_block("# Top\n\nintro\n", "b1")
+        out = lib.upsert_managed_block(first + "\n\n\n", "b2")
+        self._assert_single_trailing_newline(out)
+
+    def test_mar104_newline_guarantee_is_idempotent(self):
+        # AC-2: the newline normalization is a fixed point (rstrip + one "\n"),
+        # so re-running the writer stays byte-identical.
+        existing = "# My project\n\nSome user notes.\n"
+        body = "Ship via /acs:ship."
+        first = lib.upsert_managed_block(existing, body)
+        second = lib.upsert_managed_block(first, body)
+        self.assertEqual(first, second)
+        self._assert_single_trailing_newline(second)
+
+    def test_mar104_changelog_entry_present(self):
+        # AC-4: durable-invariant CHANGELOG assertion — findable anywhere in the
+        # file body, never pinned to the `[Unreleased]` heading (that pinned
+        # style breaks at the next release cut).
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        with open(changelog_path, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("(MAR-104)", body)
+
 
 class TestExemptPrMerge(AcsWorkspaceCase):
     """Spec 02 + 03 — exempt non-ticket merge-pr --pr path: the classifier, the
