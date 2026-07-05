@@ -80,7 +80,12 @@ Requirements:
   STANDARD/COMPLEX (3 iterations) immediately acquires the full 3-iteration
   ceiling for all remaining iterations. The absolute invariants above (verifier
   always runs in every lane; TDD/coverage gate immutable in every lane) hold
-  regardless of any in-flight ceiling change.
+  regardless of any in-flight ceiling change. Every escalation event is
+  durably recorded — not just a ceiling change — via `record_escalation_event`
+  appending a fixed 13-field event (from/to lane, from/to axes, trigger,
+  source, ceiling before/after, direction, confirmation ref) to
+  `runs[-1].escalations` on `code-state.json` (MAR-106), so no lane change is
+  silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
   `<skill>-verifier`. 27 agent files exist on disk in total and are retained

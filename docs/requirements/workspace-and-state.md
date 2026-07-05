@@ -52,7 +52,7 @@
         │   ├── 01-data-model.md
         │   └── 02-api-endpoints.md
         ├── create-spec-state.json
-        ├── code-state.json             # written by post-code.py; incl. verifier review findings
+        ├── code-state.json             # written by post-code.py; incl. verifier review findings + runs[-1].escalations audit trail
         ├── create-pr-state.json        # incl. PR number/URL
         └── merge-pr-state.json
 ```

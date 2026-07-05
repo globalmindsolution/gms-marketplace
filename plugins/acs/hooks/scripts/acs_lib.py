@@ -1023,6 +1023,22 @@ def finalize_run(tdir, skill, ticket_id, result):
     return state, entry
 
 
+def record_escalation_event(tdir, skill, event):
+    """Append `event` (13-field escalation shape) to runs[-1].escalations on
+    <skill>-state.json, creating the list if absent. Requires an existing
+    in-progress run (last_run(state) must not be None) — callers MUST call
+    this only after append_in_progress_run; no run entry is synthesized here.
+    Callers MUST NOT call this twice for the same trigger firing."""
+    state = load_state(tdir, skill)
+    entry = last_run(state)
+    if entry is None:
+        raise ValueError("record_escalation_event requires an existing run entry "
+                          "(call append_in_progress_run first)")
+    entry.setdefault("escalations", []).append(event)
+    write_json(state_path(tdir, skill), state)
+    return state
+
+
 def run_seconds(entry):
     start, end = parse_iso(entry.get("started_at")), parse_iso(entry.get("ended_at"))
     if start and end and end >= start:

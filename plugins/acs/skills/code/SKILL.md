@@ -136,7 +136,13 @@ evaluate three upward-escalation triggers. Completed iterations are NEVER
 discarded; escalation continues from the current point at higher rigor WITHOUT
 restarting the run (AC-1 / no-restart guarantee).
 
-**Three triggers (exactly; no others) — evaluated on the FIRST signal, immediately:**
+**Three triggers (exactly; no others) — evaluated on the FIRST signal, immediately.**
+This signal set is normatively frozen at exactly these three triggers: no
+fourth trigger exists or may be added without a new design decision. Trigger
+(b) is the **sole deterministic, unit-tested** signal; triggers (a) and (c)
+remain coordinator **judgment** paths, contract-tested as prose. "Larger
+scope" (file/spec-count growth) has no dedicated deterministic helper this
+release — it folds into triggers (a)/(c).
 
 **(a) Verifier finding signaling higher stakes/size.** The coordinator inspects
 the verifier's findings for any item whose dimension is "Architecture & system
@@ -184,8 +190,22 @@ states a higher lane or axis value.
    e. Raise the in-flight iteration ceiling to `max(current_ceiling,
       new_ceiling)` — monotone raise only, never lower an already-higher
       ceiling (AC-1/AC-7).
-   f. Log the escalation event (ticket id, from-lane, to-lane, trigger source,
-      new ceiling) as a coordinator note in the run state.
+   f. **After** steps b-e above (never before, never interleaved), construct
+      the 13-field escalation event (`ts, from_lane, to_lane, from_size,
+      from_stakes, to_size, to_stakes, trigger, source, ceiling_before,
+      ceiling_after, direction, confirmation_ref`) with `direction: "up"` and
+      `confirmation_ref: null`, and call `record_escalation_event(tdir, "code",
+      event)` (`acs_lib.py`) to durably persist it to `runs[-1].escalations` on
+      `code-state.json`. This ordering makes an audit-write failure detectable:
+      the axes/lane are already durably applied by b-d, so a lane change with
+      no matching event is itself the signal, rather than an event recorded for
+      a persistence that never completed. Idempotency on resume: escalation
+      fires only on the FIRST signal per trigger detection (line above); a
+      resumed `/code` run re-reads the already-escalated `ticket.lane`/`size`/
+      `stakes` from `ticket.json`, so `guard_axes`/`escalate_lane` recompute a
+      no-op (step 3 above short-circuits) and `record_escalation_event` is
+      never reached a second time for the same already-applied escalation — no
+      duplicate event is appended.
    g. **Stage re-introduction (fold-boundary crossing):** When the origin lane
       was a fast lane (TRIVIAL or SMALL) and the new lane is a full lane
       (STANDARD or COMPLEX), invoke the `create-spec` stage before proceeding
