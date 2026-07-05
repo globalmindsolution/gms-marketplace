@@ -15,6 +15,13 @@ the notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/acs:init`'s CLAUDE.md managed-block writer (`upsert_managed_block`) now
+  ends the file with exactly one trailing newline on every path, so a
+  consumer `CLAUDE.md` no longer trips pre-commit's `end-of-file-fixer`
+  (MAR-104).**
+
 ## [0.3.6] - 2026-07-05
 
 ### Added
