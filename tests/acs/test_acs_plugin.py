@@ -2702,6 +2702,77 @@ class TestHighStakesPathsSettings(unittest.TestCase):
                                      "non-string item %r should fail items.type==string" % bad_item)
 
 
+class TestQualityPathSettings(unittest.TestCase):
+    """AC-2/AC-3 (MAR-112): quality_path settings key mirrors adr_path's
+    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
+    the default when absent; validate_settings accepts both a string and an
+    explicit null without raising GateError.
+
+    Uses the same stdlib-only approach as TestDueDateSchema/
+    TestHighStakesPathsSettings (no jsonschema import).
+    """
+
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+
+    @classmethod
+    def setUpClass(cls):
+        with open(cls.SCHEMA_PATH) as fh:
+            cls.schema = json.load(fh)
+
+    def test_quality_path_in_schema(self):
+        """settings.schema.json must define quality_path."""
+        self.assertIn("quality_path", self.schema["properties"])
+
+    def test_quality_path_oneof_mirrors_adr_path(self):
+        """quality_path's oneOf must have exactly two branches: a non-empty
+        string branch and a null branch — the same shape as adr_path, read
+        live from the schema so the test tracks the real rule."""
+        prop = self.schema["properties"]["quality_path"]
+        branches = prop["oneOf"]
+        self.assertEqual(len(branches), 2)
+        self.assertIn({"type": "string", "minLength": 1}, branches)
+        self.assertIn({"type": "null"}, branches)
+
+    def test_quality_path_schema_default(self):
+        """The schema's default for quality_path must be 'docs/quality'."""
+        prop = self.schema["properties"]["quality_path"]
+        self.assertEqual(prop.get("default"), "docs/quality")
+
+    def test_default_settings_has_quality_path_seed(self):
+        """DEFAULT_SETTINGS['quality_path'] must equal 'docs/quality'."""
+        self.assertEqual(lib.DEFAULT_SETTINGS["quality_path"], "docs/quality")
+
+    def test_load_settings_resolves_default_when_absent(self):
+        """When quality_path is absent from every settings scope,
+        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
+        tmp = tempfile.mkdtemp(prefix="acs-quality-path-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        repo = os.path.join(tmp, "shop")
+        os.makedirs(os.path.join(repo, ".acs"))
+        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
+            json.dump({"ticket_prefix": "SHOP"}, fh)
+        merged, _found = lib.load_settings(repo)
+        self.assertEqual(merged["quality_path"], "docs/quality")
+
+    def test_validate_settings_accepts_string_quality_path(self):
+        """A settings dict with an explicit non-empty string quality_path
+        passes validate_settings without raising GateError."""
+        settings = {"test_coverage_percent": 90, "quality_path": "docs/quality"}
+        try:
+            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
+        except lib.GateError as exc:
+            self.fail("validate_settings must not reject a string quality_path: %s" % exc)
+
+    def test_validate_settings_accepts_null_quality_path(self):
+        """A settings dict with quality_path explicitly set to null (disabled)
+        passes validate_settings without raising GateError."""
+        settings = {"test_coverage_percent": 90, "quality_path": None}
+        try:
+            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
+        except lib.GateError as exc:
+            self.fail("validate_settings must not reject a null quality_path: %s" % exc)
+
+
 class TestRecommendStakes(unittest.TestCase):
     """AC-6: recommend_stakes(paths, settings) returns 'high' on any glob match,
     'normal' otherwise; never writes; override supersedes seed.

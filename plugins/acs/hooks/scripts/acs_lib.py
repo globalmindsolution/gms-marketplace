@@ -296,6 +296,7 @@ DEFAULT_SETTINGS = {
     "architecture_path": "docs/architecture",
     "requirements_path": "docs/requirements",
     "adr_path": "docs/adr",
+    "quality_path": "docs/quality",
     "tracker": {"provider": "local"},
     "models": {},
     "formats": {

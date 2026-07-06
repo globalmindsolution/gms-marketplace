@@ -50,6 +50,11 @@
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": "docs/adr"
     },
+    "quality_path": {
+      "description": "Location of the quality/ doc set (test strategy, coverage policy) bootstrapped and maintained by /acs:create-quality. Unset = acs does not maintain this set for this repo.",
+      "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
+      "default": "docs/quality"
+    },
     "e2e": {
       "description": "End-to-end test layer (unset = repo has no e2e suite). When configured: /create-spec test plans must state e2e impact, /code authors/updates e2e tests in the same changeset, and the code-verifier runs the suite (green required for a passing verdict; per_iteration=false runs it only on the final, otherwise-passing iteration since e2e is slow). /create-project scaffolds the harness for greenfield repos with a user-facing surface.",
       "type": "object",
