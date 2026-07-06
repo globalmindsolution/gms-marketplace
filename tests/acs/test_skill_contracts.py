@@ -3455,39 +3455,45 @@ class TestCreateQualityDocConformance(unittest.TestCase):
             "with default \"docs/quality\" (MAR-112 AC-7)")
 
     def test_c4_component_triad_count_advanced(self):
-        """AC-7 sub-check 1: the triad-count sentence contains '7 active
-        triads (21 agents)'; the pre-change '6 active triads (18 agents)' is
-        gone."""
+        """AC-7 sub-check 1: the triad-count sentence reflects the current
+        epic state. MAR-112 landed the intermediate '7 active triads (21
+        agents)'; MAR-113 is the epic's second-and-final producer child and
+        lands the epic-final arithmetic directly ('8 active triads (24
+        agents)'), per its own spec — so this MAR-112 assertion is updated in
+        place to the superseding truth rather than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("7 active triads (21 agents)", body,
-                      "c4-component.md must advance to '7 active triads "
-                      "(21 agents)' (MAR-112 AC-7)")
+        self.assertIn("8 active triads (24 agents)", body,
+                      "c4-component.md must read '8 active triads "
+                      "(24 agents)' (MAR-112 AC-7, superseded by MAR-113)")
         self.assertNotIn("6 active triads (18 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'6 active triads (18 agents)' text (MAR-112 AC-7)")
 
     def test_c4_component_reachable_agents_advanced(self):
         """AC-7 sub-check 2: in a bounded window AFTER the triad-count
-        sentence, '24 reachable agents' is present and '21 reachable agents'
-        is absent from that same window -- a partial edit (triad line bumped,
-        reachable line left stale) must fail loudly."""
+        sentence, the reachable-agents figure matches the current epic state
+        (see test_c4_component_triad_count_advanced) -- a partial edit (triad
+        line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("7 active triads (21 agents)")
+        triad_idx = body.index("8 active triads (24 agents)")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("24 reachable agents", window,
-                      "c4-component.md must advance to '24 reachable agents' "
-                      "in the window after the triad-count sentence (MAR-112 AC-7)")
+        self.assertIn("27 reachable agents", window,
+                      "c4-component.md must read '27 reachable agents' "
+                      "in the window after the triad-count sentence "
+                      "(MAR-112 AC-7, superseded by MAR-113)")
         self.assertNotIn("21 reachable agents", window,
                          "c4-component.md must not retain the stale "
                          "'21 reachable agents' text in that window (MAR-112 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
-        x10 pre/post hook pairs; x9 is gone."""
+        the current epic pre/post hook pair count (see
+        test_c4_component_triad_count_advanced); x9 is gone."""
         body = self._c4_component()
-        self.assertIn("x10", body,
+        self.assertIn("x11", body,
                       "c4-component.md's dispatch.py component description "
-                      "must advance to x10 pre/post hook pairs (MAR-112 AC-7)")
+                      "must read x11 pre/post hook pairs (MAR-112 AC-7, "
+                      "superseded by MAR-113)")
         self.assertNotIn("x9", body,
                          "c4-component.md must not retain the stale x9 "
                          "pre/post hook pair count (MAR-112 AC-7)")
@@ -3529,6 +3535,127 @@ class TestCreateQualityChangelogEntry(unittest.TestCase):
             re.search(r"(?i)create-quality|quality_path", section),
             "the MAR-112 CHANGELOG entry must mention create-quality or "
             "quality_path (MAR-112 AC-9)")
+
+
+class TestCreateOperationsDocConformance(unittest.TestCase):
+    """MAR-113 spec 04 (AC-7): doc-conformance for the /acs:create-operations
+    doc-set closure — skills.md's new product-level section, configuration.md's
+    operations_path row, and c4-component.md's own +1 triad/reachable-agent/
+    pre-post-pair arithmetic. Structural string/regex assertions only."""
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def _configuration(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+
+    def _c4_component(self):
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
+
+    def test_skills_md_has_create_operations_section(self):
+        """AC-7: skills.md carries a '/acs:create-operations' (product-level)
+        section naming operations_path, create-operations-planner, and
+        create-operations-state.json."""
+        body = self._skills_req()
+        heading = "## `/acs:create-operations` (product-level)"
+        self.assertIn(heading, body,
+                      "docs/requirements/skills.md must have a "
+                      "'/acs:create-operations' (product-level) section (MAR-113 AC-7)")
+        section_start = body.index(heading)
+        next_heading = re.search(r"\n## ", body[section_start + 1:])
+        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
+        section = body[section_start:section_end]
+        self.assertIn("operations_path", section,
+                      "the create-operations section must name operations_path (MAR-113 AC-7)")
+        self.assertIn("create-operations-planner", section,
+                      "the create-operations section must name create-operations-planner (MAR-113 AC-7)")
+        self.assertIn("create-operations-state.json", section,
+                      "the create-operations section must name create-operations-state.json (MAR-113 AC-7)")
+
+    def test_configuration_md_has_operations_path_row(self):
+        """AC-7: configuration.md's Keys table has an operations_path row with
+        default "docs/operations"."""
+        body = self._configuration()
+        self.assertIsNotNone(
+            re.search(r"\|\s*`operations_path`\s*\|[^\n]*`\"docs/operations\"`", body),
+            "docs/requirements/configuration.md must have an operations_path row "
+            "with default \"docs/operations\" (MAR-113 AC-7)")
+
+    def test_c4_component_triad_count_advanced(self):
+        """AC-7 sub-check 1: the triad-count sentence contains '8 active
+        triads (24 agents)'; the pre-change '7 active triads (21 agents)' is
+        gone."""
+        body = self._c4_component()
+        self.assertIn("8 active triads (24 agents)", body,
+                      "c4-component.md must advance to '8 active triads "
+                      "(24 agents)' (MAR-113 AC-7)")
+        self.assertNotIn("7 active triads (21 agents)", body,
+                         "c4-component.md must not retain the stale "
+                         "'7 active triads (21 agents)' text (MAR-113 AC-7)")
+
+    def test_c4_component_reachable_agents_advanced(self):
+        """AC-7 sub-check 2: in a bounded window AFTER the triad-count
+        sentence, '27 reachable agents' is present and '24 reachable agents'
+        is absent from that same window -- a partial edit (triad line bumped,
+        reachable line left stale) must fail loudly."""
+        body = self._c4_component()
+        triad_idx = body.index("8 active triads (24 agents)")
+        window = body[triad_idx:triad_idx + 800]
+        self.assertIn("27 reachable agents", window,
+                      "c4-component.md must advance to '27 reachable agents' "
+                      "in the window after the triad-count sentence (MAR-113 AC-7)")
+        self.assertNotIn("24 reachable agents", window,
+                         "c4-component.md must not retain the stale "
+                         "'24 reachable agents' text in that window (MAR-113 AC-7)")
+
+    def test_c4_component_dispatch_pair_count_advanced(self):
+        """AC-7 sub-check 3: the dispatch.py component description shows
+        x11 pre/post hook pairs; x10 is gone."""
+        body = self._c4_component()
+        self.assertIn("x11", body,
+                      "c4-component.md's dispatch.py component description "
+                      "must advance to x11 pre/post hook pairs (MAR-113 AC-7)")
+        self.assertNotIn("x10", body,
+                         "c4-component.md must not retain the stale x10 "
+                         "pre/post hook pair count (MAR-113 AC-7)")
+
+
+class TestCreateOperationsChangelogEntry(unittest.TestCase):
+    """MAR-113 spec 04 (AC-9): durable-invariant CHANGELOG entry -- never
+    pins the literal '[Unreleased]' string as a fixed anchor (the recurring
+    release-cut gotcha; constraint changelog_gotcha)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def test_changelog_mar113_entry_in_topmost_section(self):
+        """AC-9: '(MAR-113)' must appear inside exactly one well-formed
+        section span, whose heading is either [Unreleased] or a dated semver
+        release heading (sliced heading-to-heading, never a literal
+        '[Unreleased]' anchor), and the section mentions create-operations or
+        operations_path."""
+        body = self._changelog()
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section = None
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if "(MAR-113)" in candidate:
+                section = candidate
+                break
+        self.assertIsNotNone(
+            section,
+            "CHANGELOG.md must contain '(MAR-113)' inside a section span "
+            "(MAR-113 AC-9)")
+        heading = section[:section.index("\n")] if "\n" in section else section
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the '(MAR-113)' entry must live under [Unreleased] or a dated "
+            "semver release heading (MAR-113 AC-9; release cuts legitimately "
+            "graduate the entry)")
+        self.assertIsNotNone(
+            re.search(r"(?i)create-operations|operations_path", section),
+            "the MAR-113 CHANGELOG entry must mention create-operations or "
+            "operations_path (MAR-113 AC-9)")
 
 
 if __name__ == "__main__":
