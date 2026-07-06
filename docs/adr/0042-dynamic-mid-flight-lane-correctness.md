@@ -107,3 +107,32 @@ without a passing verifier at the escalated depth — the merge gate is
   tested prose; risks an undefined mid-iteration `create-spec` re-entry; and
   is materially more complex for a benefit the existing merge-gate invariant
   already delivers.
+
+### D3 — De-escalation confirmation UX + upward-only guarantee
+
+**Decision:** full user-confirmed, boundary-only de-escalation via a
+dedicated, automatically-unreachable writer, `confirm_deescalation(tdir,
+ticket, confirmed_size, confirmed_stakes, clarify_ref)` (`acs_lib.py`).
+De-escalation is offered only at an iteration or run boundary of `/acs:code`,
+never mid-iteration. The `/code` coordinator records the request via
+`clarify.py add`, issues an explicit `AskUserQuestion`, and — only on an
+explicit affirmative reply — records the answer via `clarify.py answer`,
+yielding a `C-<n>` id, before calling `confirm_deescalation` with that id as
+`clarify_ref`. `confirm_deescalation` is **unreachable without a resolved
+clarify_ref**: it raises `ValueError` — performing no write — when
+`clarify_ref` is falsy or does not resolve to an answered `clarify.py` ledger
+entry (an `"open"` or `"assumed"` entry is rejected, same as a missing one).
+It recomputes lane via `derive_lane` (never hand-set) and persists via
+`save_ticket`/`update_pipeline`/`update_index` exactly like the upward path,
+then records a `direction: "down"` event via `record_escalation_event` with
+`confirmation_ref` set to the resolved `C-<n>` id. It is called from exactly
+one location — the `/code` coordinator's boundary-only de-escalation
+subsection — and never from the in-loop trigger-evaluation code path or any
+subagent.
+
+**Alternatives considered:**
+- Option B — no new writer; de-escalation reuses `create-ticket`'s lane
+  confirmation flow by bouncing the user back to re-confirm axes. Rejected:
+  "altering create-ticket lane confirmation" is an explicit ticket.json
+  non-goal, and it does not fit a mid-flight `/code` moment — the user would
+  have to leave the `/code` run context.

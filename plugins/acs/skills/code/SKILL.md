@@ -235,6 +235,41 @@ escalation — the coordinator must observe an unambiguous signal. A ticket stay
 at its current lane when in-flight signals are absent, ambiguous, or
 unrecognized; the lane is never lowered.
 
+### Boundary-only user-confirmed de-escalation (D3)
+
+De-escalation (lowering `size`/`stakes`/lane) is offered **ONLY** at an
+iteration or run boundary of `/acs:code` — the point where the reflection loop
+is between iterations, or the run itself is between invocations — and
+**NEVER** mid-iteration. No other boundary definition applies.
+
+When a user requests de-escalation at a boundary, the coordinator follows this
+confirmation sequence, in order, before any write:
+
+1. Record the question via `clarify.py add` (unanswered).
+2. Issue an explicit `AskUserQuestion` asking the user to confirm the lower
+   `size` and/or `stakes` value.
+3. Only on an explicit affirmative reply, record the answer via `clarify.py
+   answer`, yielding a `C-<n>` id. No write to `ticket.json`/
+   `pipeline-state.json`/`tickets-index.json` happens before this confirmation
+   round-trip completes.
+4. Call `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
+   clarify_ref=C-<n>)` (`acs_lib.py`), passing the resolved `C-<n>` ledger id
+   as `clarify_ref`. This subsection references the writer by its exact name
+   and signature only — the writer's internal behavior (lane recompute,
+   persistence order, event recording) is its own contract, unchanged here.
+
+`confirm_deescalation` is the **only sanctioned lane-lowering path** in the
+system. It is called from **exactly this one location** in `code/SKILL.md`,
+and it is **never** called from the in-loop trigger-evaluation code path (the
+three-trigger check above) and **never** from any subagent (executor,
+verifier, or any spawned planner).
+
+This subsection does not introduce an automatic or unattended downgrade path:
+de-escalation never happens automatically, and there is no automatic path that
+lowers the lane or axes — every downgrade mention here stays inside this
+user-confirmed, boundary-gated sequence, and `confirm_deescalation` cannot be
+reached without a resolved, answered `clarify_ref`.
+
 Run plan -> execute -> verify, at most verify_depth-determined iterations (light: cap 1; full: cap 3). Spawn subagents with the
 Agent tool: `acs:code-planner`, `acs:code-executor`, `acs:code-verifier` (fall
 back to the un-namespaced name only if the runtime rejects the namespaced

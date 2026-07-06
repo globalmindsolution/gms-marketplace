@@ -64,4 +64,8 @@ files of the apply-work skills remain on disk but are orphaned.
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3),
 TRIVIAL/SMALL lanes fold spec authoring into the plan phase (MAR-59), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
-recorded to an audit trail (`record_escalation_event`, MAR-106).
+recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is
+never *automatically* downward — the sole exception is a user-confirmed
+de-escalation, offered only at an iteration/run boundary, applied by
+`confirm_deescalation` (MAR-108, ADR 0042 D3), which is unreachable without a
+resolved `clarify.py` confirmation reference.

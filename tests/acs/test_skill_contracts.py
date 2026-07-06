@@ -1197,6 +1197,171 @@ class TestStageReintroduction(unittest.TestCase):
             "create-spec passes at zero verifier findings (MAR-107 AC-4)")
 
 
+class TestBoundaryOnlyDeescalationContract(unittest.TestCase):
+    """MAR-108 (AC-4, AC-5 prose half): pin the boundary-only user-confirmed
+    de-escalation subsection in code/SKILL.md (design D3).
+
+    Doc-assertion tests reading code/SKILL.md. RED before the new
+    'Boundary-only user-confirmed de-escalation (D3)' subsection is added;
+    GREEN after."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    def test_boundary_only_timing_gate(self):
+        """AC-4: the subsection must state de-escalation fires only at an
+        iteration/run boundary and never mid-iteration."""
+        body = self._code_body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)(iteration|run).{0,60}boundary.{0,300}never.{0,30}"
+                r"mid.iteration|"
+                r"never.{0,30}mid.iteration.{0,300}(iteration|run).{0,60}boundary",
+                body, re.DOTALL),
+            "code/SKILL.md must state the boundary-only timing gate: fires "
+            "only at an iteration/run boundary, never mid-iteration (MAR-108 AC-4)")
+
+    def test_names_confirm_deescalation(self):
+        """AC-4: code/SKILL.md must name confirm_deescalation literally."""
+        body = self._code_body()
+        self.assertIn(
+            "confirm_deescalation", body,
+            "code/SKILL.md must reference confirm_deescalation by name (MAR-108 AC-4)")
+
+    def test_askuserquestion_and_clarify_precede_writer_call(self):
+        """AC-4: the subsection must require AskUserQuestion + clarify.py
+        confirmation BEFORE the confirm_deescalation call (ordering)."""
+        body = self._code_body()
+        self.assertIn("AskUserQuestion", body,
+                      "code/SKILL.md must mention AskUserQuestion in the "
+                      "de-escalation confirmation sequence (MAR-108 AC-4)")
+        self.assertIn("clarify", body,
+                      "code/SKILL.md must mention clarify.py recording in the "
+                      "de-escalation confirmation sequence (MAR-108 AC-4)")
+        ask_idx = body.find("AskUserQuestion")
+        clarify_idx = body.find("clarify")
+        writer_idx = body.find("confirm_deescalation")
+        self.assertGreater(writer_idx, -1,
+                            "confirm_deescalation must appear in code/SKILL.md")
+        self.assertLess(ask_idx, writer_idx,
+                         "AskUserQuestion must precede the confirm_deescalation "
+                         "call in code/SKILL.md (MAR-108 AC-4)")
+        self.assertLess(clarify_idx, writer_idx,
+                         "clarify.py recording must precede the confirm_deescalation "
+                         "call in code/SKILL.md (MAR-108 AC-4)")
+
+    def test_sole_lane_lowering_path_single_call_site_never_inloop_or_subagent(self):
+        """AC-4/AC-5 prose: confirm_deescalation must be stated as the ONLY
+        sanctioned lane-lowering path, called from exactly one location, and
+        never from the in-loop trigger path or any subagent."""
+        body = self._code_body()
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)confirm_deescalation.{0,200}(only|sole).{0,60}"
+                r"(sanctioned )?lane.lowering.{0,60}path|"
+                r"(only|sole).{0,60}(sanctioned )?lane.lowering.{0,60}path.{0,200}"
+                r"confirm_deescalation",
+                body, re.DOTALL),
+            "code/SKILL.md must state confirm_deescalation is the only "
+            "sanctioned lane-lowering path (MAR-108 AC-4)")
+        self.assertIsNotNone(
+            re.search(r"(?i)never.{0,60}in.loop.{0,60}trigger", body, re.DOTALL),
+            "code/SKILL.md must state confirm_deescalation is never called "
+            "from the in-loop trigger-evaluation path (MAR-108 AC-4)")
+        self.assertIsNotNone(
+            re.search(r"(?i)never.{0,60}(from )?(any )?subagent", body, re.DOTALL),
+            "code/SKILL.md must state confirm_deescalation is never called "
+            "from any subagent (MAR-108 AC-4)")
+
+
+class TestAdr0042D3Section(unittest.TestCase):
+    """MAR-108 (AC-6): pin the additive D3 section appended to
+    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    defers D3 (:21-23); this class asserts the deferred section now exists."""
+
+    def _adr_path(self):
+        return os.path.join(REPO_ROOT, "docs", "adr",
+                            "0042-dynamic-mid-flight-lane-correctness.md")
+
+    def _adr_body(self):
+        return read(self._adr_path())
+
+    def test_adr_0042_has_d3_heading_naming_writer_and_decision(self):
+        """AC-6: docs/adr/0042 must contain a '### D3' heading naming
+        confirm_deescalation and the boundary-only/user-confirmed decision."""
+        body = self._adr_body()
+        self.assertIsNotNone(
+            re.search(r"(?i)### D3.{0,400}confirm_deescalation.{0,300}"
+                      r"(boundary.only|user.confirmed)|"
+                      r"### D3.{0,400}(boundary.only|user.confirmed).{0,300}"
+                      r"confirm_deescalation",
+                      body, re.DOTALL),
+            "docs/adr/0042 must contain a '### D3' heading naming "
+            "confirm_deescalation and the boundary-only/user-confirmed "
+            "decision (MAR-108 AC-6)")
+
+    def test_adr_0042_d3_records_unreachable_without_resolved_clarify_ref(self):
+        """AC-6: the D3 section must state the writer is unreachable without
+        a resolved clarify_ref (the negative-guarantee statement)."""
+        body = self._adr_body()
+        d3_start = body.find("### D3")
+        self.assertGreater(d3_start, -1, "### D3 heading must exist")
+        d3_section = body[d3_start:]
+        self.assertIsNotNone(
+            re.search(r"(?i)unreachable.{0,60}(without|resolved).{0,60}"
+                      r"clarify_ref|"
+                      r"clarify_ref.{0,120}unreachable",
+                      d3_section, re.DOTALL),
+            "docs/adr/0042 D3 section must state confirm_deescalation is "
+            "unreachable without a resolved clarify_ref (MAR-108 AC-6)")
+
+
+class TestLaneStatementUserConfirmedExceptionDocs(unittest.TestCase):
+    """MAR-108 (AC-6): overview.md / c4-component.md / reflection.md must
+    each carry the 'never *automatically* downward' + user-confirmed
+    de-escalation exception wording (design D3 architecture conformance)."""
+
+    def _overview_body(self):
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld",
+                                  "overview.md"))
+
+    def _c4_component_body(self):
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld",
+                                  "c4-component.md"))
+
+    def _reflection_body(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements",
+                                  "reflection.md"))
+
+    def _assert_never_automatically_downward_with_exception(self, body, path):
+        self.assertIsNotNone(
+            re.search(r"(?i)never.{0,20}automatically.{0,20}downward",
+                      body, re.DOTALL),
+            "%s must state the precise invariant 'never *automatically* "
+            "downward' (MAR-108 AC-6)" % path)
+        self.assertIsNotNone(
+            re.search(r"(?i)user.confirmed.{0,60}de.escalat|"
+                      r"de.escalat.{0,60}user.confirmed",
+                      body, re.DOTALL),
+            "%s must mention the user-confirmed de-escalation exception "
+            "(MAR-108 AC-6)" % path)
+
+    def test_overview_md_never_automatically_downward_exception(self):
+        self._assert_never_automatically_downward_with_exception(
+            self._overview_body(), "docs/architecture/hld/overview.md")
+
+    def test_c4_component_md_never_automatically_downward_exception(self):
+        self._assert_never_automatically_downward_with_exception(
+            self._c4_component_body(), "docs/architecture/hld/c4-component.md")
+
+    def test_reflection_md_never_automatically_downward_exception(self):
+        self._assert_never_automatically_downward_with_exception(
+            self._reflection_body(), "docs/requirements/reflection.md")
+
+
 class TestMidFlightEscalationContract(unittest.TestCase):
     """MAR-57 Spec 04 (AC-3, AC-6, AC-7, AC-8): pin the mid-flight escalation
     contract in docs/requirements/skills.md.
