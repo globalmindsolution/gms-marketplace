@@ -17,6 +17,19 @@ the notes.
 
 ### Added
 
+- **`/acs:code` gains a user-confirmed mid-flight de-escalation path, never
+  automatic (MAR-108).** A new `acs_lib.py` writer, `confirm_deescalation`,
+  is the only function capable of lowering a ticket's `size`/`stakes`/`lane`
+  below its current confirmed value; it hard-requires a resolved, *answered*
+  `clarify.py` ledger entry (an `"open"` or agent-authored `"assumed"` entry
+  is refused, same as a missing one — `ValueError`, no write), recomputes
+  `lane` via `derive_lane`, persists exactly like the upward path, and then
+  records a `direction:"down"` audit event with a non-null `confirmation_ref`.
+  It is reachable only from a boundary-only, explicitly user-confirmed
+  subsection of the `/code` coordinator — never from the in-loop
+  trigger-evaluation path or any subagent — so the upward-only negative
+  guarantee holds for every automatic/unattended path.
+
 - **`/acs:code`'s iteration-start escalation detection point and
   fold-boundary stage re-entry are now a formalized, contract-tested
   guarantee (MAR-107).** The shipped detection point (start of each

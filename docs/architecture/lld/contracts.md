@@ -65,6 +65,20 @@ verifier and before the current execute — MAR-107 D4); a fast-lane
 fold-boundary stage re-entry that re-introduces the skipped `create-spec`
 stage before the next iteration.
 
+`confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
+clarify_ref)` (`acs_lib.py`, MAR-108) is the only writer capable of lowering
+`size`/`stakes`/`lane` below the ticket's current confirmed value. It hard-
+requires `clarify_ref` to resolve to a `clarify.py` ledger entry with
+`status == "answered"` exactly — a falsy ref, an unresolvable id, an `"open"`
+entry, or an `"assumed"` entry all raise `ValueError` with no write of any
+kind (ticket, pipeline, index, or escalation event). On success it recomputes
+`lane` via `derive_lane` (never hand-set), persists via the same three
+writers as the upward path (`save_ticket` / `update_pipeline` /
+`update_index`), and only then records a `direction:"down"` event via
+`record_escalation_event` with `trigger:"user_confirmed_deescalation"` and
+`confirmation_ref` set to the resolved `C-<n>` id — persist-then-record,
+mirroring the upward on-trigger sequence's ordering (design.md:506-518).
+
 ## Inter-step contract (state files)
 
 The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
