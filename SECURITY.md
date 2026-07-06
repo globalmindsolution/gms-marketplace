@@ -5,6 +5,8 @@ Security baseline and practices for the **`gms-marketplace`** repository (the
 
 ## Reporting a vulnerability
 
+See [`security/policy.md`](security/policy.md) for the operational reporting policy (channel, expected response, scope).
+
 Report security issues **privately** — do not open a public issue or pull
 request.
 
