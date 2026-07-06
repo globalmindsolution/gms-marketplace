@@ -136,6 +136,15 @@ evaluate three upward-escalation triggers. Completed iterations are NEVER
 discarded; escalation continues from the current point at higher rigor WITHOUT
 restarting the run (AC-1 / no-restart guarantee).
 
+**This is the iteration-start escalation detection point (MAR-107 D4).**
+Because `verify_depth`/ceiling re-selection happens before the current
+iteration's execute, an escalation always lands **before the next verifier
+pass** — the verifier for the just-finished iteration has already run, and the
+verifier for the upcoming iteration has not, so the ticket cannot merge
+without a passing verifier at the escalated depth (`states.verifier_passed`
+merge gate). The no-restart guarantee above (completed work preserved,
+without restarting the run) holds at this same detection point.
+
 **Three triggers (exactly; no others) — evaluated on the FIRST signal, immediately.**
 This signal set is normatively frozen at exactly these three triggers: no
 fourth trigger exists or may be added without a new design decision. Trigger

@@ -58,7 +58,12 @@ source, ceiling_before, ceiling_after, direction, confirmation_ref` —
 `direction` is `"up"` or `"down"`; `trigger` is `"a"`, `"b"`, `"c"`, or
 `"user_confirmed_deescalation"`; `confirmation_ref` is `null` for every
 upward/automatic event. No schema file edit is required — run-entry items
-already declare `additionalProperties: true`.
+already declare `additionalProperties: true`. Events are recorded at the
+iteration-start **detection point** (start of each iteration, after the prior
+verifier and before the current execute — MAR-107 D4); a fast-lane
+(TRIVIAL/SMALL) crossing into a full lane (STANDARD/COMPLEX) triggers the
+fold-boundary stage re-entry that re-introduces the skipped `create-spec`
+stage before the next iteration.
 
 ## Inter-step contract (state files)
 

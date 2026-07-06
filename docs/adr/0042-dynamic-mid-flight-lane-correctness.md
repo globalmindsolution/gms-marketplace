@@ -86,3 +86,24 @@ introduced this release.
   (triggers (a)/(c)).
 - Any future deterministic scope signal requires a new PRD/design decision,
   not a silent addition inside this or a later escalation ticket.
+
+### D4 — verify_depth re-selection point + stage re-entry
+
+**Decision:** the shipped iteration-start detection point (start of each
+iteration, after the prior iteration's verifier, before the current
+iteration's execute — `code/SKILL.md`) is formalized as the normative
+"iteration-start escalation detection point," unchanged from its shipped
+behavior, and hardened with contract tests only (Option A). Because
+re-selection happens before the current iteration's execute, an escalation
+always lands before the NEXT verifier pass, and the ticket cannot merge
+without a passing verifier at the escalated depth — the merge gate is
+`states.verifier_passed`. No `acs_lib` function is modified.
+
+**Alternatives considered:**
+- Option B — move the detection point to immediately post-execute (after
+  files are written, before the SAME iteration's verifier), so a glob match
+  on files written this iteration could raise depth for that iteration's own
+  verifier pass rather than the next. Rejected: it diverges from shipped,
+  tested prose; risks an undefined mid-iteration `create-spec` re-entry; and
+  is materially more complex for a benefit the existing merge-gate invariant
+  already delivers.

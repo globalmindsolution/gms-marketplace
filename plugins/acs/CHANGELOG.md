@@ -17,6 +17,15 @@ the notes.
 
 ### Added
 
+- **`/acs:code`'s iteration-start escalation detection point and
+  fold-boundary stage re-entry are now a formalized, contract-tested
+  guarantee (MAR-107).** The shipped detection point (start of each
+  iteration, after the prior verifier, before the current execute) is now
+  named and tested so an escalation always lands before the next verifier
+  pass; the monotone never-lowered ceiling raise, the no-restart guarantee,
+  and the fast-lane-to-full-lane `create-spec` re-introduction are all
+  contract-tested. Zero behavior change — no `acs_lib` function is modified.
+
 - **`/acs:code`'s in-loop escalation now writes a durable audit-event trail
   and freezes its signal set (MAR-106).** A new `acs_lib.py` helper
   `record_escalation_event(tdir, skill, event)` appends a fixed 13-field event

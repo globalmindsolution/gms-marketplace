@@ -85,7 +85,14 @@ Requirements:
   appending a fixed 13-field event (from/to lane, from/to axes, trigger,
   source, ceiling before/after, direction, confirmation ref) to
   `runs[-1].escalations` on `code-state.json` (MAR-106), so no lane change is
-  silent.
+  silent. Re-selection happens at the iteration-start **detection point**: the
+  start of each iteration, after the prior verifier and before the current
+  execute — so an escalation always lands before the next verifier pass
+  (MAR-107 D4). When a fast lane (TRIVIAL/SMALL) crosses the fold boundary
+  into a full lane (STANDARD/COMPLEX), this fold-boundary stage re-entry
+  re-introduces the skipped `create-spec` decomposition stage before the next
+  iteration, resuming implementation only once `create-spec` passes at zero
+  verifier findings.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
   `<skill>-verifier`. 27 agent files exist on disk in total and are retained
