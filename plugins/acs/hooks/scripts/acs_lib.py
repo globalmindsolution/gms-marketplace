@@ -298,6 +298,7 @@ DEFAULT_SETTINGS = {
     "requirements_path": "docs/requirements",
     "adr_path": "docs/adr",
     "quality_path": "docs/quality",
+    "operations_path": "docs/operations",
     "tracker": {"provider": "local"},
     "models": {},
     "formats": {

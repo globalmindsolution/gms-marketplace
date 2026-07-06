@@ -182,6 +182,11 @@ subsection and the `e2e` bullet for how each is offered.
   /acs:create-quality bootstraps and maintains (test strategy, coverage
   policy). Write the key only when the user changes it; explicit `null`
   disables (acs does not maintain the set for this repo).
+- `operations_path` — default `"docs/operations"` (repo-relative): the
+  location /acs:create-operations bootstraps and maintains (release process,
+  runbooks, observability, incident response, test-scheduling). Write the key
+  only when the user changes it; explicit `null` disables (acs does not
+  maintain the set for this repo).
 - `e2e` — **always ask** this explicitly on a fresh init (it is a first-class
   setup decision, not a silently-defaultable key); default UNSET (repo has no
   e2e suite). Detect candidates first (`package.json` scripts containing `e2e`,
