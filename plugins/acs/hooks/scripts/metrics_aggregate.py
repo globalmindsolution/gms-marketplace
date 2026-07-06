@@ -210,6 +210,9 @@ def aggregate(workspace, repo_id, now=None):
     _merge_ended_at = {}
     # _tickets_due_data: [{id, due_date, status}] for deadline panel (spec 02)
     _tickets_due_data = []
+    # _escalations_by_ticket: {ticket_id -> [event, ...]} unioned across a ticket's runs
+    # (MAR-109 spec 01; code_state already read below for panels 4/5 — no extra file read).
+    _escalations_by_ticket = {}
 
     for ticket_id in tickets:
         tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
@@ -231,6 +234,15 @@ def aggregate(workspace, repo_id, now=None):
         code_state = acs_lib.read_json(acs_lib.state_path(tdir, "code"))
         p4_rows.append(_panel4_row(ticket_id, code_state, degrade))
         p5_rows.append(_panel5_row(ticket_id, tdir, code_state, degrade))
+
+        # Collect escalation events across all of this ticket's runs (spec 01:73-81).
+        runs = code_state.get("runs") if isinstance(code_state, dict) else None
+        events = []
+        for run in (runs or []):
+            if isinstance(run, dict):
+                events.extend(run.get("escalations") or [])
+        if events:
+            _escalations_by_ticket[ticket_id] = events
 
         p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
 
@@ -278,9 +290,9 @@ def aggregate(workspace, repo_id, now=None):
 
     # ---- New panels (MAR-14 spec 01) ----
 
-    # delivery_summary: 5 PM KPIs (clarification C-1; spec 01:92-127)
+    # delivery_summary: 5 PM KPIs + additive escalations sub-object (MAR-109 D5)
     delivery_summary = _delivery_summary(
-        tickets, prs, panel7, p4_rows, degrade
+        tickets, prs, panel7, p4_rows, degrade, _escalations_by_ticket
     )
 
     # issues: sorted list of all index entries (spec 01:129-149)
@@ -314,8 +326,9 @@ def aggregate(workspace, repo_id, now=None):
 # New panel builders (MAR-14 spec 01) — read-only, no writes, stdlib-only
 # ---------------------------------------------------------------------------
 
-def _delivery_summary(tickets, prs, panel7, p4_rows, degrade):
-    """Compute the delivery_summary panel (5 PM KPIs) from already-resolved data.
+def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, escalations_by_ticket=None):
+    """Compute the delivery_summary panel (5 PM KPIs + additive escalations) from
+    already-resolved data.
 
     Keys (spec 01:92-127):
       tickets_done_over_total  — "<done>/<total>" string; always present.
@@ -324,6 +337,15 @@ def _delivery_summary(tickets, prs, panel7, p4_rows, degrade):
       avg_cycle_seconds        — float or "no data" from panel7["avg_cycle_seconds"].
       coverage_pass_rate       — "<passed>/<measured>" or "no data"; measured from p4_rows where
                                   cell != "no data"; passed where also passed==True.
+      escalations              — additive sub-object (MAR-109 D5), four integer tallies computed
+                                  from escalations_by_ticket {ticket_id -> [event, ...]}:
+                                    events              — total events across all tickets.
+                                    fast_lane_escalated — distinct tickets whose earliest event's
+                                                          from_lane is fast (TRIVIAL/SMALL) and whose
+                                                          highest-ever to_lane reaches >=STANDARD
+                                                          (per-ticket tally, user decision C-1).
+                                    deescalations       — events with direction == "down".
+                                    silent_reversals    — "down" events with a falsy confirmation_ref.
 
     meta.degraded entry added only when measured == 0 (coverage_pass_rate unavailable).
     """
@@ -359,12 +381,53 @@ def _delivery_summary(tickets, prs, panel7, p4_rows, degrade):
     else:
         coverage_pass_rate = "%d/%d" % (passed, measured)
 
+    escalations = _escalations_tally(escalations_by_ticket or {})
+
     return {
         "tickets_done_over_total": tickets_done_over_total,
         "prs_merged": prs_merged,
         "avg_lead_seconds": avg_lead_seconds,
         "avg_cycle_seconds": avg_cycle_seconds,
         "coverage_pass_rate": coverage_pass_rate,
+        "escalations": escalations,
+    }
+
+
+def _escalations_tally(escalations_by_ticket):
+    """Reduce {ticket_id -> [event, ...]} to the four G25 tallies (MAR-109 D5)."""
+    events_total = 0
+    fast_lane_escalated = 0
+    deescalations = 0
+    silent_reversals = 0
+
+    for ticket_events in escalations_by_ticket.values():
+        events_total += len(ticket_events)
+
+        origin_rank = None
+        highest_rank = None
+        for event in ticket_events:
+            if not isinstance(event, dict):
+                continue
+            from_rank = acs_lib.lane_rank(event.get("from_lane"))
+            to_rank = acs_lib.lane_rank(event.get("to_lane"))
+            if origin_rank is None:
+                origin_rank = from_rank
+            highest_rank = to_rank if highest_rank is None else max(highest_rank, to_rank)
+
+            if event.get("direction") == "down":
+                deescalations += 1
+                if not event.get("confirmation_ref"):
+                    silent_reversals += 1
+
+        if (origin_rank is not None and origin_rank <= acs_lib.lane_rank("SMALL")
+                and highest_rank is not None and highest_rank >= acs_lib.lane_rank("STANDARD")):
+            fast_lane_escalated += 1
+
+    return {
+        "events": events_total,
+        "fast_lane_escalated": fast_lane_escalated,
+        "deescalations": deescalations,
+        "silent_reversals": silent_reversals,
     }
 
 

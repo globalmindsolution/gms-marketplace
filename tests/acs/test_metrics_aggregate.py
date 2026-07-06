@@ -73,10 +73,12 @@ def write_pipeline(ws, tid, steps=None, totals=None, archived=False):
     _write_json(os.path.join(tdir, "pipeline-state.json"), payload)
 
 
-def write_code_state(ws, tid, states, archived=False):
+def write_code_state(ws, tid, states, archived=False, runs=None):
+    """runs: optional list of run-entry dicts (e.g. carrying an "escalations" list);
+    defaults to [] to preserve every pre-existing caller's shape."""
     tdir = _ticket_dir(ws, tid, archived)
     _write_json(os.path.join(tdir, "code-state.json"),
-                {"skill": "code", "ticket_id": tid, "states": states, "runs": []})
+                {"skill": "code", "ticket_id": tid, "states": states, "runs": runs or []})
 
 
 def write_create_pr_state(ws, tid, states=None, archived=False):
@@ -1035,6 +1037,208 @@ class TestDeliverySummary(unittest.TestCase):
             ds = out["panels"]["delivery_summary"]
             # measured=2 (T1 and T2 have numeric coverage), passed=1 (T1 passes)
             self.assertEqual(ds["coverage_pass_rate"], "1/2")
+
+
+# ---------------------------------------------------------------------------
+# MAR-109 spec 01 — escalations sub-object on delivery_summary
+# ---------------------------------------------------------------------------
+
+def _escalation_event(from_lane, to_lane, direction="up", confirmation_ref=None):
+    """Build a minimal escalation-event dict (D1 shape, ADR 0042) for test fixtures."""
+    return {
+        "ts": "2026-07-06T10:00:00Z",
+        "from_lane": from_lane,
+        "to_lane": to_lane,
+        "from_size": "small",
+        "from_stakes": "normal",
+        "to_size": "small",
+        "to_stakes": "high",
+        "trigger": "b",
+        "source": "test fixture",
+        "ceiling_before": 1,
+        "ceiling_after": 3,
+        "direction": direction,
+        "confirmation_ref": confirmation_ref,
+    }
+
+
+class TestDeliverySummaryEscalations(unittest.TestCase):
+    """MAR-109 spec 01 §Test plan: escalations sub-object (events, fast_lane_escalated,
+    deescalations, silent_reversals) on delivery_summary. Additive to the five existing KPIs."""
+
+    def test_events_unions_across_runs_and_active_plus_archived_tickets(self):
+        """events tallies across a ticket's multiple runs AND across active + archived tickets."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "T1": {"status": "in_progress", "type": "story"},
+                "T2": {"status": "done", "type": "story"},
+            })
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            # T1 (active): two runs, one escalation event each -> 2 events
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "STANDARD"),
+                ]},
+                {"started_at": "2026-06-02T10:00:00Z", "escalations": [
+                    _escalation_event("STANDARD", "COMPLEX"),
+                ]},
+            ])
+            write_ticket_json(ws, "T2", "2026-06-01T10:00:00Z", archived=True)
+            # T2 (archived): one run, one escalation event -> 1 event
+            write_code_state(ws, "T2", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-06-03T10:00:00Z", "escalations": [
+                    _escalation_event("TRIVIAL", "SMALL"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["events"], 3)
+
+    def test_fast_lane_escalated_counts_distinct_ticket_once_direct_step(self):
+        """A ticket escalating SMALL->STANDARD directly counts once in fast_lane_escalated."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "STANDARD"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["fast_lane_escalated"], 1)
+
+    def test_fast_lane_escalated_counts_distinct_ticket_once_two_step(self):
+        """A ticket escalating SMALL->STANDARD->COMPLEX (two events) counts ONCE, per-ticket (C-1)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "STANDARD"),
+                    _escalation_event("STANDARD", "COMPLEX"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["fast_lane_escalated"], 1)
+
+    def test_fast_lane_escalated_excludes_noop_and_full_lane_origin(self):
+        """SMALL->SMALL no-op and a STANDARD-origin ticket do NOT count toward fast_lane_escalated."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "T1": {"status": "in_progress", "type": "story"},
+                "T2": {"status": "in_progress", "type": "story"},
+            })
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            # T1: SMALL -> SMALL (no-op rank change) -- must not count
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "SMALL"),
+                ]},
+            ])
+            write_ticket_json(ws, "T2", "2026-06-01T10:00:00Z")
+            # T2: starts at STANDARD, escalates to COMPLEX -- origin is not fast, must not count
+            write_code_state(ws, "T2", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("STANDARD", "COMPLEX"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["fast_lane_escalated"], 0)
+
+    def test_deescalations_counts_down_direction_events(self):
+        """deescalations tallies events with direction == 'down'."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "STANDARD", direction="up"),
+                    _escalation_event("STANDARD", "SMALL", direction="down", confirmation_ref="C-1"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["deescalations"], 1)
+
+    def test_silent_reversals_zero_when_down_events_all_confirmed(self):
+        """silent_reversals == 0 when every down event has a non-null confirmation_ref."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("STANDARD", "SMALL", direction="down", confirmation_ref="C-1"),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["silent_reversals"], 0)
+
+    def test_silent_reversals_detects_malformed_down_event_missing_confirmation_ref(self):
+        """silent_reversals > 0 for a deliberately malformed down event lacking confirmation_ref (R3)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_code_state(ws, "T1", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-06-01T10:00:00Z", "escalations": [
+                    _escalation_event("STANDARD", "SMALL", direction="down", confirmation_ref=None),
+                ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"]["silent_reversals"], 1)
+
+    def test_empty_or_absent_escalations_all_tallies_zero_not_no_data(self):
+        """No ticket carries escalation events -> all four tallies are integer 0, not 'no data'."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "in_progress", "type": "story"}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            # No runs/escalations at all (default write_code_state -> runs: [])
+            write_code_state(ws, "T1", {"verifier_passed": True})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["escalations"], {
+                "events": 0, "fast_lane_escalated": 0, "deescalations": 0, "silent_reversals": 0,
+            })
+            for v in ds["escalations"].values():
+                self.assertIsInstance(v, int)
+                self.assertNotIsInstance(v, bool)
+
+    def test_five_existing_kpi_keys_unchanged_when_escalation_data_present(self):
+        """No regression: the five pre-existing KPI keys stay correct when escalations also present."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "T1": {"status": "done", "type": "story"},
+                "T2": {"status": "in_progress", "type": "story"},
+            })
+            write_metrics(ws, {"prs": {"created": 2, "merged": 1}})
+            write_ticket_json(ws, "T1", "2026-06-01T10:00:00Z")
+            write_pipeline(ws, "T1", steps={
+                "code": {"started_at": "2026-06-05T10:00:00Z", "status": "completed",
+                         "ended_at": "2026-06-05T11:00:00Z"},
+                "merge-pr": {"started_at": "2026-06-10T11:00:00Z", "status": "completed",
+                             "ended_at": "2026-06-10T12:00:00Z"},
+            })
+            write_code_state(ws, "T1", {"tests": {"coverage_percent": 91.0, "coverage_target": 90},
+                                        "verifier_passed": True}, runs=[
+                {"started_at": "2026-06-05T10:00:00Z", "escalations": [
+                    _escalation_event("SMALL", "STANDARD"),
+                ]},
+            ])
+            write_ticket_json(ws, "T2", "2026-06-02T10:00:00Z")
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ds = out["panels"]["delivery_summary"]
+            self.assertEqual(ds["tickets_done_over_total"], "1/2")
+            self.assertEqual(ds["prs_merged"], 1)
+            self.assertIsInstance(ds["avg_lead_seconds"], float)
+            self.assertIsInstance(ds["avg_cycle_seconds"], float)
+            self.assertEqual(ds["coverage_pass_rate"], "1/1")
+            # additive: escalations present alongside the unchanged five KPIs
+            self.assertEqual(ds["escalations"]["events"], 1)
+            self.assertEqual(ds["escalations"]["fast_lane_escalated"], 1)
 
 
 class TestIssues(unittest.TestCase):

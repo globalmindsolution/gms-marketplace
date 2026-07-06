@@ -165,7 +165,9 @@ tickets, `metrics.json` for per-repo totals, a ticket's
 Or run the two read-only in-session dashboards — both write nothing and make
 no network call:
 
-- **`/metrics`** (PM view) — delivery summary, throughput by status/type,
+- **`/metrics`** (PM view) — delivery summary (including an additive G25
+  escalation line: event count, fast-lane-escalated count, de-escalation
+  count, silent-reversal count), throughput by status/type,
   pipeline funnel + distinct PRs, ISSUES, PROGRESS (per-epic burn-up),
   DEADLINE (on-track/overdue derived from `due_date`; degrades to "not set" when
   no ticket has a parseable `due_date` — B1),

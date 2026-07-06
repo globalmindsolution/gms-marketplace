@@ -241,6 +241,46 @@ class TerminalSurface(unittest.TestCase):
         first = data["meta"]["degraded"][0]
         self.assertIn(first["ticket_id"], out)
 
+    def test_escalations_rows_appear_in_fixed_order_after_five_kpi_rows(self):
+        """MAR-109 spec 01: the four escalation rows render, fixed order, after the 5 KPI rows."""
+        panel = {
+            "tickets_done_over_total": "2/3", "prs_merged": 2,
+            "avg_lead_seconds": 100.0, "avg_cycle_seconds": 50.0,
+            "coverage_pass_rate": "2/2",
+            "escalations": {"events": 3, "fast_lane_escalated": 1,
+                             "deescalations": 1, "silent_reversals": 0},
+        }
+        out = metrics_render._term_render_delivery_summary(panel)
+        joined = "\n".join(out)
+        self.assertIn("3", joined)
+        self.assertIn("1", joined)
+        self.assertIn("0", joined)
+        # fixed order: events, fast_lane_escalated, deescalations, silent_reversals — each
+        # after the five existing KPI rows (coverage_pass_rate is the last of the five).
+        idx_cov = next(i for i, r in enumerate(out) if "coverage" in r.lower())
+        idx_events = next(i for i, r in enumerate(out) if "events" in r.lower())
+        idx_fast = next(i for i, r in enumerate(out) if "fast" in r.lower())
+        idx_deesc = next(i for i, r in enumerate(out) if "deescalation" in r.lower())
+        idx_silent = next(i for i, r in enumerate(out) if "silent" in r.lower())
+        self.assertLess(idx_cov, idx_events)
+        self.assertLess(idx_events, idx_fast)
+        self.assertLess(idx_fast, idx_deesc)
+        self.assertLess(idx_deesc, idx_silent)
+
+    def test_escalations_zero_tallies_render_as_zero_not_no_data(self):
+        """A pre-feature panel (no escalations key) renders the four rows as 0, not crash/no-data."""
+        panel = {
+            "tickets_done_over_total": "0/0", "prs_merged": 0,
+            "avg_lead_seconds": "no data", "avg_cycle_seconds": "no data",
+            "coverage_pass_rate": "no data",
+        }
+        out = metrics_render._term_render_delivery_summary(panel)
+        joined = "\n".join(out).lower()
+        self.assertIn("events", joined)
+        self.assertIn("fast", joined)
+        self.assertIn("deescalation", joined)
+        self.assertIn("silent", joined)
+
 
 # ---------------------------------------------------------------------------
 # HTML surface
@@ -317,6 +357,40 @@ class HtmlSurface(unittest.TestCase):
         out = metrics_render.render_html(_full_workspace_data())
         self.assertTrue(out.strip().startswith("<"))
         self.assertIn("</", out)
+
+    def test_escalations_rows_appear_in_fixed_order_after_five_kpi_rows(self):
+        """MAR-109 spec 01: the four escalation rows render, fixed order, after the 5 KPI rows."""
+        panel = {
+            "tickets_done_over_total": "2/3", "prs_merged": 2,
+            "avg_lead_seconds": 100.0, "avg_cycle_seconds": 50.0,
+            "coverage_pass_rate": "2/2",
+            "escalations": {"events": 3, "fast_lane_escalated": 1,
+                             "deescalations": 1, "silent_reversals": 0},
+        }
+        out = metrics_render._html_render_delivery_summary(panel)
+        idx_cov = out.lower().index("coverage")
+        idx_events = out.lower().index("events")
+        idx_fast = out.lower().index("fast")
+        idx_deesc = out.lower().index("deescalation")
+        idx_silent = out.lower().index("silent")
+        self.assertLess(idx_cov, idx_events)
+        self.assertLess(idx_events, idx_fast)
+        self.assertLess(idx_fast, idx_deesc)
+        self.assertLess(idx_deesc, idx_silent)
+
+    def test_escalations_zero_tallies_render_as_zero_not_no_data(self):
+        """A pre-feature panel (no escalations key) renders the four rows as 0, not crash/no-data."""
+        panel = {
+            "tickets_done_over_total": "0/0", "prs_merged": 0,
+            "avg_lead_seconds": "no data", "avg_cycle_seconds": "no data",
+            "coverage_pass_rate": "no data",
+        }
+        out = metrics_render._html_render_delivery_summary(panel)
+        low = out.lower()
+        self.assertIn("events", low)
+        self.assertIn("fast", low)
+        self.assertIn("deescalation", low)
+        self.assertIn("silent", low)
 
 
 # ---------------------------------------------------------------------------
@@ -737,6 +811,11 @@ class DocsPresence(unittest.TestCase):
         self.assertIn("wall-clock", doc)
         # seven panels (or a Panel 7 heading), not only six
         self.assertTrue("seven" in doc or "panel 7" in doc or "7 —" in doc, doc[:0])
+
+    def test_metrics_skill_documents_escalation_line(self):
+        """MAR-109 spec 01 AC-5: metrics/SKILL.md names the new escalation tallies."""
+        doc = self._read("plugins", "acs", "skills", "metrics", "SKILL.md").lower()
+        self.assertIn("escalation", doc)
 
     def test_changelog_has_mar7_unreleased_entry(self):
         doc = self._read("plugins", "acs", "CHANGELOG.md")

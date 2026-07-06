@@ -3662,6 +3662,12 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
             body = fh.read()
         self.assertIn("(MAR-108)", body)
 
+    def test_mar109_changelog_entry_present(self):
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        with open(changelog_path, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("(MAR-109)", body)
+
 
 ## MAR-57 spec 03 — TestGuardAxes
 

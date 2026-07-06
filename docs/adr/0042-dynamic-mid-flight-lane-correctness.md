@@ -136,3 +136,33 @@ subagent.
   "altering create-ticket lane confirmation" is an explicit ticket.json
   non-goal, and it does not fit a mid-flight `/code` moment — the user would
   have to leave the `/code` run context.
+
+### D5 — G25 metric surface
+
+**Decision:** an additive `escalations` sub-object on the existing
+`/acs:metrics` `delivery_summary` panel (`metrics_aggregate.py`
+`_delivery_summary`) — no new panel key. Four integer tallies, computed from
+the D1 event records already visited during the existing bounded
+single-pass workspace walk (no extra file read): `events` (total escalation
+events across all tickets' collected `runs[].escalations`, active +
+archived, unioned across a ticket's multiple runs); `fast_lane_escalated`
+(count of distinct tickets — not events — whose earliest event's `from_lane`
+is fast, `TRIVIAL`/`SMALL`, and whose highest-ever `to_lane` reaches
+`STANDARD`/`COMPLEX`); `deescalations` (count of events with `direction ==
+"down"`); `silent_reversals` (count of `"down"` events with a falsy
+`confirmation_ref` — 0 on well-formed state, making G25's "0 silent
+reversals" machine-checkable rather than merely asserted in prose). Both
+renderers (`_term_render_delivery_summary`, `_html_render_delivery_summary`)
+append the four rows after the five existing KPI rows; an absent or empty
+`escalations` array renders every tally as `0`, not "no data" — a known-zero
+value, not an unmeasurable one. The panel-key-always-present / B1 "no data"
+invariant is preserved unchanged: the existing guard covers the whole panel,
+including the new sub-object.
+
+**Alternatives considered:**
+- Option B — a dedicated 10th "Lane & escalation" panel. Rejected:
+  disproportionate for a 2-point ticket — a new panel key, a new render path,
+  and the "always present" panel-key invariant to satisfy for a panel whose
+  data is only ever interesting on repos that have escalated at least once,
+  for the same information an additive line already delivers at the smallest
+  blast radius.
