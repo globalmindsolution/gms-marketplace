@@ -4,7 +4,7 @@
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
-track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.6 shipped** and **v0.3.7** the next uncut version; the **v0.4.0→v0.4.3+ delivery waves** (M3) remain the next major milestone track after them), followed by a **tentative pre-GA
+track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; the **v0.4.0→v0.4.3+ delivery waves** (M3) remain the next major milestone track after them), followed by a **tentative pre-GA
 sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
 **The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
 sequenced by what flagship external-consumer-product delivery needs first** — see
@@ -247,7 +247,10 @@ Four small, independently shippable fast-follows sequenced after the shipped v0.
   Complexity-adaptive delivery feature. **Traces G25** (extends G14/G15/G16). The
   MECHANISM (signal set, detection point, stage re-entry, de-escalation confirmation
   UX) is settled in this epic's design phase / an ADR, mirroring this milestone's
-  other epic deferrals.
+  other epic deferrals. **Shipped in v0.3.7** — mechanism settled in ADR 0042;
+  G25 validated live on this repo (≥1 real escalation event observed; 100% of
+  fast-lane tickets touching a high-stakes surface escalated to ≥ STANDARD
+  before results were presented; 0 silent reversals).
 
 ### M3 — v0.4.0 → v0.4.3+ (delivery waves)
 

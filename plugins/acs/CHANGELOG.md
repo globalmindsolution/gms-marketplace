@@ -15,6 +15,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-07-06
+
 ### Added
 
 - **`/acs:metrics` surfaces the G25 escalation metric on the delivery
