@@ -17,8 +17,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-quality", "create-ticket", "create-design",
-                 "create-spec", "code", "create-pr", "merge-pr"]
+                 "create-quality", "create-operations", "create-ticket",
+                 "create-design", "create-spec", "code", "create-pr", "merge-pr"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage"]
 ROLES = ["planner", "executor", "verifier"]
 
@@ -691,7 +691,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-project", "create-quality")
+    SKILLS = ("create-prd", "create-architecture", "create-project", "create-quality", "create-operations")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
