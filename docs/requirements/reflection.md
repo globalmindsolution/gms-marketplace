@@ -92,7 +92,15 @@ Requirements:
   into a full lane (STANDARD/COMPLEX), this fold-boundary stage re-entry
   re-introduces the skipped `create-spec` decomposition stage before the next
   iteration, resuming implementation only once `create-spec` passes at zero
-  verifier findings.
+  verifier findings. The lane/axes are never *automatically* downward — the
+  one exception is a user-confirmed de-escalation (MAR-108), offered only at
+  an iteration or run boundary, never mid-iteration, requiring an explicit
+  `AskUserQuestion` confirmation recorded via `clarify.py` before the
+  dedicated `confirm_deescalation` writer (`acs_lib.py`) is called with that
+  ledger reference. `confirm_deescalation` is unreachable without a resolved,
+  answered `clarify_ref`, and every such drop is durably audited exactly like
+  an upward event (`direction: "down"`, non-null `confirmation_ref`) — no
+  lane change, up or down, is ever silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
   `<skill>-verifier`. 27 agent files exist on disk in total and are retained

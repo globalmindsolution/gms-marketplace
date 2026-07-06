@@ -3461,6 +3461,208 @@ class TestRecordEscalationEvent(AcsWorkspaceCase):
                          "must be a no-op (AC-6)")
 
 
+class TestConfirmDeescalation(AcsWorkspaceCase):
+    """MAR-108 spec 01 (AC-1/AC-2/AC-3/AC-5 writer-half): confirm_deescalation(
+    tdir, ticket, confirmed_size, confirmed_stakes, clarify_ref) is the ONLY
+    function capable of writing a lower size/stakes value; it hard-requires a
+    resolved, answered clarify.py ledger entry (raises ValueError, no write,
+    otherwise), recomputes lane via derive_lane, persists exactly like the
+    upward path, then records a direction="down" escalation event strictly
+    after persistence.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.ticket_id = self.new_ticket("De-escalation test", "story",
+                                         "--size", "standard", "--stakes", "normal")
+        self._tdir = self.tdir(self.ticket_id)
+        lib.append_in_progress_run(self._tdir, "code", self.ticket_id)
+
+    def _write_ledger(self, entries):
+        lib.write_json(os.path.join(self._tdir, "clarifications.json"),
+                       {"ticket_id": self.ticket_id, "clarifications": entries})
+
+    def _answered_entry(self, ref="C-1"):
+        return {"id": ref, "skill": "code", "question": "Confirm lower size/stakes?",
+                "answer": "yes, drop to small/normal", "source": "user",
+                "rationale": None, "status": "answered",
+                "asked_at": "2026-07-06T00:00:00Z", "answered_at": "2026-07-06T00:01:00Z"}
+
+    def _open_entry(self, ref="C-1"):
+        return {"id": ref, "skill": "code", "question": "Confirm lower size/stakes?",
+                "answer": None, "source": None, "rationale": None, "status": "open",
+                "asked_at": "2026-07-06T00:00:00Z", "answered_at": None}
+
+    def _assumed_entry(self, ref="C-1"):
+        return {"id": ref, "skill": "code", "question": "Confirm lower size/stakes?",
+                "answer": "assume small/normal", "source": "assumption",
+                "rationale": "no user available", "status": "assumed",
+                "asked_at": "2026-07-06T00:00:00Z", "answered_at": "2026-07-06T00:01:00Z"}
+
+    def _snapshot(self):
+        return {
+            "ticket": lib.load_ticket(self._tdir),
+            "pipeline": lib.read_json(os.path.join(self._tdir, "pipeline-state.json")),
+            "index": lib.read_json(lib.index_path(self.ws, "acme-shop")),
+            "escalations": (lib.last_run(lib.load_state(self._tdir, "code", self.ticket_id)) or {}).get("escalations"),
+        }
+
+    # --- AC-1: happy-path down-write lowers axes and lane, derives lane via derive_lane ---
+
+    def test_happy_path_lowers_axes_and_lane_via_derive_lane(self):
+        self._write_ledger([self._answered_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+        self.assertEqual(ticket["lane"], "STANDARD")  # pre-condition
+
+        lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        reloaded = lib.load_ticket(self._tdir)
+        self.assertEqual(reloaded["size"], "small")
+        self.assertEqual(reloaded["stakes"], "normal")
+        expected_lane = lib.derive_lane("small", "normal", reloaded["needs_design"], reloaded["type"])
+        self.assertEqual(reloaded["lane"], expected_lane)
+        self.assertEqual(reloaded["lane"], "SMALL")
+
+    # --- AC-1: persistence mirrors the upward path (pipeline + index) ---
+
+    def test_persistence_mirrors_upward_path_pipeline_and_index(self):
+        self._write_ledger([self._answered_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+
+        lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        pipeline = lib.read_json(os.path.join(self._tdir, "pipeline-state.json"))
+        self.assertEqual(pipeline["lane"], "SMALL")
+        index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
+        self.assertEqual(index["tickets"][self.ticket_id]["lane"], "SMALL")
+
+    # --- AC-3: success appends exactly one direction="down" event ---
+
+    def test_success_appends_one_down_event_with_confirmation_ref(self):
+        self._write_ledger([self._answered_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+
+        lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        state = lib.load_state(self._tdir, "code", self.ticket_id)
+        escalations = lib.last_run(state)["escalations"]
+        self.assertEqual(len(escalations), 1)
+        event = escalations[0]
+        self.assertEqual(event["direction"], "down")
+        self.assertEqual(event["trigger"], "user_confirmed_deescalation")
+        self.assertEqual(event["confirmation_ref"], "C-1")
+
+    # --- AC-3: event carries all 13 fields ---
+
+    def test_down_event_carries_all_13_fields(self):
+        self._write_ledger([self._answered_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+
+        lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        state = lib.load_state(self._tdir, "code", self.ticket_id)
+        event = lib.last_run(state)["escalations"][0]
+        self.assertEqual(set(event.keys()), set(TestRecordEscalationEvent.FIELDS))
+
+    # --- AC-2: falsy clarify_ref -> ValueError, no write ---
+
+    def test_falsy_clarify_ref_raises_value_error_no_write(self):
+        ticket = lib.load_ticket(self._tdir)
+        before = self._snapshot()
+
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", None)
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "")
+
+        self.assertEqual(self._snapshot(), before)
+
+    # --- AC-2: unresolvable clarify_ref (no matching id / no ledger) -> ValueError, no write ---
+
+    def test_unresolvable_clarify_ref_raises_value_error_no_write(self):
+        ticket = lib.load_ticket(self._tdir)
+        before = self._snapshot()  # no clarifications.json file at all
+
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-99")
+
+        self.assertEqual(self._snapshot(), before)
+
+        # Also unresolvable when the ledger exists but has no matching id.
+        self._write_ledger([self._answered_entry("C-1")])
+        before2 = self._snapshot()
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-99")
+        self.assertEqual(self._snapshot(), before2)
+
+    # --- AC-2: open (unanswered) entry -> ValueError, no write ---
+
+    def test_open_entry_raises_value_error_no_write(self):
+        self._write_ledger([self._open_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+        before = self._snapshot()
+
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        self.assertEqual(self._snapshot(), before)
+
+    # --- AC-2/AC-5: assumed entry -> ValueError, no write (load-bearing unattended-path guard) ---
+
+    def test_assumed_entry_raises_value_error_no_write(self):
+        """The direct proof that the writer refuses an agent-authored assumption,
+        not just an unanswered question — accepting 'assumed' would admit an
+        unattended downward-write path, which the D3 negative guarantee forbids."""
+        self._write_ledger([self._assumed_entry("C-1")])
+        ticket = lib.load_ticket(self._tdir)
+        before = self._snapshot()
+
+        with self.assertRaises(ValueError):
+            lib.confirm_deescalation(self._tdir, ticket, "small", "normal", "C-1")
+
+        self.assertEqual(self._snapshot(), before)
+
+    # --- AC-2 cross-check: escalations length unchanged across every rejection path ---
+
+    def test_no_partial_down_event_appended_across_rejections(self):
+        cases = [
+            (None,),
+            ("",),
+            ("C-99",),
+        ]
+        self._write_ledger([self._open_entry("C-open"), self._assumed_entry("C-assumed")])
+        cases += [("C-open",), ("C-assumed",)]
+        ticket = lib.load_ticket(self._tdir)
+
+        for (ref,) in cases:
+            before_state = lib.load_state(self._tdir, "code", self.ticket_id)
+            before_escalations = (lib.last_run(before_state) or {}).get("escalations") or []
+            with self.assertRaises(ValueError):
+                lib.confirm_deescalation(self._tdir, ticket, "small", "normal", ref)
+            after_state = lib.load_state(self._tdir, "code", self.ticket_id)
+            after_escalations = (lib.last_run(after_state) or {}).get("escalations") or []
+            self.assertEqual(len(after_escalations), len(before_escalations),
+                             "no partial/invalid down event may be appended on ref=%r" % (ref,))
+
+    # --- AC-5 writer-half: guard_axes/escalate_lane byte-behavior unchanged ---
+
+    def test_guard_axes_and_escalate_lane_remain_upward_only_unchanged(self):
+        """Regression re-assertion proving confirm_deescalation's addition did
+        not alter either upward helper (design D3 negative guarantee)."""
+        self.assertEqual(lib.guard_axes("standard", "high", "trivial", "low"),
+                         ("standard", "high"))
+        new_lane, _, _ = lib.escalate_lane("STANDARD", "trivial", "normal", False, "story")
+        self.assertEqual(new_lane, "STANDARD")
+
+    # --- AC-6 (this spec's share): durable-invariant CHANGELOG assertion ---
+
+    def test_mar108_changelog_entry_present(self):
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        with open(changelog_path, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("(MAR-108)", body)
+
+
 ## MAR-57 spec 03 — TestGuardAxes
 
 

@@ -51,8 +51,11 @@ plugins distributed from this repository. Plugins differ in shape:
    gate in *every* lane; the lane only scales the iteration ceiling
    (light = 1, full = 3) via `verify_depth()`, never whether the verifier runs.
    On TRIVIAL/SMALL lanes `/acs:create-spec` is folded into `/code`'s plan phase
-   rather than run as a separate step; lanes escalate upward mid-flight (never
-   downward) on the first higher-stakes signal.
+   rather than run as a separate step; lanes escalate upward mid-flight — never
+   *automatically* downward — on the first higher-stakes signal. The one
+   exception is a user-confirmed de-escalation, offered only at an iteration/run
+   boundary and applied by a dedicated writer unreachable without an explicit
+   confirmation (`confirm_deescalation`, ADR 0042 D3).
 
 ## Document map
 

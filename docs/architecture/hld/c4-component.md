@@ -21,7 +21,7 @@ C4Component
         Component(sline, "statusline.py / subagent-statusline.py", "observability", "prompt line + agent-panel rows from workspace state")
         Component(metrics, "metrics_aggregate.py", "observability", "read-only: aggregate all panels for /acs:metrics (PM view) and /acs:usage (usage view) from workspace artifacts; emits one superset JSON, never writes/gates/locks")
         Component(mrender, "metrics_render.py", "observability", "read-only: deterministic cross-surface renderer of the aggregate JSON — serves two views via render_pm_terminal/html (/acs:metrics) and render_usage_terminal/html (/acs:usage), selected by --view {pm,usage}; bare default is PM view; self-contained HTML (--html → show_widget); pure, no clock, never writes")
-        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer")
+        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer; confirm_deescalation() sole user-confirmed lane-lowering writer")
     }
     ContainerDb_Ext(ws, "Workspace store")
 
@@ -64,4 +64,8 @@ files of the apply-work skills remain on disk but are orphaned.
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3),
 TRIVIAL/SMALL lanes fold spec authoring into the plan phase (MAR-59), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
-recorded to an audit trail (`record_escalation_event`, MAR-106).
+recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is
+never *automatically* downward — the sole exception is a user-confirmed
+de-escalation, offered only at an iteration/run boundary, applied by
+`confirm_deescalation` (MAR-108, ADR 0042 D3), which is unreachable without a
+resolved `clarify.py` confirmation reference.
