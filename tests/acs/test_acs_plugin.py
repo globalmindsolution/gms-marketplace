@@ -3678,11 +3678,28 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
         self.assertIsNotNone(
             match, "G25 factual note must cite a code-state.json path")
         cited_path = os.path.expanduser(match.group(1))
+        self.assertIn("direction", body)
+        self.assertIn("trigger", body)
+        self.assertIn('"up"', body, "note must quote the observed direction value")
+        self.assertIn('"b"', body, "note must quote the observed trigger value")
+        self.assertIn("confirmation_ref", body)
+        self.assertIn("null", body, "note must quote the observed confirmation_ref value")
+
+        workspace_root = cited_path
+        while workspace_root and not os.path.basename(workspace_root) == "acs-workspace":
+            parent = os.path.dirname(workspace_root)
+            if parent == workspace_root:
+                workspace_root = None
+                break
+            workspace_root = parent
+        if not workspace_root or not os.path.exists(workspace_root):
+            self.skipTest(
+                "acs-workspace root %r not present on this machine (CI has no "
+                "dogfood workspace); structural checks above already ran" %
+                (workspace_root,))
         self.assertTrue(
             os.path.isfile(cited_path),
             "cited code-state.json path must exist: %s" % cited_path)
-        self.assertIn("direction", body)
-        self.assertIn("trigger", body)
 
 
 ## MAR-57 spec 03 — TestGuardAxes
