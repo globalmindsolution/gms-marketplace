@@ -3668,6 +3668,22 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
             body = fh.read()
         self.assertIn("(MAR-109)", body)
 
+    # --- spec 02 acceptance check 4: evidence-citation guard (not just asserted in prose) ---
+
+    def test_mar109_g25_live_validation_evidence_cites_real_state_path(self):
+        prd_path = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
+        with open(prd_path, encoding="utf-8") as fh:
+            body = fh.read()
+        match = re.search(r"[`\"]([^`\"\s]*code-state\.json)[`\"]", body)
+        self.assertIsNotNone(
+            match, "G25 factual note must cite a code-state.json path")
+        cited_path = os.path.expanduser(match.group(1))
+        self.assertTrue(
+            os.path.isfile(cited_path),
+            "cited code-state.json path must exist: %s" % cited_path)
+        self.assertIn("direction", body)
+        self.assertIn("trigger", body)
+
 
 ## MAR-57 spec 03 — TestGuardAxes
 
