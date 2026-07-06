@@ -17,8 +17,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-ticket", "create-design", "create-spec", "code",
-                 "create-pr", "merge-pr"]
+                 "create-quality", "create-ticket", "create-design",
+                 "create-spec", "code", "create-pr", "merge-pr"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage"]
 ROLES = ["planner", "executor", "verifier"]
 
@@ -691,7 +691,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-project")
+    SKILLS = ("create-prd", "create-architecture", "create-project", "create-quality")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -3408,6 +3408,127 @@ class TestChangelogMar107Entry(unittest.TestCase):
             "the '(MAR-107)' entry must live under [Unreleased] or a dated "
             "semver release heading (MAR-107 AC-6; release cuts legitimately "
             "graduate the entry)")
+
+
+class TestCreateQualityDocConformance(unittest.TestCase):
+    """MAR-112 spec 04 (AC-7): doc-conformance for the /acs:create-quality
+    doc-set closure — skills.md's new product-level section, configuration.md's
+    quality_path row, and c4-component.md's own +1 triad/reachable-agent/
+    pre-post-pair arithmetic. Structural string/regex assertions only."""
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+
+    def _configuration(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+
+    def _c4_component(self):
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
+
+    def test_skills_md_has_create_quality_section(self):
+        """AC-7: skills.md carries a '/acs:create-quality' (product-level)
+        section naming quality_path, create-quality-planner, and
+        create-quality-state.json."""
+        body = self._skills_req()
+        heading = "## `/acs:create-quality` (product-level)"
+        self.assertIn(heading, body,
+                      "docs/requirements/skills.md must have a "
+                      "'/acs:create-quality' (product-level) section (MAR-112 AC-7)")
+        section_start = body.index(heading)
+        next_heading = re.search(r"\n## ", body[section_start + 1:])
+        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
+        section = body[section_start:section_end]
+        self.assertIn("quality_path", section,
+                      "the create-quality section must name quality_path (MAR-112 AC-7)")
+        self.assertIn("create-quality-planner", section,
+                      "the create-quality section must name create-quality-planner (MAR-112 AC-7)")
+        self.assertIn("create-quality-state.json", section,
+                      "the create-quality section must name create-quality-state.json (MAR-112 AC-7)")
+
+    def test_configuration_md_has_quality_path_row(self):
+        """AC-7: configuration.md's Keys table has a quality_path row with
+        default "docs/quality"."""
+        body = self._configuration()
+        self.assertIsNotNone(
+            re.search(r"\|\s*`quality_path`\s*\|[^\n]*`\"docs/quality\"`", body),
+            "docs/requirements/configuration.md must have a quality_path row "
+            "with default \"docs/quality\" (MAR-112 AC-7)")
+
+    def test_c4_component_triad_count_advanced(self):
+        """AC-7 sub-check 1: the triad-count sentence contains '7 active
+        triads (21 agents)'; the pre-change '6 active triads (18 agents)' is
+        gone."""
+        body = self._c4_component()
+        self.assertIn("7 active triads (21 agents)", body,
+                      "c4-component.md must advance to '7 active triads "
+                      "(21 agents)' (MAR-112 AC-7)")
+        self.assertNotIn("6 active triads (18 agents)", body,
+                         "c4-component.md must not retain the stale "
+                         "'6 active triads (18 agents)' text (MAR-112 AC-7)")
+
+    def test_c4_component_reachable_agents_advanced(self):
+        """AC-7 sub-check 2: in a bounded window AFTER the triad-count
+        sentence, '24 reachable agents' is present and '21 reachable agents'
+        is absent from that same window -- a partial edit (triad line bumped,
+        reachable line left stale) must fail loudly."""
+        body = self._c4_component()
+        triad_idx = body.index("7 active triads (21 agents)")
+        window = body[triad_idx:triad_idx + 800]
+        self.assertIn("24 reachable agents", window,
+                      "c4-component.md must advance to '24 reachable agents' "
+                      "in the window after the triad-count sentence (MAR-112 AC-7)")
+        self.assertNotIn("21 reachable agents", window,
+                         "c4-component.md must not retain the stale "
+                         "'21 reachable agents' text in that window (MAR-112 AC-7)")
+
+    def test_c4_component_dispatch_pair_count_advanced(self):
+        """AC-7 sub-check 3: the dispatch.py component description shows
+        x10 pre/post hook pairs; x9 is gone."""
+        body = self._c4_component()
+        self.assertIn("x10", body,
+                      "c4-component.md's dispatch.py component description "
+                      "must advance to x10 pre/post hook pairs (MAR-112 AC-7)")
+        self.assertNotIn("x9", body,
+                         "c4-component.md must not retain the stale x9 "
+                         "pre/post hook pair count (MAR-112 AC-7)")
+
+
+class TestCreateQualityChangelogEntry(unittest.TestCase):
+    """MAR-112 spec 04 (AC-9): durable-invariant CHANGELOG entry -- never
+    pins the literal '[Unreleased]' string as a fixed anchor (the recurring
+    release-cut gotcha; constraint changelog_gotcha)."""
+
+    def _changelog(self):
+        return read(os.path.join(PLUGIN, "CHANGELOG.md"))
+
+    def test_changelog_mar112_entry_in_topmost_section(self):
+        """AC-9: '(MAR-112)' must appear inside exactly one well-formed
+        section span, whose heading is either [Unreleased] or a dated semver
+        release heading (sliced heading-to-heading, never a literal
+        '[Unreleased]' anchor), and the section mentions create-quality or
+        quality_path."""
+        body = self._changelog()
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section = None
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if "(MAR-112)" in candidate:
+                section = candidate
+                break
+        self.assertIsNotNone(
+            section,
+            "CHANGELOG.md must contain '(MAR-112)' inside a section span "
+            "(MAR-112 AC-9)")
+        heading = section[:section.index("\n")] if "\n" in section else section
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the '(MAR-112)' entry must live under [Unreleased] or a dated "
+            "semver release heading (MAR-112 AC-9; release cuts legitimately "
+            "graduate the entry)")
+        self.assertIsNotNone(
+            re.search(r"(?i)create-quality|quality_path", section),
+            "the MAR-112 CHANGELOG entry must mention create-quality or "
+            "quality_path (MAR-112 AC-9)")
 
 
 if __name__ == "__main__":

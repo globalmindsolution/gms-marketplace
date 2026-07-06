@@ -15,6 +15,18 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:create-quality` skill + `quality_path` settings key (MAR-112).** A
+  new product-level, triad-keeping skill that bootstraps and maintains the
+  consumer `quality/` doc set — `test-strategy.md` and `coverage-policy.md`
+  — reading the PRD's non-functional requirements and the `architecture_path`
+  set as upstream, delivered as a docs-only PR on its own delivery ticket
+  (`create-quality-planner`/`-executor`/`-verifier`, `create-quality-state.json`).
+  `quality_path` is added to `settings.schema.json` (optional `string | null`,
+  default `docs/quality`, mirroring `adr_path`) and defaulted by `/acs:init`'s
+  Step-4 batch; two new templates ship under `plugins/acs/templates/quality/`.
+
 ## [0.3.7] - 2026-07-06
 
 ### Added

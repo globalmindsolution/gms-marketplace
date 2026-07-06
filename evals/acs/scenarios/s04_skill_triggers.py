@@ -1,4 +1,4 @@
-"""s04 — routing evals for all 16 skills (paid, E1.2).
+"""s04 — routing evals for all 17 skills (paid, E1.2).
 
 Three kinds of probe, covering every skill:
 
@@ -27,7 +27,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for all 16 (14 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for all 17 (15 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -62,6 +62,10 @@ CASES = [
      "Scaffold the repository skeleton — build config, test framework, CI — "
      "from the approved architecture docs.",
      "create-project"),
+    ("create-quality", True,
+     "Author and maintain the test-strategy and coverage-policy docs for this "
+     "product's quality doc set.",
+     "create-quality"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
      "create-ticket"),

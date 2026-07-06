@@ -1,12 +1,12 @@
 # Skill Requirements
 
-Sixteen skills in total: the bootstrap skill (`/init`), the umbrella command
+Seventeen skills in total: the bootstrap skill (`/init`), the umbrella command
 (`/ship`), the utility skills — the session-handoff helper (`/handoff`), the
 update assistant (`/update`), the local-hooks installer (`/install-hooks`), the
 read-only PM metrics dashboard (`/metrics`), and the read-only usage dashboard
-(`/usage`) — the product-level `/create-prd`, `/create-architecture`, and
-`/create-project`, and six workflow skills (one of them, `/create-design`,
-conditional).
+(`/usage`) — the product-level `/create-prd`, `/create-architecture`,
+`/create-project`, and `/create-quality`, and six workflow skills (one of
+them, `/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Six **workflow/product skills** (create-spec, code, create-prd,
@@ -299,6 +299,36 @@ living system documentation the whole pipeline designs and verifies against.
 - Maintenance afterwards belongs to the pipeline: `/create-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
   architecture ([workflow.md](workflow.md#product-level-architecture)).
+
+## `/acs:create-quality` (product-level)
+
+Purpose: bootstrap and maintain the **product quality doc set** — test
+strategy and coverage policy — the standing testing/coverage contract the
+pipeline verifies against.
+
+- Product-level and **ticket-independent**: not part of the per-ticket
+  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
+  after a testing/coverage policy change.
+- MUST take the **PRD's non-functional requirements** and the full
+  `architecture_path` set as upstream inputs — architecture is upstream of
+  quality.
+- Produces the doc set in the consumer repo at `quality_path` (default
+  `docs/quality` — [configuration.md](configuration.md)): `test-strategy.md`
+  (testing philosophy/pyramid, coverage-percent policy, suite inventory, CI
+  gates, flaky-test policy) and `coverage-policy.md` (target/hard-fail rule,
+  exclusions, per-stack measurement, escalation on a miss). Unset
+  `quality_path` (`null`) means acs does not maintain this set for the repo.
+- Runs the full Reflection cycle — `create-quality-planner`,
+  `create-quality-executor`, `create-quality-verifier`. The verifier checks
+  the tailored content conforms to the architecture set (stack/technology
+  claims agree with `architecture/hld/tech-stack.md`).
+- State lives in the delivery ticket's partition
+  (`create-quality-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: docs-only PR via the
+  [product-level delivery rules](#product-level-delivery-tickets) — each
+  run creates its own delivery ticket; the TDD pipeline does not apply to a
+  docs-only change.
 
 ## `/create-project` (product-level)
 
