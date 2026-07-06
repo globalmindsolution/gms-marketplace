@@ -3697,9 +3697,17 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
                 "acs-workspace root %r not present on this machine (CI has no "
                 "dogfood workspace); structural checks above already ran" %
                 (workspace_root,))
+        # A merged fixture ticket is archived by post-merge-pr, relocating the
+        # partition to <workspace>/<repo-id>/archive/<ticket-id>/ — the citation
+        # stays valid if the state file exists at either location.
+        partition_dir = os.path.dirname(cited_path)
+        archived_path = os.path.join(
+            os.path.dirname(partition_dir), "archive",
+            os.path.basename(partition_dir), os.path.basename(cited_path))
         self.assertTrue(
-            os.path.isfile(cited_path),
-            "cited code-state.json path must exist: %s" % cited_path)
+            os.path.isfile(cited_path) or os.path.isfile(archived_path),
+            "cited code-state.json must exist at the cited or archived "
+            "location: %s | %s" % (cited_path, archived_path))
 
 
 ## MAR-57 spec 03 — TestGuardAxes
