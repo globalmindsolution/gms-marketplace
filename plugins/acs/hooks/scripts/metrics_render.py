@@ -718,7 +718,8 @@ def _html_degraded(degraded):
 def _term_render_delivery_summary(panel):
     """Terminal renderer for the delivery_summary panel (spec 02 §_render_delivery_summary_terminal).
 
-    Renders 5 KPIs in fixed order. 'no data' string or non-dict -> single 'no data' row (B1).
+    Renders 5 KPIs + the additive escalations sub-object (MAR-109 D5) in fixed order.
+    'no data' string or non-dict -> single 'no data' row (B1).
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
         return _term_no_data_block()
@@ -735,13 +736,19 @@ def _term_render_delivery_summary(panel):
                                                else NO_DATA))
     cov = panel.get("coverage_pass_rate", NO_DATA)
     out.append("  coverage pass rate:  %s" % _esc(str(cov)))
+    esc = panel.get("escalations") if isinstance(panel.get("escalations"), dict) else {}
+    out.append("  escalation events:          %s" % _esc(str(esc.get("events", 0))))
+    out.append("  fast-lane escalated:        %s" % _esc(str(esc.get("fast_lane_escalated", 0))))
+    out.append("  deescalations:              %s" % _esc(str(esc.get("deescalations", 0))))
+    out.append("  silent reversals:           %s" % _esc(str(esc.get("silent_reversals", 0))))
     return out
 
 
 def _html_render_delivery_summary(panel):
     """HTML renderer for the delivery_summary panel (spec 02 §_render_delivery_summary_html).
 
-    Self-contained table with 5 KPI rows. 'no data' string or non-dict -> nodata div (B1).
+    Self-contained table with 5 KPI rows + the additive escalations sub-object (MAR-109 D5).
+    'no data' string or non-dict -> nodata div (B1).
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
         return _html_no_data()
@@ -760,6 +767,13 @@ def _html_render_delivery_summary(panel):
     rows.append("<tr><td>avg cycle time</td><td%s>%s</td></tr>" % (cls, _esc(cycle_str)))
     cov = panel.get("coverage_pass_rate", NO_DATA)
     rows.append("<tr><td>coverage pass rate</td><td>%s</td></tr>" % _esc(str(cov)))
+    esc = panel.get("escalations") if isinstance(panel.get("escalations"), dict) else {}
+    rows.append("<tr><td>escalation events</td><td>%s</td></tr>" % _esc(str(esc.get("events", 0))))
+    rows.append("<tr><td>fast-lane escalated</td><td>%s</td></tr>"
+                % _esc(str(esc.get("fast_lane_escalated", 0))))
+    rows.append("<tr><td>deescalations</td><td>%s</td></tr>" % _esc(str(esc.get("deescalations", 0))))
+    rows.append("<tr><td>silent reversals</td><td>%s</td></tr>"
+                % _esc(str(esc.get("silent_reversals", 0))))
     return "<table>" + "".join(rows) + "</table>"
 
 

@@ -17,6 +17,18 @@ the notes.
 
 ### Added
 
+- **`/acs:metrics` surfaces the G25 escalation metric on the delivery
+  summary (MAR-109).** An additive `escalations` sub-object on the existing
+  `delivery_summary` panel — no new panel key — reporting four tallies:
+  total escalation events, count of fast-lane (TRIVIAL/SMALL-origin) tickets
+  that escalated to ≥STANDARD (per-ticket, not per-event), de-escalation
+  count, and silent-reversal count (down-direction events lacking a
+  `confirmation_ref`; 0 on well-formed state). Computed from the
+  `escalations` arrays already visited in the existing bounded single-pass
+  workspace walk — no new state surface, no extra file read. Renders on both
+  `/acs:metrics` surfaces (terminal and HTML); an absent/empty escalations
+  array renders every tally as `0`, not "no data".
+
 - **`/acs:code` gains a user-confirmed mid-flight de-escalation path, never
   automatic (MAR-108).** A new `acs_lib.py` writer, `confirm_deescalation`,
   is the only function capable of lowering a ticket's `size`/`stakes`/`lane`

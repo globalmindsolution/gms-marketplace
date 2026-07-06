@@ -76,7 +76,9 @@ same input — and present what it emits. Both surfaces invoke the renderer with
 The PM delivery view renders exactly nine panels:
 
 - **Delivery summary** — headline KPIs: tickets done/total, PRs merged, avg lead
-  time, avg cycle time, coverage pass rate.
+  time, avg cycle time, coverage pass rate, plus additive escalation tallies
+  (G25): total escalation events, fast-lane-escalated ticket count, de-escalation
+  count, and silent-reversal count (always 0 on well-formed state).
 1. **Throughput** — ticket counts by status and by type.
 2. **Pipeline funnel** — how many tickets reached each pipeline step, with
    distinct PRs created/merged as the terminus.

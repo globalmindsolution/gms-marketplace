@@ -3662,6 +3662,45 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
             body = fh.read()
         self.assertIn("(MAR-108)", body)
 
+    def test_mar109_changelog_entry_present(self):
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        with open(changelog_path, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("(MAR-109)", body)
+
+    # --- spec 02 acceptance check 4: evidence-citation guard (not just asserted in prose) ---
+
+    def test_mar109_g25_live_validation_evidence_cites_real_state_path(self):
+        prd_path = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
+        with open(prd_path, encoding="utf-8") as fh:
+            body = fh.read()
+        match = re.search(r"[`\"]([^`\"\s]*code-state\.json)[`\"]", body)
+        self.assertIsNotNone(
+            match, "G25 factual note must cite a code-state.json path")
+        cited_path = os.path.expanduser(match.group(1))
+        self.assertIn("direction", body)
+        self.assertIn("trigger", body)
+        self.assertIn('"up"', body, "note must quote the observed direction value")
+        self.assertIn('"b"', body, "note must quote the observed trigger value")
+        self.assertIn("confirmation_ref", body)
+        self.assertIn("null", body, "note must quote the observed confirmation_ref value")
+
+        workspace_root = cited_path
+        while workspace_root and not os.path.basename(workspace_root) == "acs-workspace":
+            parent = os.path.dirname(workspace_root)
+            if parent == workspace_root:
+                workspace_root = None
+                break
+            workspace_root = parent
+        if not workspace_root or not os.path.exists(workspace_root):
+            self.skipTest(
+                "acs-workspace root %r not present on this machine (CI has no "
+                "dogfood workspace); structural checks above already ran" %
+                (workspace_root,))
+        self.assertTrue(
+            os.path.isfile(cited_path),
+            "cited code-state.json path must exist: %s" % cited_path)
+
 
 ## MAR-57 spec 03 — TestGuardAxes
 
