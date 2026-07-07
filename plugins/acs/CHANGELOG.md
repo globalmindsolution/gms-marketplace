@@ -15,6 +15,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-07-07
+
 ### Added
 
 - **`/acs:create-quality` skill + `quality_path` settings key (MAR-112).** A

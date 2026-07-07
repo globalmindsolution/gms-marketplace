@@ -270,11 +270,24 @@ class Mar115DocTailCase(unittest.TestCase):
         m = re.search(r"(?m)^\*\*Status\*\*:\s*(\S+)", body)
         self.assertIsNotNone(m, "ADR 0011 missing a Status line")
 
-    def test_changelog_has_mar115_bullet_in_unreleased_added(self):
+    def test_changelog_has_mar115_bullet_durable(self):
+        # Durable invariant: the MAR-115 entry must live under [Unreleased] or a
+        # dated semver heading — a release cut legitimately graduates it from
+        # [Unreleased] into a versioned section (never pin the literal
+        # [Unreleased] anchor).
         body = read(CHANGELOG)
-        unreleased = section(body, "## [Unreleased]")
-        added = section(unreleased, "### Added")
-        self.assertIn("MAR-115", added, "CHANGELOG [Unreleased]/Added missing a MAR-115 bullet")
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section_text = None
+        for start, end in zip(spans, spans[1:]):
+            if "MAR-115" in body[start:end]:
+                section_text = body[start:end]
+                break
+        self.assertIsNotNone(
+            section_text, "CHANGELOG.md must contain a MAR-115 bullet in a section span")
+        heading = section_text[:section_text.index("\n")]
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the MAR-115 entry must live under [Unreleased] or a dated semver heading")
 
     def test_skills_md_count_line_unchanged_nineteen(self):
         body = read(SKILLS_MD)
