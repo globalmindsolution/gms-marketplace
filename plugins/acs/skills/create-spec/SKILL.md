@@ -122,6 +122,9 @@ files/docs. The planner must return (in its `<result>` outputs/body):
   or auto-loops back to re-plan. The chosen direction (current approach or
   the simpler alternative) is passed into the executor's `<context>`, exactly
   like any other recorded clarification.
+- The planner also runs the shared ADR-0012 design-time doc-consistency step;
+  any findings surface through the "Clarification ledger first" mechanism
+  below (User interaction).
 
 `<constraints>` to include: design conformance is mandatory when
 `design.required` (cite `<design.dir>/design.md`); specs must not overlap or

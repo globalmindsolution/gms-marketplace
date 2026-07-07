@@ -47,6 +47,20 @@ the notes.
   into a named-command map — `e2e` is retained as a soft-deprecated,
   load-time-normalized compatibility alias into `suites["e2e"]`, and
   `/acs:init` offers a one-time `e2e` to `suites.e2e` migration on re-run.
+- **Shared ADR-0012 design-time doc-consistency step (MAR-115).** A single
+  canonical analysis step, transcribed byte-identically into the planner
+  phase of all six design-producing skills' planners
+  (`create-prd`/`create-architecture`/`create-design`/`create-spec`/
+  `create-quality`/`create-operations`): read the upstream and downstream
+  doc-graph slice, detect gaps and staleness, and surface findings — the
+  fixed shape `{kind: "gap"|"staleness", upstream, downstream, description,
+  recommendation}` — through the existing clarification ledger; the user
+  decides, the executor updates the affected docs as part of the same
+  change, and the verifier confirms consistency. `create-quality-verifier`
+  and `create-operations-verifier` each gain a matching sixth `consistency`
+  check dimension. Internally, `plugins/acs/hooks/scripts/consistency_findings.py`
+  is a new stdlib-only helper that validates a finding against this shape.
+  ADR 0012 is flipped from `Proposed` to `Accepted`.
 
 ## [0.3.7] - 2026-07-06
 

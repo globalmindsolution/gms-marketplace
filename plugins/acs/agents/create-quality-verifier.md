@@ -38,6 +38,11 @@ findings. You share no memory with the coordinator: read every input yourself.
    section, no unplanned extra file.
 5. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
    change sits under `quality_path`; no source files, configs, or stray files touched.
+6. **consistency** — confirm any `consistency_findings` the planner surfaced
+   (ADR 0012 design-time doc-consistency step) were either resolved (the
+   executor updated the named upstream/downstream docs) or explicitly
+   deferred by user decision recorded in the clarification ledger; an
+   unresolved, undeferred finding is a blocking finding.
 
 Iteration > 1, additionally: confirm EVERY prior finding from `<context>` is verifiably
 fixed, and that the fixes introduced no regressions in the other dimensions.
@@ -59,7 +64,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates. One
   `<finding>` per distinct issue, `severity="blocking"` (ALL findings block — emit one
-  only for something the executor must fix), `dimension` set to one of the five names
+  only for something the executor must fix), `dimension` set to one of the six names
   above, `file` set when the issue is localized.
 - `status="failed"` — verification itself could not run (inputs missing, doc set
   absent): `<errors>` plus `<stop-reason>`.

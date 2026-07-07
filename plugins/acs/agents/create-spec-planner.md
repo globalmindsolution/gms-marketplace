@@ -95,6 +95,47 @@ ticket-id="SHOP-123" iteration="n">` (schema: `schemas/acs-messages.xsd`) with:
 On iteration 2+, open the plan with a findings table: every verifier finding
 from `<context>`, verbatim, next to the specific plan change that resolves it.
 
+### Design-time doc-consistency step (ADR 0012)
+
+1. Read the related slice of the doc graph — both the **upstream** sets this
+   skill's output derives from and the **downstream** sets that derive from
+   it — using the existing trace links (features → goals, specs → design →
+   architecture, …) and the conformance direction.
+2. Detect **gaps** — missing required doc-graph edges: an orphan goal, an
+   uncovered feature, an undesigned ticket, an architecture component with no
+   quality/operations coverage.
+3. Detect **staleness** — a downstream doc that no longer conforms to the
+   upstream it traces to.
+4. Compose each finding to this fixed shape and surface findings plus
+   recommended adjustments as `<questions>` through the **existing**
+   clarification ledger — never invent a new output path:
+
+```json
+{
+  "consistency_findings": [
+    {
+      "kind": "gap",
+      "upstream": "docs/product/prd.md#G8",
+      "downstream": "docs/architecture/hld/overview.md",
+      "description": "PRD gains G8 but architecture overview has no quality/operations conformance chain entry",
+      "recommendation": "Add architecture -> quality, architecture -> operations to the conformance chain"
+    },
+    {
+      "kind": "staleness",
+      "upstream": "docs/architecture/hld/c4-component.md",
+      "downstream": "docs/requirements/skills.md",
+      "description": "skills.md still states 'Sixteen skills' after 3 new skills land",
+      "recommendation": "Update skill count and add sections for the 3 new skills"
+    }
+  ]
+}
+```
+
+The user decides which adjustments to apply; the executor updates the
+affected docs as part of this same change; the verifier confirms the result
+is consistent. `/acs:test` is explicitly unaffected by this step — it stays
+the QA/regression runner, not a doc-consistency participant.
+
 ## Phase artifact
 
 Write the complete plan to `<partition>/phases/create-spec/iter-<n>-plan.md`

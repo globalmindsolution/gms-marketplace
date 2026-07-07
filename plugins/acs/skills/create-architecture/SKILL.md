@@ -156,9 +156,11 @@ Phases:
 
 1. **Plan** — the planner returns the mode decision, the codebase/PRD
    inventory, the per-file outline, the canonical component vocabulary, and
-   the proposed flow list. Confirm the flow list (and any open
-   reverse-engineering points) with the user (see User interaction), then
-   persist the plan.
+   the proposed flow list. The planner also runs the shared ADR-0012
+   design-time doc-consistency step; any findings surface through the
+   "Clarification ledger first" mechanism below (User interaction). Confirm
+   the flow list (and any open reverse-engineering points) with the user
+   (see User interaction), then persist the plan.
 2. **Execute** — executors write the doc set on the ticket branch (create
    the branch first — see Delivery). Decomposition is YOURS alone; subagents
    never spawn subagents. You MAY run two executors in parallel — one for

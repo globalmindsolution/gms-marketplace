@@ -1,6 +1,6 @@
 # 0012 — Design-time doc-consistency: gap & staleness analysis in the design skills
 
-**Status**: Proposed · **Date**: 2026-06-14
+**Status**: Accepted · **Date**: 2026-06-14
 
 ## Context
 
