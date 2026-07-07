@@ -134,6 +134,18 @@ def write_task_xml(ws, tid, skill_dir, phase, it, archived=False):
     _write_text(os.path.join(tdir, "phases", skill_dir, "iter-%d-%s-task.xml" % (it, phase)), body)
 
 
+def write_test_run(ws, run_id, data):
+    """Write <repo>/test-runs/<run_id>/results.json (MAR-114 spec 03's new read-only source)."""
+    path = os.path.join(_repo_dir(ws), "test-runs", run_id, "results.json")
+    _write_json(path, data)
+
+
+def write_test_run_raw(ws, run_id, text):
+    """Write a raw (possibly-malformed) test-runs/<run_id>/results.json."""
+    path = os.path.join(_repo_dir(ws), "test-runs", run_id, "results.json")
+    _write_text(path, text)
+
+
 def _full_funnel_steps(reached_through="merge-pr"):
     """A steps dict completing every HOOKED_SKILLS step up to reached_through, with timestamps."""
     steps = {}
@@ -1702,6 +1714,124 @@ class TestUsageSummary(unittest.TestCase):
             write_index(ws, {})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["usage_summary"], "no data")
+
+
+class TestTestRunsRead(unittest.TestCase):
+    """MAR-114 spec 03: metrics_aggregate.aggregate() gains a test-runs/ read-only source.
+
+    Additive (a new top-level "test_runs" key, sibling to "panels"/"meta" — does NOT touch
+    PANEL_KEYS/_NEW_PANEL_KEYS), absence-tolerant (no test-runs/ dir -> existing panels
+    unchanged, no raise), malformed-tolerant (invalid JSON / non-dict -> degrades to "no
+    data" via meta.degraded, no raise), read-only (zero acs_lib.write_json calls).
+    """
+
+    def test_present_well_formed_lands_in_aggregate_no_degraded(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            write_test_run(ws, "run-2026-07-07T00-00-00Z", {
+                "run_id": "run-2026-07-07T00-00-00Z",
+                "started_at": "2026-07-07T00:00:00Z",
+                "ended_at": "2026-07-07T00:01:00Z",
+                "suites": [
+                    {"name": "unit", "command": "pytest", "exit_code": 0,
+                     "duration_s": 12.0, "status": "pass"},
+                ],
+                "regressions": [],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertIn("test_runs", out)
+            self.assertNotEqual(out["test_runs"], "no data")
+            reasons = [d for d in out["meta"]["degraded"] if d.get("panel") == "test_runs"]
+            self.assertEqual(reasons, [])
+
+    def test_present_multiple_runs_counted(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            write_test_run(ws, "run-a", {
+                "run_id": "run-a", "started_at": "2026-07-01T00:00:00Z",
+                "ended_at": "2026-07-01T00:01:00Z",
+                "suites": [{"name": "unit", "command": "pytest", "exit_code": 0,
+                            "duration_s": 1.0, "status": "pass"}],
+                "regressions": [],
+            })
+            write_test_run(ws, "run-b", {
+                "run_id": "run-b", "started_at": "2026-07-02T00:00:00Z",
+                "ended_at": "2026-07-02T00:01:00Z",
+                "suites": [{"name": "unit", "command": "pytest", "exit_code": 1,
+                            "duration_s": 1.0, "status": "fail", "failure_output": "boom"}],
+                "regressions": [{"key": "unit:__suite__", "ticket_id": "MAR-200", "action": "minted"}],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertIn("test_runs", out)
+            self.assertGreaterEqual(out["test_runs"]["runs_observed"], 2)
+
+    def test_absent_directory_existing_panels_unchanged_no_raise(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            # No test-runs/ directory at all.
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            for k in ("1", "2", "3", "4", "5", "6", "7", "delivery_summary", "issues",
+                      "progress", "deadline", "usage_summary"):
+                self.assertIn(k, out["panels"])
+            # Absence is itself a "no data" marker for the new source, not a raise.
+            self.assertEqual(out["test_runs"], "no data")
+
+    def test_absent_directory_empty_workspace_early_return_has_test_runs_key(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertIn("test_runs", out)
+            self.assertEqual(out["test_runs"], "no data")
+
+    def test_empty_test_runs_directory_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            os.makedirs(os.path.join(_repo_dir(ws), "test-runs"), exist_ok=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["test_runs"], "no data")
+
+    def test_malformed_json_degrades_no_raise(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            write_test_run_raw(ws, "run-bad", "not valid json {{{{")
+            out = metrics_aggregate.aggregate(ws, REPO_ID)  # must not raise
+            reasons = [d for d in out["meta"]["degraded"] if d.get("panel") == "test_runs"]
+            self.assertTrue(reasons, "expected a meta.degraded entry for the malformed run")
+
+    def test_non_dict_json_degrades_no_raise(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            write_test_run(ws, "run-list", ["not", "a", "dict"])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)  # must not raise
+            reasons = [d for d in out["meta"]["degraded"] if d.get("panel") == "test_runs"]
+            self.assertTrue(reasons, "expected a meta.degraded entry for the non-dict run")
+
+    def test_read_only_zero_write_json_calls(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            write_test_run(ws, "run-a", {
+                "run_id": "run-a", "started_at": "2026-07-01T00:00:00Z",
+                "ended_at": "2026-07-01T00:01:00Z",
+                "suites": [{"name": "unit", "command": "pytest", "exit_code": 0,
+                            "duration_s": 1.0, "status": "pass"}],
+                "regressions": [],
+            })
+            calls = []
+            orig_write = acs_lib.write_json
+            acs_lib.write_json = lambda *a, **k: calls.append(a)
+            try:
+                metrics_aggregate.aggregate(ws, REPO_ID)
+            finally:
+                acs_lib.write_json = orig_write
+            self.assertEqual(calls, [], "test-runs/ read must never write")
+
+    def test_panel_keys_constants_untouched(self):
+        """PANEL_KEYS / _NEW_PANEL_KEYS are unchanged by this spec (no new panel key)."""
+        self.assertEqual(metrics_aggregate.PANEL_KEYS, ("1", "2", "3", "4", "5", "6", "7"))
+        self.assertEqual(
+            metrics_aggregate._NEW_PANEL_KEYS,
+            ("delivery_summary", "issues", "progress", "deadline", "usage_summary"),
+        )
 
 
 class TestNewPanelKeyPresence(unittest.TestCase):

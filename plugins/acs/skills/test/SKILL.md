@@ -112,9 +112,126 @@ list `[]`. A future edit must not silently introduce a model call on this
 branch.
 
 Only when at least one suite's `status` is `"fail"` does control pass to the
-failure-path steps (triage, regression-key derivation, dedup/recurrence,
-ticket mint/comment/link) — this file does not yet define those steps at this
-point in its life; they are layered on separately.
+failure-path steps below (triage, regression-key derivation, dedup/recurrence,
+ticket mint/comment/link).
+
+## Step 4a — Triage (model step, failure path only)
+
+For each suite whose `status` is `"fail"`, read that suite's captured
+`failure_output`, `exit_code`, and `command` (from the in-memory run state or
+the just-written `results.json` — either is acceptable) and produce:
+
+1. A **regression summary**: one paragraph covering what broke, the likely
+   cause, and the first-glance affected component.
+2. A **stable regression key** of the form:
+
+   ```
+   <suite-name>:<normalized-failing-test-id>
+   ```
+
+   where `<suite-name>` is the exact `suites` map key (or the reserved `e2e`
+   key) the failure came from, and `<normalized-failing-test-id>` is the
+   lowercase, whitespace-collapsed identifier of the single failing test
+   parsed out of the suite's failure output.
+
+   **C-1 fallback (binding, not optional):** when the suite's failure output
+   yields **no parseable individual failing-test id** — a bare non-zero exit
+   code, a compile/build error before any test runs, or any other
+   suite-level failure with no per-test identifier to extract — the
+   regression key falls back to the **coarse suite-level key**:
+
+   ```
+   <suite>:__suite__
+   ```
+
+   This is a **literal fixed marker, not a content fingerprint or hash**: a
+   suite known to be flaky is a suite-authoring concern, not something this
+   closed loop should amplify by minting a new ticket per distinct
+   (unparseable) failure blob. The fallback intentionally collapses every
+   unparseable failure from the same suite onto **one ticket per broken
+   suite**.
+
+Multiple failing suites in the same run each get their own regression key
+(and therefore their own dedup/mint/bump decision) — process the
+`regressions` candidates one key at a time.
+
+## Step 4b — Dedup / recurrence lookup
+
+For each regression key, search `tickets-index.json`
+(`acs_lib.index_path(workspace, repo_id)`, read via `acs_lib.read_json`) for
+an existing ticket whose description carries that exact regression-key
+marker (see "Regression key marker convention" below) — scanning each
+candidate's own `description` field loaded via `acs_lib.load_ticket` at the
+partition resolved by `acs_lib.find_ticket_partition(workspace, repo_id,
+ticket_id)` (active partition first, then `archive/`).
+
+Given a matching ticket (if any) and its `status`
+(`acs_lib.TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]`),
+apply this **three-way policy** exactly:
+
+1. **Not found → mint a new ticket.** Invoke `new-ticket.py` (unchanged —
+   this skill reuses it as-is, no edits to the file) with `--title "<suite>:
+   <test> regression"` (or, under the suite-level fallback, `--title
+   "<suite>: suite regression"`), `--type task`, and `--description "..."`
+   embedding, in order: the regression-key marker, the triage summary, and a
+   link to the results artifact
+   (`<workspace>/<repo>/test-runs/<run-id>/results.json`). Record the
+   printed `{"ticket_id", "partition"}` and mark this regression's action as
+   `"minted"`.
+
+2. **Found, ticket status is `open`, `in_progress`, or `in_review` →
+   comment-bump the existing ticket — never mint a duplicate, never silently skip.**
+   Append fresh evidence (the new run id, the current timestamp, and
+   the latest failure output) to the existing ticket's `description` (loaded
+   via `acs_lib.load_ticket`, appended to, saved via `acs_lib.save_ticket`,
+   re-indexed via `acs_lib.update_index`). Mark this regression's action as
+   `"commented"` with `ticket_id` set to the existing ticket's id.
+
+3. **Found, ticket status is `done` → the regression recurred after being
+   marked fixed: mint a NEW ticket linked to the old one — never silently reopen
+   the closed ticket.** Call `new-ticket.py` exactly as in case 1, but
+   the `--description` additionally states explicitly that this is a
+   recurrence and names the old (closed) ticket id it links back to. Mark
+   this regression's action as `"minted_linked"` with `linked_ticket_id` set
+   to the old ticket's id. The closed ticket itself is left untouched
+   (status stays `done`) — reopening it would hide that a shipped fix
+   regressed.
+
+**Regression key marker convention.** Every minted/bumped ticket's
+`description` embeds the literal marker line:
+
+```
+acs-regression-key: <suite>:<normalized-failing-test-id-or-__suite__>
+```
+
+on its own line (mirrors the existing `acs-ticket: <ID>` convention already
+used elsewhere in ticket descriptions). The dedup lookup searches for this
+exact line, not a fuzzy match on summary prose.
+
+**R1 safety — no interpolation (restated for the failure path).** No failure
+content (suite output, parsed test ids, triage summary text) is **ever
+interpolated into a shell command**. The only commands this step invokes are
+in-process reads (`acs_lib.read_json`, `acs_lib.load_ticket`,
+`acs_lib.find_ticket_partition`) and one write path — invoking `new-ticket.py`
+as a subprocess with `--title`, `--type`, and `--description` passed as
+**argument values**, never shell-interpolated into a command string. Failure
+output/triage text becomes ticket **description content only**, never a
+command or command fragment.
+
+After processing every failing suite's regression key, populate the results
+artifact's `regressions[]` array (Step 3's shape) with one entry per
+processed key:
+
+```json
+{
+  "key": "<suite>:<normalized-failing-test-id-or-__suite__>",
+  "ticket_id": "<TICKET-ID>",
+  "action": "minted" | "commented" | "minted_linked",
+  "linked_ticket_id": "<OLD-TICKET-ID>"
+}
+```
+
+`linked_ticket_id` is present only when `action` is `"minted_linked"`.
 
 ## Step 5 — Report
 

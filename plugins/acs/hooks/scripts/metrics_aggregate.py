@@ -189,7 +189,11 @@ def aggregate(workspace, repo_id, now=None):
     # Empty workspace (no tickets enumerated): every panel "no data", exit-0 path. B1 keeps all keys.
     if not tickets:
         all_keys = list(PANEL_KEYS) + list(_NEW_PANEL_KEYS)
-        return {"panels": {k: "no data" for k in all_keys}, "meta": meta}
+        return {
+            "panels": {k: "no data" for k in all_keys},
+            "meta": meta,
+            "test_runs": _test_runs_source(workspace, repo_id, degrade),
+        }
 
     # Panel 1 — throughput by status/type (repo metrics primary; recompute fallback from the index).
     panel1 = _panel1(tickets, repo_metrics)
@@ -319,7 +323,11 @@ def aggregate(workspace, repo_id, now=None):
         "deadline": deadline,
         "usage_summary": usage_summary,
     }
-    return {"panels": panels, "meta": meta}
+    return {
+        "panels": panels,
+        "meta": meta,
+        "test_runs": _test_runs_source(workspace, repo_id, degrade),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -654,6 +662,56 @@ def _usage_summary_panel(totals, prs, panel3_averages):
         "avg_working_seconds_per_pr": avgs.get("avg_working_seconds_per_pr", "no data"),
         "avg_cost_per_ticket": avgs.get("avg_cost_per_ticket", "no data"),
         "avg_cost_per_pr": avgs.get("avg_cost_per_pr", "no data"),
+    }
+
+
+def _test_runs_source(workspace, repo_id, degrade):
+    """Read-only test-runs/*/results.json source (MAR-114 spec 03).
+
+    Additive, absence-tolerant, malformed-tolerant, read-only: folds run count and the
+    most-recent run's suite pass/fail counts + regressions[].action tally into a new
+    top-level "test_runs" key (sibling to "panels"/"meta") without touching PANEL_KEYS
+    or _NEW_PANEL_KEYS. "no data" when the directory is absent/empty or every run present
+    fails to parse as a dict (each unparseable run also gets a meta.degraded entry).
+    """
+    pattern = os.path.join(workspace, repo_id, "test-runs", "*", "results.json")
+    run_paths = sorted(glob.glob(pattern))
+    if not run_paths:
+        return "no data"
+
+    runs = []
+    for path in run_paths:
+        run_id = os.path.basename(os.path.dirname(path))
+        data = acs_lib.read_json(path)
+        if not isinstance(data, dict):
+            degrade(None, "test_runs", "unparseable test-runs/%s/results.json — treated as no data" % run_id)
+            continue
+        runs.append((run_id, data))
+
+    if not runs:
+        return "no data"
+
+    runs.sort(key=lambda pair: pair[0])
+    latest_id, latest = runs[-1]
+
+    suites = latest.get("suites") if isinstance(latest.get("suites"), list) else []
+    passed = sum(1 for s in suites if isinstance(s, dict) and s.get("status") == "pass")
+    failed = sum(1 for s in suites if isinstance(s, dict) and s.get("status") == "fail")
+
+    regressions = latest.get("regressions") if isinstance(latest.get("regressions"), list) else []
+    action_tally = {}
+    for reg in regressions:
+        if isinstance(reg, dict):
+            action = reg.get("action")
+            if action:
+                action_tally[action] = action_tally.get(action, 0) + 1
+
+    return {
+        "runs_observed": len(runs),
+        "latest_run_id": latest_id,
+        "latest_suites_passed": passed,
+        "latest_suites_failed": failed,
+        "latest_regressions_by_action": action_tally,
     }
 
 
