@@ -1,6 +1,6 @@
 # 0011 — Full-SDLC doc sets (quality, operations) + standing test runs
 
-**Status**: Proposed · **Date**: 2026-06-14
+**Status**: Accepted · **Date**: 2026-06-14
 
 ## Context
 

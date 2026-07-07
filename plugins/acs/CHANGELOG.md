@@ -38,6 +38,15 @@ the notes.
   `docs/operations`, mirroring `quality_path`) and defaulted by
   `/acs:init`'s Step-4 batch; five new templates ship under
   `plugins/acs/templates/operations/`.
+- **`/acs:test` skill + `suites` settings key generalization (MAR-114).** A
+  new unhooked, model-invocable utility skill that runs the product's
+  configured test suites (all, or a `--suite`-selected subset), writes an
+  auditable results artifact, and closes the loop on failures by minting,
+  comment-bumping, or linking a regression ticket via direct `new-ticket.py`
+  reuse. The `suites` settings key generalizes the existing `e2e` setting
+  into a named-command map — `e2e` is retained as a soft-deprecated,
+  load-time-normalized compatibility alias into `suites["e2e"]`, and
+  `/acs:init` offers a one-time `e2e` to `suites.e2e` migration on re-run.
 
 ## [0.3.7] - 2026-07-06
 
