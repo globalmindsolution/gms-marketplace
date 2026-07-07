@@ -406,6 +406,69 @@ def _drive():
         fx._write_json(_sp, {"states": {}, "runs": [{"not_pr": 1}]})
         mod._rework_count(_td)
 
+    # --- MAR-114 spec 03: test-runs/ read-only source branch coverage ---
+
+    # 9a) absent test-runs/ directory -> "no data" (glob returns [] branch).
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"T1": {"status": "done", "type": "story"}})
+        mod.aggregate(ws, REPO_ID)
+
+    # 9b) present, well-formed, multiple runs -> runs_observed tally, latest-run pass/fail
+    #     counts, regressions[].action tally (all three action strings).
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"T1": {"status": "done", "type": "story"}})
+        fx.write_test_run(ws, "run-a", {
+            "run_id": "run-a", "started_at": "2026-07-01T00:00:00Z",
+            "ended_at": "2026-07-01T00:01:00Z",
+            "suites": [{"name": "unit", "command": "pytest", "exit_code": 0,
+                        "duration_s": 1.0, "status": "pass"}],
+            "regressions": [],
+        })
+        fx.write_test_run(ws, "run-b", {
+            "run_id": "run-b", "started_at": "2026-07-02T00:00:00Z",
+            "ended_at": "2026-07-02T00:01:00Z",
+            "suites": [
+                {"name": "unit", "command": "pytest", "exit_code": 0,
+                 "duration_s": 1.0, "status": "pass"},
+                {"name": "e2e", "command": "run-e2e", "exit_code": 1,
+                 "duration_s": 2.0, "status": "fail", "failure_output": "boom"},
+            ],
+            "regressions": [
+                {"key": "e2e:__suite__", "ticket_id": "MAR-200", "action": "minted"},
+                {"key": "unit:test_x", "ticket_id": "MAR-201", "action": "commented"},
+                {"key": "unit:test_y", "ticket_id": "MAR-202", "action": "minted_linked",
+                 "linked_ticket_id": "MAR-199"},
+            ],
+        })
+        mod.aggregate(ws, REPO_ID)
+
+    # 9c) malformed JSON in one run -> degrade branch (not isinstance(data, dict) via None).
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"T1": {"status": "done", "type": "story"}})
+        fx.write_test_run_raw(ws, "run-bad", "not valid json {{{{")
+        mod.aggregate(ws, REPO_ID)
+
+    # 9d) valid JSON but not a dict (list) -> degrade branch, no runs left -> "no data".
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"T1": {"status": "done", "type": "story"}})
+        fx.write_test_run(ws, "run-list", ["not", "a", "dict"])
+        mod.aggregate(ws, REPO_ID)
+
+    # 9e) suites/regressions present but non-list shapes -> the isinstance(..., list) else
+    #     branches for both "suites" and "regressions", plus a regression dict with no
+    #     "action" key (the `if action:` False branch).
+    with tempfile.TemporaryDirectory() as ws:
+        fx.write_index(ws, {"T1": {"status": "done", "type": "story"}})
+        fx.write_test_run(ws, "run-c", {
+            "run_id": "run-c", "suites": "not-a-list", "regressions": "not-a-list",
+        })
+        mod.aggregate(ws, REPO_ID)
+        fx.write_test_run(ws, "run-d", {
+            "run_id": "run-d", "suites": ["not-a-dict"],
+            "regressions": [{"key": "unit:x"}, "not-a-dict"],
+        })
+        mod.aggregate(ws, REPO_ID)
+
 
 def _count_from_cover(cover_path):
     """Parse a trace .cover file: count executed/total executable lines and collect misses."""

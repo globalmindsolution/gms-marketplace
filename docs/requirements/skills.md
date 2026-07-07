@@ -1,12 +1,13 @@
 # Skill Requirements
 
-Eighteen skills in total: the bootstrap skill (`/init`), the umbrella command
+Nineteen skills in total: the bootstrap skill (`/init`), the umbrella command
 (`/ship`), the utility skills — the session-handoff helper (`/handoff`), the
 update assistant (`/update`), the local-hooks installer (`/install-hooks`), the
-read-only PM metrics dashboard (`/metrics`), and the read-only usage dashboard
-(`/usage`) — the product-level `/create-prd`, `/create-architecture`,
-`/create-project`, `/create-quality`, and `/create-operations`, and six
-workflow skills (one of them, `/create-design`, conditional).
+read-only PM metrics dashboard (`/metrics`), the read-only usage dashboard
+(`/usage`), and the standing suite runner (`/acs:test`) — the product-level
+`/create-prd`, `/create-architecture`, `/create-project`, `/create-quality`,
+and `/create-operations`, and six workflow skills (one of them,
+`/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Six **workflow/product skills** (create-spec, code, create-prd,
@@ -192,6 +193,36 @@ existing workspace state — no network, no new config key, nothing written.
 - **Reads only** — writes no file, makes no network/`gh` call, and consumes no
   config key beyond the `.acs/settings.json` the helper already reads.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
+
+## /acs:test (utility)
+
+Purpose: the standing, schedulable **suite runner** over the `suites`
+settings map — runs the product's configured test commands (unit,
+integration, e2e, regression, or any other named suite) and reports results,
+closing the loop on failures with a regression ticket.
+
+- **Model-invocable** (it does not set `disable-model-invocation`): a
+  natural-language request to run the configured test suites, run a named
+  suite, or check whether anything broke routes here.
+- **Argument contract:** no `--suite` flag runs every suite in `suites`; one
+  or more `--suite <name>` flags run only the named subset.
+- **Unhooked** — like `/init`/`/update`/`/metrics`/`/usage`, `/acs:test` has
+  no planner/executor/verifier triad and no `test-state.json` skill-start
+  ticket allocation. It is not part of the gated pipeline.
+- **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
+  artifact to the workspace, and a failure path can mint or comment-bump a
+  ticket.
+- **All-green determinism:** when every suite passes, the run makes zero
+  model calls and mints no tickets — triage only runs on the failure path.
+- **Failure-path triage:** on a failing suite, the skill derives a stable
+  regression key and applies a three-way policy — mint a new ticket, comment-
+  bump an existing open one, or open a new ticket linked to a closed one that
+  recurred — never duplicating and never silently reopening a closed ticket.
+  See `docs/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
+- **Scheduling is the caller's job** — Claude Code routines/cron invoke
+  `/acs:test` headless; the concrete recipe lives in
+  `templates/operations/test-scheduling.md` (shipped by `/acs:create-operations`),
+  not duplicated here.
 
 ## Product-level delivery (tickets)
 

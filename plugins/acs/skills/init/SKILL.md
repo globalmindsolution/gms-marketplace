@@ -187,6 +187,12 @@ subsection and the `e2e` bullet for how each is offered.
   runbooks, observability, incident response, test-scheduling). Write the key
   only when the user changes it; explicit `null` disables (acs does not
   maintain the set for this repo).
+- `suites` — default `{}` (repo-relative object): the single source of truth
+  for configured test commands read by /acs:test. Each entry shares the `e2e`
+  shape (`command` required; optional `setup`/`teardown`/`per_iteration`). The
+  reserved name `"e2e"` is auto-populated from a configured `e2e` at load
+  time — do not hand-duplicate it under `suites.e2e`. New suites can be added
+  as additional named entries (e.g. `lint`, `smoke`) sharing that same shape.
 - `e2e` — **always ask** this explicitly on a fresh init (it is a first-class
   setup decision, not a silently-defaultable key); default UNSET (repo has no
   e2e suite). Detect candidates first (`package.json` scripts containing `e2e`,
@@ -198,6 +204,17 @@ subsection and the `e2e` bullet for how each is offered.
   suite only on the final, otherwise-passing iteration; e2e is slow). If the
   user declines, leave it UNSET — but the decision was offered, not defaulted.
   Configured e2e makes the suite part of every /acs:code verification.
+
+  On a **re-run** where the resolved settings already have a configured
+  `e2e` (check via the same `load_settings` merge used above), offer the
+  `e2e` -> `suites.e2e` migration: show the user the current `e2e` value,
+  explain that `e2e` is now a documented, soft-deprecated compatibility alias
+  and that `suites.e2e` is the canonical form going forward, and offer to
+  write the equivalent `suites.e2e` entry (same `command`/`setup`/`teardown`/
+  `per_iteration`) into the project settings alongside the retained `e2e` key
+  — leave `e2e` in place unless the user explicitly opts to remove it. If the
+  user declines the migration, leave settings unchanged; the offer was made,
+  not forced.
 
 ### tracker — default `{"provider": "local"}`
 

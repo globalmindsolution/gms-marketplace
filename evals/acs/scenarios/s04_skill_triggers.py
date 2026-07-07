@@ -98,6 +98,10 @@ CASES = [
      "time per ticket for this repo — not delivery throughput, just the tool "
      "usage and cost side.",
      "usage"),
+    ("test", True,
+     "Run the configured test suites for this repo and give me a results "
+     "report, opening a regression ticket for anything that broke.",
+     "test"),
     # User-only skills: positive case = the explicit command the user types.
     # (A description can't reach them — see NEGATIVE for that guarantee.)
     ("install-hooks", True,

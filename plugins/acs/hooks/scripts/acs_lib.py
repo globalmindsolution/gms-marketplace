@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations"]
 WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
-UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage"]
+UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test"]
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
@@ -299,6 +299,7 @@ DEFAULT_SETTINGS = {
     "adr_path": "docs/adr",
     "quality_path": "docs/quality",
     "operations_path": "docs/operations",
+    "suites": {},
     "tracker": {"provider": "local"},
     "models": {},
     "formats": {
@@ -498,7 +499,24 @@ def load_settings(cwd):
         if isinstance(data, dict):
             merged = deep_merge(merged, data)
             found.append(path)
+    _normalize_e2e_into_suites(merged)
     return merged, found
+
+
+def _normalize_e2e_into_suites(merged):
+    """Upsert a configured e2e into suites['e2e'] (e2e wins on collision, non-fatally warned)."""
+    e2e = merged.get("e2e")
+    if not isinstance(e2e, dict) or not e2e:
+        return
+    suites = dict(merged.get("suites") or {})
+    existing = suites.get("e2e")
+    if isinstance(existing, dict) and existing.get("command") != e2e.get("command"):
+        merged.setdefault("_settings_warnings", []).append(
+            "settings.e2e and settings.suites.e2e are both configured with different commands; "
+            "e2e (the deprecated alias) wins and overwrites suites.e2e at load time."
+        )
+    suites["e2e"] = e2e
+    merged["suites"] = suites
 
 
 def validate_settings(settings, cwd, require_workspace=True):
@@ -542,6 +560,17 @@ def validate_settings(settings, cwd, require_workspace=True):
                 raise GateError("e2e.%s must be a non-empty string when set." % key)
         if "per_iteration" in e2e and not isinstance(e2e["per_iteration"], bool):
             raise GateError("e2e.per_iteration must be a boolean.")
+    suites = settings.get("suites", {})
+    if not isinstance(suites, dict):
+        raise GateError("suites must be an object mapping suite names to suite definitions; got %r." % (suites,))
+    for name, suite in suites.items():
+        if not isinstance(suite, dict) or not isinstance(suite.get("command"), str) or not suite["command"].strip():
+            raise GateError("suites.%s must be an object with a non-empty 'command' (plus optional setup/teardown/per_iteration)." % name)
+        for key in ("setup", "teardown"):
+            if key in suite and (not isinstance(suite[key], str) or not suite[key].strip()):
+                raise GateError("suites.%s.%s must be a non-empty string when set." % (name, key))
+        if "per_iteration" in suite and not isinstance(suite["per_iteration"], bool):
+            raise GateError("suites.%s.per_iteration must be a boolean." % name)
     validate_formats(settings.get("formats", {}))
     validate_models(settings.get("models", {}))
     return workspace if require_workspace else None
