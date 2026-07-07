@@ -26,6 +26,18 @@ the notes.
   `quality_path` is added to `settings.schema.json` (optional `string | null`,
   default `docs/quality`, mirroring `adr_path`) and defaulted by `/acs:init`'s
   Step-4 batch; two new templates ship under `plugins/acs/templates/quality/`.
+- **`/acs:create-operations` skill + `operations_path` settings key (MAR-113).**
+  A new product-level, triad-keeping skill that bootstraps and maintains the
+  consumer `operations/` doc set — `release-process.md`, `runbooks.md`,
+  `observability.md`, `incident-response.md`, and `test-scheduling.md` —
+  reading the PRD's non-functional requirements and the `architecture_path`
+  set as upstream, delivered as a docs-only PR on its own delivery ticket
+  (`create-operations-planner`/`-executor`/`-verifier`,
+  `create-operations-state.json`). `operations_path` is added to
+  `settings.schema.json` (optional `string | null`, default
+  `docs/operations`, mirroring `quality_path`) and defaulted by
+  `/acs:init`'s Step-4 batch; five new templates ship under
+  `plugins/acs/templates/operations/`.
 
 ## [0.3.7] - 2026-07-06
 

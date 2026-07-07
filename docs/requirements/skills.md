@@ -1,12 +1,12 @@
 # Skill Requirements
 
-Seventeen skills in total: the bootstrap skill (`/init`), the umbrella command
+Eighteen skills in total: the bootstrap skill (`/init`), the umbrella command
 (`/ship`), the utility skills — the session-handoff helper (`/handoff`), the
 update assistant (`/update`), the local-hooks installer (`/install-hooks`), the
 read-only PM metrics dashboard (`/metrics`), and the read-only usage dashboard
 (`/usage`) — the product-level `/create-prd`, `/create-architecture`,
-`/create-project`, and `/create-quality`, and six workflow skills (one of
-them, `/create-design`, conditional).
+`/create-project`, `/create-quality`, and `/create-operations`, and six
+workflow skills (one of them, `/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Six **workflow/product skills** (create-spec, code, create-prd,
@@ -324,6 +324,35 @@ pipeline verifies against.
   claims agree with `architecture/hld/tech-stack.md`).
 - State lives in the delivery ticket's partition
   (`create-quality-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: docs-only PR via the
+  [product-level delivery rules](#product-level-delivery-tickets) — each
+  run creates its own delivery ticket; the TDD pipeline does not apply to a
+  docs-only change.
+
+## `/acs:create-operations` (product-level)
+
+Purpose: bootstrap and maintain the **product operations doc set** — release
+process, runbooks, observability, and incident response — the standing
+operations contract the pipeline and the on-call team run against.
+
+- Product-level and **ticket-independent**: not part of the per-ticket
+  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
+  after an operations-process change.
+- MUST take the **PRD's non-functional requirements** and the full
+  `architecture_path` set as upstream inputs — architecture is upstream of
+  operations.
+- Produces the doc set in the consumer repo at `operations_path` (default
+  `docs/operations` — [configuration.md](configuration.md)): `release-process.md`,
+  `runbooks.md`, `observability.md`, `incident-response.md`, and
+  `test-scheduling.md`. Unset `operations_path` (`null`) means acs does not
+  maintain this set for the repo.
+- Runs the full Reflection cycle — `create-operations-planner`,
+  `create-operations-executor`, `create-operations-verifier`. The verifier
+  checks the tailored content conforms to the architecture set (component/
+  deployment claims agree with `architecture/hld/`).
+- State lives in the delivery ticket's partition
+  (`create-operations-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: docs-only PR via the
   [product-level delivery rules](#product-level-delivery-tickets) — each

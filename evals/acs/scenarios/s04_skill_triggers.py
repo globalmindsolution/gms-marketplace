@@ -1,4 +1,4 @@
-"""s04 — routing evals for all 17 skills (paid, E1.2).
+"""s04 — routing evals for all 18 skills (paid, E1.2).
 
 Three kinds of probe, covering every skill:
 
@@ -27,7 +27,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for all 17 (15 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for all 18 (16 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -66,6 +66,10 @@ CASES = [
      "Author and maintain the test-strategy and coverage-policy docs for this "
      "product's quality doc set.",
      "create-quality"),
+    ("create-operations", True,
+     "Author and maintain the release-process, runbooks, observability, and "
+     "incident-response docs for this product's operations doc set.",
+     "create-operations"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
      "create-ticket"),

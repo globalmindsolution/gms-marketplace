@@ -2773,6 +2773,78 @@ class TestQualityPathSettings(unittest.TestCase):
             self.fail("validate_settings must not reject a null quality_path: %s" % exc)
 
 
+class TestOperationsPathSettings(unittest.TestCase):
+    """AC-2/AC-3 (MAR-113): operations_path settings key mirrors quality_path's
+    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
+    the default when absent; validate_settings accepts both a string and an
+    explicit null without raising GateError.
+
+    Uses the same stdlib-only approach as TestQualityPathSettings (no
+    jsonschema import).
+    """
+
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+
+    @classmethod
+    def setUpClass(cls):
+        with open(cls.SCHEMA_PATH) as fh:
+            cls.schema = json.load(fh)
+
+    def test_operations_path_in_schema(self):
+        """settings.schema.json must define operations_path."""
+        self.assertIn("operations_path", self.schema["properties"])
+
+    def test_operations_path_oneof_mirrors_quality_path(self):
+        """operations_path's oneOf must have exactly two branches: a non-empty
+        string branch and a null branch — the same shape as quality_path's/
+        adr_path's existing branches, read live from the schema so the test
+        tracks the real rule."""
+        prop = self.schema["properties"]["operations_path"]
+        branches = prop["oneOf"]
+        self.assertEqual(len(branches), 2)
+        self.assertIn({"type": "string", "minLength": 1}, branches)
+        self.assertIn({"type": "null"}, branches)
+
+    def test_operations_path_schema_default(self):
+        """The schema's default for operations_path must be 'docs/operations'."""
+        prop = self.schema["properties"]["operations_path"]
+        self.assertEqual(prop.get("default"), "docs/operations")
+
+    def test_default_settings_has_operations_path_seed(self):
+        """DEFAULT_SETTINGS['operations_path'] must equal 'docs/operations'."""
+        self.assertEqual(lib.DEFAULT_SETTINGS["operations_path"], "docs/operations")
+
+    def test_load_settings_resolves_default_when_absent(self):
+        """When operations_path is absent from every settings scope,
+        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
+        tmp = tempfile.mkdtemp(prefix="acs-operations-path-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        repo = os.path.join(tmp, "shop")
+        os.makedirs(os.path.join(repo, ".acs"))
+        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
+            json.dump({"ticket_prefix": "SHOP"}, fh)
+        merged, _found = lib.load_settings(repo)
+        self.assertEqual(merged["operations_path"], "docs/operations")
+
+    def test_validate_settings_accepts_string_operations_path(self):
+        """A settings dict with an explicit non-empty string operations_path
+        passes validate_settings without raising GateError."""
+        settings = {"test_coverage_percent": 90, "operations_path": "docs/operations"}
+        try:
+            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
+        except lib.GateError as exc:
+            self.fail("validate_settings must not reject a string operations_path: %s" % exc)
+
+    def test_validate_settings_accepts_null_operations_path(self):
+        """A settings dict with operations_path explicitly set to null (disabled)
+        passes validate_settings without raising GateError."""
+        settings = {"test_coverage_percent": 90, "operations_path": None}
+        try:
+            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
+        except lib.GateError as exc:
+            self.fail("validate_settings must not reject a null operations_path: %s" % exc)
+
+
 class TestRecommendStakes(unittest.TestCase):
     """AC-6: recommend_stakes(paths, settings) returns 'high' on any glob match,
     'normal' otherwise; never writes; override supersedes seed.
