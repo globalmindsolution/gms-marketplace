@@ -273,6 +273,9 @@ else is verified against.
   `create-prd-verifier`. The verifier checks: all required sections
   present, features trace to goals, success metrics are measurable, and
   nothing contradicts the stated constraints.
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger.
 - State lives in the delivery ticket's partition
   (`create-prd-state.json`).
 - Delivery: docs-only PR via the
@@ -320,6 +323,9 @@ living system documentation the whole pipeline designs and verifies against.
   internally consistent; diagrams agree with the prose; and **HLD and LLD
   agree with each other** (every participant in a sequence diagram exists
   in the C4 views).
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger.
 - State lives in the delivery ticket's partition
   (`create-architecture-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -353,6 +359,10 @@ pipeline verifies against.
   `create-quality-executor`, `create-quality-verifier`. The verifier checks
   the tailored content conforms to the architecture set (stack/technology
   claims agree with `architecture/hld/tech-stack.md`).
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger; the verifier's `consistency` dimension
+  confirms any such findings were resolved or explicitly deferred.
 - State lives in the delivery ticket's partition
   (`create-quality-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -382,6 +392,10 @@ operations contract the pipeline and the on-call team run against.
   `create-operations-executor`, `create-operations-verifier`. The verifier
   checks the tailored content conforms to the architecture set (component/
   deployment claims agree with `architecture/hld/`).
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger; the verifier's `consistency` dimension
+  confirms any such findings were resolved or explicitly deferred.
 - State lives in the delivery ticket's partition
   (`create-operations-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -573,6 +587,9 @@ tickets where the change is architecturally significant.
   coverage — all findings block, same 3-iteration reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
   `create-design-verifier`.
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger.
 - When `adr_path` is configured ([configuration.md](configuration.md)),
   the design's accepted decision records are committed into the consumer
   repo by `/code` as part of its documentation updates.
@@ -617,6 +634,9 @@ Purpose: turn a ticket into implementation specs.
 - When a design exists (the ticket's own or its parent epic's), specs MUST
   **conform to it**, and the `create-spec-verifier` MUST check that
   conformance.
+- The planner phase also runs the shared ADR-0012 design-time
+  doc-consistency step, surfacing gap/staleness findings through the
+  existing clarification ledger.
 
 ## 4. `/code`
 

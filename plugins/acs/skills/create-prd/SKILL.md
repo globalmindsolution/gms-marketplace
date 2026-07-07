@@ -128,6 +128,10 @@ The planner's first job is mode classification:
   for vision, problem, personas, goals (+ measurable success metrics), prioritized
   features (MoSCoW), product NFRs, constraints, out-of-scope.
 
+The planner also runs the shared ADR-0012 design-time doc-consistency step; any
+findings surface through the "Clarification ledger first" mechanism below (User
+interaction).
+
 Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iteration
 2+, the verifier findings to fix):
 

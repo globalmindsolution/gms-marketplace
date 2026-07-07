@@ -187,8 +187,8 @@ class ChangelogMar114EntryTest(unittest.TestCase):
 
 
 class AdrStatusFlipTest(unittest.TestCase):
-    """Approach item 7 / constraint adr-0011-only: flip ONLY 0011 to
-    Accepted; 0012 stays Proposed as a C-2 regression guard."""
+    """Approach item 7 / constraint adr-0011-only: MAR-114 flips ONLY 0011 to
+    Accepted; 0012's own flip is MAR-115's job (now landed)."""
 
     def test_0011_is_accepted(self):
         body = read(os.path.join(ADR_DIR, "0011-sdlc-doc-sets-quality-and-operations.md"))
@@ -197,10 +197,10 @@ class AdrStatusFlipTest(unittest.TestCase):
         self.assertNotIn("**Status**: Proposed", body,
                          "ADR 0011 must no longer read Proposed")
 
-    def test_0012_still_proposed(self):
+    def test_0012_is_accepted(self):
         body = read(os.path.join(ADR_DIR, "0012-design-time-doc-consistency.md"))
-        self.assertIn("**Status**: Proposed", body,
-                      "ADR 0012 must remain Proposed — MAR-115's to flip, not MAR-114's (C-2)")
+        self.assertIn("**Status**: Accepted", body,
+                      "ADR 0012 must be flipped to Accepted (MAR-115)")
 
 
 class NewAdrsExistTest(unittest.TestCase):

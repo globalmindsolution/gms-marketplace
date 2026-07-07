@@ -143,7 +143,9 @@ Phases:
 
 1. **Plan** — the planner reads the upstream doc-graph slice (PRD NFRs + architecture
    set), notes any gaps as `<questions>`, classifies bootstrap vs re-run, and produces
-   the per-file outline. Persist the plan.
+   the per-file outline. The planner also runs the shared ADR-0012 design-time
+   doc-consistency step; any findings surface through the "Clarification ledger
+   first" mechanism below (User interaction). Persist the plan.
 2. **Execute** — executors write the doc set on the ticket branch (create
    the branch first — see Delivery). Decomposition is YOURS alone; subagents
    never spawn subagents. Typically a single executor — the two files are small and
@@ -156,7 +158,10 @@ Phases:
      claims match `architecture/hld/tech-stack.md` and the rest of the set);
    - required sections are present in each file;
    - the plan was followed exactly;
-   - the changeset is docs-only.
+   - the changeset is docs-only;
+   - **consistency**: any `consistency_findings` the planner surfaced (the
+     shared ADR-0012 design-time doc-consistency step, see Plan above) were
+     resolved or explicitly user-deferred in the clarification ledger.
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

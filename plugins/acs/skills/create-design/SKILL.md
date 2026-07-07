@@ -127,7 +127,9 @@ its `<result>`: the decisions to make, >=2 candidate options per major decision
 with preliminary trade-offs, affected components/flows/data, NFR checklist
 (security, performance at minimum), and any `<questions>` that are genuinely open
 (user-preference or business trade-offs, not researchable facts). The planner
-reads; it never writes files.
+also runs the shared ADR-0012 design-time doc-consistency step; any findings
+surface through the "Clarification ledger first" mechanism below (User
+interaction). The planner reads; it never writes files.
 
 If the planner returns `<questions>`, resolve them in "User interaction" below
 BEFORE executing, and pass the answers into the execute `<task>` via `<context>`.
