@@ -70,6 +70,10 @@ CASES = [
      "Author and maintain the release-process, runbooks, observability, and "
      "incident-response docs for this product's operations doc set.",
      "create-operations"),
+    ("create-principles", True,
+     "Author and maintain the engineering principles and rationale doc set "
+     "for this product.",
+     "create-principles"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
      "create-ticket"),

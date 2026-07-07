@@ -15,6 +15,21 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:create-principles` skill + `principles_path` settings key
+  (MAR-117).** A new product-level, triad-keeping skill that bootstraps and
+  maintains the consumer `principles/` doc set — `principles.md`
+  (engineering principles + rationale) — reading the PRD and the
+  `architecture_path` set as upstream (principles is itself upstream of
+  `standards/`), delivered as a docs-only PR on its own delivery ticket
+  (`create-principles-planner`/`-executor`/`-verifier`,
+  `create-principles-state.json`). `principles_path` is added to
+  `settings.schema.json` (optional `string | null`, default
+  `docs/principles`, mirroring `quality_path`/`operations_path`) and
+  defaulted by `/acs:init`'s Step-4 batch; one new coarse template ships
+  under `plugins/acs/templates/principles/`.
+
 ## [0.3.8] - 2026-07-07
 
 ### Added
