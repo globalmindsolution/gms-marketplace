@@ -17,8 +17,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-quality", "create-operations", "create-ticket",
-                 "create-design", "create-spec", "code", "create-pr", "merge-pr"]
+                 "create-quality", "create-operations", "create-principles",
+                 "create-ticket", "create-design", "create-spec", "code",
+                 "create-pr", "merge-pr"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test"]
 ROLES = ["planner", "executor", "verifier"]
 
