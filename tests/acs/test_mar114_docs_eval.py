@@ -113,10 +113,11 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
 
     def test_intro_reads_nineteen_not_eighteen(self):
+        # The literal skill-count word churns as later skills land (MAR-117
+        # moved it Nineteen -> Twenty); pin only that the stale "Eighteen"
+        # this test originally guarded against does not recur.
         body = self._skills_req()
         intro = body[:400]
-        self.assertIn("Nineteen skills", intro,
-                      "skills.md intro must read 'Nineteen skills'")
         self.assertNotIn("Eighteen skills", intro,
                          "skills.md intro must NOT still read 'Eighteen skills'")
 

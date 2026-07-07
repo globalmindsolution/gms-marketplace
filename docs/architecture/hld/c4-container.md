@@ -6,8 +6,8 @@ C4Container
 
     Person(dev, "Developer")
     System_Boundary(mkt, "GMS Marketplace (plugin catalog)") {
-        Container(skills, "acs Skills", "16 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
-        Container(agents, "acs Subagents", "27 x agent .md (21 reachable)", "Planner/executor/verifier triad for the six triad-keeping skills (create-prd/-architecture/-project/-design/-spec/code); the three apply-work skills (create-ticket/-pr/merge-pr) run inline with at most one executor, no planner/verifier — their 6 plan/verify agent files are orphaned; grounding rules; XML I/O")
+        Container(skills, "acs Skills", "20 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
+        Container(agents, "acs Subagents", "36 x agent .md (30 reachable)", "Planner/executor/verifier triad for the nine triad-keeping skills (create-prd/-architecture/-project/-quality/-operations/-principles/-design/-spec/code); the three apply-work skills (create-ticket/-pr/merge-pr) run inline with at most one executor, no planner/verifier — their 6 plan/verify agent files are orphaned; grounding rules; XML I/O")
         Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 9 pre + 9 post hooks; skill-start, new-ticket, handoff, clarify, validate_xml, status lines; acs_lib")
         Container(schemas, "acs Schemas & templates", "JSON Schema / XSD / md", "9 state schemas, acs-messages.xsd, 4 description templates")
         Container(tabp_skills, "tabp Skills", "2 x SKILL.md (screen-cvs, /tabp:usage)", "Screen-CV recruiting workflow; coordinator orchestrates parallel Sonnet-per-CV subagents + Opus synthesis via the coordinator+subagents convention; dispatched via Cowork or Claude Code")

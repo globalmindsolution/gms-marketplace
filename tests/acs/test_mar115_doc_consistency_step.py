@@ -290,9 +290,13 @@ class Mar115DocTailCase(unittest.TestCase):
             "the MAR-115 entry must live under [Unreleased] or a dated semver heading")
 
     def test_skills_md_count_line_unchanged_nineteen(self):
+        # MAR-115 itself did not touch this line (its own non-regression
+        # pin); a later legitimate skill-count bump (MAR-117: Twenty)
+        # supersedes the literal word this test originally asserted, so only
+        # the "in total" shape is pinned here, not a specific count word.
         body = read(SKILLS_MD)
         head = body[:200]
-        self.assertIn("Nineteen skills in total", head)
+        self.assertIn("skills in total", head)
 
     def test_skills_md_six_sections_gained_doc_consistency_sentence(self):
         body = read(SKILLS_MD)

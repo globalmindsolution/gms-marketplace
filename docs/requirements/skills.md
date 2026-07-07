@@ -1,13 +1,13 @@
 # Skill Requirements
 
-Nineteen skills in total: the bootstrap skill (`/init`), the umbrella command
+Twenty skills in total: the bootstrap skill (`/init`), the umbrella command
 (`/ship`), the utility skills — the session-handoff helper (`/handoff`), the
 update assistant (`/update`), the local-hooks installer (`/install-hooks`), the
 read-only PM metrics dashboard (`/metrics`), the read-only usage dashboard
 (`/usage`), and the standing suite runner (`/acs:test`) — the product-level
 `/create-prd`, `/create-architecture`, `/create-project`, `/create-quality`,
-and `/create-operations`, and six workflow skills (one of them,
-`/create-design`, conditional).
+`/create-operations`, and `/create-principles`, and six workflow skills (one
+of them, `/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Six **workflow/product skills** (create-spec, code, create-prd,
@@ -398,6 +398,35 @@ operations contract the pipeline and the on-call team run against.
   confirms any such findings were resolved or explicitly deferred.
 - State lives in the delivery ticket's partition
   (`create-operations-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: docs-only PR via the
+  [product-level delivery rules](#product-level-delivery-tickets) — each
+  run creates its own delivery ticket; the TDD pipeline does not apply to a
+  docs-only change.
+
+## `/acs:create-principles` (product-level)
+
+Purpose: bootstrap and maintain the **product principles doc set** —
+engineering principles and their rationale — the standing values contract
+`standards/` builds on.
+
+- Product-level and **ticket-independent**: not part of the per-ticket
+  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
+  after an engineering principles change.
+- MUST take the **PRD** and the full `architecture_path` set as upstream
+  inputs — principles has no cross-read on `standards/`.
+- Produces the doc set in the consumer repo at `principles_path` (default
+  `docs/principles` — [configuration.md](configuration.md)): `principles.md`
+  (engineering principles list + rationale). Unset `principles_path` (`null`)
+  means acs does not maintain this set for the repo.
+- Runs the full Reflection cycle — `create-principles-planner`,
+  `create-principles-executor`, `create-principles-verifier`. The planner
+  phase also runs the shared ADR-0012 design-time doc-consistency step,
+  surfacing gap/staleness findings through the existing clarification ledger;
+  the verifier's `consistency` dimension confirms any such findings were
+  resolved or explicitly deferred.
+- State lives in the delivery ticket's partition
+  (`create-principles-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: docs-only PR via the
   [product-level delivery rules](#product-level-delivery-tickets) — each

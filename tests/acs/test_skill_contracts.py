@@ -3457,18 +3457,19 @@ class TestCreateQualityDocConformance(unittest.TestCase):
 
     def test_c4_component_triad_count_advanced(self):
         """AC-7 sub-check 1: the triad-count sentence reflects the current
-        epic state. MAR-112 landed the intermediate '7 active triads (21
-        agents)'; MAR-113 is the epic's second-and-final producer child and
-        lands the epic-final arithmetic directly ('8 active triads (24
-        agents)'), per its own spec — so this MAR-112 assertion is updated in
-        place to the superseding truth rather than asserting stale text."""
+        epic state. MAR-112/113 landed '8 active triads (24 agents)'; MAR-117
+        is a later producer child and lands the superseding arithmetic
+        directly ('9 active triads (27 agents in triads)'), per its own spec
+        — so this assertion is updated in place to the superseding truth
+        rather than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("8 active triads (24 agents)", body,
-                      "c4-component.md must read '8 active triads "
-                      "(24 agents)' (MAR-112 AC-7, superseded by MAR-113)")
-        self.assertNotIn("6 active triads (18 agents)", body,
+        self.assertIn("9 active triads (27 agents", body,
+                      "c4-component.md must read '9 active triads "
+                      "(27 agents in triads)' (MAR-112/113 AC-7, superseded "
+                      "by MAR-117)")
+        self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
-                         "'6 active triads (18 agents)' text (MAR-112 AC-7)")
+                         "'8 active triads (24 agents)' text (MAR-112/113 AC-7)")
 
     def test_c4_component_reachable_agents_advanced(self):
         """AC-7 sub-check 2: in a bounded window AFTER the triad-count
@@ -3476,15 +3477,15 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("8 active triads (24 agents)")
+        triad_idx = body.index("9 active triads (27 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("27 reachable agents", window,
-                      "c4-component.md must read '27 reachable agents' "
+        self.assertIn("30 reachable agents", window,
+                      "c4-component.md must read '30 reachable agents' "
                       "in the window after the triad-count sentence "
-                      "(MAR-112 AC-7, superseded by MAR-113)")
-        self.assertNotIn("21 reachable agents", window,
+                      "(MAR-112/113 AC-7, superseded by MAR-117)")
+        self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
-                         "'21 reachable agents' text in that window (MAR-112 AC-7)")
+                         "'27 reachable agents' text in that window (MAR-112/113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
@@ -3583,31 +3584,36 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
             "with default \"docs/operations\" (MAR-113 AC-7)")
 
     def test_c4_component_triad_count_advanced(self):
-        """AC-7 sub-check 1: the triad-count sentence contains '8 active
-        triads (24 agents)'; the pre-change '7 active triads (21 agents)' is
-        gone."""
+        """AC-7 sub-check 1: the triad-count sentence reflects the current
+        epic state. MAR-113 landed '8 active triads (24 agents)'; MAR-117 is
+        a later producer child and lands the superseding arithmetic directly
+        ('9 active triads (27 agents in triads)'), per its own spec — so this
+        assertion is updated in place to the superseding truth rather than
+        asserting stale text."""
         body = self._c4_component()
-        self.assertIn("8 active triads (24 agents)", body,
-                      "c4-component.md must advance to '8 active triads "
-                      "(24 agents)' (MAR-113 AC-7)")
-        self.assertNotIn("7 active triads (21 agents)", body,
+        self.assertIn("9 active triads (27 agents", body,
+                      "c4-component.md must advance to '9 active triads "
+                      "(27 agents in triads)' (MAR-113 AC-7, superseded by "
+                      "MAR-117)")
+        self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
-                         "'7 active triads (21 agents)' text (MAR-113 AC-7)")
+                         "'8 active triads (24 agents)' text (MAR-113 AC-7)")
 
     def test_c4_component_reachable_agents_advanced(self):
         """AC-7 sub-check 2: in a bounded window AFTER the triad-count
-        sentence, '27 reachable agents' is present and '24 reachable agents'
-        is absent from that same window -- a partial edit (triad line bumped,
-        reachable line left stale) must fail loudly."""
+        sentence, the reachable-agents figure matches the current epic state
+        -- a partial edit (triad line bumped, reachable line left stale)
+        must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("8 active triads (24 agents)")
+        triad_idx = body.index("9 active triads (27 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("27 reachable agents", window,
-                      "c4-component.md must advance to '27 reachable agents' "
-                      "in the window after the triad-count sentence (MAR-113 AC-7)")
-        self.assertNotIn("24 reachable agents", window,
+        self.assertIn("30 reachable agents", window,
+                      "c4-component.md must advance to '30 reachable agents' "
+                      "in the window after the triad-count sentence "
+                      "(MAR-113 AC-7, superseded by MAR-117)")
+        self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
-                         "'24 reachable agents' text in that window (MAR-113 AC-7)")
+                         "'27 reachable agents' text in that window (MAR-113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
