@@ -191,6 +191,10 @@ subsection and the `e2e` bullet for how each is offered.
   location /acs:create-principles bootstraps and maintains (engineering
   principles and rationale). Write the key only when the user changes it;
   explicit `null` disables (acs does not maintain the set for this repo).
+- `standards_path` — default `"docs/standards"` (repo-relative): the
+  location /acs:create-standards bootstraps and maintains (coding
+  standards and conventions). Write the key only when the user changes it;
+  explicit `null` disables (acs does not maintain the set for this repo).
 - `suites` — default `{}` (repo-relative object): the single source of truth
   for configured test commands read by /acs:test. Each entry shares the `e2e`
   shape (`command` required; optional `setup`/`teardown`/`per_iteration`). The

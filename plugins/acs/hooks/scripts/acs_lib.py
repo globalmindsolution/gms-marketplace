@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles"]
+PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards"]
 WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
 UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test"]
@@ -55,6 +55,7 @@ PRODUCT_TICKET_TITLES = {
     "create-quality": "Product quality doc set",
     "create-operations": "Product operations doc set",
     "create-principles": "Product principles doc set",
+    "create-standards": "Product standards doc set",
 }
 
 # Placeholder vocabulary per inline format field (docs/requirements/configuration.md).
@@ -301,6 +302,7 @@ DEFAULT_SETTINGS = {
     "quality_path": "docs/quality",
     "operations_path": "docs/operations",
     "principles_path": "docs/principles",
+    "standards_path": "docs/standards",
     "suites": {},
     "tracker": {"provider": "local"},
     "models": {},
