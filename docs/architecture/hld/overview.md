@@ -40,8 +40,7 @@ plugins distributed from this repository. Plugins differ in shape:
    layer is forced to leave deterministic footprints the script layer gates on.
 2. **The ticket partition is the only inter-step channel** — coordinators are
    stateless between steps; `/ship`'s context can be cleared at any boundary.
-3. **Conformance chain** PRD → architecture → design → specs → code, each
-   level verified against the one above by a fresh context.
+3. **Conformance chain** PRD → architecture → principles → standards → design → specs → code, each level verified against the one above by a fresh context.
 4. **Fail-safe prose**: a skill that forgets its post-hook leaves
    `runs[-1] = in_progress` — the next gate reads "not completed"; nothing
    unlocks by omission.

@@ -17,6 +17,11 @@ advisory findings in this skill; every `<finding>` carries
 
 Use these exact `dimension` attribute values:
 
+(`standards` is also a valid `<finding>` `dimension` value — used
+exclusively for the standards sub-check emitted under dimensions 2
+(`consistency`) and 4 (`nfr`) below, per `design.md:484-490`; it never
+gets its own numbered check-dimension entry.)
+
 1. `alternatives` — "Options considered" holds at least 2 genuinely viable
    options per major decision the plan identified, each with concrete
    trade-offs against the NFRs and constraints. An option nobody could choose
@@ -30,6 +35,23 @@ Use these exact `dimension` attribute values:
    `### Architecture conformance` subsection yourself by diffing the design's
    claims against the doc set — an undeclared doc-set impact, or a declared
    change that isn't actually needed, is a finding.
+
+   **Standards conformance (sub-check).** When `standards_path` is set
+   (via the task's `<constraints>`) and the directory it names exists,
+   read `standards/` at `standards_path` as the source of truth and check
+   that the design decisions this design.md **introduces** (its Options
+   considered, Decision & rationale, and Architecture sections — content
+   this design run authored, not content merely referenced from an
+   earlier design) do not conflict with it. Changeset-scoped verdict: a
+   design decision **introduced** by this design that deviates from
+   `standards/` is `<finding severity="blocking" dimension="standards">`
+   — never a silent pass. A **pre-existing** deviation (one this design
+   references or extends but does not itself introduce or change) is an
+   explicit flagged divergence note, surfaced but not blocking (mirrors
+   `code-verifier.md:93-97`'s product-doc intent-divergence note shape).
+   Graceful degradation: when `standards_path` is unset or the directory
+   it names is absent, the standards sub-check is N/A — never a false
+   block; the rest of this dimension's checks continue unaffected.
 3. `feasibility` — implementable with the documented tech stack
    (`hld/tech-stack.md`) and the repo as it exists: no dependency on
    components, services, or libraries that neither exist nor appear in the
@@ -39,6 +61,14 @@ Use these exact `dimension` attribute values:
    bounds where the ticket implies them), plus every other NFR on the plan's
    checklist. Hand-waving ("we should be careful about security") is a
    finding.
+
+   **Standards conformance (sub-check).** When `standards_path` is set,
+   `standards/` content that is itself NFR-shaped (testing-conventions and
+   review-checklist criteria touching performance/security/operability
+   posture) is checked against the design decisions this design.md
+   introduces, using the identical changeset-scoped block/surface and
+   graceful-degradation rule spelled out in full under dimension 2
+   (`consistency`) above — not repeated here.
 5. `completeness` — all six required sections present and substantive: run
    `grep -n '^## ' design.md` and compare against Context & constraints,
    Options considered, Decision & rationale, Architecture, Impact & risks,
@@ -85,9 +115,11 @@ you ever perform.
 Your prompt contains an XML `<task skill="create-design" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including `design.md`, the iteration's plan, `ticket.json`, and the
-architecture docs), `<constraints>`, and optional `<context>` (prior
-findings). You share NO memory with the coordinator, planner, or executor —
-read everything yourself from the `<inputs>` paths.
+architecture docs), `<constraints>` (including `standards_path` when
+`settings.standards_path` is configured — see dimensions 2/4 above), and
+optional `<context>` (prior findings). You share NO memory with the
+coordinator, planner, or executor — read everything yourself from the
+`<inputs>` paths.
 
 ## Output contract
 

@@ -81,7 +81,7 @@ enables git-worktree-based parallel work.
 | TDD | `/code` implements via test-driven development against a configurable coverage target (default 90%). |
 | Design gate | Architecturally significant tickets (`needs_design`) get an approved `design.md` before specs; specs and code are verified against it. |
 | Living architecture | The product architecture doc set (HLD: C4 views; LLD: sequence-diagram flows) in the consumer repo frames every design; `/code` keeps it current as changes land. |
-| PRD at the top | The PRD (vision, goals, features, product NFRs) is the root of the conformance chain **PRD → architecture → design → specs → code**; tickets trace to it, divergence is flagged. |
+| PRD at the top | The PRD (vision, goals, features, product NFRs) is the root of the conformance chain **PRD → architecture → principles → standards → design → specs → code**; tickets trace to it, divergence is flagged. |
 | Automatic review loop | The `code-verifier` reviews the whole changeset (business logic, quality, architecture, security, …); blocking findings loop back through plan → execute automatically, max 3 iterations. |
 | Human merge gate | `/merge-pr` only runs on explicit user invocation, after the user has reviewed the PR themselves. |
 

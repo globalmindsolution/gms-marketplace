@@ -648,8 +648,10 @@ tickets where the change is architecturally significant.
   the **parent epic's** `design.md` (cross-partition read,
   [workspace-and-state.md](workspace-and-state.md)).
 - The `create-design-verifier` checks: alternatives genuinely weighed,
-  consistency with the existing codebase and docs, feasibility, NFR
-  coverage — all findings block, same 3-iteration reflection cap.
+  consistency with the existing codebase and docs (including conformance
+  with the `standards/` doc set at `standards_path` when configured),
+  feasibility, NFR coverage — all findings block, same 3-iteration
+  reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
   `create-design-verifier`.
 - The planner phase also runs the shared ADR-0012 design-time
@@ -728,7 +730,9 @@ Purpose: implement the specs in the consumer repo using TDD.
   `settings.json` ([configuration.md](configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,
   **features** (does it satisfy the ticket/specs), **quality**, **technical
-  standards**, **architecture**, **system design**, **security**,
+  standards** (conformant with the `standards/` doc set at `standards_path`
+  when configured; falls back to documented architecture when unset),
+  **architecture**, **system design**, **security**,
   **documentation** (affected docs updated and consistent with the code), and
   **Simplicity & scope** (overcomplication and out-of-scope edits are blocking)
   — in addition to spec conformance, tests, and coverage. The architecture /

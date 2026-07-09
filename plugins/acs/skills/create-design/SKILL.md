@@ -31,9 +31,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-desi
 - Parse the printed context JSON. Fields you will use: `partition` (the ticket
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
-  `architecture_path`, `prd_path`, optional `adr_path`), `models` (resolved
-  planner/executor/verifier model+effort), `reconcile`, `handoff_summary`,
-  `design`, `pipeline`, `post_hook`, `checkout_root` (consumer repo root).
+  `architecture_path`, `prd_path`, optional `adr_path`, `standards_path`),
+  `models` (resolved planner/executor/verifier model+effort), `reconcile`,
+  `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
+  (consumer repo root).
 - If `settings.models.coordinator` is set and this is a DIRECT invocation (a
   user typed `/acs:create-design`, not driven under /acs:ship): tell the user in
   one line that `models.coordinator` governs the ship coordinator's own run, not
@@ -192,12 +193,24 @@ never the executor's reasoning. It checks, each a finding `dimension`:
 
 - `alternatives` — >=2 options genuinely weighed with real trade-offs, not strawmen;
 - `consistency` — design agrees with the actual codebase and the architecture
-  doc set; the conformance subsection is accurate and complete;
+  doc set; the conformance subsection is accurate and complete; also runs a
+  `standards` sub-check against `standards/` at `standards_path` when set,
+  emitting `dimension="standards"` findings for design decisions this
+  design.md introduces (changeset-scoped block/surface, graceful
+  degradation when unset);
 - `feasibility` — implementable with the documented tech stack and constraints;
 - `nfr` — security and performance (and other applicable NFRs) concretely
-  addressed, not hand-waved;
+  addressed, not hand-waved; the same `standards` sub-check also applies to
+  NFR-shaped `standards/` content (testing-conventions, review-checklist
+  performance/security/operability criteria);
 - `completeness` — all required sections present and substantive; Mermaid
   diagrams present for new/changed flows and syntactically plausible.
+
+When `settings.standards_path` is set, it is passed into the verify
+`<task>`'s `<constraints>` (present only when set) — mirroring how
+`code/SKILL.md` conditionally passes `e2e_command`/`e2e_setup`/
+`e2e_teardown`/`e2e_per_iteration` and how this skill's own Execute phase
+conditions `### Decision records` on `settings.adr_path` being set.
 
 ALL findings block — zero findings = pass. On findings: persist the verify XML,
 feed every finding into the next iteration's plan `<task>` (as `<constraints>`/

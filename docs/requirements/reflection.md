@@ -121,7 +121,9 @@ Requirements:
 
 > **Note:** the `code-verifier` carries the broadest verification scope: in
 > addition to spec conformance, tests, and coverage, it reviews the whole
-> changeset (business logic, features, quality, technical standards,
+> changeset (business logic, features, quality, technical standards
+> (conformant with the `standards/` doc set at `standards_path` when
+> configured; falls back to documented architecture when unset),
 > architecture, system design, security, documentation, and
 > **Simplicity & scope** — overcomplication and out-of-scope edits are
 > blocking). There is no separate review skill — see [skills.md](skills.md).
