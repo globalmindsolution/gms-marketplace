@@ -25,7 +25,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   `## Verifier checklist` — it is a floor, never a ceiling). READ EVERY ONE.
   Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
-  plus `architecture_path` and `adr_path` when set;
+  plus `architecture_path`, `adr_path`, and `standards_path` when set;
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
 
@@ -67,7 +67,23 @@ ALL of the following — every dimension that fails produces blocking findings:
 6. **Quality** — readable, maintainable, no dead code, no debug leftovers,
    no commented-out blocks, sensible naming.
 7. **Technical standards** — repo conventions followed, lint clean (run it),
-   idiomatic for the stack, commit messages match the configured format.
+   idiomatic for the stack, commit messages match the configured format. When
+   `standards_path` is set (present in `<constraints>`) and the directory
+   exists, `standards/` at `standards_path` is the source of truth for this
+   dimension in addition to the checks above — read it and check the
+   changeset against it. When `standards_path` is unset, or set but the
+   directory does not exist on disk, the standards sub-check is N/A and this
+   dimension falls back to its existing documented architecture / repo-
+   conventions behavior — never a false block. A standards deviation on a
+   line the changeset introduces or changes (per
+   `git diff <default_branch>...HEAD`) is
+   `severity="blocking" dimension="technical standards"` — no zero-findings
+   verdict while such a finding is unwaived. A deviation found only on a
+   pre-existing (untouched) line is reported as an explicit flagged
+   divergence note — never a blocking finding, mirroring the flagged-
+   divergence-note shape used for intent divergence in the Documentation
+   dimension below; it is visible in the verify report but never gates the
+   pass/fail verdict.
 8. **Architecture** — component boundaries and dependencies match `design.md`
    when one exists (own or parent); otherwise the documented architecture and
    sane structure. Unapproved new components/integrations are findings.

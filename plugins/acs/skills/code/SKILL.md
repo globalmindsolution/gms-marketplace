@@ -40,6 +40,9 @@ Parse the printed context JSON. Fields you will use:
   use the parent epic's design); the changeset is judged against it.
 - `settings` — you need `test_coverage_percent` (the hard coverage gate),
   `architecture_path`, `requirements_path`, `adr_path` (default `docs/adr`; `null` disables),
+  `standards_path` (default `docs/standards`; `null` disables — when set,
+  pass `<constraint name="standards_path">` to the **verifier only**, not to
+  executors),
   `formats.branch_name`,
   `formats.commit_message`, and `e2e` (may be unset — when set, pass
   `<constraint name="e2e_command">`/`e2e_setup`/`e2e_teardown`/
@@ -452,7 +455,10 @@ Dimensions, each producing blocking findings on failure:
   criteria, not just the letter of the specs.
 - **Quality** — readable, maintainable, no dead code, no debug leftovers.
 - **Technical standards** — repo conventions, lint clean, idiomatic for the
-  stack.
+  stack; `standards_path` is included in the verifier's `<constraints>`
+  when set, so `standards/` at that path is checked as this dimension's
+  source of truth (changeset-scoped: introduced violations block,
+  pre-existing ones surface as notes).
 - **Architecture & system design** — judged against `design.md` when one
   exists (own or parent); otherwise against the documented architecture and
   sane structure.
