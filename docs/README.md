@@ -14,8 +14,7 @@ cover define → specify → design → decide → **verify → release & operat
 | **Verify** | [quality/](quality/) | HOW correctness is assured — test strategy, coverage policy, the release gate |
 | **Release & operate** | [operations/](operations/) | HOW it ships and runs — release process, runbooks, observability, incident response |
 
-Conformance flows top to bottom: **PRD → architecture → design → specs → code →
-verify → release**, each level checked against the one above it. On conflict, the
+Conformance flows top to bottom: **PRD → architecture → principles → standards → design → specs → code → verify → release**, each level checked against the one above it. On conflict, the
 PRD wins on intent and prioritization, the requirements set wins on behavior, the
 relevant ADR records how the choice was settled, and a release ships only after
 the [quality](quality/) gate passes.

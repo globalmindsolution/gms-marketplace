@@ -44,6 +44,23 @@ the notes.
   defaulted by `/acs:init`'s Step-4 batch; three new coarse templates ship
   under `plugins/acs/templates/standards/`.
 
+- **Conformance-chain extension: standards conformance checked by design +
+  code verifiers (MAR-119).** `code-verifier`'s dimension 7 "Technical
+  standards" is re-anchored to read the `standards/` doc set at
+  `standards_path` as the source of truth (falls back to documented
+  architecture when unset); `create-design-verifier`'s `consistency` and
+  `nfr` dimensions gain a matching `standards` sub-check against the design
+  decisions a `design.md` introduces (`dimension="standards"` findings).
+  Both verdicts BLOCK only on changeset-introduced standards violations
+  (`severity="blocking"`) and SURFACE pre-existing violations as flagged
+  notes, never a silent waiver. `standards_path` is wired into both
+  verifiers' `<constraints>` (present only when set), mirroring
+  `architecture_path`/`adr_path`. The conformance chain extends to `PRD →
+  architecture → principles → standards → design → specs → code` across
+  `contracts.md`, `hld/overview.md`, `requirements/overview.md`,
+  `requirements/workflow.md`, and `docs/README.md`. Traces **G10**
+  (standards conformance & repo standardization).
+
 ## [0.3.8] - 2026-07-07
 
 ### Added

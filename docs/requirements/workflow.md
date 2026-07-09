@@ -272,8 +272,7 @@ flagging any requested capability that diverges from it.
   schedule stale sections for repair with the ticket; widespread drift
   triggers a recommended `/create-architecture` re-run.
 
-The conformance chain is **PRD → architecture → design → specs → code**,
-each level verified against the one above it.
+The conformance chain is **PRD → architecture → principles → standards → design → specs → code**, each level verified against the one above it.
 
 ### Living requirements
 
