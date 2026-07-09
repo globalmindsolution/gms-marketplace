@@ -47,19 +47,19 @@ work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
-The work loop has two shapes. The **nine triad-keeping skills** (create-prd,
+The work loop has two shapes. The **ten triad-keeping skills** (create-prd,
 create-architecture, create-project, create-quality, create-operations,
-create-principles, create-design, create-spec, code) run the full
-plan→execute→verify reflection loop, spawning a separate planner, executor,
-and verifier subagent per phase — so **9 active triads (27 agents in
-triads)**. The **three apply-work skills** (create-ticket, create-pr,
+create-principles, create-standards, create-design, create-spec, code) run
+the full plan→execute→verify reflection loop, spawning a separate planner,
+executor, and verifier subagent per phase — so **10 active triads (30 agents
+in triads)**. The **three apply-work skills** (create-ticket, create-pr,
 merge-pr) run **inline** (MAR-60): the coordinator performs the work
 directly or delegates to **at most one** executor subagent, and **never
 spawns a planner or verifier** in any lane. Their correctness is gated
 otherwise — create-ticket by its schema plus the Step-2 user-confirmation
 gate, create-pr/merge-pr verifier-gated upstream by `/code`'s verifier
 (`code-state.json` `states.verifier_passed == true`). With the 3 reachable
-apply-work executors that is **30 reachable agents**; the 6 plan/verify
+apply-work executors that is **33 reachable agents**; the 6 plan/verify
 files of the apply-work skills remain on disk but are orphaned.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**

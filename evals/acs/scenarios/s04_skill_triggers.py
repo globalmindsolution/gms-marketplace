@@ -74,6 +74,10 @@ CASES = [
      "Author and maintain the engineering principles and rationale doc set "
      "for this product.",
      "create-principles"),
+    ("create-standards", True,
+     "Author and maintain the coding standards and conventions doc set — "
+     "style, naming, and the review checklist — for this product's codebase.",
+     "create-standards"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
      "create-ticket"),

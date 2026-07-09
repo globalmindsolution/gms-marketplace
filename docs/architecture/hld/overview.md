@@ -27,7 +27,7 @@ plugins distributed from this repository. Plugins differ in shape:
 |-----------|----------------------|
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
-| Verification independence | Separate planner/executor/verifier contexts on the nine triad-keeping skills (create-prd, create-architecture, create-project, create-quality, create-operations, create-principles, create-design, create-spec, code); verifiers anchor on gated upstream contracts, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
+| Verification independence | Separate planner/executor/verifier contexts on the ten triad-keeping skills (create-prd, create-architecture, create-project, create-quality, create-operations, create-principles, create-standards, create-design, create-spec, code); verifiers anchor on gated upstream contracts, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
 | Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket. |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; per-run metrics. |

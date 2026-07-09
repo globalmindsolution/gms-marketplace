@@ -1,12 +1,13 @@
 # Skill Requirements
 
-Twenty skills in total: the bootstrap skill (`/init`), the umbrella command
-(`/ship`), the utility skills — the session-handoff helper (`/handoff`), the
-update assistant (`/update`), the local-hooks installer (`/install-hooks`), the
-read-only PM metrics dashboard (`/metrics`), the read-only usage dashboard
-(`/usage`), and the standing suite runner (`/acs:test`) — the product-level
-`/create-prd`, `/create-architecture`, `/create-project`, `/create-quality`,
-`/create-operations`, and `/create-principles`, and six workflow skills (one
+Twenty-one skills in total: the bootstrap skill (`/init`), the umbrella
+command (`/ship`), the utility skills — the session-handoff helper
+(`/handoff`), the update assistant (`/update`), the local-hooks installer
+(`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
+read-only usage dashboard (`/usage`), and the standing suite runner
+(`/acs:test`) — the product-level `/create-prd`, `/create-architecture`,
+`/create-project`, `/create-quality`, `/create-operations`,
+`/create-principles`, and `/create-standards`, and six workflow skills (one
 of them, `/create-design`, conditional).
 Every **workflow** skill MUST:
 
@@ -427,6 +428,41 @@ engineering principles and their rationale — the standing values contract
   resolved or explicitly deferred.
 - State lives in the delivery ticket's partition
   (`create-principles-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: docs-only PR via the
+  [product-level delivery rules](#product-level-delivery-tickets) — each
+  run creates its own delivery ticket; the TDD pipeline does not apply to a
+  docs-only change.
+
+## `/acs:create-standards` (product-level)
+
+Purpose: bootstrap and maintain the **product standards doc set** — coding
+standards and conventions — the concrete realization of the `principles/`
+values contract.
+
+- Product-level and **ticket-independent**: not part of the per-ticket
+  pipeline. Run once after `/acs:create-architecture` (and, ideally, after
+  `/acs:create-principles` — see below); re-run to refresh after a
+  coding-standards or conventions change.
+- MUST take the **PRD**, the full `architecture_path` set, and the
+  `principles_path` doc set (when set and present) as upstream inputs — this
+  is the **inverse** of `/acs:create-principles`, which has no cross-read on
+  `standards/`. When `principles_path` is unset (`null`) or the set is
+  absent, `/acs:create-standards` notes the grounding step as not applicable
+  and proceeds — it never hard-blocks on a missing principles set.
+- Produces the doc set in the consumer repo at `standards_path` (default
+  `docs/standards` — [configuration.md](configuration.md)):
+  `coding-standards.md`, `conventions.md` (naming/layout/formatting),
+  `review-checklist.md`. Unset `standards_path` (`null`) means acs does not
+  maintain this set for the repo.
+- Runs the full Reflection cycle — `create-standards-planner`,
+  `create-standards-executor`, `create-standards-verifier`. The planner
+  phase also runs the shared ADR-0012 design-time doc-consistency step,
+  surfacing gap/staleness findings through the existing clarification ledger;
+  the verifier's `consistency` dimension confirms any such findings were
+  resolved or explicitly deferred.
+- State lives in the delivery ticket's partition
+  (`create-standards-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: docs-only PR via the
   [product-level delivery rules](#product-level-delivery-tickets) — each
