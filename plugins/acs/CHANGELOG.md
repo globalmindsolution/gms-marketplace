@@ -30,6 +30,20 @@ the notes.
   defaulted by `/acs:init`'s Step-4 batch; one new coarse template ships
   under `plugins/acs/templates/principles/`.
 
+- **`/acs:create-standards` skill + `standards_path` settings key
+  (MAR-118).** A new product-level, triad-keeping skill that bootstraps and
+  maintains the consumer `standards/` doc set — `coding-standards.md`,
+  `conventions.md` (naming/layout/formatting), and `review-checklist.md` —
+  reading the PRD, the `architecture_path` set, and the `principles_path`
+  doc set (when set and present) as upstream, gracefully degrading when
+  `principles_path` is unset or absent (`create-standards-planner`/
+  `-executor`/`-verifier`, `create-standards-state.json`), delivered as a
+  docs-only PR on its own delivery ticket. `standards_path` is added to
+  `settings.schema.json` (optional `string | null`, default
+  `docs/standards`, mirroring `principles_path`/`operations_path`) and
+  defaulted by `/acs:init`'s Step-4 batch; three new coarse templates ship
+  under `plugins/acs/templates/standards/`.
+
 ## [0.3.8] - 2026-07-07
 
 ### Added
