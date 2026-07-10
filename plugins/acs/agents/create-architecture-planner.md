@@ -91,8 +91,10 @@ Required sections:
   and diagram type: `hld/overview.md`; `hld/c4-context.md` (`C4Context`),
   `hld/c4-container.md` (`C4Container`), `hld/c4-component.md` (`C4Component`) — C4
   levels 1–3 only, level 4 is out of scope; `hld/data-model.md` (`erDiagram`);
-  `hld/deployment.md` (`flowchart`); `hld/tech-stack.md`; `lld/flows/<flow>.md`
-  (`sequenceDiagram`, one file per flow); `lld/contracts.md`.
+  `hld/deployment.md` (`flowchart`); `hld/tech-stack.md`;
+  `hld/project-structure.md` (`flowchart`, directory-tree style, derived from the
+  C4 container/component views); `lld/flows/<flow>.md` (`sequenceDiagram`, one
+  file per flow); `lld/contracts.md`.
 - **Flow selection** — each flow with a one-line purpose and its sequence-diagram
   participants, every participant named identically to a C4 container/component.
 - **Executor task breakdown** — discrete tasks, each with objective, exact input file
@@ -104,7 +106,8 @@ Required sections:
   `formats.commit_message`, push, `gh` PR against the default branch with the `ACS` label.
 - **Risks & open decisions** — anything that could invalidate the design.
 - **Verifier checklist** — enumerate every check dimension the verifier must apply this
-  iteration: doc-set-completeness, prd-coverage, codebase-match, mermaid-diagrams,
+  iteration: doc-set-completeness (including `hld/project-structure.md`),
+  prd-coverage, codebase-match, mermaid-diagrams,
   internal-consistency, diagram-prose-agreement, hld-lld-consistency, plan-conformance,
   docs-only-changeset — plus iteration-specific checks (prior findings fixed).
 

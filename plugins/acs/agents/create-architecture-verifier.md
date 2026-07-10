@@ -25,8 +25,9 @@ coordinator: read every input yourself.
 
 1. **doc-set-completeness** — all planned files exist under `architecture_path`:
    `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`, `hld/c4-component.md`,
-   `hld/data-model.md`, `hld/deployment.md`, `hld/tech-stack.md`, every planned
-   `lld/flows/<flow>.md`, `lld/contracts.md`. Verify with `ls`/Glob, never the execute
+   `hld/data-model.md`, `hld/deployment.md`, `hld/tech-stack.md`,
+   `hld/project-structure.md`, every planned `lld/flows/<flow>.md`,
+   `lld/contracts.md`. Verify with `ls`/Glob, never the execute
    report. No C4 level 4 doc — it is deliberately out of scope.
 2. **prd-coverage** — the design satisfies the PRD: every goal, product-level NFR, and
    constraint in `prd.md` is addressed somewhere in the doc set; nothing contradicts the
@@ -46,6 +47,10 @@ coordinator: read every input yourself.
 5. **internal-consistency** — the docs agree with each other: container names and
    technology labels match `hld/tech-stack.md`; `hld/data-model.md` entities match the
    components that own them; deployment nodes host containers that exist.
+   The `hld/project-structure.md` layout traces to the C4 container/component
+   views — every top-level directory/grouping node corresponds to a container or
+   component named in `hld/c4-container.md` or `hld/c4-component.md`; no invented
+   directory.
 6. **diagram-prose-agreement** — within each doc, the prose matches its diagram: same
    element names, same counts, same relationships. A diagram edited without its prose
    (or vice versa) is a finding.

@@ -34,6 +34,10 @@ coordinator: read the plan and every input file yourself before writing anything
    - `hld/data-model.md` — entities and relationships as a Mermaid `erDiagram`.
    - `hld/deployment.md` — runtime and infrastructure topology (Mermaid `flowchart`).
    - `hld/tech-stack.md` — languages, frameworks, conventions.
+   - `hld/project-structure.md` — the intended repo layout derived from the
+     C4 container/component views, as a Mermaid `flowchart` in directory-tree
+     style (nested nodes/subgraphs mirroring directory nesting, one node per
+     directory/file grouping); quote node labels per rule 3 below.
    - `lld/flows/<flow>.md` — one Mermaid `sequenceDiagram` per planned flow.
    - `lld/contracts.md` — interface/API contracts between components.
 3. Every diagram is a fenced ```mermaid block — diffable, GitHub-rendered. No images,
@@ -50,6 +54,10 @@ coordinator: read the plan and every input file yourself before writing anything
    `actor` in every sequence diagram must be a container or component named identically
    in `hld/c4-container.md` or `hld/c4-component.md`; every interface in
    `lld/contracts.md` must belong to a component that exists in the C4 views.
+   `hld/project-structure.md`'s layout MUST be traceable to the same C4 views —
+   every top-level directory/grouping node corresponds to a container or
+   component named in `hld/c4-container.md` or `hld/c4-component.md`; never
+   invent a directory the C4 views do not imply.
 5. Existing codebase: ground every claim in the actual code — verify each documented
    component, datastore, and framework against real files before writing it; never
    invent components. Greenfield: every element traces to a PRD feature, NFR, or

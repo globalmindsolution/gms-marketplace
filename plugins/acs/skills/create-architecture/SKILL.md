@@ -101,6 +101,7 @@ The executor writes EXACTLY this doc set under
 | `hld/data-model.md` | entities and relationships | `erDiagram` |
 | `hld/deployment.md` | runtime and infrastructure topology | `flowchart` |
 | `hld/tech-stack.md` | languages, frameworks, conventions | — |
+| `hld/project-structure.md` | intended repo layout derived from the C4 container/component views — the canonical target `/acs:standardize-project` audits an existing repo against | `flowchart` (directory-tree style) |
 | `lld/flows/<flow>.md` | one file per key runtime flow | `sequenceDiagram` |
 | `lld/contracts.md` | interface/API contracts between components | — |
 
@@ -314,7 +315,7 @@ MANDATORY final step — never skipped, also on failure:
   "states": {
     "architecture": {
       "path": "docs/architecture",
-      "hld": ["overview.md", "c4-context.md", "c4-container.md", "c4-component.md", "data-model.md", "deployment.md", "tech-stack.md"],
+      "hld": ["overview.md", "c4-context.md", "c4-container.md", "c4-component.md", "data-model.md", "deployment.md", "tech-stack.md", "project-structure.md"],
       "lld": ["contracts.md", "flows/checkout.md", "flows/user-signup.md"]
     },
     "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7", "branch": "task/SHOP-2-product-architecture-doc-set"}

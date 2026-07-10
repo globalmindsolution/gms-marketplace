@@ -61,6 +61,17 @@ the notes.
   `requirements/workflow.md`, and `docs/README.md`. Traces **G10**
   (standards conformance & repo standardization).
 
+- **`/acs:create-architecture` gains a `hld/project-structure.md` output
+  (MAR-120).** The Output-contract table gains a standing row: the intended
+  repo layout derived from the C4 container/component views, rendered as a
+  Mermaid `flowchart` in directory-tree style — the canonical target
+  `/acs:standardize-project` will audit an existing repo against. The
+  addition ripples across `create-architecture-planner`/`-executor`/
+  `-verifier` (Target doc set, doc-set list, and doc-set-completeness +
+  C4-traceability checks) and is purely additive — every pre-existing
+  Output-contract row and the Re-run mode's additive semantics are
+  unchanged. Traces **G10**.
+
 ## [0.3.8] - 2026-07-07
 
 ### Added
