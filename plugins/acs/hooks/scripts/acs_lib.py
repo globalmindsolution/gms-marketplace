@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards"]
-WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr"]
+WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr", "standardize-project"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
 UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test"]
 
@@ -57,6 +57,13 @@ PRODUCT_TICKET_TITLES = {
     "create-principles": "Product principles doc set",
     "create-standards": "Product standards doc set",
 }
+
+# Delivery-ticket predicate: PRODUCT_SKILLS plus standardize-project (D5 Option B —
+# standardize-project gets allocate/in_review/pr_created semantics WITHOUT joining
+# PRODUCT_SKILLS's doc-set-producer semantics, which stays unchanged).
+DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
+DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
+                               **{"standardize-project": "Brownfield project standardization"})
 
 # Placeholder vocabulary per inline format field (docs/requirements/configuration.md).
 FORMAT_PLACEHOLDERS = {
@@ -283,6 +290,40 @@ def recommend_stakes(paths, settings):
             if fnmatch.fnmatch(path, pattern):
                 return "high"
     return "normal"
+
+
+def classify_additive_diff(diff_output, allowlist_globs):
+    """Pure additive-only classifier for `git diff --name-status` text (D6 Option A
+    verifier half): returns [] when compliant, else a list of {status, path, reason}
+    violation dicts — A always compliant, M compliant only inside allowlist_globs,
+    R/D always violate, any unrecognized status token fails closed.
+    """
+    globs = list(allowlist_globs or [])
+    violations = []
+    for line in (diff_output or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        status = parts[0]
+        prefix = status[0] if status else ""
+        if prefix == "A":
+            continue
+        if prefix == "M":
+            path = parts[1] if len(parts) > 1 else ""
+            if any(fnmatch.fnmatch(path, pattern) for pattern in globs):
+                continue
+            violations.append({"status": status, "path": path, "reason": "modify-outside-allowlist"})
+        elif prefix == "R":
+            path = parts[2] if len(parts) > 2 else (parts[1] if len(parts) > 1 else "")
+            violations.append({"status": status, "path": path, "reason": "rename"})
+        elif prefix == "D":
+            path = parts[1] if len(parts) > 1 else ""
+            violations.append({"status": status, "path": path, "reason": "delete"})
+        else:
+            path = parts[-1] if len(parts) > 1 else (parts[0] if parts else "")
+            violations.append({"status": status, "path": path, "reason": "unrecognized-status"})
+    return violations
 
 
 DEFAULT_SETTINGS = {
@@ -1645,7 +1686,7 @@ def gate_merge_pr(ctx, payload):
         return None
     ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "merge-pr")
     pipeline = load_pipeline(tdir, ticket_id)
-    candidates = ["create-pr"] + PRODUCT_SKILLS if pipeline.get("flow") != "product" else PRODUCT_SKILLS + ["create-pr"]
+    candidates = ["create-pr"] + DELIVERY_TICKET_SKILLS if pipeline.get("flow") != "product" else DELIVERY_TICKET_SKILLS + ["create-pr"]
     for skill in candidates:
         state = read_json(state_path(tdir, skill))
         if isinstance(state, dict):
@@ -1658,6 +1699,20 @@ def gate_merge_pr(ctx, payload):
     )
 
 
+def gate_standardize_project(ctx, payload):
+    """Pre-hook gate for /acs:standardize-project — requires an architecture doc set
+    to audit against (mirrors gate_create_project); principles_path/standards_path
+    being unset or absent does NOT hard-block (graceful degradation)."""
+    root = ctx["checkout_root"]
+    arch = os.path.join(root, ctx["settings"].get("architecture_path", "docs/architecture"))
+    tech_stack = os.path.join(arch, "hld", "tech-stack.md")
+    if not os.path.isfile(tech_stack):
+        raise GateError(
+            "no architecture doc set found at %s (expected hld/tech-stack.md) — run /acs:create-architecture first." % arch
+        )
+    return None
+
+
 GATES = {
     "create-prd": gate_create_prd,
     "create-architecture": gate_create_architecture,
@@ -1668,6 +1723,7 @@ GATES = {
     "code": gate_code,
     "create-pr": gate_create_pr,
     "merge-pr": gate_merge_pr,
+    "standardize-project": gate_standardize_project,
 }
 
 
@@ -1888,7 +1944,7 @@ def run_post(skill):
             if skill == "create-pr" and ticket.get("status") != "done":
                 ticket["status"] = "in_review"
                 save_ticket(tdir, ticket)
-            if skill in PRODUCT_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
+            if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
                 ticket["status"] = "in_review"
                 save_ticket(tdir, ticket)
             if skill == "merge-pr":
@@ -1900,7 +1956,7 @@ def run_post(skill):
     update_metrics(
         ctx["workspace"], ctx["repo_id"], run_entry=entry,
         pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
-                    and skill in (["create-pr"] + PRODUCT_SKILLS)),
+                    and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
         pr_merged=(skill == "merge-pr" and status == "completed"),
         pr_number=pr_number,
     )

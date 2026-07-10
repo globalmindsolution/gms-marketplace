@@ -207,6 +207,68 @@ class TestGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
 
 
+class TestStandardizeProjectDelivery(AcsWorkspaceCase):
+    """MAR-121 spec 01: standardize-project gate + delivery-ticket routing
+    (allocate/in_review/pr_created/merge-pr), and the R1 non-reproduction proof."""
+
+    def test_gate_blocks_without_architecture(self):
+        result = self.pre("standardize-project")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("create-architecture", result.stderr)
+
+    def test_gate_passes_and_does_not_reproduce_r1(self):
+        hld = os.path.join(self.repo, "docs", "architecture", "hld")
+        os.makedirs(hld)
+        with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
+            fh.write("# tech stack")
+        result = self.pre("standardize-project")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("KeyError", result.stderr)
+
+    def test_allocate_works_for_standardize_project(self):
+        out = self.run_script("skill-start.py", "--skill", "standardize-project", "--allocate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        ticket_id = json.loads(out.stdout)["ticket_id"]
+        ticket = lib.load_ticket(self.tdir(ticket_id))
+        self.assertEqual(ticket["type"], "task")
+        self.assertEqual(ticket["title"], lib.DELIVERY_TICKET_TITLES["standardize-project"])
+        self.assertEqual(ticket["title"], "Brownfield project standardization")
+
+    def test_allocate_rejected_for_a_non_delivery_skill(self):
+        out = self.run_script("skill-start.py", "--skill", "code", "--allocate")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("only valid for", out.stderr)
+
+    def test_post_flips_ticket_in_review(self):
+        t = self.new_ticket("Audit", "task")
+        self.start("standardize-project", t)
+        self.post("standardize-project", t,
+                  {"status": "completed",
+                   "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}})
+        ticket = lib.load_ticket(self.tdir(t))
+        self.assertEqual(ticket["status"], "in_review")
+
+    def test_post_bumps_pr_created_metric(self):
+        t = self.new_ticket("Audit", "task")
+        self.start("standardize-project", t)
+        self.post("standardize-project", t,
+                  {"status": "completed",
+                   "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}})
+        with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
+            metrics = json.load(fh)
+        self.assertEqual(metrics["prs"]["created"], 1)
+        self.assertIn(1, metrics["prs"]["created_pr_numbers"])
+
+    def test_merge_pr_finds_standardize_project_pr(self):
+        t = self.new_ticket("Audit", "task")
+        self.start("standardize-project", t)
+        self.post("standardize-project", t,
+                  {"status": "completed",
+                   "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}})
+        result = self.pre("merge-pr", args_text=t)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 class TestPipelineSequence(AcsWorkspaceCase):
     """The full gate chain: epic -> child -> design -> spec -> code -> pr -> merge."""
 
