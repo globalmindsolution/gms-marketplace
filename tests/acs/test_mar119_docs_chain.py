@@ -40,6 +40,7 @@ SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
 BASELINE_FLOWS = {
     "hook-gated-skill-run.md",
     "ship-pipeline.md",
+    "standardize-project.md",
     "tabp-screening-state-write.md",
     "tabp-usage-read.md",
     "ticket-lifecycle.md",
