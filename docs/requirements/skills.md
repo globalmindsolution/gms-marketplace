@@ -311,6 +311,9 @@ living system documentation the whole pipeline designs and verifies against.
   - `hld/data-model.md` — entities and relationships (ER diagrams);
   - `hld/deployment.md` — runtime and infrastructure topology;
   - `hld/tech-stack.md` — languages, frameworks, conventions;
+  - `hld/project-structure.md` — the intended repo layout derived from the
+    C4 container/component views, the canonical target
+    `/acs:standardize-project` audits an existing repo against;
   - `lld/flows/<flow>.md` — **sequence diagrams** for the key runtime
     flows, one file per flow — bootstrapped for the main flows (selected by
     the planner, confirmed with the user) and grown ticket by ticket;
