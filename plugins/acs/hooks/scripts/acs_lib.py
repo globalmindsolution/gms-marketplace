@@ -1713,10 +1713,50 @@ def gate_standardize_project(ctx, payload):
     return None
 
 
+def _require_architecture_doc_set(ctx):
+    """Shared precondition for the doc-set producer gates: the architecture
+    set (hld/tech-stack.md) must exist before a downstream doc set is built."""
+    root = ctx["checkout_root"]
+    arch = os.path.join(root, ctx["settings"].get("architecture_path", "docs/architecture"))
+    tech_stack = os.path.join(arch, "hld", "tech-stack.md")
+    if not os.path.isfile(tech_stack):
+        raise GateError(
+            "no architecture doc set found at %s (expected hld/tech-stack.md) — run /acs:create-architecture first." % arch
+        )
+
+
+def gate_create_quality(ctx, payload):
+    """Pre-hook gate for /acs:create-quality -- requires the architecture doc set."""
+    _require_architecture_doc_set(ctx)
+    return None
+
+
+def gate_create_operations(ctx, payload):
+    """Pre-hook gate for /acs:create-operations -- requires the architecture doc set."""
+    _require_architecture_doc_set(ctx)
+    return None
+
+
+def gate_create_principles(ctx, payload):
+    """Pre-hook gate for /acs:create-principles -- requires the architecture doc set."""
+    _require_architecture_doc_set(ctx)
+    return None
+
+
+def gate_create_standards(ctx, payload):
+    """Pre-hook gate for /acs:create-standards -- requires the architecture doc set."""
+    _require_architecture_doc_set(ctx)
+    return None
+
+
 GATES = {
     "create-prd": gate_create_prd,
     "create-architecture": gate_create_architecture,
     "create-project": gate_create_project,
+    "create-quality": gate_create_quality,
+    "create-operations": gate_create_operations,
+    "create-principles": gate_create_principles,
+    "create-standards": gate_create_standards,
     "create-ticket": gate_create_ticket,
     "create-design": gate_create_design,
     "create-spec": gate_create_spec,

@@ -92,12 +92,17 @@ examples given in the requirements; exact names to confirm.
 | `/create-prd` | `/init` done; product-level — no ticket required. |
 | `/create-architecture` | `/init` done; PRD doc set exists (`prd_path`). |
 | `/create-project` | `/init` done; architecture doc set exists (greenfield only). |
+| `/create-quality` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-operations` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-principles` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-standards` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
 | `/create-ticket` | `/init` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
 | `/create-spec` | `/create-ticket` completed; ticket file exists; if the ticket (or its parent epic) needs design, that design is completed. |
 | `/code` | `/create-spec` completed; specs exist. |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |
+| `/standardize-project` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
 
 ## Runtime & resolution rules
 

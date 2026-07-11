@@ -269,6 +269,36 @@ class TestStandardizeProjectDelivery(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class TestProducerDocSetGates(AcsWorkspaceCase):
+    """MAR-122: the four doc-set producer skills (create-quality,
+    create-operations, create-principles, create-standards) had no GATES
+    entry, so run_pre's bare GATES[skill] subscript raised KeyError, caught
+    by the fail-closed handler as exit 2 "unexpected error in gate" -- these
+    drive the real dispatcher end-to-end and prove that failure mode is gone."""
+
+    PRODUCERS = ("create-quality", "create-operations", "create-principles", "create-standards")
+
+    def test_passes_with_architecture_present(self):
+        hld = os.path.join(self.repo, "docs", "architecture", "hld")
+        os.makedirs(hld)
+        with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
+            fh.write("# tech stack")
+        for skill in self.PRODUCERS:
+            with self.subTest(skill=skill):
+                result = self.pre(skill)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn("KeyError", result.stderr)
+
+    def test_blocks_without_architecture_gateerror_not_keyerror(self):
+        for skill in self.PRODUCERS:
+            with self.subTest(skill=skill):
+                result = self.pre(skill)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("create-architecture", result.stderr)
+                self.assertNotIn("KeyError", result.stderr)
+                self.assertNotIn("unexpected error in gate", result.stderr)
+
+
 class TestPipelineSequence(AcsWorkspaceCase):
     """The full gate chain: epic -> child -> design -> spec -> code -> pr -> merge."""
 
