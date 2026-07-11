@@ -48,6 +48,7 @@ context and consequences.
 | [0045](0045-dedicated-acs-e2e-workflow-runner-pair.md) | Dedicated `acs-e2e.yml` + `run-e2e.py` CI workflow pair, independent of the tests gate | Accepted |
 | [0046](0046-no-new-settings-key-for-e2e-ci-enforcement.md) | No new settings key for e2e CI enforcement — `settings.e2e`/`suites.e2e` remains the single opt-in signal | Accepted |
 | [0047](0047-init-auto-wires-e2e-required-check-report-once.md) | `/acs:init` auto-wires the e2e required check when admin, with a report-once manual-step fallback | Accepted |
+| [0048](0048-standardize-project-scaffolds-e2e-no-branch-protection.md) | `/acs:standardize-project` additively scaffolds the e2e workflow + runner for brownfield repos but never wires branch protection itself | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

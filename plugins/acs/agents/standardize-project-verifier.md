@@ -36,6 +36,13 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    returned violation — any `R` (rename), any `D` (delete), any out-of-allowlist `M`
    (modify) — is `severity="blocking" dimension="additive-only"`, naming the exact path
    and status.
+
+   *E2E-2 note:* when scaffolded, the e2e workflow+runner pair is a verbatim copy of
+   E2E-1's committed templates and lands `A`-status, needing no allowlist-mechanism
+   change to satisfy this dimension. A branch-protection mutation is a repo-config
+   change, not a file diff — it is invisible to this `git diff --name-status` check and
+   is never performed within `/acs:standardize-project`; that stays exclusively with
+   `/acs:init` Step 7f.
 2. **doc-set-authorship boundary** — no path under `<principles_path>/` or
    `<standards_path>/` appears anywhere in the diff, regardless of status (closes the gap
    the generic `A`-always-passes rule would otherwise leave open for these two specific

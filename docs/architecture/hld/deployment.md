@@ -72,3 +72,8 @@ Key facts:
   protected default branch (branch protection); that is the actual
   enforcement point — a red check then leaves `mergeStateStatus BLOCKED` and
   a PR cannot merge.
+  The same `acs-e2e.yml` topology is also reachable via
+  `/acs:standardize-project`'s additive brownfield scaffold path for a repo
+  that already exists — it adds the workflow+runner files only and never
+  wires branch protection itself, so an admin still completes the gate via
+  `/acs:init` (or the manual `gh api` command) afterward.
