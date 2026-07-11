@@ -209,26 +209,29 @@ class ChangelogMar120EntryTest(unittest.TestCase):
 
 
 class ScopeGuardTest(unittest.TestCase):
-    """AC-7/AC-8: no acs skill/agent added — the skill/agent-count doc lines
-    are unchanged; acs's own project-structure.md is not hand-authored here;
-    no shipped template."""
+    """AC-7/AC-8: MAR-120's own diff added no acs skill/agent (verified by
+    git history) and does not hand-author project-structure.md or ship a
+    template. The skill/agent-count doc lines legitimately advance as later,
+    unrelated producer children land (MAR-121: 21->22 skills, 39->42 agent
+    files, 33->36 reachable, ten->eleven triads) — these assertions track
+    the current epic state, not a frozen MAR-120 snapshot."""
 
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
-        self.assertIn("21 x SKILL.md", body)
-        self.assertIn("39 x agent .md (33 reachable)", body)
+        self.assertIn("22 x SKILL.md", body)
+        self.assertIn("42 x agent .md (36 reachable)", body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (21)", body)
-        self.assertIn("39 files, 33 reachable", body)
+        self.assertIn("acs Skills (22)", body)
+        self.assertIn("42 files, 36 reachable", body)
 
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("ten triad-keeping skills", overview)
-        self.assertIn("ten triad-keeping skills", hook_flow)
+        self.assertIn("eleven triad-keeping skills", overview)
+        self.assertIn("eleven triad-keeping skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

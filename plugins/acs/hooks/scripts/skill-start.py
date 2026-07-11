@@ -130,15 +130,15 @@ def main():
     flow = "product" if args.skill in lib.PRODUCT_SKILLS else "ticket"
 
     if args.allocate:
-        if args.skill not in lib.PRODUCT_SKILLS and args.skill != "create-ticket":
+        if args.skill not in lib.DELIVERY_TICKET_SKILLS and args.skill != "create-ticket":
             sys.stderr.write("acs skill-start: --allocate is only valid for /create-ticket and product-level skills\n")
             sys.exit(2)
         prefix = ctx["settings"]["ticket_prefix"]
         ticket_id = lib.allocate_ticket_id(workspace, repo_id, prefix)
         tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
         os.makedirs(tdir, exist_ok=True)
-        title = args.title or lib.PRODUCT_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
-        ttype = "task" if args.skill in lib.PRODUCT_SKILLS else args.ttype
+        title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
+        ttype = "task" if args.skill in lib.DELIVERY_TICKET_SKILLS else args.ttype
         ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
         lib.save_ticket(tdir, ticket)
         lib.update_index(workspace, repo_id, ticket, archived=False)

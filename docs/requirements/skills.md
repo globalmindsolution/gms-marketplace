@@ -1,25 +1,29 @@
 # Skill Requirements
 
-Twenty-one skills in total: the bootstrap skill (`/init`), the umbrella
+Twenty-two skills in total: the bootstrap skill (`/init`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
 read-only usage dashboard (`/usage`), and the standing suite runner
 (`/acs:test`) — the product-level `/create-prd`, `/create-architecture`,
 `/create-project`, `/create-quality`, `/create-operations`,
-`/create-principles`, and `/create-standards`, and six workflow skills (one
-of them, `/create-design`, conditional).
+`/create-principles`, and `/create-standards`, `/acs:standardize-project`
+(its own triad-keeping workflow skill with its own delivery ticket — **not**
+one of the product-level `<set>_path` doc-set producers just listed, and
+adds no new settings key), and six workflow skills (one of them,
+`/create-design`, conditional).
 Every **workflow** skill MUST:
 
-- Six **workflow/product skills** (create-spec, code, create-prd,
-  create-design, create-architecture, create-project) run the full Reflection
-  cycle (plan → execute → verify) with their own `<skill>-planner`,
-  `<skill>-executor`, `<skill>-verifier` subagents
-  ([reflection.md](reflection.md)). Three **apply-work skills**
-  (create-pr, merge-pr, create-ticket) run **inline** per MAR-55 invariant
-  (b): the coordinator, optionally delegating to at most one executor subagent,
-  performs the apply-work directly — no planner subagent, no verifier subagent,
-  in every lane.
+- Eleven **workflow/product skills** (create-spec, code, create-prd,
+  create-design, create-architecture, create-project, create-quality,
+  create-operations, create-principles, create-standards,
+  standardize-project) run the full Reflection cycle (plan → execute →
+  verify) with their own `<skill>-planner`, `<skill>-executor`,
+  `<skill>-verifier` subagents ([reflection.md](reflection.md)). Three
+  **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
+  per MAR-55 invariant (b): the coordinator, optionally delegating to at
+  most one executor subagent, performs the apply-work directly — no planner
+  subagent, no verifier subagent, in every lane.
 - be gated by a pre-hook and persisted by a post-hook
   ([hooks.md](hooks.md));
 - read and write **only** inside `<workspace>/<repo>/<ticket-id>/` for state
@@ -28,7 +32,7 @@ Every **workflow** skill MUST:
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn its
   planner/executor/verifier on the models and effort levels configured there
-  ([configuration.md](configuration.md#subagent-models)) (applies to the six
+  ([configuration.md](configuration.md#subagent-models)) (applies to the eleven
   triad-keeping skills only — apply-work skills run inline);
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
@@ -505,6 +509,37 @@ architecture, so the ticket pipeline works from the very first ticket.
   [product-level delivery rules](#product-level-delivery-tickets) — its own
   delivery ticket. The scaffolded CI workflow runs on this very PR —
   proving the harness green in CI, not just locally.
+
+## `/acs:standardize-project`
+
+Purpose: audit an EXISTING (brownfield) repo against the approved doc set
+and acs-readiness tooling, then additively scaffold whatever is missing —
+the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
+
+- Its own triad-keeping workflow skill with its own delivery ticket per run
+  (type `task`, titled "Brownfield project standardization") — **not** a
+  `<set>_path` doc-set producer and adds no new settings key (D5 Option B);
+  distinct from the product-level doc-set skills listed above.
+- Audits `principles_path`, `standards_path`, `hld/project-structure.md`
+  (MAR-120), and acs-readiness tooling (coverage/CI/pre-commit/e2e) against
+  the repo on disk. No refusal guard on its own set — it has none; a
+  missing or unset `principles_path`/`standards_path` gracefully degrades
+  to fewer audit inputs, never a hard block.
+- Scaffolds **additively only**: it may add missing docs/config/CI/tooling
+  files, but never moves, renames, deletes, or rewrites existing source —
+  the verifier re-runs `git diff --name-status` every iteration
+  (`classify_additive_diff`) and blocks on any status outside the
+  allowlist (D6).
+- Runs the full Reflection cycle — `standardize-project-planner`,
+  `standardize-project-executor`, `standardize-project-verifier`.
+- Structural gaps outside the additive-surface allowlist are surfaced as
+  `recommended_follow_ups` entries in the completion report and PR body —
+  **never** auto-minted as new tickets (D7).
+- State lives in the delivery ticket's partition
+  (`standardize-project-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: one reviewed PR on its own delivery ticket, zero source
+  relocations; `/acs:merge-pr` lands it like any other ticket.
 
 ## 1. `/create-ticket`
 

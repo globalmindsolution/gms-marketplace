@@ -72,6 +72,29 @@ the notes.
   Output-contract row and the Re-run mode's additive semantics are
   unchanged. Traces **G10**.
 
+- **`/acs:standardize-project` skill — brownfield audit-and-scaffold
+  (MAR-121).** A new triad-keeping workflow skill (not a `<set>_path`
+  doc-set producer) that audits an EXISTING repo's `principles_path`,
+  `standards_path`, `hld/project-structure.md`, and acs-readiness tooling,
+  then additively scaffolds ONLY the missing docs/config/tooling as one
+  reviewed PR — it never moves, renames, deletes, or rewrites existing
+  source (`standardize-project-planner`/`-executor`/`-verifier`,
+  `standardize-project-state.json`). The verifier re-runs
+  `git diff --name-status` independently every iteration via a new
+  `classify_additive_diff` helper and blocks on any `R`/`D` status or `M`
+  outside the additive-surface allowlist (D6). Structural gaps outside the
+  allowlist surface as `recommended_follow_ups` entries in the completion
+  report and PR body — never auto-minted as tickets (D7). Each run creates
+  its own delivery ticket (type `task`, "Brownfield project
+  standardization"); no new settings key. Traces **G10**.
+
+- **Epic complete — repo standardization & conformance (G10): MAR-117 →
+  MAR-121.** `/acs:create-principles`, `/acs:create-standards`, and
+  `/acs:standardize-project` together complete the standards-conformance
+  epic (the `architecture → principles → standards → design → specs →
+  code` conformance chain wired by MAR-119). Epic-final totals: 22 skills,
+  42 agent files, 36 reachable agents, eleven triad-keeping skills.
+
 ## [0.3.8] - 2026-07-07
 
 ### Added
