@@ -15,6 +15,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-11
+
 ### Added
 
 - **`/acs:create-principles` skill + `principles_path` settings key
