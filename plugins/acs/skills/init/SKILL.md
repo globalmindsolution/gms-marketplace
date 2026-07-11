@@ -722,6 +722,79 @@ conventions check; otherwise print the `gh api … /protection` command (from
 Step 7c) with `contexts: ["Tests & coverage"]` for an admin to run once. Record
 the outcome for Step 8 and the completion report.
 
+## Step 7f — e2e required merge gate (opt-in, never silent)
+
+**Gate check (first line, before any offer is shown).** Resolve the merged
+settings the same way every other Step 7 substep does (`acs_lib.load_settings`)
+and check whether `suites.e2e` or the raw `e2e` key is **configured** (set and
+truthy). If neither is configured, **skip this entire step silently** — no
+prompt, no file copy, no `gh api` call: this is the opt-in invariant's
+enforcement point in `/acs:init` — a repo that never configured e2e sees zero
+new behavior from this ticket, full stop. Only when e2e IS configured do you
+proceed to offer the step below (skip on a plain "no", same pattern as 7c/7d).
+
+Be honest about scope, same framing as 7c/7d: this makes a red e2e a hard
+merge gate only once branch protection requires the check — the committed
+workflow alone is advisory.
+
+### Install the workflow + runner (copy, don't hand-write)
+
+```bash
+mkdir -p .acs/ci .github/workflows
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/run-e2e.py" .acs/ci/run-e2e.py
+cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/acs-e2e.yml" .github/workflows/acs-e2e.yml
+chmod +x .acs/ci/run-e2e.py
+```
+
+Regenerated on every re-run (same as 7c/7d). Stage `.acs/ci/run-e2e.py` and
+`.github/workflows/acs-e2e.yml` for the user to commit (do not commit yourself
+unless asked) — no `.acs/settings.json` write is needed here: unlike 7c/7d,
+this step introduces no new settings key; the command source is whatever
+`e2e`/`suites.e2e` already holds.
+
+### The gate — branch protection (reuses Step 7c's admin-detect)
+
+Reuse Step 7c's exact `slug`/`admin`/`branch` block (do not re-derive it if
+7c already ran earlier in this session — reuse the resolved values):
+
+```bash
+slug=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+admin=$(gh api "repos/$slug" --jq .permissions.admin 2>/dev/null)
+branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+echo "repo=$slug default=$branch admin=$admin"
+```
+
+- **`admin=true` AND the user consents to wiring this specific check** — extend
+  the SAME `required_status_checks.contexts` array Step 7c/7d already manage
+  (never a second, competing `PUT`): add the literal `"E2E suite"` alongside
+  `"Tests & coverage"` / `"Branch / PR / commit conventions"` and issue one
+  combined `PUT`, the same pattern 7d already follows. If 7c/7d were declined
+  or skipped this session (no prior `contexts` array known yet), fetch the
+  branch's current protection state first (`gh api
+  repos/$slug/branches/$branch/protection --jq
+  .required_status_checks.contexts`), union in `"E2E suite"`, and `PUT` the
+  result — never overwrite an existing `contexts` array wholesale without
+  reading it first.
+  - **Register-check-first ordering.** The check first appears as a valid
+    context only after `acs-e2e.yml` has reported a conclusion at least once
+    (the same 422-on-unknown-context trap Step 7c documents). If the `PUT`
+    rejects `"E2E suite"` as an unknown context, tell the user to open a PR
+    first (so the workflow runs and registers the context), then re-run the
+    command — do not silently drop the context or retry in a loop.
+- **`admin` is not `true`, or the user declines the wiring** — do NOT attempt
+  the mutating API call. Print the exact `gh api -X PUT …/protection` command
+  (same shape as Step 7c's, with `"E2E suite"` added to `contexts`) for an
+  admin to run, **exactly once** per `/acs:init` run, and state clearly:
+  enforcement is advisory until an admin runs it — the committed workflow file
+  still runs and shows a red X on non-conforming PRs regardless, it simply
+  cannot yet block a merge. **Never hard-fail** `/acs:init` on this path — a
+  missing admin scope or a failed protection call is a reported gap, printed
+  once, not a stop condition.
+
+Record the Step 7f outcome for Step 8 and the completion report: files copied
+(or "skipped — e2e not configured"), branch-protection outcome (`configured` /
+`printed-for-admin` / `declined`).
+
 ## Step 7e — Project agent guidance: pipeline-default `CLAUDE.md` (opt-in, default-on)
 
 Write (or refresh) an **acs-managed block** in the consumer repo's `CLAUDE.md`
@@ -812,6 +885,7 @@ landed in (or "default — not written" for untouched defaults), e.g.:
 | `test_coverage_percent` | `90` | default — not written |
 | `enforcement` (CI) | checks on; gate via required check | `<repo>/.acs/settings.json` + `.github/workflows/acs-conventions.yml` |
 | `tests` (CI) | suite + coverage gate on PRs | `<repo>/.acs/settings.json` + `.acs/ci/run-tests.py` + `.github/workflows/acs-tests.yml` |
+| e2e gate (CI) | skipped — e2e not configured / required check via `"E2E suite"` | `.acs/ci/run-e2e.py` + `.github/workflows/acs-e2e.yml` (only when `e2e`/`suites.e2e` configured) |
 | `CLAUDE.md` guidance | acs-managed block (pipeline default + exempt `--pr` merge) | `<repo>/CLAUDE.md` (written / refreshed / declined) |
 
 Then point the user at the next steps. Decide greenfield vs brownfield by
@@ -850,7 +924,7 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined); `CLAUDE.md` pipeline-default guidance block (written / refreshed / declined)
+- **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined); e2e gate CI convention outcome (skipped — e2e not configured / files written / branch-protection: configured / printed-for-admin / declined); `CLAUDE.md` pipeline-default guidance block (written / refreshed / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>

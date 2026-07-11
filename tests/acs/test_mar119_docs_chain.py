@@ -45,6 +45,12 @@ BASELINE_FLOWS = {
     "tabp-usage-read.md",
     "ticket-lifecycle.md",
 }
+# MAR-125 (E2E-1) legitimately added enforce-e2e-merge-gate.md — its OWN
+# binding design (MAR-124/design.md Flow 1) requires a new standing flow
+# file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail
+# still catches an ACCIDENTAL new flow file from a future MAR-119-adjacent
+# change; it is not meant to freeze the directory against every later ticket.
+KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md"}
 
 
 def read(path):
@@ -246,11 +252,12 @@ class NoNewFlowFileTest(unittest.TestCase):
     :594-601, :642 assigns a new flow doc only to Flow 1 / MAR-121)."""
 
     def test_flows_dir_unchanged_from_baseline(self):
-        actual = set(os.listdir(FLOWS_DIR))
+        actual = set(os.listdir(FLOWS_DIR)) - KNOWN_LATER_ADDITIONS
         self.assertEqual(
             actual, BASELINE_FLOWS,
             "no new lld/flows/ file expected for MAR-119 (Flow 2 is a "
-            "re-anchor, not a new flow, per design.md:594-601)")
+            "re-anchor, not a new flow, per design.md:594-601) beyond "
+            "KNOWN_LATER_ADDITIONS")
 
 
 if __name__ == "__main__":

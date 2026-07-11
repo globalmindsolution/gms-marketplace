@@ -93,12 +93,19 @@ INTERNALS.md "Canonical states keys per skill". Schemas:
 per-key merge local → project → user; validated by every pre-hook
 (`settings.schema.json`): `workspace_path`, `ticket_prefix`,
 `test_coverage_percent`, `merge_strategy`, `prd_path`, `architecture_path`,
-`adr_path?`, `principles_path?`, `standards_path?`, `quality_path?`,
-`operations_path?`, `e2e?`, `suites?`, `models`,
-`tracker`, `formats`, `high_stakes_paths?` (array of glob strings; absent key
-resolves to the seed default `["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
+`requirements_path?`, `adr_path?`, `principles_path?`, `standards_path?`,
+`quality_path?`, `operations_path?`, `e2e?`, `suites?`, `tests?`,
+`enforcement?`, `models`, `tracker`, `formats`, `high_stakes_paths?` (array of
+glob strings; absent key resolves to the seed default
+`["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
 `e2e?` is a deprecated compatibility alias, normalized at load time into
 `suites["e2e"]` — new configuration should prefer `suites.e2e` directly.
+`tests?` and `enforcement?` back the opt-in CI gates `/acs:init` can scaffold
+(Steps 7c/7d): `acs-conventions.yml`+`check-conventions.py` (`enforcement`)
+and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
+(Step 7f) is the same shape: `acs-e2e.yml` + `run-e2e.py` (the committed
+template pair), built from `e2e?`/`suites?` — no dedicated settings key of
+its own — and wired as the `E2E suite` required-check context.
 
 Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
 
