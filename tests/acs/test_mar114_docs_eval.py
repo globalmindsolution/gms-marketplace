@@ -217,11 +217,18 @@ class NewAdrsExistTest(unittest.TestCase):
                 numbered.append((int(m.group(1)), path))
         return [p for n, p in numbered if n > 42]
 
-    def test_exactly_two_new_adrs_beyond_0042(self):
-        new_files = self._new_adr_files()
-        self.assertEqual(
-            len(new_files), 2,
-            "expected exactly two new ADRs beyond 0001-0042, found: %r" % new_files)
+    def test_baseline_two_adrs_present_beyond_0042(self):
+        # Durable invariant: MAR-114's own two ADRs (0043, 0044) exist beyond
+        # the pre-existing 0001-0042 set. NOT an exact-count pin -- later
+        # tickets legitimately add further ADRs (e.g. MAR-125's 0045-0047)
+        # without regressing this guard.
+        basenames = {os.path.basename(p) for p in self._new_adr_files()}
+        self.assertTrue(
+            any(b.startswith("0043-") for b in basenames),
+            "ADR 0043 (suites map generalization) must exist beyond 0042")
+        self.assertTrue(
+            any(b.startswith("0044-") for b in basenames),
+            "ADR 0044 (acs-test closed-loop ticketing) must exist beyond 0042")
 
     def test_new_adrs_cover_suites_and_closed_loop_ticketing(self):
         new_files = self._new_adr_files()

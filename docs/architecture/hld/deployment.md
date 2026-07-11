@@ -7,6 +7,12 @@ flowchart LR
         ACT["GitHub Actions<br/>CI: tests/acs/ + tests/tabp/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump"]
         PRS["Consumer-repo PRs"]
         EVALS["evals/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
+        subgraph gates["Consumer-repo required-check gates (opt-in, /acs:init-installed)"]
+            G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
+            G_TEST["acs-tests.yml<br/>Tests & coverage"]
+            G_E2E["acs-e2e.yml<br/>E2E suite"]
+        end
+        BP["Branch protection<br/>(required status checks, default branch)"]
     end
 
     subgraph machine["Developer machine"]
@@ -32,6 +38,8 @@ flowchart LR
     CC --> CO1 & CO2
     CO1 & CO2 -- "all pipeline state" --> WS
     CC -- "gh pr create / merge" --> PRS
+    G_CONV & G_TEST & G_E2E -- "required status check" --> BP
+    BP -- "mergeStateStatus" --> PRS
 ```
 
 Key facts:
@@ -55,3 +63,12 @@ Key facts:
   per-plugin test discovery (`tests/acs/` and `tests/tabp/`). Behavioral evals
   (`evals/<plugin>/`) run **locally only** — they make LLM calls and are not
   coupled to CI.
+- **Consumer-repo required-check gates**: `/acs:init` can opt-in scaffold up
+  to three independent GitHub Actions checks per consumer repo — conventions
+  (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e
+  (`acs-e2e.yml`, this ticket) — each backed by a stdlib-only runner reading
+  the committed `.acs/settings.json`. A committed workflow file is advisory
+  until a repo admin makes its check a **required status check** on the
+  protected default branch (branch protection); that is the actual
+  enforcement point — a red check then leaves `mergeStateStatus BLOCKED` and
+  a PR cannot merge.

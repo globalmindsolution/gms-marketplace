@@ -45,6 +45,9 @@ context and consequences.
 | [0039](0039-spec-simplicity-gate-planner-only-scope.md) | The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added | Accepted |
 | [0040](0040-codeowners-derived-pr-reviewers.md) | CODEOWNERS-derived PR reviewers (not a settings key) | Accepted |
 | [0041](0041-fixed-field-name-table-group-b-sync.md) | Fixed case-insensitive field-name table for Priority/Story Points/Parent, with type-driven value mapping and tracker-key-valued Parent field | Accepted |
+| [0045](0045-dedicated-acs-e2e-workflow-runner-pair.md) | Dedicated `acs-e2e.yml` + `run-e2e.py` CI workflow pair, independent of the tests gate | Accepted |
+| [0046](0046-no-new-settings-key-for-e2e-ci-enforcement.md) | No new settings key for e2e CI enforcement — `settings.e2e`/`suites.e2e` remains the single opt-in signal | Accepted |
+| [0047](0047-init-auto-wires-e2e-required-check-report-once.md) | `/acs:init` auto-wires the e2e required check when admin, with a report-once manual-step fallback | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

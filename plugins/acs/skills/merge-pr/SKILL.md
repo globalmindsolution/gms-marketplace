@@ -236,6 +236,12 @@ Judge the four readiness dimensions, each as `"pass"` or
 - **ci** — all REQUIRED checks pass (`statusCheckRollup` shows no required
   check failing or pending; `gh pr checks --required` exits 0). Failing
   non-required checks are recorded as `info` findings, not blockers.
+
+  A repo that has run `/acs:init` Step 7f and wired `"E2E suite"` as a
+  required status check gets e2e enforcement for free through this same
+  `ci` read — zero merge-pr code changes. This is not a fifth readiness
+  dimension: `ci`/`approvals`/`conflicts`/`protections` remain the complete
+  set, and `merge-pr-state.json`'s shape is unchanged.
 - **approvals** — `reviewDecision` is `APPROVED`. An approving review is
   required for every merge: empty (repo requires no review), `REVIEW_REQUIRED`,
   and `CHANGES_REQUESTED` all fail. Rationale: agent-invoked merges must carry
