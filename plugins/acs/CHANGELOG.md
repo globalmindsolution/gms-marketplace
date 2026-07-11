@@ -95,6 +95,19 @@ the notes.
   code` conformance chain wired by MAR-119). Epic-final totals: 22 skills,
   42 agent files, 36 reachable agents, eleven triad-keeping skills.
 
+### Fixed
+
+- **`/acs:create-quality`, `/acs:create-operations`, `/acs:create-principles`,
+  and `/acs:create-standards` no longer fail closed on every run (MAR-122).**
+  The four doc-set producer skills were registered in `HOOKED_SKILLS` but had
+  no entry in the `GATES` dict, so `run_pre`'s bare `GATES[skill]` subscript
+  raised `KeyError`, caught by the fail-closed handler as exit 2 "unexpected
+  error in gate" — blocking all four skills end-to-end in any hooked repo.
+  Each now has its own registered gate requiring the architecture doc set
+  (`hld/tech-stack.md`, mirroring `gate_create_project`), so a ready repo
+  passes (exit 0) and a repo missing the architecture set gets the same
+  actionable `GateError` message the other doc-set producers already give.
+
 ## [0.3.8] - 2026-07-07
 
 ### Added
