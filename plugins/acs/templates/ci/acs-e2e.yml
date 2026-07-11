@@ -1,0 +1,44 @@
+# acs required e2e merge gate — installed by /acs:init Step 7f into the
+# consumer repo at .github/workflows/acs-e2e.yml. Re-run /acs:init to refresh it.
+#
+# Runs the configured e2e suite on every PR and fails on a red suite (the
+# command enforces its own pass/fail exit code; acs only observes it). Make
+# this a REQUIRED status check on your default branch (and block direct
+# pushes) so a PR with a red e2e suite cannot merge — /acs:init Step 7f offers
+# to configure that when you are a repo admin, or prints the exact command
+# otherwise.
+#
+# Toolchain: ubuntu-latest ships python3/node/go/etc.; `e2e.setup` installs
+# your dependencies / brings up the environment. For a pinned runtime version,
+# add the matching setup-* action (e.g. actions/setup-node) before the run step.
+name: ACS e2e
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+# A newer commit supersedes an in-flight run for the same PR. Safe here (unlike
+# acs-conventions.yml) because this workflow triggers on exactly one event per
+# commit — a cancelled run only ever belongs to a superseded (older) SHA.
+concurrency:
+  group: acs-e2e-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Python is for the acs runner only; your suite uses the repo's own
+      # toolchain (present on ubuntu-latest, deps installed by e2e.setup).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run e2e suite
+        run: python3 .acs/ci/run-e2e.py
