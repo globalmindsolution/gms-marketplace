@@ -21,9 +21,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 16 skills + 27 agent files on disk (verified `ls plugins/acs/skills` = 16,
-  `ls plugins/acs/agents` = 27); the reflection (plan→execute→verify) protocol is
-  active on the six triad-keeping skills, while the three apply-work skills
+- 22 skills + 42 agent files on disk (verified `ls plugins/acs/skills` = 22,
+  `ls plugins/acs/agents` = 42); the reflection (plan→execute→verify) protocol is
+  active on the eleven triad-keeping skills, while the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
@@ -71,8 +71,8 @@ cleanup. Validated green against installed v0.1.2.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill; all 16 green (matches `s04_skill_triggers.py`'s
-  16-skill routing coverage, up from the original 12).
+  routes to the right skill; all 22 green (matches `s04_skill_triggers.py`'s
+  22-skill routing coverage, up from the original 12).
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
   diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.
@@ -500,7 +500,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 27 vs 21 reachable). Maps to PRD **G8**
+  disk equals reachable-agent count (today 42 vs 36 reachable). Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
   the three dashboards — adding behavioral (artifact-level) scenarios for the

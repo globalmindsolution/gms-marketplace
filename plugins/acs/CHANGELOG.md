@@ -97,6 +97,15 @@ the notes.
 
 ### Fixed
 
+- **Docs: refreshed stale reflection-topology counts across the acs docs
+  (MAR-123).** INTERNALS, overview, roadmap, reflection, and prd now state
+  the live-derived topology (22 skills, 42 agent files, 14 hooked skills, 11
+  triad-keeping skills → 36 reachable agents, 6 orphaned apply-work
+  planner/verifier files) after the producer-skill additions; a new
+  `tests/acs/test_mar123_docs_topology.py` derives the counts live and pins
+  the docs so the figures cannot silently drift again. Docs-only; no plugin
+  behavior change.
+
 - **`/acs:create-quality`, `/acs:create-operations`, `/acs:create-principles`,
   and `/acs:create-standards` no longer fail closed on every run (MAR-122).**
   The four doc-set producer skills were registered in `HOOKED_SKILLS` but had

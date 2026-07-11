@@ -15,8 +15,10 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: plan → execute → verify
 
-The six **triad-keeping skills** (create-spec, code, create-prd, create-design,
-create-architecture, create-project) MUST apply the Reflection pattern as a
+The eleven **triad-keeping skills** (create-spec, code, create-prd, create-design,
+create-architecture, create-project, create-quality, create-operations,
+create-principles, create-standards, standardize-project) MUST apply the
+Reflection pattern as a
 **plan–execute–verify cycle**, with a **different subagent for each phase**.
 Each phase runs in a separate context window so the verify phase judges the work
 fresh rather than rubber-stamping its own output. The table below shows the three
@@ -103,9 +105,9 @@ Requirements:
   lane change, up or down, is ever silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
-  `<skill>-verifier`. 27 agent files exist on disk in total and are retained
-  (C-4) — three role files for each of nine skill prefixes that have agent
-  files. Only the **six** triad-keeping skills listed in the heading above
+  `<skill>-verifier`. 42 agent files exist on disk in total and are retained
+  (C-4) — three role files for each of fourteen skill prefixes that have agent
+  files. Only the **eleven** triad-keeping skills listed in the heading above
   actively spawn the full plan→execute→verify triad. The other three prefixes
   belong to the **apply-work** skills, which run inline and never spawn a
   plan-phase or verify-phase subagent (see the "Apply-work skills" subsection

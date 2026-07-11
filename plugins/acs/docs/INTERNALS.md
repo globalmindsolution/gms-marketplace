@@ -12,9 +12,9 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 13 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 27 files (9 × 3 roles); 21 reachable (6 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 9 pre + 9 post |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 22 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 42 files (14 × 3 roles); 36 reachable (11 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 14 pre + 14 post |
 | Helper CLIs | `hooks/scripts/{skill-start,new-ticket,handoff,validate_xml,pr-conventions}.py` | 5 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /init Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the nine hooked skills, and
+   (exit 0) for anything that is not one of the fourteen hooked skills, and
    otherwise runs the named `pre-<skill>.py` with the same stdin payload.
    Exit 2 blocks the skill before any of its instructions run; stderr tells the
    user which skill to run first. This fires for user-typed slash commands and
@@ -214,12 +214,14 @@ All coordinator <-> subagent communication uses the three message shapes in
 
 ## Subagents
 
-27 agent files named `<skill>-<role>` in `plugins/acs/agents/` (9 skills × 3
-roles), of which 21 are reachable: the six **triad-keeping skills**
+42 agent files named `<skill>-<role>` in `plugins/acs/agents/` (14 skills × 3
+roles), of which 36 are reachable: the eleven **triad-keeping skills**
 (`create-spec`, `code`, `create-prd`, `create-design`, `create-architecture`,
-`create-project`) spawn all three roles, while the three **apply-work skills**
-(`create-ticket`, `create-pr`, `merge-pr`) run inline and use only their
-executor — so their six planner/verifier files are orphaned (MAR-60 inlining).
+`create-project`, `create-quality`, `create-operations`, `create-principles`,
+`create-standards`, `standardize-project`) spawn all three roles, while the
+three **apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run
+inline and use only their executor — so their six planner/verifier files are
+orphaned (MAR-60 inlining).
 Conventions:
 
 - Frontmatter: `name`, `description` (when the coordinator spawns it), and
