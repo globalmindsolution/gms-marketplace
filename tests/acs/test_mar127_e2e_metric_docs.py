@@ -62,7 +62,7 @@ def _base_ref():
         )
         if result.returncode == 0:
             return ref
-    raise RuntimeError("neither origin/main nor main resolves in this repo")
+    return None
 
 
 def range_diff_names(*paths):
@@ -112,6 +112,15 @@ class TestRoadmapValidatedMarker(unittest.TestCase):
 class TestNoNewMechanism(unittest.TestCase):
     """[AC-3] no new metrics mechanism, settings key, runtime-skill change,
     or architecture change ships with this spec (Decision E1)."""
+
+    def setUp(self):
+        # This guard diffs the changeset against origin/main. A shallow CI
+        # checkout (actions/checkout fetch-depth 1, detached HEAD) resolves
+        # neither origin/main nor main, so the guard runs where a base ref
+        # exists (developer checkouts + the acs code-verifier) and skips —
+        # rather than errors — in a base-less checkout.
+        if _base_ref() is None:
+            self.skipTest("no base ref (origin/main or main) to diff against")
 
     def test_metrics_aggregate_unchanged(self):
         self.assertEqual(range_diff_names(METRICS_AGGREGATE_PATH), "",
