@@ -10,6 +10,11 @@ agent count unchanged) and the SAFETY-invariant prose `release/SKILL.md`
 must carry (AC-5): never tags/publishes itself, never force-pushes or
 pushes to main, and the PR-open step is labeled/branched correctly.
 
+Also pins the settings-driven delta (MAR-129 re-spec, Decision 5/C-20):
+every release_notes.py status/draft/bump call passes --release-config, no
+marketplace-specific literal is hardcoded in a bash fence, and the body
+states the release-block fail-fast + non-secret invariants.
+
 Run:  python3 -m unittest tests.acs.test_mar129_release_skill_registry -v
 """
 
@@ -31,6 +36,10 @@ import acs_lib  # noqa: E402
 def _read_skill_body():
     with open(SKILL_PATH, encoding="utf-8") as fh:
         return fh.read()
+
+
+def _bash_fences(body):
+    return re.findall(r"```bash\n(.*?)```", body, re.DOTALL)
 
 
 class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
@@ -92,6 +101,42 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
     def test_agent_count_unchanged_forty_two(self):
         self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 42)
 
+    def test_release_config_flag_passed_to_every_subcommand(self):
+        for fence in _bash_fences(_read_skill_body()):
+            for line in fence.splitlines():
+                if re.search(r"release_notes\.py\"?\s+(status|draft|bump)\b", line):
+                    self.assertIn(
+                        "--release-config", line,
+                        msg="every release_notes.py status/draft/bump call must "
+                            "pass --release-config (settings-driven, AC-2/AC-6): %r" % line,
+                    )
+
+    def test_no_hardcoded_marketplace_literals_in_bash_fences(self):
+        forbidden = [
+            ".claude-plugin/marketplace.json",
+            "plugins/acs/.claude-plugin/plugin.json",
+            "plugins/acs/CHANGELOG.md",
+            "release/v",
+            "--base main",
+        ]
+        for fence in _bash_fences(_read_skill_body()):
+            for literal in forbidden:
+                self.assertNotIn(
+                    literal, fence,
+                    msg="release/SKILL.md bash fences must not hardcode the "
+                        "marketplace-specific literal %r — use the "
+                        "block-rendered placeholder instead" % literal,
+                )
+
+    def test_release_block_absence_fails_fast_stated(self):
+        self.assertRegex(
+            _read_skill_body(),
+            r"(?i)release.{0,40}block.{0,60}(fail fast|no .{0,20}release.{0,20}configured)",
+            msg="release/SKILL.md must state that an absent/missing release "
+                "settings block causes the skill to fail fast before any "
+                "release_notes.py invocation",
+        )
+
 
 class Mar129ReleaseSafetyProseCase(unittest.TestCase):
     """AC-5 (SAFETY): the invariants must be explicit, load-bearing prose."""
@@ -100,7 +145,7 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
         self.body = _read_skill_body()
 
     def _bash_fences(self):
-        return re.findall(r"```bash\n(.*?)```", self.body, re.DOTALL)
+        return _bash_fences(self.body)
 
     def test_never_git_tag_or_gh_release_create_prohibition_stated(self):
         forward = re.search(
@@ -133,10 +178,18 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
 
     def test_release_workflow_stated_reused_unchanged(self):
         self.assertTrue(
-            re.search(r"(?i)release\.yml[^\n]{0,80}(reused unchanged|not modified)", self.body)
-            or re.search(r"(?i)(reused unchanged|not modified)[^\n]{0,80}release\.yml", self.body),
-            "release/SKILL.md must state release.yml is reused unchanged / "
-            "not modified (AC-5)",
+            re.search(
+                r"(?i)(publish[ _]driver|release\.yml)[^\n]{0,80}"
+                r"(reused unchanged|not modified)",
+                self.body,
+            )
+            or re.search(
+                r"(?i)(reused unchanged|not modified)[^\n]{0,80}"
+                r"(publish[ _]driver|release\.yml)",
+                self.body,
+            ),
+            "release/SKILL.md must state the publish_driver (release.yml) is "
+            "reused unchanged / not modified (AC-5)",
         )
 
     def test_pr_open_step_labeled_and_branched(self):
@@ -145,11 +198,30 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
         self.assertTrue(pr_create_fences, "no ```bash fence contains 'gh pr create'")
         for fence in pr_create_fences:
             self.assertIn("--label ACS", fence)
-            self.assertIn("release/", fence)
+            self.assertRegex(
+                fence, r"(?i)release[_-]?branch",
+                msg="the gh pr create fence must reference the "
+                    "<release_branch> placeholder (block-rendered branch name)",
+            )
 
     def test_no_force_push_or_push_to_main(self):
         self.assertNotIn("--force", self.body)
         self.assertNotIn("push origin main", self.body)
+        for fence in self._bash_fences():
+            if "gh pr create" in fence:
+                self.assertNotRegex(
+                    fence, r"--base main\b",
+                    msg="main must never be hardcoded as the PR base — only "
+                        "reachable via the <base_branch> placeholder",
+                )
+
+    def test_release_block_stated_non_secret(self):
+        self.assertRegex(
+            self.body,
+            r"(?i)release.{0,80}no secret|no secret.{0,80}release",
+            msg="release/SKILL.md must state the release settings block "
+                "holds no secret (paths/pointers/format strings only, AC-5)",
+        )
 
 
 if __name__ == "__main__":
