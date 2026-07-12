@@ -49,6 +49,7 @@ context and consequences.
 | [0046](0046-no-new-settings-key-for-e2e-ci-enforcement.md) | No new settings key for e2e CI enforcement — `settings.e2e`/`suites.e2e` remains the single opt-in signal | Accepted |
 | [0047](0047-init-auto-wires-e2e-required-check-report-once.md) | `/acs:init` auto-wires the e2e required check when admin, with a report-once manual-step fallback | Accepted |
 | [0048](0048-standardize-project-scaffolds-e2e-no-branch-protection.md) | `/acs:standardize-project` additively scaffolds the e2e workflow + runner for brownfield repos but never wires branch protection itself | Accepted |
+| [0049](0049-e2e-3-read-only-g13-metric-validation.md) | Read-only G13 e2e-integrity metric validation from existing merge-pr/spec artifacts, no metrics_aggregate.py panel | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

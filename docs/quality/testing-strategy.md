@@ -86,6 +86,34 @@ report, a broken gate, the wrong skill firing) are already caught cheaply.
 5. **Dogfooding as standing coverage (E3).** Every acs change shipped via
    `/acs:ship` is a real behavioral test; per-ticket metrics surface regressions.
 
+## G13 e2e-integrity validation
+
+PRD **G13** ("Enforceable e2e integrity") is validated **read-only** from
+artifacts `/acs:merge-pr` and `/acs:code` already produce (Decision E1,
+first run 2026-07-12 as MAR-127 — [ADR 0049](../adr/0049-e2e-3-read-only-g13-metric-validation.md)) —
+no standing dashboard panel, no new mechanism.
+
+**Re-run procedure, each release:**
+
+1. **Sub-metric (a)** — "0 PRs merged with a red e2e suite while the gate is
+   enabled." Read `states.readiness.ci` from every merged ticket's
+   `<partition>/phases/merge-pr/result.json` this release, and cross-check
+   whether `"E2E suite"` is a required context via `gh api
+   repos/<owner>/<repo>/branches/<default_branch>/protection --jq
+   .required_status_checks.contexts`. Count merges where `ci` was red while
+   that context was required. If the context is absent, there is no
+   gate-enabled window and the count holds **vacuously**, not against a real
+   population — record that honestly rather than as an unqualified pass.
+2. **Sub-metric (b)** — "100% of user-facing-surface specs declare e2e
+   impact." Enumerate merged tickets whose changeset touches a user-facing /
+   cross-component surface this release, and confirm each `specs/*.md` Test
+   plan declares e2e impact or an explicit "no e2e impact" reason — already
+   enforced live by the `code-verifier`'s existing e2e-impact dimension (no
+   new mechanism read here). Record the ratio and the enumerated ticket list.
+
+**Latest recorded result:** see the "First validated" annotation on PRD
+G13's line in [prd.md](../product/prd.md).
+
 ## See also
 
 - [evals/README.md](../../evals/README.md) — the harness, cost tiers, how to add a scenario
