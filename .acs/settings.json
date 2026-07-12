@@ -75,5 +75,40 @@
         "description_template": "task-default"
       }
     }
+  },
+  "release": {
+    "version_locations": [
+      {
+        "file": ".claude-plugin/marketplace.json",
+        "pointer": "/version"
+      },
+      {
+        "file": "plugins/acs/.claude-plugin/plugin.json",
+        "pointer": "/version"
+      }
+    ],
+    "extra_refs": [
+      {
+        "file": ".claude-plugin/marketplace.json",
+        "selector": {
+          "pointer": "/plugins",
+          "match": {
+            "name": "acs"
+          },
+          "set": "source/ref"
+        },
+        "value_format": "v{version}"
+      }
+    ],
+    "changelog_path": "plugins/acs/CHANGELOG.md",
+    "tag_format": "v{version}",
+    "base_branch": "main",
+    "release_branch_format": "release/v{version}",
+    "publish_driver": {
+      "workflow": ".github/workflows/release.yml",
+      "trigger_paths": [
+        ".claude-plugin/marketplace.json"
+      ]
+    }
   }
 }
