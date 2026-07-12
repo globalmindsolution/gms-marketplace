@@ -164,6 +164,7 @@ Changeset review happens **inside `/code`**, performed by the
   until the verifier reports **zero findings**. When an `e2e` layer is
   configured ([configuration.md](configuration.md)), a **green e2e
   run** is part of the zero-findings bar.
+- PRD **G13**'s e2e-integrity metric is validated **read-only** from artifacts this loop already produces: sub-metric (a) — 0 merges with a red e2e suite while the gate is enabled — reads each ticket's `merge-pr` `result.json` `states.readiness.ci` cross-checked against `"E2E suite"` being a required branch-protection status check; sub-metric (b) — 100% of user-facing-surface specs declare e2e impact — is enforced by this loop's own e2e-impact dimension above (no new mechanism). Until a repo wires the gate as a required check, sub-metric (a) holds vacuously (no gate-enabled window to violate); see `docs/product/prd.md`'s G13 line for the latest recorded result.
 - The loop runs at most **3 iterations**; if findings remain, `/code` stops
   and records the findings and stop reason in `code-state.json`.
 - Only when the verifier passes does the `/create-pr` pre-hook gate open.
