@@ -113,7 +113,9 @@ def atomic_write_text(path, text):
 
 
 def atomic_write_json(path, obj):
-    atomic_write_text(path, json.dumps(obj, indent=2) + "\n")
+    # ensure_ascii=False preserves non-ASCII manifest content (e.g. em-dashes) verbatim,
+    # so a bump never escapes an unrelated description line into the release diff.
+    atomic_write_text(path, json.dumps(obj, indent=2, ensure_ascii=False) + "\n")
 
 
 # ---------------------------------------------------------------------------

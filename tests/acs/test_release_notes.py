@@ -694,5 +694,65 @@ class StatusSignalsTest(unittest.TestCase):
             self.assertEqual(result["open_pr"]["number"], 9)
 
 
+
+# ---------------------------------------------------------------------------
+# Regression (iter 2) — bump must preserve non-ASCII manifest content verbatim
+# ---------------------------------------------------------------------------
+
+class NonAsciiPreservationTest(unittest.TestCase):
+    """The real marketplace.json has literal em-dashes (U+2014) in the acs AND tabp
+    descriptions; a bump must NOT escape them to \\u2014 (which would churn the acs
+    line and MUTATE the 'left untouched' tabp block into the human-reviewed PR)."""
+
+    def test_bump_preserves_non_ascii_and_diff_is_minimal(self):
+        import difflib
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            # Overwrite marketplace.json with literal em-dashes in BOTH descriptions,
+            # exactly as the real committed file stores them (UTF-8, not \uXXXX-escaped).
+            market = {
+                "name": "gms-marketplace",
+                "version": "0.4.1",
+                "plugins": [
+                    {"name": "acs",
+                     "source": {"source": "git-subdir", "ref": "v0.4.1"},
+                     "description": "Autonomous Coding Skills \u2014 an agentic workflow \u2014 PR, merge."},
+                    {"name": "tabp",
+                     "source": {"source": "git-subdir"},
+                     "description": "TABP toolkit \u2014 CV screening \u2014 fairness guardrails."},
+                ],
+            }
+            market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
+            _write_text(market_path, json.dumps(market, indent=2, ensure_ascii=False) + "\n")
+            before = _read_text(market_path)
+            # Sanity: the fixture on disk carries literal em-dashes, not escapes.
+            self.assertIn("\u2014", before)
+            self.assertNotIn("\\u2014", before)
+
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            with mock_gh(None):
+                release_notes.bump("0.4.2", root, workspace, today="2026-07-19")
+
+            after = _read_text(market_path)
+
+            # (a) acs description em-dashes byte-preserved, never escaped to \u2014.
+            self.assertIn("Autonomous Coding Skills \u2014 an agentic workflow \u2014 PR, merge.", after)
+            self.assertNotIn("\\u2014", after)
+
+            # (b) the tabp description line is byte-identical to before the bump.
+            self.assertIn("TABP toolkit \u2014 CV screening \u2014 fairness guardrails.", after)
+
+            # (c) the ONLY changed lines vs the pre-bump file are the version + acs source.ref.
+            diff = [ln for ln in difflib.ndiff(before.splitlines(), after.splitlines())
+                    if ln.startswith("+ ") or ln.startswith("- ")]
+            self.assertTrue(diff, "bump made no change to marketplace.json")
+            for ln in diff:
+                content = ln[2:]
+                self.assertTrue('"version"' in content or '"ref"' in content,
+                                "unexpected description/other churn: %r" % content)
+
+
 if __name__ == "__main__":
     unittest.main()
