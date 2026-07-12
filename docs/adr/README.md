@@ -50,6 +50,10 @@ context and consequences.
 | [0047](0047-init-auto-wires-e2e-required-check-report-once.md) | `/acs:init` auto-wires the e2e required check when admin, with a report-once manual-step fallback | Accepted |
 | [0048](0048-standardize-project-scaffolds-e2e-no-branch-protection.md) | `/acs:standardize-project` additively scaffolds the e2e workflow + runner for brownfield repos but never wires branch protection itself | Accepted |
 | [0049](0049-e2e-3-read-only-g13-metric-validation.md) | Read-only G13 e2e-integrity metric validation from existing merge-pr/spec artifacts, no metrics_aggregate.py panel | Accepted |
+| [0050](0050-release-unhooked-utility-skill.md) | `/acs:release` ships as an unhooked utility skill, not a 15th hooked apply-work skill | Accepted |
+| [0051](0051-changelog-archive-primary-coverage-check.md) | Changelog aggregation is authoritative, archive-primary with an `[Unreleased]`-coverage cross-check | Accepted |
+| [0052](0052-release-exempt-pr-human-merge.md) | Release cuts land via an exempt `release/*` PR that stops for a mandatory human merge | Accepted |
+| [0053](0053-release-versions-roadmap-mapping-table.md) | Release versions are modeled as an additive `roadmap.md` mapping table, decoupled from the cut skill | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

@@ -10,13 +10,14 @@ C4Component
 
     Container_Boundary(hooks, "Hook & helper layer") {
         Component(dispatch, "dispatch.py", "hook entry", "PreToolUse(Skill): route to pre-<skill>.py, exit-2 blocks; SessionEnd: safety net")
-        Component(pre, "pre-<skill>.py x11", "gates", "predecessor completed, artifacts exist, lock free, settings/formats valid — fail closed")
-        Component(post, "post-<skill>.py x11", "persistence", "finalize run entry; update ledger, index, metrics; release lock; merge extras (archive, epic auto-done)")
+        Component(pre, "pre-<skill>.py x14", "gates", "predecessor completed, artifacts exist, lock free, settings/formats valid — fail closed")
+        Component(post, "post-<skill>.py x14", "persistence", "finalize run entry; update ledger, index, metrics; release lock; merge extras (archive, epic auto-done)")
         Component(start, "skill-start.py", "run registration", "resolve ticket; allocate ids; acquire lock; pointer file; in_progress run; reconcile/handoff detection")
         Component(mint, "new-ticket.py", "ticket factory", "id allocation, partition + ticket.json, epic backlinks, mint-time create-ticket state")
         Component(clarify, "clarify.py", "Q&A ledger", "add/answer/list clarifications; assumption protocol")
         Component(handoff, "handoff.py", "session handoff", "finalize handed_off + summary; release lock; print continue_with")
         Component(codeowners, "codeowners.py", "reviewer resolution", "stdlib-only CODEOWNERS parser — last-match-wins pattern matching against changed files, team+user owner extraction, no workspace/lock coupling")
+        Component(release_notes, "release_notes.py", "changelog aggregation + version bump", "stdlib-only helper — drafts changelog section from the merged-ticket archive, cross-checks [Unreleased] coverage, bumps both manifests + source.ref")
         Component(vxml, "validate_xml.py", "message validation", "in-process stdlib structural validation (XSD-equivalent, default fast path); xmllint opt-in via ACS_XML_AUTHORITATIVE=1")
         Component(sline, "statusline.py / subagent-statusline.py", "observability", "prompt line + agent-panel rows from workspace state")
         Component(metrics, "metrics_aggregate.py", "observability", "read-only: aggregate all panels for /acs:metrics (PM view) and /acs:usage (usage view) from workspace artifacts; emits one superset JSON, never writes/gates/locks")

@@ -12,7 +12,7 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 22 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 23 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 42 files (14 × 3 roles); 36 reachable (11 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 14 pre + 14 post |
 | Helper CLIs | `hooks/scripts/{skill-start,new-ticket,handoff,validate_xml,pr-conventions}.py` | 5 |

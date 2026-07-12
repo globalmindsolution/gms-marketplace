@@ -311,11 +311,12 @@ class HistoricalMarkersPreservedTest(unittest.TestCase):
 
 
 class SkillsMdUnchangedTest(unittest.TestCase):
-    """AC-4: docs/requirements/skills.md's count is already correct — no churn."""
+    """AC-4 (MAR-123) baseline, bumped by MAR-129: skills.md's count moves
+    22 -> 23 for the new /acs:release unhooked skill, not stale drift."""
 
-    def test_twenty_two_skills_present(self):
+    def test_twenty_three_skills_present(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
-        self.assertIn("Twenty-two skills", body)
+        self.assertIn("Twenty-three skills", body)
 
     def test_eleven_triad_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))

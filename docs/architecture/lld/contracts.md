@@ -29,6 +29,7 @@ of messages in one in-process loop (MAR-61).
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes `handed_off`, releases lock, prints `continue_with` |
 | `codeowners.py resolve --repo-root --changed-files [--codeowners-path]` | stdout: `{source, owners[], reason}`; exit 0 on all data outcomes, exit 2 on malformed invocation |
+| `release_notes.py status\|draft\|bump --version X.Y.Z --repo-root P [--workspace W] [--dry-run]` | stdout JSON per subcommand — `status`: four idempotency signals (manifests/changelog/branch-PR/tag); `draft`: authoritative `draft_section` + `{merged,covered,missing}` coverage report; `bump`: `files_changed[]`, atomic per-file write (temp-file + rename); exit 0 on all data outcomes (incl. nothing-to-release), exit 2 on malformed invocation or unreadable/missing CHANGELOG/manifest |
 
 Exit codes: 0 ok; 2 blocked/invalid with actionable stderr.
 
