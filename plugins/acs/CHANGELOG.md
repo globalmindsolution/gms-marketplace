@@ -15,6 +15,32 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-12
+
+### Added
+
+- **Enforceable e2e integrity (G13) — epic MAR-124 (E2E-1 → E2E-3).** acs gains an
+  opt-in, fail-closed e2e merge gate plus brownfield onboarding for it, and validates
+  the G13 metric — everything guarded on `settings.e2e`/`suites.e2e` being configured
+  (unset ⇒ zero new behavior). Delivered as three reviewed children:
+  - **E2E-1 — required e2e merge gate (MAR-125).** New committed CI-workflow pair
+    `plugins/acs/templates/ci/acs-e2e.yml` + `run-e2e.py` (stdlib runner resolving
+    `suites["e2e"]` or the raw top-level `e2e` alias; fail-closed conclusion),
+    mirroring the existing tests gate. `/acs:init` gains **Step 7f**, which auto-wires
+    the `acs-e2e` required status check into branch protection via `gh api` when e2e
+    is configured and the authenticated user is a repo admin, with a **report-once**
+    manual-step safeguard otherwise. No new settings key. Makes `/acs:merge-pr`'s
+    report-only CI read enforceable (documentation-only merge-pr change).
+    ADRs 0045/0046/0047.
+  - **E2E-2 — brownfield e2e scaffolding (MAR-126).** `/acs:standardize-project`
+    additively scaffolds the `acs-e2e.yml` + `run-e2e.py` templates into an existing
+    repo (`A`-status file adds only, opt-in, never overwrites an existing workflow,
+    never wires branch protection), surfacing the wire-via-`/acs:init` step as a
+    recommended follow-up. ADR 0048.
+  - **E2E-3 — measured G13 metric (MAR-127).** Read-only validation of the G13 metric
+    from existing artifacts (no new mechanism, no metrics panel) with an honest
+    dogfood recording, plus product-doc reconciliation. ADR 0049.
+
 ## [0.4.0] - 2026-07-11
 
 ### Added
