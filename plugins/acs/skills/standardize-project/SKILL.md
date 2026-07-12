@@ -109,9 +109,21 @@ The audit inputs, read before spawning the planner:
     equivalent).
   - coverage-tool config presence AND whether it fails the run below
     `settings.test_coverage_percent`.
-  - e2e harness/config presence relative to `settings.e2e` — **when `settings.e2e` is
-    unset, this whole dimension is N/A** (the opt-in invariant: unset = no e2e suite, no
-    gate).
+  - e2e harness/config presence relative to `settings.e2e`/`suites.e2e`:
+    - **Unset** ⇒ this whole dimension is **N/A** (the opt-in invariant: unset means no
+      scaffold — no e2e suite, no gate, unchanged).
+    - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ a concrete scaffold-able gap:
+      additively copy `plugins/acs/templates/ci/acs-e2e.yml` →
+      `.github/workflows/acs-e2e.yml` and `plugins/acs/templates/ci/run-e2e.py` →
+      `.acs/ci/run-e2e.py`, reusing E2E-1's committed templates verbatim — never
+      re-author or hand-write them (mirrors `create-project/SKILL.md:150-164`'s
+      greenfield e2e-scaffold framing). Both land under allowlist categories 1 + 2,
+      `A`-status only. Whenever this fires, also add a `recommended_follow_ups` entry
+      pointing at `/acs:init` to wire the `E2E suite` required check into branch
+      protection — this skill itself never wires branch protection (D1).
+    - **Set AND `.github/workflows/acs-e2e.yml` already present** ⇒ standardize-project
+      does NOT overwrite the existing file; the conflict becomes a
+      `recommended_follow_ups` entry instead of an in-place modification.
 
   When the repo's existing build/test/CI tooling is genuinely ambiguous (no package
   manifest, or multiple candidate stacks/CI providers), the planner surfaces this as an

@@ -29,17 +29,32 @@ writing anything.
    files, or additive appends (a new key/hook/script) to the specific tooling-config
    paths the plan names as append targets. Every other path defaults to requiring a
    wholly new file.
-3. **NEVER edit, rename, move, or delete any pre-existing source file** not named as an
+3. **When the plan's task names the e2e workflow+runner scaffold target**, copy the
+   two files verbatim — zero judgment, never hand-authored or edited:
+
+   ```bash
+   mkdir -p .acs/ci .github/workflows
+   cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/acs-e2e.yml" .github/workflows/acs-e2e.yml
+   cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/run-e2e.py" .acs/ci/run-e2e.py
+   chmod +x .acs/ci/run-e2e.py
+   ```
+
+   This mirrors `plugins/acs/skills/init/SKILL.md`'s Step 7f (same `cp`/`chmod` shape,
+   same `${CLAUDE_PLUGIN_ROOT}/templates/ci/` source, same two target paths).
+4. **NEVER edit, rename, move, or delete any pre-existing source file** not named as an
    append target by the plan — this restriction holds regardless of what the plan's
    Recommended follow-up candidates list, and independent of the tool-level
-   `disallowedTools` restriction above.
-4. **NEVER write under `<principles_path>/**` or `<standards_path>/**`**, under any
+   `disallowedTools` restriction above. **This executor also never mutates branch
+   protection** — it does not call the GitHub API to add or change required status
+   checks on any branch; wiring the `E2E suite` (or any) required check into branch
+   protection stays exclusively with `/acs:init` Step 7f (D1).
+5. **NEVER write under `<principles_path>/**` or `<standards_path>/**`**, under any
    circumstance, even when the plan's Recommended follow-up candidates name a missing
    principles or standards set — that is a report-only finding this executor never acts
    on. Doc-set content authorship belongs exclusively to `/acs:create-principles` and
    `/acs:create-standards`, and this executor cannot invoke either (no `Agent`/`Skill`
    tool access) nor author their content directly.
-5. **Delivery — only when your task explicitly includes it** (the plan gates it on
+6. **Delivery — only when your task explicitly includes it** (the plan gates it on
    verification passing): create the branch per `formats.branch_name`, commit per
    `formats.commit_message`, push, and open the PR with the `ACS` label and the
    `## Recommended follow-ups` section appended to the body.

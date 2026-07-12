@@ -46,8 +46,18 @@ Audit each of the four categories independently — none gates the others:
    - CI workflow presence.
    - pre-commit config presence.
    - coverage-tool config presence, and whether it fails below `settings.test_coverage_percent`.
-   - e2e harness/config presence relative to `settings.e2e` — **when `settings.e2e` is
-     unset, this whole dimension is N/A** (unset = no e2e suite, no gate).
+   - e2e harness/config presence relative to `settings.e2e`/`suites.e2e`:
+     - **Unset** ⇒ **N/A** — the opt-in invariant: unset means no scaffold — no e2e
+       suite, no gate, unchanged.
+     - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ emit a concrete
+       scaffold-able gap naming the two exact copy targets — `acs-e2e.yml` (from
+       `plugins/acs/templates/ci/acs-e2e.yml`) and `run-e2e.py` (from
+       `plugins/acs/templates/ci/run-e2e.py`), reused verbatim, under allowlist
+       categories 1+2 — feeding the executor task breakdown; also draft a
+       `recommended_follow_ups` entry pointing at `/acs:init` to wire the required
+       check — this skill never wires branch protection itself.
+     - **Set AND `.github/workflows/acs-e2e.yml` already present** ⇒ no scaffold-able
+       gap; draft a `recommended_follow_ups` entry for the conflict instead.
    Each missing/absent CI, pre-commit, coverage, or (when applicable) e2e piece is a
    scaffold-able gap (CI/tooling config category), not a `recommended_follow_ups` entry.
 

@@ -530,6 +530,13 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   the verifier re-runs `git diff --name-status` every iteration
   (`classify_additive_diff`) and blocks on any status outside the
   allowlist (D6).
+- **e2e CI-gate scaffold (E2E-2):** when `settings.e2e`/`suites.e2e` is set and
+  `.github/workflows/acs-e2e.yml` is missing, the readiness-tooling audit's e2e
+  dimension becomes a concrete scaffold target — `acs-e2e.yml` + `run-e2e.py`,
+  reused verbatim from `/acs:init`'s (E2E-1) committed templates, under
+  allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
+  gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
+  — that stays with `/acs:init`, surfaced as a `recommended_follow_ups` entry pointing there.
 - Runs the full Reflection cycle — `standardize-project-planner`,
   `standardize-project-executor`, `standardize-project-verifier`.
 - Structural gaps outside the additive-surface allowlist are surfaced as
