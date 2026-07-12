@@ -4,7 +4,9 @@ Prose-contract tests over the new standing Flow-1 doc
 (`docs/architecture/lld/flows/standardize-project.md`), every count-bearing
 architecture/requirements file this epic's final increment touches (repaired
 to the post-121 totals 22 skills / 42 agent files / 36 reachable / eleven
-triad-keeping skills), the `s04` routing-eval case, and the durable CHANGELOG
+triad-keeping skills; the skill total later advances 22->23 as MAR-129 adds
+the unhooked /acs:release skill, agent counts unchanged), the `s04`
+routing-eval case, and the durable CHANGELOG
 entries (per-child MAR-121 + the epic-wide G10 summary line).
 
 Stdlib-only (ast, os, re, unittest). Run:
@@ -108,13 +110,13 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
 
-    def test_intro_reads_twentytwo_not_twentyone(self):
+    def test_intro_reads_twentythree_not_twentytwo(self):
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-two skills", intro,
-                      "skills.md intro must read 'Twenty-two skills'")
-        self.assertNotIn("Twenty-one skills", intro,
-                         "skills.md intro must NOT still read 'Twenty-one skills'")
+        self.assertIn("Twenty-three skills", intro,
+                      "skills.md intro must read 'Twenty-three skills'")
+        self.assertNotIn("Twenty-two skills", intro,
+                         "skills.md intro must NOT still read 'Twenty-two skills'")
 
     def test_standardize_project_section_exists_not_product_level(self):
         body = self._skills_req()
@@ -159,13 +161,15 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
 
 
 class C4CountAndListFilesTest(unittest.TestCase):
-    """AC-9: the C4/architecture count files read the post-121 totals
-    (22 skills / 42 agent files / 36 reachable / eleven triads / 11 active
-    triads (33 agents in triads)) — the pre-121 strings are absent."""
+    """AC-9: the C4/architecture count files read the current-epic totals
+    (23 skills post-MAR-129 / 42 agent files / 36 reachable / eleven triads /
+    11 active triads (33 agents in triads)) — the pre-121 strings are absent.
+    The skill total advanced 22->23 with MAR-129's unhooked /acs:release skill;
+    the agent/triad figures are unchanged (an unhooked skill adds no agent)."""
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("22 x SKILL.md", body)
+        self.assertIn("23 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
         self.assertIn("42 x agent .md (36 reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
@@ -199,7 +203,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (22)", body)
+        self.assertIn("acs Skills (23)", body)
         self.assertNotIn("acs Skills (21)", body)
         self.assertIn("42 files, 36 reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
@@ -223,7 +227,8 @@ class C4CountAndListFilesTest(unittest.TestCase):
 class S04SkillTriggersCaseTest(unittest.TestCase):
     """AC-9: one new standardize-project routing CASE, structurally parsed
     (no paid model call); the pre-existing 18/16-vs-21-entries drift is
-    repaired straight to 22/20."""
+    repaired straight to 22/20, later advanced to 23/21 by MAR-129's
+    /acs:release routing case."""
 
     def _source(self):
         path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
@@ -254,16 +259,16 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
             "the probe request must describe brownfield audit intent "
             "without naming the skill")
 
-    def test_header_and_summary_read_twentytwo(self):
+    def test_header_and_summary_read_twentythree(self):
         source = self._source()
         header = source.split("\n")[0]
-        self.assertIn("22", header)
+        self.assertIn("23", header)
         self.assertNotIn("18", header)
         m = re.search(r'"summary":\s*"([^"]*)"', source)
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
-        self.assertIn("22", summary)
-        self.assertIn("20", summary)
+        self.assertIn("23", summary)
+        self.assertIn("21", summary)
         self.assertNotIn("18", summary)
 
 

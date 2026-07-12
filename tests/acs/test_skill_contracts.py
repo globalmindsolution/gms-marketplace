@@ -3493,12 +3493,14 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
         the current epic pre/post hook pair count (see
-        test_c4_component_triad_count_advanced); x9 is gone."""
+        test_c4_component_triad_count_advanced); x9 is gone. MAR-129's
+        DRIFT-2 repair advances this to x14 (the true 14/14 hook count)."""
         body = self._c4_component()
-        self.assertIn("x11", body,
+        self.assertIn("x14", body,
                       "c4-component.md's dispatch.py component description "
-                      "must read x11 pre/post hook pairs (MAR-112 AC-7, "
-                      "superseded by MAR-113)")
+                      "must read x14 pre/post hook pairs (MAR-112 AC-7, "
+                      "superseded by MAR-113; DRIFT-2 repaired to 14/14 by "
+                      "MAR-129)")
         self.assertNotIn("x9", body,
                          "c4-component.md must not retain the stale x9 "
                          "pre/post hook pair count (MAR-112 AC-7)")
@@ -3622,11 +3624,13 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
-        x11 pre/post hook pairs; x10 is gone."""
+        x14 pre/post hook pairs (MAR-129's DRIFT-2 repair to the true
+        14/14 hook count); x10 is gone."""
         body = self._c4_component()
-        self.assertIn("x11", body,
+        self.assertIn("x14", body,
                       "c4-component.md's dispatch.py component description "
-                      "must advance to x11 pre/post hook pairs (MAR-113 AC-7)")
+                      "must advance to x14 pre/post hook pairs (MAR-113 AC-7; "
+                      "DRIFT-2 repaired to 14/14 by MAR-129)")
         self.assertNotIn("x10", body,
                          "c4-component.md must not retain the stale x10 "
                          "pre/post hook pair count (MAR-113 AC-7)")

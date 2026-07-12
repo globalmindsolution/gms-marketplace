@@ -50,7 +50,7 @@ BASELINE_FLOWS = {
 # file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail
 # still catches an ACCIDENTAL new flow file from a future MAR-119-adjacent
 # change; it is not meant to freeze the directory against every later ticket.
-KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md"}
+KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md"}
 
 
 def read(path):
