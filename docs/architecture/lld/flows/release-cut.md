@@ -15,15 +15,16 @@ sequenceDiagram
     participant RN as "release_notes.py"
     participant Arc as "workspace archive"
     participant Chg as "CHANGELOG.md"
-    participant Man as "marketplace.json + plugin.json"
+    participant Man as "marketplace.json + plugin.json, profile #1 version_locations + extra_refs"
     participant Gh as "gh CLI"
-    participant Wf as "release.yml (CI)"
+    participant Wf as "publish_driver — release.yml, profile #1, CI"
 
     Dev->>Rel: /acs:release 0.4.2
     Rel->>Lib: build_context(cwd)
     Lib-->>Rel: settings, workspace_path, repo_id
-    Rel->>RN: release_notes.py status --version 0.4.2
-    RN->>Man: read current version, source.ref
+    Rel->>Rel: resolve settings release block — profile #1 (version_locations, extra_refs, changelog_path, tag_format, base_branch, release_branch_format, publish_driver)
+    Rel->>RN: release_notes.py status --version 0.4.2 --release-config block
+    RN->>Man: read current version, source.ref (per version_locations, extra_refs)
     RN->>Gh: gh pr list --head release/v0.4.2
     RN->>Gh: gh api ...tags/v0.4.2 (existence check)
     RN-->>Rel: manifests_at_target, changelog_section_dated, open_pr, tag_exists
@@ -33,15 +34,15 @@ sequenceDiagram
     else tag already exists
         Rel-->>Dev: no-op — v0.4.2 already released
     else fresh cut
-        Rel->>RN: release_notes.py draft --version 0.4.2
+        Rel->>RN: release_notes.py draft --version 0.4.2 --release-config block
         RN->>Arc: enumerate archive tickets merged since v0.4.1
         RN->>Chg: read [Unreleased]
         RN->>RN: draft section, cross-check coverage
         RN-->>Rel: draft_section, coverage report
         Rel-->>Dev: show coverage report, N merged, M covered, K missing
-        Rel->>RN: release_notes.py bump --version 0.4.2
+        Rel->>RN: release_notes.py bump --version 0.4.2 --release-config block
         RN->>Chg: write dated section, retain empty [Unreleased]
-        RN->>Man: bump both versions, set source.ref = v0.4.2
+        RN->>Man: bump per version_locations, set extra_refs source.ref = v0.4.2
         RN-->>Rel: files_changed, ok
         Rel->>Gh: git checkout -b release/v0.4.2, commit, push
         Rel->>Gh: gh pr create --label ACS (release/* exempt branch)
@@ -51,7 +52,7 @@ sequenceDiagram
 
     Note over Dev,Gh: human reviews and edits the drafted section as needed
     Dev->>Gh: gh pr merge release/v0.4.2 (human action)
-    Gh->>Wf: push to main touches marketplace.json
+    Gh->>Wf: push to base_branch touches publish_driver trigger_paths
     Wf->>Wf: tag-exists guard — false, proceed
     Wf->>Chg: extract "## [0.4.2]" section verbatim
     Wf->>Wf: git tag -a v0.4.2, git push origin v0.4.2

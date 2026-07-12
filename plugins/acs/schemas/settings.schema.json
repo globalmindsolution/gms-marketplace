@@ -211,6 +211,72 @@
         "pr_description_sections": {"type": "array", "items": {"type": "string"}, "default": ["Summary", "Ticket", "Changes", "Test plan"], "description": "Markdown section headings the pr_description check requires in the PR body; defaulted from the configured pr_description_template."}
       },
       "additionalProperties": true
+    },
+    "release": {
+      "description": "Settings-driven release-cut configuration for /acs:release (Decision 5, ADR 0054). Non-secret: file paths, JSON pointers, and format strings only — auth stays via gh, mirrors the tracker NFR. Absent = /acs:release cannot run for this repo (fails fast, no marketplace-hardcoded fallback); explicit null also disables it.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["version_locations", "changelog_path", "tag_format", "base_branch", "release_branch_format"],
+          "properties": {
+            "version_locations": {
+              "description": "Files + JSON pointers holding the version string, bumped to the same value on every cut.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["file", "pointer"],
+                "properties": {
+                  "file": {"type": "string", "minLength": 1, "description": "Repo-relative path, e.g. '.claude-plugin/marketplace.json'."},
+                  "pointer": {"type": "string", "minLength": 1, "description": "RFC 6901 JSON pointer, e.g. '/version'."},
+                  "kind": {"enum": ["json-pointer"], "default": "json-pointer", "description": "Resolution strategy for this entry. Only json-pointer is supported this pass; an OPTIONAL forward-compat seam — a future PR may widen this enum (e.g. regex, line) as a strictly additive extension, never a schema rewrite."}
+                },
+                "additionalProperties": true
+              }
+            },
+            "extra_refs": {
+              "description": "Non-version fields bumped alongside version_locations, e.g. a plugin catalog's per-entry source.ref. Optional — a repo with no such field (e.g. a plain package.json consumer) omits this or sets [].",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "required": ["file", "selector", "value_format"],
+                "properties": {
+                  "file": {"type": "string", "minLength": 1},
+                  "selector": {
+                    "description": "A name-match predicate against an array field, not a brittle array-index pointer — catalog/array order can change without breaking the bump.",
+                    "type": "object",
+                    "required": ["pointer", "match", "set"],
+                    "properties": {
+                      "pointer": {"type": "string", "minLength": 1, "description": "JSON pointer to the array to search, e.g. '/plugins'."},
+                      "match": {"type": "object", "minProperties": 1, "description": "Key/value pairs the target array entry must match, e.g. {\"name\": \"acs\"}."},
+                      "set": {"type": "string", "minLength": 1, "description": "Slash-separated relative path to set on the matched entry, e.g. 'source/ref'."}
+                    },
+                    "additionalProperties": true
+                  },
+                  "value_format": {"type": "string", "minLength": 1, "description": "{version}-templated value written to the selector's target, e.g. 'v{version}'."}
+                },
+                "additionalProperties": true
+              }
+            },
+            "changelog_path": {"type": "string", "minLength": 1, "description": "Repo-relative path to the Keep-a-Changelog file the cut drafts/dates. Only the PATH is settings-driven — the section FORMAT stays a shared convention (R-A4), also depended on by publish_driver's own extractor."},
+            "tag_format": {"type": "string", "minLength": 1, "description": "{version}-templated git tag name, e.g. 'v{version}'."},
+            "base_branch": {"type": "string", "minLength": 1, "description": "Branch the 'since last tag' boundary and the release PR target, e.g. 'main'."},
+            "release_branch_format": {"type": "string", "minLength": 1, "description": "{version}-templated release branch name, e.g. 'release/v{version}'. Should match one of enforcement.exempt_branches' globs (R-A5) or the release PR will fight the conventions gate."},
+            "publish_driver": {
+              "description": "Documentary only — names the CI job that performs the privileged tag+publish step. release_notes.py validates but does not act on this field; the skill never tags or publishes itself regardless of its value (ADR 0052).",
+              "type": "object",
+              "properties": {
+                "workflow": {"type": "string", "minLength": 1, "description": "Repo-relative path to the CI workflow file, e.g. '.github/workflows/release.yml'."},
+                "trigger_paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Paths whose change on base_branch fires the workflow."}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        {"type": "null"}
+      ]
     }
   },
   "additionalProperties": true
