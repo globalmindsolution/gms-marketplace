@@ -184,6 +184,16 @@ and the mode. The executor — the only role that mutates the repo — writes:
   **Constraints & assumptions**, **Out of scope**.
 - `<settings.prd_path>/roadmap.md` — milestones/phases mapped to intended epics, each
   milestone listing the PRD features it delivers.
+  - Additionally, maintain a **"Release versions"** mapping table in
+    `roadmap.md`: one row per release version, mapping it to the
+    milestone(s)/wave it is the version-home of and the epic(s) it delivers.
+    This is additive to today's version-labelled milestone prose (e.g. "Wave 3
+    — v0.4.2") — no existing milestone/version label is removed or renamed.
+    `/acs:release`/`release_notes.py` never reads this table for
+    ticket→version resolution (it resolves via the merged-ticket
+    archive/`git log` instead) — the table exists purely for roadmap
+    readability and the coverage check below, and a gap in it can never break
+    a release cut.
 - In amend mode: edit `prd.md` in place, preserving untouched sections exactly
   (verify with `git diff -- <settings.prd_path>`); update `roadmap.md` only where the
   amendment changes it.
@@ -207,6 +217,10 @@ fresh and checks, all findings blocking:
 - nothing in features, NFRs, or roadmap contradicts the stated constraints or the
   out-of-scope list;
 - roadmap milestones map to intended epics and cover all Must-have features;
+- every committed roadmap milestone resolves to **exactly one release
+  version** (**0 orphan milestones**) — the mapping-table coverage sub-check
+  (G17 100%-mapping metric); a milestone with zero or more than one mapped
+  version is a blocking finding;
 - amend mode: `git diff` shows only the intended sections changed.
 
 Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed the

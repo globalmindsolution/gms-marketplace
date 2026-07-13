@@ -47,6 +47,11 @@ Write exactly the files the plan covers:
 2. `<repo>/<prd_path>/roadmap.md` — milestones/phases mapped to intended epics; each
    milestone lists the PRD features it delivers; every Must-have feature appears in
    some milestone.
+   - Additionally, maintain a **"Release versions"** mapping table in
+     `roadmap.md`: one row per release version, mapping it to the
+     milestone(s)/wave it is the version-home of and the epic(s) it delivers,
+     additive to the existing version-labelled milestone prose.
+     `/acs:release` never reads this table for ticket→version resolution.
 
 Mode rules:
 

@@ -110,6 +110,11 @@ its own — and wired as the `E2E suite` required-check context.
 
 Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
 
+`/create-prd`'s output contract now additionally includes the **"Release
+versions"** mapping table in `roadmap.md` (one row per release version →
+milestone/wave + epic(s) delivered), verified by the create-prd verifier's
+0-orphan-milestone coverage sub-check (ADR 0053).
+
 ---
 
 ## tabp plugin contracts

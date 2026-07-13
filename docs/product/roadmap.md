@@ -13,6 +13,36 @@ delivery-readiness priority. The **tabp plugin track is retired** — see the
 retired stub below; it is no longer a committed milestone. Future plugins add
 their own track here without restructuring the existing tracks.
 
+## Release versions
+
+Additive index sitting above the milestone narrative below (C-8): no existing
+milestone/version label or wave text in this file is removed, moved, or
+renamed by adding this table — it maps each release version to the
+milestone/wave it is the version-home of, plus the epic(s) it delivers, per
+[ADR 0053](../adr/0053-release-versions-roadmap-mapping-table.md).
+**Decoupled from the cut skill:** `/acs:release`/`release_notes.py` never read
+this table for ticket→version resolution — they resolve via the merged-ticket
+archive/`git log` instead; a gap in this table can never break a release cut.
+
+| Release version | Milestone / Wave | Epic(s) delivered | Status |
+|---|---|---|---|
+| v0.1.0–v0.1.2 | M1 — Foundation | marketplace/plugin skeleton; deterministic layer; skills+agents; quality systems; test suites | shipped |
+| v0.2.0 | M2 — Hardening (exit) | E1 behavioral eval harness; E5 convention enforcement & repo hardening | shipped |
+| v0.3.0 | M2 exit — dogfood + metrics + complexity-adaptive | E3 dogfood; E4 acs:metrics dashboard; complexity-adaptive delivery G14/G15/G16 | shipped |
+| v0.3.4 | M2.5 | `/acs:init` init-prompt configuration-completeness — G21 slice | shipped |
+| v0.3.5 | M2.6 — Group A core | PR metadata acs sets on create/update — G22 | shipped |
+| v0.3.6 | M2.6 — status + remaining fields | full-lifecycle ticket Status + reviewers/priority/points/parent — G22 | shipped |
+| v0.3.7 | M2.6 — dynamic lane | dynamic (mid-flight) lane correctness — G25 | shipped |
+| v0.3.8 | M3 Wave 1 | full-SDLC verify & operate — G8 | shipped |
+| v0.4.0 | M3 Wave 2 | principles & standards + brownfield standardization — G10 | shipped |
+| v0.4.1 | M3 e2e integrity | enforceable e2e integrity — G13 | shipped |
+| v0.4.2 | M3 Wave 3 (LEAD) | team-shared delivery state (G23); first-class release versions + one-command release cut (G17) — {MAR-128} | in progress |
+| v0.4.3+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
+| v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
+| v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
+| v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
+| v1.0 | M7 — GA | no committed epics yet | future |
+
 ## acs plugin track
 
 ### M1 — Foundation (v0.1.x) — *implemented*
