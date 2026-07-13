@@ -16,6 +16,22 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Diagram-lint gate: 0 Mermaid syntax errors, verifier-enforced (G36 child A,
+  MAR-137).** The heuristic Mermaid linter now ships inside the plugin, at
+  `plugins/acs/hooks/scripts/mermaid_lint.py` (promoted from
+  `tests/acs/mermaid_lint.py`, same rule set and `lint_text`/`lint_file`/
+  `Finding`/`main(argv)` API), so it travels to any consumer repo with acs
+  installed. The `create-architecture` and `create-design` verifiers both
+  invoke it via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py` and
+  treat any finding as a **blocking** failure — replacing the prior soft
+  structural/grep check (architecture, dimension `mermaid-diagrams`) and
+  "syntactically plausible" LLM judgment (design, dimension `completeness`)
+  with a deterministic 0-syntax-error gate. The marketplace's own pre-commit
+  hook and CI keep linting every committed doc, via the repointed plugin
+  path (ADR 0055).
+
 ## [0.4.2] - 2026-07-13
 
 Delivers the **G17 epic** (first-class release versions + one-command release
