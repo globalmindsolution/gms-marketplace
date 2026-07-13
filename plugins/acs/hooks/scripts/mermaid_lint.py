@@ -17,9 +17,10 @@ Rules:
   - er-key-space         : an `erDiagram` attribute with space-separated key
                            constraints (`PK FK`) instead of comma-separated
                            (`PK,FK`).
+  - empty-block          : a ```mermaid block with no diagram content.
 
 Usage:
-  python3 tests/acs/mermaid_lint.py FILE.md [FILE.md ...]   # exits 1 on findings
+  python3 plugins/acs/hooks/scripts/mermaid_lint.py FILE.md [FILE.md ...]   # exits 1 on findings
 Importable:
   from mermaid_lint import lint_text, lint_file, Finding
 """

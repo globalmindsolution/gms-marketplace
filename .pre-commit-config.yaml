@@ -30,7 +30,7 @@ repos:
     hooks:
       - id: mermaid-lint
         name: mermaid diagram lint
-        entry: python3 tests/acs/mermaid_lint.py
+        entry: python3 plugins/acs/hooks/scripts/mermaid_lint.py
         language: system
         files: \.md$
 
