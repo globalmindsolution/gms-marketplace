@@ -38,7 +38,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.1 | M3 e2e integrity | enforceable e2e integrity — G13 | shipped |
 | v0.4.2 | M3 Wave 3 — release versions | first-class release versions + one-command release cut (G17) — {MAR-128}; consumer-general program (C-20 + Consumer-repo-generality principle) — {MAR-132, MAR-133} | shipped |
 | v0.4.3 | M3 — team-shared delivery state (LEAD) | team-shared delivery state (G23) | planned |
-| v0.4.4+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
+| v0.4.4+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics — incl. generated-doc quality (G36) | planned |
 | v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
 | v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
@@ -302,7 +302,7 @@ The Wave-3 release-versions slot (shipped v0.4.2), the new team-shared-delivery-
 | **e2e integrity (shipped)** | **v0.4.1** | Enforceable e2e integrity (G13) |
 | **Wave 3 — release versions (shipped)** | **v0.4.2** | First-class release versions + one-command release cut (G17) + consumer-general program (C-20 + principle) |
 | **Team-shared delivery state (LEAD)** | **v0.4.3** | Team-shared delivery state (G23) |
-| **Wave 4** | **v0.4.4+** | Org-level policy/scale (G12, G24) + remaining polish epics |
+| **Wave 4** | **v0.4.4+** | Org-level policy/scale (G12, G24) + remaining polish epics — incl. generated-doc quality (G36) |
 
 **Wave 4's version home is open-ended (`v0.4.4+`)**: its epics have no
 committed order, so as slices get committed they may split across v0.4.4,
@@ -478,6 +478,22 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   "Human-readable doc management" feature. **Traces G29 (+ all producer-skill
   personas).** The MECHANISM (per-producer readability checks, appendix/history
   layout) is settled in the implementing epic's design phase.
+- **Epic: generated-doc validity gate (diagram-lint + structure-conformance, G36)** —
+  promotes today's soft "diagrams present … and syntactically plausible" verifier check
+  (`create-design/SKILL.md`) plus the marketplace-only `mermaid-lint` pre-commit/CI hook
+  (`.pre-commit-config.yaml`, `tests/acs/mermaid_lint.py`) into a **verifier-enforced,
+  consumer-general** delivery-contract gate: every doc-producing skill's verifier
+  (`create-prd`, `create-architecture`, `create-design`, `create-project`,
+  `create-principles`, `create-standards`, `create-quality`, `create-operations`) blocks
+  (i) any invalid Mermaid diagram in a skill that emits diagrams (today
+  `create-architecture`, `create-design`) and (ii) any doc missing its skill's required
+  sections. Pairs with the readability-gate epic above (**G29**) — same per-producer
+  verifier surface — without restating it: G29 owns line-length/cell micro-readability,
+  G36 owns diagram-validity + structure-conformance. Maps to PRD **G36** and the acs
+  Could-have "Generated-doc validity gate" feature. **Traces G36** (extends G29; + all
+  producer-skill personas). The MECHANISM (which lint; whether `mermaid_lint.py` is
+  promoted into the plugin as the shared stdlib helper the verifiers import; the exact
+  structure-conformance check shape) is settled in this epic's design phase, per **C-21**.
 - **Epic: onboarding polish** — `/acs:init` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
   read-only skill index / next-step advisor (e.g. `/acs:help`) listing available
