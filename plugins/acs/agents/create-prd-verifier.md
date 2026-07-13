@@ -46,7 +46,9 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    contradicts Constraints & assumptions or the Out of scope list (e.g. an
    out-of-scope capability appearing as a roadmap milestone is a finding).
 6. **Roadmap coverage** — milestones map to intended epics; every Must-have feature
-   appears in some milestone; no milestone delivers a feature absent from `prd.md`.
+   appears in some milestone; no milestone delivers a feature absent from `prd.md`;
+   every committed roadmap milestone resolves to **exactly one release version**
+   (**0 orphan milestones**) in the "Release versions" mapping table.
 7. **Plan conformance** — the documents realize the approved plan's outline; user
    answers recorded in the plan/context are reflected, not contradicted; brownfield
    claims match the code evidence the plan cites (spot-check with Grep).
