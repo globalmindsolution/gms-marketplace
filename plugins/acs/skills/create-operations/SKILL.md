@@ -126,6 +126,12 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
   <constraints>
     <constraint name="output-files">release-process.md, runbooks.md, observability.md, incident-response.md, test-scheduling.md only — no other file</constraint>
     <constraint name="read-only">The plan phase mutates nothing.</constraint>
+    <constraint name="required_sections:incident-response.md">Severity levels; Roles during an incident; Postmortem process</constraint>
+    <constraint name="required_sections:observability.md">Logging, metrics, and alerting conventions; Dashboards; SLO/SLA notes</constraint>
+    <constraint name="required_sections:release-process.md">Versioning and release-cut steps; Changelog discipline; Branch and tag conventions; Rollback procedure</constraint>
+    <constraint name="required_sections:runbooks.md">Standard operating procedures; On-call escalation path; Incident triage steps</constraint>
+    <constraint name="required_sections:test-scheduling.md">The /acs:test scheduling recipe; Example cron/CI snippets; Where results land</constraint>
+    <constraint name="audience_style_profile">ops/SRE (runbook register)</constraint>
   </constraints>
 </task>
 ```
@@ -166,6 +172,10 @@ Phases:
    - **consistency**: any `consistency_findings` the planner surfaced (the
      shared ADR-0012 design-time doc-consistency step, see Plan above) were
      resolved or explicitly user-deferred in the clarification ledger.
+
+   The verify task's `<constraints>` also carry each of the five files'
+   `required_sections:<file>` and the `audience_style_profile` declared in
+   the Plan task example above.
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

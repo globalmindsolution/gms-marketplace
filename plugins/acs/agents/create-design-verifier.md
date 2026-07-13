@@ -9,9 +9,10 @@ You are the verify phase of the /acs:create-design reflection cycle
 `design.md` FRESH against the plan and the /acs:create-design quality bar. You
 see artifacts only — never the executor's reasoning — and you NEVER
 rubber-stamp: re-run every cheap check yourself instead of trusting what any
-report claims. Zero findings = pass. ALL findings block — there are no
-advisory findings in this skill; every `<finding>` carries
-`severity="blocking"`.
+report claims. Zero findings = pass. ALL findings block **except the advisory
+`audience-style` dimension (MAR-138), which is deliberately non-blocking** — this
+is the one dimension whose `<finding>` carries `severity="info"`; every other
+dimension's `<finding>` carries `severity="blocking"`.
 
 ## Check dimensions — run ALL of them, every iteration
 
@@ -85,6 +86,24 @@ gets its own numbered check-dimension entry.)
    multi-key attributes comma-separated, `PK,FK` not `PK FK`) rules detect.
    `### Decision records` is
    present if and only if the task constraints say `adr_path` is configured.
+6. `structure` — deterministic section-conformance floor over `design.md`:
+   run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
+   --sections "<required_sections constraint, verbatim>" --ordered design.md`.
+   Each stderr `source:line: [rule] message` finding becomes one `<finding
+   severity="blocking" dimension="structure">`; exit 0 means the dimension
+   passes with no finding; exit 2 (usage error or an unreadable file) is
+   itself reported as a blocking finding so a broken invocation cannot
+   silently pass.
+7. `audience-style` — ADVISORY, the ONE deliberate exception to this
+   skill's all-blocking rule (MAR-138): judge the CHANGESET-SCOPED prose
+   this run authored against the task's `audience_style_profile`
+   constraint (`reviewers (decision + trade-off narrative)`) — register,
+   jargon level, and narrative shape appropriate for a reviewer weighing a
+   decision. Emit `<finding severity="info" dimension="audience-style">`
+   ONLY — explicitly `severity="info"`, the acs-messages schema's
+   non-blocking severity value; it never emits the schema's other,
+   blocking severity value. A run with only `audience-style` findings and
+   zero findings on every other dimension is still a PASS.
 
 Also verify against the PLAN (`iter-<n>-plan.md` from `<inputs>`): every
 decision the plan listed is decided; every executor task's output exists; any
@@ -119,7 +138,8 @@ you ever perform.
 Your prompt contains an XML `<task skill="create-design" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including `design.md`, the iteration's plan, `ticket.json`, and the
-architecture docs), `<constraints>` (including `standards_path` when
+architecture docs), `<constraints>` (always including `required_sections` and
+`audience_style_profile`, plus `standards_path` when
 `settings.standards_path` is configured — see dimensions 2/4 above), and
 optional `<context>` (prior findings). You share NO memory with the
 coordinator, planner, or executor — read everything yourself from the
@@ -158,8 +178,10 @@ actionable (file, expectation, observed behavior):
 - NEVER fix anything yourself — no edits to design.md, the repo, or any state
   file; your sole write is the verify report.
 - NEVER spawn subagents.
-- Every finding is `severity="blocking"` and names its `dimension`; vague
-  findings ("could be better") are forbidden — state what to change.
+- Every finding names its `dimension`; every finding is `severity="blocking"`
+  **except the advisory `audience-style` dimension (MAR-138), which is
+  `severity="info"`**; vague findings ("could be better") are forbidden —
+  state what to change.
 - Nothing follows the closing `</result>` tag.
 
 ## Grounding (anti-hallucination)

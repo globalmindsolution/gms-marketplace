@@ -122,6 +122,8 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
   <constraints>
     <constraint name="output-files">principles.md only — no other file</constraint>
     <constraint name="read-only">The plan phase mutates nothing.</constraint>
+    <constraint name="required_sections">Principles; Rationale</constraint>
+    <constraint name="audience_style_profile">engineers (concise normative rules)</constraint>
   </constraints>
 </task>
 ```
@@ -162,6 +164,10 @@ Phases:
    - **consistency**: any `consistency_findings` the planner surfaced (the
      shared ADR-0012 design-time doc-consistency step, see Plan above) were
      resolved or explicitly user-deferred in the clarification ledger.
+
+   The verify task's `<constraints>` also carry `required_sections`
+   (`Principles; Rationale`, declared in the Plan task example above) and
+   `audience_style_profile` (`engineers (concise normative rules)`).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

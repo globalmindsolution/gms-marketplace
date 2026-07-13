@@ -280,7 +280,10 @@ else is verified against.
   `create-prd-verifier`. The verifier checks: all required sections
   present, features trace to goals, success metrics are measurable,
   nothing contradicts the stated constraints, and every roadmap milestone
-  resolves to exactly one release version (0 orphan milestones).
+  resolves to exactly one release version (0 orphan milestones) — plus a
+  deterministic `structure` floor (declared `required_sections`, blocking)
+  and an advisory `audience-style` check (declared audience/style profile,
+  non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -333,7 +336,9 @@ living system documentation the whole pipeline designs and verifies against.
   NFRs, constraints); the docs match the actual codebase; they are
   internally consistent; diagrams agree with the prose; and **HLD and LLD
   agree with each other** (every participant in a sequence diagram exists
-  in the C4 views).
+  in the C4 views) — plus a deterministic `structure` floor over the
+  prose-structured files (declared `required_sections:<file>`, blocking)
+  and an advisory `audience-style` check (non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -369,7 +374,9 @@ pipeline verifies against.
 - Runs the full Reflection cycle — `create-quality-planner`,
   `create-quality-executor`, `create-quality-verifier`. The verifier checks
   the tailored content conforms to the architecture set (stack/technology
-  claims agree with `architecture/hld/tech-stack.md`).
+  claims agree with `architecture/hld/tech-stack.md`), plus a deterministic
+  `structure` floor over each file (declared `required_sections:<file>`,
+  blocking) and an advisory `audience-style` check (non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -402,7 +409,9 @@ operations contract the pipeline and the on-call team run against.
 - Runs the full Reflection cycle — `create-operations-planner`,
   `create-operations-executor`, `create-operations-verifier`. The verifier
   checks the tailored content conforms to the architecture set (component/
-  deployment claims agree with `architecture/hld/`).
+  deployment claims agree with `architecture/hld/`), plus a deterministic
+  `structure` floor over each file (declared `required_sections:<file>`,
+  blocking) and an advisory `audience-style` check (non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -431,7 +440,9 @@ engineering principles and their rationale — the standing values contract
   (engineering principles list + rationale). Unset `principles_path` (`null`)
   means acs does not maintain this set for the repo.
 - Runs the full Reflection cycle — `create-principles-planner`,
-  `create-principles-executor`, `create-principles-verifier`. The planner
+  `create-principles-executor`, `create-principles-verifier` — including a
+  deterministic `structure` floor (declared `required_sections`, blocking)
+  and an advisory `audience-style` check (non-blocking). The planner
   phase also runs the shared ADR-0012 design-time doc-consistency step,
   surfacing gap/staleness findings through the existing clarification ledger;
   the verifier's `consistency` dimension confirms any such findings were
@@ -466,11 +477,14 @@ values contract.
   `review-checklist.md`. Unset `standards_path` (`null`) means acs does not
   maintain this set for the repo.
 - Runs the full Reflection cycle — `create-standards-planner`,
-  `create-standards-executor`, `create-standards-verifier`. The planner
-  phase also runs the shared ADR-0012 design-time doc-consistency step,
-  surfacing gap/staleness findings through the existing clarification ledger;
-  the verifier's `consistency` dimension confirms any such findings were
-  resolved or explicitly deferred.
+  `create-standards-executor`, `create-standards-verifier` — including a
+  deterministic `structure` floor over each file (declared
+  `required_sections:<file>`, blocking) and an advisory `audience-style`
+  check (non-blocking). The planner phase also runs the shared ADR-0012
+  design-time doc-consistency step, surfacing gap/staleness findings
+  through the existing clarification ledger; the verifier's `consistency`
+  dimension confirms any such findings were resolved or explicitly
+  deferred.
 - State lives in the delivery ticket's partition
   (`create-standards-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -698,8 +712,10 @@ tickets where the change is architecturally significant.
 - The `create-design-verifier` checks: alternatives genuinely weighed,
   consistency with the existing codebase and docs (including conformance
   with the `standards/` doc set at `standards_path` when configured),
-  feasibility, NFR coverage — all findings block, same 3-iteration
-  reflection cap.
+  feasibility, NFR coverage, and a deterministic `structure` floor
+  (declared `required_sections`) — all findings block **except** an
+  advisory `audience-style` check (declared audience/style profile,
+  non-blocking) — same 3-iteration reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
   `create-design-verifier`.
 - The planner phase also runs the shared ADR-0012 design-time

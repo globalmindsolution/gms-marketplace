@@ -146,6 +146,7 @@ Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iterati
   <constraints>
     <constraint name="prd_path">docs/product</constraint>
     <constraint name="required_sections">Vision; Problem statement; Target users &amp; personas; Goals &amp; success metrics; Features (prioritized); Non-functional requirements; Constraints &amp; assumptions; Out of scope</constraint>
+    <constraint name="audience_style_profile">product/business (plainer prose)</constraint>
     <constraint name="amend_rule">amendments preserve untouched sections exactly</constraint>
   </constraints>
   <context>User notes from $ARGUMENTS; prior findings on iteration 2+.</context>
@@ -206,8 +207,11 @@ finish and judges the combined result.
 ### Verify
 
 Spawn the verifier (`phase="verify"`) with ONLY artifact references (the two files,
-the ticket, the git diff) — never the executor's reasoning. It re-reads everything
-fresh and checks, all findings blocking:
+the ticket, the git diff) — never the executor's reasoning. Its `<constraints>` also
+carry `required_sections` and `audience_style_profile` (both declared above in the
+Plan task example — the same eight-section list the executor was instructed to write,
+so the structure gate has no second, driftable copy). It re-reads everything fresh
+and checks, all findings blocking:
 
 - all eight required `prd.md` sections present and non-empty, plus `roadmap.md`;
 - every feature traces to at least one goal; no orphan features, no goal without a

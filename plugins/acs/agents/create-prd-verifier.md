@@ -22,8 +22,8 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   approved plan (`<partition>/phases/create-prd/iter-<n>-plan.md`), the delivery
   `ticket.json` (derive `<partition>` from its directory), and the execute report.
   READ EVERY ONE — you share no memory with anyone;
-- `<constraints>` — at least `prd_path`, `required_sections`, `amend_rule`, and the
-  mode (greenfield/brownfield/amend);
+- `<constraints>` — at least `prd_path`, `required_sections`, `audience_style_profile`,
+  `amend_rule`, and the mode (greenfield/brownfield/amend);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
@@ -57,6 +57,25 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    any byte changed in a section the plan marked "preserved" is a finding.
 9. **Iteration 2+ regression check** — every prior finding from `<context>` is
    actually fixed; verify each one directly, never from the execute report's word.
+10. **structure** — deterministic section-conformance floor over `prd.md` only
+    (`roadmap.md` is deliberately out of scope — its milestone list has no
+    fixed skill-defined section set; dims 1 and 6 above already cover it):
+    run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
+    --sections "<required_sections constraint, verbatim>" --ordered prd.md`.
+    Each stderr `source:line: [rule] message` finding becomes one `<finding
+    severity="blocking" dimension="structure">`; exit 0 means the dimension
+    passes with no finding; exit 2 (usage error or an unreadable file) is
+    itself reported as a blocking finding so a broken invocation cannot
+    silently pass.
+11. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+    prose this run authored (in `prd.md`, and `roadmap.md` where touched)
+    against the task's `audience_style_profile` constraint (`product/business
+    (plainer prose)`) — register, jargon level, and narrative shape
+    appropriate for a product/business reader. Emit `<finding severity="info"
+    dimension="audience-style">` ONLY — explicitly `severity="info"`, the
+    acs-messages schema's non-blocking severity value; it never emits the
+    schema's other, blocking severity value. A run with only `audience-style`
+    findings and zero findings on every other dimension is still a PASS.
 
 ## Phase artifact
 
@@ -73,8 +92,10 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 - Stay in your phase: NEVER fix what you find, never edit `prd.md`/`roadmap.md` or
   any repo or workspace state file. Bash is for read-only inspection (`git diff`,
   `git log`, `grep`, `ls`) — the single permitted write is your report above.
-- ALL findings are blocking for create-prd: emit every real issue as
-  `<finding severity="blocking" dimension="...">`; one `<finding>` per issue, never
+- ALL findings are blocking for create-prd **except the advisory
+  `audience-style` dimension (MAR-138), which is deliberately non-blocking
+  (`severity="info"`)**: emit every other real issue as `<finding
+  severity="blocking" dimension="...">`; one `<finding>` per issue, never
   bundled. An observation not worth blocking the PR over is not a finding — keep it
   in the report as a note. Zero findings means you attest the PRD is ready to ship.
 
