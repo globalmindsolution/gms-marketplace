@@ -6,7 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Releases are automated: bump `version` in BOTH
+Releases are automated: run **`/acs:release <version>`** to perform the five
+steps below in one command — bump `version` in BOTH
 `.claude-plugin/marketplace.json` and `plugins/acs/.claude-plugin/plugin.json`
 to the same value, point the acs `source.ref` in `marketplace.json` at
 `v<version>`, add a matching section here, and merge to `main` — the Release
@@ -14,6 +15,26 @@ workflow tags `v<version>` and publishes a GitHub release using that section as
 the notes.
 
 ## [Unreleased]
+
+### Added
+
+- **`/acs:release` — one-command release cut (MAR-129).** A new unhooked
+  utility skill `/acs:release <version>` (mirrors `/acs:test`) plus a
+  stdlib-only, settings-driven `release_notes.py` helper that
+  authoritatively drafts the `## [<version>]` CHANGELOG section from the
+  merged-ticket archive since the last tag — cross-checked against
+  `[Unreleased]` with a coverage report (N merged / M covered / K missing),
+  never a silently empty section when ≥1 ticket merged (defeats the v0.4.1
+  empty-notes bug) — bumps `version` in both manifests + `source.ref` per a
+  new `.acs/settings.json` `release` block (this marketplace configured as
+  profile #1, no marketplace-hardcoded paths), and opens an exempt
+  `release/*` PR that **stops for a mandatory human merge**; the skill
+  never tags or publishes itself, and the existing `release.yml` workflow
+  is reused unchanged. `status` runs first on every invocation and reports
+  + no-ops when the cut is already in flight or done (four idempotency
+  signals). Skill count 22→23; `UNHOOKED_SKILLS` 8→9; `HOOKED_SKILLS` (14),
+  the 14/14 pre/post hook pairs, `GATES` (14 entries), and the agent-file
+  count (42) are all unchanged. ADRs 0050-0054.
 
 ## [0.4.1] - 2026-07-12
 

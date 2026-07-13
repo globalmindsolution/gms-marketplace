@@ -59,6 +59,13 @@ newer `v<version>` tag:
 
 ### Releasing & updating
 
+**Recommended: `/acs:release <version>`** — a one-command skill that drafts
+and dates the CHANGELOG section from the merged-ticket archive, bumps both
+manifests + `source.ref`, and opens the exempt `release/*` PR, then stops
+for a mandatory human merge (ADRs 0050-0052). The manual steps below are the
+underlying mechanism it automates, and remain the documented fallback if the
+skill is unavailable.
+
 The catalog (`marketplace.json`) version is a marketplace-level identifier
 (currently 0.2.0) and is not CI-coupled to any plugin's version. The `acs`
 `plugin.json` version governs how acs updates ship. A release bumps `version`

@@ -1,4 +1,4 @@
-"""s04 — routing evals for all 22 skills (paid, E1.2).
+"""s04 — routing evals for all 23 skills (paid, E1.2).
 
 Three kinds of probe, covering every skill:
 
@@ -27,7 +27,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for all 22 (20 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for all 23 (21 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -115,6 +115,11 @@ CASES = [
      "Run the configured test suites for this repo and give me a results "
      "report, opening a regression ticket for anything that broke.",
      "test"),
+    ("release", True,
+     "Cut a new release — draft the changelog section from what's merged "
+     "since the last tag, bump the version in both manifests, and open the "
+     "release PR for me to review and merge.",
+     "release"),
     # User-only skills: positive case = the explicit command the user types.
     # (A description can't reach them — see NEGATIVE for that guarantee.)
     ("install-hooks", True,

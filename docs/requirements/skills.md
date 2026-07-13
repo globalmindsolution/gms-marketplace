@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-two skills in total: the bootstrap skill (`/init`), the umbrella
+Twenty-three skills in total: the bootstrap skill (`/init`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the

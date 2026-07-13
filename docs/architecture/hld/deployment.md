@@ -4,7 +4,7 @@
 flowchart LR
     subgraph github["GitHub"]
         MR["globalmindsolution/gms-marketplace<br/>(marketplace repo)"]
-        ACT["GitHub Actions<br/>CI: tests/acs/ + tests/tabp/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump"]
+        ACT["GitHub Actions<br/>CI: tests/acs/ + tests/tabp/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
         EVALS["evals/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
         subgraph gates["Consumer-repo required-check gates (opt-in, /acs:init-installed)"]
@@ -46,7 +46,11 @@ Key facts:
 
 - **Distribution**: GitHub URL only; semver in `plugin.json`; the release
   workflow tags `v<version>` when the version bumps on `main` (updates reach
-  users only on version bumps).
+  users only on version bumps). The recommended trigger-author of that
+  version-bump PR is `/acs:release <version>` — it drafts/dates the CHANGELOG
+  section, bumps both manifests + `source.ref`, and opens the exempt
+  `release/*` PR, then stops for a human merge; `release.yml` itself is
+  reused unchanged.
 - **Per-plugin install paths**: acs installs into Claude Code
   (`claude plugin install acs@gms-marketplace`); tabp installs into the Cowork
   environment (`claude plugin install tabp@gms-marketplace`). Each plugin

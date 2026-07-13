@@ -213,17 +213,18 @@ class ScopeGuardTest(unittest.TestCase):
     git history) and does not hand-author project-structure.md or ship a
     template. The skill/agent-count doc lines legitimately advance as later,
     unrelated producer children land (MAR-121: 21->22 skills, 39->42 agent
-    files, 33->36 reachable, ten->eleven triads) — these assertions track
-    the current epic state, not a frozen MAR-120 snapshot."""
+    files, 33->36 reachable, ten->eleven triads; MAR-129: 22->23 skills for
+    the new unhooked /acs:release skill, agent counts unchanged) — these
+    assertions track the current epic state, not a frozen MAR-120 snapshot."""
 
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
-        self.assertIn("22 x SKILL.md", body)
+        self.assertIn("23 x SKILL.md", body)
         self.assertIn("42 x agent .md (36 reachable)", body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (22)", body)
+        self.assertIn("acs Skills (23)", body)
         self.assertIn("42 files, 36 reachable", body)
 
     def test_triad_keeping_phrase_unchanged(self):

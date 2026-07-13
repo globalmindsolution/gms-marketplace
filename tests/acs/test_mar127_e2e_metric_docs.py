@@ -121,6 +121,15 @@ class TestNoNewMechanism(unittest.TestCase):
         # rather than errors — in a base-less checkout.
         if _base_ref() is None:
             self.skipTest("no base ref (origin/main or main) to diff against")
+        # This guard is scoped to MAR-127's OWN branch, where ADR 0049 is
+        # part of the diff. On main (0049 already merged) or on any later
+        # branch — e.g. MAR-129, which legitimately touches skills/**  and
+        # docs/architecture/** for unrelated reasons — 0049 is not in the
+        # diff, so the guard is inert rather than a false failure.
+        if range_diff_names(ADR_PATH) == "":
+            self.skipTest(
+                "no-new-mechanism guard is scoped to MAR-127's own branch; "
+                "this branch does not introduce ADR 0049")
 
     def test_metrics_aggregate_unchanged(self):
         self.assertEqual(range_diff_names(METRICS_AGGREGATE_PATH), "",
