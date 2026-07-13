@@ -122,6 +122,9 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
   <constraints>
     <constraint name="output-files">test-strategy.md, coverage-policy.md only — no other file</constraint>
     <constraint name="read-only">The plan phase mutates nothing.</constraint>
+    <constraint name="required_sections:test-strategy.md">Testing philosophy; Coverage policy; Suite inventory; CI gates; Flaky-test policy</constraint>
+    <constraint name="required_sections:coverage-policy.md">Target and hard-fail rule; Exclusions; Measurement per stack; Escalation</constraint>
+    <constraint name="audience_style_profile">QA (test/verification runbook register)</constraint>
   </constraints>
 </task>
 ```
@@ -162,6 +165,10 @@ Phases:
    - **consistency**: any `consistency_findings` the planner surfaced (the
      shared ADR-0012 design-time doc-consistency step, see Plan above) were
      resolved or explicitly user-deferred in the clarification ledger.
+
+   The verify task's `<constraints>` also carry each of the two files'
+   `required_sections:<file>` and the `audience_style_profile` declared in
+   the Plan task example above.
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

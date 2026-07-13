@@ -32,6 +32,20 @@ the notes.
   hook and CI keep linting every committed doc, via the repointed plugin
   path (ADR 0055).
 
+- **Structure/section-conformance floor (blocking) + audience-style gate (advisory),
+  verifier-enforced (G36 child B, MAR-138 — sibling to MAR-137 above).** Every one of the 7
+  prose-doc skills (`create-prd`, `create-architecture`, `create-design`,
+  `create-principles`, `create-standards`, `create-quality`, `create-operations`)
+  now declares its `required_sections` and an `audience_style_profile` in its own
+  SKILL.md and passes both into its verify task. Each verifier gains two appended
+  dimensions: a deterministic `structure` dimension invoking the new `plugins/acs/
+  hooks/scripts/structure_lint.py` (stdlib-only; presence, non-empty, and declared-
+  order checks) as a **blocking** gate, and an `audience-style` dimension that judges
+  register/style against the declared profile as an **advisory** (`severity="info"`,
+  never blocking) gate. `create-project` is explicitly N/A (its existing scaffold/
+  manifest completeness check is its structure-conformance analog) — locked by a
+  negative contract test (ADR 0056, ADR 0057).
+
 ## [0.4.2] - 2026-07-13
 
 Delivers the **G17 epic** (first-class release versions + one-command release

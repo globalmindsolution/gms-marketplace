@@ -17,7 +17,8 @@ Your prompt contains an XML `<task skill="create-architecture" phase="verify"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the plan
 `iter-<n>-plan.md`, the execute report(s) `iter-<n>-execute*.json`, the PRD docs, the
 produced doc files), `<constraints>` (at minimum `partition` — the absolute
-ticket-partition path — plus `architecture_path` and `prd_path`), and on iteration > 1 a
+ticket-partition path — plus `architecture_path`, `prd_path`, each in-scope file's
+`required_sections:<file>`, and `audience_style_profile`), and on iteration > 1 a
 `<context>` listing the prior iteration's findings. You share no memory with the
 coordinator: read every input yourself.
 
@@ -68,6 +69,31 @@ coordinator: read every input yourself.
 9. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
    change sits under `architecture_path`; no source files, configs, or stray files
    touched. The delivery is a docs-only PR.
+10. **structure** — deterministic section-conformance floor over the in-scope
+    prose-structured files (`hld/overview.md`, `hld/tech-stack.md`,
+    `hld/project-structure.md`, `lld/contracts.md` — the single-diagram HLD
+    files and `lld/flows/<flow>.md` are out of scope; dim 1 above and the
+    diagram-lint gate cover them instead): for each, run `Bash python3
+    ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections
+    "<that file's required_sections:<file> constraint, verbatim>" <file>.md`
+    — the CLI's optional order-check flag is intentionally omitted
+    (create-architecture's derived per-file lists have no skill-declared
+    fixed heading order). Each stderr `source:line: [rule]
+    message` finding becomes one `<finding severity="blocking"
+    dimension="structure">`; exit 0 means the dimension passes with no
+    finding for that file; exit 2 (usage error or an unreadable file) is
+    itself reported as a blocking finding so a broken invocation cannot
+    silently pass.
+11. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+    prose this run authored against the task's `audience_style_profile`
+    constraint (`engineers/architects (technical, diagram-heavy)`) —
+    register, jargon level, and narrative shape appropriate for an
+    engineer/architect reader. Emit `<finding severity="info"
+    dimension="audience-style">` ONLY — explicitly `severity="info"`, the
+    acs-messages schema's non-blocking severity value; it never emits the
+    schema's other, blocking severity value. A run with only
+    `audience-style` findings and zero findings on every other dimension is
+    still a PASS.
 
 Iteration > 1, additionally: confirm EVERY prior finding from `<context>` is verifiably
 fixed, and that the fixes introduced no regressions in the other dimensions.
@@ -78,7 +104,9 @@ Write the full report to `<partition>/phases/create-architecture/iter-<n>-verify
 with the Write tool — your ONLY permitted write. For
 each dimension: the exact commands/inspections run, the evidence observed, and the
 verdict. Every XML `<finding>` summarizes a detailed entry in this file. Advisory
-observations that need no fix belong in this report only — never as findings.
+observations that need no fix belong in this report only — never as findings —
+except the sanctioned `severity="info"` `audience-style` finding (MAR-138), which
+IS a formal `<finding>`, unlike an informal observation.
 
 ## Output contract
 
@@ -88,9 +116,11 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates. One
-  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block — emit one
-  only for something the executor must fix), `dimension` set to one of the nine names
-  above, `file` set when the issue is localized.
+  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block **except the
+  advisory `audience-style` dimension (MAR-138), which is deliberately non-blocking
+  — `severity="info"`** — emit one only for something the executor must fix),
+  `dimension` set to one of the eleven names above, `file` set when the issue is
+  localized.
 - `status="failed"` — verification itself could not run (inputs missing, doc set
   absent): `<errors>` plus `<stop-reason>`.
 - `status="needs_input"` — you cannot judge a dimension without a user decision (e.g.

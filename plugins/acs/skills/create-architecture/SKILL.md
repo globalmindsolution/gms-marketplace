@@ -136,6 +136,11 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
     <constraint name="diagrams">Mermaid only: C4Context/C4Container/C4Component or flowchart, erDiagram, sequenceDiagram; C4 level 4 out of scope.</constraint>
     <constraint name="naming">Fix the canonical container/component names in the plan; HLD and LLD must share this vocabulary.</constraint>
     <constraint name="read-only">The plan phase mutates nothing.</constraint>
+    <constraint name="required_sections:hld/overview.md">System context; Goals; Quality attributes; Constraints</constraint>
+    <constraint name="required_sections:hld/tech-stack.md">Languages; Frameworks; Conventions</constraint>
+    <constraint name="required_sections:hld/project-structure.md">Directory layout</constraint>
+    <constraint name="required_sections:lld/contracts.md">Contracts</constraint>
+    <constraint name="audience_style_profile">engineers/architects (technical, diagram-heavy)</constraint>
   </constraints>
 </task>
 ```
@@ -183,6 +188,12 @@ Phases:
      `lld/flows/*.md` sequence diagram exists in the C4 container or
      component views, and `lld/contracts.md` covers the interfaces those
      flows cross.
+
+   The verify task's `<constraints>` also carry each in-scope file's
+   `required_sections:<file>` and the `audience_style_profile` declared in
+   the Plan task example above — the single-diagram HLD files and
+   `lld/flows/<flow>.md` stay outside the structure floor (covered instead
+   by dim-1 `doc-set-completeness` and the diagram-lint gate).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

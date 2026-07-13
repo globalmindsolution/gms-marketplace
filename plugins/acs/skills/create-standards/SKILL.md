@@ -154,6 +154,10 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
     <constraint name="output-files">coding-standards.md, conventions.md, review-checklist.md only — no other file</constraint>
     <constraint name="read-only">The plan phase mutates nothing.</constraint>
     <constraint name="principles-optional">principles_path may be null, or the principles/ set may be absent — treat as grounding N/A for this iteration, never a block.</constraint>
+    <constraint name="required_sections:coding-standards.md">Language and style conventions; Error handling; Testing conventions</constraint>
+    <constraint name="required_sections:conventions.md">Naming conventions; Project layout; Formatting</constraint>
+    <constraint name="required_sections:review-checklist.md">Pre-review checklist; Reviewer checklist</constraint>
+    <constraint name="audience_style_profile">engineers (concise normative rules)</constraint>
   </constraints>
 </task>
 ```
@@ -204,6 +208,10 @@ Phases:
    tailor content, never as a second doc set this verifier cross-checks conformance
    against — that pipeline-wide standards-conformance dimension belongs to a future
    mechanism, not this producer skill's own verifier.
+
+   The verify task's `<constraints>` also carry each of the three files'
+   `required_sections:<file>` and the `audience_style_profile` declared in
+   the Plan task example above.
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

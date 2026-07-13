@@ -17,8 +17,9 @@ Your prompt contains an XML `<task skill="create-principles" phase="verify"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the plan
 `iter-<n>-plan.md`, the execute report(s) `iter-<n>-execute*.json`, the PRD, the
 architecture set, the produced `principles_path` file), `<constraints>` (at minimum
-`partition` — the absolute ticket-partition path — plus `principles_path` and
-`architecture_path`), and on iteration > 1 a `<context>` listing the prior iteration's
+`partition` — the absolute ticket-partition path — plus `principles_path`,
+`architecture_path`, `required_sections`, and `audience_style_profile`), and on
+iteration > 1 a `<context>` listing the prior iteration's
 findings. You share no memory with the coordinator: read every input yourself.
 
 ## Check dimensions — run EVERY one, EVERY iteration
@@ -41,6 +42,24 @@ findings. You share no memory with the coordinator: read every input yourself.
    executor updated the named upstream/downstream docs) or explicitly
    deferred by user decision recorded in the clarification ledger; an
    unresolved, undeferred finding is a blocking finding.
+7. **structure** — deterministic section-conformance floor over
+   `principles.md`: run `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections
+   "<required_sections constraint, verbatim>" --ordered principles.md`.
+   Each stderr `source:line: [rule] message` finding becomes one
+   `<finding severity="blocking" dimension="structure">`; exit 0 means
+   the dimension passes with no finding; exit 2 (usage error or an
+   unreadable file) is itself reported as a blocking finding so a broken
+   invocation cannot silently pass.
+8. **audience-style** — ADVISORY, never blocking: judge the
+   CHANGESET-SCOPED prose this run authored against the task's
+   `audience_style_profile` constraint (`engineers (concise normative rules)`) — register,
+   jargon level, and narrative shape appropriate for an engineer reader. Emit
+   `<finding severity="info" dimension="audience-style">` ONLY —
+   explicitly `severity="info"`, the acs-messages schema's non-blocking
+   severity value; it never emits the schema's other, blocking severity
+   value. A run with only `audience-style` findings and zero findings on
+   every other dimension is still a PASS.
 
 Iteration > 1, additionally: confirm EVERY prior finding from `<context>` is verifiably
 fixed, and that the fixes introduced no regressions in the other dimensions.
@@ -51,7 +70,9 @@ Write the full report to `<partition>/phases/create-principles/iter-<n>-verify.m
 with the Write tool — your ONLY permitted write. For
 each dimension: the exact commands/inspections run, the evidence observed, and the
 verdict. Every XML `<finding>` summarizes a detailed entry in this file. Advisory
-observations that need no fix belong in this report only — never as findings.
+observations that need no fix belong in this report only — never as findings —
+except the sanctioned `severity="info"` `audience-style` finding (MAR-138), which
+IS a formal `<finding>`, unlike an informal observation.
 
 ## Output contract
 
@@ -61,9 +82,11 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates. One
-  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block — emit one
-  only for something the executor must fix), `dimension` set to one of the six names
-  above, `file` set when the issue is localized.
+  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block
+  **except the advisory `audience-style` dimension (MAR-138), which is
+  deliberately non-blocking — `severity="info"`** — emit one only for
+  something the executor must fix), `dimension` set to one of the eight
+  names above, `file` set when the issue is localized.
 - `status="failed"` — verification itself could not run (inputs missing, doc set
   absent): `<errors>` plus `<stop-reason>`.
 - `status="needs_input"` — you cannot judge a dimension without a user decision: one

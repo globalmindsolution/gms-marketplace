@@ -170,6 +170,13 @@ partition — never the consumer repo). Required sections, exactly these heading
    rollback plan (or "single-step deploy, no migration" with justification).
 ```
 
+The plan, execute, and verify tasks all carry two declared constraints —
+`<constraint name="required_sections">Context &amp; constraints; Options considered;
+Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
+(the same six headings above) and `<constraint name="audience_style_profile">reviewers
+(decision + trade-off narrative)</constraint>` — mirroring `create-prd/SKILL.md`'s
+precedent.
+
 If `settings.adr_path` is set, the executor adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
 decision as a one-line ADR title and noting: "/acs:code commits these as ADRs
@@ -187,6 +194,10 @@ touch `design.md` in the same iteration. The verifier runs after ALL executors
 finish and judges the combined result.
 
 ### Phase: verify — `acs:create-design-verifier`
+
+The verify `<task>`'s `<constraints>` always carry `required_sections` and
+`audience_style_profile` (declared above in Execute), alongside `standards_path`
+when set (see below).
 
 Spawn fresh — it sees artifacts (design.md, ticket, architecture docs, code),
 never the executor's reasoning. It checks, each a finding `dimension`:
