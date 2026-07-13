@@ -273,11 +273,14 @@ else is verified against.
   - `prd.md` — vision, problem statement, target users & personas, goals
     with **measurable success metrics**, prioritized features (e.g.
     MoSCoW), product-level NFRs, constraints & assumptions, out-of-scope;
-  - `roadmap.md` — milestones/phases mapped to intended epics.
+  - `roadmap.md` — milestones/phases mapped to intended epics, plus a
+    **"Release versions"** mapping table (each release version → its
+    milestone/wave and the epic(s) it delivers).
 - Reflection cycle: `create-prd-planner`, `create-prd-executor`,
   `create-prd-verifier`. The verifier checks: all required sections
-  present, features trace to goals, success metrics are measurable, and
-  nothing contradicts the stated constraints.
+  present, features trace to goals, success metrics are measurable,
+  nothing contradicts the stated constraints, and every roadmap milestone
+  resolves to exactly one release version (0 orphan milestones).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
