@@ -75,11 +75,15 @@ gets its own numbered check-dimension entry.)
    Rollout/migration. The one-line decision statement opens
    "Decision & rationale". A Mermaid `sequenceDiagram` exists for EVERY new
    or changed runtime flow named by the ticket and plan; an ER diagram exists
-   when the data model changes; each diagram is syntactically plausible
-   (fenced as a `mermaid` code block, valid diagram keyword, declared
-   participants actually used in the arrows, no `;` in any `sequenceDiagram`
-   message or note text, `erDiagram` multi-key attributes comma-separated
-   like `PK,FK` not `PK FK`). `### Decision records` is
+   when the data model changes; each diagram must lint clean: run `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py <doc>.md` over `design.md`;
+   each stderr line (`source:line: [rule] message`) becomes one
+   `<finding severity="blocking">` for this dimension; exit 0 means the diagram
+   sub-check passes; exit 2 (usage error or an unreadable file) is itself a
+   finding — this is what the helper's `sequence-semicolon` (no `;` in any
+   `sequenceDiagram` message or note text) and `er-key-space` (`erDiagram`
+   multi-key attributes comma-separated, `PK,FK` not `PK FK`) rules detect.
+   `### Decision records` is
    present if and only if the task constraints say `adr_path` is configured.
 
 Also verify against the PLAN (`iter-<n>-plan.md` from `<inputs>`): every

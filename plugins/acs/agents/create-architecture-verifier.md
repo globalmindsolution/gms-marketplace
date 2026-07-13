@@ -38,12 +38,15 @@ coordinator: read every input yourself.
    Greenfield: every container/component traces to a PRD feature, NFR, or constraint.
 4. **mermaid-diagrams** — every diagram is a fenced ```mermaid block with a valid first
    keyword (`C4Context`, `C4Container`, `C4Component`, `erDiagram`, `sequenceDiagram`,
-   `flowchart`, `stateDiagram`); fences balanced; no images or ASCII diagrams. If `mmdc`
-   (mermaid-cli) is on PATH, render-check each block; otherwise do the structural check
-   AND grep for the common syntax errors the structural check alone misses (each is a
-   finding): a `;` in any `sequenceDiagram` message or note line (it is a statement
-   separator and breaks the parse); space-separated `erDiagram` key constraints (`PK FK`
-   instead of `PK,FK`); unquoted `()`/`[]`/`,` inside a flowchart node label.
+   `flowchart`, `stateDiagram`); fences balanced; no images or ASCII diagrams. Run `Bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py <doc>.md` over every doc
+   in the changeset carrying a ```mermaid fence (pass multiple files as separate CLI
+   args per the helper's `main(argv)` contract); each stderr line
+   (`source:line: [rule] message`) becomes one `<finding severity="blocking"
+   dimension="mermaid-diagrams">`; exit 0 means the dimension passes with no finding;
+   exit 2 (usage error or an unreadable file — a helper-invocation failure, not a
+   diagram-content issue) is itself reported as a finding so a broken invocation cannot
+   silently pass.
 5. **internal-consistency** — the docs agree with each other: container names and
    technology labels match `hld/tech-stack.md`; `hld/data-model.md` entities match the
    components that own them; deployment nodes host containers that exist.
