@@ -16,25 +16,49 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-13
+
+Delivers the **G17 epic** (first-class release versions + one-command release
+cut) and the **consumer-general skills** program (every acs skill is
+settings-driven and repo-agnostic — no skill hardcodes this marketplace's own
+layout). This is the first release cut by the new `/acs:release` skill itself.
+
 ### Added
 
-- **`/acs:release` — one-command release cut (MAR-129).** A new unhooked
-  utility skill `/acs:release <version>` (mirrors `/acs:test`) plus a
-  stdlib-only, settings-driven `release_notes.py` helper that
-  authoritatively drafts the `## [<version>]` CHANGELOG section from the
-  merged-ticket archive since the last tag — cross-checked against
-  `[Unreleased]` with a coverage report (N merged / M covered / K missing),
-  never a silently empty section when ≥1 ticket merged (defeats the v0.4.1
-  empty-notes bug) — bumps `version` in both manifests + `source.ref` per a
-  new `.acs/settings.json` `release` block (this marketplace configured as
-  profile #1, no marketplace-hardcoded paths), and opens an exempt
-  `release/*` PR that **stops for a mandatory human merge**; the skill
-  never tags or publishes itself, and the existing `release.yml` workflow
-  is reused unchanged. `status` runs first on every invocation and reports
-  + no-ops when the cut is already in flight or done (four idempotency
-  signals). Skill count 22→23; `UNHOOKED_SKILLS` 8→9; `HOOKED_SKILLS` (14),
-  the 14/14 pre/post hook pairs, `GATES` (14 entries), and the agent-file
-  count (42) are all unchanged. ADRs 0050-0054.
+- **First-class release versions + one-command release cut (G17, epic MAR-128).**
+  - **Settings-driven `/acs:release` cut skill (MAR-129, #251).** A new unhooked
+    utility skill plus a stdlib-only `release_notes.py` helper that
+    authoritatively drafts the `## [<version>]` CHANGELOG section from the
+    merged-ticket archive since the last tag — cross-checked against
+    `[Unreleased]` with a coverage report (N merged / M covered / K missing),
+    never a silently empty section when >=1 ticket merged (defeats the v0.4.1
+    empty-notes bug). The cut is **settings-driven / consumer-general**: a new
+    `.acs/settings.json` `release` block declares which files hold the version
+    (JSON pointers), the `source.ref`/extra-ref locations, the changelog path,
+    tag format, base branch, and publish driver — this marketplace is
+    configured as **profile #1**, and any JSON-manifest consumer repo can
+    configure its own release. It bumps the version in both manifests +
+    `source.ref` and opens an exempt `release/*` PR that **stops for a
+    mandatory human merge**; the skill never tags or publishes itself, and the
+    existing `release.yml` workflow (the profile's publish driver) is reused
+    unchanged. Skill count 22->23; `UNHOOKED_SKILLS` 8->9 (`HOOKED_SKILLS` 14,
+    `GATES` 14, agent files 42 unchanged). ADRs 0050-0054.
+  - **First-class release versions in the create-prd roadmap (MAR-130, #255).**
+    `/acs:create-prd` now authors and verifies a "Release versions" mapping
+    table in `roadmap.md` (each release version -> the milestone(s)/epic(s) it
+    delivers), with a verifier coverage sub-check that every committed
+    milestone resolves to exactly one release version (0 orphan milestones).
+    Additive and non-breaking (C-8); decoupled from the cut skill (ADR 0053).
+- **Consumer-general skills (PRD amendment + engineering principle).**
+  - **PRD constraint C-20 (MAR-132, #252).** Generalizes C-16 to all skills:
+    every acs skill is consumer-repo-general and settings-driven, operating on
+    the invoking repo via `.acs/settings.json` and never hardcoding this
+    marketplace's own artifacts.
+  - **Engineering-principles doc set (MAR-133, #254).** Stands up the repo's
+    first `docs/principles/` doc set (activates `principles_path`) with the
+    **Consumer-repo generality** principle — the verifier-enforceable form of
+    C-20.
+
 
 ## [0.4.1] - 2026-07-12
 
