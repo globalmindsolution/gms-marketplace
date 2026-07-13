@@ -19,7 +19,9 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 # Version-homed units the table must cover at minimum (AC-4/AC-8 coverage floor).
 MIN_VERSIONS = {
     "v0.3.5", "v0.3.6", "v0.3.7",  # M2.6 trio
-    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3+",
+    # v0.4.3+ split into v0.4.3 (G23 LEAD) + v0.4.4+ (Wave 4) at the v0.4.2
+    # release cut (MAR-134 roadmap reconciliation).
+    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4+",
 }
 
 EXPECTED_HEADER = ["Release version", "Milestone / Wave", "Epic(s) delivered", "Status"]
@@ -159,7 +161,12 @@ class AdditiveGuardTest(unittest.TestCase):
 
     def test_preexisting_markers_survive(self):
         body = self._roadmap()
-        for marker in ("Wave 3", "v0.4.2", "Wave 3 (LEAD)", "16 → 19"):
+        # "Wave 3 (LEAD)" graduated to shipped when v0.4.2 was cut (MAR-134
+        # roadmap reconciliation): Wave 3's release-versions half shipped in
+        # v0.4.2 and G23 became the new LEAD at v0.4.3, so the LEAD label is
+        # intentionally no longer on Wave 3. The additive guard still holds for
+        # the pre-existing wave/version labels that survive the reconciliation.
+        for marker in ("Wave 3", "v0.4.2", "16 → 19"):
             self.assertIn(marker, body, "pre-existing marker %r missing" % marker)
 
     def test_no_forbidden_mar123_substrings_introduced(self):
