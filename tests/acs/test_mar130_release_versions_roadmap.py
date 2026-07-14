@@ -19,10 +19,11 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 # Version-homed units the table must cover at minimum (AC-4/AC-8 coverage floor).
 MIN_VERSIONS = {
     "v0.3.5", "v0.3.6", "v0.3.7",  # M2.6 trio
-    # v0.4.3 shipped generated-doc quality (G36); team-shared delivery state
-    # (G23) became LEAD at v0.4.4 and Wave 4 moved to v0.4.5+ at the v0.4.3
-    # release cut (MAR-139 roadmap reconciliation).
-    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5+",
+    # v0.4.3 shipped generated-doc quality (G36). Team-shared delivery state
+    # (G23) was deferred behind GA to a post-GA milestone (M8) and the standalone
+    # v0.4.4 slot was collapsed, so Wave 4 is now the open-ended v0.4.4+ (MAR-141
+    # roadmap re-sequence) — "v0.4.4"/"v0.4.5+" are no longer table version rows.
+    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4+",
 }
 
 EXPECTED_HEADER = ["Release version", "Milestone / Wave", "Epic(s) delivered", "Status"]
