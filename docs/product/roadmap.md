@@ -39,7 +39,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.2 | M3 Wave 3 — release versions | first-class release versions + one-command release cut (G17) — {MAR-128}; consumer-general program (C-20 + Consumer-repo-generality principle) — {MAR-132, MAR-133} | shipped |
 | v0.4.3 | M3 Wave 4 — generated-doc quality | generated-doc quality (G36) — {MAR-136} | shipped |
 | v0.4.4 | M3 — team-shared delivery state (LEAD) | team-shared delivery state (G23) | planned |
-| v0.4.5+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
+| v0.4.5+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics; brownfield requirements extraction (G37) | planned |
 | v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
 | v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
@@ -544,6 +544,28 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   "Brownfield-adaptive coverage policy" feature. **Traces G27** (+ the
   Tech-lead / brownfield-onboarding story). The MECHANISM (ratchet vs per-path,
   config key shape, baseline storage) is settled in this epic's design phase.
+- **Epic: brownfield requirements extraction (G37)** — a new producer skill,
+  `/acs:create-requirements` (create-* family, with greenfield/brownfield/amend
+  modes like `create-prd`), reverse-engineers the `requirements_path`
+  living-requirements doc set from an existing codebase — the requirements-layer
+  analog of create-prd's brownfield PRD mode and create-architecture's brownfield
+  architecture mode. Full-codebase reverse-engineer with interactive-confirm;
+  populates the **existing** `docs/requirements/*.md` per-feature-area format (the
+  same files `/acs:code` writes — one requirements set); runs standalone (no hard
+  PRD/architecture dependency) but is architecture-aware (uses the architecture
+  container/component views to enumerate feature areas when present). Output is
+  an **additive/opt-in DRAFT baseline** — every extracted requirement carries a
+  code-evidence citation and is marked human-confirm-required; ungroundable areas
+  are surfaced as open points, never invented (**C-22**). Natural companion to the
+  M3 brownfield standardize-project epic (above) and the brownfield-adaptive
+  coverage epic (G27, above) — completes the "reverse-engineer the doc set when
+  adopting acs on an existing repo" story alongside create-prd (PRD),
+  create-architecture (architecture), and standardize-project
+  (standards/config/tooling). Maps to PRD **G37** and the new acs Could-have
+  "Brownfield requirements extraction" feature. **Traces G37** (+ the
+  Solo-developer / Tech-lead brownfield-onboarding personas). The MECHANISM
+  (exact CLI flags, extraction algorithm, per-file section structure) is settled
+  in this epic's design phase.
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (the supported-effort enum currently lives only in the advisory `settings.schema.json`, unenforced by the runtime gate, with no model-id validation at all). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
