@@ -19,9 +19,10 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 # Version-homed units the table must cover at minimum (AC-4/AC-8 coverage floor).
 MIN_VERSIONS = {
     "v0.3.5", "v0.3.6", "v0.3.7",  # M2.6 trio
-    # v0.4.3+ split into v0.4.3 (G23 LEAD) + v0.4.4+ (Wave 4) at the v0.4.2
-    # release cut (MAR-134 roadmap reconciliation).
-    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4+",
+    # v0.4.3 shipped generated-doc quality (G36); team-shared delivery state
+    # (G23) became LEAD at v0.4.4 and Wave 4 moved to v0.4.5+ at the v0.4.3
+    # release cut (MAR-139 roadmap reconciliation).
+    "v0.3.8", "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5+",
 }
 
 EXPECTED_HEADER = ["Release version", "Milestone / Wave", "Epic(s) delivered", "Status"]
