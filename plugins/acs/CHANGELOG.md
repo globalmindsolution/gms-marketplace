@@ -16,35 +16,17 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-14
+
 ### Added
 
-- **Diagram-lint gate: 0 Mermaid syntax errors, verifier-enforced (G36 child A,
-  MAR-137).** The heuristic Mermaid linter now ships inside the plugin, at
-  `plugins/acs/hooks/scripts/mermaid_lint.py` (promoted from
-  `tests/acs/mermaid_lint.py`, same rule set and `lint_text`/`lint_file`/
-  `Finding`/`main(argv)` API), so it travels to any consumer repo with acs
-  installed. The `create-architecture` and `create-design` verifiers both
-  invoke it via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py` and
-  treat any finding as a **blocking** failure — replacing the prior soft
-  structural/grep check (architecture, dimension `mermaid-diagrams`) and
-  "syntactically plausible" LLM judgment (design, dimension `completeness`)
-  with a deterministic 0-syntax-error gate. The marketplace's own pre-commit
-  hook and CI keep linting every committed doc, via the repointed plugin
-  path (ADR 0055).
+- **Verifier-enforced generated-doc quality: readable, audience-aware structure + syntactically-valid Mermaid diagrams (G36 epic, MAR-136).** The doc-producing skills now enforce documentation quality on their own generated output — in any consumer repo, driven by each skill's own definition. Delivered as two children:
+  - **Diagram-lint gate: 0 Mermaid syntax errors, verifier-enforced (child A, MAR-137, #262).** The heuristic Mermaid linter now ships inside the plugin at `plugins/acs/hooks/scripts/mermaid_lint.py` (promoted from `tests/acs/mermaid_lint.py`, same rule set and `lint_text`/`lint_file`/`Finding`/`main(argv)` API), so it travels to any consumer repo with acs installed. The `create-architecture` and `create-design` verifiers both invoke it via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py` and treat any finding as a **blocking** failure — replacing the prior soft structural/grep check (architecture, dimension `mermaid-diagrams`) and "syntactically plausible" LLM judgment (design, dimension `completeness`) with a deterministic 0-syntax-error gate. The marketplace's own pre-commit hook and CI keep linting every committed doc via the repointed plugin path (ADR 0055).
+  - **Structure/section-conformance floor (blocking) + audience-style gate (advisory), verifier-enforced (child B, MAR-138, #263).** Every one of the 7 prose-doc skills (`create-prd`, `create-architecture`, `create-design`, `create-principles`, `create-standards`, `create-quality`, `create-operations`) now declares its `required_sections` and an `audience_style_profile` in its own SKILL.md and passes both into its verify task. Each verifier gains two appended dimensions: a deterministic `structure` dimension invoking the new `plugins/acs/hooks/scripts/structure_lint.py` (stdlib-only; presence, non-empty, and declared-order checks) as a **blocking** gate, and an `audience-style` dimension that judges register/style against the declared profile as an **advisory** (`severity="info"`, never blocking) gate. `create-project` is explicitly N/A (its scaffold/manifest completeness check is its structure-conformance analog) — locked by a negative contract test (ADR 0056, ADR 0057).
 
-- **Structure/section-conformance floor (blocking) + audience-style gate (advisory),
-  verifier-enforced (G36 child B, MAR-138 — sibling to MAR-137 above).** Every one of the 7
-  prose-doc skills (`create-prd`, `create-architecture`, `create-design`,
-  `create-principles`, `create-standards`, `create-quality`, `create-operations`)
-  now declares its `required_sections` and an `audience_style_profile` in its own
-  SKILL.md and passes both into its verify task. Each verifier gains two appended
-  dimensions: a deterministic `structure` dimension invoking the new `plugins/acs/
-  hooks/scripts/structure_lint.py` (stdlib-only; presence, non-empty, and declared-
-  order checks) as a **blocking** gate, and an `audience-style` dimension that judges
-  register/style against the declared profile as an **advisory** (`severity="info"`,
-  never blocking) gate. `create-project` is explicitly N/A (its existing scaffold/
-  manifest completeness check is its structure-conformance analog) — locked by a
-  negative contract test (ADR 0056, ADR 0057).
+### Documentation
+
+- Amended the PRD to add goal **G36** (generated-doc readability + valid diagrams) ahead of building it (MAR-135, #258), and reconciled the roadmap's release-versions mapping after the v0.4.2 cut (MAR-134, #257).
 
 ## [0.4.2] - 2026-07-13
 
