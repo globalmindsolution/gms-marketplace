@@ -65,14 +65,21 @@ with:
      augmentation, per subfolder-file: "absent or ungrounded" → write;
      "human-authored present" → preserve byte-for-byte, never overwritten.
      This is a per-file decision, not a single whole-run refusal.
-   - **greenfield** (recognized, deferred) — no meaningful codebase to
-     reverse-engineer AND the set is absent. Classify this case explicitly but
-     do NOT plan an elicitation flow — this mode ships in a subsequent
-     increment (MAR-144). Return `status="needs_input"` naming the deferral;
-     never silently plan a brownfield survey against an empty repo and never
-     fabricate elicitation questions this skill does not yet build.
-2. **Outline the per-area requirement files** — for brownfield/amend, name
-   each feature area and NFR item this run covers, the target file path
+   - **greenfield** — no meaningful codebase to reverse-engineer AND the set is
+     absent; plan the elicitation into per-area/per-item target files
+     (`<functional_subdir>/<feature>.md` / `<non_functional_subdir>/<item>.md`),
+     each with its `required_sections` heading list exactly as for
+     brownfield/amend. The elicitation question set covers, per candidate
+     feature area, what behavior it must have (a functional requirement), and
+     per candidate quality concern, what constraint it must meet (a
+     non-functional requirement) — mirroring create-prd's greenfield
+     elicitation plan. A feature the user's answers leave ambiguous is surfaced
+     in `## Open questions`, never invented (C-22, AC-3) — the same rule as
+     brownfield's ungroundable-area handling, applied to greenfield's
+     unanswered-question handling. Never silently fall through to a brownfield
+     survey against an empty repo.
+2. **Outline the per-area requirement files** — for brownfield/amend/greenfield,
+   name each feature area and NFR item this run covers, the target file path
    (`<functional_subdir>/<feature>.md` or `<non_functional_subdir>/<item>.md`),
    and the `required_sections` heading list for that file (there is no single
    fixed skeleton across all files — each file's sections follow the existing
@@ -164,10 +171,11 @@ after it. Self-check it first:
 
 - `status="completed"` — plan written; `<questions>` carries the open points the
   coordinator must resolve with the user before spawning the executor.
-- `status="needs_input"` — you cannot plan at all without an answer (e.g. the
-  mode classifies as greenfield-deferred, or an amend request names no area
-  and `<context>` gives no clue); put the questions in `<questions>` and what
-  you could establish in the plan artifact.
+- `status="needs_input"` — you cannot plan at all without an answer (e.g. a
+  greenfield run where neither `$ARGUMENTS` nor the clarify ledger gives
+  anything to elicit from, or an amend request names no area and `<context>`
+  gives no clue); put the questions in `<questions>` and what you could
+  establish in the plan artifact.
 - `status="failed"` — inputs unusable (e.g. `ticket.json` unreadable); explain in
   `<errors>` and `<stop-reason>`.
 

@@ -129,12 +129,14 @@ The planner's first job is mode classification, keyed on whether
 - **amend** — the requirements set is already substantially populated. Plan a
   surgical augmentation: which absent/ungrounded area files gain new content,
   which existing files are preserved byte-for-byte.
-- **greenfield** (recognized, deferred) — no meaningful codebase to
-  reverse-engineer AND the set is absent. The planner classifies this case but
-  does NOT attempt a half-elicitation: return `status="needs_input"` with a
-  one-line notice that greenfield elicitation ships in a subsequent increment
-  (MAR-144). Never silently fall through to brownfield and never fabricate an
-  elicitation flow this skill does not yet build.
+- **greenfield** — no meaningful codebase to reverse-engineer AND the set is
+  absent, so each elicited area maps to a `<functional_subdir>/<feature>.md`
+  (behavioral feature) or `<non_functional_subdir>/<item>.md` (NFR item) target,
+  DRAFT-marked. Plan the elicitation: per candidate feature area, the behavior
+  it must have (a functional requirement), and per candidate quality concern,
+  the constraint it must meet (a non-functional requirement) — mirroring
+  create-prd's greenfield elicitation plan. Never silently fall through to
+  brownfield and never invent a product fact the user has not confirmed.
 
 The planner also runs the shared ADR-0012 design-time doc-consistency step; any
 findings surface through the "Clarification ledger first" mechanism below (User
@@ -150,12 +152,22 @@ interaction).
   same constraint-passing mechanism `create-principles/SKILL.md` and
   `create-principles-verifier.md` use for their own G36 gate.
 
+**Per-file format (finalized).** Both `<functional_subdir>/<feature>.md` and
+`<non_functional_subdir>/<item>.md` open with the `DRAFT — human-confirm-required`
+marker line, then follow the existing living-requirements prose format — the
+`MUST` / `SHOULD` / `MAY` / `[OPEN]` / `[ASSUMPTION]` vocabulary — with NO fixed
+universal heading skeleton (design Decision B-revised). The planner names the
+concrete `required_sections` heading list per file in its outline; this
+subsection documents that as the finalized per-file format rather than an
+implicit convention. No new template file is introduced — the
+functional/non-functional model itself is the format.
+
 Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iteration
 2+, the verifier findings to fix):
 
 ```xml
 <task skill="create-requirements" phase="plan" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (brownfield/amend/greenfield-deferred); enumerate feature areas; produce the per-area outline and the open questions for the user.</objective>
+  <objective>Classify mode (brownfield/greenfield/amend); enumerate or elicit feature areas; produce the per-area outline and the open questions for the user.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/requirements/README.md</file>
@@ -195,12 +207,18 @@ git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAUL
 stay on the branch.
 
 **Interactive-confirm, before you spawn the executor.** Present the planner's
-DRAFT baseline — which feature areas will be extracted or augmented, and
-which are `[OPEN]` — and the open points via the clarify ledger (see User
+DRAFT baseline — which feature areas will be elicited, extracted, or augmented,
+and which are `[OPEN]` — and the open points via the clarify ledger (see User
 interaction below), batched in one interaction when ≥2 questions are open.
-An extracted or augmented requirement is a **DRAFT baseline, never
+An elicited, extracted, or augmented requirement is a **DRAFT baseline, never
 authoritative without confirmation**: this confirmation step MUST complete
 before you spawn the executor.
+
+**The DRAFT / interactive-confirm discipline applies uniformly to all three
+modes.** A requirement — elicited (greenfield), extracted (brownfield), or
+augmented (amend) — is a DRAFT baseline the user must review and confirm before
+it is authoritative; open points are surfaced for confirmation, and nothing is
+written as authoritative without the human gate (C-22).
 
 Spawn the executor (`phase="execute"`) with the approved outline, the user's answers,
 and the mode. The executor — the only role that mutates the repo — writes,
@@ -211,8 +229,13 @@ per the mode:
   per NFR item, classifying each requirement functional-vs-non-functional before
   writing it. Augment-only-absent: an existing area file is preserved byte-for-byte,
   never overwritten.
-- **greenfield (deferred)** — returns `status="needs_input"` per the coordinator's
-  deferred-to-MAR-144 notice; writes nothing.
+- **greenfield** — writes one
+  `<requirements_path>/<functional_subdir>/<feature>.md` per elicited behavioral
+  feature and one `<requirements_path>/<non_functional_subdir>/<item>.md` per
+  elicited NFR item, from the plan's elicitation outline plus the user's
+  answers; DRAFT-marked. No code-citation is required or expected (there is no
+  code to cite) — every clause is grounded in the user's elicited answer, cited
+  as such.
 
 Typically ONE executor per run — the produced files are read once by a single
 verifier pass. You MAY run multiple executors in parallel only when their target
@@ -232,8 +255,8 @@ re-reads everything fresh and checks, all findings blocking (except the advisory
   `required_sections` (the deterministic **structure** dimension,
   `structure_lint.py --sections "<required_sections>" --ordered <file>` run per
   produced area file);
-- mode conformance — the produced set matches the classified mode (brownfield/
-  amend augmentation, or a `needs_input` handoff for the deferred greenfield case);
+- mode conformance — the produced set matches the classified mode (greenfield
+  elicited files, or brownfield/amend augmentation);
 - plan conformance — the produced files realize the approved plan's outline;
 - amend mode: `git diff` shows only the intended new/augmented area files —
   every existing area file is byte-identical;
@@ -328,8 +351,14 @@ Before a needs_input handoff, record the outgoing questions as `open`
   extracted requirement is never authoritative without confirmation.
 - **Amend**: confirm exactly which absent/ungrounded area files are augmented and
   why before executing; every other area file is untouched.
-- **Greenfield**: do not elicit — this mode is deferred (see Plan above); surface
-  the deferred notice and hand off.
+- **Greenfield**: elicit the definition from the user and map it to
+  `<functional_subdir>/<feature>.md` files (the feature list — what the
+  product/system does) and `<non_functional_subdir>/<item>.md` files (the NFR
+  list — performance/security/reliability/portability/operability constraints).
+  Batch questions (AskUserQuestion or plain questions) via the same
+  clarify-ledger-first mechanism used for brownfield/amend; when `$ARGUMENTS`
+  already carries notes, propose drafts to confirm instead of interrogating
+  from zero.
 - Ask only when genuinely ambiguous; never invent product facts. If you
   genuinely cannot reach the user (e.g. a non-interactive run), return a
   `<handoff skill="create-requirements" ticket-id="<id>" status="needs_input">` with
@@ -387,7 +416,7 @@ MANDATORY final step — never skipped, also on failure.
    releases the `.lock`.
 
 3. Report a compact summary to the user: delivery ticket id, mode
-   (brownfield/amend/greenfield-deferred), files written, PR URL — and tell them to
+   (greenfield/brownfield/amend), files written, PR URL — and tell them to
    review the PR themselves, then run `/acs:merge-pr <delivery-ticket-id>` to land it.
    Under /acs:ship, return ONLY the `<handoff>` XML as your final message: status,
    summary <=1KB, artifact refs, next-step.
