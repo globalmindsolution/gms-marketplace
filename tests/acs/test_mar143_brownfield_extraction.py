@@ -297,10 +297,12 @@ class ChangelogMar143EntryTest(unittest.TestCase):
 
 class ContractsMdProducerRowTest(unittest.TestCase):
     """AC-7: contracts.md gains the minimal producer-registration line for
-    create-requirements; the Decision-D conformance-chain line is
-    UNCHANGED (negative assertion guarding against MAR-144 scope leakage,
-    mirroring TestExemptPrDocs's additive-assertion pattern in
-    test_skill_contracts.py)."""
+    create-requirements, and the conformance-chain line stays byte-identical.
+    (The MAR-143-era negative guard against a premature chain note is retired
+    now that MAR-144 has legitimately landed the D1 living-contract note — the
+    durable invariant that survives is that requirements is documented
+    ALONGSIDE the chain, never inserted as a verified level INTO it. The D1
+    note's presence/correctness is owned by test_mar144_docs_and_contracts.)"""
 
     def test_producer_registration_line_present(self):
         body = read(CONTRACTS_MD)
@@ -314,10 +316,18 @@ class ContractsMdProducerRowTest(unittest.TestCase):
             body,
         )
 
-    def test_no_decision_d_chain_note_added(self):
+    def test_requirements_not_inserted_as_chain_level(self):
+        """Decision D1 — the D1 note documents requirements alongside the
+        chain; it must NOT add requirements as an arrow-separated level within
+        the conformance-chain line itself."""
         body = read(CONTRACTS_MD)
-        self.assertNotIn("Decision-D", body)
-        self.assertNotIn("Decision D", body)
+        m = re.search(r"Conformance chain: `([^`]+)`", body)
+        self.assertIsNotNone(m, "the conformance-chain line must be present")
+        chain = m.group(1)
+        self.assertNotIn(
+            "requirements", chain.lower(),
+            "requirements must not be inserted as a conformance-chain level",
+        )
 
 
 if __name__ == "__main__":
