@@ -105,18 +105,22 @@ class FlowDocTest(unittest.TestCase):
 
 class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     """AC-9: skills.md intro count bump, new standardize-project section,
-    and the pre-existing 'six' triad-prose drift repaired to 'eleven'."""
+    and the pre-existing 'six' triad-prose drift repaired to 'eleven'. The
+    intro count advances 23->24 and the triad-prose word eleven->twelve as
+    MAR-143 registers create-requirements (a HOOKED product skill) into the
+    product/triad enumeration — these assertions track the current epic
+    state, not a frozen MAR-121 snapshot."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
-    def test_intro_reads_twentythree_not_twentytwo(self):
+    def test_intro_reads_twentyfour_not_twentythree(self):
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-three skills", intro,
-                      "skills.md intro must read 'Twenty-three skills'")
-        self.assertNotIn("Twenty-two skills", intro,
-                         "skills.md intro must NOT still read 'Twenty-two skills'")
+        self.assertIn("Twenty-four skills", intro,
+                      "skills.md intro must read 'Twenty-four skills'")
+        self.assertNotIn("Twenty-three skills", intro,
+                         "skills.md intro must NOT still read 'Twenty-three skills'")
 
     def test_standardize_project_section_exists_not_product_level(self):
         body = self._skills_req()
@@ -140,51 +144,56 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             "standardize-project section must mention recommended_follow_ups "
             "or 'recommended follow-up'")
 
-    def test_workflow_product_skills_bullet_reads_eleven(self):
+    def test_workflow_product_skills_bullet_reads_twelve(self):
         body = self._skills_req()
         window = window_to_next_h2(body, "Every **workflow** skill MUST:")
-        self.assertIn("Eleven", window)
+        self.assertIn("Twelve", window)
+        self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
             "create-spec", "code", "create-prd", "create-design",
             "create-architecture", "create-project", "create-quality",
             "create-operations", "create-principles", "create-standards",
-            "standardize-project",
+            "standardize-project", "create-requirements",
         ):
             self.assertIn(name, window,
                           "the workflow/product skills bullet must name %r" % name)
 
-    def test_models_config_bullet_reads_eleven_triad_keeping(self):
+    def test_models_config_bullet_reads_twelve_triad_keeping(self):
         body = self._skills_req()
-        self.assertIn("the eleven\n  triad-keeping skills only", body)
+        self.assertIn("the twelve\n  triad-keeping skills only", body)
+        self.assertNotIn("the eleven\n  triad-keeping skills only", body)
         self.assertNotIn("the six\n  triad-keeping skills only", body)
 
 
 class C4CountAndListFilesTest(unittest.TestCase):
     """AC-9: the C4/architecture count files read the current-epic totals
-    (23 skills post-MAR-129 / 42 agent files / 36 reachable / eleven triads /
-    11 active triads (33 agents in triads)) — the pre-121 strings are absent.
-    The skill total advanced 22->23 with MAR-129's unhooked /acs:release skill;
-    the agent/triad figures are unchanged (an unhooked skill adds no agent)."""
+    (24 skills post-MAR-143 / 45 agent files / 39 reachable / twelve triads /
+    12 active triads (36 agents in triads)) — the pre-121 strings are absent.
+    The skill total advanced 22->23 with MAR-129's unhooked /acs:release skill,
+    then 23->24 with MAR-143's create-requirements (a HOOKED skill, so the
+    agent/triad figures advance too: 42->45 agents, 36->39 reachable,
+    eleven->twelve triads)."""
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("23 x SKILL.md", body)
+        self.assertIn("24 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("42 x agent .md (36 reachable)", body)
+        self.assertIn("45 x agent .md (39 reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
     def test_c4_container_triad_skill_list_names_all_eleven(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
         self.assertNotIn("ten triad-keeping skills", body)
-        m = re.search(r"triad for the eleven triad-keeping skills \(([^)]*)\)", body)
+        m = re.search(r"triad for the twelve triad-keeping skills \(([^)]*)\)", body)
         self.assertIsNotNone(
-            m, "c4-container.md must state 'eleven triad-keeping skills' with "
+            m, "c4-container.md must state 'twelve triad-keeping skills' with "
                "the enumerated list")
         enumerated = m.group(1)
         for suffix in (
             "prd", "architecture", "project", "quality", "operations",
             "principles", "standards", "design", "spec", "standardize-project",
+            "create-requirements",
         ):
             self.assertIn(
                 suffix, enumerated,
@@ -193,34 +202,34 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_component_triad_and_reachable_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
-        self.assertIn("eleven triad-keeping skills", body)
+        self.assertIn("twelve triad-keeping skills", body)
         self.assertNotIn("ten triad-keeping skills", body)
         self.assertIn("standardize-project", body)
-        self.assertIn("11 active triads (33 agents", body)
+        self.assertIn("12 active triads (36 agents", body)
         self.assertNotIn("10 active triads (30 agents", body)
-        self.assertIn("36 reachable agents", body)
+        self.assertIn("39 reachable agents", body)
         self.assertNotIn("33 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (23)", body)
+        self.assertIn("acs Skills (24)", body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("42 files, 36 reachable", body)
+        self.assertIn("45 files, 39 reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("eleven triad-keeping skills (33 agents)", body)
+        self.assertIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("ten triad-keeping skills (30 agents)", body)
 
     def test_overview_and_hook_gated_name_standardize_project(self):
         overview = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md"))
         self.assertNotIn("ten triad-keeping skills", overview)
         window = section(overview, "## Quality attributes (drive the design)")
-        self.assertIn("eleven triad-keeping skills", window)
+        self.assertIn("twelve triad-keeping skills", window)
         self.assertIn("standardize-project", window)
 
         hook_gated = read(os.path.join(
             REPO_ROOT, "docs", "architecture", "lld", "flows", "hook-gated-skill-run.md"))
         self.assertNotIn("ten triad-keeping skills", hook_gated)
-        self.assertIn("eleven triad-keeping skills", hook_gated)
+        self.assertIn("twelve triad-keeping skills", hook_gated)
         self.assertIn("standardize-project", hook_gated)
 
 

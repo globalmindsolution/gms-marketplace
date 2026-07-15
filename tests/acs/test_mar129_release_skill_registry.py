@@ -77,10 +77,13 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 9)
 
     def test_hooked_skills_count_unchanged_fourteen(self):
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 14)
+        # Literal advances as later producer children register (MAR-143:
+        # create-requirements, 14 -> 15) — /acs:release itself adds none.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 15)
 
     def test_gates_count_unchanged_fourteen(self):
-        self.assertEqual(len(acs_lib.GATES), 14)
+        # See test_hooked_skills_count_unchanged_fourteen: advances in lockstep.
+        self.assertEqual(len(acs_lib.GATES), 15)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(
@@ -99,7 +102,9 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         )
 
     def test_agent_count_unchanged_forty_two(self):
-        self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 42)
+        # Literal advances as later producer children register (MAR-143:
+        # create-requirements' triad, 42 -> 45) — /acs:release itself adds none.
+        self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 45)
 
     def test_release_config_flag_passed_to_every_subcommand(self):
         for fence in _bash_fences(_read_skill_body()):

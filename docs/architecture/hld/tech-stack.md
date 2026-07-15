@@ -2,8 +2,8 @@
 
 | Layer | Technology | Why |
 |-------|------------|-----|
-| acs Skills (23) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (23 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
-| Subagents (42 files, 36 reachable) | Markdown agent definitions | Separate contexts per reflection phase for the eleven triad-keeping skills (33 agents); the three apply-work skills run inline with at most one executor each (3 agents), leaving 6 plan/verify files orphaned; tool allowlists in frontmatter |
+| acs Skills (24) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (24 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
+| Subagents (45 files, 39 reachable) | Markdown agent definitions | Separate contexts per reflection phase for the twelve triad-keeping skills (36 agents); the three apply-work skills run inline with at most one executor each (3 agents), leaving 6 plan/verify files orphaned; tool allowlists in frontmatter |
 | Hooks & helpers | **Python ≥ 3.9, stdlib only** | Deterministic gating/persistence with zero consumer-machine installs |
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
 | Messaging | XML validated against `acs-messages.xsd` (in-process stdlib structural validation by default — no per-message subprocess; xmllint opt-in only via `ACS_XML_AUTHORITATIVE=1`) | Fail-fast malformed coordinator↔subagent traffic |

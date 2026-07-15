@@ -98,7 +98,7 @@ D = derive()
 
 NEW_TRIAD_SUFFIXES = (
     "create-quality", "create-operations", "create-principles",
-    "create-standards", "standardize-project",
+    "create-standards", "standardize-project", "create-requirements",
 )
 
 
@@ -234,11 +234,11 @@ class ReflectionTopologyTest(unittest.TestCase):
     def test_fourteen_skill_prefixes(self):
         body = self._body()
         self.assertNotIn("nine skill prefixes", body)
-        self.assertIn("fourteen skill prefixes", body)
+        self.assertIn("fifteen skill prefixes", body)
 
     def test_eleven_triad_keeping(self):
         body = self._body()
-        self.assertIn("**eleven**", body)
+        self.assertIn("**twelve**", body)
         self.assertNotIn("**six**", body)
 
     def test_triad_enumeration_names_new_skills(self):
@@ -318,15 +318,21 @@ class HistoricalMarkersPreservedTest(unittest.TestCase):
 
 class SkillsMdUnchangedTest(unittest.TestCase):
     """AC-4 (MAR-123) baseline, bumped by MAR-129: skills.md's count moves
-    22 -> 23 for the new /acs:release unhooked skill, not stale drift."""
+    22 -> 23 for the new /acs:release unhooked skill; then 23 -> 24 by
+    MAR-143, which registers the HOOKED create-requirements skill into the
+    product/triad enumeration (eleven -> twelve triad-keeping skills). The
+    'Unchanged' name is historical (MAR-123 itself did not touch skills.md);
+    these pins track the current epic state, not a frozen MAR-123 snapshot."""
 
-    def test_twenty_three_skills_present(self):
+    def test_twenty_four_skills_present(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-three skills", body)
+        self.assertIn("Twenty-four skills", body)
+        self.assertNotIn("Twenty-three skills", body)
 
-    def test_eleven_triad_list_intact(self):
+    def test_twelve_triad_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Eleven **workflow/product skills**", body)
+        self.assertIn("Twelve **workflow/product skills**", body)
+        self.assertNotIn("Eleven **workflow/product skills**", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)
 

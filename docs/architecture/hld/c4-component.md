@@ -10,8 +10,8 @@ C4Component
 
     Container_Boundary(hooks, "Hook & helper layer") {
         Component(dispatch, "dispatch.py", "hook entry", "PreToolUse(Skill): route to pre-<skill>.py, exit-2 blocks; SessionEnd: safety net")
-        Component(pre, "pre-<skill>.py x14", "gates", "predecessor completed, artifacts exist, lock free, settings/formats valid — fail closed")
-        Component(post, "post-<skill>.py x14", "persistence", "finalize run entry; update ledger, index, metrics; release lock; merge extras (archive, epic auto-done)")
+        Component(pre, "pre-<skill>.py x15", "gates", "predecessor completed, artifacts exist, lock free, settings/formats valid — fail closed")
+        Component(post, "post-<skill>.py x15", "persistence", "finalize run entry; update ledger, index, metrics; release lock; merge extras (archive, epic auto-done)")
         Component(start, "skill-start.py", "run registration", "resolve ticket; allocate ids; acquire lock; pointer file; in_progress run; reconcile/handoff detection")
         Component(mint, "new-ticket.py", "ticket factory", "id allocation, partition + ticket.json, epic backlinks, mint-time create-ticket state")
         Component(clarify, "clarify.py", "Q&A ledger", "add/answer/list clarifications; assumption protocol")
@@ -50,20 +50,20 @@ work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
-The work loop has two shapes. The **eleven triad-keeping skills** (create-prd,
+The work loop has two shapes. The **twelve triad-keeping skills** (create-prd,
 create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, create-design, create-spec, code,
-standardize-project) run the full plan→execute→verify reflection loop,
-spawning a separate planner, executor, and verifier subagent per phase — so
-**11 active triads (33 agents in triads)**. The **three apply-work skills**
-(create-ticket, create-pr, merge-pr) run **inline** (MAR-60): the
-coordinator performs the work
+standardize-project, create-requirements) run the full plan→execute→verify
+reflection loop, spawning a separate planner, executor, and verifier subagent
+per phase — so **12 active triads (36 agents in triads)**. The **three
+apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**
+(MAR-60): the coordinator performs the work
 directly or delegates to **at most one** executor subagent, and **never
 spawns a planner or verifier** in any lane. Their correctness is gated
 otherwise — create-ticket by its schema plus the Step-2 user-confirmation
 gate, create-pr/merge-pr verifier-gated upstream by `/code`'s verifier
 (`code-state.json` `states.verifier_passed == true`). With the 3 reachable
-apply-work executors that is **36 reachable agents**; the 6 plan/verify
+apply-work executors that is **39 reachable agents**; the 6 plan/verify
 files of the apply-work skills remain on disk but are orphaned.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
