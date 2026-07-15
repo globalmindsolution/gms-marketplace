@@ -105,18 +105,22 @@ class FlowDocTest(unittest.TestCase):
 
 class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     """AC-9: skills.md intro count bump, new standardize-project section,
-    and the pre-existing 'six' triad-prose drift repaired to 'eleven'."""
+    and the pre-existing 'six' triad-prose drift repaired to 'eleven'. The
+    intro count advances 23->24 and the triad-prose word eleven->twelve as
+    MAR-143 registers create-requirements (a HOOKED product skill) into the
+    product/triad enumeration — these assertions track the current epic
+    state, not a frozen MAR-121 snapshot."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
-    def test_intro_reads_twentythree_not_twentytwo(self):
+    def test_intro_reads_twentyfour_not_twentythree(self):
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-three skills", intro,
-                      "skills.md intro must read 'Twenty-three skills'")
-        self.assertNotIn("Twenty-two skills", intro,
-                         "skills.md intro must NOT still read 'Twenty-two skills'")
+        self.assertIn("Twenty-four skills", intro,
+                      "skills.md intro must read 'Twenty-four skills'")
+        self.assertNotIn("Twenty-three skills", intro,
+                         "skills.md intro must NOT still read 'Twenty-three skills'")
 
     def test_standardize_project_section_exists_not_product_level(self):
         body = self._skills_req()
@@ -140,23 +144,25 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             "standardize-project section must mention recommended_follow_ups "
             "or 'recommended follow-up'")
 
-    def test_workflow_product_skills_bullet_reads_eleven(self):
+    def test_workflow_product_skills_bullet_reads_twelve(self):
         body = self._skills_req()
         window = window_to_next_h2(body, "Every **workflow** skill MUST:")
-        self.assertIn("Eleven", window)
+        self.assertIn("Twelve", window)
+        self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
             "create-spec", "code", "create-prd", "create-design",
             "create-architecture", "create-project", "create-quality",
             "create-operations", "create-principles", "create-standards",
-            "standardize-project",
+            "standardize-project", "create-requirements",
         ):
             self.assertIn(name, window,
                           "the workflow/product skills bullet must name %r" % name)
 
-    def test_models_config_bullet_reads_eleven_triad_keeping(self):
+    def test_models_config_bullet_reads_twelve_triad_keeping(self):
         body = self._skills_req()
-        self.assertIn("the eleven\n  triad-keeping skills only", body)
+        self.assertIn("the twelve\n  triad-keeping skills only", body)
+        self.assertNotIn("the eleven\n  triad-keeping skills only", body)
         self.assertNotIn("the six\n  triad-keeping skills only", body)
 
 

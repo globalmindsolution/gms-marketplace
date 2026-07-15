@@ -1,23 +1,23 @@
 # Skill Requirements
 
-Twenty-three skills in total: the bootstrap skill (`/init`), the umbrella
+Twenty-four skills in total: the bootstrap skill (`/init`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
 read-only usage dashboard (`/usage`), and the standing suite runner
 (`/acs:test`) — the product-level `/create-prd`, `/create-architecture`,
 `/create-project`, `/create-quality`, `/create-operations`,
-`/create-principles`, and `/create-standards`, `/acs:standardize-project`
+`/create-principles`, `/create-standards`, and `/create-requirements`, `/acs:standardize-project`
 (its own triad-keeping workflow skill with its own delivery ticket — **not**
 one of the product-level `<set>_path` doc-set producers just listed, and
 adds no new settings key), and six workflow skills (one of them,
 `/create-design`, conditional).
 Every **workflow** skill MUST:
 
-- Eleven **workflow/product skills** (create-spec, code, create-prd,
+- Twelve **workflow/product skills** (create-spec, code, create-prd,
   create-design, create-architecture, create-project, create-quality,
   create-operations, create-principles, create-standards,
-  standardize-project) run the full Reflection cycle (plan → execute →
+  standardize-project, create-requirements) run the full Reflection cycle (plan → execute →
   verify) with their own `<skill>-planner`, `<skill>-executor`,
   `<skill>-verifier` subagents ([reflection.md](reflection.md)). Three
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
@@ -32,7 +32,7 @@ Every **workflow** skill MUST:
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn its
   planner/executor/verifier on the models and effort levels configured there
-  ([configuration.md](configuration.md#subagent-models)) (applies to the eleven
+  ([configuration.md](configuration.md#subagent-models)) (applies to the twelve
   triad-keeping skills only — apply-work skills run inline);
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
