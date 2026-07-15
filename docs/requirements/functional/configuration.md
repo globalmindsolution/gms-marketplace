@@ -163,15 +163,6 @@ configured under `models`:
   overridden per scope like any other key. Cost effects are visible in the
   per-run metrics ([workspace-and-state.md](workspace-and-state.md)).
 
-### Secrets
-
-Credentials for remote trackers MUST NOT be stored in `settings.json`.
-Tracker access goes through the official CLIs — `gh` for GitHub and `acli`
-for Jira — which manage their own authentication (`gh auth login`,
-`acli auth`). `settings.json` holds only non-secret configuration (URLs,
-project keys, formats). `/init` and the pre-hooks SHOULD check that the
-configured tracker's CLI is installed and authenticated.
-
 ### Status lines (optional)
 
 The plugin ships two status-line scripts — a prompt line (active ticket +

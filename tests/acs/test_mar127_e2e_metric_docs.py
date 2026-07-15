@@ -17,7 +17,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 ROADMAP_PATH = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
-WORKFLOW_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "workflow.md")
+WORKFLOW_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workflow.md")
 ADR_PATH = os.path.join(REPO_ROOT, "docs", "adr",
                         "0049-e2e-3-read-only-g13-metric-validation.md")
 ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "adr", "README.md")

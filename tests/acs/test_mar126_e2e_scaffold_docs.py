@@ -14,7 +14,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 FLOW_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows",
                          "standardize-project.md")
 DEPLOYMENT_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "deployment.md")
-REQUIREMENTS_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
+REQUIREMENTS_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 ADR_PATH = os.path.join(REPO_ROOT, "docs", "adr",
                         "0048-standardize-project-scaffolds-e2e-no-branch-protection.md")
 ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "adr", "README.md")

@@ -555,7 +555,7 @@ class TestApplyTierInline(unittest.TestCase):
     def test_skills_md_apply_skills_no_triad_in_subagents(self):
         """AC-7: skills.md must not list planner for apply skills and must carry
         an inline/apply-work carve-out token."""
-        body = read(self.doc_path("docs", "requirements", "skills.md"))
+        body = read(self.doc_path("docs", "requirements", "functional", "skills.md"))
         self.assertIsNone(
             re.search(
                 r"(?s)(create-pr|merge-pr|create-ticket).{0,500}Subagents.{0,300}planner",
@@ -569,7 +569,7 @@ class TestApplyTierInline(unittest.TestCase):
         """AC-7: reflection.md must not describe apply skills as running their own
         planner+verifier triad, and must carry a carve-out or drop the
         unconditional all-skills triad claim."""
-        body = read(self.doc_path("docs", "requirements", "reflection.md"))
+        body = read(self.doc_path("docs", "requirements", "functional", "reflection.md"))
         self.assertIsNone(
             re.search(
                 r"(?s)(create-pr|merge-pr|create-ticket).{0,300}planner.{0,300}verifier",
@@ -1336,7 +1336,7 @@ class TestLaneStatementUserConfirmedExceptionDocs(unittest.TestCase):
 
     def _reflection_body(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements",
-                                  "reflection.md"))
+                                  "functional", "reflection.md"))
 
     def _assert_never_automatically_downward_with_exception(self, body, path):
         self.assertIsNotNone(
@@ -1361,12 +1361,12 @@ class TestLaneStatementUserConfirmedExceptionDocs(unittest.TestCase):
 
     def test_reflection_md_never_automatically_downward_exception(self):
         self._assert_never_automatically_downward_with_exception(
-            self._reflection_body(), "docs/requirements/reflection.md")
+            self._reflection_body(), "docs/requirements/functional/reflection.md")
 
 
 class TestMidFlightEscalationContract(unittest.TestCase):
     """MAR-57 Spec 04 (AC-3, AC-6, AC-7, AC-8): pin the mid-flight escalation
-    contract in docs/requirements/skills.md.
+    contract in docs/requirements/functional/skills.md.
 
     Doc-assertion tests reading skills.md and verifying the standing contract
     is present. RED before the 'Mid-flight lane escalation' subsection is added;
@@ -1374,7 +1374,7 @@ class TestMidFlightEscalationContract(unittest.TestCase):
     """
 
     def _skills_md_path(self):
-        return os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
+        return os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
     def _body(self):
         return read(self._skills_md_path())
@@ -1583,7 +1583,7 @@ class TestAdr0042D4Section(unittest.TestCase):
 
 class TestReflectionMdEscalationCeiling(unittest.TestCase):
     """MAR-57 Spec 04 (AC-1, AC-7, AC-8): pin the in-loop ceiling-raise contract
-    in docs/requirements/reflection.md.
+    in docs/requirements/functional/reflection.md.
 
     Doc-assertion tests reading reflection.md and verifying the escalation
     ceiling-raise prose is present and invariants are retained. RED before the
@@ -1591,16 +1591,16 @@ class TestReflectionMdEscalationCeiling(unittest.TestCase):
     """
 
     def _reflection_md_path(self):
-        return os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md")
+        return os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 
     def _body(self):
         return read(self._reflection_md_path())
 
     def test_reflection_md_exists_at_expected_path(self):
-        """AC-8: docs/requirements/reflection.md must exist at the expected path."""
+        """AC-8: docs/requirements/functional/reflection.md must exist at the expected path."""
         self.assertTrue(
             os.path.isfile(self._reflection_md_path()),
-            "docs/requirements/reflection.md must exist (MAR-57 AC-8)")
+            "docs/requirements/functional/reflection.md must exist (MAR-57 AC-8)")
 
     def test_reflection_md_in_loop_ceiling_raise(self):
         """AC-8/AC-1: reflection.md must describe the in-loop ceiling raise on
@@ -1710,14 +1710,14 @@ class TestClarifyBatchingContract(unittest.TestCase):
                 "questions outside the assumption rule (MAR-61 AC-7)" % name)
 
     def test_skills_requirements_doc_carries_grouped_ask_rule(self):
-        path = os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
+        path = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
         body = read(path)
         self.assertIsNotNone(
             re.search(
                 r"(?i)(grouped interaction|ONE grouped|one.*interaction.*question"
                 r"|grouped.*clarif)",
                 body),
-            "docs/requirements/skills.md must document the grouped-ask rule "
+            "docs/requirements/functional/skills.md must document the grouped-ask rule "
             "(MAR-61 AC-7)")
 
 
@@ -2190,10 +2190,10 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
         return read(self.skill_path("code"))
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def _reflection_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md"))
 
     def _changelog(self):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
@@ -2329,23 +2329,23 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
     # --- AC-5: shared docs carry restraint-layer token ---
 
     def test_skills_md_simplicity_scope_present(self):
-        """AC-5: docs/requirements/skills.md must co-locate 'Simplicity' and
+        """AC-5: docs/requirements/functional/skills.md must co-locate 'Simplicity' and
         'scope' within 100 chars."""
         body = self._skills_req()
         self.assertIsNotNone(
             re.search(r"(?i)Simplicity.{0,100}scope|scope.{0,100}Simplicity",
                       body, re.DOTALL),
-            "docs/requirements/skills.md must co-locate 'Simplicity' and 'scope' "
+            "docs/requirements/functional/skills.md must co-locate 'Simplicity' and 'scope' "
             "within 100 chars (MAR-2 AC-5)")
 
     def test_reflection_md_simplicity_scope_present(self):
-        """AC-5: docs/requirements/reflection.md must co-locate 'Simplicity'
+        """AC-5: docs/requirements/functional/reflection.md must co-locate 'Simplicity'
         and 'scope' within 100 chars."""
         body = self._reflection_req()
         self.assertIsNotNone(
             re.search(r"(?i)Simplicity.{0,100}scope|scope.{0,100}Simplicity",
                       body, re.DOTALL),
-            "docs/requirements/reflection.md must co-locate 'Simplicity' and 'scope' "
+            "docs/requirements/functional/reflection.md must co-locate 'Simplicity' and 'scope' "
             "within 100 chars (MAR-2 AC-5)")
 
     # --- AC-6: cross-agent — all three agents carry both rule names ---
@@ -2414,10 +2414,10 @@ class TestSpecSimplicityGate(unittest.TestCase):
         return read(self.agent_path("create-spec", "verifier"))
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def _reflection_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md"))
 
     def _changelog(self):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
@@ -2454,24 +2454,24 @@ class TestSpecSimplicityGate(unittest.TestCase):
     # --- AC-4: requirements SoT coverage ---
 
     def test_skills_req_carries_gate(self):
-        """AC-4: docs/requirements/skills.md's /create-spec block must
+        """AC-4: docs/requirements/functional/skills.md's /create-spec block must
         co-locate 'materially' and 'surface'."""
         body = self._skills_req()
         self.assertIsNotNone(
             re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
                       body, re.DOTALL),
-            "docs/requirements/skills.md must co-locate 'materially' and "
+            "docs/requirements/functional/skills.md must co-locate 'materially' and "
             "'surface' within 400 chars (MAR-88 AC-4)")
 
     def test_reflection_req_carries_deconfliction(self):
-        """AC-4/AC-7: docs/requirements/reflection.md must co-locate
+        """AC-4/AC-7: docs/requirements/functional/reflection.md must co-locate
         'surface' and 'decision' (the spec-time-vs-code-time deconfliction
         clause)."""
         body = self._reflection_req()
         self.assertIsNotNone(
             re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
                       body, re.DOTALL),
-            "docs/requirements/reflection.md must co-locate 'surface' and "
+            "docs/requirements/functional/reflection.md must co-locate 'surface' and "
             "'decision' within 400 chars (MAR-88 AC-4/AC-7)")
 
     # --- AC-5: CHANGELOG entry ---
@@ -2961,7 +2961,7 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def test_changelog_unreleased_mar101_entry(self):
         """AC-7: '(MAR-101)' and '(MAR-88)' must each be locatable relative
@@ -3008,7 +3008,7 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
                          "insert version headings; release cuts do)")
 
     def test_skills_md_create_pr_section_has_mar101_standing_behavior(self):
-        """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
+        """AC-7: docs/requirements/functional/skills.md's '## 5. `/create-pr`' section
         carries a '(standing behavior, MAR-101)' bullet referencing
         assignee/type label/Project/Status. MAR-103 retires the
         '[ASSUMPTION] ... reviewers are left to repo conventions' clause
@@ -3021,7 +3021,7 @@ class TestCreatePrMetadataFillDocs(unittest.TestCase):
         section_end = body.index("## 6. `/merge-pr`")
         section = body[section_start:section_end]
         self.assertIn("(standing behavior, MAR-101)", section,
-                      "docs/requirements/skills.md '/create-pr' section must carry "
+                      "docs/requirements/functional/skills.md '/create-pr' section must carry "
                       "a '(standing behavior, MAR-101)' bullet (MAR-101 AC-7)")
         self.assertIsNotNone(
             re.search(r"(?is)assignee.{0,300}(type label|Project|Status)|"
@@ -3258,7 +3258,7 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def test_changelog_unreleased_mar102_entry(self):
         """AC-7: '(MAR-102)' must appear inside exactly one well-formed
@@ -3305,7 +3305,7 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
                          "insert version headings)")
 
     def test_skills_md_create_pr_section_has_mar102_standing_behavior(self):
-        """AC-7: docs/requirements/skills.md's '## 5. `/create-pr`' section
+        """AC-7: docs/requirements/functional/skills.md's '## 5. `/create-pr`' section
         carries a '(standing behavior, MAR-102)' bullet referencing the
         in-review Status resolution, and the pre-existing MAR-101 bullet
         remains untouched. MAR-103 retires the reviewers-ASSUMPTION clause
@@ -3318,7 +3318,7 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
         section_end = body.index("## 6. `/merge-pr`")
         section = body[section_start:section_end]
         self.assertIn("(standing behavior, MAR-102)", section,
-                      "docs/requirements/skills.md '/create-pr' section must "
+                      "docs/requirements/functional/skills.md '/create-pr' section must "
                       "carry a '(standing behavior, MAR-102)' bullet (MAR-102 AC-7)")
         self.assertIsNotNone(
             re.search(r"(?i)In Review", section),
@@ -3419,10 +3419,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     pre-post-pair arithmetic. Structural string/regex assertions only."""
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def _configuration(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
@@ -3434,7 +3434,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         body = self._skills_req()
         heading = "## `/acs:create-quality` (product-level)"
         self.assertIn(heading, body,
-                      "docs/requirements/skills.md must have a "
+                      "docs/requirements/functional/skills.md must have a "
                       "'/acs:create-quality' (product-level) section (MAR-112 AC-7)")
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
@@ -3453,7 +3453,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         body = self._configuration()
         self.assertIsNotNone(
             re.search(r"\|\s*`quality_path`\s*\|[^\n]*`\"docs/quality\"`", body),
-            "docs/requirements/configuration.md must have a quality_path row "
+            "docs/requirements/functional/configuration.md must have a quality_path row "
             "with default \"docs/quality\" (MAR-112 AC-7)")
 
     def test_c4_component_triad_count_advanced(self):
@@ -3551,10 +3551,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
     pre-post-pair arithmetic. Structural string/regex assertions only."""
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def _configuration(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
@@ -3566,7 +3566,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         body = self._skills_req()
         heading = "## `/acs:create-operations` (product-level)"
         self.assertIn(heading, body,
-                      "docs/requirements/skills.md must have a "
+                      "docs/requirements/functional/skills.md must have a "
                       "'/acs:create-operations' (product-level) section (MAR-113 AC-7)")
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
@@ -3585,7 +3585,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         body = self._configuration()
         self.assertIsNotNone(
             re.search(r"\|\s*`operations_path`\s*\|[^\n]*`\"docs/operations\"`", body),
-            "docs/requirements/configuration.md must have an operations_path row "
+            "docs/requirements/functional/configuration.md must have an operations_path row "
             "with default \"docs/operations\" (MAR-113 AC-7)")
 
     def test_c4_component_triad_count_advanced(self):

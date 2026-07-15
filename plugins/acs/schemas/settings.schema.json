@@ -45,6 +45,15 @@
       "type": "string",
       "default": "docs/requirements"
     },
+    "requirements_layout": {
+      "description": "Functional/non-functional subfolder names under requirements_path (Decision B). functional_subdir holds behavioral-requirement files (one per feature); non_functional_subdir holds quality-requirement files (one per NFR item). Absent key, or an absent sub-key, resolves to the defaults below.",
+      "type": "object",
+      "properties": {
+        "functional_subdir": {"type": "string", "minLength": 1, "default": "functional"},
+        "non_functional_subdir": {"type": "string", "minLength": 1, "default": "non-functional"}
+      },
+      "additionalProperties": true
+    },
     "adr_path": {
       "description": "Where /code commits accepted decision records from each ticket's design.md (default-on so decisions outlive archived ticket partitions). Explicit null disables — designs then stay workspace-only.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],

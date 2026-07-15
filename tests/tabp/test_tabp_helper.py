@@ -1342,7 +1342,7 @@ class TestNamespaceGuard(unittest.TestCase):
 
         # Check only the MAR-38 section of tabp.md (the existing file has 'acs:' in
         # its namespace-constraint wording — check only the new MAR-38 section)
-        tabp_req_path = os.path.join(_REPO_ROOT, "docs", "requirements", "tabp.md")
+        tabp_req_path = os.path.join(_REPO_ROOT, "docs", "requirements", "functional", "tabp.md")
         if not os.path.isfile(tabp_req_path):
             self.fail("Required requirements file not found: %s" % tabp_req_path)
         with open(tabp_req_path, "r", encoding="utf-8") as fh:
@@ -1937,7 +1937,7 @@ class TestSettingsValidate(unittest.TestCase):
 
     def test_tc_sv_02b_model_pricing_dict_accepted(self):
         """model_pricing (runtime-read-only, MAR-38) must validate as a known key so
-        settings-validate and settings-read agree. See docs/requirements/tabp.md:216-237."""
+        settings-validate and settings-read agree. See docs/requirements/functional/tabp.md:216-237."""
         # A valid model_pricing block must not raise.
         tabp_helper._validate_settings({
             "screening_model": "sonnet",

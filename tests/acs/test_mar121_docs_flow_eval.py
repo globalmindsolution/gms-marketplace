@@ -108,7 +108,7 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     and the pre-existing 'six' triad-prose drift repaired to 'eleven'."""
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def test_intro_reads_twentythree_not_twentytwo(self):
         body = self._skills_req()

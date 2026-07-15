@@ -27,7 +27,7 @@ SKILL_PATH = os.path.join(SKILLS, "create-architecture", "SKILL.md")
 PLANNER_PATH = os.path.join(AGENTS, "create-architecture-planner.md")
 EXECUTOR_PATH = os.path.join(AGENTS, "create-architecture-executor.md")
 VERIFIER_PATH = os.path.join(AGENTS, "create-architecture-verifier.md")
-SKILLS_MD_PATH = os.path.join(DOCS, "requirements", "skills.md")
+SKILLS_MD_PATH = os.path.join(DOCS, "requirements", "functional", "skills.md")
 
 
 def read(path):
@@ -163,7 +163,7 @@ class VerifierDimensionsTest(unittest.TestCase):
 
 
 class SkillsMdSectionTest(unittest.TestCase):
-    """AC-6: docs/requirements/skills.md's /create-architecture section names
+    """AC-6: docs/requirements/functional/skills.md's /create-architecture section names
     the new output."""
 
     @classmethod

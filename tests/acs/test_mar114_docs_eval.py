@@ -77,7 +77,7 @@ class ConfigurationMdKeysTableTest(unittest.TestCase):
     Default/Required) stays unchanged."""
 
     def _configuration(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
     def test_suites_row_exists_and_mentions_e2e_and_test_consumer(self):
         body = self._configuration()
@@ -110,7 +110,7 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
     ## /acs:test utility section after ## /usage."""
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def test_intro_reads_nineteen_not_eighteen(self):
         # The literal skill-count word churns as later skills land (MAR-117

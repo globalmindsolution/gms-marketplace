@@ -209,7 +209,7 @@ class ConformanceDocsTest(unittest.TestCase):
             "mapping-table note")
 
     def test_skills_md_create_prd_section_documents_table(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         window = section(body, "## `/create-prd` (product-level)")
         self.assertTrue(
             "Release versions" in window or "mapping table" in window,

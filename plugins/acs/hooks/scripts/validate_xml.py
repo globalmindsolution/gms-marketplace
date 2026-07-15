@@ -2,7 +2,7 @@
 """validate_xml.py — validate coordinator/subagent XML messages against acs-messages.xsd.
 
 Skills validate every task/result/handoff message so malformed messages fail fast
-instead of silently degrading the pipeline (docs/requirements/reflection.md).
+instead of silently degrading the pipeline (docs/requirements/functional/reflection.md).
 
 Strategy (stdlib-only requirement):
   Default fast path: every message is validated IN-PROCESS by validate_structurally(),

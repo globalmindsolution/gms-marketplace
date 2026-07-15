@@ -564,7 +564,7 @@ def _validate_settings(record):
        cv_folder, jd_folder) or str in {helper, instructed} (state_write_mode).
        model_pricing, when present, must be a dict (runtime-read-only contract;
        malformed per-model entries are silently skipped at read time per
-       docs/requirements/tabp.md:216-237, DEV-1).
+       docs/requirements/functional/tabp.md:216-237, DEV-1).
     4. No string value may contain the namespace-polluting workspace prefix.
     """
     if not isinstance(record, dict):
@@ -602,7 +602,7 @@ def _validate_settings(record):
             )
     # model_pricing is runtime-read-only: require a dict container, but do not
     # validate per-model entries here — _resolve_pricing silently skips malformed
-    # ones (docs/requirements/tabp.md:216-237).
+    # ones (docs/requirements/functional/tabp.md:216-237).
     if "model_pricing" in record and not isinstance(record["model_pricing"], dict):
         raise TabpValidationError(
             "tabp: validation error: settings.model_pricing must be an object, "

@@ -11,7 +11,7 @@ This module implements the deterministic half of the acs workflow:
   * locking               (.lock per ticket partition, re-entrant per checkout)
   * pre-hook gating       (exit 2 = blocked) and post-hook persistence
 
-Hook event binding (resolves the open question in docs/requirements/hooks.md):
+Hook event binding (resolves the open question in docs/requirements/functional/hooks.md):
   * pre-<skill>.py  runs via a PreToolUse hook matching the Skill tool (dispatch.py routes
     by skill name); exit code 2 blocks the skill before it runs.
   * post-<skill>.py is invoked by the skill's coordinator as its mandatory final step
@@ -65,7 +65,7 @@ DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
 DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
                                **{"standardize-project": "Brownfield project standardization"})
 
-# Placeholder vocabulary per inline format field (docs/requirements/configuration.md).
+# Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
 FORMAT_PLACEHOLDERS = {
     "branch_name": {"ticket_id", "type", "slug", "external_key"},
     "commit_message": {"ticket_id", "type", "summary", "external_key"},
@@ -339,6 +339,7 @@ DEFAULT_SETTINGS = {
     "prd_path": "docs/product",
     "architecture_path": "docs/architecture",
     "requirements_path": "docs/requirements",
+    "requirements_layout": {"functional_subdir": "functional", "non_functional_subdir": "non-functional"},
     "adr_path": "docs/adr",
     "quality_path": "docs/quality",
     "operations_path": "docs/operations",
@@ -2024,7 +2025,7 @@ def run_post(skill):
 
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
-    its lock — abnormal endings must still write state (docs/requirements/hooks.md)."""
+    its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)

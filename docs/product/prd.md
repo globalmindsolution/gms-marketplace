@@ -699,7 +699,7 @@ its own mechanisms (acs via stdlib Python + hooks; future plugins via their own 
 ## Constraints & assumptions
 
 - **acs feature (runtime, revised MAR-2):** Claude Code is the **primary / today-shipping** runtime for the acs pipeline (Claude Code plugin API — skills/agents/hooks as documented). acs is **no longer Claude-Code-only**: **OpenAI Codex CLI is a supported pipeline runtime** (Could-have; see Features), so the pipeline targets **≥ 1 of an open set of agent runtimes** rather than Claude Code exclusively. The deterministic layer stays runtime-agnostic stdlib-only Python (Portability NFR); the runtime-specific MECHANISM (hook gating, reflection-subagent protocol, skill/agent dispatch on Codex CLI) is **deferred to the multi-runtime epic's design phase**. Different features may still target different runtimes (historical precedent: the retired tabp feature targeted both Claude Cowork and Claude Code).
-- Delivery is git + GitHub PRs (`gh` assumed); correctness must be checkable by automated tests for the strong-fit domains (see `docs/requirements/overview.md`).
+- Delivery is git + GitHub PRs (`gh` assumed); correctness must be checkable by automated tests for the strong-fit domains (see `docs/requirements/README.md`, Target domains).
 - Subagents cannot interact with the user — all user interaction happens in coordinators (drives the `needs_input` handoff design).
 - **acs feature — brownfield standardization is additive-only (C-2).** `/acs:standardize-project` operates on an existing repo by ADDITION only: it adds principles/standards docs, config, and missing readiness tooling (coverage/CI/pre-commit/e2e — including scaffolding a repo-side e2e CI workflow/runner only; wiring the resulting check into branch protection stays `/acs:init`'s job, Decision D1), and it MUST NOT move, rename, delete, or rewrite existing source files. **The e2e layer stays OPT-IN: a repo with `settings.e2e` unset has no e2e suite and no e2e merge gate; the gate is configured only on explicit opt-in.** Structural gaps versus the architecture project-structure target are surfaced as recommended follow-up tickets for the user to decide on — never executed as an automatic restructure. This guardrail is deliberate: a wholesale-restructure mandate is explicitly out of scope (it is the over-engineering this product reset once before — see Out of scope). The greenfield/brownfield split is fixed: `/acs:create-project` is greenfield-only and refuses on any repo with substantive sources; brownfield onboarding is `/acs:standardize-project`'s job (C-1).
 - **tabp feature — *(RETIRED — see the MAR-97 Reversal note in Out of scope)*.** tabp ran
@@ -807,7 +807,7 @@ protections) and the repo's branch protection pass, by whoever invokes; failures
 report-only; every attempt is audited," with agent-invoked merges additionally requiring an
 approved review (m6). `/acs:ship` still deliberately stops at create-pr (review separation, not
 a merge prohibition). This is a product-level Vision change only; the detailed `/acs:merge-pr`
-behavior lives in `docs/requirements/skills.md` and the skill prose and is delivered by MAR-42.
+behavior lives in `docs/requirements/functional/skills.md` and the skill prose and is delivered by MAR-42.
 
 **Reversal note (MAR-2):** this amendment reverses the prior "non-Claude-Code runtimes
 for the acs pipeline" product decision previously stated as an acs Won't-have. Per

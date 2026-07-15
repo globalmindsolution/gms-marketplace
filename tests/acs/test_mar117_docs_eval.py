@@ -43,7 +43,7 @@ class SkillsMdCountAndSectionTest(unittest.TestCase):
     ## /acs:create-principles product-level section."""
 
     def _skills_req(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
     def test_intro_reads_twenty_not_nineteen(self):
         # The literal skill-count word churns as later skills land (MAR-118
@@ -83,7 +83,7 @@ class ConfigurationMdPrinciplesPathRowTest(unittest.TestCase):
     operations_path's shape."""
 
     def _configuration(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "configuration.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
     def test_principles_path_row_exists(self):
         body = self._configuration()

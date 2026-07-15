@@ -2,10 +2,12 @@
 
 Prose-contract tests over the five conformance-chain locations
 (`docs/architecture/lld/contracts.md`, `docs/architecture/hld/overview.md`,
-`docs/requirements/overview.md`, `docs/requirements/workflow.md`,
+`docs/requirements/non-functional/quality-gates.md` (the SEVEN_NODE chain
+lives in the moved "PRD at the top" Core-principles row, MAR-145),
+`docs/requirements/functional/workflow.md`,
 `docs/README.md`), the code-verifier and create-design-verifier
-living-requirements descriptions (`docs/requirements/skills.md`,
-`docs/requirements/reflection.md`), the durable MAR-119 CHANGELOG entry, and
+living-requirements descriptions (`docs/requirements/functional/skills.md`,
+`docs/requirements/functional/reflection.md`), the durable MAR-119 CHANGELOG entry, and
 the Flow-2 no-new-flow-file guardrail.
 
 Stdlib-only (os, re, unittest). Run:
@@ -27,11 +29,12 @@ NINE_NODE = ("PRD → architecture → principles → standards → "
 
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 HLD_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md")
-REQ_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "requirements", "overview.md")
-WORKFLOW_MD = os.path.join(REPO_ROOT, "docs", "requirements", "workflow.md")
+REQ_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "requirements",
+                                "non-functional", "quality-gates.md")
+WORKFLOW_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workflow.md")
 DOCS_README_MD = os.path.join(REPO_ROOT, "docs", "README.md")
-SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
-REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md")
+SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
+REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 FLOWS_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows")
 
 FIVE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD, DOCS_README_MD]

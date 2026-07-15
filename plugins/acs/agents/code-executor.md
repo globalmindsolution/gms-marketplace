@@ -92,11 +92,32 @@ never quietly do code work under a docs-only ticket.
      dead code — mention it in the execute-report `problems` field instead.
 
    When the map names a
-   living-requirements file (`requirements_path`): merge this spec's
+   living-requirements file (`requirements_path`): classify each merged
+   requirement against the written rubric below, then merge this spec's
    acceptance criteria and the behavior-defining clarifications cited in your
-   task into that feature area's file — additive, current-behavior phrasing
-   (the file states what the product DOES now, not the change history). When the change
-   adds/removes components or alters the data model, integrations, or
+   task into that feature area's file under the resolved subfolder —
+   additive, current-behavior phrasing (the file states what the product DOES
+   now, not the change history), never overwriting the existing file.
+
+   - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
+     performs: a command/skill's steps and outputs, a gate's pass/fail
+     condition, an input→output contract, a state transition, a produced
+     artifact. "The system DOES X." →
+     `<requirements_path>/<functional_subdir>/<feature>.md`
+     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+   - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
+     software behaves rather than a new behavior: performance/cost bounds,
+     security/secret handling, reliability/resumability, portability/
+     consumer-generality, operability, packaging/distribution. "The system
+     does it WITHIN/UNDER constraint Y." →
+     `<requirements_path>/<non_functional_subdir>/<item>.md`
+     (`settings.requirements_layout.non_functional_subdir`, default
+     `"non-functional"`).
+   - **Tie-break** — a requirement that is genuinely BOTH defaults to
+     **functional**, with a one-line cross-reference from the paired
+     non-functional file.
+
+   When the change adds/removes components or alters the data model, integrations, or
    deployment: update the HLD under `architecture_path` (C4 views, data model,
    deployment) and MERGE the design's new/changed Mermaid sequence diagrams
    into `<architecture_path>/lld/flows/`. When `adr_path` is set and the design

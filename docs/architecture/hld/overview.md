@@ -4,7 +4,7 @@
 > catalog hosting heterogeneous plugins for Claude Code and Cowork (dogfooding:
 > this repo is itself a consumer of acs, one of the marketplace plugins).
 > Bootstrapped from the implemented system; kept current by the pipeline per
-> the living-architecture rules in `docs/requirements/workflow.md`. All
+> the living-architecture rules in `docs/requirements/functional/workflow.md`. All
 > diagrams are Mermaid.
 
 ## System context

@@ -319,7 +319,7 @@ by the runtime (skills auto-discover from `skills/<name>/SKILL.md`; no explicit
   skill count updated 1→2; `plugins/tabp/README.md` documents the new skill with
   a `### usage` subsection.
 
-- **AC-5**: Namespace clean (see AC-6 contract at `docs/requirements/tabp.md:32-35`):
+- **AC-5**: Namespace clean (see AC-6 contract at `docs/requirements/functional/tabp.md:32-35`):
   no foreign namespace prefix, no foreign state-path token, no foreign library
   import appears in the new skill or any changed tabp artifact. All files stay
   within the tabp namespace. Structural tests in
@@ -417,7 +417,7 @@ helper flag code, the reworded skill/README/`plugin.json` prose, the amended
 ADRs, the new ADR-0027, and the architecture-doc updates — stay within the tabp
 namespace. No foreign-namespace prefix token, no foreign state-path token, and
 no foreign-library import is introduced (consistent with the AC-6 contract at
-`docs/requirements/tabp.md:32-35`).
+`docs/requirements/functional/tabp.md:32-35`).
 
 #### Acceptance criteria (shipped — MAR-40)
 
