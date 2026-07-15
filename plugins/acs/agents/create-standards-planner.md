@@ -70,7 +70,7 @@ input file yourself and trust only what you read.
     {
       "kind": "staleness",
       "upstream": "docs/architecture/hld/c4-component.md",
-      "downstream": "docs/requirements/skills.md",
+      "downstream": "docs/requirements/functional/skills.md",
       "description": "skills.md still states 'Sixteen skills' after 3 new skills land",
       "recommendation": "Update skill count and add sections for the 3 new skills"
     }

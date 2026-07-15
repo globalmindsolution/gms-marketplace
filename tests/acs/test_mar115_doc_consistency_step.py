@@ -28,7 +28,7 @@ SKILLS = os.path.join(PLUGIN, "skills")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
 ADR_0011 = os.path.join(REPO_ROOT, "docs", "adr", "0011-sdlc-doc-sets-quality-and-operations.md")
-SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "skills.md")
+SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
 PLANNERS = [
     "create-prd-planner.md",

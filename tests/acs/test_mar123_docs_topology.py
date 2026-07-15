@@ -161,8 +161,14 @@ class InternalsTopologyTest(unittest.TestCase):
 
 
 class OverviewTopologyTest(unittest.TestCase):
+    """MAR-145: the Packaging-requirements + subagent-count window moved
+    wholesale from the old flat overview.md into
+    non-functional/packaging-distribution.md during the functional/
+    non-functional reorg; repointed here, content unchanged."""
+
     def _body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "overview.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements",
+                                  "non-functional", "packaging-distribution.md"))
 
     def test_subagent_counts_present(self):
         body = self._body()
@@ -219,7 +225,7 @@ class RoadmapTopologyTest(unittest.TestCase):
 
 class ReflectionTopologyTest(unittest.TestCase):
     def _body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements", "reflection.md"))
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md"))
 
     def test_agent_count_in_total_present(self):
         body = self._body()
@@ -315,11 +321,11 @@ class SkillsMdUnchangedTest(unittest.TestCase):
     22 -> 23 for the new /acs:release unhooked skill, not stale drift."""
 
     def test_twenty_three_skills_present(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         self.assertIn("Twenty-three skills", body)
 
     def test_eleven_triad_list_intact(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "skills.md"))
+        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         self.assertIn("Eleven **workflow/product skills**", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)

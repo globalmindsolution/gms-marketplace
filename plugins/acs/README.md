@@ -167,7 +167,7 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
 | `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |
 
-Full reference: [docs/requirements/configuration.md](../../docs/requirements/configuration.md)
+Full reference: [docs/requirements/functional/configuration.md](../../docs/requirements/functional/configuration.md)
 (all keys, placeholder vocabulary, description templates, tracker mapping)
 and the machine-readable
 [schemas/settings.schema.json](schemas/settings.schema.json).

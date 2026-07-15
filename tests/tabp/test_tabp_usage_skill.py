@@ -28,7 +28,7 @@ USAGE_FLOW_DOC = os.path.join(
 C4_CONTAINER = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 TECH_STACK = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md")
 README_MD = os.path.join(REPO_ROOT, "plugins", "tabp", "README.md")
-REQUIREMENTS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "tabp.md")
+REQUIREMENTS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "tabp.md")
 
 
 def _parse_frontmatter(text, path):
@@ -274,7 +274,7 @@ class TestTabpUsageSkillAC5(unittest.TestCase):
         self.assertNotIn("acs:", self._read(README_MD))
 
     def test_tu30_requirements_no_acs_in_mar39_section(self):
-        """TU-30: docs/requirements/tabp.md exists and MAR-39 section has no 'acs:' token."""
+        """TU-30: docs/requirements/functional/tabp.md exists and MAR-39 section has no 'acs:' token."""
         self.assertTrue(os.path.isfile(REQUIREMENTS_MD), "tabp.md requirements must exist")
         content = self._read(REQUIREMENTS_MD)
         # The MAR-39 section must exist and must not use 'acs:' as a prefix token
