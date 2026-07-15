@@ -112,6 +112,12 @@ its own — and wired as the `E2E suite` required-check context.
 `requirements_path` resolves a **functional** and a **non-functional**
 subfolder via `requirements_layout` (`functional_subdir`/
 `non_functional_subdir`, default `"functional"`/`"non-functional"`).
+`/acs:create-requirements` is the producer skill that bootstraps or amends
+the requirements set at that path — brownfield reverse-engineer:
+architecture-aware feature-area enumeration with a codebase-inventory
+fallback, DRAFT/code-cited, interactive-confirm before write (ADR 0061);
+`/acs:code`'s requirements-merge (above) continues to write into the same
+model afterward.
 
 Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
 

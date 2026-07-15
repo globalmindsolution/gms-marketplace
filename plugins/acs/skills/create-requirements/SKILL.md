@@ -194,6 +194,14 @@ git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAUL
 (conflicting local changes), surface the git error and ask the user. Iterations 2-3
 stay on the branch.
 
+**Interactive-confirm, before you spawn the executor.** Present the planner's
+DRAFT baseline — which feature areas will be extracted or augmented, and
+which are `[OPEN]` — and the open points via the clarify ledger (see User
+interaction below), batched in one interaction when ≥2 questions are open.
+An extracted or augmented requirement is a **DRAFT baseline, never
+authoritative without confirmation**: this confirmation step MUST complete
+before you spawn the executor.
+
 Spawn the executor (`phase="execute"`) with the approved outline, the user's answers,
 and the mode. The executor — the only role that mutates the repo — writes,
 per the mode:

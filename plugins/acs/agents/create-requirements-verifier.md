@@ -39,7 +39,43 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    promised exists; no missing area, no unplanned extra file.
 4. **Iteration 2+ regression check** — every prior finding from `<context>` is
    actually fixed; verify each one directly, never from the execute report's word.
-5. **structure** — deterministic section-conformance floor, run **per produced
+5. **Coverage (≥90%, 0 silent omissions)** — independently re-enumerate
+   feature areas yourself using the SAME checkable definition the planner
+   charter states (architecture-first: `c4-container.md`/`c4-component.md`/
+   `project-structure.md` when present; codebase-inventory fallback
+   otherwise): a feature area is a top-level module / route-group / CLI
+   surface / package that the architecture container-component view names,
+   or — absent an architecture set — that the codebase inventory
+   identifies. Diff your enumeration against the produced files plus the
+   plan's `[OPEN]` points. Coverage below **90%** of your independently
+   re-enumerated areas, or any area neither covered by a produced file nor
+   surfaced as `[OPEN]`, is one blocking finding per area — **0** silent
+   omissions is the bar.
+6. **Citation (100%)** — Grep-spot-check that every extracted requirement's
+   cited file/path actually exists in the repo and plausibly substantiates
+   the claim it supports; any uncited or wrongly-cited clause is a blocking
+   finding.
+7. **DRAFT marker** — every newly-written area file opens with the
+   `DRAFT — human-confirm-required` marker; a newly-written file missing it
+   is a blocking finding.
+8. **No-fabrication** — every clause that is not grounded in cited evidence
+   and not marked `[OPEN]` is a blocking finding (C-22).
+9. **Functional/non-functional routing spot-check** — re-check a sample of
+   the executor's classifications against the rubric quoted in
+   `create-requirements-executor.md` (verbatim from
+   `plugins/acs/skills/code/SKILL.md`); a misrouted requirement (e.g. a
+   behavioral clause filed under non-functional) is a blocking finding.
+10. **Augment-only-absent / no-overwrite** — run `git diff -- <requirements_path>`
+    yourself and confirm no file the plan marked "human-authored present,
+    preserve" changed a single byte. Any byte changed in such a file is a
+    blocking finding.
+11. **Interactive-confirm discipline** — the coordinator's clarify-ledger
+    record (`clarify.py list --ticket <ticket-id>`) shows every
+    planner-surfaced open point was presented to the user (or
+    answered/assumed per the existing assumption rule) before the executor
+    ran; an executor run with unresolved open points still pending is a
+    blocking finding (AC-5).
+12. **structure** — deterministic section-conformance floor, run **per produced
    area file**:
    `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
    --sections "<that file's required_sections constraint, verbatim>" --ordered <file>`.
@@ -48,7 +84,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    dimension passes with no finding for that file; exit 2 (usage error or an
    unreadable file) is itself reported as a blocking finding so a broken
    invocation cannot silently pass.
-6. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+13. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
    prose this run authored across the produced area files against the task's
    `audience_style_profile` constraint (`engineers (behavioral-contract
    prose)`) — register, jargon level, and narrative shape appropriate for an
@@ -57,10 +93,6 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    severity value; it never emits the schema's other, blocking severity value.
    A run with only `audience-style` findings and zero findings on every other
    dimension is still a PASS.
-
-Amend mode, additionally: run `git diff -- <requirements_path>` yourself and
-confirm ONLY the plan-named new/augmented area files changed; any byte changed
-in a file the plan marked "preserved" is a blocking finding.
 
 ## Phase artifact
 

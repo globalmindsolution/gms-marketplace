@@ -35,13 +35,36 @@ with:
 1. **Classify the mode first**, with evidence:
    - **brownfield** (headline) — the resolved `<functional_subdir>`/
      `<non_functional_subdir>` are absent or sparse AND the repo holds real
-     code. Survey it read-only (Glob/Grep over the architecture doc set,
-     README, `docs/`, package manifests, entry points, routes, CLI surfaces)
-     and plan a reverse-engineered baseline: what the code proves the product
-     does, code-cited, plus the open points only the user can confirm.
-   - **amend** — the set is already substantially populated. Plan a surgical
-     augmentation: which absent/ungrounded area files gain new content, and
-     which existing area files are preserved byte-for-byte.
+     code. Enumerate feature areas **architecture-first**: probe read-only
+     for an existing architecture doc set (`<architecture_path>/hld/tech-stack.md`
+     present — the same file `_require_architecture_doc_set` checks for other
+     doc-producing skills, but this probe never gates the run). When present,
+     read the `c4-container.md` / `c4-component.md` / `project-structure.md`
+     views and treat each top-level container/component/module they name as
+     a candidate feature area. When no architecture doc set exists, fall back
+     to a **codebase inventory**: enumerate top-level modules / route-groups
+     / CLI surfaces / packages directly from the repo tree (Glob/Grep over
+     manifests, entry points, routing tables) — the same tracker-first-with-
+     fallback shape as C-5.
+
+     **Checkable definition of "feature area"** (quote this near-verbatim in
+     the plan so the verifier can independently re-derive the same set and
+     diff against it — the coverage metric is unfalsifiable otherwise): a
+     feature area is a top-level module / route-group / CLI surface /
+     package that the architecture container-component view names, or —
+     absent an architecture set — that the codebase inventory identifies.
+
+     Ground each candidate area in code evidence, code-cited. Any area you
+     cannot ground is surfaced as an `[OPEN]` point in `## Open questions` —
+     never silently dropped and never invented (C-22, AC-3) — this is what
+     the coordinator's interactive-confirm step presents to the user.
+   - **amend** — the set is already **substantially populated**: at least
+     one file exists in both `<functional_subdir>` and
+     `<non_functional_subdir>`, or the union of both subfolders' files
+     covers a majority of your own enumerated feature areas. Plan a surgical
+     augmentation, per subfolder-file: "absent or ungrounded" → write;
+     "human-authored present" → preserve byte-for-byte, never overwritten.
+     This is a per-file decision, not a single whole-run refusal.
    - **greenfield** (recognized, deferred) — no meaningful codebase to
      reverse-engineer AND the set is absent. Classify this case explicitly but
      do NOT plan an elicitation flow — this mode ships in a subsequent

@@ -41,11 +41,52 @@ always the constraint values passed to you.
 
 Mode rules:
 
-- **brownfield/amend** — for each area the plan names, classify the
-  requirement functional vs non-functional, then write or augment the target
-  file with the plan's `required_sections` heading list, each section
-  non-empty. An area file the plan marks "preserved" is left byte-for-byte
-  untouched — augment-only-absent, never an overwrite of existing content.
+- **brownfield/amend** — for each area the plan names:
+
+  1. **Classify — reuse, do not fork.** Before writing, classify the
+     requirement functional-vs-non-functional using the **exact rubric
+     below**, quoted verbatim from `plugins/acs/skills/code/SKILL.md` (single
+     source of the wording — never paraphrase or re-derive it; a divergent
+     paraphrase is the classification-drift risk):
+
+     - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
+       performs: a command/skill's steps and outputs, a gate's pass/fail
+       condition, an input→output contract, a state transition, a produced
+       artifact. "The system DOES X." →
+       `<requirements_path>/<functional_subdir>/<feature>.md`
+       (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+     - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
+       software behaves rather than a new behavior: performance/cost bounds,
+       security/secret handling, reliability/resumability, portability/
+       consumer-generality, operability, packaging/distribution. "The system
+       does it WITHIN/UNDER constraint Y." →
+       `<requirements_path>/<non_functional_subdir>/<item>.md`
+       (`settings.requirements_layout.non_functional_subdir`, default
+       `"non-functional"`).
+     - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
+       configurable behavior that is also a portability constraint) defaults
+       to **functional**, with a one-line cross-reference from the paired
+       non-functional file, keeping routing deterministic at the seam.
+
+  2. **DRAFT, code-cited write.** A newly-written area file opens with a
+     `DRAFT — human-confirm-required` marker line before any content. Write
+     or augment the target file with the plan's `required_sections` heading
+     list, each section non-empty; every extracted MUST/SHOULD/MAY clause
+     carries an inline code-evidence citation (file/path) substantiating it.
+     An `[OPEN]` clause (an area the plan could not ground) carries no
+     fabricated citation — it states plainly that the skill could not ground
+     it in code evidence.
+  3. **Augment-only-absent, byte-for-byte.** An area file the plan marks
+     "preserved" (human-authored, present) is left byte-for-byte untouched —
+     never overwritten. After writing, run `git diff -- <requirements_path>`
+     yourself and confirm every changed/added file is one the plan marked
+     absent-or-ungrounded; if a "preserved" file shows any diff, revert it
+     before reporting done.
+  4. **README decision-log row.** Append ONE row to
+     `<repo>/<requirements_path>/README.md`'s decision log (existing table,
+     newest-first) recording this bootstrap/amend run; do not otherwise
+     rewrite the README.
+
   Where the plan says "open point" and `<context>` has no answer, return
   `needs_input` rather than guessing.
 - **greenfield (deferred)** — write nothing; return `status="needs_input"`
