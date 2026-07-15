@@ -408,7 +408,9 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    behavior-defining clarifications (answered/assumed ledger entries that
    define behavior) into the touched feature area's file under
    `settings.requirements_path` — the living requirements, the standing
-   behavioral contract that outlives archived specs. Whenever the change adds/removes components or alters
+   behavioral contract that outlives archived specs (classify-then-route
+   into the resolved functional/non-functional subfolder — see the rubric at
+   the end of this step). Whenever the change adds/removes components or alters
    the data model, integrations, or deployment: update the HLD under
    `settings.architecture_path` (C4 views, data model, deployment) and MERGE
    the design's new/changed Mermaid sequence diagrams into
@@ -432,6 +434,31 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    coordinator's result document and the PR body. The executor must NOT edit
    intent content. When the changeset alters no factual item in prd.md or
    roadmap.md, this step is a no-op for those files.
+
+   **Functional-vs-NFR classification rubric (for the living-requirements
+   merge above).** Classify each merged requirement, then write it into the
+   resolved subfolder — additive, per-area, no-overwrite (append/merge into
+   the existing area file, never replace it): only the target subfolder is
+   new, this merge semantics are unchanged.
+
+   - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
+     performs: a command/skill's steps and outputs, a gate's pass/fail
+     condition, an input→output contract, a state transition, a produced
+     artifact. "The system DOES X." →
+     `<requirements_path>/<functional_subdir>/<feature>.md`
+     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+   - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
+     software behaves rather than a new behavior: performance/cost bounds,
+     security/secret handling, reliability/resumability, portability/
+     consumer-generality, operability, packaging/distribution. "The system
+     does it WITHIN/UNDER constraint Y." →
+     `<requirements_path>/<non_functional_subdir>/<item>.md`
+     (`settings.requirements_layout.non_functional_subdir`, default
+     `"non-functional"`).
+   - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
+     configurable behavior that is also a portability constraint) defaults
+     to **functional**, with a one-line cross-reference from the paired
+     non-functional file, keeping routing deterministic at the seam.
 5. **Commit** the spec's work on the ticket branch per
    `formats.commit_message` (one or a few coherent commits per spec). Never
    push.

@@ -339,6 +339,7 @@ DEFAULT_SETTINGS = {
     "prd_path": "docs/product",
     "architecture_path": "docs/architecture",
     "requirements_path": "docs/requirements",
+    "requirements_layout": {"functional_subdir": "functional", "non_functional_subdir": "non-functional"},
     "adr_path": "docs/adr",
     "quality_path": "docs/quality",
     "operations_path": "docs/operations",

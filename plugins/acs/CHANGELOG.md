@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Functional/non-functional settings-aware requirements MODEL foundation (MAR-145).** A new additive `requirements_layout` settings key (`functional_subdir`/`non_functional_subdir`, default `"functional"`/`"non-functional"`) lets `settings.requirements_path` resolve a functional and a non-functional subfolder. `/acs:code`'s requirements-merge step now classifies each merged requirement against a written functional-vs-NFR rubric (behavior vs. quality, default-to-functional tie-break) and routes it into the matching subfolder — the additive, per-area, no-overwrite merge semantics are unchanged, only the target subfolder is new. Documented in `docs/architecture/lld/contracts.md` and ADR 0060; requirements stays a living contract alongside the conformance chain, not a new verified level.
+
 ## [0.4.3] - 2026-07-14
 
 ### Added

@@ -98,7 +98,11 @@ ALL of the following — every dimension that fails produces blocking findings:
     `adr_path` when applicable; and the **living requirements** — a changeset
     that changes user-observable behavior without a matching update to the
     touched area's file under `requirements_path` is a blocking finding (the
-    standing contract must describe current behavior). A doc that contradicts the diff is a finding.
+    standing contract must describe current behavior). A requirement merged
+    into the wrong subfolder (functional when it should be non-functional
+    per the rubric, or vice versa), or written outside
+    `requirements_layout`'s resolved subfolders, is also a blocking finding.
+    A doc that contradicts the diff is a finding.
     **Product-doc-consistency check:** make a positive, evidenced determination
     of whether the changeset leaves any factual claim in `docs/product/prd.md`
     or `docs/product/roadmap.md` stale (factual items: agent/subagent counts,
