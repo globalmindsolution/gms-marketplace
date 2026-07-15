@@ -292,7 +292,11 @@ markdown file per feature area):
   same changeset, same induction as the architecture doc set; the
   `code-verifier`'s documentation dimension blocks a behavioral change whose
   requirements file was not updated.
-- The set grows organically from ticket #1 — no bootstrap skill; brownfield
+- The set grows organically from ticket #1 — OR is bootstrapped in one run
+  via `/acs:create-requirements` (brownfield reverse-engineer, greenfield
+  elicit, or amend an existing set); either way, `/code`'s documentation step
+  continues to accrete acceptance criteria and behavior-defining
+  clarifications into the touched area file afterward. Brownfield
   repos MAY seed area files during `/create-prd`'s baseline analysis.
 
 ## Starting a fresh product

@@ -493,6 +493,57 @@ values contract.
   run creates its own delivery ticket; the TDD pipeline does not apply to a
   docs-only change.
 
+## `/acs:create-requirements` (product-level)
+
+Purpose: bootstrap or amend the consumer **requirements doc set** — the
+living behavioral contract, one file per feature area under `functional/`
+and one file per NFR item under `non-functional/`.
+
+- Product-level and **ticket-independent**: not part of the per-ticket
+  pipeline. Run once to bootstrap a repo's requirements set, or re-run to
+  amend it; either way `/acs:code`'s documentation step keeps accreting into
+  the same files afterward.
+- **Three modes**, classified by the planner from the resolved
+  `requirements_path` content and the codebase:
+  - **brownfield** — reverse-engineer the set from an existing codebase
+    (architecture-aware feature-area enumeration, codebase-inventory
+    fallback; each requirement DRAFT / code-cited);
+  - **greenfield** — elicit the definition from the user when there is no
+    meaningful codebase and the set is absent (each requirement DRAFT /
+    grounded in the user's answer, no code-citation expected);
+  - **amend** — augment only absent/ungrounded area files on a
+    substantially-populated set, preserving every existing file
+    byte-for-byte.
+- **Standalone but architecture-aware**: uses the architecture doc set's
+  container/component views (`c4-container.md`/`c4-component.md`/
+  `project-structure.md`) when present, degrades to a codebase inventory
+  when absent; no hard PRD/architecture dependency (no
+  `_require_architecture_doc_set` gate).
+- Produces the doc set in the consumer repo at `requirements_path` (default
+  `docs/requirements` — [configuration.md](configuration.md)), resolved into
+  `<functional_subdir>`/`<non_functional_subdir>` via `requirements_layout`
+  (defaults `functional`/`non-functional`). Unset `requirements_path`
+  (`null`) means acs does not maintain this set for the repo.
+- Runs the full Reflection cycle — `create-requirements-planner`,
+  `create-requirements-executor`, `create-requirements-verifier` —
+  including a deterministic `structure` floor over each produced area file
+  (blocking) and an advisory `audience-style` check (non-blocking), plus the
+  dimensions specific to this skill: coverage (≥90%, 0 silent omissions),
+  citation (100%; user-answer-cited for greenfield, code-cited for
+  brownfield), DRAFT-marker, no-fabrication, functional/non-functional
+  routing, and augment-only-absent/no-overwrite.
+- **Additive / no-overwrite**: never overwrites a human-authored area file;
+  every elicited/extracted requirement is DRAFT / human-confirm-required via
+  the interactive-confirm / clarify-ledger gate before write — uniform
+  across all three modes (C-22).
+- State lives in the delivery ticket's partition
+  (`create-requirements-state.json`)
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Delivery: docs-only PR via the
+  [product-level delivery rules](#product-level-delivery-tickets) — each
+  run creates its own delivery ticket; the TDD pipeline does not apply to a
+  docs-only change.
+
 ## `/create-project` (product-level)
 
 Purpose: scaffold a fresh product's repo skeleton from the approved

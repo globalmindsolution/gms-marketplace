@@ -30,7 +30,8 @@ Implementation conventions live in `plugins/acs/docs/` (INTERNALS, AUTHORING).
 This is the doc set acs mandates for every consumer repo as the **living
 requirements** (`requirements_path`, default `docs/requirements/`): the
 current behavioral contract, accumulated ticket by ticket by the pipeline
-itself ([functional/workflow.md](functional/workflow.md#living-requirements))
+itself — or bootstrapped via `/acs:create-requirements`
+([functional/workflow.md](functional/workflow.md#living-requirements))
 — per-ticket specs are change-deltas that get archived, and tests encode how
 behavior is verified, not what was agreed. On this repo (acs dogfooding
 itself) the set is hand-authored and doubles as the contract-test anchor;
@@ -161,6 +162,7 @@ Resolved questions, newest first. Details live in the linked docs.
 
 | Date | Decision |
 |------|----------|
+| 2026-07-15 | **`/acs:create-requirements` bootstrap/amend path**: the requirements doc set can now be bootstrapped in one run — brownfield (reverse-engineer from code), greenfield (elicit from the user), or amend (augment absent/ungrounded areas, preserve existing files byte-for-byte) — as an alternative to organic ticket-by-ticket growth; every produced requirement is DRAFT / human-confirm-required (uniform across all three modes, C-22). Decision D1 outcome: requirements stays a **living contract** alongside the (unchanged) conformance chain, **not** a verified conformance level — no create-spec/code-verifier dimension gates a ticket against it. See [../architecture/lld/contracts.md](../architecture/lld/contracts.md), ADR 0060/0061/0062, and [functional/skills.md](functional/skills.md). |
 | 2026-07-15 | **Flat `docs/requirements/` reorganized into `functional/` + `non-functional/`**: the 9 flat content files (`overview`, `skills`, `hooks`, `workflow`, `configuration`, `reflection`, `usage`, `workspace-and-state`, `tabp`) are re-split by requirement TYPE into `functional/<feature>.md` (8 files) and `non-functional/<item>.md` (7 files); `overview.md`'s Vision/Goals-framing/Target-domains/Out-of-scope is retained here as context; every repo reference to a `docs/requirements/<file>.md` path is repointed in lockstep (MAR-145 Spec 02). Content-preserving — every existing requirement clause lands in exactly one destination file. |
 | 2026-07-15 | **Functional/non-functional settings-aware requirements MODEL adopted**: the new `requirements_layout` settings key (`functional_subdir`/`non_functional_subdir`, defaults `functional`/`non-functional`) resolves the two subfolders; `/acs:code`'s living-requirements merge step now classifies each merged requirement (behavior vs quality) and routes it into the matching subfolder, preserving the existing additive per-area no-overwrite semantics. See ADR 0060 and [functional/configuration.md](functional/configuration.md). |
 | 2026-06-15 | `/ship` runs the pipeline by **invoking each step skill directly** in the ship coordinator's own context (it holds the Agent tool the steps need to spawn their planner/executor/verifier) — the fresh-subagent-per-step model is retired, because a subagent cannot spawn subagents. Between steps the coordinator reads only `pipeline-state.json`, `ticket.json`, and the step's `<handoff>` / `result.json`. Supersedes the 2026-06-12 fresh-subagent-per-step handoff row below. See [workflow.md](functional/workflow.md). |
