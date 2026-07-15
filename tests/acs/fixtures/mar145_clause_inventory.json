@@ -150,7 +150,7 @@
       "- The format SHOULD carry, at minimum: ticket id, skill, phase, task",
       "- The three phases MUST be separate subagents (separate context windows), so",
       "and verifier subagents MUST NOT spawn their own sub-subagents. This keeps",
-      "create-principles, create-standards, standardize-project) MUST apply the",
+      "create-principles, create-standards, standardize-project, create-requirements) MUST apply the",
       "| Execute | `code-executor` | Carry out the plan; produce the skill's artifacts (ticket, design, specs, code, PR, merge). |",
       "| Phase | Subagent (example for `/code`) | Responsibility |",
       "| Plan | `code-planner` | Analyze inputs (workspace state, repo, docs, config); produce a concrete plan for the executor. |",

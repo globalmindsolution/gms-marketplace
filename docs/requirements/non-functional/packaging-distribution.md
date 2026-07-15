@@ -15,15 +15,15 @@ unchanged).
     `/create-prd`, `/create-architecture`, `/create-project`,
     `/create-ticket`, `/create-design`, `/create-spec`, `/code`,
     `/create-pr`, `/merge-pr`.
-  - **Subagents**: the eleven **triad-keeping skills** (`create-spec`, `code`,
+  - **Subagents**: the twelve **triad-keeping skills** (`create-spec`, `code`,
     `create-prd`, `create-design`, `create-architecture`, `create-project`,
     `create-quality`, `create-operations`, `create-principles`,
-    `create-standards`, `standardize-project`)
+    `create-standards`, `standardize-project`, `create-requirements`)
     each bundle a planner, executor, and verifier (e.g. `code-planner`,
     `code-executor`, `code-verifier`); the three **apply-work skills**
     (`create-ticket`, `create-pr`, `merge-pr`) run inline and ship only an
-    executor (MAR-60 inlining). 42 agent files exist on disk (14 × 3 roles);
-    36 are reachable (33 triad + 3 apply-work executors), and 6 — the
+    executor (MAR-60 inlining). 45 agent files exist on disk (15 × 3 roles);
+    39 are reachable (36 triad + 3 apply-work executors), and 6 — the
     apply-work planner/verifier files — are orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
   - **Hooks**: a pre and post hook per workflow skill and per product-level

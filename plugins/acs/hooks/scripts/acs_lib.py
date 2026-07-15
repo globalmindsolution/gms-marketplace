@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards"]
+PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
 WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr", "standardize-project"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
 UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
@@ -56,6 +56,7 @@ PRODUCT_TICKET_TITLES = {
     "create-operations": "Product operations doc set",
     "create-principles": "Product principles doc set",
     "create-standards": "Product standards doc set",
+    "create-requirements": "Product requirements doc set",
 }
 
 # Delivery-ticket predicate: PRODUCT_SKILLS plus standardize-project (D5 Option B —
@@ -1560,6 +1561,10 @@ def gate_create_prd(ctx, payload):
     return None
 
 
+def gate_create_requirements(ctx, payload):
+    return None
+
+
 def gate_create_architecture(ctx, payload):
     root = ctx["checkout_root"]
     prd = os.path.join(root, ctx["settings"].get("prd_path", "docs/product"), "prd.md")
@@ -1752,6 +1757,7 @@ def gate_create_standards(ctx, payload):
 
 GATES = {
     "create-prd": gate_create_prd,
+    "create-requirements": gate_create_requirements,
     "create-architecture": gate_create_architecture,
     "create-project": gate_create_project,
     "create-quality": gate_create_quality,

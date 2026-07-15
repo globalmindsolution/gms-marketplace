@@ -18,9 +18,9 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
-                 "create-standards", "create-ticket", "create-design",
-                 "create-spec", "code", "create-pr", "merge-pr",
-                 "standardize-project"]
+                 "create-standards", "create-requirements", "create-ticket",
+                 "create-design", "create-spec", "code", "create-pr",
+                 "merge-pr", "standardize-project"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 ROLES = ["planner", "executor", "verifier"]
 
@@ -3460,16 +3460,17 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         """AC-7 sub-check 1: the triad-count sentence reflects the current
         epic state. MAR-112/113 landed '8 active triads (24 agents)'; MAR-117
         advanced it to '9 active triads (27 agents in triads)'; MAR-118
-        advanced it to '10 active triads (30 agents in triads)'; MAR-121 is
+        advanced it to '10 active triads (30 agents in triads)'; MAR-121
+        advanced it to '11 active triads (33 agents in triads)'; MAR-143 is
         a later producer child and lands the superseding arithmetic directly
-        ('11 active triads (33 agents in triads)'), per its own spec — so
+        ('12 active triads (36 agents in triads)'), per its own spec — so
         this assertion is updated in place to the superseding truth rather
         than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("11 active triads (33 agents", body,
-                      "c4-component.md must read '11 active triads "
-                      "(33 agents in triads)' (MAR-112/113 AC-7, superseded "
-                      "by MAR-121)")
+        self.assertIn("12 active triads (36 agents", body,
+                      "c4-component.md must read '12 active triads "
+                      "(36 agents in triads)' (MAR-112/113 AC-7, superseded "
+                      "by MAR-143)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'8 active triads (24 agents)' text (MAR-112/113 AC-7)")
@@ -3480,12 +3481,12 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("11 active triads (33 agents")
+        triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("36 reachable agents", window,
-                      "c4-component.md must read '36 reachable agents' "
+        self.assertIn("39 reachable agents", window,
+                      "c4-component.md must read '39 reachable agents' "
                       "in the window after the triad-count sentence "
-                      "(MAR-112/113 AC-7, superseded by MAR-121)")
+                      "(MAR-112/113 AC-7, superseded by MAR-143)")
         self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
                          "'27 reachable agents' text in that window (MAR-112/113 AC-7)")
@@ -3493,14 +3494,15 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
         the current epic pre/post hook pair count (see
-        test_c4_component_triad_count_advanced); x9 is gone. MAR-129's
-        DRIFT-2 repair advances this to x14 (the true 14/14 hook count)."""
+        test_c4_component_triad_count_advanced); x9 is gone. MAR-143's
+        registration of the 15th HOOKED skill advances this to x15 (the true
+        15/15 hook count)."""
         body = self._c4_component()
-        self.assertIn("x14", body,
+        self.assertIn("x15", body,
                       "c4-component.md's dispatch.py component description "
-                      "must read x14 pre/post hook pairs (MAR-112 AC-7, "
-                      "superseded by MAR-113; DRIFT-2 repaired to 14/14 by "
-                      "MAR-129)")
+                      "must read x15 pre/post hook pairs (MAR-112 AC-7, "
+                      "superseded by MAR-113/MAR-129; advanced to 15/15 by "
+                      "MAR-143)")
         self.assertNotIn("x9", body,
                          "c4-component.md must not retain the stale x9 "
                          "pre/post hook pair count (MAR-112 AC-7)")
@@ -3592,16 +3594,17 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         """AC-7 sub-check 1: the triad-count sentence reflects the current
         epic state. MAR-113 landed '8 active triads (24 agents)'; MAR-117
         advanced it to '9 active triads (27 agents in triads)'; MAR-118
-        advanced it to '10 active triads (30 agents in triads)'; MAR-121 is
+        advanced it to '10 active triads (30 agents in triads)'; MAR-121
+        advanced it to '11 active triads (33 agents in triads)'; MAR-143 is
         a later producer child and lands the superseding arithmetic directly
-        ('11 active triads (33 agents in triads)'), per its own spec — so
+        ('12 active triads (36 agents in triads)'), per its own spec — so
         this assertion is updated in place to the superseding truth rather
         than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("11 active triads (33 agents", body,
-                      "c4-component.md must advance to '11 active triads "
-                      "(33 agents in triads)' (MAR-113 AC-7, superseded by "
-                      "MAR-121)")
+        self.assertIn("12 active triads (36 agents", body,
+                      "c4-component.md must advance to '12 active triads "
+                      "(36 agents in triads)' (MAR-113 AC-7, superseded by "
+                      "MAR-143)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'8 active triads (24 agents)' text (MAR-113 AC-7)")
@@ -3612,25 +3615,25 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("11 active triads (33 agents")
+        triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("36 reachable agents", window,
-                      "c4-component.md must advance to '36 reachable agents' "
+        self.assertIn("39 reachable agents", window,
+                      "c4-component.md must advance to '39 reachable agents' "
                       "in the window after the triad-count sentence "
-                      "(MAR-113 AC-7, superseded by MAR-121)")
+                      "(MAR-113 AC-7, superseded by MAR-143)")
         self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
                          "'27 reachable agents' text in that window (MAR-113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
-        x14 pre/post hook pairs (MAR-129's DRIFT-2 repair to the true
-        14/14 hook count); x10 is gone."""
+        x15 pre/post hook pairs (MAR-143's registration of the 15th HOOKED
+        skill advances the true hook count to 15/15); x10 is gone."""
         body = self._c4_component()
-        self.assertIn("x14", body,
+        self.assertIn("x15", body,
                       "c4-component.md's dispatch.py component description "
-                      "must advance to x14 pre/post hook pairs (MAR-113 AC-7; "
-                      "DRIFT-2 repaired to 14/14 by MAR-129)")
+                      "must advance to x15 pre/post hook pairs (MAR-113 AC-7; "
+                      "advanced to 15/15 by MAR-143)")
         self.assertNotIn("x10", body,
                          "c4-component.md must not retain the stale x10 "
                          "pre/post hook pair count (MAR-113 AC-7)")

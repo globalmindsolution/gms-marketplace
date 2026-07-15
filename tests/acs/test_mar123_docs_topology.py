@@ -234,11 +234,11 @@ class ReflectionTopologyTest(unittest.TestCase):
     def test_fourteen_skill_prefixes(self):
         body = self._body()
         self.assertNotIn("nine skill prefixes", body)
-        self.assertIn("fourteen skill prefixes", body)
+        self.assertIn("fifteen skill prefixes", body)
 
     def test_eleven_triad_keeping(self):
         body = self._body()
-        self.assertIn("**eleven**", body)
+        self.assertIn("**twelve**", body)
         self.assertNotIn("**six**", body)
 
     def test_triad_enumeration_names_new_skills(self):

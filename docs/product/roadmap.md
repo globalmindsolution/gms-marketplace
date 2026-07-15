@@ -53,9 +53,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 23 skills + 42 agent files on disk (verified `ls plugins/acs/skills` = 23,
-  `ls plugins/acs/agents` = 42); the reflection (plan→execute→verify) protocol is
-  active on the eleven triad-keeping skills, while the three apply-work skills
+- 24 skills + 45 agent files on disk (verified `ls plugins/acs/skills` = 24,
+  `ls plugins/acs/agents` = 45); the reflection (plan→execute→verify) protocol is
+  active on the twelve triad-keeping skills, while the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
@@ -569,7 +569,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 42 vs 36 reachable). Maps to PRD **G8**
+  disk equals reachable-agent count (today 45 vs 39 reachable). Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
   the three dashboards — adding behavioral (artifact-level) scenarios for the
