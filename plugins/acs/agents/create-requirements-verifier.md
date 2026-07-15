@@ -23,7 +23,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
   READ EVERY ONE — you share no memory with anyone;
 - `<constraints>` — at least `requirements_path`, `functional_subdir`,
   `non_functional_subdir`, `required_sections`, `audience_style_profile`, and the
-  mode (brownfield/amend/greenfield-deferred);
+  mode (brownfield/amend/greenfield);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
@@ -34,7 +34,9 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    directories, never the execute report.
 2. **Mode-conformance** — the produced set matches the classified mode:
    brownfield/amend produced only the plan-named new/augmented files;
-   greenfield-deferred produced a `needs_input` handoff and wrote nothing.
+   greenfield produced the plan-named `<functional_subdir>`/
+   `<non_functional_subdir>` files, DRAFT-marked and grounded in the user's
+   elicited answers (not code).
 3. **Plan-conformance** — every file, section, and classification the plan
    promised exists; no missing area, no unplanned extra file.
 4. **Iteration 2+ regression check** — every prior finding from `<context>` is
@@ -50,16 +52,26 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    plan's `[OPEN]` points. Coverage below **90%** of your independently
    re-enumerated areas, or any area neither covered by a produced file nor
    surfaced as `[OPEN]`, is one blocking finding per area — **0** silent
-   omissions is the bar.
+   omissions is the bar. For **greenfield**, "independently re-enumerate" means
+   diffing the produced files against the plan's elicitation outline (the
+   planner-named candidate feature/NFR list) rather than an architecture/codebase
+   enumeration — there is no codebase to re-enumerate; do not spuriously fail
+   greenfield for "not matching the architecture view" when none exists.
 6. **Citation (100%)** — Grep-spot-check that every extracted requirement's
    cited file/path actually exists in the repo and plausibly substantiates
    the claim it supports; any uncited or wrongly-cited clause is a blocking
-   finding.
+   finding. For **greenfield**, "citation" means every clause traces to a
+   specific user answer (spot-check against the clarify-ledger record / the
+   plan's Q&A, not a repo file/path); a clause uncited to any answer is still a
+   blocking finding, the same bar as brownfield's uncited-to-code clause.
 7. **DRAFT marker** — every newly-written area file opens with the
    `DRAFT — human-confirm-required` marker; a newly-written file missing it
    is a blocking finding.
 8. **No-fabrication** — every clause that is not grounded in cited evidence
-   and not marked `[OPEN]` is a blocking finding (C-22).
+   and not marked `[OPEN]` is a blocking finding (C-22). This applies
+   identically to greenfield (a clause grounded in neither a user answer nor
+   marked `[OPEN]` is fabrication), but its evidence source for greenfield is
+   the clarify ledger, not the repo.
 9. **Functional/non-functional routing spot-check** — re-check a sample of
    the executor's classifications against the rubric quoted in
    `create-requirements-executor.md` (verbatim from

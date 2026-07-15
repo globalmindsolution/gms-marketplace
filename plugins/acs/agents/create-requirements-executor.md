@@ -27,7 +27,7 @@ with:
   writing a word;
 - `<constraints>` — at least `requirements_path`, `functional_subdir`,
   `non_functional_subdir`, `required_sections`, `audience_style_profile`;
-- `<context>` — the mode (brownfield/amend/greenfield-deferred), the user's
+- `<context>` — the mode (brownfield/amend/greenfield), the user's
   answers to the planner's open questions, and on iteration 2+ the verifier
   findings to fix.
 
@@ -89,8 +89,19 @@ Mode rules:
 
   Where the plan says "open point" and `<context>` has no answer, return
   `needs_input` rather than guessing.
-- **greenfield (deferred)** — write nothing; return `status="needs_input"`
-  per the coordinator's deferred-to-MAR-144 notice.
+- **greenfield** — author `<requirements_path>/<functional_subdir>/<feature>.md`
+  and `<requirements_path>/<non_functional_subdir>/<item>.md` for each area/item
+  the plan's elicitation outline names, opening each with the
+  `DRAFT — human-confirm-required` marker. Classify every requirement
+  functional-vs-non-functional using the SAME rubric quoted verbatim in charter
+  step 1 above (reuse, do not fork — the rubric text does not change for this
+  mode); build each file from the plan plus the user's answers in `<context>`.
+  Every clause is grounded in the user's elicited answer — cited as
+  `[from user answer: <short paraphrase or Q-ref>]` rather than a code path
+  (there is no code to cite in this mode); an area the user's answers leave
+  unresolved is written as `[OPEN]`, never invented. Where the plan says
+  "open point" and `<context>` has no answer, return `needs_input` rather than
+  guessing — the same discipline as brownfield/amend, restated for this mode.
 
 On iteration 2+, fix EVERY finding listed in `<context>` and nothing else beyond
 what fixing them requires.
@@ -140,9 +151,10 @@ Self-check it:
 
 - `status="completed"` — all planned files written; outputs list each file you wrote
   or changed, plus your execute report.
-- `status="needs_input"` — a required fact is missing, or the mode is
-  greenfield-deferred; `<questions>` carries exactly what you need; outputs list
-  whatever you safely wrote.
+- `status="needs_input"` — a required fact is missing (e.g. a greenfield
+  elicitation open point the plan named has no answer in `<context>`);
+  `<questions>` carries exactly what you need; outputs list whatever you safely
+  wrote.
 - `status="failed"` — you could not produce the artifacts (e.g. `requirements_path`
   not writable); `<errors>` and `<stop-reason>` say why; revert half-done edits first.
 

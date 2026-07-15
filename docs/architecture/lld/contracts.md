@@ -113,13 +113,18 @@ its own — and wired as the `E2E suite` required-check context.
 subfolder via `requirements_layout` (`functional_subdir`/
 `non_functional_subdir`, default `"functional"`/`"non-functional"`).
 `/acs:create-requirements` is the producer skill that bootstraps or amends
-the requirements set at that path — brownfield reverse-engineer:
-architecture-aware feature-area enumeration with a codebase-inventory
-fallback, DRAFT/code-cited, interactive-confirm before write (ADR 0061);
-`/acs:code`'s requirements-merge (above) continues to write into the same
-model afterward.
+the requirements set at that path in one of three modes — brownfield
+reverse-engineer (architecture-aware feature-area enumeration with a
+codebase-inventory fallback, DRAFT/code-cited; ADR 0061), greenfield elicit
+(elicits behavior/quality from the user, DRAFT/answer-cited; ADR 0062), and
+amend (augments only absent/ungrounded area files, preserving existing files
+byte-for-byte) — each DRAFT / human-confirm-required via interactive-confirm
+before write; `/acs:code`'s requirements-merge (above) continues to write
+into the same model afterward.
 
 Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
+
+Requirements (`requirements_path`, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket`/`/acs:create-spec` as current behavior — but it is **not a verified conformance level**: no create-spec or code-verifier dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →

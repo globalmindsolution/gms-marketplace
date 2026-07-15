@@ -166,9 +166,10 @@ class Mar143CountBumpCase(unittest.TestCase):
 
 
 class Mar143CoordinatorContractCase(unittest.TestCase):
-    """AC-1, AC-6: the coordinator recognizes all three modes, defers
-    greenfield explicitly to MAR-144, and threads the settings-driven write
-    target (never a hardcoded marketplace literal)."""
+    """AC-1, AC-6: the coordinator recognizes all three modes, elicits
+    greenfield interactively (updated for the landed greenfield mode), and
+    threads the settings-driven write target (never a hardcoded marketplace
+    literal)."""
 
     @classmethod
     def setUpClass(cls):
@@ -178,12 +179,17 @@ class Mar143CoordinatorContractCase(unittest.TestCase):
         for mode in ("brownfield", "greenfield", "amend"):
             self.assertIn(mode, self.body, "SKILL.md must name mode %r" % mode)
 
-    def test_greenfield_deferred_to_mar144(self):
+    def test_greenfield_elicits_not_deferred(self):
+        # Greenfield is now a real elicitation mode, not a deferral.
         self.assertRegex(
+            self.body, r"(?is)greenfield.{0,600}elicit",
+            msg="the coordinator must state greenfield ELICITS requirements "
+                "from the user (a real mode), not silently fall through to "
+                "brownfield",
+        )
+        self.assertNotRegex(
             self.body, r"(?i)greenfield[\s\S]{0,600}MAR-144",
-            msg="the coordinator must state greenfield elicitation is "
-                "deferred to MAR-144 rather than silently falling through "
-                "to brownfield or fabricating an elicitation flow",
+            msg="the old greenfield-deferred-to-MAR-144 language must be gone",
         )
 
     def test_g36_required_sections_constraint_declared(self):
