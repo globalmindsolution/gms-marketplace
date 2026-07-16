@@ -248,8 +248,10 @@ Spawn the verifier (`phase="verify"`) with ONLY artifact references (the produce
 files, the ticket, the git diff) — never the executor's reasoning. Its
 `<constraints>` also carry `required_sections` (per produced area file) and
 `audience_style_profile` (both declared above in the Plan task example). It
-re-reads everything fresh and checks, all findings blocking (except the advisory
-`audience-style` dimension, which is `severity="info"` only):
+re-reads everything fresh and checks, all findings blocking — including
+`audience-style` (an unwaived audience-mismatch blocks; a coordinator-recorded
+ledger waiver via `clarify.py --source assumption` makes it `severity="info"`,
+non-blocking):
 
 - every planned area file exists, is non-empty, and follows its declared
   `required_sections` (the deterministic **structure** dimension,
