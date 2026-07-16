@@ -24,8 +24,9 @@ with:
   parent epic's partition), and the current plan
   (`phases/create-spec/iter-<n>-plan.md`). READ EVERY ONE, in full. Derive
   `<partition>` from the directory containing `ticket.json`;
-- `<constraints>` — at least the test coverage target; the design path when
-  conformance is in scope.
+- `<constraints>` — at least the test coverage target and the
+  `audience_style_profile` register profile (`engineers (implementation-contract
+  prose)`); the design path when conformance is in scope.
 
 ## Check dimensions — ALL of them, every iteration
 
@@ -66,6 +67,17 @@ grep -rn 'TODO\|TBD\|placeholder' "<partition>/specs/"   # stub content
    (count, filenames, AC assignment) — any unexplained divergence is a
    finding. Ambiguity inside an artifact is itself a finding, not a question
    for the user.
+5. **`audience-style`** — BLOCKING: judge the changeset-scoped spec prose this
+   run authored against the task's `audience_style_profile` constraint
+   (`engineers (implementation-contract prose)`) — register, jargon level, and
+   narrative shape appropriate for an engineer implementing to the spec. An
+   UNWAIVED register mismatch is a `<finding severity="blocking"
+   dimension="audience-style">`; the pass bar is 0 unwaived audience-mismatch
+   findings. WAIVER: a register the coordinator has recorded as a deliberate
+   choice via `clarify.py add --skill create-spec --source assumption
+   --rationale "<why the register is deliberate>"` (surfaced in `<context>` on
+   iteration 2+) is waived — emit it as `<finding severity="info"
+   dimension="audience-style">`, which does not block.
 
 ALL findings block: every `<finding>` you emit carries `severity="blocking"`.
 If something does not merit blocking the iteration, it is not a finding — put

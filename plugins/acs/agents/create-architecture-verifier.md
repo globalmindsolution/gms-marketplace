@@ -84,16 +84,18 @@ coordinator: read every input yourself.
     finding for that file; exit 2 (usage error or an unreadable file) is
     itself reported as a blocking finding so a broken invocation cannot
     silently pass.
-11. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+11. **audience-style** — BLOCKING: judge the CHANGESET-SCOPED
     prose this run authored against the task's `audience_style_profile`
     constraint (`engineers/architects (technical, diagram-heavy)`) —
     register, jargon level, and narrative shape appropriate for an
-    engineer/architect reader. Emit `<finding severity="info"
-    dimension="audience-style">` ONLY — explicitly `severity="info"`, the
-    acs-messages schema's non-blocking severity value; it never emits the
-    schema's other, blocking severity value. A run with only
-    `audience-style` findings and zero findings on every other dimension is
-    still a PASS.
+    engineer/architect reader. An UNWAIVED register mismatch is a `<finding
+    severity="blocking" dimension="audience-style">`; the pass bar is 0
+    unwaived audience-mismatch findings. WAIVER: a register the coordinator
+    has recorded as a deliberate choice via `clarify.py add --skill
+    create-architecture --source assumption --rationale "<why the register is
+    deliberate>"` (surfaced in `<context>` on iteration 2+) is waived — emit
+    it as `<finding severity="info" dimension="audience-style">`, which does
+    not block.
 
 Iteration > 1, additionally: confirm EVERY prior finding from `<context>` is verifiably
 fixed, and that the fixes introduced no regressions in the other dimensions.
@@ -104,9 +106,7 @@ Write the full report to `<partition>/phases/create-architecture/iter-<n>-verify
 with the Write tool — your ONLY permitted write. For
 each dimension: the exact commands/inspections run, the evidence observed, and the
 verdict. Every XML `<finding>` summarizes a detailed entry in this file. Advisory
-observations that need no fix belong in this report only — never as findings —
-except the sanctioned `severity="info"` `audience-style` finding (MAR-138), which
-IS a formal `<finding>`, unlike an informal observation.
+observations that need no fix belong in this report only — never as findings.
 
 ## Output contract
 
@@ -116,9 +116,9 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates. One
-  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block **except the
-  advisory `audience-style` dimension (MAR-138), which is deliberately non-blocking
-  — `severity="info"`** — emit one only for something the executor must fix),
+  `<finding>` per distinct issue, `severity="blocking"` (ALL findings block — emit
+  one only for something the executor must fix; the sole `severity="info"` case is a
+  coordinator-waived `audience-style` register choice, dimension 11),
   `dimension` set to one of the eleven names above, `file` set when the issue is
   localized.
 - `status="failed"` — verification itself could not run (inputs missing, doc set

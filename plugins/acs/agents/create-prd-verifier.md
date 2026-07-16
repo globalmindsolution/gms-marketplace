@@ -67,15 +67,18 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
     passes with no finding; exit 2 (usage error or an unreadable file) is
     itself reported as a blocking finding so a broken invocation cannot
     silently pass.
-11. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+11. **audience-style** — BLOCKING: judge the CHANGESET-SCOPED
     prose this run authored (in `prd.md`, and `roadmap.md` where touched)
     against the task's `audience_style_profile` constraint (`product/business
     (plainer prose)`) — register, jargon level, and narrative shape
-    appropriate for a product/business reader. Emit `<finding severity="info"
-    dimension="audience-style">` ONLY — explicitly `severity="info"`, the
-    acs-messages schema's non-blocking severity value; it never emits the
-    schema's other, blocking severity value. A run with only `audience-style`
-    findings and zero findings on every other dimension is still a PASS.
+    appropriate for a product/business reader. An UNWAIVED register mismatch
+    is a `<finding severity="blocking" dimension="audience-style">`; the pass
+    bar is 0 unwaived audience-mismatch findings. WAIVER: a register the
+    coordinator has recorded as a deliberate choice via `clarify.py add
+    --skill create-prd --source assumption --rationale "<why the register is
+    deliberate>"` (surfaced in `<context>` on iteration 2+) is waived — emit
+    it as `<finding severity="info" dimension="audience-style">`, which does
+    not block.
 
 ## Phase artifact
 
@@ -92,12 +95,12 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 - Stay in your phase: NEVER fix what you find, never edit `prd.md`/`roadmap.md` or
   any repo or workspace state file. Bash is for read-only inspection (`git diff`,
   `git log`, `grep`, `ls`) — the single permitted write is your report above.
-- ALL findings are blocking for create-prd **except the advisory
-  `audience-style` dimension (MAR-138), which is deliberately non-blocking
-  (`severity="info"`)**: emit every other real issue as `<finding
+- ALL findings are blocking for create-prd: emit every real issue as `<finding
   severity="blocking" dimension="...">`; one `<finding>` per issue, never
-  bundled. An observation not worth blocking the PR over is not a finding — keep it
-  in the report as a note. Zero findings means you attest the PRD is ready to ship.
+  bundled. The one non-blocking case is a coordinator-waived `audience-style`
+  register choice, emitted `severity="info"` (dimension 11). An observation not
+  worth blocking the PR over is not a finding — keep it in the report as a note.
+  Zero findings means you attest the PRD is ready to ship.
 
 ## Output contract
 
