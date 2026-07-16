@@ -97,34 +97,40 @@ class ContractsD1NoteTest(unittest.TestCase):
 
 
 class ChangelogTest(unittest.TestCase):
-    """AC-6 (CHANGELOG half)."""
+    """AC-6 (CHANGELOG half) — durable-invariant: the MAR-144 (and sibling
+    MAR-143/MAR-145) entries live under [Unreleased] OR the current dated
+    semver heading (release cuts legitimately graduate them), and tolerate a
+    `, #<pr>` suffix on the ticket tag. Never a literal [Unreleased] pin."""
 
-    def _unreleased(self):
+    def _section_for(self, tag):
+        """Return (section_text, heading) of the CHANGELOG span carrying `(tag`."""
         body = read(CHANGELOG)
-        m = re.search(r"(?m)^## \[Unreleased\]", body)
-        self.assertIsNotNone(m, "[Unreleased] section not found in CHANGELOG.md")
-        nxt = re.search(r"(?m)^## \[", body[m.end():])
-        end = m.end() + nxt.start() if nxt else len(body)
-        return body[m.start():end]
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if re.search(r"\(" + re.escape(tag) + r"\b", candidate):
+                heading = candidate[:candidate.index("\n")] if "\n" in candidate else candidate
+                return candidate, heading
+        return None, None
 
     def test_changelog_unreleased_has_mar144_entry(self):
-        unreleased = self._unreleased()
-        self.assertIn("### Added", unreleased,
-                      "[Unreleased] must carry an '### Added' subsection")
-        self.assertIn("(MAR-144)", unreleased,
-                      "[Unreleased] must contain a (MAR-144)-tagged bullet")
-        # The MAR-144 bullet should cross-reference ADR 0062.
-        m = re.search(r"(?ms)^- .*\(MAR-144\).*?(?=\n- |\Z)", unreleased)
+        section, heading = self._section_for("MAR-144")
+        self.assertIsNotNone(section, "CHANGELOG.md must contain a (MAR-144) entry")
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the (MAR-144) entry must live under [Unreleased] or a dated semver heading")
+        self.assertIn("### Added", section,
+                      "the (MAR-144) entry's section must carry an '### Added' subsection")
+        # The MAR-144 bullet (its own physical line) should cross-reference ADR 0062.
+        m = re.search(r"(?m)^.*\(MAR-144\b.*$", section)
         self.assertIsNotNone(m, "MAR-144 bullet not isolatable")
         self.assertIn("0062", m.group(0),
                       "the MAR-144 CHANGELOG bullet must cross-reference ADR 0062")
 
     def test_changelog_mar145_mar143_entries_untouched(self):
-        unreleased = self._unreleased()
-        self.assertIn("(MAR-145)", unreleased,
-                      "the pre-existing MAR-145 bullet must survive")
-        self.assertIn("(MAR-143)", unreleased,
-                      "the pre-existing MAR-143 bullet must survive")
+        for tag in ("MAR-145", "MAR-143"):
+            section, _ = self._section_for(tag)
+            self.assertIsNotNone(section, "the pre-existing %s bullet must survive" % tag)
 
 
 class SkillsMdBlockTest(unittest.TestCase):

@@ -194,7 +194,7 @@ class ChangelogMar145EntryTest(unittest.TestCase):
         section_text = None
         for start, end in zip(spans, spans[1:]):
             candidate = body[start:end]
-            if "(MAR-145)" in candidate:
+            if re.search(r"\(MAR-145\b", candidate):
                 section_text = candidate
                 break
         self.assertIsNotNone(
