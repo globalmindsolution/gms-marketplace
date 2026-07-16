@@ -6,13 +6,13 @@ the planner's ADR-0012 block, the docs-only Delivery staging, the D2
 single-file Output contract, the D1 PRD+architecture-only Inputs & mode, and
 the two hook shims. This test does NOT re-run MAR-115's cross-file
 byte-identity check across all six planners — that invariant lives in
-tests/acs/test_mar115_doc_consistency_step.py and already covers this new
+tests/acs/test_doc_consistency_step.py and already covers this new
 planner once it exists; here we only confirm the new planner carries the
 canonical block.
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()`
-technique from test_mar115_doc_consistency_step.py and
-test_mar112_quality_path_init.py.
+technique from test_doc_consistency_step.py and
+test_init_quality_path.py.
 
 Run:  python3 -m unittest tests.acs.test_mar117_create_principles_skill -v
 """

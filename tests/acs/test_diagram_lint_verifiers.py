@@ -10,7 +10,7 @@ check-dimension (surgical-edit proof, since sibling MAR-138 touches the same
 two files next).
 
 Mirrors the reading/extraction helpers from
-`test_mar119_design_verifier_standards.py:28-60` (`read`, `dimension_block`).
+`test_design_verifier_standards.py:28-60` (`read`, `dimension_block`).
 
 GOTCHA (plan Risk R-D): the mar119 `dimension_block` helper matches ONLY
 backtick-wrapped labels (`` `label` ``) — that is enough for the design

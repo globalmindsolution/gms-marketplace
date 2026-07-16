@@ -10,7 +10,7 @@ DRAFT/confirm gate spans all three modes uniformly (C-22), that the per-file
 format is finalized, and that the new greenfield write prose uses
 settings-resolved layout placeholders rather than hardcoded marketplace literals
 (C-20). Mirrors the read()+assert style of
-test_mar143_create_requirements_skill.py.
+test_create_requirements_skill.py.
 
 Stdlib-only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_mar144_greenfield_amend_modes -v

@@ -16,7 +16,7 @@ Step 7f, which:
   6. records the outcome in Step 8's summary table and the completion report.
 
 Stdlib-only (os, re, unittest, json), mirroring
-tests/acs/test_mar89_init_offers.py's `section()` helper + bounded-window
+tests/acs/test_init_offers.py's `section()` helper + bounded-window
 co-occurrence style — never a bare file-wide assertIn.
 
 Run:  python3 -m unittest tests.acs.test_mar125_init_e2e_gate -v
@@ -42,7 +42,7 @@ def section(body, heading):
     """Return the text of a markdown section: from the line whose start is
     `heading` (a real heading, matched at line-start) up to the next
     same-or-higher-level heading (or end of file). Mirrors
-    test_mar89_init_offers.py's helper exactly."""
+    test_init_offers.py's helper exactly."""
     m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
     if m is None:
         raise AssertionError("heading %r not found in SKILL.md" % heading)

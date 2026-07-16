@@ -11,9 +11,9 @@ APPENDED, deterministic, blocking `structure` dimension (invokes Spec 01's
 SKILL.md, passed into the verify task. `create-project` is explicitly N/A
 (AC-5) — locked here by a negative test, not by omission alone.
 
-Reuses `test_mar137_diagram_lint_verifiers.py`'s bold+backtick helpers
+Reuses `test_diagram_lint_verifiers.py`'s bold+backtick helpers
 (`read`, `_label_pattern`, `dimension_block`, `dimension_present`) — NOT the
-backtick-only `test_mar119_design_verifier_standards.py` base, which would
+backtick-only `test_design_verifier_standards.py` base, which would
 silently miss the bold-labelled dimensions in 6 of these 7 files.
 
 Stdlib-only (re, os, unittest). Run:
@@ -111,7 +111,7 @@ def read(path):
 
 def _label_pattern(label):
     """A numbered check-dimension label, bold- or backtick-wrapped (mirrors
-    test_mar137_diagram_lint_verifiers.py's bold-vs-backtick gotcha: the
+    test_diagram_lint_verifiers.py's bold-vs-backtick gotcha: the
     7 prose verifiers this spec touches mix **bold** (prd, architecture,
     principles, standards, quality, operations) and `backtick` (design)
     dimension-label markup)."""
@@ -276,7 +276,7 @@ class DimensionListRegressionTest(unittest.TestCase):
 
 class DesignCompletenessDiagramUntouchedTest(unittest.TestCase):
     """MAR-137 no-disturb: create-design dim 5's byte-pinned completeness
-    body (owned by test_mar137_diagram_lint_verifiers.py) is not touched by
+    body (owned by test_diagram_lint_verifiers.py) is not touched by
     this spec's edits beyond the one permitted carve-out sentence — checked
     here only by confirming the byte-pinned substrings test_mar137 asserts
     are still present verbatim; the exhaustive pin itself stays in

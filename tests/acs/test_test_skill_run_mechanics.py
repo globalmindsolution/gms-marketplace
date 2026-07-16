@@ -5,7 +5,7 @@ covering AC-6 (model-invocability), AC-7 (--suite argument contract +
 setup/command/teardown), AC-8 (results-artifact shape), AC-9 all-green half
 (no-model-call determinism), AC-11 report half, and the R1 safety note.
 
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_mar112_quality_path_init.py's
+Stdlib-only (os, re, unittest), mirroring tests/acs/test_init_quality_path.py's
 bounded-window `section()` technique so a stray mention elsewhere in the file
 cannot satisfy an assertion.
 

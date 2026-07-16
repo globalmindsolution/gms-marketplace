@@ -2,7 +2,7 @@
 migration offer (AC-5).
 
 Prose-contract unit test for `plugins/acs/skills/init/SKILL.md`, mirroring
-tests/acs/test_mar112_quality_path_init.py's bounded-window `section()`
+tests/acs/test_init_quality_path.py's bounded-window `section()`
 technique so a stray mention elsewhere in the file cannot satisfy an
 assertion. `suites` must be defaulted like `quality_path`/`operations_path`
 in the Step 4 optional-settings batch, and must NOT be added to the "always

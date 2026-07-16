@@ -7,8 +7,8 @@ hand-authored project-structure.md in this repo, no shipped template), and
 the AC-5 additivity/re-run guard.
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()`
-technique from test_mar118_create_standards_skill.py and the durable-invariant
-CHANGELOG pattern from test_mar118_docs_eval.py's ChangelogMar118EntryTest.
+technique from test_create_standards_skill.py and the durable-invariant
+CHANGELOG pattern from test_create_standards_docs_eval.py's ChangelogMar118EntryTest.
 
 Run:  python3 -m unittest tests.acs.test_mar120_create_architecture_project_structure -v
 """

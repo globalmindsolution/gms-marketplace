@@ -5,7 +5,7 @@ must be defaulted like `architecture_path`/`adr_path` in the Step 4
 optional-settings batch, and must NOT be added to the "always ask explicitly"
 carve-out (which names only `### models` and `e2e`).
 
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_mar89_init_offers.py's
+Stdlib-only (os, re, unittest), mirroring tests/acs/test_init_offers.py's
 `section()` bounded-window technique so a stray mention elsewhere in the file
 cannot satisfy either assertion.
 

@@ -7,7 +7,7 @@ expansion (create-quality-verifier.md / create-operations-verifier.md) and the
 doc tail (ADR 0012 status flip, CHANGELOG bullet, skills.md notes).
 
 Stdlib-only (hashlib, os, re, unittest), mirroring the bounded-window
-`section()` helper from tests/acs/test_mar112_quality_path_init.py and the
+`section()` helper from tests/acs/test_init_quality_path.py and the
 presence-in-all-six loop style of
 tests/acs/test_skill_contracts.py::test_grounding_section_everywhere, so a
 stray mention elsewhere in a file can never satisfy an assertion meant for the

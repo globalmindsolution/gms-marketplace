@@ -7,10 +7,10 @@ the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
 
 Stdlib-only (os, re, sys, unittest), mirroring
-tests/acs/test_mar117_principles_path_init.py's `section()` bounded-window
+tests/acs/test_init_principles_path.py's `section()` bounded-window
 technique so a stray mention elsewhere in the file cannot satisfy either
 assertion, plus direct acs_lib registry assertions mirroring
-tests/acs/test_mar117_principles_path_init.py's registry-case shape.
+tests/acs/test_init_principles_path.py's registry-case shape.
 
 Run:  python3 -m unittest tests.acs.test_mar118_standards_path_init -v
 """

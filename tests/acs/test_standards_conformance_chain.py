@@ -216,7 +216,7 @@ class ReflectionMdDimensionTest(unittest.TestCase):
 class ChangelogMar119EntryTest(unittest.TestCase):
     """AC-6: durable-invariant CHANGELOG entry — never pins the literal
     '[Unreleased]' or a dated version string as a fixed anchor (mirrors
-    ChangelogMar118EntryTest in test_mar118_docs_eval.py)."""
+    ChangelogMar118EntryTest in test_create_standards_docs_eval.py)."""
 
     def _changelog(self):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
