@@ -51,7 +51,10 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    spec requires (executor **Simplicity First** and **Surgical Changes** rules).
 3. **Test strategy per spec — tests first.** Name the failing tests to write
    before any implementation (derived from the spec's Test plan), the repo's
-   test and coverage tooling, and the exact commands to run them. Discover the
+   test and coverage tooling, and the exact commands to run them. The test
+   modules you name are named by the component/behavior under test, never by a
+   ticket id; the originating ticket reference lives in the module docstring.
+   Discover the
    tooling from the repo itself (package manifests, CI config, Makefile, etc.)
    and run the existing suite once via Bash to confirm the baseline is green
    and the commands are right. State how `coverage_target` will be measured.

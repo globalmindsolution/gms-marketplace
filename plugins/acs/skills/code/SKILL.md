@@ -403,7 +403,10 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    single-responsibility line per new function (SOLID: one unit, one job), never
    a ticket id in source, and on edits only the comments the change actually
    invalidates (e.g. a changed parameter); no re-comment passes over unchanged
-   logic. The executor also applies the **Simplicity First** and **Surgical
+   logic. Test module filenames follow the same rule: they are named by the
+   component/behavior under test, never by a ticket id; the originating ticket
+   reference lives in the module docstring. The executor also applies the
+   **Simplicity First** and **Surgical
    Changes** authoring rules (see code-executor.md Charter) throughout. Merge the ticket's acceptance criteria and
    behavior-defining clarifications (answered/assumed ledger entries that
    define behavior) into the touched feature area's file under

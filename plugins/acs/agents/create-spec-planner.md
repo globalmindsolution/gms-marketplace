@@ -79,7 +79,9 @@ ticket-id="SHOP-123" iteration="n">` (schema: `schemas/acs-messages.xsd`) with:
    `NN-<slug>.md`, scope summary, the AC indexes it covers, the design sections
    that bind it, the repo files/areas it touches, and notes for each of the five
    required sections (Scope, Approach, API/data changes, Test plan, Out of
-   scope).
+   scope). Test modules the Test plan names are named by the component/behavior
+   under test, never by a ticket id; the originating ticket reference lives in
+   the module docstring.
 5. **Prove acceptance coverage.** Build the matrix mapping every AC to at least
    one spec. An AC with no spec means the decomposition is incomplete — fix the
    plan, do not ship the gap.
