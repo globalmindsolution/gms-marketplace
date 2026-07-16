@@ -3,7 +3,7 @@
 Prose-contract unit test for `plugins/acs/skills/test/SKILL.md`'s failure-path
 section (layered by spec 03 onto spec 02's deterministic-run body). Uses the
 same bounded-window `section()` technique as
-`tests/acs/test_mar112_quality_path_init.py:29-40` so a stray mention
+`tests/acs/test_init_quality_path.py:29-40` so a stray mention
 elsewhere in the file cannot satisfy an assertion.
 
 Asserts, within the failure-path section:

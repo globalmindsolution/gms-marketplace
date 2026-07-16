@@ -1,7 +1,7 @@
 """MAR-114 spec 03 — regression-key derivation + new-ticket.py call-shape (AC-9/AC-10).
 
 Covers the regression-key contract the /acs:test SKILL.md failure-path
-prose states (tests/acs/test_mar114_test_skill_closed_loop.py pins the prose
+prose states (tests/acs/test_test_skill_closed_loop.py pins the prose
 itself): a stable key of the form <suite>:<normalized-failing-test-id>, with
 a C-1 fallback to the coarse suite-level key <suite>:__suite__ when no
 per-test id can be parsed out of the suite's failure output. This module

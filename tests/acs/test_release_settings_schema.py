@@ -9,7 +9,7 @@ here, not authored here) against the schema shape — plus a negative sanity
 check that an obviously-malformed candidate block fails the same walk.
 
 Stdlib-only (json, os, unittest) — no `jsonschema` import, mirroring this
-repo's existing settings-schema tests (`test_mar114_suites_schema.py` and
+repo's existing settings-schema tests (`test_settings_suites_schema.py` and
 `test_acs_plugin.py`'s `TestDueDateSchema`/`TestHighStakesPathsSettings`/
 `TestOperationsPathSettings`).
 

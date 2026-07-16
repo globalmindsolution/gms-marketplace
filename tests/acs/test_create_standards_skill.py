@@ -8,13 +8,13 @@ upstream principles_path/principles/ read (inverse of MAR-117's
 no-standards-cross-read case) plus its graceful-degradation language, the
 Start refusal guard scoped only to standards_path, and the two hook shims.
 This test does NOT re-run MAR-115's cross-file byte-identity check across all
-planners — that invariant lives in tests/acs/test_mar115_doc_consistency_step.py
+planners — that invariant lives in tests/acs/test_doc_consistency_step.py
 and already covers this new planner once it exists; here we only confirm the
 new planner carries the canonical block.
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()`
-technique from test_mar115_doc_consistency_step.py and
-test_mar117_create_principles_skill.py.
+technique from test_doc_consistency_step.py and
+test_create_principles_skill.py.
 
 Run:  python3 -m unittest tests.acs.test_mar118_create_standards_skill -v
 """

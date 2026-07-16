@@ -10,7 +10,7 @@ itself shipped in v0.4.0. The load-bearing principle encodes PRD C-20
 Stdlib-only (json, os, re, unittest); guards a bare `import jsonschema`
 behind `skipUnless` so the CI "Tests & validation" job (which does not
 install jsonschema) stays green -- see
-tests/acs/test_mar81_settings_models_pinned.py for the same pattern.
+tests/acs/test_settings_models_pinned.py for the same pattern.
 
 Run:  python3 -m unittest tests.acs.test_mar133_principles -v
 """

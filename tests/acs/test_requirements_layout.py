@@ -4,7 +4,7 @@ settings note + ADR 0060 + CHANGELOG entry.
 
 Stdlib-only unittest. Mirrors `TestQualityPathSettings`
 (tests/acs/test_acs_plugin.py) for the schema/settings-default assertions and
-`test_mar123_docs_topology.py`'s `ChangelogMar123EntryTest` for the durable
+`test_docs_reflection_topology.py`'s `ChangelogMar123EntryTest` for the durable
 CHANGELOG assertion (never pins a literal `[Unreleased]`/dated heading).
 
 Run: python3 -m unittest tests.acs.test_mar145_requirements_layout -v

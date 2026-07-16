@@ -11,7 +11,7 @@ delivery-title string verbatim (cross-spec identity with spec 01's
 DELIVERY_TICKET_TITLES).
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()` technique from
-test_mar118_create_standards_skill.py and test_mar120_create_architecture_project_structure.py.
+test_create_standards_skill.py and test_create_architecture_project_structure.py.
 
 Run:  python3 -m unittest tests.acs.test_mar121_standardize_project_skill -v
 """

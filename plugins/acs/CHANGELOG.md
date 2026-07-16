@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Codified the "test filenames name the behavior, never a ticket id" convention and swept the existing suite to match (MAR-147).** The standing "never a ticket id in source" rule now explicitly extends to test module filenames: a test file is named by the component/behavior under test, never by a ticket id — the originating `MAR-<NNN>` reference lives in the module docstring instead. The rule is stated across the five pipeline guidance surfaces (the `code` and `create-spec` skills plus the `code-executor`, `code-planner`, and `create-spec-planner` agents) and in a new first-class `docs/standards/standards.md`, and is enforced by a new `tests/acs/test_test_naming_convention.py` guard. The 49 pre-existing `test_mar<NNN>_*.py` modules were renamed to component/behavior names as content-preserving `git` renames (class names, methods, assertions, and each module's own docstring ticket ref unchanged), with their inter-test docstring cross-references updated to the new names.
+
 ## [0.4.4] - 2026-07-16
 
 ### Added

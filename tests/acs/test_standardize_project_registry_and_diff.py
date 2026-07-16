@@ -2,7 +2,7 @@
 additive-only diff-status classification helper.
 
 Pure unit tests (no git/subprocess), mirroring
-tests/acs/test_mar118_standards_path_init.py's `sys.path.insert(0, HOOKS_DIR);
+tests/acs/test_init_standards_path.py's `sys.path.insert(0, HOOKS_DIR);
 import acs_lib` fixture shape.
 
 Run:  python3 -m unittest tests.acs.test_mar121_registry_and_diff_helper -v

@@ -21,7 +21,7 @@ pins the three previously-gapped offers:
 
 Stdlib-only (os, re, unittest, json), mirroring
 tests/acs/test_skill_contracts.py (REPO_ROOT/PLUGIN + read helper + bounded-
-window co-occurrence assertions) and tests/acs/test_mar81_settings_models_pinned.py
+window co-occurrence assertions) and tests/acs/test_settings_models_pinned.py
 (reads the schema's $defs.roleModel effort enum so prose and schema can't
 silently diverge). Assertions are bounded-window / co-occurrence anchored on the
 `### models` heading and the Step 4 carve-out — never bare file-wide assertIn —
@@ -42,7 +42,7 @@ SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 ROLES = ("planner", "executor", "verifier", "coordinator")
 # Version-pinned ids the offer must name (aligned with .acs/settings.json:18-23
-# and tests/acs/test_mar81_settings_models_pinned.py:27-32).
+# and tests/acs/test_settings_models_pinned.py:27-32).
 PINNED_IDS = ("claude-opus-4-8", "claude-sonnet-5")
 
 
@@ -133,7 +133,7 @@ class Mar89InitOffersCase(unittest.TestCase):
     def test_B_effort_enum_matches_schema(self):
         """Every effort enum value from the schema's $defs.roleModel appears in
         the `### models` offer, so a future schema change and the prose can't
-        silently diverge (mirrors test_mar81_settings_models_pinned.py:63-68)."""
+        silently diverge (mirrors test_settings_models_pinned.py:63-68)."""
         role_model_def = self.schema["$defs"]["roleModel"]
         object_branch = next(
             branch for branch in role_model_def["oneOf"]

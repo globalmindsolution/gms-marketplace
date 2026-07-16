@@ -4,7 +4,7 @@
 `PRODUCT_SKILLS`, `WORKFLOW_SKILLS`, or `GATES` — proving `dispatch.py`'s
 existing `skill not in acs_lib.HOOKED_SKILLS` passthrough exempts
 `/acs:release` with zero dispatch code change (mirrors
-`test_mar114_test_skill_registry.py` for `/acs:test`). Also pins the
+`test_test_skill_registry.py` for `/acs:test`). Also pins the
 on-disk negatives (no pre-/post-release.py, no release-*.md agent file,
 agent count unchanged) and the SAFETY-invariant prose `release/SKILL.md`
 must carry (AC-5): never tags/publishes itself, never force-pushes or

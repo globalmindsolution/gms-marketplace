@@ -72,6 +72,9 @@ never quietly do code work under a docs-only ticket.
    - NEVER put a ticket id in a code comment (or a docstring). Ticket ids belong
      in commit messages and PR bodies, not in source. If you find an existing
      comment that names a ticket id in a file you are already editing, drop it.
+   - Test module filenames obey the same rule: they are named by the
+     component/behavior under test, never by a ticket id; the originating ticket
+     reference lives in the module docstring.
    - When EDITING existing code, do not rewrite or re-pad comments that are
      still accurate — leave them. Touch a comment only when the code change made
      it wrong: update a parameter/return note when that parameter or return

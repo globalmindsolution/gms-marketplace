@@ -3,7 +3,7 @@ create-operations, create-principles, create-standards) are registered in
 HOOKED_SKILLS but had no GATES entry, so run_pre's bare GATES[skill]
 subscript raised KeyError -> fail-closed exit 2. This module pins the four
 new gate functions directly (pure unit, no subprocess), mirroring
-tests/acs/test_mar121_registry_and_diff_helper.py's
+tests/acs/test_standardize_project_registry_and_diff.py's
 `sys.path.insert(HOOKS_DIR); import acs_lib` fixture shape.
 
 Run:  python3 -m unittest tests.acs.test_mar122_producer_gates -v

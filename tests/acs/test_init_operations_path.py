@@ -6,7 +6,7 @@ the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
 
 Stdlib-only (os, re, unittest), mirroring
-tests/acs/test_mar112_quality_path_init.py's `section()` bounded-window
+tests/acs/test_init_quality_path.py's `section()` bounded-window
 technique so a stray mention elsewhere in the file cannot satisfy either
 assertion.
 

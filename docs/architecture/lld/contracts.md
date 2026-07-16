@@ -131,6 +131,11 @@ versions"** mapping table in `roadmap.md` (one row per release version →
 milestone/wave + epic(s) delivered), verified by the create-prd verifier's
 0-orphan-milestone coverage sub-check (ADR 0053).
 
+The `standards` chain level has a documentary counterpart in this repo at
+`docs/standards/standards.md` (e.g. the test-file-naming standard); with
+`standards_path` unset, these standards are enforced by guard tests and pipeline
+guidance rather than as a runtime-verified conformance level.
+
 ---
 
 ## tabp plugin contracts

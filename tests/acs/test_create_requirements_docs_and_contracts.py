@@ -2,7 +2,7 @@
 create-requirements greenfield/amend completion.
 
 Prose/doc-fixture tests (read each file's body and assert on content), in the
-style of test_mar123_docs_topology.py. They pin the Spec-02 payload:
+style of test_docs_reflection_topology.py. They pin the Spec-02 payload:
 
 - AC-5: the contracts.md D1 living-contract note (chain line byte-unchanged,
   requirements documented as a living contract ALONGSIDE the chain, not a

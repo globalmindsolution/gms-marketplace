@@ -5,8 +5,8 @@ missing / set-and-present) across the skill + planner + executor, the never-
 wire-branch-protection rule (D1), and a direct regression over the pre-existing
 `classify_additive_diff` helper with the two e2e scaffold paths. Mirrors the
 bounded-window `section()` technique from
-tests/acs/test_mar121_standardize_project_skill.py and
-tests/acs/test_mar125_init_e2e_gate.py — never a bare file-wide `assertIn`.
+tests/acs/test_standardize_project_skill.py and
+tests/acs/test_init_e2e_gate.py — never a bare file-wide `assertIn`.
 
 Run:  python3 -m unittest tests.acs.test_mar126_standardize_e2e_scaffold -v
 """
@@ -42,7 +42,7 @@ def read(path):
 def section(body, heading):
     """Bounded-window helper: from `heading` (line-start) to the next
     same-or-higher-level heading, or EOF. Mirrors
-    test_mar121_standardize_project_skill.py:41-52."""
+    test_standardize_project_skill.py:41-52."""
     m = re.search(r"(?m)^" + re.escape(heading) + r".*$", body)
     if m is None:
         raise AssertionError("heading %r not found" % heading)

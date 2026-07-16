@@ -155,7 +155,9 @@ Every spec MUST contain exactly these sections, in this order:
 4. `## Test plan` — tests to write (TDD: /acs:code writes them first), mapped
    to the acceptance criteria this spec covers; state explicitly how the
    `test_coverage_percent` target (`settings.test_coverage_percent`) applies to
-   this spec's code. **E2E impact**: when `settings.e2e` is configured or the
+   this spec's code. Test modules named here are named by the component/behavior
+   under test, never by a ticket id; the originating ticket reference lives in
+   the module docstring. **E2E impact**: when `settings.e2e` is configured or the
    change affects user-facing / cross-component flows, name the flows and the
    e2e tests to add or update (they land in the SAME changeset); otherwise
    state "no e2e impact" with a one-line reason.
