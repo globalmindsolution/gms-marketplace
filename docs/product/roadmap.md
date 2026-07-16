@@ -4,7 +4,7 @@
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
-track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; **v0.3.8** shipped the full-SDLC verify & operate epic (M3 Wave 1, G8) on the v0.3.x patch line, and **v0.4.0** shipped M3 Wave 2 (principles & standards, G10), and **v0.4.1** shipped the e2e-integrity epic (G13); **v0.4.2** shipped Wave 3's release-versions half — first-class release versions + one-command release cut (**G17**) plus the consumer-general program (**C-20** + the Consumer-repo-generality principle); **v0.4.3** shipped the generated-doc-quality epic (**G36**); the **v0.4.4+ delivery waves** (M3 Wave 4) — org-level policy/scale (G12, G24) — are the next major milestone track after them (team-shared delivery state, **G23**, is deferred to a post-GA milestone — see M8)), followed by a **tentative pre-GA
+track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; **v0.3.8** shipped the full-SDLC verify & operate epic (M3 Wave 1, G8) on the v0.3.x patch line, and **v0.4.0** shipped M3 Wave 2 (principles & standards, G10), and **v0.4.1** shipped the e2e-integrity epic (G13); **v0.4.2** shipped Wave 3's release-versions half — first-class release versions + one-command release cut (**G17**) plus the consumer-general program (**C-20** + the Consumer-repo-generality principle); **v0.4.3** shipped the generated-doc-quality epic (**G36**); **v0.4.4** shipped the brownfield requirements-extraction epic (**G37**) — the new `/acs:create-requirements` skill; the **v0.4.5+ delivery waves** (M3 Wave 4) — org-level policy/scale (G12, G24) — are the next major milestone track after them (team-shared delivery state, **G23**, is deferred to a post-GA milestone — see M8)), followed by a **tentative pre-GA
 sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
 **The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
 sequenced by what flagship external-consumer-product delivery needs first** — see
@@ -38,7 +38,8 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.1 | M3 e2e integrity | enforceable e2e integrity — G13 | shipped |
 | v0.4.2 | M3 Wave 3 — release versions | first-class release versions + one-command release cut (G17) — {MAR-128}; consumer-general program (C-20 + Consumer-repo-generality principle) — {MAR-132, MAR-133} | shipped |
 | v0.4.3 | M3 Wave 4 — generated-doc quality | generated-doc quality (G36) — {MAR-136} | shipped |
-| v0.4.4+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics; brownfield requirements extraction (G37) | planned |
+| v0.4.4 | M3 Wave 4 — requirements extraction | brownfield requirements extraction / `/acs:create-requirements` (G37) — {MAR-142} | shipped |
+| v0.4.5+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
 | v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
 | v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
@@ -255,13 +256,13 @@ A small, near-term interim release that closed the `/acs:init` configuration-com
   2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (previously effort was only an object-shape note, never surfaced as a choice).
   3. **Explicit e2e offer** — e2e is explicitly offered on a fresh init (candidate-detected), not left in the silently-defaultable optional batch.
 - **Delivered the init-prompt slice of G21** and its metric (100% user-configurable keys reachable + the three named offers, verified by a fresh-init walkthrough on the dogfood repo within 1 release).
-- **Reconcile note (no duplication):** M3's model+effort polish epic (Wave 4 / v0.4.4+), onboarding polish epic (Wave 4 / v0.4.4+), and e2e integrity E2E-1 (v0.4.1, below in M3) build ON TOP of this init-prompt fix — those waves own only the up-front fail-closed model-id/effort validation, the docs, the broader guided flows, and the e2e CI merge gate; the init-PROMPT piece itself shipped in v0.3.4.
+- **Reconcile note (no duplication):** M3's model+effort polish epic (Wave 4 / v0.4.5+), onboarding polish epic (Wave 4 / v0.4.5+), and e2e integrity E2E-1 (v0.4.1, below in M3) build ON TOP of this init-prompt fix — those waves own only the up-front fail-closed model-id/effort validation, the docs, the broader guided flows, and the e2e CI merge gate; the init-PROMPT piece itself shipped in v0.3.4.
 - **Mechanism deferral:** the exact init UX (prompt shape, option ordering, version-pin catalog source) is settled in the implementing ticket's design/spec phase — mirrors the other epics' deferral convention.
 - **Traces G21** (extends G7; Solo-developer + Tech-lead personas).
 
 ### M2.6 — v0.3.5–v0.3.7 fast-follows — complete tracker & PR metadata sync; dynamic lane correctness
 
-Four small, independently shippable fast-follows sequenced after the shipped v0.3.4 init release and ahead of M3's delivery waves (Wave 1 shipped v0.3.8, Wave 2 shipped v0.4.0, e2e integrity shipped v0.4.1, Wave 3 release-versions half shipped v0.4.2; Wave 4 at v0.4.4+, with team-shared delivery state (G23) deferred to a post-GA milestone). The first three deliver PRD **G22** and the acs Should-have "Two-way tracker sync" feature (Group A + Group B); the fourth delivers **dynamic (mid-flight) lane correctness (G25)**. **Traces G22, G25** (+ the Team-on-a-shared-repo, Tech-lead, and Solo-developer personas). MECHANISM (reviewer source, Project Status option mapping per stage, the priority/story-points/parent field-to-column mapping; the in-flight signal set, detection point, and stage re-entry for G25) is deferred to each slice's design/spec phase, mirroring the other epics' deferral convention.
+Four small, independently shippable fast-follows sequenced after the shipped v0.3.4 init release and ahead of M3's delivery waves (Wave 1 shipped v0.3.8, Wave 2 shipped v0.4.0, e2e integrity shipped v0.4.1, Wave 3 release-versions half shipped v0.4.2; Wave 4 at v0.4.5+, with team-shared delivery state (G23) deferred to a post-GA milestone). The first three deliver PRD **G22** and the acs Should-have "Two-way tracker sync" feature (Group A + Group B); the fourth delivers **dynamic (mid-flight) lane correctness (G25)**. **Traces G22, G25** (+ the Team-on-a-shared-repo, Tech-lead, and Solo-developer personas). MECHANISM (reviewer source, Project Status option mapping per stage, the priority/story-points/parent field-to-column mapping; the in-flight signal set, detection point, and stage re-entry for G25) is deferred to each slice's design/spec phase, mirroring the other epics' deferral convention.
 
 - **v0.3.5 — PR metadata acs sets on create/update (Group A core).** `/acs:create-pr` sets the PR **assignee** (always the PR author — the authenticated `gh` user running the pipeline, so 0 PRs are left unassigned), **labels beyond `ACS`** (e.g. the type label, mirroring the issue), and adds the **PR itself to the GitHub Project** with field values — on top of the existing `Closes #`/milestone. Delivers G22's PR-assignee metric.
 - **v0.3.6 — full-lifecycle ticket Status (Group B status).** Extends the shipped create-ticket (in-progress at create) and merge-pr (Status→Done) transitions with the missing **in-review** transition when `/acs:create-pr` opens the PR, so the GitHub Project Status matches the ticket's true pipeline stage at every stage. Delivers G22's status metric (0 tickets left stale at "in-progress" after PR/merge).
@@ -284,7 +285,7 @@ Four small, independently shippable fast-follows sequenced after the shipped v0.
   fast-lane tickets touching a high-stakes surface escalated to ≥ STANDARD
   before results were presented; 0 silent reversals).
 
-### M3 — v0.3.8 → v0.4.4+ (delivery waves)
+### M3 — v0.3.8 → v0.4.5+ (delivery waves)
 
 M3 is no longer one release — it is a **committed sequence of four delivery
 waves**, each with its own version home, so a Wave-3+ epic is never implied to
@@ -293,8 +294,8 @@ its design was already settled by [ADR
 0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md), so it needed no
 design phase and shipped on the v0.3.x patch line rather than a minor. **Wave 2
 SHIPPED as v0.4.0** (principles & standards, G10), and **v0.4.1 SHIPPED the
-enforceable-e2e-integrity epic (G13)** (E2E-1/E2E-2/E2E-3), and **v0.4.2 SHIPPED Wave 3's release-versions half** (first-class release versions + one-command release cut, G17, plus the consumer-general program — C-20 + the Consumer-repo-generality principle). **v0.4.3 SHIPPED the generated-doc-quality epic (G36).** Team-shared delivery state (G23) is deferred to a post-GA milestone (**M8 — post-GA**), after GA v1.0 — it is no longer part of the road to v1.0.
-The Wave-3 release-versions slot (shipped v0.4.2), the shipped generated-doc-quality slot (v0.4.3), and Wave 4 (v0.4.4+) queue on the v0.4.x line:
+enforceable-e2e-integrity epic (G13)** (E2E-1/E2E-2/E2E-3), and **v0.4.2 SHIPPED Wave 3's release-versions half** (first-class release versions + one-command release cut, G17, plus the consumer-general program — C-20 + the Consumer-repo-generality principle). **v0.4.3 SHIPPED the generated-doc-quality epic (G36).** **v0.4.4 SHIPPED the brownfield requirements-extraction epic (G37)** — the new `/acs:create-requirements` skill. Team-shared delivery state (G23) is deferred to a post-GA milestone (**M8 — post-GA**), after GA v1.0 — it is no longer part of the road to v1.0.
+The Wave-3 release-versions slot (shipped v0.4.2), the shipped generated-doc-quality slot (v0.4.3), the shipped brownfield-requirements-extraction slot (v0.4.4), and Wave 4 (v0.4.5+) queue on the v0.4.x line:
 
 | Wave | Version home | Theme |
 |------|---------------|-------|
@@ -303,11 +304,12 @@ The Wave-3 release-versions slot (shipped v0.4.2), the shipped generated-doc-qua
 | **e2e integrity (shipped)** | **v0.4.1** | Enforceable e2e integrity (G13) |
 | **Wave 3 — release versions (shipped)** | **v0.4.2** | First-class release versions + one-command release cut (G17) + consumer-general program (C-20 + principle) |
 | **Generated-doc quality (shipped)** | **v0.4.3** | Generated-doc validity gate (G36) |
-| **Wave 4** | **v0.4.4+** | Org-level policy/scale (G12, G24) + remaining polish epics |
+| **Requirements extraction (shipped)** | **v0.4.4** | Brownfield requirements extraction (G37) |
+| **Wave 4** | **v0.4.5+** | Org-level policy/scale (G12, G24) + remaining polish epics |
 
-**Wave 4's version home is open-ended (`v0.4.4+`)**: its epics have no
-committed order, so as slices get committed they may split across v0.4.4,
-v0.4.5, v0.4.6… without renumbering anything above.
+**Wave 4's version home is open-ended (`v0.4.5+`)**: its epics have no
+committed order, so as slices get committed they may split across v0.4.5,
+v0.4.6, v0.4.7… without renumbering anything above.
 
 *(Init-prompt configuration-completeness for G21 ships in v0.3.4 — see M2.5;
 M3 retains up-front model-id/effort validation, docs, broader guided flows,
@@ -317,7 +319,7 @@ and the e2e CI merge gate — see Wave 4 below.)*
 **G33**'s phase-coverage commitment — Wave 1 (v0.3.8) closes quality/operate
 (`/acs:create-quality`, `/acs:create-operations`, `/acs:test`, **G8**), Wave 2
 (v0.4.0) closes standards/principles (**G10**), **v0.4.2** closed release
-(**G17**, shipped), and Wave 4 (v0.4.4+) closes the remaining observability item
+(**G17**, shipped), and Wave 4 (v0.4.5+) closes the remaining observability item
 (**G19**). No version reshuffle: this is a mapping note over the four waves
 already committed above, plus the deliberate **no-deploy-skill position** they
 collectively encode (`/acs:create-project` scaffolds CI/CD,
@@ -399,14 +401,14 @@ principle). G17 pairs with Wave 1's operations/release runbooks
 
 - **Epic: first-class release versions + one-command release cut** — acs models release **versions as first-class planning units** distinct from milestones, with an explicit version → milestone/epic mapping, AND gains a capability to **cut a release**: aggregate the merged tickets belonging to a version into changelog/release notes, bump the version, tag the commit, and create the GitHub release — filling today's manual "release: cut vX.Y.Z" gap. Likely a new producer/apply-work skill (e.g. `/acs:release`) — name/shape is MECHANISM. Reuses `gh` and the existing `marketplace.json`/`plugin.json` version-bump + Release-workflow precedent (README "Releasing & updating"). The cut is **settings-driven / consumer-general** — a `.acs/settings.json` `release` block generalizes the `marketplace.json`/`plugin.json` bump precedent, with this marketplace as **profile #1** and a consumer product repo pointing at its own artifacts + CD (see PRD **C-20**). Maps to PRD **G17** and the acs Should-have "First-class release versions + one-command release cut" feature. **Traces G17 (+ the Tech-lead persona).** The MECHANISM (skill name/shape, version-object schema, changelog-aggregation source, tag/GitHub-release implementation) is settled in this epic's design phase / an ADR, consistent with how this milestone's other epics defer mechanism. **(Shipped in v0.4.2 — G17 epic MAR-128: MAR-129 settings-driven `/acs:release`, MAR-130 Release-versions table; consumer-general program C-20/MAR-132 + Consumer-repo-generality principle/MAR-133.)**
 
-#### Wave 4 — v0.4.4+
+#### Wave 4 — v0.4.5+
 
 Delivers PRD **G12** (org-level enforcement policy) and **G24** (org-scale
 settings & workspace distribution — extends G12: G12 is the non-overridable
 mandate/floor half, G24 is the overridable defaults/distribution half), plus
 the remaining polish epics below **in no committed order**. Because the order
 inside Wave 4 is uncommitted, its version home is left open-ended
-(`v0.4.4+`) — see the note at the top of M3.
+(`v0.4.5+`) — see the note at the top of M3.
 
 - **Epic: org-level enforcement policy (org & department layers)** — acs gains an ordered
   **policy-source chain** above today's user + team(project) layers. An organization (and
@@ -547,7 +549,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   "Brownfield requirements extraction" feature. **Traces G37** (+ the
   Solo-developer / Tech-lead brownfield-onboarding personas). The MECHANISM
   (exact CLI flags, extraction algorithm, per-file section structure) is settled
-  in this epic's design phase.
+  in this epic's design phase. **(Shipped in v0.4.4 — G37 epic MAR-142: MAR-143 #273, MAR-144 #274, MAR-145 #272.)**
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (the supported-effort enum currently lives only in the advisory `settings.schema.json`, unenforced by the runtime gate, with no model-id validation at all). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
@@ -597,7 +599,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   open-ended framing):
   1. **Team-shared delivery state promoted to a P0 team prerequisite**, with
      tracker-first (**G11**) recorded as the sanctioned interim team protocol
-     until **G23** (Team-shared delivery state, post-GA — M8) / **G24** (Wave 4, v0.4.4+, above) ship. Maps to PRD's
+     until **G23** (Team-shared delivery state, post-GA — M8) / **G24** (Wave 4, v0.4.5+, above) ship. Maps to PRD's
      workflow-gap-promotions Should-have. **Traces G23, G24, G11.**
   2. **Team-mode init option (CODEOWNERS scaffolding)** — an `/acs:init`
      option scaffolding CODEOWNERS mirroring `high_stakes_paths` + docs-path
@@ -619,11 +621,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
 #### Sequence & exit
 
 ```
-M2.6 (v0.3.5–v0.3.7) ─▶ Wave 1 (v0.3.8, shipped) ─▶ Wave 2 (v0.4.0, shipped) ─▶ e2e integrity (v0.4.1, shipped) ─▶ Wave 3 — release versions (v0.4.2, shipped) ─▶ Wave 4 (v0.4.4+)
+M2.6 (v0.3.5–v0.3.7) ─▶ Wave 1 (v0.3.8, shipped) ─▶ Wave 2 (v0.4.0, shipped) ─▶ e2e integrity (v0.4.1, shipped) ─▶ Wave 3 — release versions (v0.4.2, shipped) ─▶ Wave 4 (v0.4.5+)
 ```
 
 Wave 1 shipped as v0.3.8 on the v0.3.x patch line, Wave 2 shipped as v0.4.0, and
-the e2e-integrity epic shipped as v0.4.1; Wave 3's release-versions half shipped as v0.4.2, the generated-doc-quality epic (G36) shipped as v0.4.3, and Wave 4 (v0.4.4+) queues on the v0.4.x line; team-shared delivery state (G23) is deferred to a post-GA milestone (M8). Wave 4's internal epic
+the e2e-integrity epic shipped as v0.4.1; Wave 3's release-versions half shipped as v0.4.2, the generated-doc-quality epic (G36) shipped as v0.4.3, the brownfield requirements-extraction epic (G37) shipped as v0.4.4, and Wave 4 (v0.4.5+) queues on the v0.4.x line; team-shared delivery state (G23) is deferred to a post-GA milestone (M8). Wave 4's internal epic
 order is not committed.
 
 ### M4 — v0.5.0 *(tentative — sequenced after the v0.4.x waves ship)*
@@ -645,7 +647,7 @@ supported runtime, now triggered via the runner rather than ported wholesale.
 **Should-have**, scheduled **after the v0.4.x waves ship**, with a tentative
 version home at **v0.5.0**. Nothing in the v0.3.0 or v0.4.x line depends on it, and it
 does not compete with the v0.4.x-wave epics (Standards & Principles — v0.4.0;
-Org enforcement — v0.4.4+) for capacity — it is not started,
+Org enforcement — v0.4.5+) for capacity — it is not started,
 designed, or ticketed until the v0.4.x waves are out. **An early throwaway spike is
 permitted as dogfooding outside this committed scope** (does not pull the epic
 forward). A first prior Codex attempt (PR #134, MAR-5) was rejected for not
@@ -698,7 +700,7 @@ Maps to PRD extended G6 and the acs Could-have pluggable-remote-docs-backend fea
 Deliver a pluggable docs backend for acs, mirroring the `tracker.provider` precedent:
 
 - **`local` backend (filesystem, default)** — current behavior, unchanged; supports
-  external/absolute paths (delivered in M3 Wave 4 — v0.4.4+ above).
+  external/absolute paths (delivered in M3 Wave 4 — v0.4.5+ above).
 - **`notion` backend (first remote provider)** — Notion as the system of record or
   sync target; two configurable modes per backend:
   - **Publish/mirror** — repo stays source of truth, the docs-only PR is preserved,
@@ -812,6 +814,6 @@ recommended step.
 Additional marketplace plugins beyond acs (candidate future plugin
 capabilities, not yet scoped; tabp retired). **Note:** the marketplace-level *growth-path and
 quality-bar* goal itself is no longer in the icebox — it is scheduled as the
-"Epic: marketplace catalog growth & quality bar" in **M3 Wave 4 (v0.4.4+)** (see
+"Epic: marketplace catalog growth & quality bar" in **M3 Wave 4 (v0.4.5+)** (see
 above, traces PRD **G20**); what remains in the icebox is only the open-ended "what
 additional plugins might exist" question.
