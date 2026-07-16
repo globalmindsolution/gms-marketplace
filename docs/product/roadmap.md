@@ -39,7 +39,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.2 | M3 Wave 3 — release versions | first-class release versions + one-command release cut (G17) — {MAR-128}; consumer-general program (C-20 + Consumer-repo-generality principle) — {MAR-132, MAR-133} | shipped |
 | v0.4.3 | M3 Wave 4 — generated-doc quality | generated-doc quality (G36) — {MAR-136} | shipped |
 | v0.4.4 | M3 Wave 4 — requirements extraction | brownfield requirements extraction / `/acs:create-requirements` (G37) — {MAR-142} | shipped |
-| v0.4.5+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
+| v0.4.5+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics incl. readable/audience-aware docs + doc templates (G38, G39) | planned |
 | v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
 | v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
@@ -480,6 +480,22 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   producer-skill personas). The MECHANISM (which lint; whether `mermaid_lint.py` is
   promoted into the plugin as the shared stdlib helper the verifiers import; the exact
   structure-conformance check shape) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.3 — G36 epic MAR-136: MAR-137 #262, MAR-138 #263.)**
+- **Epic: readable audience-aware docs + configurable doc templates (G38, G39)** —
+  extends the readability-gate epic (**G29**, above) and the generated-doc
+  validity-gate epic (**G36**, above) on the same per-producer verifier surface,
+  in three threads: (i) **promote** audience-style from advisory → **blocking**
+  and **extend it to `create-spec`** (create-project N/A — scaffolding);
+  (ii) **relocate** code-evidence citations out of the human-facing
+  `docs/architecture` / `docs/requirements` bodies into a machine-facing
+  sidecar/appendix — **G37's 100%-code-cited contract preserved, citations
+  relocated not deleted (C-23)**; (iii) add **`formats.design_template` /
+  `formats.spec_template`** mirroring `formats.pr_description_template` +
+  `enforcement.pr_description_sections` (**C-24**). Maps to PRD **G38** and
+  **G39** and the two new acs Should-have features. **Traces G38, G39** (extends
+  G29 + G36; + the Solo-developer, Tech-lead, and AI Quality & Evals Engineer
+  personas). The MECHANISM (which skills go blocking, the sidecar shape, the
+  `formats` schema keys, reconciliation with the skills' existing
+  `required_sections`) is settled in this epic's design phase, per **C-21**.
 - **Epic: onboarding polish** — `/acs:init` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
   read-only skill index / next-step advisor (e.g. `/acs:help`) listing available

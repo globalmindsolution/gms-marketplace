@@ -203,6 +203,10 @@ right duplicates another's. **Traces G33, G35** (below).
 
 | G37 — Brownfield requirements extraction (bootstrap the living-requirements doc set from existing code) | A team adopting acs on an existing codebase can **bootstrap the `settings.requirements_path` living-requirements doc set by reverse-engineering it from the current code + existing docs** — the requirements-layer analog of create-prd's brownfield PRD mode and create-architecture's brownfield architecture mode — instead of the requirements set only ever accreting incrementally from future `/acs:code` runs. **Measurable success metric:** on a brownfield repo, a single extraction run produces a requirements doc set covering **≥ 90% of the repo's identifiable feature areas** (a feature area = a top-level module / route-group / CLI surface / package the architecture container-component view or a codebase inventory identifies), with **100% of extracted requirements carrying a code-evidence citation** (file/path) and marked **DRAFT / human-confirm-required** (never authoritative without review — **C-22**), **AND 0 feature areas silently omitted** (any area the skill cannot ground is surfaced as an open point, never invented) — first validated on **1 real brownfield repo within 1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by an observed live run). Extends **G6** (onboarding/portability) and the brownfield-onboarding story; complements create-prd's brownfield PRD mode and create-architecture's brownfield architecture mode without restating them. Traces the **Solo-developer + Tech-lead** (brownfield-onboarding) personas. MECHANISM (exact CLI flags, extraction algorithm, per-file section structure, pipeline sequencing details) is **deferred to the implementing epic's design phase**. |
 
+| G38 — Readable, audience-aware generated docs (extends G29 + G36; adds create-spec; declutters citations) | Every audience-covered producer skill declares an `audience_style_profile` its **own verifier gates as a blocking finding** — **promoting today's G36 advisory audience-style** — across the extended set = today's **8** audience-style skills (`create-design`, `create-standards`, `create-quality`, `create-prd`, `create-architecture`, `create-operations`, `create-requirements`, `create-principles`) **plus `create-spec`** (net-new; `create-project` N/A — scaffolding, no prose audience): **0 unwaived audience-mismatch findings per producer run**, **AND 0 inline code-evidence citations / source clutter in the human-facing body** of `docs/architecture` + `docs/requirements` outputs — citations **relocated** to a machine-facing sidecar/appendix so **G37's 100%-code-cited coverage is preserved at 100%** (relocated, never reduced — **C-23**) and G37's metric + **C-22** are **unchanged**. Measured per release on the dogfood repo; first validated within **1 release** of the capability shipping (mirrors how G1/G9/G11 are first validated by a live run). **Extends G29** (line-length/cell micro-readability) and **G36** (structure + diagram validity) without restating them; consumer-general (**G6/C-20**). Traces the **Solo-developer, Tech-lead, and AI Quality & Evals Engineer** personas. MECHANISM (which skills go blocking, the sidecar file shape/name, the exact readability/audience checks) is **deferred to the implementing epic's design phase** (mirrors **C-21**). |
+
+| G39 — Configurable design & spec templates (mirrors `pr_description_template`; extends G6 config-surface + G21 completeness) | **100%** of `/acs:create-design` and `/acs:create-spec` runs resolve the configured `formats.design_template` / `formats.spec_template` (built-in name / `.acs/templates/<name>.md` / absolute path — the **same resolution as `pr_description_template`**), with the template's **required sections enforced as a blocking structure-conformance finding** (defaulted from the template, mirroring **`enforcement.pr_description_sections`**); with **no template key set, output is byte-identical to today's built-in default** (additive/non-breaking, mirrors C-6/C-8). Consumer-general (**C-20**): validated by **≥ 1 consumer repo** supplying its own template. First validated within **1 release** of the capability shipping on the dogfood repo (mirrors how G1/G9/G11 are first validated by a live run). Traces the **Tech-lead** + all producer-skill personas. MECHANISM (exact schema shape, how the configurable template reconciles with create-design's / create-spec's existing hardcoded `required_sections`) is **deferred to the implementing epic's design phase** (see **C-24**). |
+
 ### tabp feature — success metrics *(RETIRED — tabp superseded by an external consumer product; see the MAR-97 Reversal note in Out of scope)*
 
 Historical record only — T1-T7 are frozen (not renumbered, not deleted) and no
@@ -404,6 +408,39 @@ growth path.
   constraints (no skill-invocation hook matcher, no `SessionEnd` event,
   `PreToolUse` a guardrail rather than a complete enforcement boundary — see
   the Multi-runtime Could-have below and Reversal note MAR-2).
+- **Readable, audience-aware generated docs (citation-decluttered)** — extends
+  the Could-have doc-quality features below (**G29** readability-gate, **G36**
+  validity-gate) by making audience-awareness a **blocking** verifier finding
+  rather than advisory, and by decluttering evidence from the human-facing doc
+  body — three threads, without restating G29/G36: (i) **promote** today's
+  advisory `audience_style_profile` (already shipped on `create-design` and the
+  8 audience-style skills under G36) to a **blocking** delivery-contract gate,
+  and **extend it to `create-spec`** (net-new — `create-spec` today has a
+  structure floor but no audience profile; `create-project` is N/A,
+  scaffolding); (ii) **relocate** code-evidence citations/sources out of the
+  human-facing `docs/architecture` + `docs/requirements` bodies into a
+  machine-facing sidecar/appendix so the body reads cleanly — **G37's
+  100%-code-cited contract and C-22 are preserved, citations relocated not
+  deleted (C-23)**. Traces **G38**. Pairs with new constraint **C-23**.
+  MECHANISM (which skills go blocking, the sidecar shape/name, the exact
+  audience/readability checks) is **deferred to the implementing epic's design
+  phase** (mirrors C-21). See roadmap **M3 Wave 4 (v0.4.5+)**.
+- **Configurable design & spec templates (`formats.design_template` /
+  `formats.spec_template`)** — `/acs:create-design` and `/acs:create-spec`
+  resolve a configured document template exactly the way `/acs:create-pr`
+  already resolves **`formats.pr_description_template`** (built-in name /
+  `.acs/templates/<name>.md` / absolute path), with the template's required
+  sections enforced as a **blocking structure-conformance finding** defaulted
+  from the template — mirroring **`enforcement.pr_description_sections`**.
+  Consumer-general (**C-20**): any consumer repo supplies its own design/spec
+  template. Additive/non-breaking: with **no template key set, output is
+  byte-identical to today's built-in default**. Traces **G39** (extends the G6
+  config surface + G21 completeness). Pairs with new constraint **C-24**.
+  MECHANISM (the exact `formats` schema shape — `formats` is
+  `additionalProperties:false`, so the keys must be declared — and how the
+  configurable template reconciles with the skills' existing hardcoded
+  `required_sections`) is **deferred to the implementing epic's design phase**.
+  See roadmap **M3 Wave 4 (v0.4.5+)**.
 
 **Could have**
 - Scheduled background tracker sync; cross-machine handoff (shared workspace) — both sequenced into v0.7.0 (see roadmap M6); additional description templates.
@@ -738,6 +775,10 @@ its own mechanisms (acs via stdlib Python + hooks; future plugins via their own 
 - **acs feature — the generated-doc validity gate is additive over today's soft check + the marketplace-only lint; the lint/readability MECHANISM is deferred (C-21).** Today the skill verifier check is a soft "syntactically plausible" prose note (`create-design/SKILL.md`) plus a **marketplace-only** pre-commit/CI `mermaid-lint` hook (`.pre-commit-config.yaml`, `tests/acs/mermaid_lint.py`) that lints only this marketplace's own committed docs; **G36** promotes this to a **verifier-enforced, consumer-general** gate that travels with the skill to any consumer repo (mirrors **C-20**). With no diagrams emitted and no doc produced, behavior is unchanged (additive/non-breaking, mirrors C-6/C-8/C-10/C-14). **Does not restate G29/C-15:** G36/C-21 own the diagram-validity + structure-conformance half; G29/C-15 keep the micro-readability (line-length/cell) half. **MECHANISM** (which lint; whether `mermaid_lint.py` is promoted into the plugin as the shared helper the verifiers import; the exact structure-conformance check shape) is **deferred to the implementing epic's design phase**. Serves **G36**.
 
 - **acs feature — brownfield requirements extraction produces DRAFT, human-confirmed requirements; additive/opt-in only; the mechanism is deferred (C-22).** Reverse-engineered requirements are a **DRAFT baseline the user MUST review and confirm** — never authoritative without human review (mirrors create-prd's brownfield reverse-engineer discipline and the C-5 "acs never auto-authors … without opt-in" guardrail). Extraction is **opt-in and additive**: it only bootstraps a requirements set where one is absent/incomplete; it **never overwrites human-authored requirements** or fabricates a behavioral contract the code does not evidence — **every extracted requirement carries a code-evidence citation**, and any feature area it cannot ground is surfaced as an **open point** rather than invented. With **no extraction invoked, behavior is byte-identical to today's incremental `/acs:code` population** (additive/non-breaking, mirrors C-6). **MECHANISM** (exact CLI flags, extraction algorithm, per-file section structure, pipeline sequencing details) is **deferred to the implementing epic's design phase**. Serves **G37**.
+
+- **acs feature — doc citations are RELOCATED, not DELETED; G37 + C-15 preserved; mechanism deferred (C-23).** The human-facing doc bodies in `docs/architecture` + `docs/requirements` are decluttered by **moving code-evidence citations/sources to a machine-facing sidecar/appendix**, NOT by deleting them — **G37's 100%-code-cited contract** (the G37 metric) and its **DRAFT / human-confirm markers (C-22)** are **unchanged**: citation coverage stays **100%**, only relocated (mirrors the C-15 "archive evidence, don't inline" precedent). Additive/non-breaking: with the feature off, docs are byte-identical to today. **MECHANISM** (sidecar file vs appendix section, per-skill scope, which producer skills go blocking) is **deferred to the implementing epic's design phase** (mirrors C-15/C-21). Serves **G38**.
+
+- **acs feature — configurable design/spec templates mirror `pr_description_template`; additive; mechanism deferred (C-24).** `formats.design_template` / `formats.spec_template` resolve a built-in name / `.acs/templates/<name>.md` / absolute path — **identical resolution to `formats.pr_description_template`** — with a required-sections companion **defaulted from the template** (mirrors `enforcement.pr_description_sections`). Consumer-general (**C-20**): any consumer supplies its own template. Additive/non-breaking: **absent key = today's built-in default, byte-identical** (mirrors C-6/C-8). Because `formats` is `additionalProperties:false` in the settings schema, the new keys must be **declared in the schema**, not free-formed — but that, and how the configurable template reconciles with create-design's / create-spec's existing hardcoded `required_sections`, is **MECHANISM deferred to the implementing epic's design phase**. Serves **G39**.
 
 ## Out of scope
 
