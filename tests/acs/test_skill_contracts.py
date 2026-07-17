@@ -2551,16 +2551,20 @@ class TestSpecSimplicityGate(unittest.TestCase):
 
     # --- AC-7: verifier dimension count unchanged (regression guard) ---
 
-    def test_create_spec_verifier_still_four_dimensions(self):
-        """AC-7/C-4: create-spec-verifier.md must still declare exactly four
-        numbered dimensions, and no fifth/'spec-simplicity' dimension may be
-        added — regression guard, green from the start."""
+    def test_create_spec_verifier_no_spec_simplicity_dimension(self):
+        """C-4: create-spec-verifier.md must never gain a 'spec-simplicity'
+        dimension — the spec-simplicity gate is planner-only (surface, not
+        block). The verifier declares five numbered dimensions since MAR-150
+        appended the net-new blocking `audience-style` dimension (AC-2) after
+        the original four (design-conformance, acceptance-coverage,
+        completeness, consistency)."""
         body = self._verifier()
         dimensions = re.findall(r"^[0-9]+\.\s+\*\*", body, re.M)
         self.assertEqual(
-            len(dimensions), 4,
-            "create-spec-verifier.md must declare exactly 4 numbered "
-            "dimensions (MAR-88 AC-7/C-4); found %d" % len(dimensions))
+            len(dimensions), 5,
+            "create-spec-verifier.md must declare exactly 5 numbered "
+            "dimensions (4 original + MAR-150 audience-style); found %d"
+            % len(dimensions))
         self.assertNotIn(
             "spec-simplicity", body.lower(),
             "create-spec-verifier.md must not add a 'spec-simplicity' "

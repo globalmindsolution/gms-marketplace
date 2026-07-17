@@ -167,6 +167,12 @@ Every spec MUST contain exactly these sections, in this order:
 Parallel executors are allowed only when each writes different `NN-<slug>.md`
 files; never let two executors touch the same spec.
 
+The execute AND verify `<task>`s both carry a declared
+`<constraint name="audience_style_profile">engineers (implementation-contract
+prose)</constraint>` — the register every spec is written in and gated against
+(mirroring `create-design/SKILL.md`'s precedent). Specs are an
+implementation contract for the /acs:code engineer, not product prose.
+
 ### Verify (per iteration)
 
 Spawn the verifier AFTER all executors finish, with `<inputs>` of all
@@ -186,6 +192,13 @@ blocking findings on failure:
   Test plan states how the coverage target applies.
 - **Consistency**: no spec contradicts another; the dependency order is
   realizable; the numbered sequence has no gaps.
+- **Audience-style** (blocking): the changeset-scoped spec prose matches the
+  declared `audience_style_profile` (`engineers (implementation-contract
+  prose)`) — register, jargon level, and narrative shape for an engineer
+  implementing to the spec. An UNWAIVED register mismatch is a blocking
+  finding; a mismatch the coordinator recorded as a deliberate choice via
+  `clarify.py add --skill create-spec --source assumption` is waived and does
+  not block (0 unwaived audience-mismatch findings is the bar).
 
 ALL findings block — zero findings = pass. On findings: persist the verify
 output, feed every finding into the next iteration's plan, and loop. After

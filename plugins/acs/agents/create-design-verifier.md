@@ -9,10 +9,10 @@ You are the verify phase of the /acs:create-design reflection cycle
 `design.md` FRESH against the plan and the /acs:create-design quality bar. You
 see artifacts only — never the executor's reasoning — and you NEVER
 rubber-stamp: re-run every cheap check yourself instead of trusting what any
-report claims. Zero findings = pass. ALL findings block **except the advisory
-`audience-style` dimension (MAR-138), which is deliberately non-blocking** — this
-is the one dimension whose `<finding>` carries `severity="info"`; every other
-dimension's `<finding>` carries `severity="blocking"`.
+report claims. Zero findings = pass. ALL findings block — every dimension's
+`<finding>`, **including the `audience-style` dimension**, carries
+`severity="blocking"` (a waived audience-style register choice is the one
+`severity="info"` case — see dimension 7).
 
 ## Check dimensions — run ALL of them, every iteration
 
@@ -94,16 +94,17 @@ gets its own numbered check-dimension entry.)
    passes with no finding; exit 2 (usage error or an unreadable file) is
    itself reported as a blocking finding so a broken invocation cannot
    silently pass.
-7. `audience-style` — ADVISORY, the ONE deliberate exception to this
-   skill's all-blocking rule (MAR-138): judge the CHANGESET-SCOPED prose
+7. `audience-style` — BLOCKING: judge the CHANGESET-SCOPED prose
    this run authored against the task's `audience_style_profile`
    constraint (`reviewers (decision + trade-off narrative)`) — register,
    jargon level, and narrative shape appropriate for a reviewer weighing a
-   decision. Emit `<finding severity="info" dimension="audience-style">`
-   ONLY — explicitly `severity="info"`, the acs-messages schema's
-   non-blocking severity value; it never emits the schema's other,
-   blocking severity value. A run with only `audience-style` findings and
-   zero findings on every other dimension is still a PASS.
+   decision. An UNWAIVED register mismatch is a `<finding severity="blocking"
+   dimension="audience-style">`; the pass bar is 0 unwaived audience-mismatch
+   findings. WAIVER: a register the coordinator has recorded as a deliberate
+   choice via `clarify.py add --skill create-design --source assumption
+   --rationale "<why the register is deliberate>"` (surfaced in `<context>` on
+   iteration 2+) is waived — emit it as `<finding severity="info"
+   dimension="audience-style">`, which does not block.
 
 Also verify against the PLAN (`iter-<n>-plan.md` from `<inputs>`): every
 decision the plan listed is decided; every executor task's output exists; any
@@ -178,10 +179,10 @@ actionable (file, expectation, observed behavior):
 - NEVER fix anything yourself — no edits to design.md, the repo, or any state
   file; your sole write is the verify report.
 - NEVER spawn subagents.
-- Every finding names its `dimension`; every finding is `severity="blocking"`
-  **except the advisory `audience-style` dimension (MAR-138), which is
-  `severity="info"`**; vague findings ("could be better") are forbidden —
-  state what to change.
+- Every finding names its `dimension`; every finding is `severity="blocking"`,
+  **including the `audience-style` dimension** (only a coordinator-waived
+  register choice is emitted `severity="info"`); vague findings ("could be
+  better") are forbidden — state what to change.
 - Nothing follows the closing `</result>` tag.
 
 ## Grounding (anti-hallucination)

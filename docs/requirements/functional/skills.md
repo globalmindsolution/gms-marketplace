@@ -282,8 +282,9 @@ else is verified against.
   nothing contradicts the stated constraints, and every roadmap milestone
   resolves to exactly one release version (0 orphan milestones) — plus a
   deterministic `structure` floor (declared `required_sections`, blocking)
-  and an advisory `audience-style` check (declared audience/style profile,
-  non-blocking).
+  and a blocking `audience-style` check (declared audience/style profile; an
+  unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
+  makes it `severity="info"`, non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -338,7 +339,9 @@ living system documentation the whole pipeline designs and verifies against.
   agree with each other** (every participant in a sequence diagram exists
   in the C4 views) — plus a deterministic `structure` floor over the
   prose-structured files (declared `required_sections:<file>`, blocking)
-  and an advisory `audience-style` check (non-blocking).
+  and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
+  a `clarify.py --source assumption` waiver makes it `severity="info"`,
+  non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -376,7 +379,9 @@ pipeline verifies against.
   the tailored content conforms to the architecture set (stack/technology
   claims agree with `architecture/hld/tech-stack.md`), plus a deterministic
   `structure` floor over each file (declared `required_sections:<file>`,
-  blocking) and an advisory `audience-style` check (non-blocking).
+  blocking) and a blocking `audience-style` check (an unwaived
+  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
+  `severity="info"`, non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -411,7 +416,9 @@ operations contract the pipeline and the on-call team run against.
   checks the tailored content conforms to the architecture set (component/
   deployment claims agree with `architecture/hld/`), plus a deterministic
   `structure` floor over each file (declared `required_sections:<file>`,
-  blocking) and an advisory `audience-style` check (non-blocking).
+  blocking) and a blocking `audience-style` check (an unwaived
+  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
+  `severity="info"`, non-blocking).
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -442,7 +449,9 @@ engineering principles and their rationale — the standing values contract
 - Runs the full Reflection cycle — `create-principles-planner`,
   `create-principles-executor`, `create-principles-verifier` — including a
   deterministic `structure` floor (declared `required_sections`, blocking)
-  and an advisory `audience-style` check (non-blocking). The planner
+  and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
+  a `clarify.py --source assumption` waiver makes it `severity="info"`,
+  non-blocking). The planner
   phase also runs the shared ADR-0012 design-time doc-consistency step,
   surfacing gap/staleness findings through the existing clarification ledger;
   the verifier's `consistency` dimension confirms any such findings were
@@ -479,8 +488,10 @@ values contract.
 - Runs the full Reflection cycle — `create-standards-planner`,
   `create-standards-executor`, `create-standards-verifier` — including a
   deterministic `structure` floor over each file (declared
-  `required_sections:<file>`, blocking) and an advisory `audience-style`
-  check (non-blocking). The planner phase also runs the shared ADR-0012
+  `required_sections:<file>`, blocking) and a blocking `audience-style`
+  check (an unwaived audience-mismatch blocks; a `clarify.py --source
+  assumption` waiver makes it `severity="info"`, non-blocking). The planner
+  phase also runs the shared ADR-0012
   design-time doc-consistency step, surfacing gap/staleness findings
   through the existing clarification ledger; the verifier's `consistency`
   dimension confirms any such findings were resolved or explicitly
@@ -527,7 +538,9 @@ and one file per NFR item under `non-functional/`.
 - Runs the full Reflection cycle — `create-requirements-planner`,
   `create-requirements-executor`, `create-requirements-verifier` —
   including a deterministic `structure` floor over each produced area file
-  (blocking) and an advisory `audience-style` check (non-blocking), plus the
+  (blocking) and a blocking `audience-style` check (an unwaived
+  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
+  `severity="info"`, non-blocking), plus the
   dimensions specific to this skill: coverage (≥90%, 0 silent omissions),
   citation (100%; user-answer-cited for greenfield, code-cited for
   brownfield), DRAFT-marker, no-fabrication, functional/non-functional
@@ -764,9 +777,10 @@ tickets where the change is architecturally significant.
   consistency with the existing codebase and docs (including conformance
   with the `standards/` doc set at `standards_path` when configured),
   feasibility, NFR coverage, and a deterministic `structure` floor
-  (declared `required_sections`) — all findings block **except** an
-  advisory `audience-style` check (declared audience/style profile,
-  non-blocking) — same 3-iteration reflection cap.
+  (declared `required_sections`) — all findings block, including a blocking
+  `audience-style` check (declared audience/style profile; an unwaived
+  audience-mismatch blocks, a `clarify.py --source assumption` waiver makes it
+  `severity="info"`, non-blocking) — same 3-iteration reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
   `create-design-verifier`.
 - The planner phase also runs the shared ADR-0012 design-time

@@ -96,15 +96,17 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    dimension passes with no finding for that file; exit 2 (usage error or an
    unreadable file) is itself reported as a blocking finding so a broken
    invocation cannot silently pass.
-13. **audience-style** — ADVISORY, never blocking: judge the CHANGESET-SCOPED
+13. **audience-style** — BLOCKING: judge the CHANGESET-SCOPED
    prose this run authored across the produced area files against the task's
    `audience_style_profile` constraint (`engineers (behavioral-contract
    prose)`) — register, jargon level, and narrative shape appropriate for an
-   engineer reader. Emit `<finding severity="info" dimension="audience-style">`
-   ONLY — explicitly `severity="info"`, the acs-messages schema's non-blocking
-   severity value; it never emits the schema's other, blocking severity value.
-   A run with only `audience-style` findings and zero findings on every other
-   dimension is still a PASS.
+   engineer reader. An UNWAIVED register mismatch is a `<finding
+   severity="blocking" dimension="audience-style">`; the pass bar is 0 unwaived
+   audience-mismatch findings. WAIVER: a register the coordinator has recorded
+   as a deliberate choice via `clarify.py add --skill create-requirements
+   --source assumption --rationale "<why the register is deliberate>"`
+   (surfaced in `<context>` on iteration 2+) is waived — emit it as `<finding
+   severity="info" dimension="audience-style">`, which does not block.
 
 ## Phase artifact
 
@@ -121,11 +123,11 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 - Stay in your phase: NEVER fix what you find, never edit a requirements area file or
   any repo or workspace state file. Bash is for read-only inspection (`git diff`,
   `git log`, `grep`, `ls`) — the single permitted write is your report above.
-- ALL findings are blocking for create-requirements **except the advisory
-  `audience-style` dimension, which is deliberately non-blocking
-  (`severity="info"`)**: emit every other real issue as `<finding
-  severity="blocking" dimension="...">`; one `<finding>` per issue, never
-  bundled. An observation not worth blocking the PR over is not a finding — keep it
+- ALL findings are blocking for create-requirements: emit every real issue as
+  `<finding severity="blocking" dimension="...">`; one `<finding>` per issue,
+  never bundled. The one non-blocking case is a coordinator-waived
+  `audience-style` register choice, emitted `severity="info"` (dimension 13).
+  An observation not worth blocking the PR over is not a finding — keep it
   in the report as a note. Zero findings means you attest the doc set is ready to ship.
 
 ## Output contract
