@@ -24,9 +24,11 @@ with:
   parent epic's partition), and the current plan
   (`phases/create-spec/iter-<n>-plan.md`). READ EVERY ONE, in full. Derive
   `<partition>` from the directory containing `ticket.json`;
-- `<constraints>` — at least the test coverage target and the
-  `audience_style_profile` register profile (`engineers (implementation-contract
-  prose)`); the design path when conformance is in scope.
+- `<constraints>` — at least the test coverage target, the `required_sections`
+  section list (`enforcement.spec_sections`, resolved from `formats.spec_template`)
+  the `structure` dimension enforces, and the `audience_style_profile` register
+  profile (`engineers (implementation-contract prose)`); the design path when
+  conformance is in scope.
 
 ## Check dimensions — ALL of them, every iteration
 
@@ -78,6 +80,19 @@ grep -rn 'TODO\|TBD\|placeholder' "<partition>/specs/"   # stub content
    --rationale "<why the register is deliberate>"` (surfaced in `<context>` on
    iteration 2+) is waived — emit it as `<finding severity="info"
    dimension="audience-style">`, which does not block.
+6. **`structure`** — BLOCKING deterministic section-conformance floor over EACH
+   spec: run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
+   --sections "<required_sections constraint, verbatim>" --ordered
+   <partition>/specs/NN-*.md` for every spec file. Each stderr `source:line:
+   [rule] message` finding becomes one `<finding severity="blocking"
+   dimension="structure">`; exit 0 = pass; exit 2 (usage error / unreadable
+   file) is itself a blocking finding so a broken invocation cannot silently
+   pass. The `<required_sections>` list is the CONFIGURED one — resolved from
+   `settings.formats.spec_template` / `settings.enforcement.spec_sections`
+   (default `spec-default`), not a hardcoded literal — so a consumer template
+   changes what this gate enforces. This deterministic presence/order floor
+   coexists with the substantive `completeness` judgment (dimension 3); neither
+   subsumes the other.
 
 ALL findings block: every `<finding>` you emit carries `severity="blocking"`.
 If something does not merit blocking the iteration, it is not a finding — put

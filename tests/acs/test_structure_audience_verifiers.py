@@ -409,7 +409,9 @@ class CreateSpecDeclarationTest(unittest.TestCase):
     """AC-2: create-spec gains the audience gate net-new — SKILL.md declares
     `engineers (implementation-contract prose)` and forwards it into verify;
     create-spec-verifier.md carries a blocking `audience-style` dimension
-    appended after `consistency`, with NO structure dimension (MAR-151)."""
+    appended after `consistency`. MAR-151 (Decision C) subsequently layered
+    a blocking `structure` dimension on top (see
+    test_verifier_has_structure_dimension_and_lint below)."""
 
     def test_skill_declares_profile(self):
         body = read(CREATE_SPEC_SKILL)
@@ -442,14 +444,16 @@ class CreateSpecDeclarationTest(unittest.TestCase):
         self.assertLess(consistency_start, audience_start,
                          "create-spec-verifier: audience-style must be appended after consistency")
 
-    def test_verifier_has_no_structure_dimension_or_lint(self):
+    def test_verifier_has_structure_dimension_and_lint(self):
         # Serialize guard (design R5): MAR-151 (Decision C) owns the structure
-        # dimension for create-spec — MAR-150 must not add it.
+        # dimension for create-spec — now landed, layered on top of MAR-150's
+        # audience-style dimension. (This guard was the RED->GREEN flip of the
+        # MAR-150-era `test_verifier_has_no_structure_dimension_or_lint`.)
         body = read(CREATE_SPEC_VERIFIER)
-        self.assertFalse(dimension_present(body, "structure"),
-                          "create-spec-verifier must NOT gain a structure dimension (that is MAR-151)")
-        self.assertNotIn("structure_lint", body,
-                          "create-spec-verifier must NOT reference structure_lint (that is MAR-151)")
+        self.assertTrue(dimension_present(body, "structure"),
+                         "create-spec-verifier must gain a structure dimension (MAR-151)")
+        self.assertIn("structure_lint", body,
+                       "create-spec-verifier must reference structure_lint (MAR-151)")
 
     def test_verifier_input_contract_names_profile(self):
         body = read(CREATE_SPEC_VERIFIER)

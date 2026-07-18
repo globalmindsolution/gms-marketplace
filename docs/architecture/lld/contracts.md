@@ -115,7 +115,10 @@ its own — and wired as the `E2E suite` required-check context.
 companions `enforcement.design_sections` and `enforcement.spec_sections` default
 from the configured template — the built-in defaults encode today's exact
 required-section lists, so an absent key is byte-identical to the prior hardcoded
-gate (ADR 0065).
+gate (ADR 0065). Both verifiers enforce the resolved list as a blocking
+`structure` dimension via `structure_lint.py`: create-design's was already
+present; create-spec now runs `structure_lint.py` as a net-new blocking
+`structure` dimension (MAR-151), mirroring create-design.
 `requirements_path` resolves a **functional** and a **non-functional**
 subfolder via `requirements_layout` (`functional_subdir`/
 `non_functional_subdir`, default `"functional"`/`"non-functional"`).
