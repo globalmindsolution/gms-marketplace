@@ -170,13 +170,15 @@
       "additionalProperties": true
     },
     "formats": {
-      "description": "Formats for generated artifacts. Inline fields use {placeholder} syntax; an unknown placeholder is a validation error (pre-hooks exit 2). branch_name MUST embed {ticket_id}. {ticket_ref} is pr_title-scoped only -- it renders the tracker's native reference when the ticket is synced (#<issue-number> for github, <JIRA-KEY> for jira) and the local ticket id when unsynced; it is not valid in branch_name or commit_message. Description templates are referenced by built-in name (pr-default, epic-default, story-default, task-default), repo-relative name under .acs/templates/, or absolute path.",
+      "description": "Formats for generated artifacts. Inline fields use {placeholder} syntax; an unknown placeholder is a validation error (pre-hooks exit 2). branch_name MUST embed {ticket_id}. {ticket_ref} is pr_title-scoped only -- it renders the tracker's native reference when the ticket is synced (#<issue-number> for github, <JIRA-KEY> for jira) and the local ticket id when unsynced; it is not valid in branch_name or commit_message. Description and section templates are referenced by built-in name (pr-default, epic-default, story-default, task-default, design-default, spec-default), repo-relative name under .acs/templates/, or absolute path.",
       "type": "object",
       "properties": {
         "branch_name": {"type": "string", "pattern": ".*\\{ticket_id\\}.*", "default": "{type}/{ticket_id}-{slug}"},
         "commit_message": {"type": "string", "default": "{ticket_id} {summary}"},
         "pr_title": {"type": "string", "default": "[{ticket_ref}] {title}"},
         "pr_description_template": {"type": "string", "default": "pr-default"},
+        "design_template": {"type": "string", "default": "design-default"},
+        "spec_template": {"type": "string", "default": "spec-default"},
         "tickets": {
           "type": "object",
           "propertyNames": {"enum": ["epic", "story", "task"]},
@@ -217,7 +219,9 @@
         "require_label": {"type": "string", "default": "ACS", "description": "Label the acs_label check requires on every non-exempt PR (the label /acs:create-pr applies)."},
         "exempt_label": {"type": "string", "default": "acs-exempt", "description": "A PR carrying this label skips all checks (for legitimate non-ticket PRs)."},
         "exempt_branches": {"type": "array", "items": {"type": "string"}, "default": ["release/*", "dependabot/*", "renovate/*"], "description": "Branch-name globs (fnmatch) that skip all checks — releases, bot PRs, etc."},
-        "pr_description_sections": {"type": "array", "items": {"type": "string"}, "default": ["Summary", "Ticket", "Changes", "Test plan"], "description": "Markdown section headings the pr_description check requires in the PR body; defaulted from the configured pr_description_template."}
+        "pr_description_sections": {"type": "array", "items": {"type": "string"}, "default": ["Summary", "Ticket", "Changes", "Test plan"], "description": "Markdown section headings the pr_description check requires in the PR body; defaulted from the configured pr_description_template."},
+        "design_sections": {"type": "array", "items": {"type": "string"}, "default": ["Context & constraints", "Options considered", "Decision & rationale", "Architecture", "Impact & risks", "Rollout/migration"], "description": "Markdown section headings the create-design structure gate requires in design.md; defaulted from the configured formats.design_template."},
+        "spec_sections": {"type": "array", "items": {"type": "string"}, "default": ["Scope", "Approach", "API/data changes", "Test plan", "Out of scope"], "description": "Markdown section headings the create-spec structure gate requires in each spec; defaulted from the configured formats.spec_template."}
       },
       "additionalProperties": true
     },
