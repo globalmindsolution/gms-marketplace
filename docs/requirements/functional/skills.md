@@ -777,8 +777,10 @@ tickets where the change is architecturally significant.
   consistency with the existing codebase and docs (including conformance
   with the `standards/` doc set at `standards_path` when configured),
   feasibility, NFR coverage, and a deterministic `structure` floor
-  (declared `required_sections`) — all findings block, including a blocking
-  `audience-style` check (declared audience/style profile; an unwaived
+  (declared `required_sections`, **configurable** via
+  `formats.design_template` / `enforcement.design_sections` — byte-identical
+  to the built-in default when unset) — all findings block, including a
+  blocking `audience-style` check (declared audience/style profile; an unwaived
   audience-mismatch blocks, a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking) — same 3-iteration reflection cap.
 - Subagents: `create-design-planner`, `create-design-executor`,
@@ -830,6 +832,15 @@ Purpose: turn a ticket into implementation specs.
 - When a design exists (the ticket's own or its parent epic's), specs MUST
   **conform to it**, and the `create-spec-verifier` MUST check that
   conformance.
+- The `create-spec-verifier` also enforces a deterministic **blocking
+  `structure` floor** over each spec (declared `required_sections`), mirroring
+  the producer skills: the five-section contract above is deterministically
+  gated, not merely prose-required. The required-section list is
+  **configurable** via `formats.spec_template` / `enforcement.spec_sections`
+  (as create-design's is via `formats.design_template` /
+  `enforcement.design_sections`) — byte-identical to the built-in default when
+  unset. This structure floor is unrelated to the spec-simplicity gate above,
+  which remains planner-only and adds no verifier dimension.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.

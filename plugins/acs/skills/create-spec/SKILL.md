@@ -167,11 +167,26 @@ Every spec MUST contain exactly these sections, in this order:
 Parallel executors are allowed only when each writes different `NN-<slug>.md`
 files; never let two executors touch the same spec.
 
-The execute AND verify `<task>`s both carry a declared
-`<constraint name="audience_style_profile">engineers (implementation-contract
-prose)</constraint>` — the register every spec is written in and gated against
-(mirroring `create-design/SKILL.md`'s precedent). Specs are an
-implementation contract for the /acs:code engineer, not product prose.
+The execute AND verify `<task>`s both carry two declared constraints —
+`<constraint name="required_sections">Scope; Approach; API/data changes; Test plan;
+Out of scope</constraint>` and `<constraint name="audience_style_profile">engineers
+(implementation-contract prose)</constraint>` — the section contract and the
+register every spec is written in and gated against (mirroring
+`create-design/SKILL.md`'s precedent). Specs are an implementation contract for the
+/acs:code engineer, not product prose.
+
+`required_sections` is settings-sourced: the coordinator RESOLVES the configured
+`settings.formats.spec_template` (default `spec-default`) exactly as `create-pr`
+resolves `pr_description_template` — a built-in name (`spec-default`) maps to
+`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`; otherwise
+`<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path — and passes
+`settings.enforcement.spec_sections` (the five headings above, defaulted from that
+template) as the `required_sections` constraint on the execute and verify tasks.
+Because `enforcement.spec_sections` defaults to exactly the five authored sections,
+an absent `spec_template`/`spec_sections` key leaves the existing spec contract
+unchanged; a consumer repo that supplies its own
+`<checkout_root>/.acs/templates/spec-default.md` (or a custom-named template plus a
+matching `enforcement.spec_sections`) has its specs gated against ITS sections.
 
 ### Verify (per iteration)
 
@@ -199,6 +214,13 @@ blocking findings on failure:
   finding; a mismatch the coordinator recorded as a deliberate choice via
   `clarify.py add --skill create-spec --source assumption` is waived and does
   not block (0 unwaived audience-mismatch findings is the bar).
+- **Structure** (blocking): a deterministic section-conformance floor. The
+  verify `<task>`'s `<constraints>` carry `required_sections` (from
+  `settings.enforcement.spec_sections`, resolved from `formats.spec_template`)
+  alongside `audience_style_profile`; the verifier runs `structure_lint` over
+  each spec against that list — a missing or out-of-order required section is a
+  blocking finding, making the five-section contract above deterministically
+  enforced rather than merely prose-required.
 
 ALL findings block — zero findings = pass. On findings: persist the verify
 output, feed every finding into the next iteration's plan, and loop. After

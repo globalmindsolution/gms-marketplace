@@ -93,7 +93,10 @@ gets its own numbered check-dimension entry.)
    severity="blocking" dimension="structure">`; exit 0 means the dimension
    passes with no finding; exit 2 (usage error or an unreadable file) is
    itself reported as a blocking finding so a broken invocation cannot
-   silently pass.
+   silently pass. The `<required_sections>` list is the CONFIGURED one —
+   resolved from `settings.formats.design_template` /
+   `settings.enforcement.design_sections` (default `design-default`), not a
+   hardcoded literal — so a consumer template changes what this gate enforces.
 7. `audience-style` — BLOCKING: judge the CHANGESET-SCOPED prose
    this run authored against the task's `audience_style_profile`
    constraint (`reviewers (decision + trade-off narrative)`) — register,

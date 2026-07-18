@@ -2554,17 +2554,17 @@ class TestSpecSimplicityGate(unittest.TestCase):
     def test_create_spec_verifier_no_spec_simplicity_dimension(self):
         """C-4: create-spec-verifier.md must never gain a 'spec-simplicity'
         dimension — the spec-simplicity gate is planner-only (surface, not
-        block). The verifier declares five numbered dimensions since MAR-150
-        appended the net-new blocking `audience-style` dimension (AC-2) after
-        the original four (design-conformance, acceptance-coverage,
-        completeness, consistency)."""
+        block). The verifier declares six numbered dimensions: the original
+        four (design-conformance, acceptance-coverage, completeness,
+        consistency), MAR-150's net-new blocking `audience-style` dimension,
+        and MAR-151's net-new blocking `structure` dimension."""
         body = self._verifier()
         dimensions = re.findall(r"^[0-9]+\.\s+\*\*", body, re.M)
         self.assertEqual(
-            len(dimensions), 5,
-            "create-spec-verifier.md must declare exactly 5 numbered "
-            "dimensions (4 original + MAR-150 audience-style); found %d"
-            % len(dimensions))
+            len(dimensions), 6,
+            "create-spec-verifier.md must declare exactly 6 numbered "
+            "dimensions (4 original + MAR-150 audience-style + MAR-151 "
+            "structure); found %d" % len(dimensions))
         self.assertNotIn(
             "spec-simplicity", body.lower(),
             "create-spec-verifier.md must not add a 'spec-simplicity' "

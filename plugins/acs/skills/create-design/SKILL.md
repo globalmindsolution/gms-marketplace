@@ -171,11 +171,26 @@ partition — never the consumer repo). Required sections, exactly these heading
 ```
 
 The plan, execute, and verify tasks all carry two declared constraints —
-`<constraint name="required_sections">Context &amp; constraints; Options considered;
-Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
-(the same six headings above) and `<constraint name="audience_style_profile">reviewers
+`required_sections` and `<constraint name="audience_style_profile">reviewers
 (decision + trade-off narrative)</constraint>` — mirroring `create-prd/SKILL.md`'s
 precedent.
+
+`required_sections` is settings-sourced, NOT a hardcoded literal: the coordinator
+RESOLVES the configured `settings.formats.design_template` (default
+`design-default`) exactly as `create-pr` resolves `pr_description_template` — a
+built-in name (`design-default`) maps to `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`;
+otherwise `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path —
+and passes `settings.enforcement.design_sections` (the section list defaulted from
+that template) as the constraint on the plan/execute/verify tasks:
+`<constraint name="required_sections">Context &amp; constraints; Options considered;
+Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
+(the same six headings above). Because `enforcement.design_sections` defaults to
+exactly that list, an absent `design_template`/`design_sections` key yields the
+identical constraint — byte-identical to the prior hardcoded gate. A consumer repo
+that supplies its own `<checkout_root>/.acs/templates/design-default.md` (or a
+custom-named template plus a matching `enforcement.design_sections`) has its
+`design.md` gated against ITS sections. The `audience_style_profile` constraint
+(MAR-150) is unchanged.
 
 If `settings.adr_path` is set, the executor adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
