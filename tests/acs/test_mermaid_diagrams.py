@@ -24,7 +24,9 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 import mermaid_lint  # noqa: E402
+import evidence_sidecar  # noqa: E402
 
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".claude"}
 
@@ -34,7 +36,10 @@ def _markdown_files(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for name in filenames:
             if name.endswith(".md"):
-                yield os.path.join(dirpath, name)
+                path = os.path.join(dirpath, name)
+                if evidence_sidecar.is_evidence_sidecar(path):
+                    continue
+                yield path
 
 
 class TestMermaidLinter(unittest.TestCase):
