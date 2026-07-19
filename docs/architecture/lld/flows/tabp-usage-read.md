@@ -81,7 +81,8 @@ The helper aggregates across all processed runs:
 - `total_duration_seconds` — sum including unavailable runs (duration is
   available even when token/cost data is not).
 - `total_tokens_in`, `total_tokens_out`, `total_cost_usd` — sum **excluding**
-  unavailable runs (`tabp_helper.py:1072-1077`).
+  unavailable runs (`tabp_helper.py`; see the companion `tabp-usage-read.evidence.md`
+  sidecar for the exact anchor).
 - Aggregate `cost_basis` — `"actual"` if any run has actual data; `"estimate"`
   if any run is an estimate; `"unavailable"` if all runs are unavailable.
 - `pricing_snapshot_date` — the date of the pricing table snapshot used for

@@ -102,7 +102,8 @@ runtime.
 Every `screen-cvs` run is re-judged by an independent verifier subagent before
 results are presented to the recruiter. This behavior implements the
 engineering-rigor NFR (`prd.md:141-154`) and fulfils the upgrade-path note
-deferred in MAR-2 (`SKILL.md:173-177` prior to MAR-37).
+deferred in MAR-2 (`SKILL.md` prior to MAR-37; see the companion `tabp.evidence.md`
+sidecar for the exact anchor).
 
 ### Behavioral contract
 

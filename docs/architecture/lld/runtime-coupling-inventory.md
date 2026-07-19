@@ -48,29 +48,35 @@ original "no-bypass shim" framing is refuted by the official Codex docs).
 Source: `MAR-3/design.md:234-243` (reproduced exactly; anchors re-verified against the live repo
 immediately before commit).
 
+The full `path:line` anchors for the "Verified entry points" column live in the
+companion `runtime-coupling-inventory.evidence.md` sidecar (Decision B / ADR
+0064), keyed by surface; this table names the bare source files only.
+
 | # | Surface | Claude Code mechanism | Verified entry points | Codex CLI equivalent | Owning child |
 |---|---------|----------------------|-----------------------|---------------------|--------------|
-| 1 | Hook gating | `PreToolUse(Skill)` → `dispatch.py pre` → exit-2 blocks before coordinator runs | `hooks.json:3-14` (PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30); `dispatch.py:25-38` (`def skill_name_from_payload`); `dispatch.py:41-75` (`def main()` — routes by skill, exit 2 on missing/blocked); `acs_lib.py:43` (`HOOKED_SKILLS` allowlist) | **Corrected:** Codex has **no `Skill` matcher** and `PreToolUse` is a guardrail, not an enforcement boundary. Gate via `PreToolUse` on `Bash`/`apply_patch` returning `permissionDecision:deny` (or exit 2), reusing `dispatch.py` via `${CLAUDE_PLUGIN_ROOT}`. **Best-effort by default; non-bypassable only via org-managed `requirements.toml` hooks.** (Original "no-bypass shim" is unachievable — refuted; PR #134 rejected.) | MAR-5 |
-| 2 | Session termination | `SessionEnd` → `dispatch.py session-end` → `interrupted` + lock release | `hooks.json:16-26` (SessionEnd hook, command `dispatch.py session-end`, timeout 30); `dispatch.py:49-54` (session-end branch → `acs_lib.session_end`); `acs_lib.py:1621` (`def session_end`) | **Corrected:** Codex has **no `SessionEnd` event**. `Stop` is per-turn (fires at every turn end, requires JSON on stdout, `decision:block` means *continue*) — so it must **not** be mapped to `dispatch.py session-end` (that would release the lock mid-session). Session finalization / lock release on Codex is **lease / next-run-reconcile** based. | MAR-5 |
+| 1 | Hook gating | `PreToolUse(Skill)` → `dispatch.py pre` → exit-2 blocks before coordinator runs | `hooks.json` (PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30); `dispatch.py` (`def skill_name_from_payload`); `dispatch.py` (`def main()` — routes by skill, exit 2 on missing/blocked); `acs_lib.py` (`HOOKED_SKILLS` allowlist) | **Corrected:** Codex has **no `Skill` matcher** and `PreToolUse` is a guardrail, not an enforcement boundary. Gate via `PreToolUse` on `Bash`/`apply_patch` returning `permissionDecision:deny` (or exit 2), reusing `dispatch.py` via `${CLAUDE_PLUGIN_ROOT}`. **Best-effort by default; non-bypassable only via org-managed `requirements.toml` hooks.** (Original "no-bypass shim" is unachievable — refuted; PR #134 rejected.) | MAR-5 |
+| 2 | Session termination | `SessionEnd` → `dispatch.py session-end` → `interrupted` + lock release | `hooks.json` (SessionEnd hook, command `dispatch.py session-end`, timeout 30); `dispatch.py` (session-end branch → `acs_lib.session_end`); `acs_lib.py` (`def session_end`) | **Corrected:** Codex has **no `SessionEnd` event**. `Stop` is per-turn (fires at every turn end, requires JSON on stdout, `decision:block` means *continue*) — so it must **not** be mapped to `dispatch.py session-end` (that would release the lock mid-session). Session finalization / lock release on Codex is **lease / next-run-reconcile** based. | MAR-5 |
 | 3 | Reflection-subagent dispatch | `Agent` tool spawns planner/executor/verifier in separate contexts; XML `<task>`/`<result>` validated against `acs-messages.xsd` | `acs-messages.xsd` (`contracts.md:6-14`); validated by `validate_xml.py`; coordinator/agent invocation is prompt-layer; file-anchored via partition (`overview.md:30,41`) | **Corrected:** Codex spawns subagents **only on explicit request** and manages orchestration itself; custom agents are `.codex/agents/*.toml` (fields `name`/`description`/`developer_instructions`) — a different format/location, **not plugin-bundled** — with `max_depth` default 1. The coordinator-driven planner/executor/verifier fan-out does **not** port 1:1. Native Codex custom-agents vs a single-agent fallback is an **open epic design decision**; the XML `<task>`/`<result>` artifact contract (`acs-messages.xsd`) stays unchanged whichever is chosen. | MAR-6 |
-| 4 | Per-role model/effort | `settings.models.<role>` + `overrides` → `acs_lib.resolve_role_model` | `acs_lib.py:485-500` (`def resolve_role_model(settings, skill, role)`); config surface `settings.schema.json` `models` block (`contracts.md:51-58`) | `settings.models.codex.<role>` → `resolve_role_model` with `runtime=codex` parameter (MAR-6 adds `runtime` param); FAIL on rejected model/effort unchanged | MAR-6 |
+| 4 | Per-role model/effort | `settings.models.<role>` + `overrides` → `acs_lib.resolve_role_model` | `acs_lib.py` (`def resolve_role_model(settings, skill, role)`); config surface `settings.schema.json` `models` block (`contracts.md:51-58`) | `settings.models.codex.<role>` → `resolve_role_model` with `runtime=codex` parameter (MAR-6 adds `runtime` param); FAIL on rejected model/effort unchanged | MAR-6 |
 | 5 | Cost/token sourcing | Coordinator fills `tokens`/`cost_usd` in result doc; ADR-0026 hybrid precedent | `data-model.md:46-54` (RUN_ENTRY `tokens`/`cost_usd` fields); `contracts.md:21` (result doc contract); `docs/adr/0026-tabp-hybrid-cost-sourcing.md` | `~/.codex/sessions/` token actuals if available; OpenAI pricing snapshot added; `cost_basis` label preserves auditability; `cost_basis=estimate` fallback when session token source unavailable | MAR-6/MAR-7 |
 
 ### Entry-point anchor verification record
 
 The following table records the re-verification performed against the live repo immediately
-before commit (re-verification mandate from `iter-1-plan.md:38`):
+before commit (re-verification mandate from `iter-1-plan.md:38`). The full `path:line` anchor
+for each entry point named below lives in the companion `runtime-coupling-inventory.evidence.md`
+sidecar (Decision B / ADR 0064); the Anchor column here names the bare source file only:
 
 | Anchor | Entry point named | Verification |
 |--------|-------------------|--------------|
-| `hooks.json:3-14` | PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30 | Line 3: `"PreToolUse": [`; line 5: `"matcher": "Skill"`; line 9: command with `dispatch.py pre`; line 10: `"timeout": 30` — confirmed |
-| `hooks.json:16-26` | SessionEnd hook, command `dispatch.py session-end`, timeout 30 | Line 16: `"SessionEnd": [`; line 21: command with `dispatch.py session-end`; line 22: `"timeout": 30` — confirmed |
-| `dispatch.py:25-38` | `def skill_name_from_payload(payload)` | Line 25: `def skill_name_from_payload(payload):`; function ends at line 38 — confirmed |
-| `dispatch.py:41-75` | `def main()` — routes by skill, exit 2 on missing/blocked | Line 41: `def main():`; line 75: `sys.exit(proc.returncode)` — confirmed |
-| `dispatch.py:49-54` | session-end branch → `acs_lib.session_end` | Line 49: `if mode == "session-end":`; line 51: `acs_lib.session_end(payload)`; line 54: `sys.exit(0)` — confirmed |
-| `acs_lib.py:43` | `HOOKED_SKILLS` allowlist | Line 43: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS` — confirmed |
-| `acs_lib.py:485-500` | `def resolve_role_model(settings, skill, role)` | Line 485: `def resolve_role_model(settings, skill, role):`; function ends at line 500 — confirmed |
-| `acs_lib.py:1621` | `def session_end(payload)` | Line 1621: `def session_end(payload):` — confirmed |
+| `hooks.json` | PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30 | Line 3: `"PreToolUse": [`; line 5: `"matcher": "Skill"`; line 9: command with `dispatch.py pre`; line 10: `"timeout": 30` — confirmed |
+| `hooks.json` | SessionEnd hook, command `dispatch.py session-end`, timeout 30 | Line 16: `"SessionEnd": [`; line 21: command with `dispatch.py session-end`; line 22: `"timeout": 30` — confirmed |
+| `dispatch.py` | `def skill_name_from_payload(payload)` | Line 25: `def skill_name_from_payload(payload):`; function ends at line 38 — confirmed |
+| `dispatch.py` | `def main()` — routes by skill, exit 2 on missing/blocked | Line 41: `def main():`; line 75: `sys.exit(proc.returncode)` — confirmed |
+| `dispatch.py` | session-end branch → `acs_lib.session_end` | Line 49: `if mode == "session-end":`; line 51: `acs_lib.session_end(payload)`; line 54: `sys.exit(0)` — confirmed |
+| `acs_lib.py` | `HOOKED_SKILLS` allowlist | Line 43: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS` — confirmed |
+| `acs_lib.py` | `def resolve_role_model(settings, skill, role)` | Line 485: `def resolve_role_model(settings, skill, role):`; function ends at line 500 — confirmed |
+| `acs_lib.py` | `def session_end(payload)` | Line 1621: `def session_end(payload):` — confirmed |
 | `contracts.md:6-14` | XML coordinator ↔ subagent contract, `acs-messages.xsd` reference | Line 6: `## Coordinator ↔ subagent (XML, ...acs-messages.xsd...)`; lines 8-12 table; line 14: `Validation:...` — confirmed |
 | `contracts.md:51-58` | Settings `models` block | Line 51: `## Settings (consumer repo)`; lines 52-58: `.acs/settings.json...models...` — confirmed |
 | `data-model.md:46-54` | RUN_ENTRY `tokens`/`cost_usd` fields | Line 46: `RUN_ENTRY {`; line 49: `json tokens "input/output"`; line 50: `number cost_usd`; line 54: `}` — confirmed |
