@@ -61,7 +61,16 @@ coordinator: read the plan and every input file yourself before writing anything
 5. Existing codebase: ground every claim in the actual code — verify each documented
    component, datastore, and framework against real files before writing it; never
    invent components. Greenfield: every element traces to a PRD feature, NFR, or
-   constraint.
+   constraint. When a documented clause/fact would otherwise carry an in-scope
+   code-evidence citation (`path:line` — `py`/`json`/`sh`/`xsd` extensions, or
+   `SKILL.md:line`), write the clause/fact and its stable anchor (reuse an
+   existing row/section identity where the doc already has one, else an
+   explicit `{#<slug>}`) in the body — no inline `path:line` — and the
+   citation(s) to that doc's companion `.evidence.md` sidecar
+   (`<doc-basename-without-.md>.evidence.md`, created if absent), keyed by the
+   anchor; a doc with zero in-scope citations gets no sidecar. This is the
+   SAME `.evidence.md` sidecar convention `create-requirements-executor.md`
+   uses — reuse it, never fork a second scheme.
 6. Regeneration runs: preserve still-accurate existing content, update what shifted —
    do not rewrite sections the plan does not touch.
 7. **Delivery — only when your task explicitly includes it** (the plan gates it on

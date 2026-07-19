@@ -130,7 +130,11 @@ codebase-inventory fallback, DRAFT/code-cited; ADR 0061), greenfield elicit
 amend (augments only absent/ungrounded area files, preserving existing files
 byte-for-byte) — each DRAFT / human-confirm-required via interactive-confirm
 before write; `/acs:code`'s requirements-merge (above) continues to write
-into the same model afterward.
+into the same model afterward. Code-cited coverage stays 100% — relocated,
+never reduced — but a code-cited clause's citation(s) live in that doc's
+companion `.evidence.md` sidecar, not inline in the body; the body keeps the
+clause text, its stable anchor, and any C-22 `DRAFT — human-confirm-required`
+marker (the sidecar convention, Decision B / ADR 0064).
 
 Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
 

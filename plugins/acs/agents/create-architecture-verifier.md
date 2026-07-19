@@ -37,6 +37,13 @@ coordinator: read every input yourself.
    code with Grep/Glob — named services, datastores, frameworks, and integrations
    actually present; no real top-level component missing from the container view.
    Greenfield: every container/component traces to a PRD feature, NFR, or constraint.
+   When a doc carries a companion `.evidence.md` sidecar: grep the doc's body for
+   the in-scope code-evidence citation regex (`py`/`json`/`sh`/`xsd` extensions, or
+   `SKILL.md:line`) and confirm **0** matches — the body carries no inline
+   `path:line`; join every clause/fact anchor in the body to **>= 1** entry in the
+   sidecar; confirm each cited `path:line` in the sidecar still exists in the repo.
+   An inline body citation, an anchor that fails to join to the sidecar, or a
+   sidecar entry whose `path:line` no longer exists is a blocking finding.
 4. **mermaid-diagrams** — every diagram is a fenced ```mermaid block with a valid first
    keyword (`C4Context`, `C4Container`, `C4Component`, `erDiagram`, `sequenceDiagram`,
    `flowchart`, `stateDiagram`); fences balanced; no images or ASCII diagrams. Run `Bash

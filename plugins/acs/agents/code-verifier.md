@@ -102,6 +102,12 @@ ALL of the following — every dimension that fails produces blocking findings:
     into the wrong subfolder (functional when it should be non-functional
     per the rubric, or vice versa), or written outside
     `requirements_layout`'s resolved subfolders, is also a blocking finding.
+    When the changeset merges into a `requirements_path` file, the merged
+    body carries no inline in-scope code-evidence citation (`path:line` —
+    `py`/`json`/`sh`/`xsd` extensions, or `SKILL.md:line`); any code-evidence
+    backing the merge lives in that file's companion `.evidence.md` sidecar.
+    A merge that leaves an inline in-scope citation in the body is
+    `severity="blocking" dimension="documentation"`.
     A doc that contradicts the diff is a finding.
     **Product-doc-consistency check:** make a positive, evidenced determination
     of whether the changeset leaves any factual claim in `docs/product/prd.md`

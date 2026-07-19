@@ -57,13 +57,26 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
    planner-named candidate feature/NFR list) rather than an architecture/codebase
    enumeration — there is no codebase to re-enumerate; do not spuriously fail
    greenfield for "not matching the architecture view" when none exists.
-6. **Citation (100%)** — Grep-spot-check that every extracted requirement's
-   cited file/path actually exists in the repo and plausibly substantiates
-   the claim it supports; any uncited or wrongly-cited clause is a blocking
-   finding. For **greenfield**, "citation" means every clause traces to a
-   specific user answer (spot-check against the clarify-ledger record / the
-   plan's Q&A, not a repo file/path); a clause uncited to any answer is still a
-   blocking finding, the same bar as brownfield's uncited-to-code clause.
+6. **Citation (100%)** — for **brownfield/amend**, check the sidecar, not
+   just the body: (a) grep the produced body for the in-scope code-evidence
+   citation regex (repo source `path:line` — `py`/`json`/`sh`/`xsd`
+   extensions, or `SKILL.md:line`) and confirm **0** matches; (b) confirm a
+   `.evidence.md` sidecar exists for any doc containing at least one
+   code-cited clause (a doc with zero code-cited clauses needs none); (c)
+   Grep-spot-check-join every clause's anchor in the body to **>= 1** entry
+   in that sidecar, and confirm the entry's cited file/path actually exists
+   in the repo and plausibly substantiates the claim — the same
+   Grep-spot-check mechanism as before, its target moved from the body to
+   the sidecar; (d) in amend mode, confirm the sidecar's total citation count
+   for that doc is **not reduced** versus its prior committed version. Any
+   inline body citation, a missing sidecar, an anchor that fails to join to
+   >= 1 sidecar entry, or a reduced count is a blocking finding. For
+   **greenfield**, "citation" means every clause traces to a specific user
+   answer (spot-check against the clarify-ledger record / the plan's Q&A,
+   not a repo file/path — the sidecar convention does not apply to
+   greenfield's user-answer citations); a clause uncited to any answer is
+   still a blocking finding, the same bar as brownfield's uncited-to-code
+   clause.
 7. **DRAFT marker** — every newly-written area file opens with the
    `DRAFT — human-confirm-required` marker; a newly-written file missing it
    is a blocking finding.
