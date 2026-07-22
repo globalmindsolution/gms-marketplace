@@ -16,9 +16,14 @@ Stdlib-only (os, re, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+
+import evidence_sidecar  # noqa: E402
+
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CORE = "architecture → principles → standards → design"
@@ -255,7 +260,8 @@ class NoNewFlowFileTest(unittest.TestCase):
     :594-601, :642 assigns a new flow doc only to Flow 1 / MAR-121)."""
 
     def test_flows_dir_unchanged_from_baseline(self):
-        actual = set(os.listdir(FLOWS_DIR)) - KNOWN_LATER_ADDITIONS
+        listed = {f for f in os.listdir(FLOWS_DIR) if not evidence_sidecar.is_evidence_sidecar(f)}
+        actual = listed - KNOWN_LATER_ADDITIONS
         self.assertEqual(
             actual, BASELINE_FLOWS,
             "no new lld/flows/ file expected for MAR-119 (Flow 2 is a "

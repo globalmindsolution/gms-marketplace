@@ -462,6 +462,16 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
      configurable behavior that is also a portability constraint) defaults
      to **functional**, with a one-line cross-reference from the paired
      non-functional file, keeping routing deterministic at the seam.
+
+   **Code-evidence citation routing (sidecar convention).** Any in-scope
+   code-evidence citation (`path:line` — `py`/`json`/`sh`/`xsd` extensions,
+   or `SKILL.md:line`) this merge step would otherwise embed inline in the
+   target area file's body must instead be written to that file's companion
+   `.evidence.md` sidecar (`<doc-basename-without-.md>.evidence.md`, created
+   if absent), keyed to the merged clause's stable anchor — the SAME
+   convention `create-requirements-executor.md` follows, reused rather than
+   forked. A target area file with zero in-scope citations from this merge
+   gets no sidecar.
 5. **Commit** the spec's work on the ticket branch per
    `formats.commit_message` (one or a few coherent commits per spec). Never
    push.

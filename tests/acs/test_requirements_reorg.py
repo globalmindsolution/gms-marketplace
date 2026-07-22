@@ -14,9 +14,14 @@ Stdlib-only (json, os, re, unittest). Run:
 import json
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+
+import evidence_sidecar  # noqa: E402
+
 REQ = os.path.join(REPO_ROOT, "docs", "requirements")
 FUNCTIONAL = os.path.join(REQ, "functional")
 NON_FUNCTIONAL = os.path.join(REQ, "non-functional")
@@ -52,7 +57,7 @@ def _tree_bodies():
         if not os.path.isdir(d):
             continue
         for name in os.listdir(d):
-            if name.endswith(".md"):
+            if name.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(name):
                 bodies.append(read(os.path.join(d, name)))
     return bodies
 
@@ -113,13 +118,15 @@ class PositiveTopologyTest(unittest.TestCase):
     def test_functional_dir_exists_with_expected_files(self):
         self.assertTrue(os.path.isdir(FUNCTIONAL),
                          "docs/requirements/functional/ must exist")
-        actual = {f for f in os.listdir(FUNCTIONAL) if f.endswith(".md")}
+        actual = {f for f in os.listdir(FUNCTIONAL)
+                  if f.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(f)}
         self.assertEqual(actual, EXPECTED_FUNCTIONAL_FILES)
 
     def test_non_functional_dir_exists_with_expected_files(self):
         self.assertTrue(os.path.isdir(NON_FUNCTIONAL),
                          "docs/requirements/non-functional/ must exist")
-        actual = {f for f in os.listdir(NON_FUNCTIONAL) if f.endswith(".md")}
+        actual = {f for f in os.listdir(NON_FUNCTIONAL)
+                  if f.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(f)}
         self.assertEqual(actual, EXPECTED_NON_FUNCTIONAL_FILES)
 
     def test_original_flat_files_no_longer_present(self):

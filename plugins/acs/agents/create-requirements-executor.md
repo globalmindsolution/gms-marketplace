@@ -72,10 +72,18 @@ Mode rules:
      `DRAFT — human-confirm-required` marker line before any content. Write
      or augment the target file with the plan's `required_sections` heading
      list, each section non-empty; every extracted MUST/SHOULD/MAY clause
-     carries an inline code-evidence citation (file/path) substantiating it.
-     An `[OPEN]` clause (an area the plan could not ground) carries no
-     fabricated citation — it states plainly that the skill could not ground
-     it in code evidence.
+     carries the clause text and a stable anchor (an explicit `{#<slug>}` for
+     bullet-style prose, or an existing row/section identity when the area
+     file already has one) in the body — the body carries no inline
+     `path:line`. The code-evidence citation(s) substantiating that clause go
+     instead to the doc's companion `.evidence.md` sidecar
+     (`<doc-basename-without-.md>.evidence.md`, created if absent), keyed by
+     the clause's anchor — a deliberate behavior change from the prior
+     inline-citation write path, stated here explicitly. An area file with
+     zero code-cited clauses gets no sidecar. An `[OPEN]` clause (an area the
+     plan could not ground) carries no fabricated citation and gets no
+     sidecar entry — it states plainly that the skill could not ground it in
+     code evidence.
   3. **Augment-only-absent, byte-for-byte.** An area file the plan marks
      "preserved" (human-authored, present) is left byte-for-byte untouched —
      never overwritten. After writing, run `git diff -- <requirements_path>`
