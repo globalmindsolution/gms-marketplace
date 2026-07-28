@@ -16,6 +16,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-07-23
+
 ### Added
 
 - **Relocate code-evidence citations into per-doc `.evidence.md` sidecars (MAR-152, ADR 0064).** Every code-cited `docs/requirements`/`docs/architecture` doc's inline repo-source `path:line` citations now relocate into a companion `<doc-basename-without-.md>.evidence.md` sidecar (clause-anchor -> `[path:line, ...]`, human-auditable markdown) instead of living inline in the human body — the body keeps a stable clause anchor with no raw source citation. Wired into `create-requirements-executor`/`-verifier`, `create-architecture-executor`/`-verifier`, and `/acs:code`'s requirements-merge step + `code-verifier`'s Documentation dimension: each producer writes body + sidecar, and each verifier actively checks grounding (body-grep-to-0, sidecar-exists, anchor-join, amend-mode count-not-reduced) rather than passively trusting the sidecar. The doc-enumerating `test_mermaid_diagrams.py` walk now excludes `*.evidence.md` sidecars via a shared `tests/acs/evidence_sidecar.py` predicate. This repo's own docs are dogfood-migrated — 3 files / 18 in-scope citations (`docs/architecture/lld/runtime-coupling-inventory.md` 16, `docs/architecture/lld/flows/tabp-usage-read.md` 1, `docs/requirements/functional/tabp.md` 1) — a ground-truth correction of the design's "~26+~7" estimate. A new `tests/acs/test_evidence_sidecar_topology.py` coverage/topology gate proves G37's 100%-code-cited coverage was relocated, never reduced, and that C-22 DRAFT/human-confirm-required markers are unaffected. This is an **intentional, non-byte-identical migration** — it rewrites the 3 committed docs above, distinct from ADR 0065's byte-identical template-default guarantee. Counts stay 24/45/49; no new skill/agent/hook/schema/settings key.
@@ -25,6 +27,10 @@ the notes.
 
 - **Promoted the `audience-style` verifier dimension from advisory to BLOCKING and extended it to create-spec, with a clarify-ledger waiver path (MAR-150, ADR 0063).** The `audience-style` register check is now a blocking gate across the 8 producer verifiers that declare an `audience_style_profile` (create-design, create-prd, create-architecture, create-requirements, create-standards, create-quality, create-operations, create-principles) — reversing ADR 0057's advisory carve-out (`severity="info"`, "except the advisory"/"except the sanctioned") in each charter. `create-spec` gains the gate net-new: `create-spec/SKILL.md` declares an `audience_style_profile` (`engineers (implementation-contract prose)`) forwarded into its verify task, and `create-spec-verifier.md` adds a blocking `audience-style` dimension. A waiver safety valve reuses the existing clarification ledger — a register the coordinator records via `clarify.py --source assumption` is waived (emitted `severity="info"`) and does not block, so the pass bar is 0 **unwaived** audience-mismatch findings per run. The anchored per-skill profile mechanism (ADR 0057's hybrid) is retained — no deterministic style helper is added. create-project stays N/A; counts stay 24/45/49. The `tests/acs/test_structure_audience_verifiers.py` guard is rewritten from the advisory contract to the blocking contract.
 - **Codified the "test filenames name the behavior, never a ticket id" convention and swept the existing suite to match (MAR-147).** The standing "never a ticket id in source" rule now explicitly extends to test module filenames: a test file is named by the component/behavior under test, never by a ticket id — the originating `MAR-<NNN>` reference lives in the module docstring instead. The rule is stated across the five pipeline guidance surfaces (the `code` and `create-spec` skills plus the `code-executor`, `code-planner`, and `create-spec-planner` agents) and in a new first-class `docs/standards/standards.md`, and is enforced by a new `tests/acs/test_test_naming_convention.py` guard. The 49 pre-existing `test_mar<NNN>_*.py` modules were renamed to component/behavior names as content-preserving `git` renames (class names, methods, assertions, and each module's own docstring ticket ref unchanged), with their inter-test docstring cross-references updated to the new names.
+
+### Documentation
+
+- Amended the PRD to add goals **G38** (readable, audience-aware, evidence-clean docs) and **G39** (configurable design/spec templates) ahead of building them (MAR-148, #279), and reconciled the roadmap's release-versions mapping after the v0.4.4 cut (MAR-146, #276).
 
 ## [0.4.4] - 2026-07-16
 
@@ -93,7 +99,6 @@ layout). This is the first release cut by the new `/acs:release` skill itself.
     first `docs/principles/` doc set (activates `principles_path`) with the
     **Consumer-repo generality** principle — the verifier-enforceable form of
     C-20.
-
 
 ## [0.4.1] - 2026-07-12
 

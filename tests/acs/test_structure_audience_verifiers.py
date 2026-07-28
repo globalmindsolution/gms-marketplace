@@ -478,8 +478,9 @@ class CreateDesignSkillGroundingTest(unittest.TestCase):
 
 
 class ADRAndChangelogTest(unittest.TestCase):
-    """AC-5: ADR 0063 authored (reverses ADR 0057) and a CHANGELOG [Unreleased]
-    entry records the advisory -> blocking promotion."""
+    """AC-5: ADR 0063 authored (reverses ADR 0057) and a CHANGELOG entry records
+    the advisory -> blocking promotion — under [Unreleased] before a release cut
+    or its dated semver section after (a cut legitimately graduates it)."""
 
     def test_adr_0063_exists_and_references_0057(self):
         self.assertTrue(os.path.exists(ADR_0063),
@@ -487,13 +488,29 @@ class ADRAndChangelogTest(unittest.TestCase):
         body = read(ADR_0063)
         self.assertIn("0057", body, "ADR 0063 must reference ADR 0057 as the decision it reverses")
 
-    def test_changelog_unreleased_records_promotion(self):
+    def test_changelog_records_promotion(self):
+        # Durable-invariant CHANGELOG assertion (mirrors ChangelogMar143EntryTest):
+        # the MAR-150 audience-style promotion entry lives under [Unreleased] OR
+        # the dated semver heading it graduated into at a release cut — never a
+        # literal pin to [Unreleased], which churns on every cut.
         body = read(CHANGELOG)
-        unreleased = body.split("## [Unreleased]", 1)[1]
-        unreleased = unreleased.split("\n## [", 1)[0]
-        self.assertIn("audience-style", unreleased,
-                       "CHANGELOG [Unreleased] must name the audience-style dimension")
-        lowered = unreleased.lower()
+        spans = [m.start() for m in re.finditer(r"## \[[^\]]*\]", body)] + [len(body)]
+        section_text = None
+        for start, end in zip(spans, spans[1:]):
+            candidate = body[start:end]
+            if re.search(r"\(MAR-150\b", candidate):
+                section_text = candidate
+                break
+        self.assertIsNotNone(
+            section_text, "CHANGELOG.md must contain '(MAR-150)' inside a section span")
+        heading = section_text[:section_text.index("\n")] if "\n" in section_text else section_text
+        self.assertRegex(
+            heading, r"## \[(Unreleased|\d+\.\d+\.\d+)\]",
+            "the '(MAR-150)' audience-style entry must live under [Unreleased] or "
+            "a dated semver release heading (release cuts legitimately graduate it)")
+        self.assertIn("audience-style", section_text,
+                       "the MAR-150 CHANGELOG entry must name the audience-style dimension")
+        lowered = section_text.lower()
         self.assertIn("advisory", lowered)
         self.assertIn("blocking", lowered)
 
