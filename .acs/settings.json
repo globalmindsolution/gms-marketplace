@@ -22,7 +22,7 @@
   },
   "models": {
     "planner": {
-      "model": "claude-opus-4-8",
+      "model": "claude-opus-5",
       "effort": "high"
     },
     "executor": {
@@ -30,12 +30,8 @@
       "effort": "high"
     },
     "verifier": {
-      "model": "claude-opus-4-8",
+      "model": "claude-opus-5",
       "effort": "high"
-    },
-    "coordinator": {
-      "model": "claude-opus-4-8",
-      "effort": "medium"
     }
   },
   "enforcement": {

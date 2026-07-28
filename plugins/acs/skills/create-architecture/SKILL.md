@@ -44,11 +44,6 @@ already created the partition, ticket.json, the lock, the session pointer,
 and the `in_progress` run entry. If `settings.tracker.provider` is `github`
 or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-user typed `/acs:create-architecture`, not driven under /acs:ship), tell the
-user in one line that `models.coordinator` governs the ship coordinator's own
-run under /acs:ship, not a directly typed skill — never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality

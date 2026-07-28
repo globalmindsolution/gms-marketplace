@@ -56,11 +56,6 @@ never a Start-time block. This is the deliberate inversion of
 `create-principles/SKILL.md`'s Start guard, which is keyed to `principles_path`
 because that is *its own* set.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-user typed `/acs:create-standards`, not driven under /acs:ship), tell the
-user in one line that `models.coordinator` governs the ship coordinator's own
-run under /acs:ship, not a directly typed skill — never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality

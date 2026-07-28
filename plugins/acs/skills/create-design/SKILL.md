@@ -35,11 +35,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-desi
   `models` (resolved planner/executor/verifier model+effort), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
-- If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-  user typed `/acs:create-design`, not driven under /acs:ship): tell the user in
-  one line that `models.coordinator` governs the ship coordinator's own run, not
-  a directly typed skill — a directly invoked skill runs on the session's model.
-  Never silently diverge.
 
 Throughout this file `<partition>` means the `partition` path from the context JSON
 and `<id>` means `ticket_id` (e.g. `SHOP-123`).

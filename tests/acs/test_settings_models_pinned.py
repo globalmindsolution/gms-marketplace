@@ -1,7 +1,7 @@
 """MAR-81 — Pin acs subagent models to explicit ids and effort levels.
 
 Asserts the repo-committed .acs/settings.json `models` block holds explicit,
-version-stable model ids (claude-opus-4-8 / claude-sonnet-5) plus an explicit
+version-stable model ids (claude-opus-5 / claude-sonnet-5) plus an explicit
 reasoning-effort level per role (object form, mirroring the sibling `hirex`
 repo's configuration), instead of the generic runtime aliases ("opus" /
 "sonnet") with no effort, and that the file remains valid against
@@ -13,22 +13,30 @@ TestDueDateSchema in test_acs_plugin.py (no jsonschema import) -- the CI
 dedicated settings-schema-validation CI step does; see .github/workflows/ci.yml
 around line 170).
 
-Run:  python3 -m unittest tests.acs.test_mar81_settings_models_pinned -v
+MAR-154 dropped the `coordinator` role from the `models` settings contract
+entirely (schema, committed settings.json, and acs_lib.py's validate_models
+role loop) and renamed the planner/verifier default tier to claude-opus-5.
+
+Run:  python3 -m unittest tests.acs.test_settings_models_pinned -v
 """
 
 import json
 import os
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
 SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+sys.path.insert(0, SCRIPTS)
+
+import acs_lib as lib  # noqa: E402
 
 EXPECTED = {
-    "planner": {"model": "claude-opus-4-8", "effort": "high"},
+    "planner": {"model": "claude-opus-5", "effort": "high"},
     "executor": {"model": "claude-sonnet-5", "effort": "high"},
-    "verifier": {"model": "claude-opus-4-8", "effort": "high"},
-    "coordinator": {"model": "claude-opus-4-8", "effort": "medium"},
+    "verifier": {"model": "claude-opus-5", "effort": "high"},
 }
 
 
@@ -48,17 +56,20 @@ class SettingsModelsPinnedCase(unittest.TestCase):
     def test_verifier_pinned(self):
         self.assertEqual(self.settings["models"]["verifier"], EXPECTED["verifier"])
 
-    def test_coordinator_pinned(self):
-        self.assertEqual(self.settings["models"]["coordinator"], EXPECTED["coordinator"])
-
     def test_executor_pinned(self):
         self.assertEqual(self.settings["models"]["executor"], EXPECTED["executor"])
+
+    def test_no_coordinator_key(self):
+        self.assertNotIn(
+            "coordinator", self.settings["models"],
+            msg="models.coordinator must be removed from .acs/settings.json (AC-2)",
+        )
 
     def test_settings_schema_valid(self):
         """Stdlib-only structural check (no jsonschema dependency): the schema's
         $defs.roleModel accepts an object {model, effort} for each models.*
         role (settings.schema.json's roleModel oneOf second branch), effort is
-        one of the enumerated levels, and the four committed values satisfy
+        one of the enumerated levels, and the three committed values satisfy
         that shape."""
         role_model_def = self.schema["$defs"]["roleModel"]
         object_branch = next(
@@ -69,7 +80,7 @@ class SettingsModelsPinnedCase(unittest.TestCase):
 
         models = self.settings["models"]
         self.assertIsInstance(models, dict)
-        for role in ("planner", "executor", "verifier", "coordinator"):
+        for role in ("planner", "executor", "verifier"):
             self.assertIn(role, self.schema["properties"]["models"]["properties"])
             value = models[role]
             self.assertIsInstance(value, dict)
@@ -80,12 +91,24 @@ class SettingsModelsPinnedCase(unittest.TestCase):
 
     def test_no_alias_literals_remain(self):
         models = self.settings["models"]
-        for role in ("planner", "executor", "verifier", "coordinator"):
+        for role in ("planner", "executor", "verifier"):
             self.assertNotIn(
                 models[role]["model"],
                 ("opus", "sonnet"),
                 msg=f"models.{role}.model still holds a generic alias literal: {models[role]['model']!r}",
             )
+
+    def test_coordinator_no_longer_shape_checked(self):
+        """AC-3: acs_lib.validate_models's role loop no longer resolves/shape-
+        checks a `coordinator` role. A models.coordinator value shaped wrong
+        for check_role (a list, neither str nor dict) would raise GateError
+        while `coordinator` was still in the role tuple; once dropped, the
+        same input must pass through untouched (validate_models never checks
+        for unrecognized top-level keys, only shape-validates known roles)."""
+        self.assertIsNone(
+            lib.validate_models({"coordinator": ["not", "a", "valid", "shape"]}),
+            msg="models.coordinator must no longer be shape-checked by validate_models (AC-3)",
+        )
 
 
 if __name__ == "__main__":

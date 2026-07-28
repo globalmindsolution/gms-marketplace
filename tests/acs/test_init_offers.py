@@ -6,11 +6,11 @@ capability is reachable only by hand-editing `.acs/settings.json`. This module
 pins the three previously-gapped offers:
 
   Gap 1 (AC-1) — the `### models` offer names the version-pinned ids
-    claude-opus-4-8 / claude-sonnet-5 for all four roles (aligned with
+    claude-opus-5 / claude-sonnet-5 for all three roles (aligned with
     .acs/settings.json and MAR-81), not only coarse tiers.
   Gap 2 (AC-2) — per-role reasoning effort is a first-class choice (not merely
-    the {model, effort} shape note), with the coordinator-scope caveat, and the
-    presented enum stays consistent with settings.schema.json $defs.roleModel.
+    the {model, effort} shape note), and the presented enum stays consistent
+    with settings.schema.json $defs.roleModel.
   Gap 3 (AC-3) — e2e is an explicit, always-asked, candidate-detected offer;
     the Step 4 batch carve-out names e2e alongside `### models` so e2e is no
     longer silently defaultable.
@@ -18,6 +18,11 @@ pins the three previously-gapped offers:
     schema key is a verifier-inspection property, not unit-testable).
   AC-5 (scope guard) — no fail-closed model-id/effort validation was added; the
     "Any non-empty model string is accepted" sentence survives.
+
+MAR-154 dropped the `coordinator` role from the `models` settings contract
+entirely and renamed the default planner/verifier tier from claude-opus-4-8
+to claude-opus-5 — `/acs:init`'s offer now names three roles, not four, and
+no coordinator-scope caveat remains.
 
 Stdlib-only (os, re, unittest, json), mirroring
 tests/acs/test_skill_contracts.py (REPO_ROOT/PLUGIN + read helper + bounded-
@@ -27,7 +32,7 @@ silently diverge). Assertions are bounded-window / co-occurrence anchored on the
 `### models` heading and the Step 4 carve-out — never bare file-wide assertIn —
 so a too-loose match cannot pass vacuously.
 
-Run:  python3 -m unittest tests.acs.test_mar89_init_offers -v
+Run:  python3 -m unittest tests.acs.test_init_offers -v
 """
 
 import json
@@ -40,10 +45,10 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "init", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
-ROLES = ("planner", "executor", "verifier", "coordinator")
+ROLES = ("planner", "executor", "verifier")
 # Version-pinned ids the offer must name (aligned with .acs/settings.json:18-23
-# and tests/acs/test_settings_models_pinned.py:27-32).
-PINNED_IDS = ("claude-opus-4-8", "claude-sonnet-5")
+# and tests/acs/test_settings_models_pinned.py).
+PINNED_IDS = ("claude-opus-5", "claude-sonnet-5")
 
 
 def read(path):
@@ -96,9 +101,9 @@ class Mar89InitOffersCase(unittest.TestCase):
                     f"(AC-1); found only outside the models section",
             )
 
-    def test_A_models_offer_covers_all_four_roles(self):
-        """All four role names still appear in the `### models` offer, so the
-        version-pin covers every role (planner/executor/verifier/coordinator)."""
+    def test_A_models_offer_covers_all_three_roles(self):
+        """All three role names still appear in the `### models` offer, so the
+        version-pin covers every remaining role (planner/executor/verifier)."""
         for role in ROLES:
             self.assertIn(
                 role, self.models_section,
@@ -133,7 +138,7 @@ class Mar89InitOffersCase(unittest.TestCase):
     def test_B_effort_enum_matches_schema(self):
         """Every effort enum value from the schema's $defs.roleModel appears in
         the `### models` offer, so a future schema change and the prose can't
-        silently diverge (mirrors test_settings_models_pinned.py:63-68)."""
+        silently diverge (mirrors test_settings_models_pinned.py)."""
         role_model_def = self.schema["$defs"]["roleModel"]
         object_branch = next(
             branch for branch in role_model_def["oneOf"]
@@ -151,15 +156,16 @@ class Mar89InitOffersCase(unittest.TestCase):
                     f"must appear in the presented per-role effort choice (AC-2)",
             )
 
-    def test_B_coordinator_scope_caveat_present(self):
-        """The coordinator-scope caveat co-occurs in the models section:
-        `coordinator` near `/acs:ship` within a bounded window (the existing
-        caveat at SKILL.md:279-283 is retained)."""
-        self.assertIsNotNone(
-            re.search(r"(?s)coordinator.{0,400}/acs:ship", self.models_section),
-            "`### models` must keep the coordinator-scope caveat (coordinator effort "
-            "governs the /acs:ship coordinator's own run) (AC-2)",
-        )
+    def test_B_no_coordinator_in_models_section(self):
+        """MAR-154: the `coordinator` role and its scope caveat are gone —
+        no `coordinator` token and no `claude-opus-4-8` (the retired default)
+        token remain anywhere in the `### models` section."""
+        for gone in ("coordinator", "claude-opus-4-8"):
+            self.assertNotIn(
+                gone, self.models_section,
+                msg=f"`### models` must no longer mention {gone!r} — the coordinator "
+                    f"role and the claude-opus-4-8 default were dropped (MAR-154)",
+            )
 
     # --- C (Gap 3 / AC-3): explicit, candidate-detected e2e offer ---
 

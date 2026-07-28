@@ -670,7 +670,7 @@ def validate_models(models):
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier", "coordinator"):
+    for role in ("planner", "executor", "verifier"):
         if role in models:
             check_role(role, models[role])
     for skill, roles in models.get("overrides", {}).items():
