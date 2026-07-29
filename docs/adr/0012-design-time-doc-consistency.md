@@ -71,3 +71,14 @@ the user already runs.
   enforce). Provenance fingerprints remain a future upgrade if needed.
 - [`/acs:test`](0011-sdlc-doc-sets-quality-and-operations.md) is unaffected — it
   stays the QA/regression runner, not a doc tool.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (stale-reference note)
+
+`/acs:create-spec` is deleted outright (ADR 0066): the design-producing
+skill list in the Decision above drops `/create-spec`, leaving
+`/create-prd`, `/create-architecture`, `/create-design`, `/create-quality`,
+and `/create-operations`. Its shared doc-consistency planner step migrates
+with the deletion — there is no separate create-spec plan phase left to
+carry it. This amendment does not add any new participant to the list.

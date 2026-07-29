@@ -50,3 +50,16 @@ the Option B rejection from ADR 0037 through a side door.
   the agentic-e2e tier, not unit-testable — and is deliberately left
   unenforced by any blocking mechanism, consistent with the surface-only
   disposition in ADR 0038.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (migration note)
+
+`/acs:create-spec` and `create-spec-verifier.md` are deleted outright (ADR
+0066). This ADR's planner-only scope MIGRATES along with the gate: the
+migrated clause lives exclusively in `code-planner.md`'s charter, with no
+matching `code-verifier.md` dimension or meta-check added — the same
+planner-only decision this ADR recorded, now for the gate's new home. This
+is a migration, not a bare retirement. `code-verifier` dimension 12
+("Simplicity & scope") remains unchanged in mechanism by this ticket, exactly
+as this ADR's own Consequences already noted for the pre-migration state.

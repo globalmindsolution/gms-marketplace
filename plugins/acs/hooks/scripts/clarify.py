@@ -8,7 +8,7 @@ user anything (re-asking an answered question is a defect) and MUST record
 every Q&A through this helper (atomic writes; no hand-edited JSON).
 
 Usage:
-  clarify.py add    --skill create-spec --question "Overwrite or reject duplicates?"
+  clarify.py add    --skill code --question "Overwrite or reject duplicates?"
                     [--answer "reject"] [--source user|assumption]
                     [--rationale "why this assumption is needed"]
                     [--ticket SHOP-123]

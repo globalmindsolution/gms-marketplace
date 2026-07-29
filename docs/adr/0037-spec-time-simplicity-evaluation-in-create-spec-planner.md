@@ -84,3 +84,17 @@ file, or hook is introduced.
   self-review — mitigated because the `create-spec-verifier` still judges
   the final spec set fresh and independently, and the surfaced decision is
   owned by the user, not the planner.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (migration note)
+
+`/acs:create-spec` and `create-spec-planner.md` are deleted outright (ADR
+0066). The spec-time simplicity-evaluation behavior this ADR describes
+MIGRATES into `code-planner.md`'s own executor-decomposition charter step —
+a migration, not a bare retirement: `code-planner.md` now self-authors the
+folded spec content on every lane, so it is the planner that owns the same
+decomposition-simplicity judgment this ADR originally placed in
+`create-spec-planner.md`. The clause itself (materially simpler alternative,
+same acceptance criteria, surfaced via `<questions>` — never a block) is
+unchanged; only its home file changes.

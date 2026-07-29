@@ -12,19 +12,19 @@ register mismatch; a coordinator-recorded waiver via
 block). ADR 0057's advisory carve-out sentences ("except the advisory" /
 "except the sanctioned") are reversed in every producer charter.
 
-create-spec is extended net-new (AC-2): `create-spec/SKILL.md` declares an
-`audience_style_profile` (`engineers (implementation-contract prose)`) forwarded
-into its verify task, and `create-spec-verifier.md` gains a NET-NEW blocking
-`audience-style` dimension — scoped to audience-style only (no `structure`
-dimension; MAR-151 adds that). create-project stays N/A (AC-3) — locked here
-by a negative test. create-design/SKILL.md is unchanged (clarification C-1):
-it has no advisory carve-out to reverse, only the `audience_style_profile`
-declaration, which stays.
+create-project stays N/A (AC-3) — locked here by a negative test.
+create-design/SKILL.md is unchanged (clarification C-1): it has no advisory
+carve-out to reverse, only the `audience_style_profile` declaration, which
+stays.
+
+MAR-156 deletes create-spec outright; its net-new audience-style dimension
+(originally added here) is retired along with the rest of create-spec's
+surface -- code-verifier gains its own standalone audience-style dimension
+instead (MAR-156 Task 03). `AUDIENCE_VERIFIERS` below covers the 8 producers
+only.
 
 Reuses the bold/backtick dimension-label helpers (`read`, `_label_pattern`,
-`dimension_block`, `dimension_present`, `verify_phase_region`); the label
-matcher additionally handles create-spec-verifier's `**`label`**` bold+backtick
-form.
+`dimension_block`, `dimension_present`, `verify_phase_region`).
 
 Stdlib-only (re, os, unittest). Run:
   python3 -m unittest tests.acs.test_structure_audience_verifiers -v
@@ -44,8 +44,6 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
 CREATE_PROJECT_VERIFIER = os.path.join(AGENTS, "create-project-verifier.md")
 CREATE_PROJECT_SKILL = os.path.join(SKILLS, "create-project", "SKILL.md")
-CREATE_SPEC_VERIFIER = os.path.join(AGENTS, "create-spec-verifier.md")
-CREATE_SPEC_SKILL = os.path.join(SKILLS, "create-spec", "SKILL.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
 
 ADR_0063 = os.path.join(
@@ -123,13 +121,12 @@ VERIFIERS = {
     ),
 }
 
-# every audience-style-gated verifier: the 8 producers + net-new create-spec.
-AUDIENCE_VERIFIERS = list(VERIFIERS) + ["create-spec-verifier.md"]
+# every audience-style-gated verifier: the 8 producers.
+AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
 # The 7 MAR-138 prose skills whose declarations MAR-150 leaves untouched
-# (create-requirements declares its sections differently; create-spec is
-# net-new and checked by CreateSpecDeclarationTest below).
+# (create-requirements declares its sections differently).
 SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
@@ -148,9 +145,8 @@ def read(path):
 
 def _label_pattern(label):
     """A numbered check-dimension label: **bold**, `backtick`, or the
-    bold+backtick `**`label`**` form create-spec-verifier's dimensions use
-    (the 8 producers mix **bold** and `backtick`; create-spec-verifier wraps
-    its labels in both)."""
+    bold+backtick `**`label`**` form (the 8 producers mix **bold** and
+    `backtick`)."""
     esc = re.escape(label)
     return r"(?:\*\*`%s`\*\*|\*\*%s\*\*|`%s`)" % (esc, esc, esc)
 
@@ -271,9 +267,9 @@ class CarveOutTest(unittest.TestCase):
 
 
 class WaiverClauseTest(unittest.TestCase):
-    """AC-4: each of the 9 audience-style dimension bodies (8 producers +
-    create-spec) states the block condition is an UNWAIVED mismatch and names
-    the clarify-ledger waiver lever."""
+    """AC-4: each of the 8 producers' audience-style dimension bodies states
+    the block condition is an UNWAIVED mismatch and names the clarify-ledger
+    waiver lever."""
 
     def test_every_dimension_states_unwaived_and_waiver_lever(self):
         for fname in AUDIENCE_VERIFIERS:
@@ -403,63 +399,6 @@ class SkillDeclarationTest(unittest.TestCase):
                 self.assertIn("audience_style_profile", region,
                                "%s: verify-phase region does not mention audience_style_profile"
                                % skill)
-
-
-class CreateSpecDeclarationTest(unittest.TestCase):
-    """AC-2: create-spec gains the audience gate net-new — SKILL.md declares
-    `engineers (implementation-contract prose)` and forwards it into verify;
-    create-spec-verifier.md carries a blocking `audience-style` dimension
-    appended after `consistency`. MAR-151 (Decision C) subsequently layered
-    a blocking `structure` dimension on top (see
-    test_verifier_has_structure_dimension_and_lint below)."""
-
-    def test_skill_declares_profile(self):
-        body = read(CREATE_SPEC_SKILL)
-        m = re.search(r'<constraint name="audience_style_profile">([^<]+)</constraint>', body)
-        self.assertIsNotNone(m, "create-spec/SKILL.md declares no audience_style_profile")
-        value = m.group(1)
-        self.assertIn("engineers", value)
-        self.assertIn("implementation-contract", value)
-
-    def test_skill_forwards_profile_into_verify_region(self):
-        body = read(CREATE_SPEC_SKILL)
-        region = verify_phase_region(body, "create-spec")
-        self.assertIn("audience_style_profile", region,
-                       "create-spec verify-phase region does not mention audience_style_profile")
-
-    def test_verifier_has_blocking_audience_dimension(self):
-        body = read(CREATE_SPEC_VERIFIER)
-        self.assertTrue(dimension_present(body, "audience-style"),
-                         "create-spec-verifier lacks a numbered audience-style dimension")
-        block = dimension_block(body, "audience-style")
-        self.assertIn('severity="blocking"', block)
-        self.assertIn('dimension="audience-style"', block)
-
-    def test_verifier_audience_appended_after_consistency(self):
-        body = read(CREATE_SPEC_VERIFIER)
-        consistency_start = re.search(
-            r"(?m)^\d+\.\s+%s" % _label_pattern("consistency"), body).start()
-        audience_start = re.search(
-            r"(?m)^\d+\.\s+%s" % _label_pattern("audience-style"), body).start()
-        self.assertLess(consistency_start, audience_start,
-                         "create-spec-verifier: audience-style must be appended after consistency")
-
-    def test_verifier_has_structure_dimension_and_lint(self):
-        # Serialize guard (design R5): MAR-151 (Decision C) owns the structure
-        # dimension for create-spec — now landed, layered on top of MAR-150's
-        # audience-style dimension. (This guard was the RED->GREEN flip of the
-        # MAR-150-era `test_verifier_has_no_structure_dimension_or_lint`.)
-        body = read(CREATE_SPEC_VERIFIER)
-        self.assertTrue(dimension_present(body, "structure"),
-                         "create-spec-verifier must gain a structure dimension (MAR-151)")
-        self.assertIn("structure_lint", body,
-                       "create-spec-verifier must reference structure_lint (MAR-151)")
-
-    def test_verifier_input_contract_names_profile(self):
-        body = read(CREATE_SPEC_VERIFIER)
-        input_contract = body.split("## Check dimensions")[0]
-        self.assertIn("audience_style_profile", input_contract,
-                       "create-spec-verifier input-contract <constraints> must name audience_style_profile")
 
 
 class CreateDesignSkillGroundingTest(unittest.TestCase):

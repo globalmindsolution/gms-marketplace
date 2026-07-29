@@ -1,6 +1,6 @@
 ---
 name: code
-description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, updating all affected documentation as part of the change, with a built-in changeset review loop. Use after /acs:create-spec has produced specs and before /acs:create-pr, when a ticket is ready to be implemented.
+description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, updating all affected documentation as part of the change, with a built-in changeset review loop. Specs are read from <partition>/specs/ when already present, or self-authored as part of the plan phase when not. Use once /acs:create-ticket (and /acs:create-design when required) has completed and before /acs:create-pr, when a ticket is ready to be implemented.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -22,10 +22,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill code --args
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (pre-code.py has verified the gate preconditions: for
-STANDARD/COMPLEX/absent/unknown lanes, specs exist and /acs:create-spec
-completed; for TRIVIAL/SMALL lanes, the gate passes without requiring specs —
-spec authoring is folded into the plan phase below).
+improvise a workaround (pre-code.py has verified the gate precondition: only
+that /acs:create-ticket has completed — the gate is unconditional on lane and
+never requires `specs/` to exist. Whether `<partition>/specs/` already has
+content is discovered by the planner below, on every lane, not asserted by
+the gate).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -218,17 +219,6 @@ states a higher lane or axis value.
       no-op (step 3 above short-circuits) and `record_escalation_event` is
       never reached a second time for the same already-applied escalation — no
       duplicate event is appended.
-   g. **Stage re-introduction (fold-boundary crossing):** When the origin lane
-      was a fast lane (TRIVIAL or SMALL) and the new lane is a full lane
-      (STANDARD or COMPLEX), invoke the `create-spec` stage before proceeding
-      to the next implementation iteration. Spawn `acs:create-spec-planner`,
-      `acs:create-spec-executor`, and `acs:create-spec-verifier` following the
-      full `create-spec/SKILL.md` protocol — including the **"Escalation pickup"
-      subsection** of that skill, which describes how to read the existing partial
-      implementation as ground truth and produce an additive spec set. The
-      coordinator does NOT inline the create-spec logic; it delegates to the
-      `create-spec` skill as documented. Only once `create-spec` has passed
-      (zero verifier findings) does `/code` resume implementation.
 
 **Absent or ambiguous signals — no-op (AC-7 conservative default):**
 When none of the three triggers fires in an iteration, the coordinator makes no
@@ -310,18 +300,15 @@ Task the planner with `<inputs>` of all `<partition>/specs/*.md`,
 and the relevant consumer-repo source/docs. The planner returns (artifact:
 `<partition>/phases/code/iter-<n>-plan.md`):
 
-**Fast-lane spec authoring (TRIVIAL/SMALL lanes with no specs present)**
+**Spec authoring fold (`specs/` absent or empty, every lane)**
 
-Before producing the standard plan content, check whether this run is on a
-fast lane: read `context.ticket.lane` (prefer the persisted `ticket.lane`;
-fall back to recomputing via
-`derive_lane(ticket.size, ticket.stakes, ticket.needs_design, ticket.type)`
-when absent; treat absent/unrecognized as STANDARD).
+Before producing the standard plan content, check whether
+`<partition>/specs/` already has `.md` content.
 
-When the lane is `TRIVIAL` or `SMALL` AND `<partition>/specs/` is empty or
-absent, the code-planner ADDITIONALLY produces, as part of its plan artifact
-(`<partition>/phases/code/iter-<n>-plan.md`), the spec content the standalone
-create-spec planner would have produced. This content covers, in order:
+When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
+the code-planner ADDITIONALLY produces, as part of its plan artifact
+(`<partition>/phases/code/iter-<n>-plan.md`), the spec content a standalone
+create-spec planner would once have produced. This content covers, in order:
 
 - **Scope** — what the ticket delivers; acceptance criteria quoted verbatim.
 - **Approach** — solution shape at contract level (components, interfaces,
@@ -340,9 +327,9 @@ create-spec planner would have produced. This content covers, in order:
 - "every ticket.acceptance_criteria entry maps to at least one test the folded
   plan will write" (AC-4)
 
-If specs already exist for a fast-lane ticket, the fold does NOT activate —
-the planner reads the existing specs normally. The fold only activates when no
-specs are present.
+If specs already exist, the fold does NOT activate — the planner reads the
+existing specs normally, on every lane. The fold only activates when
+`<partition>/specs/` is absent or empty.
 
 This fold does NOT alter the execute or verify phases. The existing
 `### Coverage hard fail` block (AC-5) and the existing `### Verify-depth`
@@ -480,13 +467,21 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
 
 Spawn the verifier AFTER all executors finish, with `<inputs>` of the branch
 diff (`git diff <default-branch>...HEAD`), all `<partition>/specs/*.md`,
-`<partition>/ticket.json`, and `<design.dir>/design.md` when it applies. The
+`<partition>/ticket.json`, `<design.dir>/design.md` when it applies, and
+`<partition>/phases/code/iter-<n>-plan.md`. The verify `<task>`'s
+`<constraints>` always carry `<constraint name="audience_style_profile">engineers
+(implementation-contract prose)</constraint>` — the register the folded plan
+content (or the plan's own analysis/decomposition prose) is judged against. The
 verifier judges fresh — never forward executor reasoning — and RE-RUNS the
 tests and coverage itself (artifact `<partition>/phases/code/iter-<n>-verify.md`).
 Dimensions, each producing blocking findings on failure:
 
-- **Spec conformance** — every spec fully implemented as written; deviations
-  are findings.
+- **Acceptance-criteria conformance** — `ticket.json`'s `acceptance_criteria`/
+  DoD re-read fresh every iteration, never the current plan artifact's
+  restatement; the AC-to-implementation matrix is rebuilt from scratch each
+  time. Carries the completeness (five mandatory sections substantive, no
+  stubs) and structure (`structure_lint.py` against the fixed five-heading
+  literal) sub-checks when the fold is active.
 - **Tests** — full suite passes; new tests genuinely exercise the spec's
   acceptance criteria (re-run, not trusted).
 - **Coverage** — measured coverage meets `settings.test_coverage_percent`.
@@ -501,7 +496,8 @@ Dimensions, each producing blocking findings on failure:
   pre-existing ones surface as notes).
 - **Architecture & system design** — judged against `design.md` when one
   exists (own or parent); otherwise against the documented architecture and
-  sane structure.
+  sane structure; also against the folded plan artifact's Approach/API-data-changes
+  content when no separately-authored spec set exists.
 - **Security** — no injected vulnerabilities, secrets, or unsafe handling of
   input/authz.
 - **Documentation** — every affected doc updated and consistent with the
@@ -515,6 +511,11 @@ Dimensions, each producing blocking findings on failure:
   document and PR body. No factual impact → no-op for this check.
 - **Simplicity & scope** — overcomplication and out-of-scope edits are
   blocking findings (executor **Simplicity First** + **Surgical Changes** rules).
+- **Audience-style** — the folded plan artifact's prose (or the plan's own
+  analysis/decomposition prose when the fold is not active) matches
+  `audience_style_profile`; an UNWAIVED register mismatch is a blocking
+  finding, waived to `severity="info"` for a register the coordinator
+  recorded via `clarify.py add --skill code --source assumption`.
 
 ALL findings block — zero findings = pass (`verifier_passed: true`). On
 findings: persist the verify output, then AUTOMATICALLY re-plan and re-execute

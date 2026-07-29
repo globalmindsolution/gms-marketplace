@@ -62,3 +62,15 @@ absent from the gate's own description.
   (verifier findings, escalation, handoff).
 - No auto-loopback path, new state, or schema field is introduced anywhere
   in the create-spec triad.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (migration note)
+
+`/acs:create-spec` and `create-spec-planner.md` are deleted outright (ADR
+0066). The surface-never-block disposition this ADR establishes MIGRATES
+along with the gate itself into `code-planner.md`'s executor-decomposition
+charter step — a migration, not a bare retirement. The disposition is
+unchanged: a found alternative is surfaced via `<questions>` for a user
+decision, never blocked or auto-looped-back; only the gate's home file
+changes.

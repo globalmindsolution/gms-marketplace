@@ -19,7 +19,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
                  "create-standards", "create-requirements", "create-ticket",
-                 "create-design", "create-spec", "code", "create-pr",
+                 "create-design", "code", "create-pr",
                  "merge-pr", "standardize-project"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 ROLES = ["planner", "executor", "verifier"]
@@ -539,7 +539,7 @@ class TestApplyTierInline(unittest.TestCase):
 
     def test_triad_skills_still_reference_planner_and_verifier(self):
         """AC-6: workflow/product skills must still reference their planner+verifier."""
-        for skill in ("create-spec", "code", "create-prd",
+        for skill in ("code", "create-prd",
                       "create-design", "create-architecture", "create-project"):
             body = read(self.skill_path(skill))
             self.assertIsNotNone(
@@ -1005,105 +1005,18 @@ class TestCodeSkillEscalation(unittest.TestCase):
 
 
 class TestStageReintroduction(unittest.TestCase):
-    """MAR-57 Spec 03 (AC-5, AC-8): pin the stage re-introduction contract in
-    create-spec/SKILL.md and the cross-reference in code/SKILL.md.
-
-    These doc-assertion tests are RED before the 'Escalation pickup' subsection
-    is added to create-spec/SKILL.md and the cross-reference is added to
-    code/SKILL.md; GREEN after.
-
-    Per plan Q1 resolution: since MAR-59 fold prose is not yet on disk, the
-    MAR-59-unchanged assertion targets the NEW pickup subsection's own statement
-    that fold behavior is unchanged for non-escalating tickets — not absent
-    pre-existing fold prose.
-    """
+    """MAR-57 Spec 03 originally pinned the stage re-introduction contract in
+    create-spec/SKILL.md and its cross-reference in code/SKILL.md (step g,
+    'Stage re-introduction'). MAR-156 deletes create-spec outright and removes
+    step g entirely (no stub): under the universal fold there is no more
+    fold-boundary to cross, since every lane already folds. This class now
+    keeps only the two assertions unrelated to step g / create-spec content."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
-    def _create_spec_body(self):
-        return read(self.skill_path("create-spec"))
-
     def _code_body(self):
         return read(self.skill_path("code"))
-
-    # --- AC-5: create-spec/SKILL.md has an 'Escalation pickup' subsection ---
-
-    def test_skill_md_documents_escalation_pickup(self):
-        """AC-5: create-spec/SKILL.md must contain an 'Escalation pickup' heading
-        (or equivalent) describing the mid-/code invocation path."""
-        body = self._create_spec_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)escalation pickup|escalation pick.?up", body),
-            "create-spec/SKILL.md must have an 'Escalation pickup' subsection "
-            "(MAR-57 AC-5)")
-
-    # --- AC-5: pickup subsection states create-spec rigor is invoked, not skipped ---
-
-    def test_skill_md_pickup_does_not_skip_spec_stage(self):
-        """AC-5: the pickup subsection must state that create-spec rigor is invoked
-        (not skipped) when a ticket escalates from a fast lane into STANDARD/COMPLEX."""
-        body = self._create_spec_body()
-        # Must state the escalation pickup runs full create-spec rigor.
-        # Patterns: 'create-spec' near 'rigor' near 'invok/run/not skipped', OR
-        # 'rigor' near 'not skip/invok', OR 'spec.rigor' directly adjacent.
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)"
-                r"create.spec.{0,30}rigor.{0,300}(invok|not skip|pick.?up)|"
-                r"(invok|not skip|pick.?up).{0,300}create.spec.{0,30}rigor|"
-                r"(rigor).{0,200}(not skip|invok)",
-                body, re.DOTALL),
-            "create-spec/SKILL.md pickup subsection must state create-spec rigor "
-            "is invoked (not skipped) on fast-lane escalation (MAR-57 AC-5)")
-
-    # --- AC-5: pickup subsection references higher verify ceiling ---
-
-    def test_skill_md_pickup_adopts_higher_ceiling(self):
-        """AC-5: the pickup subsection must reference adoption of the higher verify
-        ceiling after escalation."""
-        body = self._create_spec_body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(higher.{0,30}(ceiling|verify)|verify.{0,30}ceiling.{0,30}(higher|raise|adopt)|"
-                r"ceiling.{0,30}(raise|adopt|higher))",
-                body),
-            "create-spec/SKILL.md pickup subsection must reference the higher verify "
-            "ceiling adopted on escalation (MAR-57 AC-5)")
-
-    # --- AC-8 sibling-no-regression: pickup subsection states fold is unchanged for
-    #     non-escalating tickets (per Q1: assert the NEW subsection's own statement,
-    #     NOT pre-existing fold prose from MAR-59 which is not yet on disk) ---
-
-    def test_mar59_fold_behavior_stated_unchanged_for_noescalation(self):
-        """AC-8: the pickup subsection must state that for non-escalating TRIVIAL/SMALL
-        tickets the fast-lane fold behavior is unchanged — the new subsection is a
-        NEW branch only, not a change to the normal fast-lane flow."""
-        body = self._create_spec_body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(non.escalat|not escalat).{0,300}(unchanged|unaffected|fold|fast.lane|normal|intact)|"
-                r"(fast.lane|fold).{0,300}(unchanged|unaffected|unmodified|intact|not.{0,20}changed).{0,100}"
-                r"(non.escalat|not escalat|without escalat)",
-                body, re.DOTALL),
-            "create-spec/SKILL.md pickup subsection must state fast-lane fold is "
-            "unchanged for non-escalating tickets (MAR-57 AC-8 / Q1 resolution)")
-
-    # --- AC-5: code/SKILL.md cross-references the create-spec pickup subsection ---
-
-    def test_code_skill_md_cross_references_create_spec_pickup(self):
-        """AC-5: code/SKILL.md must contain a cross-reference to the
-        create-spec/SKILL.md 'Escalation pickup' subsection."""
-        body = self._code_body()
-        # Must mention create-spec in the context of escalation pickup or stage reintroduction
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)create.spec.{0,300}(escalation pickup|pickup|stage.reintroduc|"
-                r"fold.boundar|fast.lane.{0,40}escalat)|"
-                r"(escalation pickup|stage.reintroduc).{0,300}create.spec",
-                body, re.DOTALL),
-            "code/SKILL.md must cross-reference the create-spec 'Escalation pickup' "
-            "subsection (MAR-57 AC-5)")
 
     # --- guard_axes must be referenced in code/SKILL.md escalation sequence ---
 
@@ -1141,62 +1054,95 @@ class TestStageReintroduction(unittest.TestCase):
                 "code/SKILL.md describes an automatic downgrade path outside of a "
                 "negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
 
-    def test_no_automatic_downgrade_path_in_create_spec_skill(self):
-        """AC-3: create-spec/SKILL.md must NOT describe an automatic de-escalation or
-        downgrade path. Negating / negative-guarantee statements ('does not introduce
-        an automatic...', 'never') are acceptable."""
-        body = self._create_spec_body()
-        matches = list(re.finditer(
-            r"(?i)(automatic(ally)?.{0,50}(lower.{0,20}lane|de.escalat|downgrad)|"
-            r"(lower.{0,20}lane|de.escalat|downgrad).{0,50}automatic)",
-            body))
-        for m in matches:
-            surrounding = body[max(0, m.start()-30):m.end()+10]
-            if re.search(r"(?i)(never|not|no |cannot|must not|does not)", surrounding):
-                continue  # negating / negative-guarantee statement: allowed
-            self.fail(
-                "create-spec/SKILL.md describes an automatic downgrade path outside of "
-                "a negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
 
-    # --- MAR-107 D4 AC-4: fold-boundary condition pinned code-side (step g) ---
+class TestGeneralizedFold(unittest.TestCase):
+    """MAR-156 Task 02 (AC-2, AC-3, AC-7, AC-8): the fold generalizes to every
+    lane (no lane qualifier survives), step g's create-spec triad spawn
+    reference is fully gone from code/SKILL.md, and code-planner.md's Charter
+    states the dual-mode intake + carries the migrated spec-simplicity gate."""
 
-    def test_d4_step_g_states_fold_condition_and_pickup_invocation(self):
-        """MAR-107 AC-4: code/SKILL.md step (g) must state the fold condition
-        (origin lane TRIVIAL or SMALL, and new lane STANDARD or COMPLEX) and
-        name the create-spec triad invocation in Escalation-pickup mode. This
-        is the first test targeting code/SKILL.md step (g) specifically
-        (distinct from the create-spec-side tests in this class, which pin
-        create-spec/SKILL.md, not code/SKILL.md)."""
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def agent_path(self, name):
+        return os.path.join(PLUGIN, "agents", name)
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    def _planner_body(self):
+        return read(self.agent_path("code-planner.md"))
+
+    def test_fold_activating_condition_has_no_lane_qualifier(self):
+        """AC-2: the fold section states the activating condition as
+        `specs/` absent-or-empty with NO TRIVIAL/SMALL-only qualifier."""
         body = self._code_body()
         self.assertIsNotNone(
-            re.search(r"(?i)(TRIVIAL|fast lane).{0,120}(SMALL).{0,200}"
-                      r"(STANDARD|full lane).{0,60}(COMPLEX)|"
-                      r"fast lane.{0,80}(TRIVIAL or SMALL).{0,300}"
-                      r"full lane.{0,80}(STANDARD or COMPLEX)",
-                      body, re.DOTALL),
-            "code/SKILL.md step (g) must state the fold condition: origin "
-            "lane TRIVIAL or SMALL and new lane STANDARD or COMPLEX "
-            "(MAR-107 AC-4)")
-        self.assertIsNotNone(
-            re.search(r"(?i)create.spec.{0,200}(triad|escalation.pickup)|"
-                      r"(triad|escalation.pickup).{0,200}create.spec",
-                      body, re.DOTALL),
-            "code/SKILL.md step (g) must name the create-spec triad "
-            "invocation in Escalation-pickup mode (MAR-107 AC-4)")
+            re.search(r"specs/.{0,40}(absent or empty|empty or absent)", body),
+            "code/SKILL.md fold section must state the specs/-absent-or-empty "
+            "activating condition (MAR-156 AC-2)")
+        self.assertNotRegex(
+            body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs",
+            "code/SKILL.md fold section must not retain a TRIVIAL/SMALL-only "
+            "qualifier (MAR-156 AC-2 — the fold is now every-lane)")
 
-    # --- MAR-107 D4 AC-4: resume-only-after-zero-findings pinned code-side (step g) ---
-
-    def test_d4_step_g_states_resume_only_after_zero_findings(self):
-        """MAR-107 AC-4: code/SKILL.md step (g) must state that /code resumes
-        implementation only once create-spec has passed at zero verifier
-        findings."""
+    def test_fold_mandatory_verbatim_clauses_survive(self):
+        """AC-2: the two mandatory verbatim clauses carry over unchanged."""
         body = self._code_body()
+        self.assertIn(
+            "no separate /acs:create-spec invocation and no separate create-spec planner",
+            body,
+            "code/SKILL.md must retain the 'no separate /acs:create-spec "
+            "invocation' verbatim clause (MAR-156 AC-2)")
+        self.assertIn(
+            "every ticket.acceptance_criteria entry maps to at least one test the folded",
+            body,
+            "code/SKILL.md must retain the 'every ticket.acceptance_criteria "
+            "entry maps' verbatim clause (MAR-156 AC-2)")
+
+    def test_no_subagent_spawn_reference_to_create_spec_triad(self):
+        """AC-7: code/SKILL.md contains no subagent-spawn reference to
+        acs:create-spec-planner/-executor/-verifier anywhere (step g deleted)."""
+        body = self._code_body()
+        for token in ("acs:create-spec-planner", "acs:create-spec-executor",
+                      "acs:create-spec-verifier"):
+            self.assertNotIn(token, body,
+                             "code/SKILL.md must not reference %r (MAR-156 AC-7 "
+                             "— step g deleted, create-spec no longer exists)" % token)
+
+    def test_planner_charter_states_dual_mode_not_always_verified(self):
+        """AC-2/AC-8: code-planner.md Charter step 1 no longer states specs
+        arrive already verified unconditionally, and DOES state the
+        dual-mode (existing-specs-read vs. self-author) behavior."""
+        body = self._planner_body()
+        self.assertNotIn(
+            "The specs arrive\n   already verified", body,
+            "code-planner.md must not retain the unconditional 'specs arrive "
+            "already verified' claim (MAR-156 AC-2/AC-8)")
         self.assertIsNotNone(
-            re.search(r"(?i)only once.{0,10}create.spec.{0,120}(passed|pass).{0,120}"
-                      r"zero.{0,20}(verifier )?findings.{0,60}resume",
+            re.search(r"(?i)already has content.{0,400}absent or empty|"
+                      r"absent or empty.{0,400}already has content",
                       body, re.DOTALL),
-            "code/SKILL.md step (g) must state /code resumes only once "
-            "create-spec passes at zero verifier findings (MAR-107 AC-4)")
+            "code-planner.md Charter step 1 must state the dual-mode contract "
+            "(specs/ already has content vs. absent/empty) (MAR-156 AC-2/AC-8)")
+
+    def test_planner_charter_carries_migrated_spec_simplicity_gate(self):
+        """C-5: code-planner.md contains the migrated spec-simplicity-gate
+        clause (materially simpler, same acceptance criteria, surfaced via
+        <questions> rather than blocked)."""
+        body = re.sub(r"\s+", " ", self._planner_body())
+        self.assertIsNotNone(
+            re.search(r"(?i)materially.{0,120}simpler.{0,400}same acceptance criteria|"
+                      r"same acceptance criteria.{0,400}materially.{0,120}simpler",
+                      body),
+            "code-planner.md must co-locate 'materially simpler' and 'same "
+            "acceptance criteria' (MAR-156 C-5)")
+        self.assertIsNotNone(
+            re.search(r"(?i)<questions>.{0,200}(surface|decision)|"
+                      r"(surface|decision).{0,200}<questions>",
+                      body),
+            "code-planner.md must state the gate surfaces via <questions> for "
+            "a decision, never blocks (MAR-156 C-5)")
 
 
 class TestBoundaryOnlyDeescalationContract(unittest.TestCase):
@@ -2391,27 +2337,16 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
 
 
 class TestSpecSimplicityGate(unittest.TestCase):
-    """Pin the spec-time simplicity gate added to /acs:create-spec (MAR-88):
-    the create-spec-planner evaluates each decomposition for a materially-
-    simpler alternative meeting the same acceptance criteria and surfaces
-    (never blocks) a finding to the user/spec owner for a decision. Mirrors
-    the TestSimplicityScopeRestraintLayer (MAR-2) pattern, deconflicted from
-    code-verifier dimension 12 (spec-time vs code-time simplicity, AC-7)."""
+    """Pin the spec-time simplicity gate added to /acs:create-spec (MAR-88).
 
-    def agent_path(self, skill, role):
-        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
-
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def _planner(self):
-        return read(self.agent_path("create-spec", "planner"))
-
-    def _skill(self):
-        return read(self.skill_path("create-spec"))
-
-    def _verifier(self):
-        return read(self.agent_path("create-spec", "verifier"))
+    create-spec is deleted by MAR-156 (Task 01); the planner-only surfacing
+    behavior itself MIGRATES into code-planner.md's decompose step (MAR-156
+    Task 02, clarifications C-5) rather than being retired -- see the
+    migrated-gate pinned tests added there. This class keeps only the
+    assertions that read files MAR-156 does not touch (the historical MAR-88
+    footprint in docs/requirements/functional/skills.md and reflection.md,
+    plus the CHANGELOG.md entry), which stay accurate as a record of MAR-88's
+    original landing regardless of create-spec's later deletion."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -2421,35 +2356,6 @@ class TestSpecSimplicityGate(unittest.TestCase):
 
     def _changelog(self):
         return read(os.path.join(PLUGIN, "CHANGELOG.md"))
-
-    # --- AC-1 / AC-3: planner gate wording + spec-time placement ---
-
-    def test_planner_gate_wording_present(self):
-        """AC-1/AC-3: create-spec-planner.md must co-locate 'materially'
-        (simpler) and 'same acceptance criteria' within a bounded window —
-        passing only if the clause lives in the planner charter (spec-time
-        placement, before any spec file is written)."""
-        body = self._planner()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)materially.{0,400}same acceptance criteria|"
-                r"same acceptance criteria.{0,400}materially",
-                body, re.DOTALL),
-            "create-spec-planner.md must co-locate 'materially' and 'same "
-            "acceptance criteria' within 400 chars (MAR-88 AC-1/AC-3)")
-
-    # --- AC-3: SKILL.md documents the new question type ---
-
-    def test_skill_documents_surface_question(self):
-        """AC-3: create-spec SKILL.md Plan-phase section must co-locate
-        'materially' and 'surface' (the planner may surface this question
-        type through the existing User-interaction path)."""
-        body = self._skill()
-        self.assertIsNotNone(
-            re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
-                      body, re.DOTALL),
-            "create-spec SKILL.md must co-locate 'materially' and 'surface' "
-            "within 400 chars (MAR-88 AC-3)")
 
     # --- AC-4: requirements SoT coverage ---
 
@@ -2491,84 +2397,6 @@ class TestSpecSimplicityGate(unittest.TestCase):
         self.assertIn("(MAR-88)", body[unreleased_idx:],
                       "CHANGELOG.md must contain '(MAR-88)' at or after "
                       "'[Unreleased]' (MAR-88 AC-5)")
-
-    # --- AC-2: SURFACE not BLOCK, scoped to the gate's own text window ---
-
-    def test_gate_surface_decision_present(self):
-        """AC-2: 'surface' and 'decision' framing must be present in the
-        gate window in BOTH create-spec-planner.md and SKILL.md."""
-        planner = self._planner()
-        skill = self._skill()
-        self.assertIsNotNone(
-            re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
-                      planner, re.DOTALL),
-            "create-spec-planner.md must co-locate 'surface' and 'decision' "
-            "within 400 chars (MAR-88 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)surface.{0,400}decision|decision.{0,400}surface",
-                      skill, re.DOTALL),
-            "create-spec SKILL.md must co-locate 'surface' and 'decision' "
-            "within 400 chars (MAR-88 AC-2)")
-
-    # BLOCK-as-disposition framing: bare 'block'/'loopback'/'auto-reject', but
-    # NOT the correct negated SURFACE-not-BLOCK phrasing ("never/not/nor
-    # blocks") the gate's own description is expected to use to state its
-    # disposition explicitly.
-    _BLOCK_DISPOSITION_RE = re.compile(
-        r"(?i)(?<!never )(?<!never-)(?<!not )(?<!nor )"
-        r"\bblock(s|ed|ing)?\b|\bloopback\b|\bauto-reject\b")
-
-    def test_gate_no_block_wording_in_window(self):
-        """AC-2: 'block'/'loopback'/'auto-reject' framing (as the gate's own
-        disposition, not the negated 'never blocks' SURFACE statement) must
-        be ABSENT from the gate's own co-location window in
-        create-spec-planner.md and in SKILL.md's Plan-phase section —
-        window-scoped, NEVER whole-file, since both files legitimately use
-        'block' elsewhere for unrelated concerns (verifier findings,
-        escalation, handoff)."""
-        planner = self._planner()
-        match = re.search(
-            r"(?i)materially.{0,400}same acceptance criteria|"
-            r"same acceptance criteria.{0,400}materially",
-            planner, re.DOTALL)
-        self.assertIsNotNone(match, "planner gate window must exist to scope this check")
-        window = planner[max(0, match.start() - 200):match.end() + 200]
-        self.assertNotRegex(
-            window, self._BLOCK_DISPOSITION_RE,
-            "create-spec-planner.md gate window must not use 'block'/"
-            "'loopback'/'auto-reject' as its own disposition (MAR-88 AC-2)")
-
-        skill = self._skill()
-        plan_phase = skill[skill.index("### Plan (per iteration)"):skill.index("### Execute (per iteration)")]
-        skill_match = re.search(r"(?i)materially.{0,400}surface|surface.{0,400}materially",
-                                 plan_phase, re.DOTALL)
-        self.assertIsNotNone(skill_match, "SKILL.md Plan-phase gate window must exist to scope this check")
-        skill_window = plan_phase[max(0, skill_match.start() - 200):skill_match.end() + 200]
-        self.assertNotRegex(
-            skill_window, self._BLOCK_DISPOSITION_RE,
-            "create-spec SKILL.md Plan-phase gate window must not use 'block'/"
-            "'loopback'/'auto-reject' as its own disposition (MAR-88 AC-2)")
-
-    # --- AC-7: verifier dimension count unchanged (regression guard) ---
-
-    def test_create_spec_verifier_no_spec_simplicity_dimension(self):
-        """C-4: create-spec-verifier.md must never gain a 'spec-simplicity'
-        dimension — the spec-simplicity gate is planner-only (surface, not
-        block). The verifier declares six numbered dimensions: the original
-        four (design-conformance, acceptance-coverage, completeness,
-        consistency), MAR-150's net-new blocking `audience-style` dimension,
-        and MAR-151's net-new blocking `structure` dimension."""
-        body = self._verifier()
-        dimensions = re.findall(r"^[0-9]+\.\s+\*\*", body, re.M)
-        self.assertEqual(
-            len(dimensions), 6,
-            "create-spec-verifier.md must declare exactly 6 numbered "
-            "dimensions (4 original + MAR-150 audience-style + MAR-151 "
-            "structure); found %d" % len(dimensions))
-        self.assertNotIn(
-            "spec-simplicity", body.lower(),
-            "create-spec-verifier.md must not add a 'spec-simplicity' "
-            "dimension (MAR-88 C-4 — planner-only scope)")
 
 
 class TestReconcileTicketIssueLinkage(unittest.TestCase):
@@ -3471,7 +3299,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         this assertion is updated in place to the superseding truth rather
         than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("11 active triads (33 agents", body,
                       "c4-component.md must read '12 active triads "
                       "(36 agents in triads)' (MAR-112/113 AC-7, superseded "
                       "by MAR-143)")
@@ -3485,9 +3313,9 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
+        triad_idx = body.index("11 active triads (33 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
+        self.assertIn("36 reachable agents", window,
                       "c4-component.md must read '39 reachable agents' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143)")
@@ -3502,7 +3330,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         registration of the 15th HOOKED skill advances this to x15 (the true
         15/15 hook count)."""
         body = self._c4_component()
-        self.assertIn("x15", body,
+        self.assertIn("x14", body,
                       "c4-component.md's dispatch.py component description "
                       "must read x15 pre/post hook pairs (MAR-112 AC-7, "
                       "superseded by MAR-113/MAR-129; advanced to 15/15 by "
@@ -3605,7 +3433,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         this assertion is updated in place to the superseding truth rather
         than asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("11 active triads (33 agents", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143)")
@@ -3619,9 +3447,9 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
+        triad_idx = body.index("11 active triads (33 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
+        self.assertIn("36 reachable agents", window,
                       "c4-component.md must advance to '39 reachable agents' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143)")
@@ -3634,7 +3462,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         x15 pre/post hook pairs (MAR-143's registration of the 15th HOOKED
         skill advances the true hook count to 15/15); x10 is gone."""
         body = self._c4_component()
-        self.assertIn("x15", body,
+        self.assertIn("x14", body,
                       "c4-component.md's dispatch.py component description "
                       "must advance to x15 pre/post hook pairs (MAR-113 AC-7; "
                       "advanced to 15/15 by MAR-143)")
@@ -3679,6 +3507,116 @@ class TestCreateOperationsChangelogEntry(unittest.TestCase):
             re.search(r"(?i)create-operations|operations_path", section),
             "the MAR-113 CHANGELOG entry must mention create-operations or "
             "operations_path (MAR-113 AC-9)")
+
+
+class TestVerifierFixedPointRelocated(unittest.TestCase):
+    """MAR-156 Task 03 (AC-3, AC-7): code-verifier's dimension 1 relocates the
+    review loop's fixed point to ticket.json; audience-style becomes a new
+    standalone dimension 13; consistency is retired with a stated rationale;
+    code/SKILL.md and ship/SKILL.md are updated to match."""
+
+    def agent_path(self, name):
+        return os.path.join(PLUGIN, "agents", name)
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def _verifier_body(self):
+        return read(self.agent_path("code-verifier.md"))
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    def _ship_body(self):
+        return read(self.skill_path("ship"))
+
+    def test_spec_conformance_dimension_gone(self):
+        body = self._verifier_body()
+        self.assertNotIn("**Spec conformance**", body,
+                         "code-verifier.md must no longer declare a 'Spec "
+                         "conformance' dimension (MAR-156 AC-3)")
+
+    def test_acceptance_criteria_conformance_dimension_present(self):
+        body = self._verifier_body()
+        self.assertIn("**Acceptance-criteria conformance**", body,
+                      "code-verifier.md must declare the new 'Acceptance-"
+                      "criteria conformance' dimension (MAR-156 AC-3)")
+        self.assertIn("ticket.json", body)
+        self.assertIsNotNone(
+            re.search(r"(?i)MUST NOT accept.{0,120}restatement", body, re.DOTALL),
+            "code-verifier.md dimension 1 must state the explicit negative "
+            "guarantee against trusting the plan artifact's restatement "
+            "(MAR-156 AC-3/D2)")
+        self.assertIn("FRESH, EVERY iteration", body)
+
+    def test_retired_dimensions_note_present(self):
+        body = self._verifier_body()
+        self.assertIn("Retired dimensions", body,
+                      "code-verifier.md must carry a 'Retired dimensions' note")
+        self.assertIsNotNone(
+            re.search(r"(?i)consistency.{0,300}no cross-file surface|"
+                      r"no cross-file surface.{0,300}consistency",
+                      body, re.DOTALL),
+            "the Retired dimensions note must state consistency's retirement "
+            "rationale (single-artifact judgment has no cross-file surface)")
+
+    def test_audience_style_dimension_13_standalone_blocking(self):
+        body = self._verifier_body()
+        self.assertIsNotNone(
+            re.search(r"(?m)^13\.\s+\*\*Audience-style\*\*", body),
+            "code-verifier.md must declare a standalone, numbered dimension "
+            "13 'Audience-style'")
+        self.assertIn("audience_style_profile", body)
+        self.assertIn('severity="blocking"', body)
+
+    def test_structure_subcheck_fixed_literal_not_settings_key(self):
+        body = re.sub(r"\s+", " ", self._verifier_body())
+        self.assertIn(
+            'Scope; Approach; API/data changes; Test plan; Out of scope',
+            body,
+            "code-verifier.md's structure sub-check must use the fixed "
+            "five-heading literal")
+        self.assertNotIn("settings.enforcement.spec_sections", body,
+                         "code-verifier.md must not reference the deleted "
+                         "settings.enforcement.spec_sections key")
+
+    def test_code_skill_declares_and_forwards_audience_style_profile(self):
+        body = re.sub(r"\s+", " ", self._code_body())
+        self.assertIn(
+            '<constraint name="audience_style_profile">engineers '
+            '(implementation-contract prose)</constraint>',
+            body,
+            "code/SKILL.md must declare/forward audience_style_profile "
+            "(MAR-156 Task 03)")
+
+    def test_code_skill_dimension_summary_bullets_updated(self):
+        body = self._code_body()
+        self.assertNotIn("**Spec conformance**", body)
+        self.assertIn("**Acceptance-criteria conformance**", body)
+        self.assertIn("**Audience-style**", body)
+
+    def test_ship_skill_no_create_spec_references(self):
+        """AC-7: ship/SKILL.md no longer names create-spec anywhere."""
+        body = self._ship_body()
+        self.assertNotIn("create-spec", body,
+                         "ship/SKILL.md must not reference create-spec "
+                         "anywhere (MAR-156 AC-7)")
+
+    def test_ship_skill_single_walk_order_no_lane_branch(self):
+        """AC-7: 'Picking the next step' describes exactly ONE walk order for
+        every lane -- no TRIVIAL/SMALL branch language remains."""
+        body = self._ship_body()
+        section_start = body.index("## Picking the next step")
+        next_heading = re.search(r"\n## ", body[section_start + 1:])
+        section = body[section_start:section_start + 1 + next_heading.start()] \
+            if next_heading else body[section_start:]
+        self.assertNotIn("TRIVIAL", section)
+        self.assertNotIn("SMALL", section)
+        section = re.sub(r"\s+", " ", section)
+        self.assertIn(
+            "create-ticket → create-design (when required per the rules "
+            "above) → code → create-pr", section,
+            "ship/SKILL.md must state the single lane-uniform walk order")
 
 
 if __name__ == "__main__":

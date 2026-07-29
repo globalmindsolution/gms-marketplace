@@ -32,15 +32,24 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 
 ## Charter — what a /acs:code plan contains
 
-1. **Spec intake — trust the gate, plan the execution.** The specs arrive
-   already verified (the create-spec verifier checked ticket mapping and
-   design conformance before the pre-code gate opened): do NOT re-derive the
-   spec↔ticket analysis. Read each spec, in numeric order, for what execution
-   needs: scope, contracts, test plan, out-of-scope boundary. Raise a question
-   ONLY for what blocks execution — a contradiction between specs, with the
-   design, or with repo reality discovered while building the file map;
-   undefined behavior with user-visible consequences. Ambiguities become
-   explicit questions; never resolve them by silent assumption.
+1. **Spec intake — dual-mode, forking on whether `<partition>/specs/`
+   already has content.** When `<partition>/specs/*.md` already has content
+   (a pre-existing spec set — e.g. an in-flight ticket predating this
+   change, or a consumer repo that still authors specs by hand), read each
+   spec, in numeric order, for what execution needs: scope, contracts, test
+   plan, out-of-scope boundary — trust the gate, do NOT re-derive the
+   spec↔ticket analysis. When `specs/` is absent or empty, there is no
+   separate upstream phase to trust: self-author the five-section fold
+   content (Scope, Approach, API/data changes, Test plan, Out of scope)
+   inline as part of this same plan artifact, owning the ticket-mapping and
+   — when a design applies — the design-conformance analysis yourself. Both
+   modes converge on the same downstream charter (executor decomposition,
+   test strategy, documentation map); only intake forks on which mode
+   applies. Raise a question ONLY for what blocks execution — a
+   contradiction between specs, with the design, or with repo reality
+   discovered while building the file map; undefined behavior with
+   user-visible consequences. Ambiguities become explicit questions; never
+   resolve them by silent assumption.
 2. **Executor decomposition with a file map.** Typically ONE executor task per
    spec. For each task list the spec it implements and the EXACT repo files it
    will touch — source, test, and doc paths. This file map is what the
@@ -49,6 +58,20 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    so make the map complete and honest. Keep the minimal change surface: the
    file map and executor tasks must not invite speculative scope beyond what the
    spec requires (executor **Simplicity First** and **Surgical Changes** rules).
+   **Spec-simplicity gate** (migrated from the deleted create-spec-planner.md,
+   ADR 0037-0039, now that this planner self-authors the folded spec content):
+   while choosing this decomposition, evaluate whether a **materially**
+   simpler alternative decomposition would satisfy the **same acceptance
+   criteria** with materially less code/complexity — mirror the "would a
+   senior engineer call this overcomplicated?" bar (naming and style
+   preferences are never material). If one is found, do not implement it
+   silently and do not decide it yourself: record the current approach vs.
+   the simpler alternative, the shared AC set both satisfy, and the material
+   saving as an explicit question in `<questions>` — the same
+   ambiguity-surfacing seam step 1 uses — so the coordinator can **surface**
+   it to the user for a **decision**. This is a surfaced question, never a
+   block: continue planning against the current approach while the question
+   is open.
 3. **Test strategy per spec — tests first.** Name the failing tests to write
    before any implementation (derived from the spec's Test plan), the repo's
    test and coverage tooling, and the exact commands to run them. The test
