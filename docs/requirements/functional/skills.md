@@ -645,6 +645,14 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   before proceeding.
 - MUST interact with the user to resolve ambiguities before finalizing
   (clarifying questions).
+- **AC/DoD substantiveness gate (standing behavior, MAR-157):** Step 1 flags
+  any proposed `acceptance_criteria` entry that is not concrete/testable
+  (vague satisfaction-claim boilerplate with no observable outcome, e.g.
+  "works correctly"), for both root tickets and epic child fan-out. Step 2
+  surfaces every flagged entry to the user; the ticket does not finalize with
+  a flagged entry unless the user explicitly confirms it anyway. No new subagent
+  is introduced — the check is inline coordinator judgment folded into the
+  existing Step 1/Step 2 flow.
 - MUST create a ticket with a type of **epic**, **story**, or **task**.
 - When the ticket type is **epic**, MUST suggest creating child
   **story**/**task** tickets; each child gets its own `<ticket-id>` and runs

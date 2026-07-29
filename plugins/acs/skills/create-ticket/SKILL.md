@@ -121,6 +121,11 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
 
 - `type` (epic / story / task), `title`, `description` outline, `acceptance_criteria`
   (array of testable strings), `priority`, `story_points`
+- Judge each proposed `acceptance_criteria` entry for concreteness/testability
+  — an observable, checkable outcome versus vague satisfaction-claim
+  boilerplate (e.g. "works correctly", "is better", "no bugs", "handles X
+  properly") — and flag any non-concrete/non-testable entry as part of the
+  proposal presented to the user in Step 2
 - `needs_design` recommendation + one-line rationale (epics are always
   `needs_design: true`; for story/task recommend and rationale)
 - `prd_trace`: the PRD feature/goal this ticket traces to (epics to a roadmap
@@ -132,7 +137,8 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   stakes=high; include matched paths in the rationale when high
 - `lane` derived via `derive_lane(size, stakes, needs_design, type)` — for display
 - For epics: proposed child story/task breakdown with title, type, points, and
-  `needs_design` per child
+  `needs_design` per child — apply the same concreteness/testability judgment
+  to any AC/DoD-shaped text proposed for a child
 
 No separate planner subagent is spawned. The coordinator performs this analysis
 inline.
@@ -148,20 +154,25 @@ and blocks until the user confirms or overrides:
    propose a follow-up `/acs:create-prd` re-run, and obtain explicit user
    confirmation to proceed (or stop at the user's choice). Record the confirmed
    divergence one-liner.
-3. **Type and needs_design**: epics are always `needs_design: true` (state it, do
+3. **AC/DoD substantiveness**: present every flagged `acceptance_criteria` entry
+   (root proposal, and any flagged child-breakdown AC/DoD text for an epic) to the
+   user. The user must either revise the entry or explicitly confirm keeping it
+   as-is — the ticket does not finalize with a flagged entry unless the user
+   explicitly confirms it anyway.
+4. **Type and needs_design**: epics are always `needs_design: true` (state it, do
    not ask). For story/task, present the recommendation and obtain USER CONFIRMATION
    of the final `needs_design` value. Same for `docs_only` when recommended `true`
    (it relaxes /acs:code's TDD/coverage gates — never set it without explicit user
    confirmation; when `false`, don't ask).
-4. **Size and stakes**: present recommended values with a one-line rationale
+5. **Size and stakes**: present recommended values with a one-line rationale
    (include matched paths when stakes=high). Obtain USER CONFIRMATION or override
    for each. Derive `lane` from the confirmed values via
    `derive_lane(size, stakes, needs_design, type)` and display it so the user sees
    the pipeline lane. Stakes MAY be raised freely; de-escalation requires explicit
    user confirmation — never silently lower a user-confirmed value (invariant (c)).
-5. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
+6. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
    blank").
-6. **Epic only**: present the proposed child breakdown and obtain user confirmation
+7. **Epic only**: present the proposed child breakdown and obtain user confirmation
    or edits before any child is minted.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run), return
