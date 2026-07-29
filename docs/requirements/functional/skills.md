@@ -885,7 +885,12 @@ Purpose: implement the specs in the consumer repo using TDD.
   **Simplicity & scope** (overcomplication and out-of-scope edits are blocking)
   — in addition to spec conformance, tests, and coverage. The architecture /
   system-design review judges the changeset against the approved `design.md`
-  when one exists (the ticket's own or its parent epic's). Blocking findings
+  when one exists (the ticket's own or its parent epic's). On full-depth
+  tickets (`verify_depth=="full"`) the review additionally gains a
+  **multi-lens** shape: 4 parallel independent lenses, each reading a
+  different evidence source, plus a coordinator-performed confidence-scoring/
+  adversarial merge pass before findings count; light-depth review stays the
+  unchanged single-pass shape. Blocking findings
   trigger automatic remediation iterations (max 3); findings and stop
   reasons land in `code-state.json`
   ([workflow.md](workflow.md#review-feedback-loop)).

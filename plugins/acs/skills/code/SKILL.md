@@ -511,6 +511,48 @@ Dimensions, each producing blocking findings on failure:
   `audience_style_profile`; an UNWAIVED register mismatch is a blocking
   finding, waived to `severity="info"` for a register the coordinator
   recorded via `clarify.py add --skill code --source assumption`.
+- **Regression-risk (git-history)** — full-depth only (dimension 14, lens D
+  in the multi-lens split below); git history on touched paths shows a prior
+  revert/hotfix pattern on the same lines, or the diff reintroduces
+  something a prior commit deliberately removed.
+
+**`verify_depth=="full"` (multi-lens spawn).** After all executors finish,
+the coordinator spawns 4 parallel `acs:code-verifier` subagents via the
+Agent tool — the same agent file, four times, reusing the "several
+executors in parallel... per the plan's file map" spawn mechanism already
+used for executors above — each `<task phase="verify">` carrying one
+additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
+table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
+writes its own `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+artifact (never the shared `iter-<n>-verify.md` name). After all 4 lenses
+return, the coordinator itself performs the merge pass — never a subagent:
+
+1. Collect every `<finding>` across the 4 lens results.
+2. A finding raised, in substance, by **2 or more** lenses is corroborated
+   — kept blocking without further check.
+3. A finding raised by exactly **one** lens is adversarially re-scrutinized
+   by the coordinator itself: re-read the finding's cited evidence
+   directly. If the evidence supports the claim, keep it blocking; if the
+   coordinator cannot independently confirm it, downgrade it to
+   `severity="info"` with the downgrade rationale recorded — never silently
+   dropped (the cross-lens application of "if it is not worth blocking, it
+   is not a finding — note it in the report only").
+4. The coordinator writes the single merged
+   `<partition>/phases/code/iter-<n>-verify.md` itself: one section per
+   corroborated/confirmed finding (blocking), one per downgraded finding
+   (info-level, with rationale), and a short per-lens evidence summary.
+5. Zero surviving blocking findings after the merge = pass, identical to
+   the zero-findings rule below — the merge pass changes WHICH findings
+   count, never the pass/fail rule itself. The in-loop escalation check's
+   trigger (a) (`### In-loop escalation check` above) reads this FINAL
+   merged findings list — the merge write always happens before the next
+   iteration's trigger-(a) evaluation.
+
+**`verify_depth=="light"` (unchanged).** Exactly one `acs:code-verifier`
+spawn — the single-pass shape already documented above, no lens
+constraint, no `-lens-` suffix — checking all 13 base dimensions
+(dimension 14 is full-depth-only) and writing
+`<partition>/phases/code/iter-<n>-verify.md` directly, exactly as today.
 
 ALL findings block — zero findings = pass (`verifier_passed: true`). On
 findings: persist the verify output, then AUTOMATICALLY re-plan and re-execute

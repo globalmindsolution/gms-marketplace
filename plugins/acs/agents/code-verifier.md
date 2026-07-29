@@ -25,7 +25,8 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   `## Verifier checklist` — it is a floor, never a ceiling). READ EVERY ONE.
   Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
-  plus `architecture_path`, `adr_path`, and `standards_path` when set;
+  plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
+  when set (full-depth lens spawns only — see Multi-lens review);
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
 
@@ -181,6 +182,16 @@ ALL of the following — every dimension that fails produces blocking findings:
     `<finding severity="info" dimension="audience-style">`, which does not
     block.
 
+14. **Regression-risk (git-history)** — BLOCKING, full-depth only, lens D
+    (evaluated only when the task's `<constraints>` carries `verify_lens` —
+    never when `verify_lens` is absent, keeping light-depth's dimension set
+    at 13 and AC-2's zero-functional-change guarantee intact): read git
+    history on the changeset's touched paths (`git log --follow -p` /
+    `git log --oneline`, bounded lookback, scoped to touched files) for a
+    prior revert/hotfix pattern on the same lines, or whether the diff
+    reintroduces something a prior commit deliberately removed. A match is a
+    `<finding severity="blocking" dimension="regression-risk">`.
+
 **Retired dimensions.** create-spec-verifier's `consistency` dimension
 (checking agreement across multiple independently authored spec files:
 clashing schemas, unrealizable dependency order, `NN-` sequence gaps) is
@@ -192,10 +203,53 @@ longer exists.
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.
 
+## Multi-lens review (`verify_depth=="full"` only)
+
+When the task's `<constraints>` carries a `verify_lens` value (`A`, `B`,
+`C`, or `D`), this spawn is one of 4 parallel lenses examining the same
+changeset from a different evidence source — check ONLY that lens's
+dimension subset below, never all 14. The Charter's universal preamble
+(`git diff <default_branch>...HEAD` and `git log <default_branch>..HEAD
+--oneline`) still runs first for every lens spawn, lens-scoped or not — the
+lens scope narrows WHICH dimensions this spawn checks, never removes the
+mandatory diff/log-read step.
+
+| Lens | Dimensions covered (numbered per this file) | Evidence source |
+|------|-----------------------------------------------|------------------|
+| A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + `ticket.json` re-read fresh; the ONLY lens that re-runs the test/coverage/e2e suite |
+| B — Security, Standards & Craftsmanship | 6, 7, 10, 12 | the branch diff + `standards/` at `standards_path` when configured; no suite re-run |
+| C — Architecture & Documentation | 8, 9, 11, 13 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose; no suite re-run |
+| D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |
+
+This 4-lens split is a **fixed literal** here — no settings key configures
+lens count or dimension assignment, mirroring the existing "FIXED literal
+... no configurable mechanism" precedent at dimension 1's structure
+sub-check above. This table itself is the documented lens-count/
+dimension-assignment decision.
+
+Each lens spawn writes its own artifact
+`<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
+`iter-<n>-verify.md` (see Phase artifact below) — never the shared name, so
+4 lens spawns never race to write the same file. After all 4 lenses return,
+the `/acs:code` coordinator (never a subagent) performs the confidence-
+scoring merge pass and writes the single `iter-<n>-verify.md` itself.
+
+When `verify_lens` is absent from `<constraints>` (light depth, or any spawn
+that predates this multi-lens shape), behavior is unchanged from today: all
+13 base dimensions are checked (never dimension 14, which is full-depth/
+lens-D-only) and this spawn writes `iter-<n>-verify.md` directly.
+
 ## Phase artifact
 
+When the task's `<constraints>` carries `verify_lens` (`A`-`D`), write your
+lens report to `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+instead — never the shared `iter-<n>-verify.md` name, which only the
+coordinator writes, after merging all 4 lenses' findings (see Multi-lens
+review above).
+
 Write the full verification report to
-`<partition>/phases/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`).
+`<partition>/phases/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`,
+or the lens-scoped path above when `verify_lens` is set).
 Write it with the Write tool.
 Required structure: one `## <Dimension>` section per dimension above, each with
 the commands run, their evidence (test/coverage/lint output summaries, diff
