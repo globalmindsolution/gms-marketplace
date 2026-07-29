@@ -3509,5 +3509,115 @@ class TestCreateOperationsChangelogEntry(unittest.TestCase):
             "operations_path (MAR-113 AC-9)")
 
 
+class TestVerifierFixedPointRelocated(unittest.TestCase):
+    """MAR-156 Task 03 (AC-3, AC-7): code-verifier's dimension 1 relocates the
+    review loop's fixed point to ticket.json; audience-style becomes a new
+    standalone dimension 13; consistency is retired with a stated rationale;
+    code/SKILL.md and ship/SKILL.md are updated to match."""
+
+    def agent_path(self, name):
+        return os.path.join(PLUGIN, "agents", name)
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def _verifier_body(self):
+        return read(self.agent_path("code-verifier.md"))
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    def _ship_body(self):
+        return read(self.skill_path("ship"))
+
+    def test_spec_conformance_dimension_gone(self):
+        body = self._verifier_body()
+        self.assertNotIn("**Spec conformance**", body,
+                         "code-verifier.md must no longer declare a 'Spec "
+                         "conformance' dimension (MAR-156 AC-3)")
+
+    def test_acceptance_criteria_conformance_dimension_present(self):
+        body = self._verifier_body()
+        self.assertIn("**Acceptance-criteria conformance**", body,
+                      "code-verifier.md must declare the new 'Acceptance-"
+                      "criteria conformance' dimension (MAR-156 AC-3)")
+        self.assertIn("ticket.json", body)
+        self.assertIsNotNone(
+            re.search(r"(?i)MUST NOT accept.{0,120}restatement", body, re.DOTALL),
+            "code-verifier.md dimension 1 must state the explicit negative "
+            "guarantee against trusting the plan artifact's restatement "
+            "(MAR-156 AC-3/D2)")
+        self.assertIn("FRESH, EVERY iteration", body)
+
+    def test_retired_dimensions_note_present(self):
+        body = self._verifier_body()
+        self.assertIn("Retired dimensions", body,
+                      "code-verifier.md must carry a 'Retired dimensions' note")
+        self.assertIsNotNone(
+            re.search(r"(?i)consistency.{0,300}no cross-file surface|"
+                      r"no cross-file surface.{0,300}consistency",
+                      body, re.DOTALL),
+            "the Retired dimensions note must state consistency's retirement "
+            "rationale (single-artifact judgment has no cross-file surface)")
+
+    def test_audience_style_dimension_13_standalone_blocking(self):
+        body = self._verifier_body()
+        self.assertIsNotNone(
+            re.search(r"(?m)^13\.\s+\*\*Audience-style\*\*", body),
+            "code-verifier.md must declare a standalone, numbered dimension "
+            "13 'Audience-style'")
+        self.assertIn("audience_style_profile", body)
+        self.assertIn('severity="blocking"', body)
+
+    def test_structure_subcheck_fixed_literal_not_settings_key(self):
+        body = re.sub(r"\s+", " ", self._verifier_body())
+        self.assertIn(
+            'Scope; Approach; API/data changes; Test plan; Out of scope',
+            body,
+            "code-verifier.md's structure sub-check must use the fixed "
+            "five-heading literal")
+        self.assertNotIn("settings.enforcement.spec_sections", body,
+                         "code-verifier.md must not reference the deleted "
+                         "settings.enforcement.spec_sections key")
+
+    def test_code_skill_declares_and_forwards_audience_style_profile(self):
+        body = re.sub(r"\s+", " ", self._code_body())
+        self.assertIn(
+            '<constraint name="audience_style_profile">engineers '
+            '(implementation-contract prose)</constraint>',
+            body,
+            "code/SKILL.md must declare/forward audience_style_profile "
+            "(MAR-156 Task 03)")
+
+    def test_code_skill_dimension_summary_bullets_updated(self):
+        body = self._code_body()
+        self.assertNotIn("**Spec conformance**", body)
+        self.assertIn("**Acceptance-criteria conformance**", body)
+        self.assertIn("**Audience-style**", body)
+
+    def test_ship_skill_no_create_spec_references(self):
+        """AC-7: ship/SKILL.md no longer names create-spec anywhere."""
+        body = self._ship_body()
+        self.assertNotIn("create-spec", body,
+                         "ship/SKILL.md must not reference create-spec "
+                         "anywhere (MAR-156 AC-7)")
+
+    def test_ship_skill_single_walk_order_no_lane_branch(self):
+        """AC-7: 'Picking the next step' describes exactly ONE walk order for
+        every lane -- no TRIVIAL/SMALL branch language remains."""
+        body = self._ship_body()
+        section_start = body.index("## Picking the next step")
+        next_heading = re.search(r"\n## ", body[section_start + 1:])
+        section = body[section_start:section_start + 1 + next_heading.start()] \
+            if next_heading else body[section_start:]
+        self.assertNotIn("TRIVIAL", section)
+        self.assertNotIn("SMALL", section)
+        section = re.sub(r"\s+", " ", section)
+        self.assertIn(
+            "create-ticket → create-design (when required per the rules "
+            "above) → code → create-pr", section,
+            "ship/SKILL.md must state the single lane-uniform walk order")
+
+
 if __name__ == "__main__":
     unittest.main()

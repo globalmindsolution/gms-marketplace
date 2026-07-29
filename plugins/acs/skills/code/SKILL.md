@@ -467,13 +467,21 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
 
 Spawn the verifier AFTER all executors finish, with `<inputs>` of the branch
 diff (`git diff <default-branch>...HEAD`), all `<partition>/specs/*.md`,
-`<partition>/ticket.json`, and `<design.dir>/design.md` when it applies. The
+`<partition>/ticket.json`, `<design.dir>/design.md` when it applies, and
+`<partition>/phases/code/iter-<n>-plan.md`. The verify `<task>`'s
+`<constraints>` always carry `<constraint name="audience_style_profile">engineers
+(implementation-contract prose)</constraint>` — the register the folded plan
+content (or the plan's own analysis/decomposition prose) is judged against. The
 verifier judges fresh — never forward executor reasoning — and RE-RUNS the
 tests and coverage itself (artifact `<partition>/phases/code/iter-<n>-verify.md`).
 Dimensions, each producing blocking findings on failure:
 
-- **Spec conformance** — every spec fully implemented as written; deviations
-  are findings.
+- **Acceptance-criteria conformance** — `ticket.json`'s `acceptance_criteria`/
+  DoD re-read fresh every iteration, never the current plan artifact's
+  restatement; the AC-to-implementation matrix is rebuilt from scratch each
+  time. Carries the completeness (five mandatory sections substantive, no
+  stubs) and structure (`structure_lint.py` against the fixed five-heading
+  literal) sub-checks when the fold is active.
 - **Tests** — full suite passes; new tests genuinely exercise the spec's
   acceptance criteria (re-run, not trusted).
 - **Coverage** — measured coverage meets `settings.test_coverage_percent`.
@@ -488,7 +496,8 @@ Dimensions, each producing blocking findings on failure:
   pre-existing ones surface as notes).
 - **Architecture & system design** — judged against `design.md` when one
   exists (own or parent); otherwise against the documented architecture and
-  sane structure.
+  sane structure; also against the folded plan artifact's Approach/API-data-changes
+  content when no separately-authored spec set exists.
 - **Security** — no injected vulnerabilities, secrets, or unsafe handling of
   input/authz.
 - **Documentation** — every affected doc updated and consistent with the
@@ -502,6 +511,11 @@ Dimensions, each producing blocking findings on failure:
   document and PR body. No factual impact → no-op for this check.
 - **Simplicity & scope** — overcomplication and out-of-scope edits are
   blocking findings (executor **Simplicity First** + **Surgical Changes** rules).
+- **Audience-style** — the folded plan artifact's prose (or the plan's own
+  analysis/decomposition prose when the fold is not active) matches
+  `audience_style_profile`; an UNWAIVED register mismatch is a blocking
+  finding, waived to `severity="info"` for a register the coordinator
+  recorded via `clarify.py add --skill code --source assumption`.
 
 ALL findings block — zero findings = pass (`verifier_passed: true`). On
 findings: persist the verify output, then AUTOMATICALLY re-plan and re-execute
