@@ -187,6 +187,20 @@ class TestGates(AcsWorkspaceCase):
         result = self.pre("code", t)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_gate_code_pass_through_regardless_of_specs_presence(self):
+        # AC-8 gate-level companion: gate_code's pass/fail is unaffected by
+        # whether specs/ already has content -- the fold (self-author vs.
+        # read-existing) is entirely the planner's concern now, never the
+        # gate's. A pre-existing, non-empty specs/ must not change the
+        # outcome versus the specs-absent case already proven above.
+        t = self.new_ticket("HasSpecs", "task")
+        specs_dir = os.path.join(self.tdir(t), "specs")
+        os.makedirs(specs_dir, exist_ok=True)
+        with open(os.path.join(specs_dir, "01-existing.md"), "w") as fh:
+            fh.write("# Scope\n\nExisting spec content.\n")
+        result = self.pre("code", t)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     """AC-1/AC-5: /acs:create-spec (skill, 3 agent files, both hook scripts, its

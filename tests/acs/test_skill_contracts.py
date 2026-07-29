@@ -1005,40 +1005,18 @@ class TestCodeSkillEscalation(unittest.TestCase):
 
 
 class TestStageReintroduction(unittest.TestCase):
-    """MAR-57 Spec 03 (AC-5, AC-8): pin the stage re-introduction contract in
-    create-spec/SKILL.md and the cross-reference in code/SKILL.md.
-
-    These doc-assertion tests are RED before the 'Escalation pickup' subsection
-    is added to create-spec/SKILL.md and the cross-reference is added to
-    code/SKILL.md; GREEN after.
-
-    Per plan Q1 resolution: since MAR-59 fold prose is not yet on disk, the
-    MAR-59-unchanged assertion targets the NEW pickup subsection's own statement
-    that fold behavior is unchanged for non-escalating tickets — not absent
-    pre-existing fold prose.
-    """
+    """MAR-57 Spec 03 originally pinned the stage re-introduction contract in
+    create-spec/SKILL.md and its cross-reference in code/SKILL.md (step g,
+    'Stage re-introduction'). MAR-156 deletes create-spec outright and removes
+    step g entirely (no stub): under the universal fold there is no more
+    fold-boundary to cross, since every lane already folds. This class now
+    keeps only the two assertions unrelated to step g / create-spec content."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
     def _code_body(self):
         return read(self.skill_path("code"))
-
-    # --- AC-5: code/SKILL.md cross-references the create-spec pickup subsection ---
-
-    def test_code_skill_md_cross_references_create_spec_pickup(self):
-        """AC-5: code/SKILL.md must contain a cross-reference to the
-        create-spec/SKILL.md 'Escalation pickup' subsection."""
-        body = self._code_body()
-        # Must mention create-spec in the context of escalation pickup or stage reintroduction
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)create.spec.{0,300}(escalation pickup|pickup|stage.reintroduc|"
-                r"fold.boundar|fast.lane.{0,40}escalat)|"
-                r"(escalation pickup|stage.reintroduc).{0,300}create.spec",
-                body, re.DOTALL),
-            "code/SKILL.md must cross-reference the create-spec 'Escalation pickup' "
-            "subsection (MAR-57 AC-5)")
 
     # --- guard_axes must be referenced in code/SKILL.md escalation sequence ---
 
@@ -1076,45 +1054,95 @@ class TestStageReintroduction(unittest.TestCase):
                 "code/SKILL.md describes an automatic downgrade path outside of a "
                 "negating context (AC-3 negative guarantee). Found: %r" % m.group(0))
 
-    # --- MAR-107 D4 AC-4: fold-boundary condition pinned code-side (step g) ---
 
-    def test_d4_step_g_states_fold_condition_and_pickup_invocation(self):
-        """MAR-107 AC-4: code/SKILL.md step (g) must state the fold condition
-        (origin lane TRIVIAL or SMALL, and new lane STANDARD or COMPLEX) and
-        name the create-spec triad invocation in Escalation-pickup mode. This
-        is the first test targeting code/SKILL.md step (g) specifically
-        (distinct from the create-spec-side tests in this class, which pin
-        create-spec/SKILL.md, not code/SKILL.md)."""
+class TestGeneralizedFold(unittest.TestCase):
+    """MAR-156 Task 02 (AC-2, AC-3, AC-7, AC-8): the fold generalizes to every
+    lane (no lane qualifier survives), step g's create-spec triad spawn
+    reference is fully gone from code/SKILL.md, and code-planner.md's Charter
+    states the dual-mode intake + carries the migrated spec-simplicity gate."""
+
+    def skill_path(self, name):
+        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
+
+    def agent_path(self, name):
+        return os.path.join(PLUGIN, "agents", name)
+
+    def _code_body(self):
+        return read(self.skill_path("code"))
+
+    def _planner_body(self):
+        return read(self.agent_path("code-planner.md"))
+
+    def test_fold_activating_condition_has_no_lane_qualifier(self):
+        """AC-2: the fold section states the activating condition as
+        `specs/` absent-or-empty with NO TRIVIAL/SMALL-only qualifier."""
         body = self._code_body()
         self.assertIsNotNone(
-            re.search(r"(?i)(TRIVIAL|fast lane).{0,120}(SMALL).{0,200}"
-                      r"(STANDARD|full lane).{0,60}(COMPLEX)|"
-                      r"fast lane.{0,80}(TRIVIAL or SMALL).{0,300}"
-                      r"full lane.{0,80}(STANDARD or COMPLEX)",
-                      body, re.DOTALL),
-            "code/SKILL.md step (g) must state the fold condition: origin "
-            "lane TRIVIAL or SMALL and new lane STANDARD or COMPLEX "
-            "(MAR-107 AC-4)")
-        self.assertIsNotNone(
-            re.search(r"(?i)create.spec.{0,200}(triad|escalation.pickup)|"
-                      r"(triad|escalation.pickup).{0,200}create.spec",
-                      body, re.DOTALL),
-            "code/SKILL.md step (g) must name the create-spec triad "
-            "invocation in Escalation-pickup mode (MAR-107 AC-4)")
+            re.search(r"specs/.{0,40}(absent or empty|empty or absent)", body),
+            "code/SKILL.md fold section must state the specs/-absent-or-empty "
+            "activating condition (MAR-156 AC-2)")
+        self.assertNotRegex(
+            body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs",
+            "code/SKILL.md fold section must not retain a TRIVIAL/SMALL-only "
+            "qualifier (MAR-156 AC-2 — the fold is now every-lane)")
 
-    # --- MAR-107 D4 AC-4: resume-only-after-zero-findings pinned code-side (step g) ---
-
-    def test_d4_step_g_states_resume_only_after_zero_findings(self):
-        """MAR-107 AC-4: code/SKILL.md step (g) must state that /code resumes
-        implementation only once create-spec has passed at zero verifier
-        findings."""
+    def test_fold_mandatory_verbatim_clauses_survive(self):
+        """AC-2: the two mandatory verbatim clauses carry over unchanged."""
         body = self._code_body()
+        self.assertIn(
+            "no separate /acs:create-spec invocation and no separate create-spec planner",
+            body,
+            "code/SKILL.md must retain the 'no separate /acs:create-spec "
+            "invocation' verbatim clause (MAR-156 AC-2)")
+        self.assertIn(
+            "every ticket.acceptance_criteria entry maps to at least one test the folded",
+            body,
+            "code/SKILL.md must retain the 'every ticket.acceptance_criteria "
+            "entry maps' verbatim clause (MAR-156 AC-2)")
+
+    def test_no_subagent_spawn_reference_to_create_spec_triad(self):
+        """AC-7: code/SKILL.md contains no subagent-spawn reference to
+        acs:create-spec-planner/-executor/-verifier anywhere (step g deleted)."""
+        body = self._code_body()
+        for token in ("acs:create-spec-planner", "acs:create-spec-executor",
+                      "acs:create-spec-verifier"):
+            self.assertNotIn(token, body,
+                             "code/SKILL.md must not reference %r (MAR-156 AC-7 "
+                             "— step g deleted, create-spec no longer exists)" % token)
+
+    def test_planner_charter_states_dual_mode_not_always_verified(self):
+        """AC-2/AC-8: code-planner.md Charter step 1 no longer states specs
+        arrive already verified unconditionally, and DOES state the
+        dual-mode (existing-specs-read vs. self-author) behavior."""
+        body = self._planner_body()
+        self.assertNotIn(
+            "The specs arrive\n   already verified", body,
+            "code-planner.md must not retain the unconditional 'specs arrive "
+            "already verified' claim (MAR-156 AC-2/AC-8)")
         self.assertIsNotNone(
-            re.search(r"(?i)only once.{0,10}create.spec.{0,120}(passed|pass).{0,120}"
-                      r"zero.{0,20}(verifier )?findings.{0,60}resume",
+            re.search(r"(?i)already has content.{0,400}absent or empty|"
+                      r"absent or empty.{0,400}already has content",
                       body, re.DOTALL),
-            "code/SKILL.md step (g) must state /code resumes only once "
-            "create-spec passes at zero verifier findings (MAR-107 AC-4)")
+            "code-planner.md Charter step 1 must state the dual-mode contract "
+            "(specs/ already has content vs. absent/empty) (MAR-156 AC-2/AC-8)")
+
+    def test_planner_charter_carries_migrated_spec_simplicity_gate(self):
+        """C-5: code-planner.md contains the migrated spec-simplicity-gate
+        clause (materially simpler, same acceptance criteria, surfaced via
+        <questions> rather than blocked)."""
+        body = re.sub(r"\s+", " ", self._planner_body())
+        self.assertIsNotNone(
+            re.search(r"(?i)materially.{0,120}simpler.{0,400}same acceptance criteria|"
+                      r"same acceptance criteria.{0,400}materially.{0,120}simpler",
+                      body),
+            "code-planner.md must co-locate 'materially simpler' and 'same "
+            "acceptance criteria' (MAR-156 C-5)")
+        self.assertIsNotNone(
+            re.search(r"(?i)<questions>.{0,200}(surface|decision)|"
+                      r"(surface|decision).{0,200}<questions>",
+                      body),
+            "code-planner.md must state the gate surfaces via <questions> for "
+            "a decision, never blocks (MAR-156 C-5)")
 
 
 class TestBoundaryOnlyDeescalationContract(unittest.TestCase):
