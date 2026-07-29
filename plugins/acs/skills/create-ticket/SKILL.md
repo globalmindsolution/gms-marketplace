@@ -33,10 +33,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
-- If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
-  typed `/acs:create-ticket`, not driven under /acs:ship), surface one
-  line: "Note: models.coordinator governs the ship coordinator's own run under
-  /acs:ship; this directly typed run uses the session's model." Never silently diverge.
 
 ## Remote import
 
@@ -104,8 +100,7 @@ code-verifier for create-ticket — the correctness mechanism here is the schema
 user-confirmation gate.
 
 If you delegate to an executor, spawn **at most one** `acs:create-ticket-executor`
-subagent. Apply `context.models.coordinator.model` / `.effort` for coordinator work
-and `context.models.executor.model` / `.effort` for the executor when not `"inherit"`;
+subagent. Apply `context.models.executor.model` / `.effort` for the executor when not `"inherit"`;
 if the runtime rejects the model or effort, FAIL the run with that exact error — no
 silent fallback. Validate all XML messages:
 

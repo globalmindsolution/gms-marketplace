@@ -53,11 +53,6 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-code.py`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
-typed `/acs:code`, not driven under /acs:ship), tell the user in one line that
-`models.coordinator` governs the ship coordinator's own run under /acs:ship, not
-a directly typed skill — never silently diverge from it.
-
 ## Branch — FIRST, before any code
 
 All work happens on the ticket branch. Render `settings.formats.branch_name`

@@ -51,10 +51,6 @@ producer. The Start phase never blocks on `principles_path` or `standards_path` 
 audit always proceeds (see Brownfield orientation below); a missing or unset doc set is
 a grounding-input condition handled in Inputs & mode, not a Start-time concern.
 
-If `settings.models.coordinator` is set and this is a direct invocation (not under
-`/acs:ship`), state in one line that it governs the ship coordinator's own session, not
-this directly typed invocation — never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality BEFORE

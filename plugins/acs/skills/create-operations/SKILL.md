@@ -47,11 +47,6 @@ If `settings.operations_path` is `null`: STOP before allocating further work —
 consumer has explicitly opted out of acs maintaining this doc set (mirrors
 `adr_path`'s unset-disables convention). Surface this to the user and do not run.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-user typed `/acs:create-operations`, not driven under /acs:ship), tell the
-user in one line that `models.coordinator` governs the ship coordinator's own
-run under /acs:ship, not a directly typed skill — never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality

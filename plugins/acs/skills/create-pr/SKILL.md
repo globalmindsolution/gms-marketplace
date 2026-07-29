@@ -46,11 +46,6 @@ Parse the printed context JSON. Fields you will use:
   feeds the Summary/Changes content.
 - `post_hook` — absolute path to `post-create-pr.py`.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
-typed `/acs:create-pr`, not driven under /acs:ship), tell the user in one line
-that `models.coordinator` governs the ship coordinator's own run under
-/acs:ship, not a directly typed skill — never silently diverge from it.
-
 State inputs (read these; conversation history is NOT an input):
 
 - `<partition>/ticket.json` — title, type, description, acceptance criteria,

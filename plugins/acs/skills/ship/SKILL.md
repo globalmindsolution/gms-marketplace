@@ -28,8 +28,8 @@ Ground rules, non-negotiable:
 
 ## Start
 
-**Step 1 — resolve settings, repo partition id, and the coordinator
-model.** Run exactly (the heredoc terminator `PY` must stay at column 0):
+**Step 1 — resolve settings and repo partition id.** Run exactly (the
+heredoc terminator `PY` must stay at column 0):
 
 ```bash
 python3 - <<'PY'
@@ -47,15 +47,14 @@ print(json.dumps({
     "workspace": workspace,
     "repo_id": lib.repo_partition_id(cwd),
     "ticket_prefix": settings["ticket_prefix"],
-    "coordinator": lib.resolve_role_model(settings, "ship", "coordinator"),
     "settings_sources": sources,
 }, indent=2))
 PY
 ```
 
 On exit 2: surface stderr verbatim (typically "Run /acs:init first") and
-stop. Otherwise record `workspace`, `repo_id`, `ticket_prefix`, and
-`coordinator`. The ticket partition path is always
+stop. Otherwise record `workspace`, `repo_id`, and `ticket_prefix`. The
+ticket partition path is always
 `<workspace>/<repo_id>/<ticket-id>/` — call it `<partition>` below.
 
 **Step 2 — parse `$ARGUMENTS`.**
@@ -66,12 +65,12 @@ stop. Otherwise record `workspace`, `repo_id`, `ticket_prefix`, and
 - Anything else → **new request**: the whole text is the prompt for the
   first step, /acs:create-ticket.
 
-**Step 3 — model note.** `models.coordinator` (`coordinator.model` /
-`coordinator.effort`, when not `"inherit"`) governs your own ship
-coordinator session/run — you invoke each step skill directly in your own
-context, so there is no separate per-step agent for it to apply to. If the
-runtime rejects the configured model or effort, fail the run with that error;
-never silently fall back.
+**Step 3 — model note.** Your own ship coordinator session has no
+configurable model override in settings — the `coordinator` role was
+retired from the `models` settings contract. You simply inherit whatever
+model and reasoning effort the invoking session already has, and invoke
+each step skill directly in that same context; there is no separate
+per-step agent for a per-role setting to apply to.
 
 ## Pipeline order
 

@@ -118,13 +118,12 @@
       "additionalProperties": true
     },
     "models": {
-      "description": "Per-role subagent model and reasoning effort. Resolution per field: overrides.<skill>.<role> -> <role> -> inherit. coordinator applies only to /ship-spawned coordinators.",
+      "description": "Per-role subagent model and reasoning effort. Resolution per field: overrides.<skill>.<role> -> <role> -> inherit.",
       "type": "object",
       "properties": {
         "planner": {"$ref": "#/$defs/roleModel"},
         "executor": {"$ref": "#/$defs/roleModel"},
         "verifier": {"$ref": "#/$defs/roleModel"},
-        "coordinator": {"$ref": "#/$defs/roleModel"},
         "overrides": {
           "type": "object",
           "propertyNames": {
@@ -135,8 +134,7 @@
             "properties": {
               "planner": {"$ref": "#/$defs/roleModel"},
               "executor": {"$ref": "#/$defs/roleModel"},
-              "verifier": {"$ref": "#/$defs/roleModel"},
-              "coordinator": {"$ref": "#/$defs/roleModel"}
+              "verifier": {"$ref": "#/$defs/roleModel"}
             },
             "additionalProperties": false
           }
