@@ -124,7 +124,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         enumerated = m.group(1)
         for suffix in (
             "prd", "architecture", "project", "quality", "operations",
-            "principles", "design", "spec",
+            "principles", "design",
         ):
             self.assertIn(
                 suffix, enumerated,

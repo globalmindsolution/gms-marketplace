@@ -22,14 +22,15 @@ TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 # drift away from the codified rule.
 CANONICAL = "named by the component/behavior under test, never by a ticket id"
 
-# The five pipeline guidance surfaces (skills + agents) plus the first-class
-# standard doc that must all carry the rule.
+# The three pipeline guidance surfaces (skills + agents) plus the first-class
+# standard doc that must all carry the rule. create-spec/SKILL.md and
+# create-spec-planner.md were two of the original five; MAR-156 deletes
+# create-spec outright and folds its test-authoring responsibility into
+# code/SKILL.md and code-planner.md, both already in this set.
 GUIDANCE_SURFACES = [
     os.path.join(PLUGIN, "skills", "code", "SKILL.md"),
-    os.path.join(PLUGIN, "skills", "create-spec", "SKILL.md"),
     os.path.join(PLUGIN, "agents", "code-executor.md"),
     os.path.join(PLUGIN, "agents", "code-planner.md"),
-    os.path.join(PLUGIN, "agents", "create-spec-planner.md"),
 ]
 STANDARD_DOC = os.path.join(REPO_ROOT, "docs", "standards", "standards.md")
 
@@ -57,7 +58,7 @@ def flags_ticket_id(filename):
 class TestNamingRuleGuidancePresent(unittest.TestCase):
     """Assertion set (A): the codified rule text is present everywhere it must be."""
 
-    def test_rule_present_in_five_guidance_surfaces(self):
+    def test_rule_present_in_guidance_surfaces(self):
         for path in GUIDANCE_SURFACES:
             self.assertIn(CANONICAL, normalized(path),
                           "%s must carry the test-file-naming rule" % path)
