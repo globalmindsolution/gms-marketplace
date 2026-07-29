@@ -431,6 +431,74 @@ class TestApplyTierInline(unittest.TestCase):
             re.search(r"\bcreate-ticket-verifier\b", body),
             "AC-2 [create-ticket]: SKILL.md must carry no bare create-ticket-verifier token")
 
+    def _create_ticket_step_section(self, body, heading):
+        """Slice from `heading` up to the next '### ' heading (or EOF)."""
+        start = body.index(heading)
+        rest = body[start + len(heading):]
+        m = re.search(r"\n### ", rest)
+        end = start + len(heading) + (m.start() if m else len(rest))
+        return body[start:end]
+
+    def test_create_ticket_step1_flags_non_concrete_acceptance_criteria(self):
+        """AC-1 [create-ticket, root]: Step 1 must instruct the coordinator
+        to flag non-concrete/non-testable acceptance_criteria entries, with
+        an illustrative anti-pattern example (MAR-157)."""
+        body = read(self.skill_path("create-ticket"))
+        section = self._create_ticket_step_section(
+            body, "### Step 1 \u2014 Analyze and recommend fields")
+        self.assertIsNotNone(
+            re.search(r"(?is)(concrete|testable).{0,200}flag|flag.{0,200}(concrete|testable)",
+                      section),
+            "MAR-157 AC-1: create-ticket SKILL.md Step 1 must instruct the "
+            "coordinator to flag acceptance_criteria entries that are not "
+            "concrete/testable")
+        self.assertIn(
+            "works correctly", section,
+            "MAR-157 AC-1: Step 1 must include an illustrative anti-pattern "
+            "example such as 'works correctly'")
+
+    def test_create_ticket_step1_epic_fanout_ac_concreteness_covered(self):
+        """AC-1 [create-ticket, epic fan-out]: the epic child-breakdown
+        bullet must reference the same concreteness/testability judgment for
+        AC/DoD-shaped child-breakdown text (MAR-157, clarify.py C-2)."""
+        body = read(self.skill_path("create-ticket"))
+        section = self._create_ticket_step_section(
+            body, "### Step 1 \u2014 Analyze and recommend fields")
+        fanout_idx = section.index("For epics: proposed child story/task breakdown")
+        fanout_and_after = section[fanout_idx:]
+        self.assertIsNotNone(
+            re.search(r"(?is)(concrete|testable)", fanout_and_after),
+            "MAR-157 AC-1: the epic child-breakdown bullet (or its immediate "
+            "vicinity) must reference the concreteness/testability judgment "
+            "for AC/DoD-shaped child-breakdown text")
+
+    def test_create_ticket_step2_surfaces_flagged_acs_before_finalizing(self):
+        """AC-2 [create-ticket]: Step 2 must carry a numbered confirmation
+        item that surfaces flagged acceptance_criteria and blocks
+        finalization absent explicit user confirmation (MAR-157)."""
+        body = read(self.skill_path("create-ticket"))
+        section = self._create_ticket_step_section(
+            body, "### Step 2 \u2014 User-confirmation gate")
+        self.assertIsNotNone(
+            re.search(r"(?is)flagged.{0,300}acceptance_criteria|acceptance_criteria.{0,300}flagged",
+                      section),
+            "MAR-157 AC-2: Step 2 must reference flagged acceptance_criteria entries")
+        self.assertIsNotNone(
+            re.search(r"(?is)does not finalize.{0,200}confirm|confirm.{0,200}does not finalize"
+                      r"|unless.{0,200}confirm|confirm.{0,200}unless", section),
+            "MAR-157 AC-2: Step 2 must state the ticket does not finalize "
+            "with a flagged entry absent explicit user confirmation")
+
+    def test_create_ticket_no_new_subagent_token_beyond_executor(self):
+        """AC-3 [create-ticket, defense-in-depth]: no create-ticket-<x>
+        token beyond -executor appears anywhere in SKILL.md (MAR-157)."""
+        body = read(self.skill_path("create-ticket"))
+        tokens = set(re.findall(r"create-ticket-[a-z]+", body))
+        self.assertEqual(
+            tokens, {"create-ticket-executor"},
+            "MAR-157 AC-3: SKILL.md must carry no create-ticket-<x> token "
+            "beyond create-ticket-executor, found: %r" % (tokens,))
+
     # ------------------------------------------------------------------ Group 2
     # AC-2: no plan->execute->verify triad instruction in any apply-work SKILL.md.
 
@@ -3617,6 +3685,45 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
             "create-ticket → create-design (when required per the rules "
             "above) → code → create-pr", section,
             "ship/SKILL.md must state the single lane-uniform walk order")
+
+
+class TestCreateTicketAcDodGateDocs(unittest.TestCase):
+    """MAR-157 spec 01: pin the docs/requirements/functional/skills.md
+    living-requirements mirror of the AC/DoD substantiveness gate added to
+    create-ticket/SKILL.md's Step 1/Step 2 (ADR 0007 same-diff doc-sync
+    discipline)."""
+
+    def _skills_req(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
+
+    def test_skills_md_create_ticket_section_has_ac_dod_substantiveness_bullet(self):
+        """MAR-157: '## 1. `/create-ticket`' section must document Step 1
+        flagging non-concrete/non-testable acceptance_criteria (root and
+        epic fan-out), Step 2 surfacing flagged entries and blocking
+        finalization absent explicit confirmation, and no new subagent."""
+        body = self._skills_req()
+        section_start = body.index("## 1. `/create-ticket`")
+        section_end = body.index("## 2. `/create-design`")
+        section = body[section_start:section_end]
+        self.assertIsNotNone(
+            re.search(r"(?is)(concrete|testable).{0,300}acceptance_criteria"
+                      r"|acceptance_criteria.{0,300}(concrete|testable)", section),
+            "MAR-157: skills.md '/create-ticket' section must document the "
+            "Step 1 non-concrete/non-testable acceptance_criteria flag")
+        self.assertIsNotNone(
+            re.search(r"(?is)epic.{0,300}(concrete|testable)"
+                      r"|(concrete|testable).{0,300}epic", section),
+            "MAR-157: skills.md '/create-ticket' section must document that "
+            "the concreteness/testability check also covers epic child fan-out")
+        self.assertIsNotNone(
+            re.search(r"(?is)flagged.{0,300}(finaliz\w*)|finaliz\w*.{0,300}flagged",
+                      section),
+            "MAR-157: skills.md '/create-ticket' section must document that "
+            "flagged entries block finalization absent explicit confirmation")
+        self.assertIsNotNone(
+            re.search(r"(?is)no new subagent", section),
+            "MAR-157: skills.md '/create-ticket' section must state no new "
+            "subagent is introduced for this check")
 
 
 if __name__ == "__main__":
