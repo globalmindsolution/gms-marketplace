@@ -21,6 +21,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
+PRD_MD = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 
 VERIFY_HEADING = "### Verify (per iteration) — this IS the changeset review"
 
@@ -309,6 +310,70 @@ class RequirementsDocsUpdatedTest(unittest.TestCase):
             window, r"(?i)multi-lens",
             "skills.md's code-verifier MUST-review bullet must mention the "
             "full-depth multi-lens shape")
+
+
+class PrdDimensionConsistencyTest(unittest.TestCase):
+    """MAR-158 iteration-2 remediation (iter-1-verify.md blocking finding):
+    prd.md's 8 mentions of the retired '12-dimension' descriptor are
+    corrected to '13-dimension' (lane-neutral gate-list mentions) or
+    '14-dimension, multi-lens' (full-verify-specific mentions), mirroring
+    reflection.md:56-63. Each line is located by a stable anchor substring
+    that survives the substitution itself, not by hardcoded line number."""
+
+    # anchor substring -> the physical prd.md line it identifies (lane-neutral:
+    # generic gate-list mentions, not singling out full verify).
+    LANE_NEUTRAL_ANCHORS = [
+        "G6 — Portability",
+        "G11 — Tracker-first delivery",
+        "N/A**, never a hard block",
+        "gated pipeline (ordering/gating",
+    ]
+
+    # anchor substring -> the physical prd.md line it identifies (mentions
+    # that explicitly describe only the full-depth verify loop).
+    FULL_VERIFY_ANCHORS = [
+        "full verify (the",
+        "(≤ 3 iterations)",
+        "plan→execute→verify loop",
+        "e2e when configured) for",
+    ]
+
+    def _line_containing(self, body, anchor):
+        hits = [line for line in body.splitlines() if anchor in line]
+        self.assertEqual(
+            len(hits), 1,
+            "expected exactly one prd.md line containing anchor %r, "
+            "found %d" % (anchor, len(hits)))
+        return hits[0]
+
+    def test_no_stale_12_dimension_string(self):
+        body = read(PRD_MD)
+        self.assertNotIn(
+            "12-dimension", body,
+            "the stale '12-dimension' phrase must be fully corrected in "
+            "docs/product/prd.md")
+
+    def test_lane_neutral_lines_mention_13_dimension(self):
+        body = read(PRD_MD)
+        for anchor in self.LANE_NEUTRAL_ANCHORS:
+            line = self._line_containing(body, anchor)
+            self.assertIn(
+                "13-dimension", line,
+                "lane-neutral prd.md line near anchor %r must read "
+                "'13-dimension'" % anchor)
+
+    def test_full_verify_lines_mention_14_dimension_multi_lens(self):
+        body = read(PRD_MD)
+        for anchor in self.FULL_VERIFY_ANCHORS:
+            line = self._line_containing(body, anchor)
+            self.assertIn(
+                "14-dimension", line,
+                "full-verify-specific prd.md line near anchor %r must "
+                "mention '14-dimension'" % anchor)
+            self.assertIn(
+                "multi-lens", line,
+                "full-verify-specific prd.md line near anchor %r must "
+                "mention 'multi-lens'" % anchor)
 
 
 if __name__ == "__main__":
