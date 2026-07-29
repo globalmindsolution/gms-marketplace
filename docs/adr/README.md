@@ -14,7 +14,7 @@ context and consequences.
 | [0003](0003-file-based-state-outside-repo.md) | File-based state in a workspace outside the repo | Accepted |
 | [0004](0004-reflection-with-independent-verifier.md) | Reflection trio; verifier anchors on gated contracts | Accepted |
 | [0005](0005-xml-messaging-with-xsd.md) | XML subagent messaging validated by XSD | Accepted |
-| [0006](0006-spec-plan-altitude-split.md) | Standing spec/plan altitude split (keep /create-spec) | Accepted |
+| [0006](0006-spec-plan-altitude-split.md) | Standing spec/plan altitude split (keep /create-spec) | Superseded |
 | [0007](0007-living-docs-by-induction.md) | Living architecture, requirements & factual product docs by induction | Accepted |
 | [0008](0008-conditional-steps-as-ticket-data.md) | Conditional steps are ticket data, never invocation options | Accepted |
 | [0009](0009-clarification-ledger-and-grounding.md) | Clarification ledger + grounding rules | Accepted |
@@ -55,6 +55,7 @@ context and consequences.
 | [0052](0052-release-exempt-pr-human-merge.md) | Release cuts land via an exempt `release/*` PR that stops for a mandatory human merge | Accepted |
 | [0053](0053-release-versions-roadmap-mapping-table.md) | Release versions are modeled as an additive `roadmap.md` mapping table, decoupled from the cut skill | Accepted |
 | [0054](0054-settings-driven-release-block.md) | Settings-driven `release` block (JSON-manifest-focused schema, Option A); marketplace = profile #1 | Accepted |
+| [0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) | Supersedes ADR 0006: fold spec-authoring into `/code`'s plan phase for every lane; `ticket.json`'s `acceptance_criteria`/DoD becomes the review loop's fixed point | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

@@ -1,6 +1,6 @@
 # 0006 — Standing spec/plan altitude split (keep /create-spec)
 
-**Status**: Accepted · **Date**: 2026-06-13 (rejected merging /create-spec into the code planner)
+**Status**: Superseded by [0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) · **Date**: 2026-06-13 (rejected merging /create-spec into the code planner)
 
 ## Context
 

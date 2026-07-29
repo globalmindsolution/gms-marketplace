@@ -242,6 +242,13 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
             schema = json.load(fh)
         self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
         self.assertNotIn("spec_sections", schema["properties"]["enforcement"]["properties"])
+        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
+            "propertyNames"]["enum"]
+        self.assertNotIn("create-spec", overrides_enum)
+        for field in ("requirements_path", "e2e"):
+            self.assertNotIn(
+                "/create-spec", schema["properties"][field]["description"],
+                "%s description must not reference the deleted /create-spec" % field)
 
 
 class TestStandardizeProjectDelivery(AcsWorkspaceCase):
