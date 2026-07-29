@@ -203,7 +203,6 @@ class Panel2Funnel(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p2 = out["panels"]["2"]
             self.assertEqual(p2["steps"]["create-ticket"], 2)
-            self.assertEqual(p2["steps"]["create-spec"], 2)
             self.assertEqual(p2["steps"]["code"], 2)
             self.assertEqual(p2["steps"]["create-pr"], 1)
             self.assertEqual(p2["steps"]["merge-pr"], 1)

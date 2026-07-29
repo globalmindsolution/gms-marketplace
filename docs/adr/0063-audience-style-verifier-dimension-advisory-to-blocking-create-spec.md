@@ -99,3 +99,19 @@ owned by a separate decision (epic design Decision C) so it appends cleanly.
   `tests/acs/test_structure_audience_verifiers.py` is rewritten from asserting
   advisory to asserting the blocking contract, the create-spec net-new gate,
   the waiver clause, and the create-project N/A lock.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (stale-reference note)
+
+`/acs:create-spec` is deleted outright (ADR 0066); it no longer exists as a
+distinct skill, so the create-spec net-new gate this ADR records is retired
+along with it. The blocking audience-style dimension is re-homed into
+code-verifier as a new, standalone dimension 13, judging the folded plan
+artifact's prose under the same register
+(`engineers (implementation-contract prose)`) and the same waiver mechanism
+this ADR established. The underlying ADR 0057→0063 blocking-severity
+decision this ADR records is otherwise unaffected — only the create-spec-
+specific consumer identity changes. This file is not renamed; its filename
+stays a historical artifact, mirroring ADR 0006's own
+filename-stays-historical precedent.

@@ -78,9 +78,8 @@ per-step agent for a per-role setting to apply to.
 |---|------|-----------|
 | 1 | create-ticket | new request, or resume with the step not completed |
 | 2 | create-design | conditional — see below |
-| 3 | create-spec | STANDARD, COMPLEX, high-stakes, absent, or unrecognized lanes only. Fast lanes (TRIVIAL/SMALL) skip this step — spec authoring is folded into /code's plan phase. Note: `stakes == "high"` resolves to STANDARD via `derive_lane` (rule 3), so high-stakes tickets never reach the TRIVIAL/SMALL branch and always keep the full create-spec path. |
-| 4 | code | always |
-| 5 | create-pr | always |
+| 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
+| 4 | create-pr | always |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from
@@ -92,7 +91,7 @@ Design step rules (read `needs_design` and `parent` from
   the design lives in the **parent's** partition. If the parent's
   pipeline-state.json does not show create-design `completed`, run the
   create-design step with the **parent epic's id**; otherwise skip to
-  create-spec (the child never repeats design).
+  code (the child never repeats design).
 - Neither → skip create-design entirely.
 
 Epic tickets stop after create-design: implementation happens on the
@@ -112,24 +111,15 @@ not your memory, decides what comes next.
    a product-level delivery ticket — /acs:ship does not drive those; tell
    the user to re-run the matching product skill (/acs:create-prd,
    /acs:create-architecture, /acs:create-project) and stop.
-3. A step is complete iff `steps.<skill>.status == "completed"`. Before
-   walking, read `ticket.lane` from `<partition>/ticket.json` (already
-   loaded in step 2):
-   - If `ticket.lane` is `"TRIVIAL"` or `"SMALL"`: walk the order
-     create-ticket → create-design (when required per the rules above) →
-     code → create-pr, **skipping create-spec**. Spec authoring is folded
-     into /code's plan phase (no separate /acs:create-spec invocation).
-   - For any other value — `"STANDARD"`, `"COMPLEX"`, absent, or
-     unrecognized — walk the full order: create-ticket → create-design
-     (when required per the rules above) → create-spec → code → create-pr.
-     An absent or unrecognized lane is treated as STANDARD (fail-closed;
-     consistent with `derive_lane`'s conservative default). Note: a
-     high-stakes ticket (`stakes == "high"`) resolves to STANDARD via
-     `derive_lane` and always keeps the full create-spec path.
-   Pick the FIRST step in the applicable order that is not complete. A step
-   recorded `in_progress`, `failed`, `interrupted`, or `handed_off` is
-   simply re-run — the step's own skill-start reconciles recorded state
-   against reality; you never reconcile yourself.
+3. A step is complete iff `steps.<skill>.status == "completed"`. Walk the
+   SAME order on every lane — the fold is universal now, so no lane branches
+   the walk: create-ticket → create-design (when required per the rules
+   above) → code → create-pr. Spec authoring is folded into /code's plan
+   phase on every lane. Pick the
+   FIRST step in that order that is not complete. A step recorded
+   `in_progress`, `failed`, `interrupted`, or `handed_off` is simply
+   re-run — the step's own skill-start reconciles recorded state against
+   reality; you never reconcile yourself.
 4. If create-pr is complete → go to Finish.
 
 ## Running a step
@@ -226,7 +216,7 @@ When the create-ticket handoff (or resume) yields a ticket with
 `"type": "epic"`:
 
 1. Run create-design on the epic itself first (epics always have
-   `needs_design: true`; every child's create-spec gates on the epic's
+   `needs_design: true`; every child's /code gates on the epic's
    `design.md`).
 2. Read the epic's `children` array from `ticket.json`. If it is empty, ask
    the user whether to re-run `/acs:create-ticket <epic-id>` to fan out
@@ -235,7 +225,7 @@ When the create-ticket handoff (or resume) yields a ticket with
    the children's ids and titles — read each child's `ticket.json` title
    only, nothing more).
 4. Run the selected children **sequentially**, each through its own
-   create-spec → code → create-pr (children never run create-design). Tell
+   code → create-pr (children never run create-design). Tell
    the user that parallel children belong in separate worktrees/sessions:
    open one worktree per child and run `/acs:ship <child-id>` in each.
 5. After each child's create-pr, report its PR, then continue with the next

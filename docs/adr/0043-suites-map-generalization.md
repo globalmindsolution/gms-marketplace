@@ -51,3 +51,18 @@ independently-consulted keys live indefinitely).
 - `/acs:init` steers consumers toward the new shape on every re-run, so drift
   toward the single canonical surface shrinks over time without a breaking
   change.
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (stale-reference note)
+
+`/acs:create-spec` is deleted outright (ADR 0066): the Consequences claim
+above ("existing `e2e` consumers ... keep working unchanged") named
+create-spec's e2e-impact rule as one of those consumers. That consumer no
+longer exists — its role is superseded by the folded plan's own Test-plan
+e2e-impact statement, now authored by `/acs:code`'s generalized fold on
+every lane, carrying forward the same e2e-impact content create-spec's Test
+plan section used to declare. The code-verifier's OWN e2e-running mechanics
+(dimension 3's e2e sub-check) are UNCHANGED by this ticket — only
+create-spec's role as a named consumer of the `e2e`/`suites.e2e` setting is
+retired.

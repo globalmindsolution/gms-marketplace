@@ -39,8 +39,33 @@ Get the changeset yourself: `git diff <default_branch>...HEAD` and
 `git log <default_branch>..HEAD --oneline` on the ticket branch. Then check
 ALL of the following — every dimension that fails produces blocking findings:
 
-1. **Spec conformance** — every spec in `<partition>/specs/` is fully
-   implemented as written; any deviation or omission is a finding.
+1. **Acceptance-criteria conformance** — the review loop's fixed point:
+   extract every `ticket.acceptance_criteria`/DoD entry from
+   `<partition>/ticket.json` FRESH, EVERY iteration — re-read the file from
+   disk. You MUST NOT accept the current iteration's plan artifact's
+   restatement of `acceptance_criteria` as authoritative, and MUST NOT reuse
+   a value cached from an earlier iteration. Rebuild the AC-to-implementation
+   matrix from scratch against the CURRENT changeset
+   (`git diff <default_branch>...HEAD`). An uncovered AC, or one claimed
+   satisfied with no matching test/implementation evidence, is a finding.
+
+   **Completeness sub-check.** When the fold was active (read
+   `iter-<n>-plan.md`'s own statement of which mode applied —
+   `<partition>/specs/` was absent or empty at plan time), the folded plan
+   artifact must contain the five mandatory sections (Scope, Approach,
+   API/data changes, Test plan, Out of scope) substantively, with no stubs.
+   When `specs/` instead has pre-existing content, the same
+   substantive-content judgment applies per spec file.
+
+   **Structure sub-check** (only when the fold was active). Run `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections "Scope;
+   Approach; API/data changes; Test plan; Out of scope" --ordered
+   <partition>/phases/code/iter-<n>-plan.md`. Each stderr `source:line:
+   [rule] message` finding becomes one `<finding severity="blocking"
+   dimension="acceptance-criteria conformance">`; exit 0 = pass; exit 2
+   (usage error / unreadable file) is itself a blocking finding. This
+   five-heading list is a FIXED literal here, not sourced from any settings
+   key — no configurable mechanism for it exists in this ticket's scope.
 2. **Tests** — RE-RUN the full suite yourself with the repo's own commands;
    all green. New tests genuinely exercise the specs' test plans and the
    ticket's acceptance criteria — read them; assertion-free or
@@ -86,9 +111,15 @@ ALL of the following — every dimension that fails produces blocking findings:
    pass/fail verdict.
 8. **Architecture** — component boundaries and dependencies match `design.md`
    when one exists (own or parent); otherwise the documented architecture and
-   sane structure. Unapproved new components/integrations are findings.
+   sane structure. When no separately-authored spec set exists (the fold was
+   active), also judge the folded plan artifact's Approach/API-data-changes
+   content against the same standard, in addition to the changeset itself.
+   Unapproved new components/integrations are findings.
 9. **System design** — data model, API contracts, and flows match the design's
-   interfaces and sequence diagrams; deployment impacts accounted for.
+   interfaces and sequence diagrams; deployment impacts accounted for. When
+   no separately-authored spec set exists (the fold was active), also judge
+   the folded plan artifact's Approach/API-data-changes content the same way,
+   in addition to the changeset itself.
 10. **Security** — no injected vulnerabilities, hardcoded secrets, injection
     surfaces, unsafe input handling, or missing authn/authz on new paths.
 11. **Documentation** — every affected doc updated and CONSISTENT with the
@@ -134,6 +165,29 @@ ALL of the following — every dimension that fails produces blocking findings:
     materially simpler and still satisfy the spec) and out-of-scope edits
     (changed lines that do not trace to the spec/ticket) are blocking findings
     looped back to the executor.
+13. **Audience-style** — BLOCKING: judge the folded plan artifact's prose
+    (`iter-<n>-plan.md`, when the fold was active) — or the plan's own
+    analysis/decomposition prose (when the fold was not active, i.e.
+    `specs/` already had content) — against the task's
+    `audience_style_profile` constraint. Never the pre-existing spec files
+    themselves: under the fold model those are read, not authored, by this
+    run. Register, jargon level, and narrative shape must fit
+    `audience_style_profile`. An UNWAIVED register mismatch is a `<finding
+    severity="blocking" dimension="audience-style">`; the pass bar is 0
+    unwaived audience-mismatch findings. WAIVER: a register the coordinator
+    has recorded as a deliberate choice via `clarify.py add --skill code
+    --source assumption --rationale "<why the register is deliberate>"`
+    (surfaced in `<context>` on iteration 2+) is waived — emit it as
+    `<finding severity="info" dimension="audience-style">`, which does not
+    block.
+
+**Retired dimensions.** create-spec-verifier's `consistency` dimension
+(checking agreement across multiple independently authored spec files:
+clashing schemas, unrealizable dependency order, `NN-` sequence gaps) is
+retired outright, not re-homed: a single folded plan artifact — or a
+changeset judged as one coherent unit — has no cross-file surface left to be
+inconsistent with, now that create-spec's separately-authored spec set no
+longer exists.
 
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.
