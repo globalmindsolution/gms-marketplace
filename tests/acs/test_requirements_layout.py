@@ -235,7 +235,7 @@ class ContractsMdSettingsNoteTest(unittest.TestCase):
     def test_conformance_chain_line_unchanged(self):
         body = read(self.CONTRACTS_MD)
         self.assertIn(
-            "Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, "
+            "Conformance chain: `PRD → architecture → principles → standards → design → code`, "
             "each level verified against the one above it.",
             body,
         )

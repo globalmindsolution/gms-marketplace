@@ -305,7 +305,7 @@ class RequirementsDocsUpdatedTest(unittest.TestCase):
 
     def test_skills_md_code_verifier_bullet_mentions_multi_lens(self):
         body = read(SKILLS_MD)
-        window = section(body, "## 4. `/code`")
+        window = section(body, "## 3. `/code`")
         self.assertRegex(
             window, r"(?i)multi-lens",
             "skills.md's code-verifier MUST-review bullet must mention the "

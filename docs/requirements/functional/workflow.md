@@ -10,34 +10,34 @@ is conditional — see below):
 |---|-------|-------------------|
 | 1 | `/create-ticket` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
 | 2 | `/create-design` | *(conditional — when the ticket needs design)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. |
-| 3 | `/create-spec` | Analyze & clarify the ticket (and the design, when one exists); produce one or more implementation specs that conform to it. |
-| 4 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
+| 3 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
+| 4 | `/docs-sync` | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
 | 5 | `/create-pr` | Create a pull request shipping the implementation. |
 | 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
 always set for **epics**, and set for stories/tasks during `/create-ticket`
 analysis (planner recommendation, confirmed with the user). Child tickets of
-an epic do **not** repeat design: their `/create-spec` consumes the parent
+an epic do **not** repeat design: their `/code` consumes the parent
 epic's `design.md`.
 
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
     T -->|needs design| D[/create-design/]
-    D --> S[/create-spec/]
-    T -->|otherwise| S
-    S --> C[/code/]
-    C --> P[/create-pr/]
+    D --> C[/code/]
+    T -->|otherwise| C
+    C --> DS[/docs-sync/]
+    DS --> P[/create-pr/]
     P --> M[/merge-pr/]
 
     T -. "ticket JSON" .-> W[(workspace/<repo>/<ticket-id>/)]
     D -. "design.md + state" .-> W
-    S -. "spec files + state" .-> W
     C -. "code-state.json incl. review findings" .-> W
+    DS -. "docs-sync state" .-> W
     P -. "pr state" .-> W
     M -. "merge state" .-> W
-    W -. "pre-hooks read predecessor state" .-> T & D & S & C & P & M
+    W -. "pre-hooks read predecessor state" .-> T & D & C & DS & P & M
 ```
 
 > **NOTE (MAR-160):** A new hooked skill, `/docs-sync`, now runs after `/code`
@@ -54,15 +54,16 @@ flowchart LR
 - Each workflow skill MUST be guarded by a **pre-hook** that checks readiness
   before the skill runs. Readiness means, at minimum: the predecessor skill's
   state file exists in `<workspace>/<repo>/<ticket-id>/` and reports **completed**.
-  The conditional design step branches the chain: `/create-spec`'s
+  The conditional design step branches the chain: `/code`'s
   predecessor is `/create-design` when the ticket (or its parent epic) needs
   design, otherwise `/create-ticket`; `/create-design`'s own gate
   additionally requires `needs_design: true`.
 - If the predecessor is not complete, the pre-hook MUST exit with code **2**,
   which blocks the skill from running, and SHOULD emit a clear message telling
   the user which skill to run first.
-  - Example: `pre-code.py` checks that specs exist and `/create-spec` is
-    completed; if not, it exits 2 and `/code` does not run.
+  - Example: `pre-code.py` is unconditional on lane once `/create-ticket` has
+    completed (`gate_code` in `acs_lib.py`); e.g. `/code` blocked when
+    `/create-ticket` has not completed.
 - Each workflow skill MUST be followed by a **post-hook** that writes the
   skill's own state into a JSON state file in the workspace
   (e.g. `post-code.py` writes `code-state.json`).
@@ -75,7 +76,7 @@ requirements.
 
 `/ship <prompt>` drives the pipeline end-to-end: it MUST run
 `/create-ticket` → `/create-design` (when the ticket needs design) →
-`/create-spec` → `/code` → `/create-pr` in sequence, pausing for user
+`/code` → `/docs-sync` → `/create-pr` in sequence, pausing for user
 clarifications wherever a skill requires them, and MUST **stop before
 `/merge-pr`** — the PR is landed separately after review.
 
@@ -135,7 +136,7 @@ When `/create-ticket` creates an **epic**, it MUST suggest creating child
 **story**/**task** tickets for it. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
-- runs its own pipeline (`/create-spec` → … → `/merge-pr`) independently —
+- runs its own pipeline (`/code` → … → `/merge-pr`) independently —
   enabling parallel work on children of the same epic.
 
 The epic itself is a grouping/tracking ticket; implementation happens on the
@@ -282,7 +283,7 @@ flagging any requested capability that diverges from it.
   schedule stale sections for repair with the ticket; widespread drift
   triggers a recommended `/create-architecture` re-run.
 
-The conformance chain is **PRD → architecture → principles → standards → design → specs → code**, each level verified against the one above it.
+The conformance chain is **PRD → architecture → principles → standards → design → code**, each level verified against the one above it.
 
 ### Living requirements
 
@@ -291,7 +292,7 @@ Per-ticket specs are change-deltas and are archived with their tickets; the
 requirements doc set (`requirements_path`, default `docs/requirements/`, one
 markdown file per feature area):
 
-- **Input**: `/create-ticket` and `/create-spec` read the touched areas'
+- **Input**: `/create-ticket` reads the touched areas'
   requirements files as the current behavior; a request or spec that
   contradicts standing behavior MUST be flagged (deliberate change vs.
   mistake), like a PRD divergence.

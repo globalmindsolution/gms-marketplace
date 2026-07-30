@@ -99,12 +99,12 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 - `validate_xml.py`
 - `metrics_aggregate.py`
 - `metrics_render.py`
-- All `pre-<skill>.py` (9 files: `pre-code.py`, `pre-create-architecture.py`,
+- All `pre-<skill>.py` (8 files: `pre-code.py`, `pre-create-architecture.py`,
   `pre-create-design.py`, `pre-create-prd.py`, `pre-create-project.py`,
-  `pre-create-pr.py`, `pre-create-spec.py`, `pre-create-ticket.py`, `pre-merge-pr.py`)
-- All `post-<skill>.py` (9 files: `post-code.py`, `post-create-architecture.py`,
+  `pre-create-pr.py`, `pre-create-ticket.py`, `pre-merge-pr.py`)
+- All `post-<skill>.py` (8 files: `post-code.py`, `post-create-architecture.py`,
   `post-create-design.py`, `post-create-prd.py`, `post-create-project.py`,
-  `post-create-pr.py`, `post-create-spec.py`, `post-create-ticket.py`, `post-merge-pr.py`)
+  `post-create-pr.py`, `post-create-ticket.py`, `post-merge-pr.py`)
 
 > **NOTE (MAR-160):** the reproduced list above is a historical quote of
 > `design.md:244-245` and was never kept in lockstep with every
@@ -114,7 +114,11 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > `pre-docs-sync.py` / `post-docs-sync.py` belong to this same
 > runtime-agnostic bucket by the identical construction (Bash-invoked,
 > reads/writes workspace JSON) — flagged here rather than folded into the
-> "reproduced exactly" quote, so that label stays accurate.
+> "reproduced exactly" quote, so that label stays accurate. The retired
+> spec-authoring skill's pre-/post- hook scripts were removed from the two
+> lists above (MAR-161) because the skill and both scripts were deleted
+> outright (MAR-156, `fe91e75`) — a correction, not an omission like the
+> gaps this note otherwise flags.
 
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 

@@ -40,7 +40,7 @@ plugins distributed from this repository. Plugins differ in shape:
    layer is forced to leave deterministic footprints the script layer gates on.
 2. **The ticket partition is the only inter-step channel** — coordinators are
    stateless between steps; `/ship`'s context can be cleared at any boundary.
-3. **Conformance chain** PRD → architecture → principles → standards → design → specs → code, each level verified against the one above by a fresh context.
+3. **Conformance chain** PRD → architecture → principles → standards → design → code, each level verified against the one above by a fresh context.
 4. **Fail-safe prose**: a skill that forgets its post-hook leaves
    `runs[-1] = in_progress` — the next gate reads "not completed"; nothing
    unlocks by omission.
@@ -49,8 +49,9 @@ plugins distributed from this repository. Plugins differ in shape:
    axes by `derive_lane()`. The `/code` verifier subagent is the in-loop quality
    gate in *every* lane; the lane only scales the iteration ceiling
    (light = 1, full = 3) via `verify_depth()`, never whether the verifier runs.
-   On TRIVIAL/SMALL lanes `/acs:create-spec` is folded into `/code`'s plan phase
-   rather than run as a separate step; lanes escalate upward mid-flight — never
+   Spec content is authored inside `/code`'s plan phase on every lane when
+   `<partition>/specs/` is absent or empty (pre-existing specs are still read
+   when present); lanes escalate upward mid-flight — never
    *automatically* downward — on the first higher-stakes signal. The one
    exception is a user-confirmed de-escalation, offered only at an iteration/run
    boundary and applied by a dedicated writer unreachable without an explicit

@@ -1509,13 +1509,19 @@ class TestMidFlightEscalationContract(unittest.TestCase):
 
     def test_skills_md_stage_reintroduction_mentioned(self):
         """AC-5/AC-8: skills.md must mention stage re-introduction (picking up
-        create-spec rigor on fast-lane escalation)."""
+        create-spec rigor on fast-lane escalation).
+
+        Superseded by ADR 0066/MAR-161: create-spec is retired and every lane
+        already folds spec authoring into /code's plan phase, so there is no
+        stage left to re-enter on escalation. The regex below now pins the
+        replacement claim (no separate stage to re-enter; the verify-iteration
+        ceiling raises monotonically instead)."""
         body = self._body()
         self.assertIsNotNone(
             re.search(
-                r"(?i)(stage re.?introduc|re.?introduc.{0,60}(stage|create.spec)|"
-                r"create.spec.{0,100}(rigor|skip|pick.?up)|"
-                r"fast.lane.{0,200}escalat.{0,200}create.spec)",
+                r"(?i)(no\s+(separate\s+)?stage\s+to\s+re-?enter|"
+                r"verify.iteration\s+ceiling\s+monotonically|"
+                r"escalat.{0,150}(never|no).{0,50}(re-?introduc|re-?spawn))",
                 body, re.DOTALL),
             "skills.md must mention stage re-introduction (picking up create-spec "
             "rigor on fast-lane escalation) (MAR-57 AC-5/AC-8)")

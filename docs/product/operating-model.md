@@ -111,7 +111,7 @@ releases — through the acs pipeline.
 |---|---|---|---|---|---|
 | **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket, metrics | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
 | **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, init; future standardize-project / create-standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
-| **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | create-spec, code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
+| **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
 | **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config, metrics/usage gate-health; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
 
 **Headcount:** 4-6 per product team, **minimum 4**, **typical 5**.
@@ -227,7 +227,7 @@ Head-of split. Titles stay modest until scale demands headroom.
 | Bootstrap | create-project (greenfield); standardize-project (future) | Principal |
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
-| Spec → code → PR → merge | create-spec, code, create-pr, merge-pr, ship | Builders |
+| Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |
 | Standards | create-standards / create-principles (future) | Principal |
 | Test strategy & regression | create-quality, test (future) | Evals engineer |
 | Release | release (future) | Ops hat |
