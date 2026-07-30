@@ -50,3 +50,15 @@ runs each child's pipeline independently (parallel worktrees supported).
 > `derive_lane` floors to `STANDARD`, plus absent/unrecognized lanes treated as
 > `STANDARD` fail-closed) the full create-spec step runs. See `ship/SKILL.md`
 > "Pipeline order" and "Picking the next step".
+>
+> **NOTE (MAR-159):** The pipeline also gains a new **conditional** step between
+> `code` and `create-pr` — a post-code, pre-create-pr `/acs:test --for-ticket <id>`
+> invocation. It is gated by `settings.post_code_test`: OFF only when neither
+> `settings.e2e` nor `suites.e2e` is configured (per AC-5); ON otherwise, or
+> whenever `post_code_test.enabled` is explicitly set to `true`/`false`. On
+> failure the step increments `pipeline-state.json.steps.test.fix_loops`
+> (capped by `post_code_test.fix_loops_cap`, default 2) and relays back into
+> `/acs:code <ticket-id>` via the pipeline's existing "Re-invoke after
+> needs_input" pattern — no new relay mechanism. See `ship/SKILL.md`
+> "Pipeline order" and "Post-code test gate", and ADR 0068
+> (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
