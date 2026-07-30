@@ -362,7 +362,7 @@ area): per-ticket specs are archived change-deltas, so the CURRENT
 behavioral contract accumulates here instead — /code's documentation step
 merges the merged ticket's acceptance criteria and behavior-defining
 clarifications (answered/assumed ledger entries) into the touched area's
-file; /create-ticket reads it as standing behavior and flag
+file; /create-ticket reads it as standing behavior and flags
 contradictions; the code-verifier blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.

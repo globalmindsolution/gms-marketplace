@@ -804,24 +804,27 @@ tickets where the change is architecturally significant.
 
 ## 3. `/code`
 
-Purpose: implement the specs in the consumer repo using TDD.
+Purpose: author the ticket's implementation specs when none exist, then
+implement them in the consumer repo using TDD.
 
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
 `<partition>/specs/` is absent or empty the `code-planner` authors the spec
 content itself inside its plan artifact
 (`<partition>/phases/code/iter-<n>-plan.md`), on EVERY lane with no lane
 check; when specs are already present it reads them unchanged
-(`code/SKILL.md`'s "Spec authoring fold" section). The obligations below moved here from the retired
-spec-authoring section (MAR-161, ADR 0066) and now bind `/code`'s plan phase:
+(`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
+from ticket clarification through the oversized-ticket escalation — moved
+here from the retired spec-authoring section (MAR-161, ADR 0066) and now
+bind `/code`'s plan phase:
 
 - MUST analyze and clarify the ticket (asking the user where ambiguous).
 - MUST produce **one or more** implementation specs ("different
   implementation specs") — decomposition into multiple specs is expected for
   larger tickets.
 - MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume
-  them without conversation history. **Since ADR 0066 the folded spec content
+  them without conversation history. Since ADR 0066 the folded spec content
   lives in that same partition, at `phases/code/iter-<n>-plan.md`; a
-  pre-existing `specs/` directory is still read when one is present.**
+  pre-existing `specs/` directory is still read when one is present.
 - Spec format: **markdown** with required sections — **scope, approach,
   API/data changes, test plan, out-of-scope**. The **approach** section stays
   at contract level (components, interfaces, algorithms, error handling;
@@ -834,10 +837,10 @@ spec-authoring section (MAR-161, ADR 0066) and now bind `/code`'s plan phase:
   update.
 - When a design exists (the ticket's own or its parent epic's), specs MUST
   **conform to it**, and the **`code-verifier`** MUST check that
-  conformance **— through its **architecture** (dimension 8) and **system
+  conformance — through its **architecture** (dimension 8) and **system
   design** (dimension 9) reviews, which also judge the folded plan artifact's
   Approach/API-data-changes content when no separately-authored spec set
-  exists (`code-verifier.md:113`, `:119`).**
+  exists.
 - **Spec-simplicity gate (MAR-88):** the **`code-planner`** MUST evaluate
   each candidate decomposition for a **materially** simpler alternative that
   meets the **same acceptance criteria** with materially less
@@ -852,14 +855,20 @@ spec-authoring section (MAR-161, ADR 0066) and now bind `/code`'s plan phase:
   set: when an honest decomposition exceeds ~4 specs (or the surface clearly
   exceeds a reviewable diff), stop, record the split seams, and route to
   `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
-  one large PR, recorded as a clarification. **[OPEN]** **No component
+  one large PR, recorded as a clarification. **[OPEN]** No component
   implements this detection today: it was deleted with the retired spec-authoring planner
   (ADR 0066) and `code-planner.md` carries no `~4 specs` / reviewable-diff
   escalation clause. Enforced today only by `/create-ticket`'s upfront
   PR-size rubric and the explicitly-invoked `/create-ticket split <id>`
-  restructure path.**
+  restructure path.
 
-- MUST analyze and clarify the implementation specs before coding.
+`/code`'s own obligations — unchanged by that migration — follow:
+
+- MUST analyze and clarify the implementation specs before coding. This is
+  spec-level clarification of the content it implements — a pre-existing
+  `specs/` set, or the spec content the plan phase just authored — as
+  distinct from the ticket-level clarification that spec authoring itself
+  requires.
 - MUST implement features, bug fixes, and tasks using the **TDD pattern**:
   write tests first, then implementation, iterating until green.
 - MUST generate unit tests and run them targeting the configured

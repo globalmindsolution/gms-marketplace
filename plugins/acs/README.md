@@ -178,8 +178,8 @@ and the machine-readable
   exited 2. The stderr message names the missing predecessor — run that
   skill for the same ticket (e.g. `/acs:code SHOP-123` before
   `/acs:create-pr SHOP-123` — `create-pr`'s gate additionally requires
-  `/acs:docs-sync` to have completed, `acs_lib.py:1656-1659`). A "run /init
-  first" message means no `settings.json` could be resolved: run `/acs:init`.
+  `/acs:docs-sync` to have completed). A "run /init first" message means no
+  `settings.json` could be resolved: run `/acs:init`.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
   worktree), finish or hand off there. If it crashed, ending that session
