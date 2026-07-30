@@ -218,25 +218,27 @@ class ScopeGuardTest(unittest.TestCase):
     23->24 skills for the new HOOKED create-requirements skill, 42->45 agent
     files, 36->39 reachable, eleven->twelve triads; MAR-156: create-spec
     deleted, 24->23 skills, 45->42 agent files, 39->36 reachable, twelve->
-    eleven triads) — these assertions track the current epic state, not a
-    frozen MAR-120 snapshot."""
+    eleven triads; MAR-160: docs-sync registered, 23->24 skills, 42->45
+    agent files, 36->39 reachable, eleven->twelve triads) — these
+    assertions track the current epic state, not a frozen MAR-120
+    snapshot."""
 
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
-        self.assertIn("23 x SKILL.md", body)
-        self.assertIn("42 x agent .md (36 reachable)", body)
+        self.assertIn("24 x SKILL.md", body)
+        self.assertIn("45 x agent .md (39 reachable)", body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (23)", body)
-        self.assertIn("42 files, 36 reachable", body)
+        self.assertIn("acs Skills (24)", body)
+        self.assertIn("45 files, 39 reachable", body)
 
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("eleven triad-keeping skills", overview)
-        self.assertIn("eleven triad-keeping skills", hook_flow)
+        self.assertIn("twelve triad-keeping skills", overview)
+        self.assertIn("twelve triad-keeping skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

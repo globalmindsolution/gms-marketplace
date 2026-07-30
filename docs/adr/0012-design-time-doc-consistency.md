@@ -82,3 +82,18 @@ skill list in the Decision above drops `/create-spec`, leaving
 and `/create-operations`. Its shared doc-consistency planner step migrates
 with the deletion — there is no separate create-spec plan phase left to
 carry it. This amendment does not add any new participant to the list.
+
+## Amendment — MAR-160
+
+**Date**: 2026-07-30 · **Status**: Accepted (non-participant note)
+
+A new hooked skill, `/acs:docs-sync`, lands running AFTER `/acs:code` (and
+the post-code `/acs:test` step, when it ran) and BEFORE `/acs:create-pr` —
+not during design. Its planner/executor/verifier re-derive doc impact from
+`git diff <default_branch>...HEAD`, `/code`'s `result.json`, and the final
+code-verify artifact — a changeset-diff-grounded re-check, not the
+design-time gap/staleness analysis this ADR's Decision describes (upstream
+trace links, in-session findings during design work). `/acs:docs-sync` is
+therefore **not** added to the design-producing skill list above: it is a
+post-implementation doc-sync re-check, not a design-time doc-consistency
+participant. This amendment does not add any new participant to the list.

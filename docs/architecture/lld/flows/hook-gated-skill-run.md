@@ -4,10 +4,10 @@ The core runtime flow: every hooked skill, direct invocation. (Under `/ship`
 the coordinator invokes the same flow directly — see `ship-pipeline.md`.)
 
 The diagram below shows the **full reflection triad** (planner → executor →
-verifier), which is how the eleven triad-keeping skills run (`create-prd`,
+verifier), which is how the twelve triad-keeping skills run (`create-prd`,
 `create-architecture`, `create-project`, `create-quality`,
 `create-operations`, `create-principles`, `create-standards`,
-`create-design`, `code`, `standardize-project`,
+`create-design`, `code`, `docs-sync`, `standardize-project`,
 `create-requirements` — `/acs:code` is the example traced here). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most

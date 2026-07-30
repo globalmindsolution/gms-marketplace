@@ -80,7 +80,8 @@ per-step agent for a per-role setting to apply to.
 | 2 | create-design | conditional — see below |
 | 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
 | 4 | test (post-code) | conditional — see "Post-code test gate" below |
-| 5 | create-pr | always |
+| 5 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
+| 6 | create-pr | always |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from
@@ -134,7 +135,7 @@ code change — it already writes an arbitrary-shape step dict):
    verdict.
 3. **Verdict is `pass`** → `update_pipeline(...)` records `steps.test` as
    `completed`, and you proceed to "Picking the next step" (which now
-   advances to create-pr).
+   advances to docs-sync).
 4. **Verdict is `fail` and `fix_loops < cap`** → increment `fix_loops` in
    `pipeline-state.json.steps.test` (status stays `in_progress`), then
    relay the verdict's `failure_output` into `/acs:code <ticket-id>`
@@ -177,8 +178,8 @@ not your memory, decides what comes next.
    SAME order on every lane — the fold is universal now, so no lane branches
    the walk: create-ticket → create-design (when required per the rules
    above) → code → test (when the gate is active, per "Post-code test
-   gate" above) → create-pr. Spec authoring is folded into /code's plan
-   phase on every lane. Pick the
+   gate" above) → docs-sync → create-pr. Spec authoring is folded into
+   /code's plan phase on every lane. Pick the
    FIRST step in that order that is not complete. A step recorded
    `in_progress`, `failed`, `interrupted`, or `handed_off` is simply
    re-run — the step's own skill-start reconciles recorded state against
