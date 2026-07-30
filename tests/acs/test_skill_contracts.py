@@ -3672,7 +3672,9 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
 
     def test_ship_skill_single_walk_order_no_lane_branch(self):
         """AC-7: 'Picking the next step' describes exactly ONE walk order for
-        every lane -- no TRIVIAL/SMALL branch language remains."""
+        every lane -- no TRIVIAL/SMALL branch language remains. A conditional
+        test step between code and create-pr does not reintroduce a lane
+        branch -- the walk stays a single, lane-uniform order."""
         body = self._ship_body()
         section_start = body.index("## Picking the next step")
         next_heading = re.search(r"\n## ", body[section_start + 1:])
@@ -3683,7 +3685,8 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
         section = re.sub(r"\s+", " ", section)
         self.assertIn(
             "create-ticket → create-design (when required per the rules "
-            "above) → code → create-pr", section,
+            "above) → code → test (when the gate is active, per "
+            "\"Post-code test gate\" above) → create-pr", section,
             "ship/SKILL.md must state the single lane-uniform walk order")
 
 

@@ -117,6 +117,23 @@
       },
       "additionalProperties": true
     },
+    "post_code_test": {
+      "description": "Gates /acs:ship's conditional post-code, pre-create-pr test step (D5). enabled: null (default) auto-resolves per the e2e-presence rule -- OFF only when neither settings.e2e nor suites.e2e is configured, ON otherwise (preserves PRD G13's e2e-gating guarantee). Explicit true/false overrides the auto-resolved default. Setting enabled: true with no e2e configured is not a validation error -- the step still runs against any ticket-named Test-plan suites, a harmless no-op otherwise.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "oneOf": [{"type": "boolean"}, {"type": "null"}],
+          "default": null
+        },
+        "fix_loops_cap": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2,
+          "description": "Cap on pipeline-state.json.steps.test.fix_loops -- independent of /code's own internal iteration cap."
+        }
+      },
+      "additionalProperties": true
+    },
     "models": {
       "description": "Per-role subagent model and reasoning effort. Resolution per field: overrides.<skill>.<role> -> <role> -> inherit.",
       "type": "object",

@@ -56,6 +56,8 @@ context and consequences.
 | [0053](0053-release-versions-roadmap-mapping-table.md) | Release versions are modeled as an additive `roadmap.md` mapping table, decoupled from the cut skill | Accepted |
 | [0054](0054-settings-driven-release-block.md) | Settings-driven `release` block (JSON-manifest-focused schema, Option A); marketplace = profile #1 | Accepted |
 | [0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) | Supersedes ADR 0006: fold spec-authoring into `/code`'s plan phase for every lane; `ticket.json`'s `acceptance_criteria`/DoD becomes the review loop's fixed point | Accepted |
+| [0067](0067-code-verifier-multi-lens-adversarial-rigor-upgrade.md) | code-verifier multi-lens adversarial rigor upgrade (`verify_depth=="full"` only): 4 parallel lenses plus a coordinator adversarial merge pass | Accepted |
+| [0068](0068-acs-test-ticket-scoped-fix-and-retest-mode.md) | `/acs:test` ticket-scoped `--for-ticket` mode + `/acs:ship`'s post-code fix-and-re-test loop, gated by e2e presence | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

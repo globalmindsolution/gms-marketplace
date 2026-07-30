@@ -79,7 +79,8 @@ per-step agent for a per-role setting to apply to.
 | 1 | create-ticket | new request, or resume with the step not completed |
 | 2 | create-design | conditional — see below |
 | 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
-| 4 | create-pr | always |
+| 4 | test (post-code) | conditional — see "Post-code test gate" below |
+| 5 | create-pr | always |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from
@@ -96,6 +97,67 @@ Design step rules (read `needs_design` and `parent` from
 
 Epic tickets stop after create-design: implementation happens on the
 children (see Epic fan-out), never on the epic itself.
+
+## Post-code test gate
+
+Before advancing from `code` to `create-pr`, evaluate whether the
+conditional `test` step (post-code, pre-create-pr) is active for this
+ticket. Read the resolved settings the same way Step 1 already does (via
+`acs_lib.load_settings`/`build_context`), then decide in order:
+
+1. If `settings.post_code_test.enabled` is explicitly `true` or `false`
+   (not `null`/absent), that value wins outright.
+2. Otherwise (`enabled` is `null`, or `post_code_test` is absent entirely),
+   resolve the step's activation from e2e presence: the step is **OFF only
+   when neither `settings.e2e` nor `suites.e2e` is set; ON by default
+   whenever either is configured** — this preserves PRD G13's e2e-gating
+   guarantee, never silently regressing it.
+
+An explicit `enabled: true` with no e2e configured is not a validation
+error: the step still runs, scoped to whatever ticket-named Test-plan
+suites exist (a harmless no-op when the ticket names none).
+
+**Running the step, when active.** Reusing the same `import acs_lib as lib`
+inline-Python pattern Step 1 already uses to read/write
+`pipeline-state.json`, and the existing generic `update_pipeline(tdir,
+ticket_id, skill, status, summary=None, ...)` helper (no `acs_lib.py`
+code change — it already writes an arbitrary-shape step dict):
+
+1. Read `pipeline-state.json.steps.test.fix_loops` (default `0` when the
+   `test` step entry is absent) and the cap from
+   `settings.post_code_test.fix_loops_cap` (default `2`). `fix_loops` is
+   independent of `/code`'s own internal iteration cap — the two counters
+   never interact.
+2. Invoke `/acs:test --for-ticket <ticket-id>`, which runs scoped to `e2e`
+   plus the ticket's Test-plan-named suites, unconditionally skips its own
+   regression-ticket triage, and returns a `{"status", "failure_output"}`
+   verdict.
+3. **Verdict is `pass`** → `update_pipeline(...)` records `steps.test` as
+   `completed`, and you proceed to "Picking the next step" (which now
+   advances to create-pr).
+4. **Verdict is `fail` and `fix_loops < cap`** → increment `fix_loops` in
+   `pipeline-state.json.steps.test` (status stays `in_progress`), then
+   relay the verdict's `failure_output` into `/acs:code <ticket-id>`
+   **exactly via the existing "Re-invoke after needs_input" pattern**
+   (see "Step-specific adjustments" below) — not a new relay mechanism.
+   After `/acs:code`'s handoff completes, loop back to step 2 above; this
+   is the fix-and-re-test loop.
+5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...)`
+   records `steps.test` as `failed` with a summary noting the cap was
+   reached; STOP, mirroring the existing failed-handling shape (see
+   "Handling the handoff").
+
+**Orchestration, not step-work.** `/acs:test` has and keeps no post-hook
+of its own (it is not in `WORKFLOW_SKILLS`), so this ledger bookkeeping —
+reading/writing the `steps.test` entry via `acs_lib`'s existing generic
+functions — is `/acs:ship`'s own responsibility to fill a gap only it can
+fill. This is orchestration bookkeeping, consistent with "You orchestrate;
+you never implement" above — the step's actual work (suite execution,
+verdict computation) remains entirely inside `/acs:test`'s own Steps 1-3,
+invoked the same way any other step skill is invoked. Note also that
+`/acs:test`'s Steps 1-3 execute inline in `/acs:ship`'s own context (it has
+no coordinator/subagent separation to delegate to, unlike the other three
+hooked steps).
 
 ## Picking the next step
 
@@ -114,7 +176,8 @@ not your memory, decides what comes next.
 3. A step is complete iff `steps.<skill>.status == "completed"`. Walk the
    SAME order on every lane — the fold is universal now, so no lane branches
    the walk: create-ticket → create-design (when required per the rules
-   above) → code → create-pr. Spec authoring is folded into /code's plan
+   above) → code → test (when the gate is active, per "Post-code test
+   gate" above) → create-pr. Spec authoring is folded into /code's plan
    phase on every lane. Pick the
    FIRST step in that order that is not complete. A step recorded
    `in_progress`, `failed`, `interrupted`, or `handed_off` is simply
@@ -167,6 +230,12 @@ Step-specific adjustments:
   context. The re-invoked step coordinator records the relayed answers in the
   ticket's clarification ledger (per its own "Clarification ledger first"
   rule) — /ship only relays; it never writes the ledger itself.
+- **Post-code test-step failure relay**: on a failing ticket-scoped
+  `/acs:test` verdict (see "Post-code test gate" above), re-invoke
+  `/acs:code <ticket-id>` **via the same "Re-invoke after needs_input"
+  pattern above** — the verdict's `failure_output` is the relayed context
+  text, in place of `Q: ... A: ...` lines. This reuses the existing relay;
+  it is not a new mechanism.
 
 If you compose any XML context to hand into a step, validate it first:
 
@@ -204,6 +273,15 @@ Branch strictly on `status`:
   it needs back-and-forth). Do not retry a failed step yourself.
 - **handed_off** — treat as interrupted: stop and print the same resume
   commands; the step flushed its own handoff context to the partition.
+- **post-code test cap reached** — when the post-code test gate's
+  `fix_loops` counter reaches `settings.post_code_test.fix_loops_cap` on a
+  failing verdict (see "Post-code test gate" above), STOP the pipeline the
+  same way as failed/interrupted: surface a "persistent test failure"
+  report, say where the state lives (`<partition>` and
+  `<partition>/phases/test/`), and tell the user how to resume:
+  `/acs:ship <ticket-id>` to retry from this step, or `/acs:test
+  --for-ticket <ticket-id>` to re-run just the test step interactively. Do
+  not proceed to create-pr.
 
 Hook-blocked step: if the step's Skill call was denied (pre-hook exit 2),
 surface that stderr message verbatim and stop — it names exactly which skill
