@@ -140,9 +140,11 @@ a separate activity" — is a documented, non-hypothetical risk: the MAR-65
 amendment above cites commit `44ec46e` as a real out-of-band drift instance
 that originally motivated extending the induction loop. This amendment is
 therefore a deliberate, acknowledged partial departure from that rationale
-for the sake of not making `/acs:docs-sync`'s existence a dead letter —
-mitigated, not eliminated, by staying on the same PR/branch and by the
-two-layer enforcement net named below.
+for the sake of the MAR-155 epic's AC #5 — documentation-syncing runs as its
+own skill/step after code (and test, when configured) and before
+`/acs:create-pr`, **not inside `/acs:code`'s execute phase** — mitigated,
+not eliminated, by staying on the same PR/branch and by the two-layer
+enforcement net named below.
 
 ### Enforcement note
 

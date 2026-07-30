@@ -103,6 +103,14 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
         self.assertNotIn("five-input", mar162)
         self.assertNotIn("five inputs", mar162)
 
+    def test_divergence_rationale_names_ac5_driver(self):
+        section = self.body[self.body.index("## Amendment — MAR-162"):]
+        section = section[section.index("### Divergence rationale"):
+                          section.index("### Enforcement note")]
+        self.assertRegex(section, r"AC #5")
+        self.assertRegex(section, r"(?i)execute phase")
+        self.assertNotRegex(section, r"(?i)dead letter")
+
     def test_no_new_adr_number_minted(self):
         adr_dir = os.path.dirname(ADR_0007)
         files = [f for f in os.listdir(adr_dir) if f.endswith(".md") and f[0].isdigit()]
