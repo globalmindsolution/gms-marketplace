@@ -62,3 +62,14 @@ runs each child's pipeline independently (parallel worktrees supported).
 > needs_input" pattern — no new relay mechanism. See `ship/SKILL.md`
 > "Pipeline order" and "Post-code test gate", and ADR 0068
 > (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
+>
+> **NOTE (MAR-160):** The pipeline gains one more step, `docs-sync`, inserted
+> between `code`/`test` and `create-pr` — a new hooked triad skill
+> (`docs-sync-planner`/`-executor`/`-verifier`) that independently re-derives
+> doc impact from `git diff <default_branch>...HEAD`, `/code`'s
+> `result.json`, and the final code-verify artifact, committing any doc
+> updates as additional commits on the SAME ticket branch (never a new
+> branch, never a new PR). `gate_create_pr` now also requires `docs-sync`
+> `completed`, alongside its existing `code` `completed` +
+> `verifier_passed: true` checks. See `design.md`'s sequence diagram 1 and
+> `ship/SKILL.md` "Pipeline order" / "Picking the next step".

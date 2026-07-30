@@ -106,6 +106,16 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
   `post-create-design.py`, `post-create-prd.py`, `post-create-project.py`,
   `post-create-pr.py`, `post-create-spec.py`, `post-create-ticket.py`, `post-merge-pr.py`)
 
+> **NOTE (MAR-160):** the reproduced list above is a historical quote of
+> `design.md:244-245` and was never kept in lockstep with every
+> later-registered skill's pre-/post- pair (e.g. `create-quality`,
+> `create-operations`, `create-principles`, `create-standards`,
+> `create-requirements`, `standardize-project` are also absent from it).
+> `pre-docs-sync.py` / `post-docs-sync.py` belong to this same
+> runtime-agnostic bucket by the identical construction (Bash-invoked,
+> reads/writes workspace JSON) — flagged here rather than folded into the
+> "reproduced exactly" quote, so that label stays accurate.
+
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 
 The following scripts exist in `plugins/acs/hooks/scripts/` and are runtime-agnostic by

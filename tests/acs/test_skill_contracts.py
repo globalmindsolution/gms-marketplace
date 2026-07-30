@@ -9,6 +9,7 @@ follow the prose — is the agentic-e2e tier, not unit-testable.)
 """
 
 import glob
+import json
 import os
 import re
 import unittest
@@ -19,7 +20,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
                  "create-standards", "create-requirements", "create-ticket",
-                 "create-design", "code", "create-pr",
+                 "create-design", "code", "docs-sync", "create-pr",
                  "merge-pr", "standardize-project"]
 ALL_SKILLS = HOOKED_SKILLS + ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 ROLES = ["planner", "executor", "verifier"]
@@ -607,7 +608,7 @@ class TestApplyTierInline(unittest.TestCase):
 
     def test_triad_skills_still_reference_planner_and_verifier(self):
         """AC-6: workflow/product skills must still reference their planner+verifier."""
-        for skill in ("code", "create-prd",
+        for skill in ("code", "create-prd", "docs-sync",
                       "create-design", "create-architecture", "create-project"):
             body = read(self.skill_path(skill))
             self.assertIsNotNone(
@@ -3361,16 +3362,17 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         epic state. MAR-112/113 landed '8 active triads (24 agents)'; MAR-117
         advanced it to '9 active triads (27 agents in triads)'; MAR-118
         advanced it to '10 active triads (30 agents in triads)'; MAR-121
-        advanced it to '11 active triads (33 agents in triads)'; MAR-143 is
-        a later producer child and lands the superseding arithmetic directly
-        ('12 active triads (36 agents in triads)'), per its own spec — so
-        this assertion is updated in place to the superseding truth rather
-        than asserting stale text."""
+        advanced it to '11 active triads (33 agents in triads)'; MAR-143
+        landed '12 active triads (36 agents in triads)'; MAR-160 is a later
+        producer child (docs-sync, a WORKFLOW skill) and lands the same
+        superseding arithmetic directly, per its own spec — so this
+        assertion is updated in place to the superseding truth rather than
+        asserting stale text."""
         body = self._c4_component()
-        self.assertIn("11 active triads (33 agents", body,
+        self.assertIn("12 active triads (36 agents", body,
                       "c4-component.md must read '12 active triads "
                       "(36 agents in triads)' (MAR-112/113 AC-7, superseded "
-                      "by MAR-143)")
+                      "by MAR-143/MAR-160)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'8 active triads (24 agents)' text (MAR-112/113 AC-7)")
@@ -3381,12 +3383,12 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("11 active triads (33 agents")
+        triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("36 reachable agents", window,
+        self.assertIn("39 reachable agents", window,
                       "c4-component.md must read '39 reachable agents' "
                       "in the window after the triad-count sentence "
-                      "(MAR-112/113 AC-7, superseded by MAR-143)")
+                      "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
                          "'27 reachable agents' text in that window (MAR-112/113 AC-7)")
@@ -3394,15 +3396,15 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
         the current epic pre/post hook pair count (see
-        test_c4_component_triad_count_advanced); x9 is gone. MAR-143's
+        test_c4_component_triad_count_advanced); x9 is gone. MAR-160's
         registration of the 15th HOOKED skill advances this to x15 (the true
         15/15 hook count)."""
         body = self._c4_component()
-        self.assertIn("x14", body,
+        self.assertIn("x15", body,
                       "c4-component.md's dispatch.py component description "
                       "must read x15 pre/post hook pairs (MAR-112 AC-7, "
-                      "superseded by MAR-113/MAR-129; advanced to 15/15 by "
-                      "MAR-143)")
+                      "superseded by MAR-113/MAR-129/MAR-143; advanced to "
+                      "15/15 by MAR-160)")
         self.assertNotIn("x9", body,
                          "c4-component.md must not retain the stale x9 "
                          "pre/post hook pair count (MAR-112 AC-7)")
@@ -3495,16 +3497,17 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         epic state. MAR-113 landed '8 active triads (24 agents)'; MAR-117
         advanced it to '9 active triads (27 agents in triads)'; MAR-118
         advanced it to '10 active triads (30 agents in triads)'; MAR-121
-        advanced it to '11 active triads (33 agents in triads)'; MAR-143 is
-        a later producer child and lands the superseding arithmetic directly
-        ('12 active triads (36 agents in triads)'), per its own spec — so
-        this assertion is updated in place to the superseding truth rather
-        than asserting stale text."""
+        advanced it to '11 active triads (33 agents in triads)'; MAR-143
+        landed '12 active triads (36 agents in triads)'; MAR-160 is a later
+        producer child (docs-sync, a WORKFLOW skill) and lands the same
+        superseding arithmetic directly, per its own spec — so this
+        assertion is updated in place to the superseding truth rather than
+        asserting stale text."""
         body = self._c4_component()
-        self.assertIn("11 active triads (33 agents", body,
+        self.assertIn("12 active triads (36 agents", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
-                      "MAR-143)")
+                      "MAR-143/MAR-160)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'8 active triads (24 agents)' text (MAR-113 AC-7)")
@@ -3515,25 +3518,25 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("11 active triads (33 agents")
+        triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("36 reachable agents", window,
+        self.assertIn("39 reachable agents", window,
                       "c4-component.md must advance to '39 reachable agents' "
                       "in the window after the triad-count sentence "
-                      "(MAR-113 AC-7, superseded by MAR-143)")
+                      "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
                          "c4-component.md must not retain the stale "
                          "'27 reachable agents' text in that window (MAR-113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
         """AC-7 sub-check 3: the dispatch.py component description shows
-        x15 pre/post hook pairs (MAR-143's registration of the 15th HOOKED
+        x15 pre/post hook pairs (MAR-160's registration of the 15th HOOKED
         skill advances the true hook count to 15/15); x10 is gone."""
         body = self._c4_component()
-        self.assertIn("x14", body,
+        self.assertIn("x15", body,
                       "c4-component.md's dispatch.py component description "
                       "must advance to x15 pre/post hook pairs (MAR-113 AC-7; "
-                      "advanced to 15/15 by MAR-143)")
+                      "advanced to 15/15 by MAR-160)")
         self.assertNotIn("x10", body,
                          "c4-component.md must not retain the stale x10 "
                          "pre/post hook pair count (MAR-113 AC-7)")
@@ -3686,7 +3689,7 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
         self.assertIn(
             "create-ticket → create-design (when required per the rules "
             "above) → code → test (when the gate is active, per "
-            "\"Post-code test gate\" above) → create-pr", section,
+            "\"Post-code test gate\" above) → docs-sync → create-pr", section,
             "ship/SKILL.md must state the single lane-uniform walk order")
 
 
@@ -3727,6 +3730,86 @@ class TestCreateTicketAcDodGateDocs(unittest.TestCase):
             re.search(r"(?is)no new subagent", section),
             "MAR-157: skills.md '/create-ticket' section must state no new "
             "subagent is introduced for this check")
+
+
+
+class TestDocsSyncSkillStructure(unittest.TestCase):
+    """MAR-160 AC-1/AC-2/AC-3/AC-6: docs-sync is a new hooked triad skill
+    (SKILL.md + 3 agents + pre-/post-docs-sync.py) standing up spec 01 --
+    structural existence/shape, the AC-3 five-input contract documented in
+    the planner, the AC-2 same-branch/no-new-PR mechanics, and the AC-6
+    no-new-settings-keys guard."""
+
+    def _skill_body(self):
+        return read(os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md"))
+
+    def _agent_body(self, role):
+        return read(os.path.join(PLUGIN, "agents", "docs-sync-%s.md" % role))
+
+    def _hook_body(self, prefix):
+        return read(os.path.join(PLUGIN, "hooks", "scripts", "%s-docs-sync.py" % prefix))
+
+    # ------------------------------------------------------------------ AC-1
+
+    def test_skill_md_exists_with_required_sections(self):
+        body = self._skill_body()
+        for heading in ("## Start", "## Resume & reconcile", "## Reflection loop",
+                        "## Finish", "## Completion report"):
+            self.assertIn(heading, body, heading)
+
+    def test_three_agent_files_exist(self):
+        for role in ("planner", "executor", "verifier"):
+            self.assertTrue(
+                os.path.isfile(os.path.join(PLUGIN, "agents", "docs-sync-%s.md" % role)),
+                "docs-sync-%s.md must exist" % role)
+
+    def test_hook_scripts_exist_and_call_generic_dispatch(self):
+        self.assertIn('run_pre("docs-sync")', self._hook_body("pre"))
+        self.assertIn('run_post("docs-sync")', self._hook_body("post"))
+
+    # ------------------------------------------------------------------ AC-3
+
+    def test_planner_documents_five_input_contract(self):
+        body = self._agent_body("planner")
+        for token in ("git diff", "result.json", "docs_updated", "problems"):
+            self.assertIn(token, body, token)
+        self.assertRegex(body, r"iter-.*-verify\.md")
+
+    # ------------------------------------------------------------------ AC-2
+
+    def test_start_section_has_no_branch_or_pr_creation_call(self):
+        body = self._skill_body()
+        start = body[body.index("## Start"):body.index("## Resume & reconcile")]
+        self.assertNotIn("create_branch", start)
+        self.assertNotIn("gh pr create", start)
+
+    def test_start_section_confirms_same_branch(self):
+        body = self._skill_body()
+        start = body[body.index("## Start"):body.index("## Resume & reconcile")]
+        self.assertIsNotNone(
+            re.search(r"(?i)branch", start),
+            "docs-sync/SKILL.md's Start section must confirm the branch "
+            "matches the ticket's recorded branch (AC-2)")
+        self.assertIsNotNone(
+            re.search(r"(?i)never (creates?|opens?) a (new )?(branch|.*PR)", start)
+            or re.search(r"(?i)same ticket branch", start),
+            "docs-sync/SKILL.md's Start section must state it never creates "
+            "a new branch or opens a new PR (AC-2)")
+
+    # ------------------------------------------------------------------ AC-6
+
+    def test_settings_schema_gains_no_new_formats_or_enforcement_keys(self):
+        schema_path = os.path.join(PLUGIN, "schemas", "settings.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        self.assertEqual(
+            set(schema["properties"]["formats"]["properties"].keys()),
+            {"branch_name", "commit_message", "pr_title",
+             "pr_description_template", "design_template", "tickets"})
+        self.assertEqual(
+            set(schema["properties"]["enforcement"]["properties"].keys()),
+            {"checks", "require_label", "exempt_label", "exempt_branches",
+             "pr_description_sections", "design_sections"})
 
 
 if __name__ == "__main__":

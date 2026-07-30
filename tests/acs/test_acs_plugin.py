@@ -381,6 +381,9 @@ class TestPipelineSequence(AcsWorkspaceCase):
         self.assertEqual(self.pre("create-pr", child).returncode, 2)
         self.start("code", child)
         self.post("code", child, {"status": "completed", "states": {"verifier_passed": True}})
+        # create-pr gate also needs docs-sync completed (AC-4)
+        self.start("docs-sync", child)
+        self.post("docs-sync", child, {"status": "completed"})
         self.assertEqual(self.pre("create-pr", child).returncode, 0)
 
         # merge gate needs a PR reference
@@ -426,6 +429,85 @@ class TestPipelineSequence(AcsWorkspaceCase):
         self.assertIn("docs_only", body,
                       "code/SKILL.md must contain 'docs_only' (docs_only relaxation section "
                       "must not be silently dropped) (MAR-65 AC-6)")
+
+
+class TestDocsSyncGates(AcsWorkspaceCase):
+    """MAR-160 spec 02: gate_docs_sync (a)-(d) and the gate_create_pr rewire's
+    negative cases (a)/(b) -- the existing verifier_passed check must survive
+    unchanged, and the new docs-sync-completed check must be additive."""
+
+    def setUp(self):
+        super().setUp()
+        self.ticket = self.new_ticket("Bulk import", "task")
+        self.start("code", self.ticket)
+        self.post("code", self.ticket, {"status": "completed", "states": {"verifier_passed": True}})
+
+    # ---------------------------------------------------------------- gate_docs_sync
+
+    def test_docs_sync_gate_passes_when_no_test_step_entry(self):
+        # (a) code completed, no "test" step entry in pipeline-state.json -> 0
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_docs_sync_gate_blocks_when_test_step_present_not_completed(self):
+        # (b) code completed, "test" step present but not completed -> 2, names test
+        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "in_progress")
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("test", result.stderr)
+
+    def test_docs_sync_gate_passes_when_test_step_completed(self):
+        # (c) code completed, "test" step present and completed -> 0
+        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "completed")
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_docs_sync_gate_blocks_when_code_not_completed(self):
+        # (d) code not completed -> 2, names code, regardless of test's state
+        other = self.new_ticket("No code yet", "task")
+        result = self.pre("docs-sync", other)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("code", result.stderr)
+
+    # ---------------------------------------------------------------- gate_create_pr rewire
+
+    def test_create_pr_gate_blocks_when_docs_sync_not_completed(self):
+        # (a) code verifier_passed true but docs-sync never run -> 2, names docs-sync
+        result = self.pre("create-pr", self.ticket)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("docs-sync", result.stderr)
+
+    def test_create_pr_gate_keeps_verifier_passed_check(self):
+        # (b) docs-sync completed but the underlying code run's verifier_passed is
+        # false -> 2, still names verifier_passed (the existing check survives)
+        t = self.new_ticket("Needs fixups", "task")
+        self.start("code", t)
+        self.post("code", t, {"status": "completed", "states": {"verifier_passed": False}})
+        self.start("docs-sync", t)
+        self.post("docs-sync", t, {"status": "completed"})
+        result = self.pre("create-pr", t)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("verifier_passed", result.stderr)
+
+    def test_create_pr_gate_passes_with_both_checks_satisfied(self):
+        self.start("docs-sync", self.ticket)
+        self.post("docs-sync", self.ticket, {"status": "completed"})
+        result = self.pre("create-pr", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    # ---------------------------------------------------------------- registry
+
+    def test_docs_sync_registered_in_workflow_skills_and_gates(self):
+        self.assertIn("docs-sync", lib.WORKFLOW_SKILLS)
+        self.assertIn("docs-sync", lib.GATES)
+
+    def test_pipeline_state_schema_includes_docs_sync(self):
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        enum = schema["properties"]["steps"]["propertyNames"]["enum"]
+        self.assertIn("docs-sync", enum)
 
 
 class TestConcurrencyAndRecovery(AcsWorkspaceCase):

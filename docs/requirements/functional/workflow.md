@@ -40,6 +40,15 @@ flowchart LR
     W -. "pre-hooks read predecessor state" .-> T & D & S & C & P & M
 ```
 
+> **NOTE (MAR-160):** A new hooked skill, `/docs-sync`, now runs after `/code`
+> (and the post-code `/test` step, when it ran) and before `/create-pr`, on
+> the SAME ticket branch — additional commits, same PR/review, never a
+> separate PR. It independently re-derives doc impact from
+> `git diff <default_branch>...HEAD`, `/code`'s `result.json`
+> (`docs_updated`), and the final code-verify artifact, rather than trusting
+> a hand-off summary. See [hooks.md](hooks.md) and `ship/SKILL.md`
+> "Pipeline order" / "Picking the next step".
+
 ## Step gating
 
 - Each workflow skill MUST be guarded by a **pre-hook** that checks readiness

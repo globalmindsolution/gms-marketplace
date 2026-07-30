@@ -134,37 +134,37 @@ class Mar143CountBumpCase(unittest.TestCase):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
     def test_hooked_skills_count_is_fifteen(self):
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 14)
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 15)
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
-        self.assertIn("23 x SKILL.md", body)
-        self.assertIn("42 x agent .md (36 reachable)", body)
-        self.assertIn("eleven triad-keeping skills", body)
+        self.assertIn("24 x SKILL.md", body)
+        self.assertIn("45 x agent .md (39 reachable)", body)
+        self.assertIn("twelve triad-keeping skills", body)
         self.assertIn("create-requirements", body)
-        self.assertIn("dispatch + 14 pre + 14 post hooks", body)
+        self.assertIn("dispatch + 15 pre + 15 post hooks", body)
 
     def test_c4_container_stale_counts_absent(self):
         body = self._c4_container()
         for stale in (
-            "24 x SKILL.md", "45 x agent .md (39 reachable)",
-            "twelve triad-keeping skills", "dispatch + 15 pre + 15 post hooks",
+            "23 x SKILL.md", "42 x agent .md (36 reachable)",
+            "eleven triad-keeping skills", "dispatch + 14 pre + 14 post hooks",
         ):
             self.assertNotIn(stale, body, "stale form %r still in c4-container.md" % stale)
 
     def test_c4_component_bumped_counts_present(self):
         body = self._c4_component()
-        self.assertIn("eleven triad-keeping skills", body)
-        self.assertIn("11 active triads (33 agents in triads)", body)
-        self.assertIn("36 reachable agents", body)
+        self.assertIn("twelve triad-keeping skills", body)
+        self.assertIn("12 active triads (36 agents in triads)", body)
+        self.assertIn("39 reachable agents", body)
         self.assertIn("create-requirements", body)
 
     def test_c4_component_stale_counts_absent(self):
         body = self._c4_component()
         for stale in (
-            "twelve triad-keeping skills",
-            "12 active triads (36 agents in triads)",
-            "39 reachable agents",
+            "eleven triad-keeping skills",
+            "11 active triads (33 agents in triads)",
+            "36 reachable agents",
         ):
             self.assertNotIn(stale, body, "stale form %r still in c4-component.md" % stale)
 

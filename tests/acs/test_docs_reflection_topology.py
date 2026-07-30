@@ -231,14 +231,16 @@ class ReflectionTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk in total" % D["n_agents"], body)
 
-    def test_fourteen_skill_prefixes(self):
+    def test_fifteen_skill_prefixes(self):
         body = self._body()
         self.assertNotIn("nine skill prefixes", body)
-        self.assertIn("fourteen skill prefixes", body)
+        self.assertNotIn("fourteen skill prefixes", body)
+        self.assertIn("fifteen skill prefixes", body)
 
-    def test_eleven_triad_keeping(self):
+    def test_twelve_triad_keeping(self):
         body = self._body()
-        self.assertIn("**eleven**", body)
+        self.assertIn("**twelve**", body)
+        self.assertNotIn("**eleven**", body)
         self.assertNotIn("**six**", body)
 
     def test_triad_enumeration_names_new_skills(self):

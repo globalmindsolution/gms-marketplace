@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
-WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "create-pr", "merge-pr", "standardize-project"]
+WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
 UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
@@ -1626,6 +1626,25 @@ def gate_create_design(ctx, payload):
     return ticket_id
 
 
+def gate_docs_sync(ctx, payload):
+    # AC-2: docs-sync runs after code (and the post-code test step, when it
+    # was active for this ticket), before create-pr. "test" is an UNHOOKED
+    # skill (no post-hook, no test-state.json) -- its activation/completion
+    # lives only in pipeline-state.json.steps.test, so it is read directly
+    # from the ledger rather than via skill_completed/_require_completed.
+    ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "docs-sync")
+    _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
+    pipeline = load_pipeline(tdir, ticket_id)
+    test_step = pipeline.get("steps", {}).get("test")
+    if test_step is not None and test_step.get("status") != "completed":
+        raise GateError(
+            "/test is recorded as %r for %s (the post-code test gate was active but has not "
+            "completed) — run /acs:test --for-ticket %s first." % (
+                test_step.get("status"), ticket_id, ticket_id)
+        )
+    return ticket_id
+
+
 def gate_code(ctx, payload):
     # AC-4: unconditional pass-through once create-ticket has completed -- no
     # lane branch, no create-spec/specs/ precondition (create-spec is deleted;
@@ -1637,6 +1656,7 @@ def gate_code(ctx, payload):
 def gate_create_pr(ctx, payload):
     ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-pr")
     _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
+    _require_completed(tdir, "docs-sync", ticket_id, "run /acs:docs-sync %s first" % ticket_id)
     state = load_state(tdir, "code", ticket_id)
     if state["states"].get("verifier_passed") is not True:
         raise GateError(
@@ -1746,6 +1766,7 @@ GATES = {
     "create-ticket": gate_create_ticket,
     "create-design": gate_create_design,
     "code": gate_code,
+    "docs-sync": gate_docs_sync,
     "create-pr": gate_create_pr,
     "merge-pr": gate_merge_pr,
     "standardize-project": gate_standardize_project,
