@@ -107,7 +107,8 @@ name.
 | `/acs:create-design` | `/acs:create-ticket` completed; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) in the ticket partition; epics' children inherit it. |
 | `/acs:create-spec` | `/acs:create-ticket` completed; design completed when required | Decomposes the ticket into one or more implementation specs (scope, approach, API/data changes, test plan), conformant to the design. |
 | `/acs:code` | `/acs:create-spec` completed; specs exist | TDD implementation on a ticket branch against the coverage target; updates affected docs and the architecture doc set; verifier review loop (max 3 iterations). |
-| `/acs:create-pr` | `/acs:code` completed **and** its verifier passed | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. |
+| `/acs:docs-sync` | `/acs:code` completed (**and** `/acs:test`, when it ran) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
+| `/acs:create-pr` | `/acs:code` completed **and** its verifier passed **and** `/acs:docs-sync` completed | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. |
 | `/acs:merge-pr` | PR reference recorded; **user-invoked only** | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 
 ## How gating works
