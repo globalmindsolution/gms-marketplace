@@ -105,7 +105,7 @@ name.
 | `/acs:create-project` | Architecture doc set exists | Product-level, greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. |
 | `/acs:create-design` | `/acs:create-ticket` completed; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) in the ticket partition; epics' children inherit it. |
-| `/acs:code` | `/acs:create-ticket` completed | TDD implementation on a ticket branch against the coverage target; updates affected docs and the architecture doc set; verifier review loop (max 3 iterations). |
+| `/acs:code` | `/acs:create-ticket` completed | TDD implementation on a ticket branch against the coverage target; reconciles factual product-doc claims; verifier review loop (max 3 iterations). |
 | `/acs:docs-sync` | `/acs:code` completed (**and** `/acs:test`, when it ran) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 | `/acs:create-pr` | `/acs:code` completed **and** its verifier passed **and** `/acs:docs-sync` completed | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. |
 | `/acs:merge-pr` | PR reference recorded; **user-invoked only** | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
@@ -162,7 +162,7 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
 | `prd_path` | `"docs/product"` | PRD doc set location in the repo |
 | `architecture_path` | `"docs/architecture"` | HLD/LLD doc set location in the repo |
-| `adr_path` | unset | When set, `/acs:code` commits accepted decision records here |
+| `adr_path` | unset | When set, `/acs:docs-sync` commits accepted decision records here |
 | `models` | inherit | Per-role model + reasoning effort (`planner`/`executor`/`verifier`, per-skill overrides) |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
 | `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |

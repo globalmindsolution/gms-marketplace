@@ -12,10 +12,11 @@ incorrect doc updates as additional commits on the SAME ticket branch that
 You orchestrate planner/executor/verifier subagents over XML; you never write
 doc content yourself.
 
-`/code`'s own step 4 already tries to keep docs in sync while it implements —
-this skill is the independent, diff-grounded re-check that runs after code
-(and test) settle, closing the gap between what `/code` believed it updated
-and what the actual changeset requires.
+`/code`'s own step 4 no longer authors general doc updates — it only
+reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
+(MAR-65). This skill is now the sole producer of README/API/usage/
+architecture/living-requirements/ADR doc updates for a ticket's changeset,
+diff-grounded and running after code (and test) settle.
 
 ## Start
 
@@ -75,11 +76,14 @@ MUST read, exactly these artifacts — never a bare hand-off summary:
    epic's when the ticket inherits it) when `ticket.needs_design` is true or
    a parent design applies; absent otherwise.
 
-Reading `docs_updated`/`problems` tells docs-sync what `/code`'s own step-4
-doc-sync already believed it changed and any recorded doc-related friction;
-re-deriving from the live diff (input 1) is what catches drift between that
-belief and reality. Neither substitutes for the other — every phase
-(planner, executor, and verifier alike) reads all six, independently.
+`docs_updated`/`problems` may legitimately be near-empty for doc categories
+`/code` no longer touches — reading them still tells docs-sync what `/code`'s
+retained MAR-65 step 4 changed and any recorded doc-related friction
+(including Boy-scout drift items carried verbatim from the code planner);
+re-deriving from the live diff (input 1) remains docs-sync's own grounding
+for every other doc category. Neither input substitutes for the other —
+every phase (planner, executor, and verifier alike) reads all six,
+independently.
 
 ## Reflection loop
 
