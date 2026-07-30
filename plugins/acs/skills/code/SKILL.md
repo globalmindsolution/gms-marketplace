@@ -356,10 +356,13 @@ write-failing-tests-first and new-test generation; the coverage hard fail
 does not apply (record `coverage_percent: null`, target "n/a — docs_only");
 the existing test suite is STILL run once and must be green (a docs-only
 change that breaks the build is a finding); the verifier's Tests/Coverage
-dimensions become "n/a — docs_only" while every other dimension (especially
-Documentation consistency) applies in full. If any executor finds itself
-touching executable code or tests, STOP — the flag is wrong; surface it to
-the user and have the ticket corrected before continuing.
+dimensions become "n/a — docs_only" while every other dimension still
+applies in full — performed and reported per its own severity: Documentation consistency's
+advisory sub-checks (per-commit doc-sync, living-requirements,
+architectural-impact) stay advisory; its blocking Product-doc-consistency
+sub-check stays blocking. If any executor finds itself touching executable
+code or tests, STOP — the flag is wrong; surface it to the user and have the
+ticket corrected before continuing.
 
 ### Execute (per iteration) — TDD
 
@@ -455,9 +458,12 @@ Dimensions, each producing blocking findings on failure:
   content when no separately-authored spec set exists.
 - **Security** — no injected vulnerabilities, secrets, or unsafe handling of
   input/authz.
-- **Documentation** — every affected doc updated and consistent with the
-  code, including the architecture doc set and `lld/flows/` merges and ADRs
-  when applicable. **Product-doc-consistency check:** verify whether the
+- **Documentation** — per-commit doc updating (README/API/usage docs/
+  changelog/the architecture doc set/`lld/flows/`/ADRs, and the living
+  requirements) is now `docs-sync`'s responsibility; when `/code`'s own
+  verifier still notices a gap it reports it advisory
+  (`severity="info" dimension="documentation"`), never blocking.
+  **Product-doc-consistency check:** verify whether the
   changeset leaves factual claims in `docs/product/prd.md` or
   `docs/product/roadmap.md` stale (see the factual-vs-intent boundary in
   Execute step 4 above). A stale factual claim is a blocking finding
@@ -624,6 +630,15 @@ MANDATORY final step — never skipped, also on failure:
    - `review`: `{iterations, findings_open}` — iterations used and findings
      still open (0 on success).
 
+   Advisory documentation findings (`severity="info" dimension="documentation"`,
+   from code-verifier's demoted per-commit doc-sync, living-requirements, and
+   architectural-impact sub-checks) are carried into the `findings` array and
+   named on the Completion report's `**Findings**` line, but are never
+   counted in `review.findings_open` and never affect `verifier_passed` — a
+   zero-blocking-findings run still reports `verifier_passed: true` and
+   `findings_open: 0` with any advisory documentation entries present in
+   `findings`.
+
    On failure keep whatever is true: `verifier_passed: false`, the branch,
    the specs that ARE implemented and green, the achieved
    `tests.coverage_percent`, docs actually updated, open findings in
@@ -665,3 +680,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-pr <ticket-id>` on success; on a coverage hard-fail or iteration cap, re-run `/acs:code <ticket-id>` after addressing the recorded findings
 ```
+
+Any advisory documentation flags (`severity="info" dimension="documentation"`,
+from code-verifier's demoted per-commit doc-sync, living-requirements, and
+architectural-impact sub-checks) surface on the **Findings** line above
+alongside open blocking findings and clarifications, or `none` when there
+are none.

@@ -265,11 +265,16 @@ class CodeVerifierDocumentationSidecarContractTest(unittest.TestCase):
     def test_dimension_mentions_evidence_sidecar(self):
         self.assertRegex(self.block, SIDECAR_TOKEN_RE)
 
-    def test_dimension_blocks_inline_citation_in_merge(self):
+    def test_dimension_reports_inline_citation_in_merge_as_advisory(self):
+        """MAR-162 supersedes the prior blocking assertion: dimension 11's
+        living-requirements sub-check is demoted to advisory — the inline
+        in-scope citation clause now reports severity="info", still fully
+        performed and reported, never gating verifier_passed (docs-sync's
+        own verifier independently re-derives and blocks on this content)."""
         self.assertRegex(
             self.block,
-            r'(?i)inline[\s\S]{0,120}citation[\s\S]{0,200}'
-            r'severity="blocking"\s+dimension="documentation"',
+            r'(?i)inline[\s\S]{0,200}citation[\s\S]{0,300}'
+            r'severity="info"\s+dimension="documentation"',
         )
 
 
