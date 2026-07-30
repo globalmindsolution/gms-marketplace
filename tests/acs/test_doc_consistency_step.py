@@ -307,7 +307,6 @@ class Mar115DocTailCase(unittest.TestCase):
             "## `/acs:create-quality` (product-level)",
             "## `/acs:create-operations` (product-level)",
             "## 2. `/create-design` *(conditional)*",
-            "## 3. `/create-spec`",
         ]
         for heading in headings:
             with self.subTest(heading=heading):

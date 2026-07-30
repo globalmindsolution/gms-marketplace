@@ -151,7 +151,7 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
         self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
-            "create-spec", "code", "create-prd", "create-design",
+            "docs-sync", "code", "create-prd", "create-design",
             "create-architecture", "create-project", "create-quality",
             "create-operations", "create-principles", "create-standards",
             "standardize-project", "create-requirements",

@@ -95,10 +95,12 @@ Requirements:
   start of each iteration, after the prior verifier and before the current
   execute — so an escalation always lands before the next verifier pass
   (MAR-107 D4). When a fast lane (TRIVIAL/SMALL) crosses the fold boundary
-  into a full lane (STANDARD/COMPLEX), this fold-boundary stage re-entry
-  re-introduces the skipped `create-spec` decomposition stage before the next
-  iteration, resuming implementation only once `create-spec` passes at zero
-  verifier findings. The lane/axes are never *automatically* downward — the
+  into a full lane (STANDARD/COMPLEX), the former fold-boundary stage re-entry
+  no longer applies: since ADR 0066 every lane authors its spec content inside
+  `/code`'s own plan phase, so there is no decomposition stage left to
+  re-enter — the crossing raises the verify depth and the in-flight iteration
+  ceiling only, monotonically and never lowered (`code/SKILL.md`'s "In-loop
+  escalation check" and "Spec authoring fold" sections). The lane/axes are never *automatically* downward — the
   one exception is a user-confirmed de-escalation (MAR-108), offered only at
   an iteration or run boundary, never mid-iteration, requiring an explicit
   `AskUserQuestion` confirmation recorded via `clarify.py` before the
@@ -141,7 +143,7 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
-> **Spec-time vs. code-time simplicity (MAR-88)**: `/create-spec`'s planner
+> **Spec-time vs. code-time simplicity (MAR-88)**: the `code-planner`
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on

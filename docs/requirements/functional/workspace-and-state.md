@@ -48,11 +48,11 @@
         ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
         ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md / -execute.json / -verify.md + XML snapshots
         ├── create-ticket-state.json
-        ├── specs/                      # output of /create-spec (1..n specs; conform to the design)
+        ├── specs/                      # legacy input: pre-existing specs (1..n, conform to the design) read by /code when present; new tickets have none — /code self-authors the fold content instead
         │   ├── 01-data-model.md
         │   └── 02-api-endpoints.md
-        ├── create-spec-state.json
         ├── code-state.json             # written by post-code.py; incl. verifier review findings + runs[-1].escalations audit trail
+        ├── docs-sync-state.json        # written by post-docs-sync.py; the /docs-sync run ledger
         ├── create-pr-state.json        # incl. PR number/URL
         └── merge-pr-state.json
 ```
@@ -176,7 +176,7 @@ perform lightweight stdlib-only structural checks
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
 - Cross-partition **reads** are allowed (e.g. a child ticket's
-  `/create-spec` and `/code` read the parent epic's `design.md`);
+  `/code` reads the parent epic's `design.md`);
   cross-partition **writes** are limited to the defined parent-epic status
   updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
