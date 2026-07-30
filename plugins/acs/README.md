@@ -74,7 +74,7 @@ Then ship features:
 ```
 
 `/acs:ship` runs `/acs:create-ticket` → `/acs:create-design` (when the
-ticket needs design) → `/acs:create-spec` → `/acs:code` → `/acs:create-pr`,
+ticket needs design) → `/acs:code` → `/acs:docs-sync` → `/acs:create-pr`,
 asking clarifying questions along the way — and always stops before merge.
 After reviewing each PR yourself:
 
@@ -84,7 +84,7 @@ After reviewing each PR yourself:
 ```
 
 Every step is also invocable on its own (`/acs:create-ticket Fix flaky
-checkout rounding`, then `/acs:create-spec SHOP-7`, `/acs:code SHOP-7`, …) —
+checkout rounding`, then `/acs:code SHOP-7`, …) —
 the hooks enforce the order either way. The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
@@ -94,7 +94,7 @@ name.
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
 | `/acs:init` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
-| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → spec → code → create-pr end to end, resumable from the first incomplete step. Never merges. |
+| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the ticket partition, marks the run `handed_off`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
@@ -105,8 +105,7 @@ name.
 | `/acs:create-project` | Architecture doc set exists | Product-level, greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. |
 | `/acs:create-design` | `/acs:create-ticket` completed; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) in the ticket partition; epics' children inherit it. |
-| `/acs:create-spec` | `/acs:create-ticket` completed; design completed when required | Decomposes the ticket into one or more implementation specs (scope, approach, API/data changes, test plan), conformant to the design. |
-| `/acs:code` | `/acs:create-spec` completed; specs exist | TDD implementation on a ticket branch against the coverage target; updates affected docs and the architecture doc set; verifier review loop (max 3 iterations). |
+| `/acs:code` | `/acs:create-ticket` completed | TDD implementation on a ticket branch against the coverage target; updates affected docs and the architecture doc set; verifier review loop (max 3 iterations). |
 | `/acs:docs-sync` | `/acs:code` completed (**and** `/acs:test`, when it ran) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 | `/acs:create-pr` | `/acs:code` completed **and** its verifier passed **and** `/acs:docs-sync` completed | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. |
 | `/acs:merge-pr` | PR reference recorded; **user-invoked only** | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
@@ -177,9 +176,10 @@ and the machine-readable
 
 - **"blocked — … has not completed" (skill refuses to run).** A pre-hook
   exited 2. The stderr message names the missing predecessor — run that
-  skill for the same ticket (e.g. `/acs:create-spec SHOP-123` before
-  `/acs:code SHOP-123`). A "run /init first" message means no
-  `settings.json` could be resolved: run `/acs:init`.
+  skill for the same ticket (e.g. `/acs:code SHOP-123` before
+  `/acs:create-pr SHOP-123` — `create-pr`'s gate additionally requires
+  `/acs:docs-sync` to have completed, `acs_lib.py:1656-1659`). A "run /init
+  first" message means no `settings.json` could be resolved: run `/acs:init`.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
   worktree), finish or hand off there. If it crashed, ending that session

@@ -13,16 +13,15 @@ templates, docs) is spec 01, covered by
   (the byte-identical guard in the schema module greps this SKILL for it).
 - `create-design-verifier.md` dim `structure` notes the section list is the
   CONFIGURED one.
-- `docs/architecture/lld/contracts.md` notes create-spec now runs
-  `structure_lint`.
 
 MAR-156 deletes create-spec outright; its `formats.spec_template`/
 `enforcement.spec_sections` wiring and its `structure` verifier dimension are
 retired along with the rest of its surface -- `CreateSpecSkillResolutionTest`
 and `CreateSpecVerifierStructureDimensionTest` (formerly here) are removed.
-`ContractsNoteTest` is untouched: `docs/architecture/lld/contracts.md` is out
-of this ticket's scope (routed to sibling MAR-161) and its content does not
-change.
+`ContractsNoteTest` is also removed (MAR-161): `docs/architecture/lld/contracts.md`
+no longer documents `formats.spec_template`/`enforcement.spec_sections` or a
+create-spec `structure_lint` note now that those retired schema keys
+(MAR-156/ADR-0066) have been swept from the doc.
 
 Stdlib-only (os, re, unittest); reuses the bold/backtick dimension-label
 matching style of `test_structure_audience_verifiers.py`.
@@ -38,11 +37,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
-DOCS = os.path.join(REPO_ROOT, "docs")
 
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
 CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-design-verifier.md")
-CONTRACTS = os.path.join(DOCS, "architecture", "lld", "contracts.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
@@ -154,17 +151,6 @@ class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
         self.assertIn("design_sections", self.block,
                       "create-design-verifier structure dim must note the "
                       "configured enforcement.design_sections list")
-
-
-class ContractsNoteTest(unittest.TestCase):
-    """AC-5: contracts.md notes create-spec now runs structure_lint / carries a
-    blocking structure dimension, mirroring create-design."""
-
-    def test_contracts_notes_create_spec_structure_lint(self):
-        text = read(CONTRACTS)
-        self.assertRegex(
-            text, r"create-spec[^\n]*structure_lint",
-            "contracts.md must note create-spec now runs structure_lint")
 
 
 if __name__ == "__main__":

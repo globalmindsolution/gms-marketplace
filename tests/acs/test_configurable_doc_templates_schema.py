@@ -157,12 +157,14 @@ class TestArchitectureDocs(unittest.TestCase):
         self.assertNotIn("4 description templates", text)
 
     def test_contracts_lists_all_four_new_keys(self):
+        """Narrowed to the two surviving keys (MAR-161/ADR-0066): MAR-156
+        retired `formats.spec_template`/`enforcement.spec_sections` from the
+        schema along with the deleted create-spec skill, and MAR-161 swept
+        contracts.md's Settings paragraph to stop documenting them."""
         text = read_text(CONTRACTS_PATH)
         for key in (
             "formats.design_template",
-            "formats.spec_template",
             "enforcement.design_sections",
-            "enforcement.spec_sections",
         ):
             self.assertIn(key, text)
 
