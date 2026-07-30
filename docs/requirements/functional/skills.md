@@ -228,6 +228,13 @@ closing the loop on failures with a regression ticket.
   `/acs:test` headless; the concrete recipe lives in
   `templates/operations/test-scheduling.md` (shipped by `/acs:create-operations`),
   not duplicated here.
+- **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
+  suite-execution core (Steps 1-3: setup→command→teardown, the
+  results-artifact write) scoped to the reserved `e2e` suite plus the
+  ticket's own folded Test-plan suites, but skips the regression-ticket
+  triage/mint-or-bump loop entirely and instead returns a `{status,
+  failure_output}` verdict — invoked as one step inside `/acs:ship`'s
+  pipeline walk. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
 
 ## Product-level delivery (tickets)
 

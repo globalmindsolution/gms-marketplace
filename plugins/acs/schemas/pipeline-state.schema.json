@@ -14,7 +14,7 @@
     "steps": {
       "type": "object",
       "propertyNames": {
-        "enum": ["create-prd", "create-architecture", "create-project", "create-ticket", "create-design", "code", "create-pr", "merge-pr"]
+        "enum": ["create-prd", "create-architecture", "create-project", "create-ticket", "create-design", "code", "test", "create-pr", "merge-pr"]
       },
       "additionalProperties": {
         "type": "object",
@@ -26,6 +26,11 @@
           "summary": {
             "description": "Compact handoff summary for /ship (bounded; full detail lives in the skill state files).",
             "oneOf": [{"type": "string"}, {"type": "null"}]
+          },
+          "fix_loops": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Bounded fix-and-re-test loop counter for the test step only; other steps never set this. Independent of /code's own internal iteration cap."
           }
         },
         "additionalProperties": true
