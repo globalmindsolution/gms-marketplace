@@ -28,6 +28,18 @@ ground truth. Zero findings = pass. ALL findings block.
 4. `mechanics` — the commits are on the SAME ticket branch (no new branch),
    there is no new PR, and each commit message matches the `commit_message`
    format.
+5. `requirements-routing` — when the diff touches a `requirements_path`
+   file: the merge is classified correctly per the rubric (functional=
+   behavior, non-functional=quality, tie-break defaults to functional) and
+   lands in the resolved subfolder — a merge outside the
+   `requirements_layout.functional_subdir`/`.non_functional_subdir` resolved
+   paths (a wrong-subfolder merge) is a finding; an in-scope code-evidence
+   citation embedded inline in the area file's body instead of routed to its
+   `.evidence.md` sidecar is a finding. When the diff shows architectural
+   impact (components/data model/integrations/deployment changed) or the
+   design carries accepted decision records: the HLD under
+   `architecture_path`, the `lld/flows/` diagram set, and the ADRs under
+   `adr_path` are updated/committed accordingly — a gap is a finding.
 
 ## Re-run cheap checks yourself
 

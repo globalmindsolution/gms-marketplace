@@ -1769,12 +1769,14 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
 
     def test_skill_step4_names_prd_md(self):
         """AC-1: code/SKILL.md must name prd.md within 2000 chars of the step-4 'part of
-        the change' clause (the doc-update step heading)."""
+        the change' clause (the doc-update step heading). MAR-162 retitled
+        the step-4 heading to 'Reconcile product-doc facts' — re-anchored
+        from the retired 'Update the docs' heading."""
         body = self._code_body()
-        # Find the step-4 occurrence: 'Update the docs' is the unique step-4 heading.
-        anchor = body.find("**Update the docs")
+        anchor = body.find("**Reconcile product-doc facts")
         self.assertGreater(anchor, 0,
-                           "code/SKILL.md must contain '**Update the docs' step-4 heading")
+                           "code/SKILL.md must contain '**Reconcile product-doc facts' "
+                           "step-4 heading")
         window = body[anchor:anchor + 2000]
         self.assertIn("prd.md", window,
                       "code/SKILL.md must name prd.md within 2000 chars of step-4 heading "
@@ -1782,11 +1784,12 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
 
     def test_skill_step4_names_roadmap_md(self):
         """AC-1: code/SKILL.md must name roadmap.md within 2000 chars of the step-4
-        'Update the docs' heading."""
+        'Reconcile product-doc facts' heading (MAR-162 re-anchor)."""
         body = self._code_body()
-        anchor = body.find("**Update the docs")
+        anchor = body.find("**Reconcile product-doc facts")
         self.assertGreater(anchor, 0,
-                           "code/SKILL.md must contain '**Update the docs' step-4 heading")
+                           "code/SKILL.md must contain '**Reconcile product-doc facts' "
+                           "step-4 heading")
         window = body[anchor:anchor + 2000]
         self.assertIn("roadmap.md", window,
                       "code/SKILL.md must name roadmap.md within 2000 chars of step-4 heading "
@@ -1955,46 +1958,61 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
     # --- AC-7: regression guard (existing path tokens still present) ---
 
     def test_skill_step4_still_has_requirements_path(self):
-        """AC-7: code/SKILL.md step-4 block must still reference requirements_path."""
+        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
+        settings enumeration (:43), not via step 4 — step-4 absence is
+        asserted by test_code_doc_authoring_retired.py."""
         body = self._code_body()
         self.assertIn("requirements_path", body,
-                      "code/SKILL.md must still reference requirements_path in step 4 "
+                      "code/SKILL.md must still reference requirements_path "
                       "(MAR-65 AC-7 regression guard)")
 
     def test_skill_step4_still_has_architecture_path(self):
-        """AC-7: code/SKILL.md step-4 block must still reference architecture_path."""
+        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
+        settings enumeration (:43), not via step 4 — step-4 absence is
+        asserted by test_code_doc_authoring_retired.py."""
         body = self._code_body()
         self.assertIn("architecture_path", body,
-                      "code/SKILL.md must still reference architecture_path in step 4 "
+                      "code/SKILL.md must still reference architecture_path "
                       "(MAR-65 AC-7 regression guard)")
 
     def test_skill_step4_still_has_adr_path(self):
-        """AC-7: code/SKILL.md step-4 block must still reference adr_path."""
+        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
+        settings enumeration (:43), not via step 4 — step-4 absence is
+        asserted by test_code_doc_authoring_retired.py."""
         body = self._code_body()
         self.assertIn("adr_path", body,
-                      "code/SKILL.md must still reference adr_path in step 4 "
+                      "code/SKILL.md must still reference adr_path "
                       "(MAR-65 AC-7 regression guard)")
 
     def test_executor_still_has_requirements_path(self):
-        """AC-7: code-executor.md must still reference requirements_path."""
-        body = self._executor_body()
+        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
+        requirements_path move from code-executor.md's per-commit doc
+        mechanics to docs-sync-executor.md's independently re-derived
+        doc-delta production."""
+        body = read(self.agent_path("docs-sync", "executor"))
         self.assertIn("requirements_path", body,
-                      "code-executor.md must still reference requirements_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync-executor.md must reference requirements_path "
+                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
 
     def test_executor_still_has_architecture_path(self):
-        """AC-7: code-executor.md must still reference architecture_path."""
-        body = self._executor_body()
+        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
+        requirements_path move from code-executor.md's per-commit doc
+        mechanics to docs-sync-executor.md's independently re-derived
+        doc-delta production."""
+        body = read(self.agent_path("docs-sync", "executor"))
         self.assertIn("architecture_path", body,
-                      "code-executor.md must still reference architecture_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync-executor.md must reference architecture_path "
+                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
 
     def test_executor_still_has_adr_path(self):
-        """AC-7: code-executor.md must still reference adr_path."""
-        body = self._executor_body()
+        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
+        requirements_path move from code-executor.md's per-commit doc
+        mechanics to docs-sync-executor.md's independently re-derived
+        doc-delta production."""
+        body = read(self.agent_path("docs-sync", "executor"))
         self.assertIn("adr_path", body,
-                      "code-executor.md must still reference adr_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync-executor.md must reference adr_path "
+                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
 
 
 class TestVerifierProductDocConsistency(unittest.TestCase):

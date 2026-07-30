@@ -25,12 +25,17 @@ the consumer repo beyond read-only inspection.
      report(s), specifically the `problems` field.
    - The final `<partition>/phases/code/iter-<n>-verify.md` (the last
      code-verifier artifact for the highest completed iteration).
+   - The ticket's binding design (`<partition>/design.md`, or the parent
+     epic's when the ticket inherits it) when `ticket.needs_design` is true
+     or a parent design applies; absent otherwise.
 2. Re-derive doc impact from the diff itself, line by line: for every
    source/test/schema change, name the doc file(s) whose factual content it
    makes stale (README, API/usage docs, architecture doc set, living
-   requirements, ADRs) — by path and section. Cross-check against
-   `docs_updated` and `problems`: a doc `/code` already touched needs no
-   further change unless the diff shows it is still wrong or incomplete; a
+   requirements, ADRs) — by path and section. An ADR the design carries and
+   the changeset implements is a doc-delta item this plan must name — a
+   second, design-sourced category alongside diff-derived ADRs. Cross-check
+   against `docs_updated` and `problems`: a doc `/code` already touched needs
+   no further change unless the diff shows it is still wrong or incomplete; a
    doc `/code` never touched but the diff makes stale is a gap this plan
    must close.
 3. For each doc file needing a change, write the exact delta: what changes,

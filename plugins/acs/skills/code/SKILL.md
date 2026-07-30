@@ -1,12 +1,12 @@
 ---
 name: code
-description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, updating all affected documentation as part of the change, with a built-in changeset review loop. Specs are read from <partition>/specs/ when already present, or self-authored as part of the plan phase when not. Use once /acs:create-ticket (and /acs:create-design when required) has completed and before /acs:create-pr, when a ticket is ready to be implemented.
+description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, with a built-in changeset review loop. Specs are read from <partition>/specs/ when already present, or self-authored as part of the plan phase when not. Use once /acs:create-ticket (and /acs:create-design when required) has completed and before /acs:create-pr, when a ticket is ready to be implemented.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:code. Your job: implement every spec of one
-ticket in the consumer repo — tests first, docs included, committed on the
+ticket in the consumer repo — tests first, committed on the
 ticket branch — and pass the built-in changeset review (your verifier IS the
 review; there is no separate review skill). You orchestrate
 planner/executor/verifier subagents, persist every phase artifact to the
@@ -339,13 +339,12 @@ block (AC-6) apply unchanged in every lane; see those sections.
 - The test strategy per spec: which failing tests to write first, the repo's
   test/coverage tooling and the exact commands to run them, how
   `settings.test_coverage_percent` will be measured.
-- The documentation map: which README/API/usage docs/changelog entries the
-  change touches (the specs' API/data-changes sections name them), whether the
-  architecture doc set (`settings.architecture_path`) is affected, whether any
-  factual claims in `docs/product/prd.md` or `docs/product/roadmap.md` are made
-  stale by the change (factual items: agent/subagent counts, shipped-vs-planned
-  status, topology, version numbers, file path references), and the ADR list
-  when `settings.adr_path` is set and a design carries accepted decisions.
+- The documentation map: whether any factual claims in `docs/product/prd.md`
+  or `docs/product/roadmap.md` are made stale by the change (factual items:
+  agent/subagent counts, shipped-vs-planned status, topology, version numbers,
+  file path references) — `/acs:docs-sync` independently re-derives every
+  other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
+  from the diff after `/code` completes.
 - On iterations 2-3: how the plan remediates EVERY verifier finding from the
   previous iteration, explicitly, one by one.
 
@@ -362,7 +361,7 @@ Documentation consistency) applies in full. If any executor finds itself
 touching executable code or tests, STOP — the flag is wrong; surface it to
 the user and have the ticket corrected before continuing.
 
-### Execute (per iteration) — TDD, docs included
+### Execute (per iteration) — TDD
 
 Send each executor a `<task phase="execute">` naming its spec file and its
 file map (include `<constraint name="docs_only">true</constraint>` when it
@@ -374,33 +373,20 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
 2. **Implement** until the tests pass, iterating to green. Run the full suite,
-   not just the new tests — no regressions.
+   not just the new tests — no regressions. Code comments stay **minimal and idea-only**
+   — one short single-responsibility line per new function (SOLID:
+   one unit, one job), never a ticket id in source, and on edits only the
+   comments the change actually invalidates (e.g. a changed parameter); no
+   re-comment passes over unchanged logic. Test module filenames follow the
+   same rule: they are named by the component/behavior under test, never by a ticket id;
+   the originating ticket reference lives in the module docstring.
+   The executor also applies the **Simplicity First** and **Surgical
+   Changes** authoring rules (see code-executor.md Charter) throughout.
 3. **Measure coverage** with the repo's own tooling against
    `settings.test_coverage_percent`. If the target genuinely cannot be reached
    (e.g. untestable generated code), the executor reports the achieved number
    and the reason — see Coverage hard fail below.
-4. **Update the docs — part of the change, not a follow-up**: README, API and
-   usage docs, code comments, the changelog where the repo keeps one (follow
-   repo conventions). Code comments stay **minimal and idea-only** — one short
-   single-responsibility line per new function (SOLID: one unit, one job), never
-   a ticket id in source, and on edits only the comments the change actually
-   invalidates (e.g. a changed parameter); no re-comment passes over unchanged
-   logic. Test module filenames follow the same rule: they are named by the
-   component/behavior under test, never by a ticket id; the originating ticket
-   reference lives in the module docstring. The executor also applies the
-   **Simplicity First** and **Surgical
-   Changes** authoring rules (see code-executor.md Charter) throughout. Merge the ticket's acceptance criteria and
-   behavior-defining clarifications (answered/assumed ledger entries that
-   define behavior) into the touched feature area's file under
-   `settings.requirements_path` — the living requirements, the standing
-   behavioral contract that outlives archived specs (classify-then-route
-   into the resolved functional/non-functional subfolder — see the rubric at
-   the end of this step). Whenever the change adds/removes components or alters
-   the data model, integrations, or deployment: update the HLD under
-   `settings.architecture_path` (C4 views, data model, deployment) and MERGE
-   the design's new/changed Mermaid sequence diagrams into
-   `<architecture_path>/lld/flows/`. When `settings.adr_path` is set and a
-   design exists, commit the design's accepted decision records there.
+4. **Reconcile product-doc facts — part of the change, not a follow-up**:
 
    **Product-doc factual reconciliation (also part of the change):** when the
    changeset makes a factual claim in `docs/product/prd.md` or
@@ -420,40 +406,14 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    intent content. When the changeset alters no factual item in prd.md or
    roadmap.md, this step is a no-op for those files.
 
-   **Functional-vs-NFR classification rubric (for the living-requirements
-   merge above).** Classify each merged requirement, then write it into the
-   resolved subfolder — additive, per-area, no-overwrite (append/merge into
-   the existing area file, never replace it): only the target subfolder is
-   new, this merge semantics are unchanged.
-
-   - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
-     performs: a command/skill's steps and outputs, a gate's pass/fail
-     condition, an input→output contract, a state transition, a produced
-     artifact. "The system DOES X." →
-     `<requirements_path>/<functional_subdir>/<feature>.md`
-     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
-   - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
-     software behaves rather than a new behavior: performance/cost bounds,
-     security/secret handling, reliability/resumability, portability/
-     consumer-generality, operability, packaging/distribution. "The system
-     does it WITHIN/UNDER constraint Y." →
-     `<requirements_path>/<non_functional_subdir>/<item>.md`
-     (`settings.requirements_layout.non_functional_subdir`, default
-     `"non-functional"`).
-   - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
-     configurable behavior that is also a portability constraint) defaults
-     to **functional**, with a one-line cross-reference from the paired
-     non-functional file, keeping routing deterministic at the seam.
-
-   **Code-evidence citation routing (sidecar convention).** Any in-scope
-   code-evidence citation (`path:line` — `py`/`json`/`sh`/`xsd` extensions,
-   or `SKILL.md:line`) this merge step would otherwise embed inline in the
-   target area file's body must instead be written to that file's companion
-   `.evidence.md` sidecar (`<doc-basename-without-.md>.evidence.md`, created
-   if absent), keyed to the merged clause's stable anchor — the SAME
-   convention `create-requirements-executor.md` follows, reused rather than
-   forked. A target area file with zero in-scope citations from this merge
-   gets no sidecar.
+   **Boy-scout drift items — carried, never repaired here:** when the plan's
+   `## Documentation map` names a doc section the code planner found already
+   disagreeing with the CURRENT code (its Boy-scout drift-repair survey), the
+   executor does NOT repair it in this step — it copies the item verbatim,
+   with the cited doc section and `file:line` disagreement, into the execute
+   report's `problems` field, so `/acs:docs-sync` (which reads every execute
+   report's `problems` as a mandatory input) repairs it on the same
+   branch/PR.
 5. **Commit** the spec's work on the ticket branch per
    `formats.commit_message` (one or a few coherent commits per spec). Never
    push.
@@ -699,7 +659,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: branch; specs implemented; tests passed/failed; coverage achieved vs target; docs updated (paths, incl. architecture doc set); review iterations and open findings
+- **Results**: branch; specs implemented; tests passed/failed; coverage achieved vs target; docs updated; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
