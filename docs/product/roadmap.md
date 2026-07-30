@@ -553,7 +553,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   analog of create-prd's brownfield PRD mode and create-architecture's brownfield
   architecture mode. Full-codebase reverse-engineer with interactive-confirm;
   populates the **existing** `docs/requirements/*.md` per-feature-area format (the
-  same files `/acs:code` writes — one requirements set); runs standalone (no hard
+  same files `/acs:docs-sync` writes — one requirements set); runs standalone (no hard
   PRD/architecture dependency) but is architecture-aware (uses the architecture
   container/component views to enumerate feature areas when present). Output is
   an **additive/opt-in DRAFT baseline** — every extracted requirement carries a
