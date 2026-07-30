@@ -129,8 +129,14 @@ ALL of the following — every dimension that fails produces blocking findings:
     architectural-impact call are advisory: still fully performed and
     reported, but they never gate `verifier_passed`, because `docs-sync`'s
     own verifier now independently re-derives this same content from the
-    diff and blocks on it. (c) the MAR-65 Product-doc-consistency check is
-    unaffected by this split and stays `severity="blocking"`.
+    diff and blocks on it. Advisory findings are surfaced in **both**
+    places: they go into your verify report AND into your `<result>`'s
+    `<findings>` list, from which the coordinator carries them into
+    `/acs:code`'s result document (`result.json`'s `findings` array and the
+    Completion report's `**Findings**` line), while they stay out of
+    `review.findings_open` and never affect `verifier_passed`. (c) the
+    MAR-65 Product-doc-consistency check is unaffected by this split and
+    stays `severity="blocking"`.
     (a) Per-commit doc-sync: every affected doc updated and CONSISTENT with
     the code: README, API/usage docs, changelog; the HLD under
     `architecture_path` when components/data model/integrations/deployment

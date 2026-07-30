@@ -12,7 +12,8 @@ that the C3 literal-preservation constraints on the advisory rewrite of the
 living-requirements sub-check hold, and that the result-document surfacing
 of advisory documentation findings (result.json `findings` /
 `review.findings_open` / `verifier_passed`, and the Completion report's
-`**Findings**` line) is documented in `code/SKILL.md`.
+`**Findings**` line) is documented in both `code/SKILL.md` and
+`code-verifier.md`.
 
 Stdlib-only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_code_verifier_documentation_severity_split -v
@@ -216,7 +217,8 @@ class LivingRequirementsC3LiteralPreservationTest(unittest.TestCase):
 class ResultDocumentAdvisorySurfacingTest(unittest.TestCase):
     """F8: advisory documentation findings surface in result.json's
     findings array and the Completion report's Findings line, but never
-    count toward review.findings_open or verifier_passed."""
+    count toward review.findings_open or verifier_passed. Documented in
+    both `code/SKILL.md` and `code-verifier.md` (dimension 11)."""
 
     @classmethod
     def setUpClass(cls):
@@ -241,6 +243,12 @@ class ResultDocumentAdvisorySurfacingTest(unittest.TestCase):
         self.assertGreater(anchor, 0, "Completion report Findings line not found")
         window = self.body[max(0, anchor - 200):anchor + 800]
         self.assertRegex(window, r"(?i)advisory[\s\S]{0,200}documentation")
+
+    def test_verifier_dimension_11_hands_advisory_findings_to_result_document(self):
+        block = dimension_block(read(CODE_VERIFIER), "Documentation", "Simplicity & scope")
+        self.assertRegex(block, r"(?i)verify report")
+        self.assertRegex(block, r"(?i)result document")
+        self.assertRegex(block, r"(?i)coordinator")
 
 
 class VerifyDocumentationBulletAc2Test(unittest.TestCase):
