@@ -339,12 +339,13 @@ induction invariant, not a periodic chore:
 
 - **Base case** — /create-architecture bootstraps the doc set verified
   against both the PRD and the actual codebase.
-- **Inductive step** — every ticket carries its own architecture delta in
-  the SAME changeset: /create-design conforms or lists required doc changes;
-  the code plan's documentation map names the HLD files and `lld/flows/`
-  diagrams to update; the code-verifier derives the architectural impact
-  from the diff itself (a positive, evidenced conclusion — never a default)
-  and blocks the PR when impact exists without matching doc changes.
+- **Inductive step** — every ticket carries its own architecture delta on
+  the SAME branch/PR: /create-design conforms or lists required doc changes;
+  `/acs:docs-sync`'s planner names the HLD files and `lld/flows/` diagrams
+  to update, from the diff, after `/acs:code` completes; `docs-sync`'s
+  verifier derives the architectural impact from the diff itself (a
+  positive, evidenced conclusion — never a default) and blocks before
+  `/acs:create-pr` runs when impact exists without matching doc changes.
 - **Drift repair (boy-scout)** — commits that bypass the pipeline can still
   desynchronize docs. Both the design planner and the code planner compare
   the touched area's docs against current code and schedule stale sections
@@ -359,7 +360,7 @@ change that has architectural impact.
 The same induction maintains the **living requirements**
 (`requirements_path`, default `docs/requirements/`, one file per feature
 area): per-ticket specs are archived change-deltas, so the CURRENT
-behavioral contract accumulates here instead — /code's documentation step
+behavioral contract accumulates here instead — `/acs:docs-sync`'s executor
 merges the merged ticket's acceptance criteria and behavior-defining
 clarifications (answered/assumed ledger entries) into the touched area's
 file; /create-ticket reads it as standing behavior and flags

@@ -123,25 +123,45 @@ ALL of the following — every dimension that fails produces blocking findings:
    in addition to the changeset itself.
 10. **Security** — no injected vulnerabilities, hardcoded secrets, injection
     surfaces, unsafe input handling, or missing authn/authz on new paths.
-11. **Documentation** — every affected doc updated and CONSISTENT with the
-    code: README, API/usage docs, changelog; the HLD under `architecture_path`
-    when components/data model/integrations/deployment changed; the design's
-    sequence diagrams merged into `<architecture_path>/lld/flows/`; ADRs under
-    `adr_path` when applicable; and the **living requirements** — a changeset
-    that changes user-observable behavior without a matching update to the
-    touched area's file under `requirements_path` is a blocking finding (the
-    standing contract must describe current behavior). A requirement merged
-    into the wrong subfolder (functional when it should be non-functional
-    per the rubric, or vice versa), or written outside
-    `requirements_layout`'s resolved subfolders, is also a blocking finding.
-    When the changeset merges into a `requirements_path` file, the merged
-    body carries no inline in-scope code-evidence citation (`path:line` —
-    `py`/`json`/`sh`/`xsd` extensions, or `SKILL.md:line`); any code-evidence
-    backing the merge lives in that file's companion `.evidence.md` sidecar.
-    A merge that leaves an inline in-scope citation in the body is
-    `severity="blocking" dimension="documentation"`.
-    A doc that contradicts the diff is a finding.
-    **Product-doc-consistency check:** make a positive, evidenced determination
+11. **Documentation** — of this dimension's four sub-checks, three are
+    advisory (`severity="info"`) and one stays blocking. (a) per-commit
+    doc-sync, (b) the living-requirements merge rule, and (d) the
+    architectural-impact call are advisory: still fully performed and
+    reported, but they never gate `verifier_passed`, because `docs-sync`'s
+    own verifier now independently re-derives this same content from the
+    diff and blocks on it. Advisory findings are surfaced in **both**
+    places: they go into your verify report AND into your `<result>`'s
+    `<findings>` list, from which the coordinator carries them into
+    `/acs:code`'s result document (`result.json`'s `findings` array and the
+    Completion report's `**Findings**` line), while they stay out of
+    `review.findings_open` and never affect `verifier_passed`. (c) the
+    MAR-65 Product-doc-consistency check is unaffected by this split and
+    stays `severity="blocking"`.
+    (a) Per-commit doc-sync: every affected doc updated and CONSISTENT with
+    the code: README, API/usage docs, changelog; the HLD under
+    `architecture_path` when components/data model/integrations/deployment
+    changed; the design's sequence diagrams merged into
+    `<architecture_path>/lld/flows/`; ADRs under `adr_path` when applicable.
+    Anything this sub-check would previously have flagged is still fully
+    performed and reported — emit `<finding severity="info"
+    dimension="documentation">`.
+    (b) Living-requirements merge rule: the **living requirements** — a
+    changeset that changes user-observable behavior without a matching
+    update to the touched area's file under `requirements_path` is still
+    fully performed and reported at `severity="info"` (the standing
+    contract must describe current behavior). A requirement merged into the
+    wrong subfolder (functional when it should be non-functional per the
+    rubric, or vice versa), or written outside `requirements_layout`'s
+    resolved subfolders, is reported the same way. When the changeset
+    merges into a `requirements_path` file, the merged body carries no
+    inline in-scope code-evidence citation (`path:line` —
+    `py`/`json`/`sh`/`xsd` extensions, or `SKILL.md:line`); any
+    code-evidence backing the merge lives in that file's companion
+    `.evidence.md` sidecar. A merge that leaves an inline in-scope citation
+    in the body is emitted as `<finding severity="info"
+    dimension="documentation">`. A doc that contradicts the diff is
+    reported the same way.
+    (c) **Product-doc-consistency check:** make a positive, evidenced determination
     of whether the changeset leaves any factual claim in `docs/product/prd.md`
     or `docs/product/roadmap.md` stale (factual items: agent/subagent counts,
     feature/epic shipped-vs-planned status, component topology, version numbers,
@@ -153,14 +173,17 @@ ALL of the following — every dimension that fails produces blocking findings:
     an explicit flagged divergence — emit a flagged divergence note, NOT a
     blocking finding; intent content stays `/acs:create-prd`-owned and must
     NOT be rewritten. No factual impact → no-op for this check.
-    Make the architectural-impact call YOURSELF, from the diff: list in your
-    report, with evidence, whether the changeset adds/removes components,
-    touches schemas/migrations, adds external integrations, or changes
-    deployment artifacts. Impact found + no matching architecture-doc change
-    in the SAME diff = a blocking finding; "no impact" is a positive,
+    (d) Architectural-impact call: make the architectural-impact call
+    YOURSELF, from the diff: list in your report, with evidence, whether the
+    changeset adds/removes components, touches schemas/migrations, adds
+    external integrations, or changes deployment artifacts. Anything found
+    is still fully performed and reported at `severity="info"` (`<finding
+    severity="info" dimension="documentation">`); "no impact" is a positive,
     evidenced conclusion, never a default. The architecture doc set stays
-    current by induction — this dimension is the inductive step, so it is
-    never waved through.
+    current by induction — this dimension is the inductive step, so (c) is
+    never waved through; (a), (b), and (d) never gate `verifier_passed`
+    themselves, superseded by `docs-sync`'s own verifier, which independently
+    re-derives this same content and blocks on it.
 12. **Simplicity & scope** — the executor's **Simplicity First** and
     **Surgical Changes** rules are upheld: overcomplication (code that could be
     materially simpler and still satisfy the spec) and out-of-scope edits
@@ -264,12 +287,18 @@ entries summarize this file, never replace it.
   touch branches or workspace state. Bash is for read-only inspection and for
   re-running tests/coverage/lint/builds — the single permitted write is your
   own verify report above.
-- ALL findings block. One `<finding severity="blocking">` per issue, with
+- ALL findings block, with one narrow exception: dimension 11
+  (Documentation)'s per-commit doc-sync, living-requirements, and
+  architectural-impact sub-checks ((a), (b), (d)) are reported at
+  `severity="info"` and never counted against the zero-findings pass bar —
+  the Product-doc-consistency sub-check ((c)) remains fully blocking like
+  every other dimension. One `<finding severity="blocking">` per issue, with
   `dimension` set to the dimension name and `file` set where it applies, worded
   so the executor can act cold: file, expectation, observed behavior. If it is
   not worth blocking, it is not a finding — note it in the report only.
-- Zero findings means you checked every dimension and ALL passed — never an
-  unfinished review.
+- Zero findings means you checked every dimension and ALL passed (advisory
+  `severity="info"` documentation findings never count against this) — never
+  an unfinished review.
 
 ## Output contract
 

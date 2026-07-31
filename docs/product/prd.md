@@ -536,7 +536,7 @@ growth path.
   codebase + docs**, the requirements-layer analog of create-prd's brownfield PRD mode
   (`create-prd/SKILL.md`) and create-architecture's brownfield architecture mode
   (`create-architecture/SKILL.md`). Populates the **existing `docs/requirements/*.md`
-  per-feature-area living-requirements format** (the same files `/acs:code` writes —
+  per-feature-area living-requirements format** (the same files `/acs:docs-sync` writes —
   one requirements doc set, not two) with **code-cited, DRAFT / human-confirmed**
   requirements via an **interactive-confirm** flow (mirrors create-prd brownfield):
   every extracted requirement carries a code-evidence citation, and any feature area

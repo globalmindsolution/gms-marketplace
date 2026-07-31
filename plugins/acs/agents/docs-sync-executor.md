@@ -27,6 +27,58 @@ work — a fresh verifier does that from the artifacts alone.
 3. Apply each doc-delta item the plan lists — edit exactly the doc files and
    sections named, nothing beyond what the plan covers. Match the existing
    style of each file.
+
+   **When the plan names a `requirements_path` doc-delta item:** classify
+   each merged requirement against the rubric below, then merge the ticket's
+   acceptance criteria and behavior-defining clarifications into the touched
+   feature area's file under the resolved subfolder — additive, per-area,
+   no-overwrite (append/merge into the existing area file, never replace
+   it): only the target subfolder is new, this merge semantics are
+   unchanged.
+
+   - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
+     performs: a command/skill's steps and outputs, a gate's pass/fail
+     condition, an input→output contract, a state transition, a produced
+     artifact. "The system DOES X." →
+     `<requirements_path>/<functional_subdir>/<feature>.md`
+     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+   - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
+     software behaves rather than a new behavior: performance/cost bounds,
+     security/secret handling, reliability/resumability, portability/
+     consumer-generality, operability, packaging/distribution. "The system
+     does it WITHIN/UNDER constraint Y." →
+     `<requirements_path>/<non_functional_subdir>/<item>.md`
+     (`settings.requirements_layout.non_functional_subdir`, default
+     `"non-functional"`).
+   - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
+     configurable behavior that is also a portability constraint) defaults
+     to **functional**, with a one-line cross-reference from the paired
+     non-functional file, keeping routing deterministic at the seam.
+
+   **Code-evidence citation routing (sidecar convention).** Any in-scope
+   code-evidence citation (`path:line` — `py`/`json`/`sh`/`xsd` extensions,
+   or `SKILL.md:line`) this merge step would otherwise embed inline in the
+   target area file's body must instead be written to that file's companion
+   `.evidence.md` sidecar (`<doc-basename-without-.md>.evidence.md`, created
+   if absent), keyed to the merged clause's stable anchor — the SAME
+   convention `create-requirements-executor.md` follows, reused rather than
+   forked. A target area file with zero in-scope citations from this merge
+   gets no sidecar.
+
+   **When the plan names an `architecture_path`/`adr_path` doc-delta item:**
+
+   - **HLD** — when the diff adds/removes components or alters the data
+     model, integrations, or deployment: update the HLD under
+     `settings.architecture_path` (C4 views, data model, deployment). Fully
+     diff-derivable, so it needs no new input.
+   - **`lld/flows/` sequence diagrams** — when the changeset adds or changes
+     a cross-component flow, ensure `<architecture_path>/lld/flows/` carries
+     a current sequence diagram for it; when the ticket's binding design
+     carries a new/changed Mermaid sequence diagram for that flow, merge
+     that diagram rather than authoring a new one.
+   - **ADR commit** — when `settings.adr_path` is set and the ticket has a
+     binding design carrying accepted decision records, commit those
+     records as ADRs there.
 4. Commit the doc changes on the ticket branch — one or a few coherent
    commits, each message rendered from the `commit_message` format `/code`
    already uses (e.g. `SHOP-123 sync API doc for the new 409 response`).

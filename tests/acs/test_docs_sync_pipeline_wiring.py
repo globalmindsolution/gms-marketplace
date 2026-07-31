@@ -1,19 +1,18 @@
 """MAR-160 spec 02 — pipeline/ship wiring for the new docs-sync hooked skill.
 
 Covers ship/SKILL.md's "Pipeline order" table and "Picking the next step"
-walk gaining docs-sync between test and create-pr, and the AC-7
-scope-boundary regression guard: this ticket must never touch
-plugins/acs/skills/code/SKILL.md or plugins/acs/agents/code-verifier.md
-(retiring /code's step 4 is a separate, later-landing ticket's job), checked
-both via git history (when a base ref is available) and via file-content
-tokens (works even without git history).
+walk gaining docs-sync between test and create-pr, and the file-content-token
+regression guard for the two mechanisms the AC-7 scope-boundary guard
+(git-history diff check, retired by MAR-162 — see
+test_code_skill_and_verifier_absent_from_this_branch_diff) used to protect:
+`code/SKILL.md`'s retained product-doc reconciliation step and
+`code-verifier.md`'s blocking Documentation dimension.
 
 Run:  python3 -m unittest tests.acs.test_docs_sync_pipeline_wiring -v
 """
 
 import os
 import re
-import subprocess
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,17 +38,6 @@ def section(body, heading):
     nxt = re.search(r"(?m)^#{1,%d} \S" % level, body[m.end():])
     end = m.end() + nxt.start() if nxt else len(body)
     return body[start:end]
-
-
-def _base_ref():
-    for ref in ("origin/main", "main"):
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", ref],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        if result.returncode == 0:
-            return ref
-    return None
 
 
 class PipelineOrderTableTest(unittest.TestCase):
@@ -86,20 +74,16 @@ class Ac7ScopeBoundaryTest(unittest.TestCase):
     fully functional and untouched by this ticket."""
 
     def test_code_skill_and_verifier_absent_from_this_branch_diff(self):
-        base = _base_ref()
-        if base is None:
-            self.skipTest("no base ref (origin/main or main) to diff against")
-        out = subprocess.run(
-            ["git", "diff", "--stat", "%s...HEAD" % base],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        stat = out.stdout
-        self.assertNotIn(
-            os.path.join("plugins", "acs", "skills", "code", "SKILL.md"), stat,
-            "code/SKILL.md must not appear in this ticket's changed-file list (AC-7)")
-        self.assertNotIn(
-            os.path.join("plugins", "acs", "agents", "code-verifier.md"), stat,
-            "code-verifier.md must not appear in this ticket's changed-file list (AC-7)")
+        """MAR-160's scope-boundary carve-out guard; superseded by MAR-162,
+        which legitimately touches code/SKILL.md and code-verifier.md to
+        retire the old mechanism. Retired as a documented skip, never a bare
+        deletion — see test_code_doc_authoring_retired.py for the guard that
+        replaces it (asserts what was retired, not merely that these files
+        changed)."""
+        self.skipTest(
+            "superseded by MAR-162: code/SKILL.md and code-verifier.md are "
+            "legitimately touched by the ticket that retires /code's "
+            "in-loop doc-sync")
 
     def test_code_skill_still_has_product_doc_reconciliation_step(self):
         self.assertIn("Product-doc factual reconciliation", read(CODE_SKILL))

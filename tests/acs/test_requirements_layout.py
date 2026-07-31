@@ -104,54 +104,55 @@ class RequirementsLayoutDefaultResolutionTest(unittest.TestCase):
 
 
 class MergeRoutingProseContractTest(unittest.TestCase):
-    """T1.2 (AC-3): `code/SKILL.md` and `code-executor.md` carry the
-    classify-then-route rubric (functional=behavior, non-functional=quality,
-    default-to-functional tie-break) and name both target subfolders; the
-    additive, per-area, no-overwrite phrasing is present; `code-verifier.md`
-    names wrong-subfolder routing as a blocking finding condition."""
+    """T1.2 (AC-3), retargeted by MAR-162 (C-1): the classify-then-route
+    rubric (functional=behavior, non-functional=quality, default-to-functional
+    tie-break), both target subfolders, and the additive/per-area/no-overwrite
+    phrasing now live in `docs-sync-executor.md` — MAR-162 re-homed them out
+    of `code/SKILL.md`/`code-executor.md`, which no longer author docs.
+    `code-verifier.md` still names wrong-subfolder routing as a blocking
+    finding condition (unchanged by this spec; spec 02's territory)."""
 
-    SKILL_MD = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-    EXECUTOR_MD = os.path.join(PLUGIN, "agents", "code-executor.md")
+    DOCS_SYNC_EXECUTOR_MD = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
     VERIFIER_MD = os.path.join(PLUGIN, "agents", "code-verifier.md")
 
     def test_skill_md_names_functional_behavior_definition(self):
-        body = read(self.SKILL_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(body, re.compile(r"FUNCTIONAL\*\*.*BEHAVIOR", re.DOTALL))
 
     def test_skill_md_names_non_functional_quality_definition(self):
-        body = read(self.SKILL_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(body, re.compile(r"NON-FUNCTIONAL\*\*.*QUALITY", re.DOTALL))
 
     def test_skill_md_names_tie_break_default_to_functional(self):
-        body = read(self.SKILL_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(
             body,
             re.compile(r"[Tt]ie-break.*defaults\s*to\s*\*\*functional\*\*", re.DOTALL),
         )
 
     def test_skill_md_names_both_target_subfolders(self):
-        body = read(self.SKILL_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertIn("functional_subdir", body)
         self.assertIn("non_functional_subdir", body)
 
     def test_skill_md_preserves_no_overwrite_phrasing(self):
-        body = read(self.SKILL_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(body, r"no-overwrite|never overwrit|never replace")
         self.assertRegex(body, r"additive")
         self.assertRegex(body, r"per-(feature-)?area")
 
     def test_code_executor_md_names_classify_then_route_rubric(self):
-        body = read(self.EXECUTOR_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(body, re.compile(r"FUNCTIONAL\*\*.*BEHAVIOR", re.DOTALL))
         self.assertRegex(body, re.compile(r"NON-FUNCTIONAL\*\*.*QUALITY", re.DOTALL))
 
     def test_code_executor_md_names_both_target_subfolders(self):
-        body = read(self.EXECUTOR_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertIn("functional_subdir", body)
         self.assertIn("non_functional_subdir", body)
 
     def test_code_executor_md_preserves_no_overwrite_phrasing(self):
-        body = read(self.EXECUTOR_MD)
+        body = read(self.DOCS_SYNC_EXECUTOR_MD)
         self.assertRegex(body, r"never overwrit|no-overwrite|never replac")
         self.assertRegex(body, r"additive")
 
@@ -159,6 +160,49 @@ class MergeRoutingProseContractTest(unittest.TestCase):
         body = read(self.VERIFIER_MD)
         self.assertRegex(body, r"wrong subfolder|wrong-subfolder")
         self.assertRegex(body, re.compile(r"outside.*requirements_layout", re.DOTALL))
+
+
+def _dimension_block(body, label):
+    """Extract a numbered check-dimension list item (backtick-labelled, as
+    docs-sync-verifier.md writes them): from '^N. `label`' up to the next
+    numbered item or the next heading."""
+    start_m = re.search(r"(?m)^\d+\.\s+`%s`" % re.escape(label), body)
+    assert start_m is not None, "dimension %r not found" % label
+    rest = body[start_m.end():]
+    end_m = re.search(r"(?m)^(?:\d+\.\s+`|#{1,3} )", rest)
+    end = start_m.end() + end_m.start() if end_m else len(body)
+    return body[start_m.start():end]
+
+
+class DocsSyncVerifierRequirementsRoutingTest(unittest.TestCase):
+    """MAR-162 (C-1, C5): docs-sync-verifier.md gains a 5th check dimension,
+    `requirements-routing`, the docs-sync-side producer/verifier pair the
+    requirements-merge re-home requires — wrong-subfolder routing and an
+    unrouted inline citation are both findings, mirroring
+    `code-verifier.md`'s dimension 11 guards this spec re-homes."""
+
+    DOCS_SYNC_VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-verifier.md")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(cls.DOCS_SYNC_VERIFIER_MD)
+        cls.block = _dimension_block(cls.body, "requirements-routing")
+
+    def test_dimension_present(self):
+        self.assertIn("requirements-routing", self.body)
+
+    def test_dimension_names_wrong_subfolder_routing(self):
+        self.assertRegex(self.block, r"wrong subfolder|wrong-subfolder")
+        self.assertRegex(self.block, re.compile(r"outside.*requirements_layout", re.DOTALL))
+
+    def test_dimension_mentions_evidence_sidecar(self):
+        self.assertRegex(self.block, re.compile(r"(?i)\.evidence\.md"))
+
+    def test_dimension_blocks_inline_citation_in_merge(self):
+        self.assertRegex(
+            self.block,
+            re.compile(r"(?i)citation[\s\S]{0,80}inline[\s\S]{0,250}is a finding"),
+        )
 
 
 class Adr0060ExistsAndOnTopicTest(unittest.TestCase):

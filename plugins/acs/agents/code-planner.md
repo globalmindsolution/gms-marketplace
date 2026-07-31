@@ -85,32 +85,27 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    coverage measurement — plan the single full-suite run that proves the
    change breaks nothing; if any spec requires touching executable code,
    flag the contradiction as a question instead of planning around it.
-4. **Documentation map — docs are part of the change.** From each spec's
-   API/data-changes section, list every consumer-repo doc the change touches:
-   README, API/usage docs, the changelog where the repo keeps one. For code
-   comments, plan the **minimal, idea-only** scope: one short
-   single-responsibility line per new function/class, no ticket ids in source,
-   and on edits only the comments the change actually invalidates (e.g. a
-   changed parameter) — never a re-comment pass over unchanged logic. Always
-   include the **living-requirements file** for each touched feature area
-   (`<requirements_path>/<area>.md` — pick the area from the PRD feature the
-   ticket traces to; name the file even when it does not exist yet). Always
-   assess whether the change makes any factual claim in
+4. **Documentation map — docs are part of the change.** `/acs:docs-sync`
+   independently re-derives every other doc-delta this change touches —
+   README, API/usage docs, the changelog, code comments, the
+   living-requirements file for each touched feature area, the HLD under
+   `architecture_path`, the `lld/flows/` sequence diagrams, and the ADRs
+   under `adr_path` — from the diff (and the design, when one applies) after
+   `/code` completes; this plan does not name them. Always assess whether the
+   change makes any factual claim in
    `docs/product/prd.md` or `docs/product/roadmap.md` stale (factual items:
    agent/subagent counts, feature/epic shipped-vs-planned status, component
    topology, version numbers, file path references); if so, include prd.md
    and/or roadmap.md in the documentation map for the executor to reconcile.
-   When the change adds/removes components or alters the data model, integrations, or
-   deployment: name the HLD files under `architecture_path` to update (C4
-   views, data model, deployment) and the design sequence diagrams to merge
-   into `<architecture_path>/lld/flows/`. When `adr_path` is set and the design
-   carries accepted decisions, list the ADRs to commit there.
    **Boy-scout drift repair:** while surveying the touched area, compare its
    architecture docs (the relevant C4 component entries, data-model rows,
    `lld/flows/` diagrams) against the CURRENT code; any section that already
    disagrees with reality — e.g. drift from commits that bypassed the
-   pipeline — goes into the documentation map to be corrected as part of
-   this change. Cite the disagreement (doc section vs file:line). Scope:
+   pipeline — goes into the documentation map, flagged as a **Boy-scout
+   drift item**: the executor carries it verbatim into the execute report's
+   `problems` field, and `/acs:docs-sync` — which reads `problems` as a
+   mandatory input and runs on the same branch/PR after `/acs:code` —
+   performs the repair. Cite the disagreement (doc section vs file:line). Scope:
    only the area this ticket touches — whole-repo reconciliation belongs to
    a /acs:create-architecture re-run, which you should recommend in the plan
    when the drift you found looks widespread.
