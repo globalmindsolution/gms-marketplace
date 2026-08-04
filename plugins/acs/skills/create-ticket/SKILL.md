@@ -56,13 +56,13 @@ remote issue for an imported ticket: the mapping points at the existing one.
 ## Splitting an existing oversized ticket
 
 Check this BEFORE the import check: when `$ARGUMENTS` asks to split/restructure
-an existing local ticket (e.g. `split SHOP-123 per <plan path>` — the escalation
-/acs:create-spec emits when a ticket exceeds the PR-size bar), this run
-restructures instead of creating:
+an existing local ticket (e.g. `split SHOP-123 per <plan path>` — a
+user-invoked restructure, optionally informed by `/code`'s plan-time oversize
+signal, ADR 0069), this run restructures instead of creating:
 
 - Start with `skill-start.py --skill create-ticket --ticket <id>` (no
   `--allocate` — the partition exists). Read the existing `ticket.json` and the
-  referenced oversize analysis (the create-spec plan artifact lists the
+  referenced oversize analysis (the `/code` plan artifact lists the
   evidence and split seams).
 - The coordinator (or executor) analyzes the split inline: the ticket becomes
   an **epic keeping its id**, description, priority, and PRD trace;

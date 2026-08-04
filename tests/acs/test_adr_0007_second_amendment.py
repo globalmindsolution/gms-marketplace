@@ -112,13 +112,38 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
         self.assertNotRegex(section, r"(?i)dead letter")
 
     def test_no_new_adr_number_minted(self):
+        """Durable invariant, rewritten under MAR-164 (C-11).
+
+        The original form of this assertion coupled MAR-162's guarantee to
+        the *global* ADR ceiling (`assertEqual(highest, 68)`). That coupling
+        broke by construction the moment MAR-164 minted ADR 0069 for an
+        entirely unrelated decision (Gap 1's oversized-ticket two-lever
+        control) — the global ceiling was never a stable proxy for anything
+        MAR-162 actually guaranteed, and any later ticket that adds an ADR
+        for its own reasons would break it again regardless of MAR-162.
+
+        What MAR-162 actually guaranteed, and what this test still checks
+        directly against the ADR directory: its concern (the docs-sync
+        six-input contract / AC #5 execute-phase divergence) lives solely as
+        ADR 0007's *second amendment* (see test_exactly_two_amendment_headings
+        above) and never consumed a standalone ADR number of its own. So no
+        OTHER ADR file's own title may name MAR-162 as its subject — that
+        would mean the concern had been split into a new ADR after all,
+        independent of what the current global ADR ceiling happens to be.
+        """
         adr_dir = os.path.dirname(ADR_0007)
         files = [f for f in os.listdir(adr_dir) if f.endswith(".md") and f[0].isdigit()]
-        highest = max(int(f.split("-", 1)[0]) for f in files)
-        self.assertEqual(
-            highest, 68,
-            "ADR ceiling must stay at 0068 — MAR-162 accretes an amendment, "
-            "mints no new ADR number")
+        this_file = os.path.basename(ADR_0007)
+        for fname in files:
+            if fname == this_file:
+                continue
+            with open(os.path.join(adr_dir, fname), encoding="utf-8") as fh:
+                title_line = fh.readline()
+            self.assertNotIn(
+                "MAR-162", title_line,
+                "MAR-162's concern must stay recorded solely as ADR 0007's "
+                "amendment, never as a standalone ADR file's own subject "
+                "(found in %s's title)" % fname)
 
 
 class Adr0007ScopeDisciplineTest(unittest.TestCase):

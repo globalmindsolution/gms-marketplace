@@ -72,6 +72,18 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    it to the user for a **decision**. This is a surfaced question, never a
    block: continue planning against the current approach while the question
    is open.
+   **Oversize signal** (ADR 0069): while building this decomposition, also
+   compare it against `create-ticket-planner.md:57-65`'s existing
+   reviewable-diff rubric — roughly ~4 tasks, ~400 changed lines, or ~7
+   acceptance criteria, or the surface otherwise clearly exceeding a
+   reviewable diff. When the decomposition itself exceeds that bar, record
+   the split seams in this plan artifact
+   (`<partition>/phases/code/iter-<n>-plan.md` — the evidence
+   `/acs:create-ticket split` reads) and surface a `<question>` alongside
+   the Spec-simplicity gate's, reusing the identical "surface, never block,
+   continue planning" contract (ADR 0038). This is a new trigger on an
+   existing seam, not a new mechanism: the signal itself never blocks — only
+   the user's answer to split may end the run.
 3. **Test strategy per spec — tests first.** Name the failing tests to write
    before any implementation (derived from the spec's Test plan), the repo's
    test and coverage tooling, and the exact commands to run them. The test

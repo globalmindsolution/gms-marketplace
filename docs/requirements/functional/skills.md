@@ -855,12 +855,18 @@ bind `/code`'s plan phase:
   set: when an honest decomposition exceeds ~4 specs (or the surface clearly
   exceeds a reviewable diff), stop, record the split seams, and route to
   `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
-  one large PR, recorded as a clarification. **[OPEN]** No component
-  implements this detection today: it was deleted with the retired spec-authoring planner
-  (ADR 0066) and `code-planner.md` carries no `~4 specs` / reviewable-diff
-  escalation clause. Enforced today only by `/create-ticket`'s upfront
-  PR-size rubric and the explicitly-invoked `/create-ticket split <id>`
-  restructure path.
+  one large PR, recorded as a clarification. Implemented as a two-lever
+  control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size
+  rubric fires before any decomposition exists; a non-blocking, plan-time
+  oversize signal in `code-planner.md`'s charter item 2 fires once the
+  decomposition itself is known, reusing the Spec-simplicity gate's
+  "surface, never block" contract to raise the same `<question>` through the
+  clarification ledger. On a "split" answer, `/code` writes `result.json`
+  and the returned `<handoff>`'s own `status` attribute as terminal
+  `"failed"` (`stop_reason` "user chose to split; restructure required
+  before implementation"), runs its mandatory Finish steps, and returns
+  `<next-step>` pointing at `/acs:create-ticket split <id> per
+  <partition>/phases/code/iter-<n>-plan.md`.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
