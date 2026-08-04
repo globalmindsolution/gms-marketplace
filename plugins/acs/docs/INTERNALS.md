@@ -385,17 +385,20 @@ at two levers, with an escalation between them:
 3. **Sizing today.** The mid-decomposition "stop and recommend a
    split" step this bullet described through the standalone spec-authoring era belonged
    to the deleted spec-authoring planner (ADR 0066 supersedes ADR 0006);
-   `code-planner.md` migrated only the narrower **Spec-simplicity gate**
+   `code-planner.md` migrated the narrower **Spec-simplicity gate**
    (`code-planner.md:61-74`) — when a materially simpler decomposition
    satisfying the same acceptance criteria exists, it is surfaced as a
-   question, never a stop. There is currently no `~4-spec` /
-   reviewable-diff-exceeded escalation-to-split step in `code-planner.md`.
-   Oversized-ticket control today is therefore enforced only at lever 1,
-   `/create-ticket`'s upfront PR-size rubric; a ticket whose actual
-   decomposition (discovered only once `/code`'s plan phase runs) turns
-   out larger than expected has no formalized stop-and-split step. Not
-   fixed here (docs-only ticket, no `plugins/acs/agents/**` edits
-   permitted) — flag as a follow-up-worthy mechanism gap.
+   question, never a stop — plus (ADR 0069) a non-blocking **oversize
+   signal** on the same charter item: when the decomposition itself exceeds
+   `create-ticket-planner.md:57-65`'s `~4-spec`/`~400-line`/`~7-AC` rubric,
+   `code-planner.md` records the split seams in the plan artifact and
+   surfaces a `<question>` through the clarification ledger — never a stop.
+   Oversized-ticket control is therefore a two-lever chain again: lever 1,
+   `/create-ticket`'s upfront PR-size rubric, before any decomposition
+   exists; lever 2, this plan-time signal, once the actual decomposition is
+   known. On a "split" answer, `/code` terminates the run with a recorded
+   `failed` status and a `/acs:create-ticket split <id>` next step instead
+   of continuing silently.
 
 The numbers are deliberate rules of thumb for the planners' judgment, not
 hard limits enforced by hooks — splitting at a bad seam (e.g. a child that

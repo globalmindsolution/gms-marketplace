@@ -855,12 +855,18 @@ bind `/code`'s plan phase:
   set: when an honest decomposition exceeds ~4 specs (or the surface clearly
   exceeds a reviewable diff), stop, record the split seams, and route to
   `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
-  one large PR, recorded as a clarification. **[OPEN]** No component
-  implements this detection today: it was deleted with the retired spec-authoring planner
-  (ADR 0066) and `code-planner.md` carries no `~4 specs` / reviewable-diff
-  escalation clause. Enforced today only by `/create-ticket`'s upfront
-  PR-size rubric and the explicitly-invoked `/create-ticket split <id>`
-  restructure path.
+  one large PR, recorded as a clarification. Implemented as a two-lever
+  control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size
+  rubric fires before any decomposition exists; a non-blocking, plan-time
+  oversize signal in `code-planner.md`'s charter item 2 fires once the
+  decomposition itself is known, reusing the Spec-simplicity gate's
+  "surface, never block" contract to raise the same `<question>` through the
+  clarification ledger. On a "split" answer, `/code` writes `result.json`
+  and the returned `<handoff>`'s own `status` attribute as terminal
+  `"failed"` (`stop_reason` "user chose to split; restructure required
+  before implementation"), runs its mandatory Finish steps, and returns
+  `<next-step>` pointing at `/acs:create-ticket split <id> per
+  <partition>/phases/code/iter-<n>-plan.md`.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
@@ -885,6 +891,20 @@ bind `/code`'s plan phase:
   feature area's file under `requirements_path` (the living requirements —
   [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
+- **ADR-0012 participation (bounded, touched-area, post-plan — third
+  amendment).** `code-planner`'s item 4 detects, for the touched area
+  only, four bounded missing doc-graph edges (E1-E4; full table at
+  `code-planner.md`'s item 4): a touched/added component missing from
+  the C4 component doc, a touched/added persisted entity or state
+  shape missing from the data model, a touched/added runtime flow
+  missing an `lld/flows/` sequence diagram, and a user-visible
+  capability missing a PRD goal or roadmap row — carried on the SAME
+  `problems` field the Boy-scout drift item already uses into
+  `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
+  step: `requirements_path` edges and `adr_path` edges are explicitly
+  not covered by it and remain the responsibility of
+  `/acs:create-design`'s full step (for `needs_design: true` tickets)
+  and `/acs:docs-sync`'s diff-grounded re-derivation.
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([configuration.md](configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,

@@ -901,7 +901,7 @@ Confirm the full workflow is ready: a one-line toolchain status (from Step 0b)
 and the reminder that the plugin already provides every skill — bootstrap
 (`/acs:init`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
 `/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` →
-`/acs:create-spec` → `/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
+`/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
 umbrella `/acs:ship`, and utilities `/acs:handoff`, `/acs:update`,
 `/acs:install-hooks`. Repeat any unmet toolchain install hint here so the gap is
 explicit.

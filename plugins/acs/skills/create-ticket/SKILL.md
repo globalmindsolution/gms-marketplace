@@ -56,13 +56,13 @@ remote issue for an imported ticket: the mapping points at the existing one.
 ## Splitting an existing oversized ticket
 
 Check this BEFORE the import check: when `$ARGUMENTS` asks to split/restructure
-an existing local ticket (e.g. `split SHOP-123 per <plan path>` — the escalation
-/acs:create-spec emits when a ticket exceeds the PR-size bar), this run
-restructures instead of creating:
+an existing local ticket (e.g. `split SHOP-123 per <plan path>` — a
+user-invoked restructure, optionally informed by `/code`'s plan-time oversize
+signal, ADR 0069), this run restructures instead of creating:
 
 - Start with `skill-start.py --skill create-ticket --ticket <id>` (no
   `--allocate` — the partition exists). Read the existing `ticket.json` and the
-  referenced oversize analysis (the create-spec plan artifact lists the
+  referenced oversize analysis (the `/code` plan artifact lists the
   evidence and split seams).
 - The coordinator (or executor) analyzes the split inline: the ticket becomes
   an **epic keeping its id**, description, priority, and PRD trace;
@@ -230,7 +230,7 @@ unconfirmed work.
 
 This mints the child id, writes BOTH link directions (child `parent`, epic
 `children`), and records a completed create-ticket run for the child — children do
-NOT rerun /acs:create-ticket; their pipeline starts at /acs:create-spec, which reads
+NOT rerun /acs:create-ticket; their pipeline starts at /acs:code, which reads
 the parent epic's `design.md`. Capture each printed `ticket_id`.
 
 ### Step 5 — Tracker sync
@@ -436,8 +436,8 @@ MANDATORY final step — never skipped, also on failure:
 3. Report. Direct invocation: a compact summary — ticket id, type, title,
    needs_design, children, PRD trace, tracker key — and the next command:
    `/acs:create-design <id>` when `needs_design` is true, else
-   `/acs:create-spec <id>` (epic children each continue with
-   `/acs:create-spec <child-id>` after the epic's design). Under /acs:ship: return
+   `/acs:code <id>` (epic children each continue with
+   `/acs:code <child-id>` after the epic's design). Under /acs:ship: return
    ONLY the `<handoff>` XML as your final message (validated, summary <= 1 KB):
 
    ```xml
@@ -467,5 +467,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:create-spec <id>`; for an epic, each child continues with `/acs:create-spec <child-id>` after the epic's design
+- **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design
 ```

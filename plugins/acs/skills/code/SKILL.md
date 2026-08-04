@@ -315,6 +315,11 @@ create-spec planner would once have produced. This content covers, in order:
   (`settings.test_coverage_percent`) stated explicitly; e2e impact stated.
 - **Out of scope** — adjacent work excluded.
 
+**Oversize signal pointer.** `code-planner.md`'s charter item 2 also
+compares this decomposition against the reviewable-diff bar; when it fires,
+the split seams recorded above are what `/acs:create-ticket split` reads
+(see User interaction for the split-answer termination).
+
 **Mandatory clauses** (both MUST appear verbatim in the plan artifact):
 
 - "no separate /acs:create-spec invocation and no separate create-spec planner
@@ -345,6 +350,10 @@ block (AC-6) apply unchanged in every lane; see those sections.
   file path references) — `/acs:docs-sync` independently re-derives every
   other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
   from the diff after `/code` completes.
+  The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
+  check (`code-planner.md`'s item 4, edges E1-E4) — not the full shared
+  design-time step `create-design`'s planner runs — riding the same
+  `problems` carrier as the existing Boy-scout drift item.
 - On iterations 2-3: how the plan remediates EVERY verifier finding from the
   previous iteration, explicitly, one by one.
 
@@ -561,6 +570,24 @@ user-visible outcomes — ask the user before executing (AskUserQuestion or
 plain questions). Do not guess on decisions that change behavior. Record the
 answers; they belong in the execute reports and any handoff flush.
 
+**Split-answer termination (ADR 0069).** When `code-planner`'s plan artifact
+carries the open oversize question, record the user's answer with
+`clarify.py add`, the same as any other question above. On "accept one
+large PR": continue planning against the current decomposition — nothing
+else changes. On "split": the run ends in an orderly way — run the
+mandatory Finish steps below first (so `post-code.py` closes the run entry
+like any other terminal run), writing `<partition>/phases/code/result.json`
+with `status: "failed"` and `stop_reason` "user chose to split; restructure
+required before implementation", and only then return `<handoff
+status="failed">` whose `<next-step>` reads `/acs:create-ticket split <id>
+per <partition>/phases/code/iter-<n>-plan.md` — it is the handoff element's
+own `status` attribute, not only `result.json`'s field, that must read
+`failed`. The `<summary>` (<=1 KB) must also restate the split instruction
+in prose, not only `<next-step>`: under `/ship` the failed branch surfaces
+`<summary>` verbatim and prints only generic resume commands, without
+promising to surface `<next-step>`. No new XML element and no new status
+value — `acs-messages.xsd` already admits `failed` and `<next-step>`.
+
 If you genuinely cannot reach the user (e.g. a non-interactive run): do not
 guess. Write the result document with status `"failed"` and
 `stop_reason` "needs user input", run the Finish steps, and return as your
@@ -657,10 +684,13 @@ MANDATORY final step — never skipped, also on failure:
 
 3. Report a compact summary to the user: branch, specs implemented,
    tests/coverage vs target, docs updated, review iterations and open
-   findings, and the next step (`/acs:create-pr <ticket-id>` on success).
+   findings, and the next step (`/acs:create-pr <ticket-id>` on success, or
+   `/acs:create-ticket split <ticket-id> per
+   <partition>/phases/code/iter-<n>-plan.md` after a split answer).
    Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
    message — status, summary (<=1KB), `<artifacts>` listing the branch and key
-   changed paths, and `<next-step>` pointing at /acs:create-pr.
+   changed paths, and `<next-step>` pointing at /acs:create-pr (or at
+   `/acs:create-ticket split <ticket-id>` after a split answer).
 
 ## Completion report (normative)
 
