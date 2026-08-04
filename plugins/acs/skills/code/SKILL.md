@@ -350,6 +350,10 @@ block (AC-6) apply unchanged in every lane; see those sections.
   file path references) — `/acs:docs-sync` independently re-derives every
   other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
   from the diff after `/code` completes.
+  The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
+  check (`code-planner.md`'s item 4, edges E1-E4) — not the full shared
+  design-time step `create-design`'s planner runs — riding the same
+  `problems` carrier as the existing Boy-scout drift item.
 - On iterations 2-3: how the plan remediates EVERY verifier finding from the
   previous iteration, explicitly, one by one.
 

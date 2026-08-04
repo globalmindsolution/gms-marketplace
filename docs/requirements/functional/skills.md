@@ -891,6 +891,20 @@ bind `/code`'s plan phase:
   feature area's file under `requirements_path` (the living requirements —
   [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
+- **ADR-0012 participation (bounded, touched-area, post-plan — third
+  amendment).** `code-planner`'s item 4 detects, for the touched area
+  only, four bounded missing doc-graph edges (E1-E4; full table at
+  `code-planner.md`'s item 4): a touched/added component missing from
+  the C4 component doc, a touched/added persisted entity or state
+  shape missing from the data model, a touched/added runtime flow
+  missing an `lld/flows/` sequence diagram, and a user-visible
+  capability missing a PRD goal or roadmap row — carried on the SAME
+  `problems` field the Boy-scout drift item already uses into
+  `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
+  step: `requirements_path` edges and `adr_path` edges are explicitly
+  not covered by it and remain the responsibility of
+  `/acs:create-design`'s full step (for `needs_design: true` tickets)
+  and `/acs:docs-sync`'s diff-grounded re-derivation.
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([configuration.md](configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,

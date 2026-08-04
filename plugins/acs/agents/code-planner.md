@@ -121,6 +121,29 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    only the area this ticket touches — whole-repo reconciliation belongs to
    a /acs:create-architecture re-run, which you should recommend in the plan
    when the drift you found looks widespread.
+   **Doc-graph-gap check (ADR 0012 third amendment) — bounded,
+   touched-area only:** the same survey also detects a MISSING
+   doc-graph **edge** (not disagreement, but absence) across four
+   bounded edge types, checkable against the same docs this item
+   already opens: **E1** a touched/added component has no entry in
+   `<architecture_path>/hld/c4-component.md`; **E2** a touched/added
+   persisted entity or state shape has no row in
+   `<architecture_path>/hld/data-model.md`; **E3** a touched/added
+   runtime flow has no sequence diagram under
+   `<architecture_path>/lld/flows/`; **E4** a user-visible capability
+   the change delivers has no PRD goal or roadmap row to trace to in
+   `docs/product/prd.md` / `docs/product/roadmap.md`. A found E1-E4 gap
+   rides the SAME `problems` carrier as a Boy-scout drift item: cite
+   the edge type plus the touched component/entity/flow/capability and
+   the doc it is missing from — no new question type, no new field, no
+   new lifecycle. Bound: touched-area only, the same scope as the
+   drift repair above — no whole-repo reconciliation. Explicitly NOT
+   covered: `requirements_path` edges and `adr_path` edges — they
+   remain the responsibility of `/acs:create-design`'s full ADR-0012
+   step (for `needs_design: true` tickets) and `/acs:docs-sync`'s
+   diff-grounded re-derivation. When the consumer repo has no
+   architecture doc set on disk, this check finds nothing to compare
+   against and raises no finding — it never fails or blocks.
 5. **Risks.** Known hazards for the executor: fragile areas of the codebase,
    shared files between specs, migrations, generated code that resists
    coverage, anything that could force the coverage hard-fail.
