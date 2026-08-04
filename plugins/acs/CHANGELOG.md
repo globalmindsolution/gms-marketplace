@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Close two mechanism gaps left after MAR-156's create-spec deletion: oversized-ticket split detection, and the ADR-0012 design-time doc-consistency step's delivery-lane owner (MAR-164, ADR 0069, ADR 0012 third amendment).** Oversized-ticket detection is a two-lever control again: `create-ticket`'s existing upfront PR-size rubric plus a new non-blocking, plan-time oversize signal in `code-planner.md` that surfaces through the clarification ledger and never halts the run, ending a genuinely oversized ticket's `/code` run with `status="failed"` and a `/acs:create-ticket split <id>` next step (ADR 0069, new). `code-planner.md`'s Documentation-map step gains a bounded, touched-area ADR-0012 doc-graph-gap check (edges E1-E4: component/data-model/flow/PRD-roadmap docs), carried through the existing `problems` channel to `/acs:docs-sync` — explicitly not a full design-producing-skill participation and explicitly not a claim that docs-sync supersedes the design-time step (ADR 0012's third amendment, also reconciles the participant-list count to today's 8 canonical-block carriers). Also sweeps the last 20 live `/acs:create-spec` routing references out of `plugins/acs/{skills,agents}/**` (down to 5 permanent, past-tense provenance lines across 3 files) and repairs `handoff/SKILL.md`'s in-flight scan-order bullet, which named the deleted `create-spec` skill and omitted 7 others, to reference `acs_lib.HOOKED_SKILLS` instead of restating the list.
+
 ## [0.4.5] - 2026-07-23
 
 ### Added

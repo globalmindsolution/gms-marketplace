@@ -200,7 +200,7 @@ NOT push or open the PR.
 ## Delivery (branch, commit, PR)
 
 The delivery-ticket pattern (same as /acs:create-prd — you do this yourself;
-/acs:create-design, /acs:create-spec, and /acs:code are not involved):
+/acs:create-design and /acs:code are not involved):
 
 1. **Branch** (before the first executor writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
