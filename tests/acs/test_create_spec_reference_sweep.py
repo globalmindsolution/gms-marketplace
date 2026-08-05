@@ -145,6 +145,30 @@ def changelog_unreleased_section(body):
     return body[start:end]
 
 
+def changelog_entry_section(body):
+    """The section carrying this change's entry, durable across a release cut.
+
+    Before a cut the entry sits under [Unreleased]; `/acs:release` moves it
+    into the new version's section and leaves [Unreleased] empty. Pinning
+    [Unreleased] specifically would make these assertions fail the moment a
+    release is cut, so resolve to [Unreleased] when it has content and to the
+    topmost released version section otherwise. The [Unreleased] heading
+    itself must still exist -- changelog_unreleased_section() enforces that.
+    """
+    unreleased = changelog_unreleased_section(body)
+    if unreleased.strip():
+        return unreleased
+    m = re.search(r"(?m)^## \[(?!Unreleased\])[^\]]+\].*$", body)
+    if m is None:
+        raise AssertionError("plugins/acs/CHANGELOG.md has an empty "
+                             "[Unreleased] section and no released version "
+                             "section to fall back to")
+    start = m.end()
+    nxt = re.search(r"(?m)^## \[", body[start:])
+    end = start + nxt.start() if nxt else len(body)
+    return body[start:end]
+
+
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     plugins/acs/{skills,agents}/** containing "create-spec" is exactly
@@ -344,20 +368,28 @@ class Dr1HandoffScanOrderTest(unittest.TestCase):
 
 
 class ChangelogUnreleasedEntryTest(unittest.TestCase):
-    """Assertion 6: the [Unreleased] section names both mechanism-gap
-    closures and the sweep; nothing at/below [0.4.5] is disturbed."""
+    """Assertion 6: the changelog entry for this change names both
+    mechanism-gap closures and the sweep; nothing at/below [0.4.5] is
+    disturbed. Resolved via changelog_entry_section() so the assertions hold
+    both before a release cut (entry under [Unreleased]) and after one (entry
+    moved into the cut version's section)."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(CHANGELOG)
-        cls.section = changelog_unreleased_section(cls.body)
+        cls.section = changelog_entry_section(cls.body)
         cls.section_norm = norm(cls.section)
 
-    def test_unreleased_section_non_empty(self):
+    def test_entry_section_non_empty(self):
         self.assertTrue(
             self.section.strip(),
-            "plugins/acs/CHANGELOG.md's [Unreleased] section must be "
-            "non-empty")
+            "plugins/acs/CHANGELOG.md must carry this change's entry under "
+            "[Unreleased] or, after a release cut, the cut version's section")
+
+    def test_unreleased_heading_retained(self):
+        self.assertRegex(
+            self.body, r"(?m)^## \[Unreleased\]\s*$",
+            "the '## [Unreleased]' heading must survive a release cut")
 
     def test_gap1_closure_named(self):
         self.assertRegex(self.section_norm, r"(?i)oversiz\w*|split")
