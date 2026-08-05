@@ -3,8 +3,9 @@
 Runs a real `claude -p` session that invokes `/acs:create-ticket` on a trivial
 request, then asserts on the workspace artifacts the skill writes — the ticket
 schema, the repo-level index/counters/metrics, the pipeline state — and that
-the gate has advanced exactly one step. This is the canonical agentic eval:
-the assertion target is workspace state, never the model's prose.
+the `/acs:code` gate is open once create-ticket has completed. This is the
+canonical agentic eval: the assertion target is workspace state, never the
+model's prose.
 """
 
 from harness import Sandbox, Check
