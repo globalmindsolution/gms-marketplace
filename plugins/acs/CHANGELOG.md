@@ -16,9 +16,31 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-05
+
+### Removed
+
+- **`/acs:create-spec` is deleted outright** (MAR-156, ADR 0066, #300). Spec authoring folds into `/acs:code`'s plan phase on **every** lane, not just the fast lanes — the skill file, its three agent files, both hook scripts, and its `GATES`/`WORKFLOW_SKILLS` registry entries are gone. The review loop's fixed point moves from the spec set to `ticket.json`'s `acceptance_criteria`/DoD. Legacy partitions minted before the deletion still resolve: the `create-spec` anchors in `plugins/acs/hooks/**` and `plugins/acs/schemas/**` are retained deliberately for backward compatibility.
+
+### Added
+
+- **`/acs:docs-sync`, a new hooked skill** running after `/acs:code` (and `/acs:test` when the gate is active) and before `/acs:create-pr` (MAR-160, #305). It takes over the documentation work `/acs:code`'s execute step previously carried inline: the requirements-classification rubric, `.evidence.md` sidecar routing, and HLD / `lld/flows/` / ADR production.
+- **`/acs:test` gains a ticket-scoped `--for-ticket` mode** plus a `/acs:ship` post-code fix-and-re-test loop, gated by e2e presence (MAR-159, ADR 0068, #303).
+- **`create-ticket` now validates that acceptance criteria and DoD are substantive** rather than placeholder text (MAR-157, #301).
+- **Oversized-ticket split detection has an owner again** (MAR-164, ADR 0069, #311). Two levers: `create-ticket`'s existing upfront PR-size rubric, plus a new **non-blocking** plan-time oversize signal in `code-planner.md` that surfaces through the clarification ledger and never halts a run. On a user "split" answer the `/acs:code` run ends `status="failed"` with a `/acs:create-ticket split <id>` next step.
+- **`code-planner.md` gains a bounded ADR-0012 doc-graph-gap check** over the touched area only (edges E1–E4: component, data-model, flow, PRD/roadmap docs), carried on the existing `problems` channel to `/acs:docs-sync` (MAR-164, ADR 0012 third amendment). Explicitly *not* full design-time participation, and explicitly *not* a claim that docs-sync supersedes the design-time step.
+
 ### Changed
 
-- **Close two mechanism gaps left after MAR-156's create-spec deletion: oversized-ticket split detection, and the ADR-0012 design-time doc-consistency step's delivery-lane owner (MAR-164, ADR 0069, ADR 0012 third amendment).** Oversized-ticket detection is a two-lever control again: `create-ticket`'s existing upfront PR-size rubric plus a new non-blocking, plan-time oversize signal in `code-planner.md` that surfaces through the clarification ledger and never halts the run, ending a genuinely oversized ticket's `/code` run with `status="failed"` and a `/acs:create-ticket split <id>` next step (ADR 0069, new). `code-planner.md`'s Documentation-map step gains a bounded, touched-area ADR-0012 doc-graph-gap check (edges E1-E4: component/data-model/flow/PRD-roadmap docs), carried through the existing `problems` channel to `/acs:docs-sync` — explicitly not a full design-producing-skill participation and explicitly not a claim that docs-sync supersedes the design-time step (ADR 0012's third amendment, also reconciles the participant-list count to today's 8 canonical-block carriers). Also sweeps the last 20 live `/acs:create-spec` routing references out of `plugins/acs/{skills,agents}/**` (down to 5 permanent, past-tense provenance lines across 3 files) and repairs `handoff/SKILL.md`'s in-flight scan-order bullet, which named the deleted `create-spec` skill and omitted 7 others, to reference `acs_lib.HOOKED_SKILLS` instead of restating the list.
+- **Default models updated to Opus 5; the `coordinator` model role is dropped** (MAR-154, #292).
+- **`code-verifier` multi-lens adversarial rigor upgrade** for `verify_depth == "full"` only: four parallel lenses plus a coordinator adversarial merge pass (MAR-158, ADR 0067, #302). Light depth keeps today's single-subagent 13-dimension pass unchanged.
+- **`/acs:code` no longer performs in-loop doc-sync**; its execute step's doc-authoring instructions are retired in favour of the new skill, and `code-verifier`'s documentation sub-checks are demoted to advisory — except the MAR-65 product-doc-consistency block, which stays blocking (MAR-162, ADR 0007 second amendment, #307).
+
+### Fixed
+
+- **Stale `/acs:create-spec` references swept repo-wide** across the doc set (MAR-161, #306), `docs/product/prd.md` (MAR-163, #310), and `plugins/acs/{skills,agents}/**` (MAR-164, #311) — the last down to five permanent past-tense provenance lines across three files. `handoff/SKILL.md`'s in-flight scan-order bullet, which named the deleted skill and omitted seven others, now references `acs_lib.HOOKED_SKILLS` instead of restating the list.
+- **The stale `create-spec` routing row is out of the eval suite** and its 23→22 case-count cascade reconciled across two test modules and both product docs (MAR-165, #315). The brittle hardcoded count assertion now derives its expected values from the scenario source.
+- **Roadmap reconciled for v0.4.5** (G38/G39 marked shipped) (MAR-153, #291).
 
 ## [0.4.5] - 2026-07-23
 
