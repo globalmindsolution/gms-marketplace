@@ -105,8 +105,8 @@ cleanup. Validated green against installed v0.1.2.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill; all 23 green (matches `s04_skill_triggers.py`'s
-  23-skill routing coverage, up from the original 12).
+  routes to the right skill; all 22 green (matches `s04_skill_triggers.py`'s
+  22-skill routing coverage, up from the original 12).
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
   diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.

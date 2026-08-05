@@ -54,9 +54,10 @@ def run():
         step = ps.get("steps", {}).get("create-ticket", {})
         check.eq("create-ticket step completed", step.get("status"), "completed")
 
-        # Gate moved forward by exactly one step (G1).
+        # Gate is open for /acs:code (G1): gate_code is now an
+        # unconditional pass-through once create-ticket has completed.
         code, err = sb.gate("code", tid)
-        check.ok("gate advanced to create-spec",
-                 code == 2 and "create-spec" in err, err)
+        check.ok("code gate open (unconditional pass-through)",
+                 code == 0, err)
 
     return check

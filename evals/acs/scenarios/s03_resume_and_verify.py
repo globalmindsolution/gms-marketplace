@@ -1,7 +1,7 @@
 """s03 — resume-from-state + verifier-clean + PR-size (paid, G2 + G3 + G4).
 
 Seeds the pipeline to "ready for /acs:code" deterministically (mint a task,
-mark create-spec done, drop a real spec file) — no `claude` spent yet — then
+drop a real spec file) — no `claude` spent yet — then
 runs ONE fresh `claude -p` session that is told *only the ticket id*. The
 session must discover the work from the ticket's specs in the workspace
 (resume from state only, **G2**), implement it via the code TDD cycle and pass
@@ -65,13 +65,10 @@ def run():
         # --- deterministic seed: pipeline at "ready for /acs:code" ---------
         tid = sb.mint_ticket("Add a /health endpoint returning ok", "task",
                              needs_design=False)
-        sb.start_run("create-spec", tid)
         specs = sb.ticket_path(tid, "specs")
         os.makedirs(specs, exist_ok=True)
         with open(os.path.join(specs, "01-health.md"), "w") as fh:
             fh.write(SPEC)
-        sb.complete_run("create-spec", tid,
-                        {"status": "completed", "states": {"specs": ["01-health"]}})
         code_gate, _ = sb.gate("code", tid)
         if not check.ok("seed reached code-ready state", code_gate == 0,
                         "code gate exit=%s" % code_gate):
