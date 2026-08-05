@@ -110,5 +110,15 @@
         ".claude-plugin/marketplace.json"
       ]
     }
+  },
+  "suites": {
+    "e2e": {
+      "command": "python3 evals/run_evals.py --plugin acs --paid",
+      "per_iteration": false
+    }
+  },
+  "tests": {
+    "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet coverage jsonschema diff-cover && git fetch --no-tags --depth=2147483647 origin \"+refs/heads/${GITHUB_BASE_REF:-main}:refs/remotes/origin/${GITHUB_BASE_REF:-main}\"",
+    "command": "python3 -m coverage run --source=plugins/acs/hooks/scripts -m unittest discover -s tests && python3 -m coverage xml -o coverage.xml && python3 -m diff_cover.diff_cover_tool coverage.xml --compare-branch \"origin/${GITHUB_BASE_REF:-main}\" --fail-under $ACS_COVERAGE"
   }
 }
