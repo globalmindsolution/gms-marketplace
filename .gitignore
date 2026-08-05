@@ -30,3 +30,4 @@ __pycache__/
 
 # acs machine-specific config (workspace_path) — never commit
 .acs/settings.local.json
+coverage.xml
