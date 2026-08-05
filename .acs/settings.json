@@ -110,5 +110,15 @@
         ".claude-plugin/marketplace.json"
       ]
     }
+  },
+  "suites": {
+    "e2e": {
+      "command": "python3 evals/run_evals.py --plugin acs --paid",
+      "per_iteration": false
+    }
+  },
+  "tests": {
+    "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet coverage jsonschema",
+    "command": "python3 -m coverage run --source=plugins/acs/hooks/scripts -m unittest discover -s tests && python3 -m coverage report --fail-under=$ACS_COVERAGE"
   }
 }
