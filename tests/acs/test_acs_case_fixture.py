@@ -76,17 +76,30 @@ class TestPushd(unittest.TestCase):
     """AC-6: pushd() restores the original cwd, including when the body raises."""
 
     def test_pushd_restores_cwd(self):
+        # target must NOT be the suite's own cwd -- the suite already runs
+        # from REPO_ROOT, so pushd(REPO_ROOT) would leave original == target
+        # and the assertions below would hold for any implementation,
+        # including a broken one.
         original = os.getcwd()
-        with acs_case.pushd(REPO_ROOT):
-            self.assertEqual(os.getcwd(), REPO_ROOT)
-        self.assertEqual(os.getcwd(), original)
+        target = tempfile.mkdtemp(prefix="acs-case-pushd-")
+        try:
+            with acs_case.pushd(target):
+                self.assertEqual(os.path.realpath(os.getcwd()), os.path.realpath(target))
+            self.assertEqual(os.getcwd(), original)
+        finally:
+            shutil.rmtree(target, ignore_errors=True)
 
     def test_pushd_restores_cwd_on_exception(self):
         original = os.getcwd()
-        with self.assertRaises(ValueError):
-            with acs_case.pushd(REPO_ROOT):
-                raise ValueError("boom")
-        self.assertEqual(os.getcwd(), original)
+        target = tempfile.mkdtemp(prefix="acs-case-pushd-")
+        try:
+            with self.assertRaises(ValueError):
+                with acs_case.pushd(target):
+                    self.assertEqual(os.path.realpath(os.getcwd()), os.path.realpath(target))
+                    raise ValueError("boom")
+            self.assertEqual(os.getcwd(), original)
+        finally:
+            shutil.rmtree(target, ignore_errors=True)
 
 
 class TestFakeGh(unittest.TestCase):
@@ -103,10 +116,34 @@ class TestFakeGh(unittest.TestCase):
             shutil.rmtree(bindir, ignore_errors=True)
 
     def test_fake_gh_none_body_simulates_absent_binary(self):
-        env = acs_case.fake_gh("/unused", None)
-        # Assert the real property -- gh must be genuinely unresolvable on the
-        # returned PATH -- not merely absent as a literal PATH-directory name.
-        self.assertIsNone(shutil.which("gh", path=env.get("PATH", "")))
+        # Reproduce a layout where gh shares a directory with git (e.g. apt's
+        # /usr/bin/gh next to /usr/bin/git) instead of relying on this host's
+        # own PATH, which may keep them apart by luck.
+        shared_dir = tempfile.mkdtemp(prefix="acs-case-shared-")
+        bindir = tempfile.mkdtemp(prefix="acs-case-nogh-")
+        try:
+            for name in ("git", "gh"):
+                shim = os.path.join(shared_dir, name)
+                with open(shim, "w") as fh:
+                    fh.write("#!/bin/sh\nexit 0\n")
+                os.chmod(shim, 0o755)
+            original_path = os.environ.get("PATH", "")
+            os.environ["PATH"] = shared_dir
+            try:
+                env = acs_case.fake_gh(bindir, None)
+            finally:
+                os.environ["PATH"] = original_path
+            # Assert the real property -- gh must be genuinely unresolvable on
+            # the returned PATH -- not merely absent as a literal PATH-directory
+            # name.
+            self.assertIsNone(shutil.which("gh", path=env.get("PATH", "")))
+            # And git must remain resolvable, even though gh shared its
+            # directory -- pins that the fix doesn't strip git out along with
+            # it (the defect this test reproduces).
+            self.assertIsNotNone(shutil.which("git", path=env.get("PATH", "")))
+        finally:
+            shutil.rmtree(shared_dir, ignore_errors=True)
+            shutil.rmtree(bindir, ignore_errors=True)
 
 
 class TestPy39Compatibility(unittest.TestCase):

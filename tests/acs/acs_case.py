@@ -128,18 +128,21 @@ def fake_gh(bin_dir, gh_body):
     """Write an executable `gh` shim under bin_dir and return a PATH-prepended env.
 
     gh_body is the shell script body (after the shebang) the shim runs. A
-    gh_body of None simulates the binary being entirely absent: PATH is the
-    caller's own PATH with every directory where `gh` actually resolves
-    stripped out, so git and everything else already reachable stay
-    reachable, but a real gh never does -- regardless of where a given
-    runner happens to have it installed.
+    gh_body of None simulates the binary being entirely absent: PATH is
+    replaced with bin_dir alone, populated with symlinks to the tools the
+    fixture actually needs (git, sh) but never gh -- so those tools stay
+    resolvable no matter where a given runner has them installed, while gh
+    is guaranteed unresolvable even when it shares a directory with git
+    (e.g. apt's /usr/bin/gh sitting next to /usr/bin/git, where filtering
+    out gh's directory would otherwise take git with it).
     """
     env = dict(os.environ)
     if gh_body is None:
-        real_dirs = env.get("PATH", os.defpath).split(os.pathsep)
-        env["PATH"] = os.pathsep.join(
-            d for d in real_dirs if shutil.which("gh", path=d) is None
-        )
+        for tool in ("git", "sh"):
+            real = shutil.which(tool)
+            if real is not None:
+                os.symlink(real, os.path.join(bin_dir, tool))
+        env["PATH"] = bin_dir
         return env
     gh = os.path.join(bin_dir, "gh")
     with open(gh, "w") as fh:
