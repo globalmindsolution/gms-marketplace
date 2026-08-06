@@ -59,6 +59,9 @@ context and consequences.
 | [0067](0067-code-verifier-multi-lens-adversarial-rigor-upgrade.md) | code-verifier multi-lens adversarial rigor upgrade (`verify_depth=="full"` only): 4 parallel lenses plus a coordinator adversarial merge pass | Accepted |
 | [0068](0068-acs-test-ticket-scoped-fix-and-retest-mode.md) | `/acs:test` ticket-scoped `--for-ticket` mode + `/acs:ship`'s post-code fix-and-re-test loop, gated by e2e presence | Accepted |
 | [0069](0069-oversized-ticket-two-lever-split-control.md) | Oversized-ticket split detection is a two-lever control again: `/create-ticket`'s upfront PR-size rubric plus a non-blocking, plan-time oversize signal in `code-planner.md` | Accepted |
+| [0070](0070-fix-subprocess-coverage-measurement.md) | Fix subprocess coverage measurement (parallel `.coveragerc` + `COVERAGE_PROCESS_START` + `coverage combine`) instead of duplicating subprocess scenarios as in-process tests | Accepted |
+| [0071](0071-coverage-omit-true-forwarder-shims-only.md) | Coverage `omit` rule excludes true argument-forwarder shims only; `post-merge-pr.py`'s real `--pr` branch stays measured, never waived | Accepted |
+| [0072](0072-shared-importable-test-fixture.md) | Shared importable test fixture (`tests/acs/acs_case.py`) for concurrent per-module test authoring across child tickets | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.
