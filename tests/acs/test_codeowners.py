@@ -227,6 +227,22 @@ class TestCli(unittest.TestCase):
         payload = json.loads(out)
         self.assertEqual(payload["owners"], ["@bob", "@carol", "@alice"])
 
+    def test_blank_only_stdin_lines_are_dropped_before_matching(self):
+        root = _tmp_repo(self)
+        _write(os.path.join(root, "CODEOWNERS"), "* @alice\n")
+
+        code, out, err = acs_case.run_main(
+            self.mod,
+            ["resolve", "--repo-root", root, "--changed-files", "-"],
+            stdin="\n   \n\n",
+        )
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(
+            payload,
+            {"source": "CODEOWNERS", "owners": [], "reason": "no_pattern_matched"},
+        )
+
     def test_missing_required_argument_exits_2(self):
         root = _tmp_repo(self)
         code, _out, err = acs_case.run_main(
