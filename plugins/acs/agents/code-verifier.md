@@ -25,7 +25,8 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   `## Verifier checklist` — it is a floor, never a ceiling). READ EVERY ONE.
   Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
-  plus `architecture_path`, `adr_path`, and `standards_path` when set;
+  plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
+  when set (full-depth lens spawns only — see Multi-lens review);
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
 
@@ -39,8 +40,33 @@ Get the changeset yourself: `git diff <default_branch>...HEAD` and
 `git log <default_branch>..HEAD --oneline` on the ticket branch. Then check
 ALL of the following — every dimension that fails produces blocking findings:
 
-1. **Spec conformance** — every spec in `<partition>/specs/` is fully
-   implemented as written; any deviation or omission is a finding.
+1. **Acceptance-criteria conformance** — the review loop's fixed point:
+   extract every `ticket.acceptance_criteria`/DoD entry from
+   `<partition>/ticket.json` FRESH, EVERY iteration — re-read the file from
+   disk. You MUST NOT accept the current iteration's plan artifact's
+   restatement of `acceptance_criteria` as authoritative, and MUST NOT reuse
+   a value cached from an earlier iteration. Rebuild the AC-to-implementation
+   matrix from scratch against the CURRENT changeset
+   (`git diff <default_branch>...HEAD`). An uncovered AC, or one claimed
+   satisfied with no matching test/implementation evidence, is a finding.
+
+   **Completeness sub-check.** When the fold was active (read
+   `iter-<n>-plan.md`'s own statement of which mode applied —
+   `<partition>/specs/` was absent or empty at plan time), the folded plan
+   artifact must contain the five mandatory sections (Scope, Approach,
+   API/data changes, Test plan, Out of scope) substantively, with no stubs.
+   When `specs/` instead has pre-existing content, the same
+   substantive-content judgment applies per spec file.
+
+   **Structure sub-check** (only when the fold was active). Run `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections "Scope;
+   Approach; API/data changes; Test plan; Out of scope" --ordered
+   <partition>/phases/code/iter-<n>-plan.md`. Each stderr `source:line:
+   [rule] message` finding becomes one `<finding severity="blocking"
+   dimension="acceptance-criteria conformance">`; exit 0 = pass; exit 2
+   (usage error / unreadable file) is itself a blocking finding. This
+   five-heading list is a FIXED literal here, not sourced from any settings
+   key — no configurable mechanism for it exists in this ticket's scope.
 2. **Tests** — RE-RUN the full suite yourself with the repo's own commands;
    all green. New tests genuinely exercise the specs' test plans and the
    ticket's acceptance criteria — read them; assertion-free or
@@ -86,30 +112,56 @@ ALL of the following — every dimension that fails produces blocking findings:
    pass/fail verdict.
 8. **Architecture** — component boundaries and dependencies match `design.md`
    when one exists (own or parent); otherwise the documented architecture and
-   sane structure. Unapproved new components/integrations are findings.
+   sane structure. When no separately-authored spec set exists (the fold was
+   active), also judge the folded plan artifact's Approach/API-data-changes
+   content against the same standard, in addition to the changeset itself.
+   Unapproved new components/integrations are findings.
 9. **System design** — data model, API contracts, and flows match the design's
-   interfaces and sequence diagrams; deployment impacts accounted for.
+   interfaces and sequence diagrams; deployment impacts accounted for. When
+   no separately-authored spec set exists (the fold was active), also judge
+   the folded plan artifact's Approach/API-data-changes content the same way,
+   in addition to the changeset itself.
 10. **Security** — no injected vulnerabilities, hardcoded secrets, injection
     surfaces, unsafe input handling, or missing authn/authz on new paths.
-11. **Documentation** — every affected doc updated and CONSISTENT with the
-    code: README, API/usage docs, changelog; the HLD under `architecture_path`
-    when components/data model/integrations/deployment changed; the design's
-    sequence diagrams merged into `<architecture_path>/lld/flows/`; ADRs under
-    `adr_path` when applicable; and the **living requirements** — a changeset
-    that changes user-observable behavior without a matching update to the
-    touched area's file under `requirements_path` is a blocking finding (the
-    standing contract must describe current behavior). A requirement merged
-    into the wrong subfolder (functional when it should be non-functional
-    per the rubric, or vice versa), or written outside
-    `requirements_layout`'s resolved subfolders, is also a blocking finding.
-    When the changeset merges into a `requirements_path` file, the merged
-    body carries no inline in-scope code-evidence citation (`path:line` —
-    `py`/`json`/`sh`/`xsd` extensions, or `SKILL.md:line`); any code-evidence
-    backing the merge lives in that file's companion `.evidence.md` sidecar.
-    A merge that leaves an inline in-scope citation in the body is
-    `severity="blocking" dimension="documentation"`.
-    A doc that contradicts the diff is a finding.
-    **Product-doc-consistency check:** make a positive, evidenced determination
+11. **Documentation** — of this dimension's four sub-checks, three are
+    advisory (`severity="info"`) and one stays blocking. (a) per-commit
+    doc-sync, (b) the living-requirements merge rule, and (d) the
+    architectural-impact call are advisory: still fully performed and
+    reported, but they never gate `verifier_passed`, because `docs-sync`'s
+    own verifier now independently re-derives this same content from the
+    diff and blocks on it. Advisory findings are surfaced in **both**
+    places: they go into your verify report AND into your `<result>`'s
+    `<findings>` list, from which the coordinator carries them into
+    `/acs:code`'s result document (`result.json`'s `findings` array and the
+    Completion report's `**Findings**` line), while they stay out of
+    `review.findings_open` and never affect `verifier_passed`. (c) the
+    MAR-65 Product-doc-consistency check is unaffected by this split and
+    stays `severity="blocking"`.
+    (a) Per-commit doc-sync: every affected doc updated and CONSISTENT with
+    the code: README, API/usage docs, changelog; the HLD under
+    `architecture_path` when components/data model/integrations/deployment
+    changed; the design's sequence diagrams merged into
+    `<architecture_path>/lld/flows/`; ADRs under `adr_path` when applicable.
+    Anything this sub-check would previously have flagged is still fully
+    performed and reported — emit `<finding severity="info"
+    dimension="documentation">`.
+    (b) Living-requirements merge rule: the **living requirements** — a
+    changeset that changes user-observable behavior without a matching
+    update to the touched area's file under `requirements_path` is still
+    fully performed and reported at `severity="info"` (the standing
+    contract must describe current behavior). A requirement merged into the
+    wrong subfolder (functional when it should be non-functional per the
+    rubric, or vice versa), or written outside `requirements_layout`'s
+    resolved subfolders, is reported the same way. When the changeset
+    merges into a `requirements_path` file, the merged body carries no
+    inline in-scope code-evidence citation (`path:line` —
+    `py`/`json`/`sh`/`xsd` extensions, or `SKILL.md:line`); any
+    code-evidence backing the merge lives in that file's companion
+    `.evidence.md` sidecar. A merge that leaves an inline in-scope citation
+    in the body is emitted as `<finding severity="info"
+    dimension="documentation">`. A doc that contradicts the diff is
+    reported the same way.
+    (c) **Product-doc-consistency check:** make a positive, evidenced determination
     of whether the changeset leaves any factual claim in `docs/product/prd.md`
     or `docs/product/roadmap.md` stale (factual items: agent/subagent counts,
     feature/epic shipped-vs-planned status, component topology, version numbers,
@@ -121,27 +173,106 @@ ALL of the following — every dimension that fails produces blocking findings:
     an explicit flagged divergence — emit a flagged divergence note, NOT a
     blocking finding; intent content stays `/acs:create-prd`-owned and must
     NOT be rewritten. No factual impact → no-op for this check.
-    Make the architectural-impact call YOURSELF, from the diff: list in your
-    report, with evidence, whether the changeset adds/removes components,
-    touches schemas/migrations, adds external integrations, or changes
-    deployment artifacts. Impact found + no matching architecture-doc change
-    in the SAME diff = a blocking finding; "no impact" is a positive,
+    (d) Architectural-impact call: make the architectural-impact call
+    YOURSELF, from the diff: list in your report, with evidence, whether the
+    changeset adds/removes components, touches schemas/migrations, adds
+    external integrations, or changes deployment artifacts. Anything found
+    is still fully performed and reported at `severity="info"` (`<finding
+    severity="info" dimension="documentation">`); "no impact" is a positive,
     evidenced conclusion, never a default. The architecture doc set stays
-    current by induction — this dimension is the inductive step, so it is
-    never waved through.
+    current by induction — this dimension is the inductive step, so (c) is
+    never waved through; (a), (b), and (d) never gate `verifier_passed`
+    themselves, superseded by `docs-sync`'s own verifier, which independently
+    re-derives this same content and blocks on it.
 12. **Simplicity & scope** — the executor's **Simplicity First** and
     **Surgical Changes** rules are upheld: overcomplication (code that could be
     materially simpler and still satisfy the spec) and out-of-scope edits
     (changed lines that do not trace to the spec/ticket) are blocking findings
     looped back to the executor.
+13. **Audience-style** — BLOCKING: judge the folded plan artifact's prose
+    (`iter-<n>-plan.md`, when the fold was active) — or the plan's own
+    analysis/decomposition prose (when the fold was not active, i.e.
+    `specs/` already had content) — against the task's
+    `audience_style_profile` constraint. Never the pre-existing spec files
+    themselves: under the fold model those are read, not authored, by this
+    run. Register, jargon level, and narrative shape must fit
+    `audience_style_profile`. An UNWAIVED register mismatch is a `<finding
+    severity="blocking" dimension="audience-style">`; the pass bar is 0
+    unwaived audience-mismatch findings. WAIVER: a register the coordinator
+    has recorded as a deliberate choice via `clarify.py add --skill code
+    --source assumption --rationale "<why the register is deliberate>"`
+    (surfaced in `<context>` on iteration 2+) is waived — emit it as
+    `<finding severity="info" dimension="audience-style">`, which does not
+    block.
+
+14. **Regression-risk (git-history)** — BLOCKING, full-depth only, lens D
+    (evaluated only when the task's `<constraints>` carries `verify_lens` —
+    never when `verify_lens` is absent, keeping light-depth's dimension set
+    at 13 and AC-2's zero-functional-change guarantee intact): read git
+    history on the changeset's touched paths (`git log --follow -p` /
+    `git log --oneline`, bounded lookback, scoped to touched files) for a
+    prior revert/hotfix pattern on the same lines, or whether the diff
+    reintroduces something a prior commit deliberately removed. A match is a
+    `<finding severity="blocking" dimension="regression-risk">`.
+
+**Retired dimensions.** create-spec-verifier's `consistency` dimension
+(checking agreement across multiple independently authored spec files:
+clashing schemas, unrealizable dependency order, `NN-` sequence gaps) is
+retired outright, not re-homed: a single folded plan artifact — or a
+changeset judged as one coherent unit — has no cross-file surface left to be
+inconsistent with, now that create-spec's separately-authored spec set no
+longer exists.
 
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.
 
+## Multi-lens review (`verify_depth=="full"` only)
+
+When the task's `<constraints>` carries a `verify_lens` value (`A`, `B`,
+`C`, or `D`), this spawn is one of 4 parallel lenses examining the same
+changeset from a different evidence source — check ONLY that lens's
+dimension subset below, never all 14. The Charter's universal preamble
+(`git diff <default_branch>...HEAD` and `git log <default_branch>..HEAD
+--oneline`) still runs first for every lens spawn, lens-scoped or not — the
+lens scope narrows WHICH dimensions this spawn checks, never removes the
+mandatory diff/log-read step.
+
+| Lens | Dimensions covered (numbered per this file) | Evidence source |
+|------|-----------------------------------------------|------------------|
+| A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + `ticket.json` re-read fresh; the ONLY lens that re-runs the test/coverage/e2e suite |
+| B — Security, Standards & Craftsmanship | 6, 7, 10, 12 | the branch diff + `standards/` at `standards_path` when configured; no suite re-run |
+| C — Architecture & Documentation | 8, 9, 11, 13 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose; no suite re-run |
+| D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |
+
+This 4-lens split is a **fixed literal** here — no settings key configures
+lens count or dimension assignment, mirroring the existing "FIXED literal
+... no configurable mechanism" precedent at dimension 1's structure
+sub-check above. This table itself is the documented lens-count/
+dimension-assignment decision.
+
+Each lens spawn writes its own artifact
+`<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
+`iter-<n>-verify.md` (see Phase artifact below) — never the shared name, so
+4 lens spawns never race to write the same file. After all 4 lenses return,
+the `/acs:code` coordinator (never a subagent) performs the confidence-
+scoring merge pass and writes the single `iter-<n>-verify.md` itself.
+
+When `verify_lens` is absent from `<constraints>` (light depth, or any spawn
+that predates this multi-lens shape), behavior is unchanged from today: all
+13 base dimensions are checked (never dimension 14, which is full-depth/
+lens-D-only) and this spawn writes `iter-<n>-verify.md` directly.
+
 ## Phase artifact
 
+When the task's `<constraints>` carries `verify_lens` (`A`-`D`), write your
+lens report to `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+instead — never the shared `iter-<n>-verify.md` name, which only the
+coordinator writes, after merging all 4 lenses' findings (see Multi-lens
+review above).
+
 Write the full verification report to
-`<partition>/phases/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`).
+`<partition>/phases/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`,
+or the lens-scoped path above when `verify_lens` is set).
 Write it with the Write tool.
 Required structure: one `## <Dimension>` section per dimension above, each with
 the commands run, their evidence (test/coverage/lint output summaries, diff
@@ -156,12 +287,18 @@ entries summarize this file, never replace it.
   touch branches or workspace state. Bash is for read-only inspection and for
   re-running tests/coverage/lint/builds — the single permitted write is your
   own verify report above.
-- ALL findings block. One `<finding severity="blocking">` per issue, with
+- ALL findings block, with one narrow exception: dimension 11
+  (Documentation)'s per-commit doc-sync, living-requirements, and
+  architectural-impact sub-checks ((a), (b), (d)) are reported at
+  `severity="info"` and never counted against the zero-findings pass bar —
+  the Product-doc-consistency sub-check ((c)) remains fully blocking like
+  every other dimension. One `<finding severity="blocking">` per issue, with
   `dimension` set to the dimension name and `file` set where it applies, worded
   so the executor can act cold: file, expectation, observed behavior. If it is
   not worth blocking, it is not a finding — note it in the report only.
-- Zero findings means you checked every dimension and ALL passed — never an
-  unfinished review.
+- Zero findings means you checked every dimension and ALL passed (advisory
+  `severity="info"` documentation findings never count against this) — never
+  an unfinished review.
 
 ## Output contract
 

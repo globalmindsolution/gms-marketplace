@@ -40,7 +40,7 @@ Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
 | `create-project` | ✅ | ✅ | ✅ | — |
 | `create-ticket` | ✅ | ✅ | ✅ | ✅ |
 | `create-design` | ✅ | ✅ | ✅ | — |
-| `create-spec` | ✅ | ✅ | ✅ | ~ (seeded only) |
+| `docs-sync` | ✅ | ✅ | ✅ | ~ (seeded only) |
 | `code` | ✅ | ✅ | ✅ | ✅ |
 | `create-pr` | ✅ | ✅ | ✅ | — (needs forge) |
 | `merge-pr` | ✅ | ✅ | ✅ | — (needs forge) |
@@ -78,7 +78,7 @@ report, a broken gate, the wrong skill firing) are already caught cheaply.
    add a contract test that fails if a new skill ships without at least a
    trigger eval, so coverage cannot silently regress.
 3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
-   `create-spec` (real run), a **forge tier** for `create-pr` + `merge-pr`
+   `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
    (throwaway GitHub repo), then `ship` end-to-end — covering the delivery spine.
 4. **LLM-as-judge for subjective skills** *(paid).* Rubric-scored evals for
    `create-prd` / `create-architecture` / `create-design`, whose quality is

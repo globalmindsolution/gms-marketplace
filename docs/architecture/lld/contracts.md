@@ -63,10 +63,11 @@ source, ceiling_before, ceiling_after, direction, confirmation_ref` —
 upward/automatic event. No schema file edit is required — run-entry items
 already declare `additionalProperties: true`. Events are recorded at the
 iteration-start **detection point** (start of each iteration, after the prior
-verifier and before the current execute — MAR-107 D4); a fast-lane
-(TRIVIAL/SMALL) crossing into a full lane (STANDARD/COMPLEX) triggers the
-fold-boundary stage re-entry that re-introduces the skipped `create-spec`
-stage before the next iteration.
+verifier and before the current execute — MAR-107 D4); crossing the
+fast→full fold boundary raises the iteration ceiling and verify depth to the
+escalated lane's values only — monotonically, never lowered, with no stage
+re-entry and no re-spawn of any prior stage (`code/SKILL.md`'s "In-loop
+escalation check" section).
 
 `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
 clarify_ref)` (`acs_lib.py`, MAR-108) is the only writer capable of lowering
@@ -109,16 +110,13 @@ and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
 (Step 7f) is the same shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
-`formats.design_template` (default `design-default`) and `formats.spec_template`
-(default `spec-default`) resolve identically to `formats.pr_description_template`
-(built-in name → `.acs/templates/<name>.md` → absolute path); their section
-companions `enforcement.design_sections` and `enforcement.spec_sections` default
-from the configured template — the built-in defaults encode today's exact
-required-section lists, so an absent key is byte-identical to the prior hardcoded
-gate (ADR 0065). Both verifiers enforce the resolved list as a blocking
-`structure` dimension via `structure_lint.py`: create-design's was already
-present; create-spec now runs `structure_lint.py` as a net-new blocking
-`structure` dimension (MAR-151), mirroring create-design.
+`formats.design_template` (default `design-default`) resolves identically to
+`formats.pr_description_template` (built-in name → `.acs/templates/<name>.md`
+→ absolute path); its section companion `enforcement.design_sections`
+defaults from the configured template — the built-in default encodes today's
+exact required-section list, so an absent key is byte-identical to the prior
+hardcoded gate (ADR 0065). create-design's verifier enforces the resolved
+list as a blocking `structure` dimension via `structure_lint.py`.
 `requirements_path` resolves a **functional** and a **non-functional**
 subfolder via `requirements_layout` (`functional_subdir`/
 `non_functional_subdir`, default `"functional"`/`"non-functional"`).
@@ -136,9 +134,9 @@ companion `.evidence.md` sidecar, not inline in the body; the body keeps the
 clause text, its stable anchor, and any C-22 `DRAFT — human-confirm-required`
 marker (the sidecar convention, Decision B / ADR 0064).
 
-Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, each level verified against the one above it.
+Conformance chain: `PRD → architecture → principles → standards → design → code`, each level verified against the one above it.
 
-Requirements (`requirements_path`, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket`/`/acs:create-spec` as current behavior — but it is **not a verified conformance level**: no create-spec or code-verifier dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
+Requirements (`requirements_path`, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket` as current behavior — but it is **not a verified conformance level**: no code-verifier dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →

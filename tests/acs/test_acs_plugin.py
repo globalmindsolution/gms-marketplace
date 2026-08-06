@@ -29,55 +29,8 @@ sys.path.insert(0, SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 
-class AcsWorkspaceCase(unittest.TestCase):
-    """Fixture: a consumer git repo with valid .acs settings + empty workspace."""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.repo = os.path.join(self.tmp, "shop")
-        self.ws = os.path.join(self.tmp, "workspace")
-        os.makedirs(self.repo)
-        subprocess.run(["git", "init", "-q", self.repo], check=True)
-        subprocess.run(["git", "-C", self.repo, "remote", "add", "origin",
-                        "https://github.com/acme/shop.git"], check=True)
-        os.makedirs(os.path.join(self.repo, ".acs"))
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
-        with open(os.path.join(self.repo, ".acs", "settings.local.json"), "w") as fh:
-            json.dump({"workspace_path": self.ws}, fh)
-
-    def write_settings(self, data):
-        with open(os.path.join(self.repo, ".acs", "settings.json"), "w") as fh:
-            json.dump(data, fh)
-
-    def run_script(self, script, *args, stdin=None, cwd=None, env=None):
-        return subprocess.run(
-            [sys.executable, os.path.join(SCRIPTS, script)] + list(args),
-            input=stdin, capture_output=True, text=True, cwd=cwd or self.repo,
-            env=env,
-        )
-
-    def pre(self, skill, args_text="", cwd=None):
-        payload = json.dumps({
-            "cwd": cwd or self.repo, "tool_name": "Skill",
-            "tool_input": {"skill": "acs:" + skill, "args": args_text},
-        })
-        return self.run_script("dispatch.py", "pre", stdin=payload, cwd=cwd)
-
-    def post(self, skill, ticket, result):
-        return self.run_script("post-%s.py" % skill, "--ticket", ticket,
-                               stdin=json.dumps(result))
-
-    def start(self, skill, ticket):
-        return self.run_script("skill-start.py", "--skill", skill, "--ticket", ticket)
-
-    def new_ticket(self, title, ttype, *extra):
-        out = self.run_script("new-ticket.py", "--title", title, "--type", ttype, *extra)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        return json.loads(out.stdout)["ticket_id"]
-
-    def tdir(self, ticket):
-        return lib.ticket_dir(self.ws, "acme-shop", ticket)
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+from acs_case import AcsWorkspaceCase  # noqa: E402
 
 
 class TestDispatcher(AcsWorkspaceCase):
@@ -157,44 +110,26 @@ class TestGates(AcsWorkspaceCase):
                              "e2e": {"command": "make e2e", "per_iteration": False}})
         self.assertEqual(self.pre("create-ticket").returncode, 0)
 
-    def test_gate_code_trivial_lane_skips_create_spec(self):
-        # AC-1: TRIVIAL lane does NOT require create-spec or specs/ dir.
-        # derive_lane("trivial", "low", ...) -> "TRIVIAL" (acs_lib.py:98-99)
-        t = self.new_ticket("X", "task", "--size", "trivial", "--stakes", "low")
-        # No create-spec start/post, no specs/ directory created.
-        result = self.pre("code", t)
-        self.assertEqual(result.returncode, 0)
+    def test_gate_code_never_requires_create_spec_any_lane(self):
+        # AC-4: gate_code no longer requires a completed create-spec step or a
+        # non-empty specs/ directory, on ANY lane -- it is an unconditional
+        # pass-through gated only on create-ticket having completed.
+        cases = [
+            ("X", ["--size", "trivial", "--stakes", "low"]),
+            ("Y", ["--size", "small", "--stakes", "normal"]),
+            ("Z", []),  # default size=standard, stakes=normal -> STANDARD
+            ("W", ["--size", "large"]),  # -> COMPLEX
+        ]
+        for title, args in cases:
+            with self.subTest(title=title):
+                t = self.new_ticket(title, "task", *args)
+                # No create-spec, no specs/ directory.
+                result = self.pre("code", t)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_gate_code_small_lane_skips_create_spec(self):
-        # AC-1: SMALL lane does NOT require create-spec or specs/ dir.
-        # derive_lane("small", "normal", ...) -> "SMALL" (acs_lib.py:96-97)
-        t = self.new_ticket("Y", "task", "--size", "small", "--stakes", "normal")
-        # No create-spec start/post, no specs/ directory created.
-        result = self.pre("code", t)
-        self.assertEqual(result.returncode, 0)
-
-    def test_gate_code_standard_lane_blocks_without_create_spec(self):
-        # AC-2: STANDARD lane blocks when create-spec not completed and no specs dir.
-        # derive_lane("standard", "normal", ...) -> "STANDARD" (acs_lib.py:94-95)
-        t = self.new_ticket("Z", "task")
-        # No create-spec, no specs dir.
-        result = self.pre("code", t)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("create-spec", result.stderr)
-
-    def test_gate_code_complex_lane_blocks_without_create_spec(self):
-        # AC-2: COMPLEX lane blocks when create-spec not completed and no specs dir.
-        # derive_lane("large", ...) -> "COMPLEX" (acs_lib.py:88-89)
-        t = self.new_ticket("W", "task", "--size", "large")
-        # No create-spec, no specs dir.
-        result = self.pre("code", t)
-        self.assertEqual(result.returncode, 2)
-
-    def test_gate_code_absent_lane_recomputes_via_derive_lane(self):
-        # AC-2: When the "lane" key is absent from ticket.json (legacy ticket),
-        # gate_code recomputes via derive_lane and fails-closed for STANDARD axes.
-        t = self.new_ticket("V", "task")  # default size=standard -> STANDARD
-        # Remove the "lane" key from ticket.json to simulate a legacy ticket.
+        # Absent "lane" key (legacy ticket) also passes -- gate_code no longer
+        # derives or inspects the lane at all.
+        t = self.new_ticket("V", "task")
         tdir = self.tdir(t)
         ticket_path = os.path.join(tdir, "ticket.json")
         with open(ticket_path) as fh:
@@ -202,9 +137,71 @@ class TestGates(AcsWorkspaceCase):
         doc.pop("lane", None)
         with open(ticket_path, "w") as fh:
             json.dump(doc, fh)
-        # derive_lane fallback: absent size -> STANDARD -> full-lane block.
         result = self.pre("code", t)
-        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_gate_code_pass_through_regardless_of_specs_presence(self):
+        # AC-8 gate-level companion: gate_code's pass/fail is unaffected by
+        # whether specs/ already has content -- the fold (self-author vs.
+        # read-existing) is entirely the planner's concern now, never the
+        # gate's. A pre-existing, non-empty specs/ must not change the
+        # outcome versus the specs-absent case already proven above.
+        t = self.new_ticket("HasSpecs", "task")
+        specs_dir = os.path.join(self.tdir(t), "specs")
+        os.makedirs(specs_dir, exist_ok=True)
+        with open(os.path.join(specs_dir, "01-existing.md"), "w") as fh:
+            fh.write("# Scope\n\nExisting spec content.\n")
+        result = self.pre("code", t)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class TestCreateSpecSurfaceDeleted(unittest.TestCase):
+    """AC-1/AC-5: /acs:create-spec (skill, 3 agent files, both hook scripts, its
+    GATES/WORKFLOW_SKILLS entries) no longer exists on disk or in acs_lib.py's
+    registries; the pipeline-state.json and settings.json schemas no longer
+    carry its footprint."""
+
+    DELETED_PATHS = [
+        os.path.join("plugins", "acs", "skills", "create-spec", "SKILL.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-planner.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-executor.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-verifier.md"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "pre-create-spec.py"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "post-create-spec.py"),
+    ]
+
+    def test_create_spec_absent_from_registries(self):
+        self.assertNotIn("create-spec", lib.WORKFLOW_SKILLS)
+        self.assertNotIn("create-spec", lib.GATES)
+
+    def test_create_spec_paths_absent_from_disk(self):
+        for rel in self.DELETED_PATHS:
+            path = os.path.join(REPO_ROOT, rel)
+            with self.subTest(path=rel):
+                self.assertFalse(os.path.exists(path), "%s must not exist on disk" % path)
+
+    def test_pipeline_state_schema_drops_create_spec(self):
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        enum = schema["properties"]["steps"]["propertyNames"]["enum"]
+        self.assertNotIn("create-spec", enum)
+
+    def test_settings_schema_drops_spec_template_and_sections(self):
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
+        self.assertNotIn("spec_sections", schema["properties"]["enforcement"]["properties"])
+        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
+            "propertyNames"]["enum"]
+        self.assertNotIn("create-spec", overrides_enum)
+        for field in ("requirements_path", "e2e"):
+            self.assertNotIn(
+                "/create-spec", schema["properties"][field]["description"],
+                "%s description must not reference the deleted /create-spec" % field)
 
 
 class TestStandardizeProjectDelivery(AcsWorkspaceCase):
@@ -300,7 +297,7 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
 
 
 class TestPipelineSequence(AcsWorkspaceCase):
-    """The full gate chain: epic -> child -> design -> spec -> code -> pr -> merge."""
+    """The full gate chain: epic -> child -> design -> code -> pr -> merge."""
 
     def test_full_chain(self):
         out = self.run_script("skill-start.py", "--skill", "create-ticket",
@@ -320,23 +317,15 @@ class TestPipelineSequence(AcsWorkspaceCase):
         result = self.pre("create-design", child)
         self.assertEqual(result.returncode, 2)
         self.assertIn("needs_design", result.stderr)
-        result = self.pre("create-spec", child)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("create-design", result.stderr)
+        # AC-4: gate_code no longer requires create-spec/specs/ for any lane --
+        # it is an unconditional pass-through gated only on create-ticket, so
+        # the child reaches /code with no design/spec precondition at all.
+        self.assertEqual(self.pre("code", child).returncode, 0)
 
         with open(os.path.join(self.tdir(epic), "design.md"), "w") as fh:
             fh.write("# design")
         self.start("create-design", epic)
         self.post("create-design", epic, {"status": "completed"})
-        self.assertEqual(self.pre("create-spec", child).returncode, 0)
-
-        self.start("create-spec", child)
-        self.post("create-spec", child, {"status": "completed", "states": {"specs": ["01-api"]}})
-        result = self.pre("code", child)
-        self.assertEqual(result.returncode, 2)  # no spec files yet
-        os.makedirs(os.path.join(self.tdir(child), "specs"), exist_ok=True)
-        with open(os.path.join(self.tdir(child), "specs", "01-api.md"), "w") as fh:
-            fh.write("# spec")
         self.assertEqual(self.pre("code", child).returncode, 0)
 
         # create-pr gate needs verifier_passed
@@ -345,6 +334,9 @@ class TestPipelineSequence(AcsWorkspaceCase):
         self.assertEqual(self.pre("create-pr", child).returncode, 2)
         self.start("code", child)
         self.post("code", child, {"status": "completed", "states": {"verifier_passed": True}})
+        # create-pr gate also needs docs-sync completed (AC-4)
+        self.start("docs-sync", child)
+        self.post("docs-sync", child, {"status": "completed"})
         self.assertEqual(self.pre("create-pr", child).returncode, 0)
 
         # merge gate needs a PR reference
@@ -392,16 +384,95 @@ class TestPipelineSequence(AcsWorkspaceCase):
                       "must not be silently dropped) (MAR-65 AC-6)")
 
 
+class TestDocsSyncGates(AcsWorkspaceCase):
+    """MAR-160 spec 02: gate_docs_sync (a)-(d) and the gate_create_pr rewire's
+    negative cases (a)/(b) -- the existing verifier_passed check must survive
+    unchanged, and the new docs-sync-completed check must be additive."""
+
+    def setUp(self):
+        super().setUp()
+        self.ticket = self.new_ticket("Bulk import", "task")
+        self.start("code", self.ticket)
+        self.post("code", self.ticket, {"status": "completed", "states": {"verifier_passed": True}})
+
+    # ---------------------------------------------------------------- gate_docs_sync
+
+    def test_docs_sync_gate_passes_when_no_test_step_entry(self):
+        # (a) code completed, no "test" step entry in pipeline-state.json -> 0
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_docs_sync_gate_blocks_when_test_step_present_not_completed(self):
+        # (b) code completed, "test" step present but not completed -> 2, names test
+        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "in_progress")
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("test", result.stderr)
+
+    def test_docs_sync_gate_passes_when_test_step_completed(self):
+        # (c) code completed, "test" step present and completed -> 0
+        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "completed")
+        result = self.pre("docs-sync", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_docs_sync_gate_blocks_when_code_not_completed(self):
+        # (d) code not completed -> 2, names code, regardless of test's state
+        other = self.new_ticket("No code yet", "task")
+        result = self.pre("docs-sync", other)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("code", result.stderr)
+
+    # ---------------------------------------------------------------- gate_create_pr rewire
+
+    def test_create_pr_gate_blocks_when_docs_sync_not_completed(self):
+        # (a) code verifier_passed true but docs-sync never run -> 2, names docs-sync
+        result = self.pre("create-pr", self.ticket)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("docs-sync", result.stderr)
+
+    def test_create_pr_gate_keeps_verifier_passed_check(self):
+        # (b) docs-sync completed but the underlying code run's verifier_passed is
+        # false -> 2, still names verifier_passed (the existing check survives)
+        t = self.new_ticket("Needs fixups", "task")
+        self.start("code", t)
+        self.post("code", t, {"status": "completed", "states": {"verifier_passed": False}})
+        self.start("docs-sync", t)
+        self.post("docs-sync", t, {"status": "completed"})
+        result = self.pre("create-pr", t)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("verifier_passed", result.stderr)
+
+    def test_create_pr_gate_passes_with_both_checks_satisfied(self):
+        self.start("docs-sync", self.ticket)
+        self.post("docs-sync", self.ticket, {"status": "completed"})
+        result = self.pre("create-pr", self.ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    # ---------------------------------------------------------------- registry
+
+    def test_docs_sync_registered_in_workflow_skills_and_gates(self):
+        self.assertIn("docs-sync", lib.WORKFLOW_SKILLS)
+        self.assertIn("docs-sync", lib.GATES)
+
+    def test_pipeline_state_schema_includes_docs_sync(self):
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        enum = schema["properties"]["steps"]["propertyNames"]["enum"]
+        self.assertIn("docs-sync", enum)
+
+
 class TestConcurrencyAndRecovery(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("X", "task")
-        self.start("create-spec", self.ticket)
+        self.start("code", self.ticket)
 
     def test_lock_blocks_other_checkout(self):
         other = os.path.join(self.tmp, "worktree-b")
         shutil.copytree(self.repo, other)
-        result = self.pre("create-spec", self.ticket, cwd=other)
+        result = self.pre("code", self.ticket, cwd=other)
         self.assertEqual(result.returncode, 2)
         self.assertIn("locked", result.stderr)
 
@@ -411,7 +482,7 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         result = self.run_script("dispatch.py", "session-end",
                                  stdin=json.dumps({"cwd": self.repo}))
         self.assertEqual(result.returncode, 0, result.stderr)
-        state = lib.load_state(self.tdir(self.ticket), "create-spec")
+        state = lib.load_state(self.tdir(self.ticket), "code")
         self.assertEqual(state["runs"][-1]["status"], "interrupted")
         self.assertFalse(os.path.exists(os.path.join(self.tdir(self.ticket), ".lock")))
         with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
@@ -423,11 +494,11 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
                               "--summary", "done: analysis; next: spec 02")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout)["continue_with"],
-                         "/acs:create-spec %s" % self.ticket)
-        state = lib.load_state(self.tdir(self.ticket), "create-spec")
+                         "/acs:code %s" % self.ticket)
+        state = lib.load_state(self.tdir(self.ticket), "code")
         self.assertEqual(state["runs"][-1]["status"], "handed_off")
         self.assertIn("analysis", state["runs"][-1]["handoff_summary"])
-        resumed = json.loads(self.start("create-spec", self.ticket).stdout)
+        resumed = json.loads(self.start("code", self.ticket).stdout)
         self.assertTrue(resumed["reconcile"])
         self.assertTrue(resumed["handoff_summary"])
 
@@ -447,7 +518,7 @@ class TestClarifications(AcsWorkspaceCase):
         self.assertEqual((entry["id"], entry["status"]), ("C-1", "answered"))
 
         opened = json.loads(self.clarify(
-            "add", "--skill", "create-spec", "--question", "Duplicates?").stdout)
+            "add", "--skill", "create-design", "--question", "Duplicates?").stdout)
         self.assertEqual(opened["status"], "open")
         answered = json.loads(self.clarify(
             "answer", "--id", "C-2", "--answer", "reject with 409").stdout)
@@ -1227,7 +1298,10 @@ class TestStatusLines(AcsWorkspaceCase):
         self.assertIn("plain", out.stdout)
 
         ticket = self.new_ticket("Fix rounding", "task")
-        self.start("create-spec", ticket)
+        self.start("code", ticket)
+        # Simulate a legacy/in-flight ticket (minted before create-spec was
+        # deleted) that already recorded a create-spec pipeline step.
+        lib.update_pipeline(self.tdir(ticket), ticket, "create-spec", "in_progress")
         out = self.run_script("statusline.py", stdin=self.payload(self.repo))
         self.assertEqual(out.returncode, 0, out.stderr)
         for expected in (ticket, "spec", "ticket"):
@@ -1235,7 +1309,7 @@ class TestStatusLines(AcsWorkspaceCase):
 
     def test_subagent_statusline_rows(self):
         ticket = self.new_ticket("X", "task")
-        self.start("create-spec", ticket)
+        self.start("code", ticket)
         payload = json.dumps({"columns": 80, "tasks": [
             {"id": "a1", "type": "acs:code-verifier", "status": "running",
              "startTime": (time.time() - 95) * 1000, "tokenCount": 45200, "cwd": self.repo},
@@ -1927,11 +2001,7 @@ class TestDistinctPRCount(AcsWorkspaceCase):
         self.start("create-design", epic)
         self.post("create-design", epic, {"status": "completed"})
 
-        self.start("create-spec", child)
-        self.post("create-spec", child, {"status": "completed", "states": {"specs": ["01"]}})
-        os.makedirs(os.path.join(self.tdir(child), "specs"), exist_ok=True)
-        with open(os.path.join(self.tdir(child), "specs", "01.md"), "w") as fh:
-            fh.write("# spec")
+        # AC-4: gate_code needs no create-spec step or specs/ dir -- go straight to code.
         self.start("code", child)
         self.post("code", child, {"status": "completed", "states": {"verifier_passed": True}})
 
@@ -2639,7 +2709,7 @@ class TestLaneWrites(AcsWorkspaceCase):
 
     def test_update_pipeline_writes_lane(self):
         """update_pipeline(..., lane='TRIVIAL') must write lane to pipeline-state.json."""
-        lib.update_pipeline(self._tdir, self.ticket_id, "create-spec", "done",
+        lib.update_pipeline(self._tdir, self.ticket_id, "create-ticket", "done",
                             lane="TRIVIAL")
         data = lib.read_json(
             os.path.join(self._tdir, "pipeline-state.json"))
@@ -2647,7 +2717,7 @@ class TestLaneWrites(AcsWorkspaceCase):
 
     def test_update_pipeline_lane_survives_second_update(self):
         """A second update_pipeline call for a different skill must not drop lane."""
-        lib.update_pipeline(self._tdir, self.ticket_id, "create-spec", "done",
+        lib.update_pipeline(self._tdir, self.ticket_id, "create-ticket", "done",
                             lane="TRIVIAL")
         lib.update_pipeline(self._tdir, self.ticket_id, "code", "done",
                             lane="TRIVIAL")
@@ -2658,7 +2728,7 @@ class TestLaneWrites(AcsWorkspaceCase):
     def test_update_pipeline_without_lane_does_not_crash(self):
         """Calling update_pipeline without lane= must not write/overwrite the field
         and must not raise."""
-        lib.update_pipeline(self._tdir, self.ticket_id, "create-spec", "done",
+        lib.update_pipeline(self._tdir, self.ticket_id, "create-ticket", "done",
                             lane="SMALL")
         lib.update_pipeline(self._tdir, self.ticket_id, "code", "done")
         data = lib.read_json(
@@ -2693,7 +2763,7 @@ class TestLaneWrites(AcsWorkspaceCase):
         """Calling update_pipeline with lane=None (default) must not add a lane key
         when one was not already there (or at least must not crash)."""
         # Start fresh: call with no lane
-        lib.update_pipeline(self._tdir, self.ticket_id, "create-spec", "done")
+        lib.update_pipeline(self._tdir, self.ticket_id, "create-ticket", "done")
         data = lib.read_json(
             os.path.join(self._tdir, "pipeline-state.json"))
         # lane was not written (no lane= arg means None, so the if-guard skips it)

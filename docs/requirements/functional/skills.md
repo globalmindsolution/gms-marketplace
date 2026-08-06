@@ -14,7 +14,7 @@ adds no new settings key), and six workflow skills (one of them,
 `/create-design`, conditional).
 Every **workflow** skill MUST:
 
-- Twelve **workflow/product skills** (create-spec, code, create-prd,
+- Twelve **workflow/product skills** (docs-sync, code, create-prd,
   create-design, create-architecture, create-project, create-quality,
   create-operations, create-principles, create-standards,
   standardize-project, create-requirements) run the full Reflection cycle (plan → execute →
@@ -85,20 +85,15 @@ configuration.
 
 Purpose: drive the whole pipeline from one command.
 
-- `/ship <prompt>` MUST run the workflow skills in lane-conditional order
-  and stop before `/merge-pr`, which a reviewer lands as a separate step
+- `/ship <prompt>` MUST run the workflow skills in the SAME order on every
+  lane and stop before `/merge-pr`, which a reviewer lands as a separate step
   ([workflow.md](workflow.md#umbrella-command-ship)):
-  - **TRIVIAL or SMALL lane:** `/create-ticket` → `/create-design` (when
-    the ticket needs design) → `/code` → `/create-pr` — create-spec is
-    skipped; spec authoring is folded into `/code`'s plan phase.
-  - **STANDARD, COMPLEX, high-stakes, absent, or unrecognized lane:**
-    `/create-ticket` → `/create-design` (when the ticket needs design) →
-    `/create-spec` → `/code` → `/create-pr` — the full path, unchanged.
-  Note: `stakes == "high"` resolves to STANDARD via `derive_lane`
-  (rule 3: high-stakes floor), so high-stakes tickets never reach the
-  TRIVIAL/SMALL branch and always keep the full create-spec path. An
-  absent or unrecognized lane is treated as STANDARD (fail-closed;
-  consistent with `derive_lane`'s conservative default).
+  `/create-ticket` → `/create-design` (when the ticket needs design) →
+  `/code` → `/docs-sync` → `/create-pr`. No lane branches the walk — spec
+  authoring is folded into `/code`'s plan phase on every lane
+  (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
+  SAME order on every lane — the fold is universal now, so no lane branches
+  the walk").
 - MUST NOT bypass any pre/post hook; it adds orchestration only.
 - SHOULD be resumable: re-running it for a ticket continues from the first
   incomplete step recorded in workspace state.
@@ -228,6 +223,13 @@ closing the loop on failures with a regression ticket.
   `/acs:test` headless; the concrete recipe lives in
   `templates/operations/test-scheduling.md` (shipped by `/acs:create-operations`),
   not duplicated here.
+- **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
+  suite-execution core (Steps 1-3: setup→command→teardown, the
+  results-artifact write) scoped to the reserved `e2e` suite plus the
+  ticket's own folded Test-plan suites, but skips the regression-ticket
+  triage/mint-or-bump loop entirely and instead returns a `{status,
+  failure_output}` verdict — invoked as one step inside `/acs:ship`'s
+  pipeline walk. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
 
 ## Product-level delivery (tickets)
 
@@ -248,8 +250,8 @@ skills, while not running the ticket pipeline, MUST each create their own
   `"Product definition (PRD)"` title applies.
 - All formats apply with the real ticket id: the skill creates the branch
   (`formats.branch_name`), commits (`formats.commit_message`), and opens
-  the PR (PR formats, `ACS` label) itself — `/create-design`,
-  `/create-spec`, and `/code` are not involved.
+  the PR (PR formats, `ACS` label) itself — `/create-design` and `/code`
+  are not involved.
 - The skill's state file (`create-prd-state.json`, …) lives in the delivery
   ticket's partition like any other skill state, records the PR reference,
   and `pipeline-state.json` marks the flow as product-level. Locking,
@@ -645,6 +647,14 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   before proceeding.
 - MUST interact with the user to resolve ambiguities before finalizing
   (clarifying questions).
+- **AC/DoD substantiveness gate (standing behavior, MAR-157):** Step 1 flags
+  any proposed `acceptance_criteria` entry that is not concrete/testable
+  (vague satisfaction-claim boilerplate with no observable outcome, e.g.
+  "works correctly"), for both root tickets and epic child fan-out. Step 2
+  surfaces every flagged entry to the user; the ticket does not finalize with
+  a flagged entry unless the user explicitly confirms it anyway. No new subagent
+  is introduced — the check is inline coordinator judgment folded into the
+  existing Step 1/Step 2 flow.
 - MUST create a ticket with a type of **epic**, **story**, or **task**.
 - When the ticket type is **epic**, MUST suggest creating child
   **story**/**task** tickets; each child gets its own `<ticket-id>` and runs
@@ -717,7 +727,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   planner recommends an epic with children cut at PR-sized, independently
   shippable seams.
 - MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,
-  typically from `/create-spec`'s escalation): the ticket becomes an epic
+  invoked directly with a split request): the ticket becomes an epic
   **keeping its id**, description, and PRD trace; children are minted at the
   recorded seams; downstream work already present requires user confirmation
   first.
@@ -756,7 +766,7 @@ tickets where the change is architecturally significant.
 
 - Runs only when the ticket carries **`needs_design: true`** (always set for
   epics; set for stories/tasks during `/create-ticket` analysis with user
-  confirmation). All other tickets skip straight to `/create-spec`.
+  confirmation). All other tickets skip straight to `/code`.
 - MUST analyze the ticket, the codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
   genuinely open decision points before settling.
@@ -770,7 +780,7 @@ tickets where the change is architecturally significant.
   options considered, decision & rationale, architecture (components,
   interfaces/contracts, data model, and Mermaid sequence diagrams for new or
   changed flows), impact & risks, rollout/migration**.
-- Child tickets of an epic do NOT repeat design: their `/create-spec` reads
+- Child tickets of an epic do NOT repeat design: their `/code` reads
   the **parent epic's** `design.md` (cross-partition read,
   [workspace-and-state.md](workspace-and-state.md)).
 - The `create-design-verifier` checks: alternatives genuinely weighed,
@@ -792,18 +802,29 @@ tickets where the change is architecturally significant.
   the design's accepted decision records are committed into the consumer
   repo by `/code` as part of its documentation updates.
 
-## 3. `/create-spec`
+## 3. `/code`
 
-Purpose: turn a ticket into implementation specs.
+Purpose: author the ticket's implementation specs when none exist, then
+implement them in the consumer repo using TDD.
+
+**Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
+`<partition>/specs/` is absent or empty the `code-planner` authors the spec
+content itself inside its plan artifact
+(`<partition>/phases/code/iter-<n>-plan.md`), on EVERY lane with no lane
+check; when specs are already present it reads them unchanged
+(`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
+from ticket clarification through the oversized-ticket escalation — moved
+here from the retired spec-authoring section (MAR-161, ADR 0066) and now
+bind `/code`'s plan phase:
 
 - MUST analyze and clarify the ticket (asking the user where ambiguous).
 - MUST produce **one or more** implementation specs ("different
   implementation specs") — decomposition into multiple specs is expected for
   larger tickets.
 - MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume
-  them without conversation history.
-- Subagents: `create-spec-planner`, `create-spec-executor`,
-  `create-spec-verifier`.
+  them without conversation history. Since ADR 0066 the folded spec content
+  lives in that same partition, at `phases/code/iter-<n>-plan.md`; a
+  pre-existing `specs/` directory is still read when one is present.
 - Spec format: **markdown** with required sections — **scope, approach,
   API/data changes, test plan, out-of-scope**. The **approach** section stays
   at contract level (components, interfaces, algorithms, error handling;
@@ -811,12 +832,16 @@ Purpose: turn a ticket into implementation specs.
   planner. The **test plan** MUST state the **e2e impact** when `e2e` is
   configured or the change affects user-facing flows (the tests land in the
   same changeset), else "no e2e impact" with a reason.
-- MUST escalate an **oversized ticket** instead of producing a monster spec
-  set: when an honest decomposition exceeds ~4 specs (or the surface clearly
-  exceeds a reviewable diff), stop, record the split seams, and route to
-  `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
-  one large PR, recorded as a clarification.
-- **Spec-simplicity gate (MAR-88):** the `create-spec-planner` MUST evaluate
+- The **API/data changes** section SHOULD call out the documentation impact
+  (which consumer-repo docs the change touches), so `/code` knows what to
+  update.
+- When a design exists (the ticket's own or its parent epic's), specs MUST
+  **conform to it**, and the **`code-verifier`** MUST check that
+  conformance — through its **architecture** (dimension 8) and **system
+  design** (dimension 9) reviews, which also judge the folded plan artifact's
+  Approach/API-data-changes content when no separately-authored spec set
+  exists.
+- **Spec-simplicity gate (MAR-88):** the **`code-planner`** MUST evaluate
   each candidate decomposition for a **materially** simpler alternative that
   meets the **same acceptance criteria** with materially less
   code/complexity, before the spec gate closes. A found alternative is
@@ -825,31 +850,31 @@ Purpose: turn a ticket into implementation specs.
   the threshold is "materially" simpler, never a naming or style preference.
   Deconflicted from `code-verifier` dimension 12 (spec-time vs code-time
   simplicity; see [reflection.md](reflection.md)) — planner-charter-only, no
-  `create-spec-verifier` dimension or meta-check is added.
-- The **API/data changes** section SHOULD call out the documentation impact
-  (which consumer-repo docs the change touches), so `/code` knows what to
-  update.
-- When a design exists (the ticket's own or its parent epic's), specs MUST
-  **conform to it**, and the `create-spec-verifier` MUST check that
-  conformance.
-- The `create-spec-verifier` also enforces a deterministic **blocking
-  `structure` floor** over each spec (declared `required_sections`), mirroring
-  the producer skills: the five-section contract above is deterministically
-  gated, not merely prose-required. The required-section list is
-  **configurable** via `formats.spec_template` / `enforcement.spec_sections`
-  (as create-design's is via `formats.design_template` /
-  `enforcement.design_sections`) — byte-identical to the built-in default when
-  unset. This structure floor is unrelated to the spec-simplicity gate above,
-  which remains planner-only and adds no verifier dimension.
-- The planner phase also runs the shared ADR-0012 design-time
-  doc-consistency step, surfacing gap/staleness findings through the
-  existing clarification ledger.
+  **new `code-verifier`** dimension or meta-check is added.
+- MUST escalate an **oversized ticket** instead of producing a monster spec
+  set: when an honest decomposition exceeds ~4 specs (or the surface clearly
+  exceeds a reviewable diff), stop, record the split seams, and route to
+  `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
+  one large PR, recorded as a clarification. Implemented as a two-lever
+  control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size
+  rubric fires before any decomposition exists; a non-blocking, plan-time
+  oversize signal in `code-planner.md`'s charter item 2 fires once the
+  decomposition itself is known, reusing the Spec-simplicity gate's
+  "surface, never block" contract to raise the same `<question>` through the
+  clarification ledger. On a "split" answer, `/code` writes `result.json`
+  and the returned `<handoff>`'s own `status` attribute as terminal
+  `"failed"` (`stop_reason` "user chose to split; restructure required
+  before implementation"), runs its mandatory Finish steps, and returns
+  `<next-step>` pointing at `/acs:create-ticket split <id> per
+  <partition>/phases/code/iter-<n>-plan.md`.
 
-## 4. `/code`
+`/code`'s own obligations — unchanged by that migration — follow:
 
-Purpose: implement the specs in the consumer repo using TDD.
-
-- MUST analyze and clarify the implementation specs before coding.
+- MUST analyze and clarify the implementation specs before coding. This is
+  spec-level clarification of the content it implements — a pre-existing
+  `specs/` set, or the spec content the plan phase just authored — as
+  distinct from the ticket-level clarification that spec authoring itself
+  requires.
 - MUST implement features, bug fixes, and tasks using the **TDD pattern**:
   write tests first, then implementation, iterating until green.
 - MUST generate unit tests and run them targeting the configured
@@ -866,6 +891,20 @@ Purpose: implement the specs in the consumer repo using TDD.
   feature area's file under `requirements_path` (the living requirements —
   [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
+- **ADR-0012 participation (bounded, touched-area, post-plan — third
+  amendment).** `code-planner`'s item 4 detects, for the touched area
+  only, four bounded missing doc-graph edges (E1-E4; full table at
+  `code-planner.md`'s item 4): a touched/added component missing from
+  the C4 component doc, a touched/added persisted entity or state
+  shape missing from the data model, a touched/added runtime flow
+  missing an `lld/flows/` sequence diagram, and a user-visible
+  capability missing a PRD goal or roadmap row — carried on the SAME
+  `problems` field the Boy-scout drift item already uses into
+  `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
+  step: `requirements_path` edges and `adr_path` edges are explicitly
+  not covered by it and remain the responsibility of
+  `/acs:create-design`'s full step (for `needs_design: true` tickets)
+  and `/acs:docs-sync`'s diff-grounded re-derivation.
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([configuration.md](configuration.md)).
 - The `code-verifier` MUST review the changeset — **business logic**,
@@ -877,7 +916,12 @@ Purpose: implement the specs in the consumer repo using TDD.
   **Simplicity & scope** (overcomplication and out-of-scope edits are blocking)
   — in addition to spec conformance, tests, and coverage. The architecture /
   system-design review judges the changeset against the approved `design.md`
-  when one exists (the ticket's own or its parent epic's). Blocking findings
+  when one exists (the ticket's own or its parent epic's). On full-depth
+  tickets (`verify_depth=="full"`) the review additionally gains a
+  **multi-lens** shape: 4 parallel independent lenses, each reading a
+  different evidence source, plus a coordinator-performed confidence-scoring/
+  adversarial merge pass before findings count; light-depth review stays the
+  unchanged single-pass shape. Blocking findings
   trigger automatic remediation iterations (max 3); findings and stop
   reasons land in `code-state.json`
   ([workflow.md](workflow.md#review-feedback-loop)).
@@ -888,13 +932,14 @@ Purpose: implement the specs in the consumer repo using TDD.
   against reality (e.g. re-run tests for specs marked implemented) and
   resume from the first unfinished spec/phase
   ([workflow.md](workflow.md#resuming-a-ticket)).
-- Pre-hook (`pre-code.py`) MUST verify specs exist and `/create-spec`
-  completed for STANDARD, COMPLEX, absent, and unrecognized lanes; otherwise
-  exit 2 to stop the skill. For TRIVIAL and SMALL lanes the gate does NOT
-  require create-spec completion or a populated `specs/` directory — on those
-  lanes, when no specs are present, spec authoring (scope, approach,
-  API/data changes, and a test plan with every acceptance criterion mapped to a
-  test) is folded into `/code`'s plan phase by the code-planner. The
+- Pre-hook (`pre-code.py`) MUST verify only that `/create-ticket` has
+  completed: the gate is unconditional on lane and has no `specs/` or
+  predecessor-decomposition precondition; otherwise it exits 2 to stop the
+  skill (`gate_code` in `acs_lib.py`). Whether `<partition>/specs/` already has
+  content is discovered by the `code-planner`, not asserted by the gate — when
+  it is absent or empty, spec authoring (scope, approach, API/data changes,
+  and a test plan with every acceptance criterion mapped to a test) is folded
+  into `/code`'s plan phase by the code-planner, on EVERY lane. The
   TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
   gate) are preserved unchanged in every lane.
 - Subagents: `code-planner`, `code-executor`, `code-verifier`.
@@ -968,23 +1013,49 @@ run. The following contract governs all automatic mid-flight lane changes:
    classification contract above). An interactive mid-flight downgrade command
    is deferred (out of scope — not yet implemented).
 
-7. **Stage re-introduction on fast-lane escalation.** A ticket that escalates
-   from a fast lane (TRIVIAL/SMALL, where `create-spec` is folded into `/code`'s
-   plan phase) into STANDARD/COMPLEX picks up the create-spec rigor it would have
-   skipped, as documented in the `create-spec/SKILL.md` "Escalation pickup"
-   subsection. The coordinator invokes the pickup before proceeding to the
-   remaining implementation steps; the higher verify ceiling (recomputed at
-   escalation time) applies from that point forward.
+7. **Ceiling raise on fast-lane escalation.** A ticket that escalates from a
+   fast lane (TRIVIAL/SMALL) into STANDARD/COMPLEX raises its
+   verify-iteration ceiling monotonically (item 3's `escalate_lane`
+   recompute) with no separate stage to re-enter and no re-spawn of any prior
+   phase: spec content for every lane already lives inside `/code`'s own plan
+   phase (`code/SKILL.md`'s "In-loop escalation check" and "Spec authoring
+   fold" sections). Completed iterations are
+   preserved; the higher ceiling applies from that point forward.
 
 8. **Conservative default preserved.** When in-flight signals are absent,
    ambiguous, or unrecognized, the ticket stays at its current lane. The
    default floor for unknown/absent `lane` is STANDARD — never a fast lane on
    ambiguous inputs.
 
-9. **Sibling behavior unchanged.** The fast-lane fold (MAR-59: TRIVIAL/SMALL
-   `create-spec` folded into `/code` plan phase) applies to non-escalating tickets
-   and is not changed by this contract. The apply-tier inlining (MAR-60:
-   `create-pr` → `merge-pr` → `create-ticket`) is also unchanged.
+9. **Sibling behavior unchanged.** The spec-authoring fold (MAR-59, universal
+   since ADR 0066: the code-planner self-authors the spec content on every
+   lane when `<partition>/specs/` is absent or empty) applies to
+   non-escalating tickets and is not changed by this contract. The apply-tier
+   inlining (MAR-60: `create-pr` → `merge-pr` → `create-ticket`) is also
+   unchanged.
+
+## 4. `/docs-sync`
+
+Purpose: re-verify and complete the doc updates a ticket's changeset
+requires, after `/code` (and `/test`, when it ran) and before `/create-pr`
+— independently re-derived from `git diff <default_branch>...HEAD`, `/code`'s
+`result.json`, and the final code-verify artifact, never from a hand-off
+summary alone.
+
+- MUST confirm the current git branch matches the ticket's recorded branch
+  before doing any work; docs-sync NEVER creates a branch and NEVER opens a
+  PR — it always operates on the SAME ticket branch `/code` uses, adding
+  commits to the existing changeset (same PR/review).
+- MUST gather, and never substitute a bare hand-off summary for: the live
+  `git diff <default_branch>...HEAD`, the ticket JSON, `/code`'s
+  `result.json` (`states.docs_updated`), `/code`'s execute report(s)
+  `problems` field, and the final code-verify artifact.
+- Subagents: `docs-sync-planner`, `docs-sync-executor`, `docs-sync-verifier`.
+- State file: `docs-sync-state.json`, written by the post-hook
+  ([workspace-and-state.md](workspace-and-state.md)).
+- Gate position: runs after `/code` (and `/test`, when the post-code gate is
+  active) and before `/create-pr`, whose own gate additionally requires
+  `/docs-sync` to have completed.
 
 ## 5. `/create-pr`
 

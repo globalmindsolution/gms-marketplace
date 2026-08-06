@@ -118,10 +118,14 @@ class Mar143FilesExistCase(unittest.TestCase):
 
 
 class Mar143CountBumpCase(unittest.TestCase):
-    """AC-1, AC-7(partial): registering the 15th HOOKED skill flips the
+    """AC-1, AC-7(partial): registering the 15th HOOKED skill flipped the
     architecture doc-set counts in lockstep across c4-container.md and
-    c4-component.md; both must be internally consistent with the new
-    HOOKED_SKILLS length (15)."""
+    c4-component.md, consistent with HOOKED_SKILLS length 15 at MAR-143 time.
+
+    MAR-156 deletes create-spec outright (HOOKED_SKILLS 15 -> 14): the
+    "bumped" (MAR-143-era) and "stale" (pre-MAR-143) literal sets below swap
+    roles -- MAR-143's own counts are now the stale ones, MAR-156's are
+    current. The class keeps its historical name; only the counts move."""
 
     def _c4_container(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))

@@ -32,7 +32,9 @@ CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 
 # The conformance-chain inner text — MUST stay byte-identical (Decision D1).
-CHAIN_TEXT = "PRD → architecture → principles → standards → design → specs → code"
+# Shortened from the 7-node to the 6-node string when MAR-161 dropped the
+# `specs` hop repo-wide (ADR 0066 supersedes ADR 0006).
+CHAIN_TEXT = "PRD → architecture → principles → standards → design → code"
 
 
 def read(path):
@@ -87,7 +89,7 @@ class ContractsD1NoteTest(unittest.TestCase):
         note = self._d1_note().lower()
         # Positive: the note explicitly disclaims a downstream requirements gate.
         self.assertRegex(
-            note, r"no create-spec or code-verifier dimension",
+            note, r"no code-verifier dimension",
             "D1 note must disclaim any create-spec/code verifier dimension")
         # Negative: it must NOT assert a new verifier dimension was added.
         self.assertNotRegex(

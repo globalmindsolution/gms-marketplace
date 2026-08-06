@@ -297,42 +297,36 @@ and `merge-pr` for the full mechanism.
 first-class setup decision. Present the choice with AskUserQuestion, offering:
 
 1. **Recommended (default)** — offer the version-pinned ids, not the coarse
-   tier aliases: `planner: claude-opus-4-8`, `executor: claude-sonnet-5`,
-   `verifier: claude-opus-4-8`, `coordinator: claude-opus-4-8` (opus for
-   strong reasoning on planning/review, the faster/cheaper sonnet for the
-   mechanical execution role). These are the ids this repo's own
-   `.acs/settings.json` pins (MAR-81), so a fresh init lands on a stable,
-   explicit model rather than a runtime alias. Pick this and move on if unsure.
+   tier aliases: `planner: claude-opus-5`, `executor: claude-sonnet-5`,
+   `verifier: claude-opus-5` (opus for strong reasoning on planning/review,
+   the faster/cheaper sonnet for the mechanical execution role). These are
+   the ids this repo's own `.acs/settings.json` pins (MAR-81), so a fresh
+   init lands on a stable, explicit model rather than a runtime alias. Pick
+   this and move on if unsure.
 2. **Inherit the session model** — set nothing; every role runs on whatever
    model the user's Claude Code session is using (cheapest to reason about, no
    per-role split).
-3. **Custom** — let the user set any of the four roles individually.
+3. **Custom** — let the user set any of the three roles individually.
 
 **Reasoning effort per role** is a first-class choice here too, not only the
 object-shape note below: for any role the user pins (in Recommended or Custom),
 offer an explicit reasoning-effort level — one of
 `low | medium | high | xhigh | max | inherit` (`inherit` = leave it to the
 model's default). Present it as its own decision alongside the model id, e.g.
-the pinned default sets `high` for planner/executor/verifier and `medium` for
-coordinator (as `.acs/settings.json` does). Coordinator scope caveat: the
-`coordinator` effort governs the `/acs:ship` coordinator's own run — see the
-shape note below for exactly what it does and does not affect.
+the pinned default sets `high` for planner/executor/verifier (as
+`.acs/settings.json` does).
 
 On a **re-run**, show the currently-resolved per-role models (and where each
 came from) and ask only whether to change them — do not force a re-pick.
 
-Shape per role (`planner`, `executor`, `verifier`, `coordinator`): a model
-string (e.g. `"sonnet"`) or
+Shape per role (`planner`, `executor`, `verifier`): a model string
+(e.g. `"sonnet"`) or
 `{"model": "...", "effort": "low|medium|high|xhigh|max|inherit"}`, plus
 per-skill `models.overrides.<skill>.<role>`. Any non-empty model string is
 accepted (so newer model names work without a skill update); resolution is per
 field: override -> role -> inherit. Write the `models` object only when the user
 picks Recommended or Custom; for Inherit, omit it entirely (inherit is the
-schema default). If the user sets `models.coordinator`, tell them it governs the
-`/acs:ship` coordinator's own session — under `/acs:ship` each step skill is
-invoked directly in that session, so there is no separate per-step agent for the
-key to apply to; a directly invoked skill runs in the user's session on the
-session's model.
+schema default).
 
 ## Step 5 — Write the files
 
@@ -907,7 +901,7 @@ Confirm the full workflow is ready: a one-line toolchain status (from Step 0b)
 and the reminder that the plugin already provides every skill — bootstrap
 (`/acs:init`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
 `/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` →
-`/acs:create-spec` → `/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
+`/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
 umbrella `/acs:ship`, and utilities `/acs:handoff`, `/acs:update`,
 `/acs:install-hooks`. Repeat any unmet toolchain install hint here so the gap is
 explicit.

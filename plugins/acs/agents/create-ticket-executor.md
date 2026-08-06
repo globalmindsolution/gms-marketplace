@@ -58,7 +58,7 @@ input file before writing anything.
    The script mints the child id, writes BOTH link directions (child `parent`,
    epic `children`), and records the child's completed create-ticket run —
    children never rerun /acs:create-ticket; their pipeline starts at
-   /acs:create-spec. Capture each printed `ticket_id`. Create ONLY the
+   /acs:code. Capture each printed `ticket_id`. Create ONLY the
    confirmed children; on a reflection iteration never re-mint ones already in
    the epic's `children`. Re-read `ticket.json` after fan-out.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github` or

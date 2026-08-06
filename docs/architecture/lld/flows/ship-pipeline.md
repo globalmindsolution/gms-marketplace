@@ -14,7 +14,7 @@ sequenceDiagram
 
     Dev->>SH: /acs:ship "Add wishlist support"  (or SHOP-123 to resume)
     SH->>WS: read ledger -> first incomplete step
-    loop create-ticket -> [create-design] -> [create-spec] -> code -> create-pr
+    loop create-ticket -> [create-design] -> code -> [test] -> docs-sync -> create-pr
         SH->>SK: invoke Skill acs:<step> <ticket-id> directly<br/>(PreToolUse gate fires on the coordinator's call)
         SK-->>SH: full run (reflection, hooks, state) then <handoff status="..."><br/>(~1 KB: summary, artifacts, next-step)
         alt status = needs_input
@@ -43,10 +43,37 @@ runs each child's pipeline independently (parallel worktrees supported).
 > `pipeline-state.json` (alongside `flow`) and in `tickets-index.json` (alongside
 > `needs_design`) for observability and metrics (G14/G15).
 >
-> **NOTE (MAR-59 / fast-lane fold):** The `[create-spec]` bracketing in the Mermaid
-> diagram above is conditional on lane. For `TRIVIAL` / `SMALL` lanes the coordinator
-> **skips** the standalone create-spec step — spec authoring is folded into `/code`'s
-> plan phase. For `STANDARD` / `COMPLEX` lanes (and any high-stakes ticket, which
-> `derive_lane` floors to `STANDARD`, plus absent/unrecognized lanes treated as
-> `STANDARD` fail-closed) the full create-spec step runs. See `ship/SKILL.md`
-> "Pipeline order" and "Picking the next step".
+> **NOTE (MAR-161 — supersedes the MAR-59 fast-lane-fold note):**
+> The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
+> `[create-design]` bracketing above is still conditional — on
+> `ticket.needs_design`, independent of lane — but there is no
+> bracketed spec-authoring step on any lane: `/code`'s planner self-authors the
+> five-section spec content (Scope, Approach, API/data changes, Test
+> plan, Out of scope) inside its plan phase on EVERY lane when
+> `<partition>/specs/` is absent or empty, and reads pre-existing specs
+> unchanged when they are present (backward-compat with tickets minted
+> before this ADR). See `ship/SKILL.md` "Pipeline order" step 3 and
+> `code/SKILL.md`'s "Spec authoring fold" section.
+>
+> **NOTE (MAR-159):** The pipeline also gains a new **conditional** step between
+> `code` and `create-pr` — a post-code, pre-create-pr `/acs:test --for-ticket <id>`
+> invocation. It is gated by `settings.post_code_test`: OFF only when neither
+> `settings.e2e` nor `suites.e2e` is configured (per AC-5); ON otherwise, or
+> whenever `post_code_test.enabled` is explicitly set to `true`/`false`. On
+> failure the step increments `pipeline-state.json.steps.test.fix_loops`
+> (capped by `post_code_test.fix_loops_cap`, default 2) and relays back into
+> `/acs:code <ticket-id>` via the pipeline's existing "Re-invoke after
+> needs_input" pattern — no new relay mechanism. See `ship/SKILL.md`
+> "Pipeline order" and "Post-code test gate", and ADR 0068
+> (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
+>
+> **NOTE (MAR-160):** The pipeline gains one more step, `docs-sync`, inserted
+> between `code`/`test` and `create-pr` — a new hooked triad skill
+> (`docs-sync-planner`/`-executor`/`-verifier`) that independently re-derives
+> doc impact from `git diff <default_branch>...HEAD`, `/code`'s
+> `result.json`, and the final code-verify artifact, committing any doc
+> updates as additional commits on the SAME ticket branch (never a new
+> branch, never a new PR). `gate_create_pr` now also requires `docs-sync`
+> `completed`, alongside its existing `code` `completed` +
+> `verifier_passed: true` checks. See `design.md`'s sequence diagram 1 and
+> `ship/SKILL.md` "Pipeline order" / "Picking the next step".

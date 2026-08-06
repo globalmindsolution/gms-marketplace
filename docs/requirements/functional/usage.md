@@ -55,8 +55,8 @@ What happens (you are asked clarifying questions along the way):
    confirm the breakdown and `needs_design` flags). Epic flips to
    **In Progress** when work starts.
 2. Per child: `/create-design` (or the child inherits the epic's design) →
-   `/create-spec` → `/code` (TDD against 90% coverage, verifier review loop
-   ≤3 iterations, docs + architecture updated) → `/create-pr`.
+   `/code` (TDD against 90% coverage, verifier review loop
+   ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
 3. `/ship` **stops before merge** — it never merges for you.
 
 Then, per PR, after your own review:
@@ -73,10 +73,9 @@ Every step is invocable on its own; hooks enforce the order:
 
 ```text
 /create-ticket Fix flaky checkout total rounding     # → SHOP-7 (task)
-/code SHOP-7
-  ✗ pre-code.py: blocked — /create-spec has not completed for SHOP-7
-/create-spec SHOP-7
 /code SHOP-7                                          # TDD + review loop
+                                                       #   (self-authors specs/ since none exist)
+/docs-sync SHOP-7
 /create-pr SHOP-7
 /merge-pr SHOP-7
 ```

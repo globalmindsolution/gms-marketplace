@@ -15,7 +15,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: plan → execute → verify
 
-The twelve **triad-keeping skills** (create-spec, code, create-prd, create-design,
+The twelve **triad-keeping skills** (code, docs-sync, create-prd, create-design,
 create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, standardize-project, create-requirements) MUST apply the
 Reflection pattern as a
@@ -54,8 +54,12 @@ Requirements:
       cap = `VERIFY_ITERATION_CAP["light"]` = 1).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
       **3 iterations** (full verify — existing plan→execute→verify loop + full
-      12-dimension review + e2e when configured, unchanged; cap =
-      `VERIFY_ITERATION_CAP["full"]` = 3).
+      14-dimension, multi-lens review + e2e when configured, unchanged; cap =
+      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 14 dimensions are
+      split across 4 parallel independent lenses (each reading a distinct
+      evidence source), followed by a coordinator-performed
+      confidence-scoring/adversarial merge pass before findings count; light
+      verify keeps today's single-subagent, 13-dimension pass unchanged.
     - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
       conservatively to full (3-iteration ceiling).
     - On hitting the lane's cap with findings remaining, the skill stops and
@@ -91,10 +95,12 @@ Requirements:
   start of each iteration, after the prior verifier and before the current
   execute — so an escalation always lands before the next verifier pass
   (MAR-107 D4). When a fast lane (TRIVIAL/SMALL) crosses the fold boundary
-  into a full lane (STANDARD/COMPLEX), this fold-boundary stage re-entry
-  re-introduces the skipped `create-spec` decomposition stage before the next
-  iteration, resuming implementation only once `create-spec` passes at zero
-  verifier findings. The lane/axes are never *automatically* downward — the
+  into a full lane (STANDARD/COMPLEX), the former fold-boundary stage re-entry
+  no longer applies: since ADR 0066 every lane authors its spec content inside
+  `/code`'s own plan phase, so there is no decomposition stage left to
+  re-enter — the crossing raises the verify depth and the in-flight iteration
+  ceiling only, monotonically and never lowered (`code/SKILL.md`'s "In-loop
+  escalation check" and "Spec authoring fold" sections). The lane/axes are never *automatically* downward — the
   one exception is a user-confirmed de-escalation (MAR-108), offered only at
   an iteration or run boundary, never mid-iteration, requiring an explicit
   `AskUserQuestion` confirmation recorded via `clarify.py` before the
@@ -137,7 +143,7 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
-> **Spec-time vs. code-time simplicity (MAR-88)**: `/create-spec`'s planner
+> **Spec-time vs. code-time simplicity (MAR-88)**: the `code-planner`
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on

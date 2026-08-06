@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
-WORKFLOW_SKILLS = ["create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr", "standardize-project"]
+WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
 UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
@@ -670,7 +670,7 @@ def validate_models(models):
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier", "coordinator"):
+    for role in ("planner", "executor", "verifier"):
         if role in models:
             check_role(role, models[role])
     for skill, roles in models.get("overrides", {}).items():
@@ -1621,43 +1621,42 @@ def gate_create_design(ctx, payload):
     if not ticket.get("needs_design"):
         raise GateError(
             "ticket %s is not flagged needs_design — /create-design only runs for design-significant tickets; "
-            "go straight to /acs:create-spec %s." % (ticket_id, ticket_id)
+            "go straight to /acs:code %s." % (ticket_id, ticket_id)
         )
     return ticket_id
 
 
-def gate_create_spec(ctx, payload):
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-spec")
-    _require_completed(tdir, "create-ticket", ticket_id, "run /acs:create-ticket first")
-    required, ddir, source = design_requirement(ctx, tdir, ticket)
-    if required:
-        owner = ticket_id if source == "own" else (ticket.get("parent") or "parent epic")
-        if ddir is None:
-            raise GateError("ticket %s requires a design but its parent epic's partition was not found." % ticket_id)
-        if not os.path.isfile(os.path.join(ddir, "design.md")):
-            raise GateError("design.md is missing for %s — run /acs:create-design %s first." % (owner, owner))
-        _require_completed(ddir, "create-design", owner, "run /acs:create-design %s first" % owner)
+def gate_docs_sync(ctx, payload):
+    # AC-2: docs-sync runs after code (and the post-code test step, when it
+    # was active for this ticket), before create-pr. "test" is an UNHOOKED
+    # skill (no post-hook, no test-state.json) -- its activation/completion
+    # lives only in pipeline-state.json.steps.test, so it is read directly
+    # from the ledger rather than via skill_completed/_require_completed.
+    ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "docs-sync")
+    _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
+    pipeline = load_pipeline(tdir, ticket_id)
+    test_step = pipeline.get("steps", {}).get("test")
+    if test_step is not None and test_step.get("status") != "completed":
+        raise GateError(
+            "/test is recorded as %r for %s (the post-code test gate was active but has not "
+            "completed) — run /acs:test --for-ticket %s first." % (
+                test_step.get("status"), ticket_id, ticket_id)
+        )
     return ticket_id
 
 
 def gate_code(ctx, payload):
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
-    recognized_lanes = ("TRIVIAL", "SMALL", "STANDARD", "COMPLEX")
-    lane = ticket.get("lane")
-    if lane not in recognized_lanes:
-        lane = derive_lane(ticket.get("size"), ticket.get("stakes"), ticket.get("needs_design"), ticket.get("type"))
-    if lane in ("TRIVIAL", "SMALL"):
-        return ticket_id
-    _require_completed(tdir, "create-spec", ticket_id, "run /acs:create-spec %s first" % ticket_id)
-    specs = os.path.join(tdir, "specs")
-    if not os.path.isdir(specs) or not [f for f in os.listdir(specs) if f.endswith(".md")]:
-        raise GateError("no specs found in %s — run /acs:create-spec %s first." % (specs, ticket_id))
+    # AC-4: unconditional pass-through once create-ticket has completed -- no
+    # lane branch, no create-spec/specs/ precondition (create-spec is deleted;
+    # the code-planner self-authors the folded spec content when needed).
+    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "code")
     return ticket_id
 
 
 def gate_create_pr(ctx, payload):
     ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-pr")
     _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
+    _require_completed(tdir, "docs-sync", ticket_id, "run /acs:docs-sync %s first" % ticket_id)
     state = load_state(tdir, "code", ticket_id)
     if state["states"].get("verifier_passed") is not True:
         raise GateError(
@@ -1766,8 +1765,8 @@ GATES = {
     "create-standards": gate_create_standards,
     "create-ticket": gate_create_ticket,
     "create-design": gate_create_design,
-    "create-spec": gate_create_spec,
     "code": gate_code,
+    "docs-sync": gate_docs_sync,
     "create-pr": gate_create_pr,
     "merge-pr": gate_merge_pr,
     "standardize-project": gate_standardize_project,

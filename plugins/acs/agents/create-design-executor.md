@@ -57,7 +57,7 @@ from the artifacts alone.
    key constraints are comma-separated, never space-separated (`string run_id
    PK,FK`, not `PK FK`); quote flowchart node labels containing `()`, `[]`,
    `:`, `,`, or `<br/>`; one statement per line. For an epic, design at the epic
-   level — child tickets inherit this design in their /acs:create-spec; never
+   level — child tickets inherit this design in their /acs:code; never
    split content into child partitions.
 4. If your `<objective>` assigns a research note instead of the design
    (parallel-executor task), write ONLY

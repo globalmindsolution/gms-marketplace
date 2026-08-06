@@ -16,6 +16,34 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-05
+
+### Removed
+
+- **`/acs:create-spec` is deleted outright** (MAR-156, ADR 0066, #300). Spec authoring folds into `/acs:code`'s plan phase on **every** lane, not just the fast lanes — the skill file, its three agent files, both hook scripts, and its `GATES`/`WORKFLOW_SKILLS` registry entries are gone. The review loop's fixed point moves from the spec set to `ticket.json`'s `acceptance_criteria`/DoD. Legacy partitions minted before the deletion still resolve: the `create-spec` anchors in `plugins/acs/hooks/**` and `plugins/acs/schemas/**` are retained deliberately for backward compatibility.
+
+### Added
+
+- **`/acs:docs-sync`, a new hooked skill** running after `/acs:code` (and `/acs:test` when the gate is active) and before `/acs:create-pr` (MAR-160, #305). It takes over the documentation work `/acs:code`'s execute step previously carried inline: the requirements-classification rubric, `.evidence.md` sidecar routing, and HLD / `lld/flows/` / ADR production.
+- **`/acs:test` gains a ticket-scoped `--for-ticket` mode** plus a `/acs:ship` post-code fix-and-re-test loop, gated by e2e presence (MAR-159, ADR 0068, #303).
+- **`create-ticket` now validates that acceptance criteria and DoD are substantive** rather than placeholder text (MAR-157, #301).
+- **Oversized-ticket split detection has an owner again** (MAR-164, ADR 0069, #311). Two levers: `create-ticket`'s existing upfront PR-size rubric, plus a new **non-blocking** plan-time oversize signal in `code-planner.md` that surfaces through the clarification ledger and never halts a run. On a user "split" answer the `/acs:code` run ends `status="failed"` with a `/acs:create-ticket split <id>` next step.
+- **`code-planner.md` gains a bounded ADR-0012 doc-graph-gap check** over the touched area only (edges E1–E4: component, data-model, flow, PRD/roadmap docs), carried on the existing `problems` channel to `/acs:docs-sync` (MAR-164, ADR 0012 third amendment). Explicitly *not* full design-time participation, and explicitly *not* a claim that docs-sync supersedes the design-time step.
+
+### Changed
+
+- **Default models updated to Opus 5; the `coordinator` model role is dropped** (MAR-154, #292).
+- **`code-verifier` multi-lens adversarial rigor upgrade** for `verify_depth == "full"` only: four parallel lenses plus a coordinator adversarial merge pass (MAR-158, ADR 0067, #302). Light depth keeps today's single-subagent 13-dimension pass unchanged.
+- **`/acs:code` no longer performs in-loop doc-sync**; its execute step's doc-authoring instructions are retired in favour of the new skill, and `code-verifier`'s documentation sub-checks are demoted to advisory — except the MAR-65 product-doc-consistency block, which stays blocking (MAR-162, ADR 0007 second amendment, #307).
+
+### Fixed
+
+- **Stale `/acs:create-spec` references swept repo-wide** across the doc set (MAR-161, #306), `docs/product/prd.md` (MAR-163, #310), and `plugins/acs/{skills,agents}/**` (MAR-164, #311) — the last down to five permanent past-tense provenance lines across three files. `handoff/SKILL.md`'s in-flight scan-order bullet, which named the deleted skill and omitted seven others, now references `acs_lib.HOOKED_SKILLS` instead of restating the list.
+- **The stale `create-spec` routing row is out of the eval suite** and its 23→22 case-count cascade reconciled across two test modules and both product docs (MAR-165, #315). The brittle hardcoded count assertion now derives its expected values from the scenario source.
+- **Roadmap reconciled for v0.4.5** (G38/G39 marked shipped) (MAR-153, #291).
+
+## [0.4.5] - 2026-07-23
+
 ### Added
 
 - **Relocate code-evidence citations into per-doc `.evidence.md` sidecars (MAR-152, ADR 0064).** Every code-cited `docs/requirements`/`docs/architecture` doc's inline repo-source `path:line` citations now relocate into a companion `<doc-basename-without-.md>.evidence.md` sidecar (clause-anchor -> `[path:line, ...]`, human-auditable markdown) instead of living inline in the human body — the body keeps a stable clause anchor with no raw source citation. Wired into `create-requirements-executor`/`-verifier`, `create-architecture-executor`/`-verifier`, and `/acs:code`'s requirements-merge step + `code-verifier`'s Documentation dimension: each producer writes body + sidecar, and each verifier actively checks grounding (body-grep-to-0, sidecar-exists, anchor-join, amend-mode count-not-reduced) rather than passively trusting the sidecar. The doc-enumerating `test_mermaid_diagrams.py` walk now excludes `*.evidence.md` sidecars via a shared `tests/acs/evidence_sidecar.py` predicate. This repo's own docs are dogfood-migrated — 3 files / 18 in-scope citations (`docs/architecture/lld/runtime-coupling-inventory.md` 16, `docs/architecture/lld/flows/tabp-usage-read.md` 1, `docs/requirements/functional/tabp.md` 1) — a ground-truth correction of the design's "~26+~7" estimate. A new `tests/acs/test_evidence_sidecar_topology.py` coverage/topology gate proves G37's 100%-code-cited coverage was relocated, never reduced, and that C-22 DRAFT/human-confirm-required markers are unaffected. This is an **intentional, non-byte-identical migration** — it rewrites the 3 committed docs above, distinct from ADR 0065's byte-identical template-default guarantee. Counts stay 24/45/49; no new skill/agent/hook/schema/settings key.
@@ -23,8 +51,13 @@ the notes.
 
 ### Changed
 
+- **Delete `/acs:create-spec`; generalize its fold into `/code`'s plan phase for every lane; relocate the review-loop fixed point to `ticket.json` (MAR-156, ADR 0066, supersedes ADR 0006).** `/acs:create-spec` (skill, 3 agent files, both hook scripts, its `GATES`/`WORKFLOW_SKILLS` entries) no longer exists; `gate_code` is now an unconditional pass-through gated only on `create-ticket` completed, on every lane. `code/SKILL.md`'s fast-lane fold generalizes from TRIVIAL/SMALL-only to every lane: the code-planner self-authors the five-section spec content whenever `<partition>/specs/` is absent or empty, and still reads pre-existing specs unchanged otherwise (backward-compat for in-flight tickets). The mid-code "Stage re-introduction" escalation step that re-spawned the create-spec triad is removed entirely, no stub. code-verifier's "Spec conformance" dimension is replaced by "Acceptance-criteria conformance" — `ticket.json`'s `acceptance_criteria`/DoD re-read fresh every iteration, never the current plan artifact's restatement (the new review-loop fixed point); design-conformance folds into the existing Architecture/System-design dimensions; completeness and structure become dimension-1 sub-checks; consistency is retired (a folded artifact has no cross-file surface left to be inconsistent with); a new standalone blocking dimension 13 "Audience-style" judges the folded plan artifact's prose. `ship/SKILL.md`'s pipeline-order table and "Picking the next step" collapse to one lane-uniform walk order (`create-ticket → [create-design] → code → create-pr`), with zero remaining create-spec references. `pipeline-state.schema.json`'s `steps` enum and `settings.schema.json`'s `formats.spec_template`/`enforcement.spec_sections` keys are dropped; the append-only schema enums that still enumerate skill names elsewhere (`acs-messages.xsd`, `clarifications.schema.json`, `skill-state.schema.json`) and the statusline cosmetic maps are deliberately left untouched, for backward-compat with tickets minted before this change. The spec-time simplicity-evaluation gate (ADR 0037-0039) migrates into `code-planner.md`'s own decompose step rather than being retired.
 - **Promoted the `audience-style` verifier dimension from advisory to BLOCKING and extended it to create-spec, with a clarify-ledger waiver path (MAR-150, ADR 0063).** The `audience-style` register check is now a blocking gate across the 8 producer verifiers that declare an `audience_style_profile` (create-design, create-prd, create-architecture, create-requirements, create-standards, create-quality, create-operations, create-principles) — reversing ADR 0057's advisory carve-out (`severity="info"`, "except the advisory"/"except the sanctioned") in each charter. `create-spec` gains the gate net-new: `create-spec/SKILL.md` declares an `audience_style_profile` (`engineers (implementation-contract prose)`) forwarded into its verify task, and `create-spec-verifier.md` adds a blocking `audience-style` dimension. A waiver safety valve reuses the existing clarification ledger — a register the coordinator records via `clarify.py --source assumption` is waived (emitted `severity="info"`) and does not block, so the pass bar is 0 **unwaived** audience-mismatch findings per run. The anchored per-skill profile mechanism (ADR 0057's hybrid) is retained — no deterministic style helper is added. create-project stays N/A; counts stay 24/45/49. The `tests/acs/test_structure_audience_verifiers.py` guard is rewritten from the advisory contract to the blocking contract.
 - **Codified the "test filenames name the behavior, never a ticket id" convention and swept the existing suite to match (MAR-147).** The standing "never a ticket id in source" rule now explicitly extends to test module filenames: a test file is named by the component/behavior under test, never by a ticket id — the originating `MAR-<NNN>` reference lives in the module docstring instead. The rule is stated across the five pipeline guidance surfaces (the `code` and `create-spec` skills plus the `code-executor`, `code-planner`, and `create-spec-planner` agents) and in a new first-class `docs/standards/standards.md`, and is enforced by a new `tests/acs/test_test_naming_convention.py` guard. The 49 pre-existing `test_mar<NNN>_*.py` modules were renamed to component/behavior names as content-preserving `git` renames (class names, methods, assertions, and each module's own docstring ticket ref unchanged), with their inter-test docstring cross-references updated to the new names.
+
+### Documentation
+
+- Amended the PRD to add goals **G38** (readable, audience-aware, evidence-clean docs) and **G39** (configurable design/spec templates) ahead of building them (MAR-148, #279), and reconciled the roadmap's release-versions mapping after the v0.4.4 cut (MAR-146, #276).
 
 ## [0.4.4] - 2026-07-16
 
@@ -93,7 +126,6 @@ layout). This is the first release cut by the new `/acs:release` skill itself.
     first `docs/principles/` doc set (activates `principles_path`) with the
     **Consumer-repo generality** principle — the verifier-enforceable form of
     C-20.
-
 
 ## [0.4.1] - 2026-07-12
 

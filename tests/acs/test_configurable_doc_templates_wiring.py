@@ -11,16 +11,17 @@ templates, docs) is spec 01, covered by
   identical to `create-pr`'s `pr_description_template`), no longer a hardcoded
   literal — while KEEPING the six-heading literal present as the default
   (the byte-identical guard in the schema module greps this SKILL for it).
-- `create-spec/SKILL.md` gains a `formats.spec_template` resolution and a
-  `required_sections` constraint (from `enforcement.spec_sections`) on the
-  execute AND verify tasks, alongside the existing `audience_style_profile`.
 - `create-design-verifier.md` dim `structure` notes the section list is the
   CONFIGURED one.
-- `create-spec-verifier.md` gains a NET-NEW blocking `structure` dimension
-  invoking `structure_lint.py` — layered ON TOP of MAR-150's `audience-style`
-  dimension (which stays intact), taking the verifier from 5 -> 6 dimensions.
-- `docs/architecture/lld/contracts.md` notes create-spec now runs
-  `structure_lint`.
+
+MAR-156 deletes create-spec outright; its `formats.spec_template`/
+`enforcement.spec_sections` wiring and its `structure` verifier dimension are
+retired along with the rest of its surface -- `CreateSpecSkillResolutionTest`
+and `CreateSpecVerifierStructureDimensionTest` (formerly here) are removed.
+`ContractsNoteTest` is also removed (MAR-161): `docs/architecture/lld/contracts.md`
+no longer documents `formats.spec_template`/`enforcement.spec_sections` or a
+create-spec `structure_lint` note now that those retired schema keys
+(MAR-156/ADR-0066) have been swept from the doc.
 
 Stdlib-only (os, re, unittest); reuses the bold/backtick dimension-label
 matching style of `test_structure_audience_verifiers.py`.
@@ -36,13 +37,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
-DOCS = os.path.join(REPO_ROOT, "docs")
 
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
-CREATE_SPEC_SKILL = os.path.join(SKILLS, "create-spec", "SKILL.md")
 CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-design-verifier.md")
-CREATE_SPEC_VERIFIER = os.path.join(AGENTS, "create-spec-verifier.md")
-CONTRACTS = os.path.join(DOCS, "architecture", "lld", "contracts.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
@@ -137,42 +134,6 @@ class CreateDesignSkillResolutionTest(unittest.TestCase):
             "MAR-150 audience_style_profile constraint must remain intact")
 
 
-class CreateSpecSkillResolutionTest(unittest.TestCase):
-    """AC-1/AC-3: create-spec SKILL gains a spec_template resolution and a
-    required_sections constraint on the execute AND verify tasks, alongside
-    the existing audience_style_profile."""
-
-    def setUp(self):
-        self.skill = read(CREATE_SPEC_SKILL)
-
-    def test_references_spec_template_key(self):
-        self.assertIn("formats.spec_template", self.skill,
-                      "create-spec SKILL must name the configured formats.spec_template key")
-
-    def test_describes_three_tier_resolution(self):
-        self.assertIn("${CLAUDE_PLUGIN_ROOT}/templates/", self.skill)
-        self.assertIn(".acs/templates/", self.skill)
-        self.assertIn("absolute path", self.skill)
-
-    def test_required_sections_sourced_from_enforcement_key(self):
-        self.assertIn("enforcement.spec_sections", self.skill)
-
-    def test_required_sections_constraint_declared(self):
-        self.assertIn('name="required_sections"', self.skill,
-                      "create-spec SKILL must declare a required_sections constraint")
-
-    def test_execute_and_verify_both_carry_required_sections(self):
-        self.assertIn("required_sections", execute_region(self.skill),
-                      "execute-phase region must reference required_sections")
-        self.assertIn("required_sections", verify_region(self.skill),
-                      "verify-phase region must reference required_sections")
-
-    def test_audience_style_profile_still_present(self):
-        # MAR-150 declaration must not be disturbed.
-        self.assertIn("audience_style_profile", self.skill)
-        self.assertIn("implementation-contract", self.skill)
-
-
 class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
     """AC-3: create-design-verifier dim `structure` still invokes structure_lint
     AND now notes the section list is the CONFIGURED one."""
@@ -190,62 +151,6 @@ class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
         self.assertIn("design_sections", self.block,
                       "create-design-verifier structure dim must note the "
                       "configured enforcement.design_sections list")
-
-
-class CreateSpecVerifierStructureDimensionTest(unittest.TestCase):
-    """AC-3: create-spec-verifier gains a NET-NEW blocking `structure`
-    dimension (dimension 6), layered on top of MAR-150's audience-style
-    dimension (which stays intact)."""
-
-    def setUp(self):
-        self.body = read(CREATE_SPEC_VERIFIER)
-
-    def test_structure_dimension_present(self):
-        self.assertTrue(dimension_present(self.body, "structure"),
-                        "create-spec-verifier must declare a numbered structure dimension")
-
-    def test_structure_invokes_helper_and_blocks(self):
-        block = dimension_block(self.body, "structure")
-        self.assertIn(HELPER_PATH, block,
-                      "structure dimension must invoke structure_lint.py")
-        self.assertIn('severity="blocking"', block)
-        self.assertIn('dimension="structure"', block)
-
-    def test_structure_runs_over_specs_not_design(self):
-        block = dimension_block(self.body, "structure")
-        self.assertIn("specs/", block,
-                      "create-spec structure dim must lint the spec files")
-
-    def test_dimension_count_is_six(self):
-        # regex mirrors test_skill_contracts.py's pin (bold-led numbered items)
-        dims = re.findall(r"(?m)^[0-9]+\.\s+\*\*", self.body)
-        self.assertEqual(len(dims), 6,
-                         "create-spec-verifier must declare exactly 6 numbered "
-                         "dimensions (5 + MAR-151 structure); found %d" % len(dims))
-
-    def test_audience_style_dimension_intact(self):
-        # MAR-150 negative guard: audience-style still present, still blocking.
-        self.assertTrue(dimension_present(self.body, "audience-style"))
-        block = dimension_block(self.body, "audience-style")
-        self.assertIn('severity="blocking"', block)
-        self.assertIn('dimension="audience-style"', block)
-
-    def test_input_contract_names_required_sections(self):
-        input_contract = self.body.split("## Check dimensions")[0]
-        self.assertIn("required_sections", input_contract,
-                      "create-spec-verifier input-contract <constraints> must name "
-                      "the required_sections constraint the coordinator now passes")
-
-
-class ContractsNoteTest(unittest.TestCase):
-    """AC-5: contracts.md notes create-spec now runs structure_lint / carries a
-    blocking structure dimension, mirroring create-design."""
-
-    def test_contracts_notes_create_spec_structure_lint(self):
-        text = read(CONTRACTS)
-        self.assertRegex(
-            text, r"create-spec[^\n]*structure_lint",
-            "contracts.md must note create-spec now runs structure_lint")
 
 
 if __name__ == "__main__":

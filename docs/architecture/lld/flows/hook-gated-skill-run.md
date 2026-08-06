@@ -7,7 +7,7 @@ The diagram below shows the **full reflection triad** (planner → executor →
 verifier), which is how the twelve triad-keeping skills run (`create-prd`,
 `create-architecture`, `create-project`, `create-quality`,
 `create-operations`, `create-principles`, `create-standards`,
-`create-design`, `create-spec`, `code`, `standardize-project`,
+`create-design`, `code`, `docs-sync`, `standardize-project`,
 `create-requirements` — `/acs:code` is the example traced here). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
@@ -33,7 +33,7 @@ sequenceDiagram
     CC->>D: PreToolUse(Skill) payload
     D->>PRE: route by skill name (same stdin)
     alt gate fails
-        PRE-->>CC: exit 2 + stderr ("run /acs:create-spec first")
+        PRE-->>CC: exit 2 + stderr ("no workspace partition for SHOP-123 — run /acs:create-ticket first")
         CC-->>Dev: skill blocked, actionable message
     else gate passes
         PRE-->>CC: exit 0
@@ -92,8 +92,10 @@ axis upward and `escalate_lane` recomputes the lane via `derive_lane`; the
 ceiling is then raised to `max(current, new)` — **monotone, never lowered**.
 Completed iterations are preserved (no restart). De-escalation is never
 automatic. If escalation crosses the fast→full fold boundary (TRIVIAL/SMALL →
-STANDARD/COMPLEX) the `create-spec` stage is re-introduced — `/code` spawns the
-full `create-spec` triad per its "Escalation pickup" protocol before resuming.
+STANDARD/COMPLEX), the iteration ceiling and verify depth are raised to the
+escalated lane's values; there is no stage re-entry and no re-spawn of any
+prior phase — completed iterations are preserved (`code/SKILL.md`'s "In-loop
+escalation check" section).
 
 **The verifier subagent runs in every lane as the in-loop gate (C-5).** Light
 verify reduces the iteration ceiling only — the verifier always runs; there is

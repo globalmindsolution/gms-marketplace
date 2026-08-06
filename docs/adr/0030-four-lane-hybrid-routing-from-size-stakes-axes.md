@@ -61,3 +61,17 @@ absent-axis path yields STANDARD, identical to the current un-classified behavio
   The cache can always be recomputed: `derive_lane(size, stakes, needs_design, type)`.
 - Metrics layer gains lane-sliceable data (G14/G15) via the pipeline-state and index writes
   (D7, MAR-56/spec 01).
+
+## Amendment — MAR-156
+
+**Date**: 2026-07-29 · **Status**: Accepted (stale-reference note)
+
+`/acs:create-spec` is deleted outright (ADR 0066): the pipeline order in
+Context above is now `create-ticket → create-design (when needed) → code →
+create-pr → merge-pr`, with no standalone create-spec step. The Decision
+table's TRIVIAL row ("create-spec folded into /code plan phase") is
+superseded by ADR 0066's every-lane fold: folding no longer distinguishes
+TRIVIAL from SMALL/STANDARD/COMPLEX, since it now applies on every lane
+identically. The four-lane routing decision itself (`derive_lane`, the
+size/stakes axes, the routing table and rule order above) is UNCHANGED and
+unamended beyond this note — this ticket does not touch lane derivation.

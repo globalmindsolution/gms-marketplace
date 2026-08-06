@@ -18,8 +18,8 @@ memory or goodwill.
   (see [configuration.md](configuration.md)). Most access stays inside
   the ticket's own partition, but hooks also maintain the repo-level files
   (`tickets-index.json`, `metrics.json`, `sessions/`), and
-  `pre-create-spec.py` MAY read the parent epic's partition to check its
-  design state ([workspace-and-state.md](workspace-and-state.md)).
+  the coordinator's `skill-start.py` MAY read the parent epic's partition to
+  resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
 
 ### Pre-hooks — readiness gating
 
@@ -27,8 +27,8 @@ A pre-hook runs before its skill and checks **readiness**:
 
 - The predecessor skill's state file exists for the current ticket and
   reports **completed**.
-- Required input artifacts exist (e.g. `pre-code.py` checks that specs are
-  present and `/create-spec` is completed).
+- Required input artifacts exist (e.g. `pre-code.py` requires only that
+  `/create-ticket` has completed — `gate_code` in `acs_lib.py`).
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
   "run /init"), `workspace_path` is valid and outside the repo, and the
   `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
@@ -42,7 +42,7 @@ A pre-hook runs before its skill and checks **readiness**:
 | `0` | Ready — the skill proceeds. |
 | `2` | **Blocked** — the skill MUST NOT run. The hook's stderr message tells the user what is missing and which skill to run first. |
 
-Example: if `/create-spec` has not completed for ticket `SHOP-123`, then
+Example: if `/create-ticket` has not completed for ticket `SHOP-123`, then
 `pre-code.py` exits 2 and `/code` stops before doing any work.
 
 ### Post-hooks — state persistence
@@ -77,8 +77,8 @@ file in the workspace partition:
 | `/create-project` | `pre-create-project.py` | `post-create-project.py` | `create-project-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
-| `/create-spec` | `pre-create-spec.py` | `post-create-spec.py` | `create-spec-state.json` |
 | `/code` | `pre-code.py` | `post-code.py` | `code-state.json` |
+| `/docs-sync` | `pre-docs-sync.py` | `post-docs-sync.py` | `docs-sync-state.json` |
 | `/create-pr` | `pre-create-pr.py` | `post-create-pr.py` | `create-pr-state.json` |
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
@@ -98,11 +98,15 @@ examples given in the requirements; exact names to confirm.
 | `/create-standards` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
 | `/create-ticket` | `/init` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
-| `/create-spec` | `/create-ticket` completed; ticket file exists; if the ticket (or its parent epic) needs design, that design is completed. |
-| `/code` | `/create-spec` completed; specs exist. |
+| `/code` | `/create-ticket` completed. (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
+| `/docs-sync` | `/code` completed (and `/test`, when the post-code test gate was active for this ticket). |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |
 | `/standardize-project` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
+
+> **NOTE (MAR-160):** `/create-pr`'s gate ADDITIONALLY requires `/docs-sync`
+> completed, alongside the `/code` + verifier-passed check in its row above
+> (both required — the existing check is not replaced).
 
 ## Runtime & resolution rules
 

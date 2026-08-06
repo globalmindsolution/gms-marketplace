@@ -14,7 +14,7 @@ context and consequences.
 | [0003](0003-file-based-state-outside-repo.md) | File-based state in a workspace outside the repo | Accepted |
 | [0004](0004-reflection-with-independent-verifier.md) | Reflection trio; verifier anchors on gated contracts | Accepted |
 | [0005](0005-xml-messaging-with-xsd.md) | XML subagent messaging validated by XSD | Accepted |
-| [0006](0006-spec-plan-altitude-split.md) | Standing spec/plan altitude split (keep /create-spec) | Accepted |
+| [0006](0006-spec-plan-altitude-split.md) | Standing spec/plan altitude split (keep /create-spec) | Superseded |
 | [0007](0007-living-docs-by-induction.md) | Living architecture, requirements & factual product docs by induction | Accepted |
 | [0008](0008-conditional-steps-as-ticket-data.md) | Conditional steps are ticket data, never invocation options | Accepted |
 | [0009](0009-clarification-ledger-and-grounding.md) | Clarification ledger + grounding rules | Accepted |
@@ -55,6 +55,13 @@ context and consequences.
 | [0052](0052-release-exempt-pr-human-merge.md) | Release cuts land via an exempt `release/*` PR that stops for a mandatory human merge | Accepted |
 | [0053](0053-release-versions-roadmap-mapping-table.md) | Release versions are modeled as an additive `roadmap.md` mapping table, decoupled from the cut skill | Accepted |
 | [0054](0054-settings-driven-release-block.md) | Settings-driven `release` block (JSON-manifest-focused schema, Option A); marketplace = profile #1 | Accepted |
+| [0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) | Supersedes ADR 0006: fold spec-authoring into `/code`'s plan phase for every lane; `ticket.json`'s `acceptance_criteria`/DoD becomes the review loop's fixed point | Accepted |
+| [0067](0067-code-verifier-multi-lens-adversarial-rigor-upgrade.md) | code-verifier multi-lens adversarial rigor upgrade (`verify_depth=="full"` only): 4 parallel lenses plus a coordinator adversarial merge pass | Accepted |
+| [0068](0068-acs-test-ticket-scoped-fix-and-retest-mode.md) | `/acs:test` ticket-scoped `--for-ticket` mode + `/acs:ship`'s post-code fix-and-re-test loop, gated by e2e presence | Accepted |
+| [0069](0069-oversized-ticket-two-lever-split-control.md) | Oversized-ticket split detection is a two-lever control again: `/create-ticket`'s upfront PR-size rubric plus a non-blocking, plan-time oversize signal in `code-planner.md` | Accepted |
+| [0070](0070-fix-subprocess-coverage-measurement.md) | Fix subprocess coverage measurement (parallel `.coveragerc` + `COVERAGE_PROCESS_START` + `coverage combine`) instead of duplicating subprocess scenarios as in-process tests | Accepted |
+| [0071](0071-coverage-omit-true-forwarder-shims-only.md) | Coverage `omit` rule excludes true argument-forwarder shims only; `post-merge-pr.py`'s real `--pr` branch stays measured, never waived | Accepted |
+| [0072](0072-shared-importable-test-fixture.md) | Shared importable test fixture (`tests/acs/acs_case.py`) for concurrent per-module test authoring across child tickets | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

@@ -22,7 +22,7 @@
   },
   "models": {
     "planner": {
-      "model": "claude-opus-4-8",
+      "model": "claude-opus-5",
       "effort": "high"
     },
     "executor": {
@@ -30,12 +30,8 @@
       "effort": "high"
     },
     "verifier": {
-      "model": "claude-opus-4-8",
+      "model": "claude-opus-5",
       "effort": "high"
-    },
-    "coordinator": {
-      "model": "claude-opus-4-8",
-      "effort": "medium"
     }
   },
   "enforcement": {
@@ -114,5 +110,15 @@
         ".claude-plugin/marketplace.json"
       ]
     }
+  },
+  "suites": {
+    "e2e": {
+      "command": "python3 evals/run_evals.py --plugin acs --paid",
+      "per_iteration": false
+    }
+  },
+  "tests": {
+    "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet \"coverage>=7.14.2\" jsonschema diff-cover && git fetch --no-tags --depth=2147483647 origin \"+refs/heads/${GITHUB_BASE_REF:-main}:refs/remotes/origin/${GITHUB_BASE_REF:-main}\"",
+    "command": "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage xml -o coverage.xml && python3 -m diff_cover.diff_cover_tool coverage.xml --compare-branch \"origin/${GITHUB_BASE_REF:-main}\" --fail-under $ACS_COVERAGE"
   }
 }

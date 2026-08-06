@@ -68,11 +68,6 @@ Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`requirements_path`, `requirements_layout`, `formats`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`.
 
-If `settings.models.coordinator` is set, surface a one-line notice that it governs the
-/acs:ship coordinator's own session — under /acs:ship this skill is invoked directly
-in that session (no separate per-step agent for the key to apply to), and a directly
-typed invocation runs in the user's session on the session's model. Never silently diverge.
-
 Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is planner input.
 
 ## Resume & reconcile

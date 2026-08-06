@@ -31,7 +31,7 @@ folder.
 | `ticket_prefix` | string | — | **Yes — user input at init time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/init` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
 | `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
 | `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
-| `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file as part of its documentation work; `/create-ticket` and `/create-spec` read it as the area's current behavior and flag contradictions. Grows organically — no bootstrap skill required. |
+| `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file as part of its documentation work; `/create-ticket` reads it as the area's current behavior and flags contradictions. Grows organically — no bootstrap skill required. |
 | `adr_path` | string (repo-relative path) or `null` | `"docs/adr"` | No | `/code` commits the accepted decision records from the ticket's `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |
 | `quality_path` | string (repo-relative path) or `null` | `"docs/quality"` | No | Location of the `quality/` doc set (test strategy, coverage policy) bootstrapped and maintained by `/acs:create-quality`. Unset = acs does not maintain this set for this repo. |
 | `operations_path` | string (repo-relative path) or `null` | `"docs/operations"` | No | Location of the `operations/` doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by `/acs:create-operations`. Unset = acs does not maintain this set for this repo. |
@@ -59,7 +59,7 @@ after the check has reported a conclusion at least once (avoids the
 exact `gh api … /protection` command **once** and continues — never
 hard-fails `/acs:init` (the report-once safeguard). No new settings key is
 introduced by any of this.
-| `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent role runs on: `models.planner`, `models.executor`, `models.verifier` (optionally `models.coordinator` for the `/ship` coordinator's own run), with per-skill overrides under `models.overrides.<skill>`. Each role accepts a model string or a `{ "model", "effort" }` object. See [Subagent models](#subagent-models). |
+| `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent role runs on: `models.planner`, `models.executor`, `models.verifier`, with per-skill overrides under `models.overrides.<skill>`. Each role accepts a model string or a `{ "model", "effort" }` object. See [Subagent models](#subagent-models). |
 | `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |
 | `formats` | object | built-in defaults | No | Formats for generated artifacts. Short fields are inline template strings with placeholders such as `{ticket_id}`, `{title}`, `{type}`, `{summary}`: `formats.branch_name` (MUST embed `{ticket_id}`), `formats.commit_message`, `formats.pr_title`, and per-ticket-type titles under `formats.tickets.<type>` (`epic`, `story`, `task`). **Descriptions** (PR description, ticket descriptions) use **pre-defined templates** shipped with the plugin, referenced by name; users can select another template or point to a custom template file. |
 
@@ -146,19 +146,6 @@ configured under `models`:
 - Model values are Claude model aliases or full model ids, passed through to
   the subagent spawn. The literal `"inherit"` (or omitting a key) uses the
   parent's value.
-- `models.coordinator` governs the **`/ship` coordinator's own session/run**
-  — the only place the plugin controls a coordinator's model and effort. Under
-  `/ship` each step skill is invoked **directly** in that coordinator's context
-  (there is no separate per-step agent for the key to apply to). A skill invoked
-  directly by the user runs **in the user's session**, whose model/effort are
-  chosen in Claude Code, not in `settings.json`. If `models.coordinator` is set
-  (model or effort) and differs from the session on such a direct invocation,
-  the skill MUST surface a notice that the key governs the `/ship` coordinator's
-  own run, not a directly typed skill — never a silent divergence.
-- `models.coordinator` SHOULD usually stay on inherit: coordination is
-  orchestration-heavy but reasoning-light compared to the planner and
-  verifier. The reasons to set it are cost control on long `/ship` runs and
-  pinning consistent behavior across team members' differing session models.
 - Model choice is team-shareable (committed `settings.json`) and can be
   overridden per scope like any other key. Cost effects are visible in the
   per-run metrics ([workspace-and-state.md](workspace-and-state.md)).

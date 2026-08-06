@@ -13,12 +13,12 @@ unchanged).
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/init`, `/ship`, `/handoff`, `/update`,
     `/create-prd`, `/create-architecture`, `/create-project`,
-    `/create-ticket`, `/create-design`, `/create-spec`, `/code`,
+    `/create-ticket`, `/create-design`, `/code`,
     `/create-pr`, `/merge-pr`.
-  - **Subagents**: the twelve **triad-keeping skills** (`create-spec`, `code`,
+  - **Subagents**: the twelve **triad-keeping skills** (`code`,
     `create-prd`, `create-design`, `create-architecture`, `create-project`,
     `create-quality`, `create-operations`, `create-principles`,
-    `create-standards`, `standardize-project`, `create-requirements`)
+    `create-standards`, `docs-sync`, `standardize-project`, `create-requirements`)
     each bundle a planner, executor, and verifier (e.g. `code-planner`,
     `code-executor`, `code-verifier`); the three **apply-work skills**
     (`create-ticket`, `create-pr`, `merge-pr`) run inline and ship only an

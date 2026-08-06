@@ -184,7 +184,6 @@ The next skill reads these — keep the names exact:
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (partition-relative `design.md`), `decision` (one line) |
-| create-spec | `specs: ["01-…", …]` (basenames in `specs/`), `design_conformance: true/null` |
 | code | `verifier_passed: true/false` (the /create-pr gate), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr gate) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
@@ -216,9 +215,9 @@ All coordinator <-> subagent communication uses the three message shapes in
 
 45 agent files named `<skill>-<role>` in `plugins/acs/agents/` (15 skills × 3
 roles), of which 39 are reachable: the twelve **triad-keeping skills**
-(`create-spec`, `code`, `create-prd`, `create-design`, `create-architecture`,
+(`code`, `create-prd`, `create-design`, `create-architecture`,
 `create-project`, `create-quality`, `create-operations`, `create-principles`,
-`create-standards`, `standardize-project`, `create-requirements`) spawn all three roles, while the
+`create-standards`, `docs-sync`, `standardize-project`, `create-requirements`) spawn all three roles, while the
 three **apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run
 inline and use only their executor — so their six planner/verifier files are
 orphaned (MAR-60 inlining).
@@ -265,15 +264,16 @@ audit trail. Current conditional controls:
 
 | Control | Set where | Effect |
 |---------|-----------|--------|
-| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; pre-create-spec stops requiring a completed design. The skip is enforced in both directions. |
+| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1531-1541`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
 | `docs_only` | ticket analysis, user-confirmed | `true`: /code drops tests-first and the coverage hard fail (`coverage: n/a — docs_only`); the full suite still runs once and must be green; the verifier's Tests/Coverage dimensions become n/a, all others apply. A diff line touching executable code under this flag is a blocking finding. |
-| epic children | minted by `new-ticket.py` | a completed `create-ticket` run is recorded at mint time — children start at /create-design (epic's) or /create-spec without a fake step. |
+| epic children | minted by `new-ticket.py` | a completed `create-ticket` run is recorded at mint time — children start at /create-design (epic's) or /code without a fake step. |
 | `flow: product` | product-level skills | the delivery ticket skips the six-step pipeline; /merge-pr's gate accepts the PR reference from the product skill's state file. |
 
-The spine — ticket → spec → code → PR → merge — is deliberately
-unconditional: each step is a distinct guarantee (tracked record, verifiable
-contract, reviewed implementation, delivery, human gate), and each scales
-down with task size. A new conditional step must follow the same pattern:
+The spine — ticket → code → docs-sync → PR → merge — is deliberately
+unconditional: each step is a distinct guarantee (tracked record,
+verifiable contract + reviewed implementation, doc truth independently
+re-derived from the diff, delivery, human gate), and each scales down
+with task size. A new conditional step must follow the same pattern:
 a ticket-level flag, user confirmation at analysis time, and gate logic in
 `acs_lib.py` enforcing both the skip and the non-skip.
 
@@ -312,8 +312,8 @@ rationale for assumptions.
    coordinator runs `clarify.py list` and reuses recorded answers — re-asking
    an answered question is a defect. Each skill asks only what ITS phase
    needs settled (ticket scope at /create-ticket, design trade-offs at
-   /create-design, spec-level behavior at /create-spec, execution blockers at
-   /code), batched, not dribbled.
+   /create-design, spec/execution-level behavior at /code), batched, not
+   dribbled.
 3. **Record everything.** Every answer received — interactively or via a
    /ship relay when re-invoking a step — is recorded with `clarify.py add/answer`
    BEFORE acting on it; coordinators feed the ledger into subagent `<context>`,
@@ -339,12 +339,13 @@ induction invariant, not a periodic chore:
 
 - **Base case** — /create-architecture bootstraps the doc set verified
   against both the PRD and the actual codebase.
-- **Inductive step** — every ticket carries its own architecture delta in
-  the SAME changeset: /create-design conforms or lists required doc changes;
-  the code plan's documentation map names the HLD files and `lld/flows/`
-  diagrams to update; the code-verifier derives the architectural impact
-  from the diff itself (a positive, evidenced conclusion — never a default)
-  and blocks the PR when impact exists without matching doc changes.
+- **Inductive step** — every ticket carries its own architecture delta on
+  the SAME branch/PR: /create-design conforms or lists required doc changes;
+  `/acs:docs-sync`'s planner names the HLD files and `lld/flows/` diagrams
+  to update, from the diff, after `/acs:code` completes; `docs-sync`'s
+  verifier derives the architectural impact from the diff itself (a
+  positive, evidenced conclusion — never a default) and blocks before
+  `/acs:create-pr` runs when impact exists without matching doc changes.
 - **Drift repair (boy-scout)** — commits that bypass the pipeline can still
   desynchronize docs. Both the design planner and the code planner compare
   the touched area's docs against current code and schedule stale sections
@@ -359,10 +360,10 @@ change that has architectural impact.
 The same induction maintains the **living requirements**
 (`requirements_path`, default `docs/requirements/`, one file per feature
 area): per-ticket specs are archived change-deltas, so the CURRENT
-behavioral contract accumulates here instead — /code's documentation step
+behavioral contract accumulates here instead — `/acs:docs-sync`'s executor
 merges the merged ticket's acceptance criteria and behavior-defining
 clarifications (answered/assumed ledger entries) into the touched area's
-file; /create-ticket and /create-spec read it as standing behavior and flag
+file; /create-ticket reads it as standing behavior and flags
 contradictions; the code-verifier blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.
@@ -381,14 +382,23 @@ at two levers, with an escalation between them:
 2. **Spec sizing (controls execution units).** Each spec is one coherent
    slice sized for a single /code executor pass; the spec count is a size
    *signal*, never a release valve.
-3. **Escalation.** When `/create-spec`'s planner finds the honest
-   decomposition exceeds ~4 specs (or the surface clearly exceeds a
-   reviewable diff), it stops and recommends a split; the coordinator
-   confirms with the user and routes to
-   `/acs:create-ticket split <id> per <plan artifact>` — the ticket becomes
-   an epic keeping its id, children ship as separate PRs. The user may
-   explicitly accept one large PR; that decision is recorded as a
-   clarification and surfaces in the PR body.
+3. **Sizing today.** The mid-decomposition "stop and recommend a
+   split" step this bullet described through the standalone spec-authoring era belonged
+   to the deleted spec-authoring planner (ADR 0066 supersedes ADR 0006);
+   `code-planner.md` migrated the narrower **Spec-simplicity gate**
+   (`code-planner.md:61-74`) — when a materially simpler decomposition
+   satisfying the same acceptance criteria exists, it is surfaced as a
+   question, never a stop — plus (ADR 0069) a non-blocking **oversize
+   signal** on the same charter item: when the decomposition itself exceeds
+   `create-ticket-planner.md:57-65`'s `~4-spec`/`~400-line`/`~7-AC` rubric,
+   `code-planner.md` records the split seams in the plan artifact and
+   surfaces a `<question>` through the clarification ledger — never a stop.
+   Oversized-ticket control is therefore a two-lever chain again: lever 1,
+   `/create-ticket`'s upfront PR-size rubric, before any decomposition
+   exists; lever 2, this plan-time signal, once the actual decomposition is
+   known. On a "split" answer, `/code` terminates the run with a recorded
+   `failed` status and a `/acs:create-ticket split <id>` next step instead
+   of continuing silently.
 
 The numbers are deliberate rules of thumb for the planners' judgment, not
 hard limits enforced by hooks — splitting at a bad seam (e.g. a child that

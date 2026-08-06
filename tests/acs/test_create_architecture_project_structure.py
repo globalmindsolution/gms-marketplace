@@ -216,8 +216,12 @@ class ScopeGuardTest(unittest.TestCase):
     files, 33->36 reachable, ten->eleven triads; MAR-129: 22->23 skills for
     the new unhooked /acs:release skill, agent counts unchanged; MAR-143:
     23->24 skills for the new HOOKED create-requirements skill, 42->45 agent
-    files, 36->39 reachable, eleven->twelve triads) — these assertions track
-    the current epic state, not a frozen MAR-120 snapshot."""
+    files, 36->39 reachable, eleven->twelve triads; MAR-156: create-spec
+    deleted, 24->23 skills, 45->42 agent files, 39->36 reachable, twelve->
+    eleven triads; MAR-160: docs-sync registered, 23->24 skills, 42->45
+    agent files, 36->39 reachable, eleven->twelve triads) — these
+    assertions track the current epic state, not a frozen MAR-120
+    snapshot."""
 
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))

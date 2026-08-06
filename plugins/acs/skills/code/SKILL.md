@@ -1,12 +1,12 @@
 ---
 name: code
-description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, updating all affected documentation as part of the change, with a built-in changeset review loop. Use after /acs:create-spec has produced specs and before /acs:create-pr, when a ticket is ready to be implemented.
+description: Implement a ticket's specs in the consumer repo using TDD on a dedicated branch, with a built-in changeset review loop. Specs are read from <partition>/specs/ when already present, or self-authored as part of the plan phase when not. Use once /acs:create-ticket (and /acs:create-design when required) has completed and before /acs:create-pr, when a ticket is ready to be implemented.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:code. Your job: implement every spec of one
-ticket in the consumer repo — tests first, docs included, committed on the
+ticket in the consumer repo — tests first, committed on the
 ticket branch — and pass the built-in changeset review (your verifier IS the
 review; there is no separate review skill). You orchestrate
 planner/executor/verifier subagents, persist every phase artifact to the
@@ -22,10 +22,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill code --args
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (pre-code.py has verified the gate preconditions: for
-STANDARD/COMPLEX/absent/unknown lanes, specs exist and /acs:create-spec
-completed; for TRIVIAL/SMALL lanes, the gate passes without requiring specs —
-spec authoring is folded into the plan phase below).
+improvise a workaround (pre-code.py has verified the gate precondition: only
+that /acs:create-ticket has completed — the gate is unconditional on lane and
+never requires `specs/` to exist. Whether `<partition>/specs/` already has
+content is discovered by the planner below, on every lane, not asserted by
+the gate).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -51,11 +52,6 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for planner/executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-code.py`.
-
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a user
-typed `/acs:code`, not driven under /acs:ship), tell the user in one line that
-`models.coordinator` governs the ship coordinator's own run under /acs:ship, not
-a directly typed skill — never silently diverge from it.
 
 ## Branch — FIRST, before any code
 
@@ -218,17 +214,6 @@ states a higher lane or axis value.
       no-op (step 3 above short-circuits) and `record_escalation_event` is
       never reached a second time for the same already-applied escalation — no
       duplicate event is appended.
-   g. **Stage re-introduction (fold-boundary crossing):** When the origin lane
-      was a fast lane (TRIVIAL or SMALL) and the new lane is a full lane
-      (STANDARD or COMPLEX), invoke the `create-spec` stage before proceeding
-      to the next implementation iteration. Spawn `acs:create-spec-planner`,
-      `acs:create-spec-executor`, and `acs:create-spec-verifier` following the
-      full `create-spec/SKILL.md` protocol — including the **"Escalation pickup"
-      subsection** of that skill, which describes how to read the existing partial
-      implementation as ground truth and produce an additive spec set. The
-      coordinator does NOT inline the create-spec logic; it delegates to the
-      `create-spec` skill as documented. Only once `create-spec` has passed
-      (zero verifier findings) does `/code` resume implementation.
 
 **Absent or ambiguous signals — no-op (AC-7 conservative default):**
 When none of the three triggers fires in an iteration, the coordinator makes no
@@ -310,18 +295,15 @@ Task the planner with `<inputs>` of all `<partition>/specs/*.md`,
 and the relevant consumer-repo source/docs. The planner returns (artifact:
 `<partition>/phases/code/iter-<n>-plan.md`):
 
-**Fast-lane spec authoring (TRIVIAL/SMALL lanes with no specs present)**
+**Spec authoring fold (`specs/` absent or empty, every lane)**
 
-Before producing the standard plan content, check whether this run is on a
-fast lane: read `context.ticket.lane` (prefer the persisted `ticket.lane`;
-fall back to recomputing via
-`derive_lane(ticket.size, ticket.stakes, ticket.needs_design, ticket.type)`
-when absent; treat absent/unrecognized as STANDARD).
+Before producing the standard plan content, check whether
+`<partition>/specs/` already has `.md` content.
 
-When the lane is `TRIVIAL` or `SMALL` AND `<partition>/specs/` is empty or
-absent, the code-planner ADDITIONALLY produces, as part of its plan artifact
-(`<partition>/phases/code/iter-<n>-plan.md`), the spec content the standalone
-create-spec planner would have produced. This content covers, in order:
+When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
+the code-planner ADDITIONALLY produces, as part of its plan artifact
+(`<partition>/phases/code/iter-<n>-plan.md`), the spec content a standalone
+create-spec planner would once have produced. This content covers, in order:
 
 - **Scope** — what the ticket delivers; acceptance criteria quoted verbatim.
 - **Approach** — solution shape at contract level (components, interfaces,
@@ -333,6 +315,11 @@ create-spec planner would have produced. This content covers, in order:
   (`settings.test_coverage_percent`) stated explicitly; e2e impact stated.
 - **Out of scope** — adjacent work excluded.
 
+**Oversize signal pointer.** `code-planner.md`'s charter item 2 also
+compares this decomposition against the reviewable-diff bar; when it fires,
+the split seams recorded above are what `/acs:create-ticket split` reads
+(see User interaction for the split-answer termination).
+
 **Mandatory clauses** (both MUST appear verbatim in the plan artifact):
 
 - "no separate /acs:create-spec invocation and no separate create-spec planner
@@ -340,9 +327,9 @@ create-spec planner would have produced. This content covers, in order:
 - "every ticket.acceptance_criteria entry maps to at least one test the folded
   plan will write" (AC-4)
 
-If specs already exist for a fast-lane ticket, the fold does NOT activate —
-the planner reads the existing specs normally. The fold only activates when no
-specs are present.
+If specs already exist, the fold does NOT activate — the planner reads the
+existing specs normally, on every lane. The fold only activates when
+`<partition>/specs/` is absent or empty.
 
 This fold does NOT alter the execute or verify phases. The existing
 `### Coverage hard fail` block (AC-5) and the existing `### Verify-depth`
@@ -357,13 +344,16 @@ block (AC-6) apply unchanged in every lane; see those sections.
 - The test strategy per spec: which failing tests to write first, the repo's
   test/coverage tooling and the exact commands to run them, how
   `settings.test_coverage_percent` will be measured.
-- The documentation map: which README/API/usage docs/changelog entries the
-  change touches (the specs' API/data-changes sections name them), whether the
-  architecture doc set (`settings.architecture_path`) is affected, whether any
-  factual claims in `docs/product/prd.md` or `docs/product/roadmap.md` are made
-  stale by the change (factual items: agent/subagent counts, shipped-vs-planned
-  status, topology, version numbers, file path references), and the ADR list
-  when `settings.adr_path` is set and a design carries accepted decisions.
+- The documentation map: whether any factual claims in `docs/product/prd.md`
+  or `docs/product/roadmap.md` are made stale by the change (factual items:
+  agent/subagent counts, shipped-vs-planned status, topology, version numbers,
+  file path references) — `/acs:docs-sync` independently re-derives every
+  other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
+  from the diff after `/code` completes.
+  The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
+  check (`code-planner.md`'s item 4, edges E1-E4) — not the full shared
+  design-time step `create-design`'s planner runs — riding the same
+  `problems` carrier as the existing Boy-scout drift item.
 - On iterations 2-3: how the plan remediates EVERY verifier finding from the
   previous iteration, explicitly, one by one.
 
@@ -375,12 +365,15 @@ write-failing-tests-first and new-test generation; the coverage hard fail
 does not apply (record `coverage_percent: null`, target "n/a — docs_only");
 the existing test suite is STILL run once and must be green (a docs-only
 change that breaks the build is a finding); the verifier's Tests/Coverage
-dimensions become "n/a — docs_only" while every other dimension (especially
-Documentation consistency) applies in full. If any executor finds itself
-touching executable code or tests, STOP — the flag is wrong; surface it to
-the user and have the ticket corrected before continuing.
+dimensions become "n/a — docs_only" while every other dimension still
+applies in full — performed and reported per its own severity: Documentation consistency's
+advisory sub-checks (per-commit doc-sync, living-requirements,
+architectural-impact) stay advisory; its blocking Product-doc-consistency
+sub-check stays blocking. If any executor finds itself touching executable
+code or tests, STOP — the flag is wrong; surface it to the user and have the
+ticket corrected before continuing.
 
-### Execute (per iteration) — TDD, docs included
+### Execute (per iteration) — TDD
 
 Send each executor a `<task phase="execute">` naming its spec file and its
 file map (include `<constraint name="docs_only">true</constraint>` when it
@@ -392,33 +385,20 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
 2. **Implement** until the tests pass, iterating to green. Run the full suite,
-   not just the new tests — no regressions.
+   not just the new tests — no regressions. Code comments stay **minimal and idea-only**
+   — one short single-responsibility line per new function (SOLID:
+   one unit, one job), never a ticket id in source, and on edits only the
+   comments the change actually invalidates (e.g. a changed parameter); no
+   re-comment passes over unchanged logic. Test module filenames follow the
+   same rule: they are named by the component/behavior under test, never by a ticket id;
+   the originating ticket reference lives in the module docstring.
+   The executor also applies the **Simplicity First** and **Surgical
+   Changes** authoring rules (see code-executor.md Charter) throughout.
 3. **Measure coverage** with the repo's own tooling against
    `settings.test_coverage_percent`. If the target genuinely cannot be reached
    (e.g. untestable generated code), the executor reports the achieved number
    and the reason — see Coverage hard fail below.
-4. **Update the docs — part of the change, not a follow-up**: README, API and
-   usage docs, code comments, the changelog where the repo keeps one (follow
-   repo conventions). Code comments stay **minimal and idea-only** — one short
-   single-responsibility line per new function (SOLID: one unit, one job), never
-   a ticket id in source, and on edits only the comments the change actually
-   invalidates (e.g. a changed parameter); no re-comment passes over unchanged
-   logic. Test module filenames follow the same rule: they are named by the
-   component/behavior under test, never by a ticket id; the originating ticket
-   reference lives in the module docstring. The executor also applies the
-   **Simplicity First** and **Surgical
-   Changes** authoring rules (see code-executor.md Charter) throughout. Merge the ticket's acceptance criteria and
-   behavior-defining clarifications (answered/assumed ledger entries that
-   define behavior) into the touched feature area's file under
-   `settings.requirements_path` — the living requirements, the standing
-   behavioral contract that outlives archived specs (classify-then-route
-   into the resolved functional/non-functional subfolder — see the rubric at
-   the end of this step). Whenever the change adds/removes components or alters
-   the data model, integrations, or deployment: update the HLD under
-   `settings.architecture_path` (C4 views, data model, deployment) and MERGE
-   the design's new/changed Mermaid sequence diagrams into
-   `<architecture_path>/lld/flows/`. When `settings.adr_path` is set and a
-   design exists, commit the design's accepted decision records there.
+4. **Reconcile product-doc facts — part of the change, not a follow-up**:
 
    **Product-doc factual reconciliation (also part of the change):** when the
    changeset makes a factual claim in `docs/product/prd.md` or
@@ -438,40 +418,14 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    intent content. When the changeset alters no factual item in prd.md or
    roadmap.md, this step is a no-op for those files.
 
-   **Functional-vs-NFR classification rubric (for the living-requirements
-   merge above).** Classify each merged requirement, then write it into the
-   resolved subfolder — additive, per-area, no-overwrite (append/merge into
-   the existing area file, never replace it): only the target subfolder is
-   new, this merge semantics are unchanged.
-
-   - **FUNCTIONAL** — a requirement describing a BEHAVIOR the software
-     performs: a command/skill's steps and outputs, a gate's pass/fail
-     condition, an input→output contract, a state transition, a produced
-     artifact. "The system DOES X." →
-     `<requirements_path>/<functional_subdir>/<feature>.md`
-     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
-   - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
-     software behaves rather than a new behavior: performance/cost bounds,
-     security/secret handling, reliability/resumability, portability/
-     consumer-generality, operability, packaging/distribution. "The system
-     does it WITHIN/UNDER constraint Y." →
-     `<requirements_path>/<non_functional_subdir>/<item>.md`
-     (`settings.requirements_layout.non_functional_subdir`, default
-     `"non-functional"`).
-   - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
-     configurable behavior that is also a portability constraint) defaults
-     to **functional**, with a one-line cross-reference from the paired
-     non-functional file, keeping routing deterministic at the seam.
-
-   **Code-evidence citation routing (sidecar convention).** Any in-scope
-   code-evidence citation (`path:line` — `py`/`json`/`sh`/`xsd` extensions,
-   or `SKILL.md:line`) this merge step would otherwise embed inline in the
-   target area file's body must instead be written to that file's companion
-   `.evidence.md` sidecar (`<doc-basename-without-.md>.evidence.md`, created
-   if absent), keyed to the merged clause's stable anchor — the SAME
-   convention `create-requirements-executor.md` follows, reused rather than
-   forked. A target area file with zero in-scope citations from this merge
-   gets no sidecar.
+   **Boy-scout drift items — carried, never repaired here:** when the plan's
+   `## Documentation map` names a doc section the code planner found already
+   disagreeing with the CURRENT code (its Boy-scout drift-repair survey), the
+   executor does NOT repair it in this step — it copies the item verbatim,
+   with the cited doc section and `file:line` disagreement, into the execute
+   report's `problems` field, so `/acs:docs-sync` (which reads every execute
+   report's `problems` as a mandatory input) repairs it on the same
+   branch/PR.
 5. **Commit** the spec's work on the ticket branch per
    `formats.commit_message` (one or a few coherent commits per spec). Never
    push.
@@ -480,13 +434,21 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
 
 Spawn the verifier AFTER all executors finish, with `<inputs>` of the branch
 diff (`git diff <default-branch>...HEAD`), all `<partition>/specs/*.md`,
-`<partition>/ticket.json`, and `<design.dir>/design.md` when it applies. The
+`<partition>/ticket.json`, `<design.dir>/design.md` when it applies, and
+`<partition>/phases/code/iter-<n>-plan.md`. The verify `<task>`'s
+`<constraints>` always carry `<constraint name="audience_style_profile">engineers
+(implementation-contract prose)</constraint>` — the register the folded plan
+content (or the plan's own analysis/decomposition prose) is judged against. The
 verifier judges fresh — never forward executor reasoning — and RE-RUNS the
 tests and coverage itself (artifact `<partition>/phases/code/iter-<n>-verify.md`).
 Dimensions, each producing blocking findings on failure:
 
-- **Spec conformance** — every spec fully implemented as written; deviations
-  are findings.
+- **Acceptance-criteria conformance** — `ticket.json`'s `acceptance_criteria`/
+  DoD re-read fresh every iteration, never the current plan artifact's
+  restatement; the AC-to-implementation matrix is rebuilt from scratch each
+  time. Carries the completeness (five mandatory sections substantive, no
+  stubs) and structure (`structure_lint.py` against the fixed five-heading
+  literal) sub-checks when the fold is active.
 - **Tests** — full suite passes; new tests genuinely exercise the spec's
   acceptance criteria (re-run, not trusted).
 - **Coverage** — measured coverage meets `settings.test_coverage_percent`.
@@ -501,12 +463,16 @@ Dimensions, each producing blocking findings on failure:
   pre-existing ones surface as notes).
 - **Architecture & system design** — judged against `design.md` when one
   exists (own or parent); otherwise against the documented architecture and
-  sane structure.
+  sane structure; also against the folded plan artifact's Approach/API-data-changes
+  content when no separately-authored spec set exists.
 - **Security** — no injected vulnerabilities, secrets, or unsafe handling of
   input/authz.
-- **Documentation** — every affected doc updated and consistent with the
-  code, including the architecture doc set and `lld/flows/` merges and ADRs
-  when applicable. **Product-doc-consistency check:** verify whether the
+- **Documentation** — per-commit doc updating (README/API/usage docs/
+  changelog/the architecture doc set/`lld/flows/`/ADRs, and the living
+  requirements) is now `docs-sync`'s responsibility; when `/code`'s own
+  verifier still notices a gap it reports it advisory
+  (`severity="info" dimension="documentation"`), never blocking.
+  **Product-doc-consistency check:** verify whether the
   changeset leaves factual claims in `docs/product/prd.md` or
   `docs/product/roadmap.md` stale (see the factual-vs-intent boundary in
   Execute step 4 above). A stale factual claim is a blocking finding
@@ -515,6 +481,53 @@ Dimensions, each producing blocking findings on failure:
   document and PR body. No factual impact → no-op for this check.
 - **Simplicity & scope** — overcomplication and out-of-scope edits are
   blocking findings (executor **Simplicity First** + **Surgical Changes** rules).
+- **Audience-style** — the folded plan artifact's prose (or the plan's own
+  analysis/decomposition prose when the fold is not active) matches
+  `audience_style_profile`; an UNWAIVED register mismatch is a blocking
+  finding, waived to `severity="info"` for a register the coordinator
+  recorded via `clarify.py add --skill code --source assumption`.
+- **Regression-risk (git-history)** — full-depth only (dimension 14, lens D
+  in the multi-lens split below); git history on touched paths shows a prior
+  revert/hotfix pattern on the same lines, or the diff reintroduces
+  something a prior commit deliberately removed.
+
+**`verify_depth=="full"` (multi-lens spawn).** After all executors finish,
+the coordinator spawns 4 parallel `acs:code-verifier` subagents via the
+Agent tool — the same agent file, four times, reusing the "several
+executors in parallel... per the plan's file map" spawn mechanism already
+used for executors above — each `<task phase="verify">` carrying one
+additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
+table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
+writes its own `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+artifact (never the shared `iter-<n>-verify.md` name). After all 4 lenses
+return, the coordinator itself performs the merge pass — never a subagent:
+
+1. Collect every `<finding>` across the 4 lens results.
+2. A finding raised, in substance, by **2 or more** lenses is corroborated
+   — kept blocking without further check.
+3. A finding raised by exactly **one** lens is adversarially re-scrutinized
+   by the coordinator itself: re-read the finding's cited evidence
+   directly. If the evidence supports the claim, keep it blocking; if the
+   coordinator cannot independently confirm it, downgrade it to
+   `severity="info"` with the downgrade rationale recorded — never silently
+   dropped (the cross-lens application of "if it is not worth blocking, it
+   is not a finding — note it in the report only").
+4. The coordinator writes the single merged
+   `<partition>/phases/code/iter-<n>-verify.md` itself: one section per
+   corroborated/confirmed finding (blocking), one per downgraded finding
+   (info-level, with rationale), and a short per-lens evidence summary.
+5. Zero surviving blocking findings after the merge = pass, identical to
+   the zero-findings rule below — the merge pass changes WHICH findings
+   count, never the pass/fail rule itself. The in-loop escalation check's
+   trigger (a) (`### In-loop escalation check` above) reads this FINAL
+   merged findings list — the merge write always happens before the next
+   iteration's trigger-(a) evaluation.
+
+**`verify_depth=="light"` (unchanged).** Exactly one `acs:code-verifier`
+spawn — the single-pass shape already documented above, no lens
+constraint, no `-lens-` suffix — checking all 13 base dimensions
+(dimension 14 is full-depth-only) and writing
+`<partition>/phases/code/iter-<n>-verify.md` directly, exactly as today.
 
 ALL findings block — zero findings = pass (`verifier_passed: true`). On
 findings: persist the verify output, then AUTOMATICALLY re-plan and re-execute
@@ -556,6 +569,24 @@ undefined behavior, multiple plausible implementations with different
 user-visible outcomes — ask the user before executing (AskUserQuestion or
 plain questions). Do not guess on decisions that change behavior. Record the
 answers; they belong in the execute reports and any handoff flush.
+
+**Split-answer termination (ADR 0069).** When `code-planner`'s plan artifact
+carries the open oversize question, record the user's answer with
+`clarify.py add`, the same as any other question above. On "accept one
+large PR": continue planning against the current decomposition — nothing
+else changes. On "split": the run ends in an orderly way — run the
+mandatory Finish steps below first (so `post-code.py` closes the run entry
+like any other terminal run), writing `<partition>/phases/code/result.json`
+with `status: "failed"` and `stop_reason` "user chose to split; restructure
+required before implementation", and only then return `<handoff
+status="failed">` whose `<next-step>` reads `/acs:create-ticket split <id>
+per <partition>/phases/code/iter-<n>-plan.md` — it is the handoff element's
+own `status` attribute, not only `result.json`'s field, that must read
+`failed`. The `<summary>` (<=1 KB) must also restate the split instruction
+in prose, not only `<next-step>`: under `/ship` the failed branch surfaces
+`<summary>` verbatim and prints only generic resume commands, without
+promising to surface `<next-step>`. No new XML element and no new status
+value — `acs-messages.xsd` already admits `failed` and `<next-step>`.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do not
 guess. Write the result document with status `"failed"` and
@@ -626,6 +657,15 @@ MANDATORY final step — never skipped, also on failure:
    - `review`: `{iterations, findings_open}` — iterations used and findings
      still open (0 on success).
 
+   Advisory documentation findings (`severity="info" dimension="documentation"`,
+   from code-verifier's demoted per-commit doc-sync, living-requirements, and
+   architectural-impact sub-checks) are carried into the `findings` array and
+   named on the Completion report's `**Findings**` line, but are never
+   counted in `review.findings_open` and never affect `verifier_passed` — a
+   zero-blocking-findings run still reports `verifier_passed: true` and
+   `findings_open: 0` with any advisory documentation entries present in
+   `findings`.
+
    On failure keep whatever is true: `verifier_passed: false`, the branch,
    the specs that ARE implemented and green, the achieved
    `tests.coverage_percent`, docs actually updated, open findings in
@@ -644,10 +684,13 @@ MANDATORY final step — never skipped, also on failure:
 
 3. Report a compact summary to the user: branch, specs implemented,
    tests/coverage vs target, docs updated, review iterations and open
-   findings, and the next step (`/acs:create-pr <ticket-id>` on success).
+   findings, and the next step (`/acs:create-pr <ticket-id>` on success, or
+   `/acs:create-ticket split <ticket-id> per
+   <partition>/phases/code/iter-<n>-plan.md` after a split answer).
    Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
    message — status, summary (<=1KB), `<artifacts>` listing the branch and key
-   changed paths, and `<next-step>` pointing at /acs:create-pr.
+   changed paths, and `<next-step>` pointing at /acs:create-pr (or at
+   `/acs:create-ticket split <ticket-id>` after a split answer).
 
 ## Completion report (normative)
 
@@ -661,9 +704,15 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: branch; specs implemented; tests passed/failed; coverage achieved vs target; docs updated (paths, incl. architecture doc set); review iterations and open findings
+- **Results**: branch; specs implemented; tests passed/failed; coverage achieved vs target; docs updated; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-pr <ticket-id>` on success; on a coverage hard-fail or iteration cap, re-run `/acs:code <ticket-id>` after addressing the recorded findings
 ```
+
+Any advisory documentation flags (`severity="info" dimension="documentation"`,
+from code-verifier's demoted per-commit doc-sync, living-requirements, and
+architectural-impact sub-checks) surface on the **Findings** line above
+alongside open blocking findings and clarifications, or `none` when there
+are none.

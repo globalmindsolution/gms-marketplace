@@ -151,7 +151,7 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
         self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
-            "create-spec", "code", "create-prd", "create-design",
+            "docs-sync", "code", "create-prd", "create-design",
             "create-architecture", "create-project", "create-quality",
             "create-operations", "create-principles", "create-standards",
             "standardize-project", "create-requirements",
@@ -168,12 +168,14 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
 
 class C4CountAndListFilesTest(unittest.TestCase):
     """AC-9: the C4/architecture count files read the current-epic totals
-    (24 skills post-MAR-143 / 45 agent files / 39 reachable / twelve triads /
-    12 active triads (36 agents in triads)) — the pre-121 strings are absent.
+    (23 skills post-MAR-156 / 42 agent files / 36 reachable / eleven triads /
+    11 active triads (33 agents in triads)) — the pre-121 strings are absent.
     The skill total advanced 22->23 with MAR-129's unhooked /acs:release skill,
-    then 23->24 with MAR-143's create-requirements (a HOOKED skill, so the
-    agent/triad figures advance too: 42->45 agents, 36->39 reachable,
-    eleven->twelve triads)."""
+    23->24 with MAR-143's create-requirements (a HOOKED skill, so the
+    agent/triad figures advanced too: 42->45 agents, 36->39 reachable,
+    eleven->twelve triads), then 24->23 with MAR-156's create-spec deletion
+    (a HOOKED skill removed: 45->42 agents, 39->36 reachable, twelve->eleven
+    triads)."""
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
@@ -182,9 +184,10 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("45 x agent .md (39 reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
-    def test_c4_container_triad_skill_list_names_all_eleven(self):
+    def test_c4_container_triad_skill_list_names_all_twelve(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
         self.assertNotIn("ten triad-keeping skills", body)
+        self.assertNotIn("eleven triad-keeping skills", body)
         m = re.search(r"triad for the twelve triad-keeping skills \(([^)]*)\)", body)
         self.assertIsNotNone(
             m, "c4-container.md must state 'twelve triad-keeping skills' with "
@@ -192,7 +195,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         enumerated = m.group(1)
         for suffix in (
             "prd", "architecture", "project", "quality", "operations",
-            "principles", "standards", "design", "spec", "standardize-project",
+            "principles", "standards", "design", "standardize-project",
             "create-requirements",
         ):
             self.assertIn(
@@ -203,12 +206,12 @@ class C4CountAndListFilesTest(unittest.TestCase):
     def test_c4_component_triad_and_reachable_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
         self.assertIn("twelve triad-keeping skills", body)
-        self.assertNotIn("ten triad-keeping skills", body)
+        self.assertNotIn("eleven triad-keeping skills", body)
         self.assertIn("standardize-project", body)
         self.assertIn("12 active triads (36 agents", body)
-        self.assertNotIn("10 active triads (30 agents", body)
+        self.assertNotIn("11 active triads (33 agents", body)
         self.assertIn("39 reachable agents", body)
-        self.assertNotIn("33 reachable agents", body)
+        self.assertNotIn("36 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
@@ -217,7 +220,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("45 files, 39 reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
         self.assertIn("twelve triad-keeping skills (36 agents)", body)
-        self.assertNotIn("ten triad-keeping skills (30 agents)", body)
+        self.assertNotIn("eleven triad-keeping skills (33 agents)", body)
 
     def test_overview_and_hook_gated_name_standardize_project(self):
         overview = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md"))
@@ -236,21 +239,30 @@ class C4CountAndListFilesTest(unittest.TestCase):
 class S04SkillTriggersCaseTest(unittest.TestCase):
     """AC-9: one new standardize-project routing CASE, structurally parsed
     (no paid model call); the pre-existing 18/16-vs-21-entries drift is
-    repaired straight to 22/20, later advanced to 23/21 by MAR-129's
-    /acs:release routing case."""
+    repaired straight to 22/20, later advanced to 23/21 by the /acs:release
+    routing case, then back to 22/20 as the create-spec case is retired.
+    Header/summary/prose count slots are asserted by deriving the expected
+    values from the live CASES/NEGATIVE lists rather than pinning literals,
+    so a future case-list change cascades to zero test edits here."""
 
     def _source(self):
         path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
         return read(path)
 
-    def _cases(self):
+    def _list(self, name):
         tree = ast.parse(self._source())
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "CASES" for t in node.targets
+                isinstance(t, ast.Name) and t.id == name for t in node.targets
             ):
                 return ast.literal_eval(node.value)
-        raise AssertionError("CASES list not found in s04_skill_triggers.py")
+        raise AssertionError("%s list not found in s04_skill_triggers.py" % name)
+
+    def _cases(self):
+        return self._list("CASES")
+
+    def _negative(self):
+        return self._list("NEGATIVE")
 
     def test_standardize_project_case_present_and_internally_consistent(self):
         cases = self._cases()
@@ -268,17 +280,69 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
             "the probe request must describe brownfield audit intent "
             "without naming the skill")
 
-    def test_header_and_summary_read_twentythree(self):
+    def test_no_create_spec_routing_case(self):
+        for case in self._cases():
+            self.assertNotEqual(case[0], "create-spec",
+                                "s04 CASES must not carry a create-spec label")
+            self.assertNotEqual(case[-1], "create-spec",
+                                "s04 CASES must not route to create-spec")
+        for case in self._negative():
+            self.assertNotEqual(case[0], "create-spec")
+            self.assertNotEqual(case[-1], "create-spec")
+        self.assertNotIn(
+            "create-spec", self._source(),
+            "s04 source must not mention the deleted create-spec skill")
+
+        # No eval scenario anywhere references the deleted skill (AC-1,
+        # scope extension): scan the whole scenarios package, not just s04.
+        scenarios_dir = os.path.join(REPO_ROOT, "evals", "acs", "scenarios")
+        for name in sorted(os.listdir(scenarios_dir)):
+            if not name.endswith(".py"):
+                continue
+            with open(os.path.join(scenarios_dir, name), encoding="utf-8") as fh:
+                body = fh.read()
+            self.assertNotIn(
+                "create-spec", body,
+                "%s still references the deleted create-spec skill" % name)
+
+    def test_header_and_summary_counts_match_case_lists(self):
         source = self._source()
+        total = len(self._cases())
+        user_only = len(self._negative())
+        described = total - user_only
+
         header = source.split("\n")[0]
-        self.assertIn("23", header)
-        self.assertNotIn("18", header)
+        m = re.search(r"all (\d+) skills", header)
+        self.assertIsNotNone(m, "s04 header must state 'all N skills'")
+        self.assertEqual(int(m.group(1)), total)
+
         m = re.search(r'"summary":\s*"([^"]*)"', source)
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
-        self.assertIn("23", summary)
-        self.assertIn("21", summary)
-        self.assertNotIn("18", summary)
+        m2 = re.search(r"all (\d+) \((\d+) by description, (\d+) user-only", summary)
+        self.assertIsNotNone(
+            m2, "summary must state 'all N (M by description, K user-only'")
+        self.assertEqual(
+            (int(m2.group(1)), int(m2.group(2)), int(m2.group(3))),
+            (total, described, user_only))
+
+    def test_docstring_prose_counts_match_case_lists(self):
+        source = self._source()
+        total = len(self._cases())
+        user_only = len(self._negative())
+        described = total - user_only
+
+        described_hits = re.findall(r"(\d+) model-invocable skills", source)
+        self.assertTrue(described_hits,
+                        "s04 prose must state 'N model-invocable skills'")
+        for value in described_hits:
+            self.assertEqual(int(value), described)
+
+        user_only_hits = re.findall(r"(\d+) user-only skills", source)
+        self.assertTrue(user_only_hits,
+                        "s04 prose must state 'N user-only skills'")
+        for value in user_only_hits:
+            self.assertEqual(int(value), user_only)
 
 
 class ChangelogMar121EntryTest(unittest.TestCase):

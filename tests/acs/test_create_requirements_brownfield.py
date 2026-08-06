@@ -30,7 +30,7 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
 PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-planner.md")
 EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
 VERIFIER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-verifier.md")
-CODE_SKILL_PATH = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+RUBRIC_SOURCE_PATH = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
@@ -158,8 +158,12 @@ class VerifierCoverageCitationContractTest(unittest.TestCase):
 
 class ClassificationRubricRegressionTest(unittest.TestCase):
     """AC-4: the executor's functional/non-functional rubric is quoted
-    VERBATIM from `plugins/acs/skills/code/SKILL.md` — a regression test
-    that fails if the two diverge (the plan's classification-drift risk)."""
+    VERBATIM from the rubric's producing-side source of truth — a
+    regression test that fails if the two diverge (the plan's
+    classification-drift risk). MAR-162 moved that source of truth from
+    `plugins/acs/skills/code/SKILL.md` to
+    `plugins/acs/agents/docs-sync-executor.md` (C-1); the rubric block
+    itself is unchanged, only its file of origin moved."""
 
     RUBRIC_RE = re.compile(
         r"\*\*FUNCTIONAL\*\*.*?deterministic at the seam\.", re.DOTALL)
@@ -170,13 +174,13 @@ class ClassificationRubricRegressionTest(unittest.TestCase):
         return normalize(m.group(0))
 
     def test_executor_rubric_matches_code_skill_verbatim(self):
-        code_rubric = self._rubric(read(CODE_SKILL_PATH))
+        source_rubric = self._rubric(read(RUBRIC_SOURCE_PATH))
         executor_rubric = self._rubric(read(EXECUTOR_PATH))
         self.assertEqual(
-            code_rubric, executor_rubric,
+            source_rubric, executor_rubric,
             "create-requirements-executor.md's functional/non-functional "
             "rubric must be an exact (whitespace-insensitive) quote of "
-            "code/SKILL.md's rubric — paraphrasing risks classification "
+            "docs-sync-executor.md's rubric — paraphrasing risks classification "
             "drift between the two producers",
         )
 
@@ -311,7 +315,7 @@ class ContractsMdProducerRowTest(unittest.TestCase):
     def test_conformance_chain_line_unchanged(self):
         body = read(CONTRACTS_MD)
         self.assertIn(
-            "Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, "
+            "Conformance chain: `PRD → architecture → principles → standards → design → code`, "
             "each level verified against the one above it.",
             body,
         )

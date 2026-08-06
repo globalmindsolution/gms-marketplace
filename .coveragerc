@@ -1,0 +1,51 @@
+# Coverage measurement configuration for this repo's "Tests & coverage" gate (MAR-175).
+#
+# The suite drives the real hook CLIs through subprocess.run (tests/acs/acs_case.py:49-54,
+# 169 call sites) and coverage.py does not measure subprocesses by default. parallel=true plus
+# COVERAGE_PROCESS_START (exported by .acs/settings.json tests.command, which activates coverage's
+# own shipped a1_coverage.pth hook) plus `coverage combine` is what gives those runs measurement
+# credit: 62% -> 88% with no test and no production change.
+#
+# Both paths MUST stay absolute via ${ACS_COV_ROOT} (= $PWD, exported by tests.command). Children are
+# spawned with cwd=<tempfile.mkdtemp()>, so a relative source or data_file silently measures nothing
+# and degrades TOTAL back toward 62% with no error.
+[run]
+parallel = true
+source = ${ACS_COV_ROOT}/plugins/acs/hooks/scripts
+data_file = ${ACS_COV_ROOT}/.coverage
+# The 29 true pre-*/post-* argument forwarders (~6 stmts each: sys.path insert, import, run_pre/
+# run_post call — e.g. plugins/acs/hooks/scripts/pre-code.py, 10 lines, no def main()).
+# post-merge-pr.py is deliberately NOT omitted: it has a real --pr branch
+# (plugins/acs/hooks/scripts/post-merge-pr.py:21-39) and is measured at 21 stmts / 100%.
+# This list MUST stay under [run]: a [report] omit keyed on ${ACS_COV_ROOT} would silently omit
+# nothing whenever the variable is unset at report time.
+omit =
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-operations.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-principles.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-quality.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-standards.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-merge-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-standardize-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-operations.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-principles.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-quality.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-standards.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-standardize-project.py

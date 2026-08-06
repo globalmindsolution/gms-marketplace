@@ -1,8 +1,8 @@
-"""s04 — routing evals for all 23 skills (paid, E1.2).
+"""s04 — routing evals for all 22 skills (paid, E1.2).
 
 Three kinds of probe, covering every skill:
 
-1. Description-trigger (14 model-invocable skills): a natural-language request
+1. Description-trigger (20 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
    skill. A miss is a real finding — the skill's `description` frontmatter
    isn't discriminating that request from its neighbors.
@@ -27,12 +27,12 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for all 23 (21 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for all 22 (20 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
 # (label, init?, request, expected skill).
-#   - The 14 model-invocable skills use a request that avoids naming the skill.
+#   - The 20 model-invocable skills use a request that avoids naming the skill.
 #   - The 2 user-only skills (install-hooks, update) set
 #     disable-model-invocation, so they can only be reached by the explicit
 #     `/acs:<skill>` command — a description would never route to them. Their
@@ -90,9 +90,6 @@ CASES = [
      "Settle the system design for ticket EVAL-1, weighing options and "
      "trade-offs, before we start implementing it.",
      "create-design"),
-    ("create-spec", True,
-     "Break ticket EVAL-1 down into dependency-ordered implementation specs.",
-     "create-spec"),
     ("code", True,
      "Implement ticket EVAL-1 from its specs, using TDD on a dedicated branch.",
      "code"),

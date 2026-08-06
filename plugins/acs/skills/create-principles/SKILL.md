@@ -46,11 +46,6 @@ If `settings.principles_path` is `null`: STOP before allocating further work —
 consumer has explicitly opted out of acs maintaining this doc set (mirrors
 `adr_path`'s unset-disables convention). Surface this to the user and do not run.
 
-If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-user typed `/acs:create-principles`, not driven under /acs:ship), tell the
-user in one line that `models.coordinator` governs the ship coordinator's own
-run under /acs:ship, not a directly typed skill — never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality
@@ -179,7 +174,7 @@ NOT push or open the PR.
 ## Delivery (branch, commit, PR)
 
 The delivery-ticket pattern (same as /acs:create-architecture — you do this yourself;
-/acs:create-design, /acs:create-spec, and /acs:code are not involved):
+/acs:create-design and /acs:code are not involved):
 
 1. **Branch** (before the first executor writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before

@@ -27,7 +27,7 @@ REQUIREMENTS_EXECUTOR = os.path.join(AGENTS, "create-requirements-executor.md")
 REQUIREMENTS_VERIFIER = os.path.join(AGENTS, "create-requirements-verifier.md")
 ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-executor.md")
 ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-verifier.md")
-CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-executor.md")
 CODE_VERIFIER = os.path.join(AGENTS, "code-verifier.md")
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 
@@ -216,14 +216,16 @@ class ArchitectureVerifierGroundingContractTest(unittest.TestCase):
                          "structure must directly precede audience-style, both last")
 
 
-class CodeSkillRequirementsMergeSidecarContractTest(unittest.TestCase):
-    """AC-3: /acs:code's requirements-merge write path (code/SKILL.md step 4)
-    routes any in-scope citation it would otherwise embed to the target
-    area file's companion sidecar."""
+class DocsSyncExecutorRequirementsMergeSidecarContractTest(unittest.TestCase):
+    """AC-3 (MAR-162 retarget): the requirements-merge write path routes any
+    in-scope citation it would otherwise embed to the target area file's
+    companion sidecar. MAR-162 re-homed this write path out of
+    `/acs:code`'s `code/SKILL.md` step 4 into `docs-sync-executor.md`'s
+    charter (C-1); the rubric+sidecar block itself moved byte-identical."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = read(DOCS_SYNC_EXECUTOR)
 
     def test_rubric_block_still_present(self):
         self.assertRegex(
@@ -237,7 +239,7 @@ class CodeSkillRequirementsMergeSidecarContractTest(unittest.TestCase):
         near = self.body[m.end():m.end() + 1200]
         self.assertRegex(
             near, SIDECAR_TOKEN_RE,
-            "code/SKILL.md step 4 must route in-scope citations to a "
+            "docs-sync-executor.md must route in-scope citations to a "
             "'.evidence.md' sidecar near the classification rubric",
         )
 
@@ -263,11 +265,16 @@ class CodeVerifierDocumentationSidecarContractTest(unittest.TestCase):
     def test_dimension_mentions_evidence_sidecar(self):
         self.assertRegex(self.block, SIDECAR_TOKEN_RE)
 
-    def test_dimension_blocks_inline_citation_in_merge(self):
+    def test_dimension_reports_inline_citation_in_merge_as_advisory(self):
+        """MAR-162 supersedes the prior blocking assertion: dimension 11's
+        living-requirements sub-check is demoted to advisory — the inline
+        in-scope citation clause now reports severity="info", still fully
+        performed and reported, never gating verifier_passed (docs-sync's
+        own verifier independently re-derives and blocks on this content)."""
         self.assertRegex(
             self.block,
-            r'(?i)inline[\s\S]{0,120}citation[\s\S]{0,200}'
-            r'severity="blocking"\s+dimension="documentation"',
+            r'(?i)inline[\s\S]{0,200}citation[\s\S]{0,300}'
+            r'severity="info"\s+dimension="documentation"',
         )
 
 
@@ -295,7 +302,7 @@ class ContractsMdSidecarNoteTest(unittest.TestCase):
 
     def test_conformance_chain_line_unchanged(self):
         self.assertIn(
-            "Conformance chain: `PRD → architecture → principles → standards → design → specs → code`, "
+            "Conformance chain: `PRD → architecture → principles → standards → design → code`, "
             "each level verified against the one above it.",
             self.body,
         )

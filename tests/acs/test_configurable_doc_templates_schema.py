@@ -31,9 +31,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 DESIGN_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "design-default.md")
-SPEC_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "spec-default.md")
 CREATE_DESIGN_SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")
-CREATE_SPEC_SKILL = os.path.join(PLUGIN, "skills", "create-spec", "SKILL.md")
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
@@ -49,13 +47,6 @@ DESIGN_HEADINGS = [
     "Architecture",
     "Impact & risks",
     "Rollout/migration",
-]
-SPEC_HEADINGS = [
-    "Scope",
-    "Approach",
-    "API/data changes",
-    "Test plan",
-    "Out of scope",
 ]
 
 
@@ -91,11 +82,6 @@ class TestFormatsTemplateKeys(unittest.TestCase):
         self.assertIn("design_template", props)
         self.assertEqual(props["design_template"].get("default"), "design-default")
 
-    def test_spec_template_declared_default_spec_default(self):
-        props = self.formats["properties"]
-        self.assertIn("spec_template", props)
-        self.assertEqual(props["spec_template"].get("default"), "spec-default")
-
     def test_formats_block_stays_closed(self):
         # additionalProperties:false is exactly why the two keys MUST be declared.
         self.assertIs(self.formats.get("additionalProperties"), False)
@@ -103,7 +89,6 @@ class TestFormatsTemplateKeys(unittest.TestCase):
     def test_formats_description_lists_new_builtin_names(self):
         desc = self.formats.get("description", "")
         self.assertIn("design-default", desc)
-        self.assertIn("spec-default", desc)
 
 
 class TestEnforcementSectionKeys(unittest.TestCase):
@@ -117,18 +102,14 @@ class TestEnforcementSectionKeys(unittest.TestCase):
         prop = self.enforcement["properties"]["design_sections"]
         self.assertEqual(prop.get("default"), DESIGN_HEADINGS)
 
-    def test_spec_sections_default_exact_and_ordered(self):
-        prop = self.enforcement["properties"]["spec_sections"]
-        self.assertEqual(prop.get("default"), SPEC_HEADINGS)
-
     def test_section_keys_typed_as_string_arrays(self):
-        for key in ("design_sections", "spec_sections"):
+        for key in ("design_sections",):
             prop = self.enforcement["properties"][key]
             self.assertEqual(prop.get("type"), "array")
             self.assertEqual(prop.get("items"), {"type": "string"})
 
     def test_section_descriptions_mention_defaulted_from(self):
-        for key in ("design_sections", "spec_sections"):
+        for key in ("design_sections",):
             desc = self.enforcement["properties"][key].get("description", "")
             self.assertIn("defaulted from", desc)
 
@@ -156,27 +137,14 @@ class TestByteIdenticalDefaults(unittest.TestCase):
         literal = re.sub(r"\s+", " ", literal).strip()
         self.assertEqual(literal, "; ".join(default))
 
-    def test_spec_sections_default_matches_create_spec_headings(self):
-        default = load_json(SCHEMA_PATH)["properties"]["enforcement"]["properties"][
-            "spec_sections"
-        ]["default"]
-        self.assertEqual(default, SPEC_HEADINGS)
-        skill = read_text(CREATE_SPEC_SKILL)
-        for heading in SPEC_HEADINGS:
-            self.assertIn("## " + heading, skill)
-
-
 class TestBuiltinTemplateFiles(unittest.TestCase):
     """AC-2: the two built-in template files encode today's EXACT headings/order."""
 
     def test_design_default_headings_exact_and_ordered(self):
         self.assertEqual(heading_lines(read_text(DESIGN_TEMPLATE_PATH)), DESIGN_HEADINGS)
 
-    def test_spec_default_headings_exact_and_ordered(self):
-        self.assertEqual(heading_lines(read_text(SPEC_TEMPLATE_PATH)), SPEC_HEADINGS)
-
     def test_template_files_begin_with_html_comment(self):
-        for path in (DESIGN_TEMPLATE_PATH, SPEC_TEMPLATE_PATH):
+        for path in (DESIGN_TEMPLATE_PATH,):
             self.assertTrue(read_text(path).lstrip().startswith("<!--"))
 
 
@@ -189,12 +157,14 @@ class TestArchitectureDocs(unittest.TestCase):
         self.assertNotIn("4 description templates", text)
 
     def test_contracts_lists_all_four_new_keys(self):
+        """Narrowed to the two surviving keys (MAR-161/ADR-0066): MAR-156
+        retired `formats.spec_template`/`enforcement.spec_sections` from the
+        schema along with the deleted create-spec skill, and MAR-161 swept
+        contracts.md's Settings paragraph to stop documenting them."""
         text = read_text(CONTRACTS_PATH)
         for key in (
             "formats.design_template",
-            "formats.spec_template",
             "enforcement.design_sections",
-            "enforcement.spec_sections",
         ):
             self.assertIn(key, text)
 

@@ -2,13 +2,17 @@
 
 Prose-contract tests over the five conformance-chain locations
 (`docs/architecture/lld/contracts.md`, `docs/architecture/hld/overview.md`,
-`docs/requirements/non-functional/quality-gates.md` (the SEVEN_NODE chain
+`docs/requirements/non-functional/quality-gates.md` (the SIX_NODE chain
 lives in the moved "PRD at the top" Core-principles row, MAR-145),
 `docs/requirements/functional/workflow.md`,
 `docs/README.md`), the code-verifier and create-design-verifier
 living-requirements descriptions (`docs/requirements/functional/skills.md`,
 `docs/requirements/functional/reflection.md`), the durable MAR-119 CHANGELOG entry, and
 the Flow-2 no-new-flow-file guardrail.
+
+The chain shortened from 7/9 nodes to 6/8 nodes when the standalone
+spec-authoring skill was retired (ADR 0066 supersedes ADR 0006; MAR-161
+drops the `specs` hop repo-wide).
 
 Stdlib-only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_mar119_docs_chain -v
@@ -27,10 +31,10 @@ import evidence_sidecar  # noqa: E402
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CORE = "architecture → principles → standards → design"
-SEVEN_NODE = ("PRD → architecture → principles → standards → "
-              "design → specs → code")
-NINE_NODE = ("PRD → architecture → principles → standards → "
-             "design → specs → code → verify → release")
+SIX_NODE = ("PRD → architecture → principles → standards → "
+            "design → code")
+EIGHT_NODE = ("PRD → architecture → principles → standards → "
+              "design → code → verify → release")
 
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 HLD_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md")
@@ -58,7 +62,7 @@ BASELINE_FLOWS = {
 # file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail
 # still catches an ACCIDENTAL new flow file from a future MAR-119-adjacent
 # change; it is not meant to freeze the directory against every later ticket.
-KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md"}
+KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md"}
 
 
 def read(path):
@@ -99,26 +103,26 @@ class ChainCoreSegmentTest(unittest.TestCase):
 
 
 class ChainFullStringExactnessTest(unittest.TestCase):
-    """AC-5: the byte-identical 7-node chain at the four non-README
-    locations; the 9-node chain (with the verify -> release suffix) at
+    """AC-5: the byte-identical 6-node chain at the four non-README
+    locations; the 8-node chain (with the verify -> release suffix) at
     docs/README.md only."""
 
-    def test_seven_node_chain_at_four_locations(self):
+    def test_six_node_chain_at_four_locations(self):
         for path in SEVEN_NODE_FILES:
             body = read(path)
             self.assertIn(
-                SEVEN_NODE, body,
-                "%s must contain the 7-node chain %r" % (path, SEVEN_NODE))
+                SIX_NODE, body,
+                "%s must contain the 6-node chain %r" % (path, SIX_NODE))
 
-    def test_nine_node_chain_at_docs_readme_only(self):
+    def test_eight_node_chain_at_docs_readme_only(self):
         body = read(DOCS_README_MD)
         self.assertIn(
-            NINE_NODE, body,
-            "docs/README.md must contain the 9-node chain %r" % NINE_NODE)
+            EIGHT_NODE, body,
+            "docs/README.md must contain the 8-node chain %r" % EIGHT_NODE)
 
     def test_seven_and_nine_node_constants_share_core(self):
-        self.assertIn(CORE, SEVEN_NODE)
-        self.assertIn(CORE, NINE_NODE)
+        self.assertIn(CORE, SIX_NODE)
+        self.assertIn(CORE, EIGHT_NODE)
 
 
 class ContractsMdSettingsKeysTest(unittest.TestCase):

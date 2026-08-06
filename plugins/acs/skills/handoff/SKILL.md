@@ -67,10 +67,12 @@ Find which hooked skill (if any) has a run in progress:
 2. **Pointer file** — the `skill` field of
    `<workspace>/<repo-id>/sessions/<checkout-id>.json`.
 3. **Scan** — check `<partition>/<skill>-state.json` for
-   `runs[-1].status == "in_progress"`, in this order: `create-prd`,
-   `create-architecture`, `create-project`, `create-ticket`, `create-design`,
-   `create-spec`, `code`, `create-pr`, `merge-pr` (the same order
-   `handoff.py` uses, so your flush lands where its finalization points).
+   `runs[-1].status == "in_progress"`, in `acs_lib.HOOKED_SKILLS` order
+   (`plugins/acs/hooks/scripts/acs_lib.py:41-43` — 8 product skills
+   followed by 7 workflow skills, 15 in total). That is the order
+   `handoff.py:64` itself scans, so your flush lands where its
+   finalization points. Do not restate the list here: the constant is
+   the authority, and a copy of it is what drifted.
 
 If no skill is in flight, skip Step 3 (there is no in-flight phase to flush —
 completed steps are already fully recorded in the workspace) and go straight

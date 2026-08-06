@@ -34,7 +34,6 @@ PLANNERS = [
     "create-prd-planner.md",
     "create-architecture-planner.md",
     "create-design-planner.md",
-    "create-spec-planner.md",
     "create-quality-planner.md",
     "create-operations-planner.md",
 ]
@@ -81,7 +80,10 @@ def verifier_path(name):
 
 
 class Mar115CanonicalBlockCase(unittest.TestCase):
-    """Fixture: read all six planners once, extract the canonical block."""
+    """Fixture: read all five planners once, extract the canonical block.
+
+    create-spec-planner.md was one of the original six; MAR-156 deletes
+    create-spec outright, so it is no longer part of this set."""
 
     @classmethod
     def setUpClass(cls):
@@ -90,7 +92,7 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
         for name, body in cls.bodies.items():
             cls.blocks[name] = section(body, CANONICAL_HEADING)
 
-    # AC-1: presence in all six planners
+    # AC-1: presence in all five planners
     def test_ac1_canonical_block_present_in_all_six_planners(self):
         for name in PLANNERS:
             with self.subTest(planner=name):
@@ -99,7 +101,7 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
                     "%s missing the canonical ADR-0012 doc-consistency block" % name,
                 )
 
-    # AC-2: cross-six md5 identity of the extracted block
+    # AC-2: cross-five md5 identity of the extracted block
     def test_ac2_canonical_block_is_md5_identical_across_all_six(self):
         digests = {
             name: hashlib.md5(block.encode("utf-8")).hexdigest()
@@ -237,7 +239,6 @@ class Mar115SkillMdPointerCase(unittest.TestCase):
         "create-prd",
         "create-architecture",
         "create-design",
-        "create-spec",
         "create-quality",
         "create-operations",
     ]
@@ -306,7 +307,6 @@ class Mar115DocTailCase(unittest.TestCase):
             "## `/acs:create-quality` (product-level)",
             "## `/acs:create-operations` (product-level)",
             "## 2. `/create-design` *(conditional)*",
-            "## 3. `/create-spec`",
         ]
         for heading in headings:
             with self.subTest(heading=heading):

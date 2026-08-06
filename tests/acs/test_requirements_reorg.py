@@ -173,14 +173,16 @@ class ReadmeDocumentsModelTest(unittest.TestCase):
 
 
 class NoMarketplacePathHardcodingTest(unittest.TestCase):
-    """AC-6 (no-hardcoding half): /acs:code's requirements-merge routing
-    prose resolves the functional/non-functional subfolder via
+    """AC-6 (no-hardcoding half): the requirements-merge routing prose
+    resolves the functional/non-functional subfolder via
     settings.requirements_layout (placeholder syntax), never a literal
-    marketplace-specific 'docs/requirements/functional/...' path."""
+    marketplace-specific 'docs/requirements/functional/...' path. MAR-162
+    moved the requirements-merge routing prose from /acs:code's producer
+    files to /acs:docs-sync's executor (C-1); code-verifier.md retains it in
+    the demoted advisory sub-check (b)."""
 
     SCOPED_FILES = (
-        os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "SKILL.md"),
-        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-executor.md"),
+        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md"),
         os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-verifier.md"),
     )
 

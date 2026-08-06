@@ -25,10 +25,10 @@ def run():
     with Sandbox(prefix="EVAL", slug="shop", init=True) as sb:
         tid = sb.mint_ticket("Add a /health endpoint returning ok", "task",
                              needs_design=False)
-        sb.start_run("create-spec", tid)  # in_progress + lock + session pointer
+        sb.start_run("code", tid)  # in_progress + lock + session pointer
 
-        st = sb.ticket_json(tid, "create-spec-state.json")
-        check.eq("seed: create-spec is in_progress",
+        st = sb.ticket_json(tid, "code-state.json")
+        check.eq("seed: code is in_progress",
                  st["runs"][-1]["status"], "in_progress")
         check.ok("seed: ticket lock held",
                  os.path.exists(sb.ticket_path(tid, ".lock")))
@@ -36,7 +36,7 @@ def run():
         rc, err = sb.session_end()
         check.eq("session-end exits 0", rc, 0)
 
-        st2 = sb.ticket_json(tid, "create-spec-state.json")
+        st2 = sb.ticket_json(tid, "code-state.json")
         check.eq("run finalized as interrupted",
                  st2["runs"][-1]["status"], "interrupted")
         check.ok("lock released",

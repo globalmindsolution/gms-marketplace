@@ -1,6 +1,6 @@
 ---
 name: create-design
-description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket partition. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:create-spec.
+description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket partition. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,7 +9,7 @@ You are the coordinator of /acs:create-design. Your job: turn a design-significa
 ticket (`needs_design: true`) into an approved `design.md` in the ticket's workspace
 partition — context, at least two genuinely-weighed options, a decision with
 rationale, the architecture of the change, risks, and rollout — verified by a fresh
-verifier before it gates `/acs:create-spec`. You orchestrate planner/executor/verifier
+verifier before it gates `/acs:code`. You orchestrate planner/executor/verifier
 subagents over XML; you never write the design content yourself.
 
 The pre-hook (`pre-create-design.py`) has already verified: settings exist,
@@ -35,11 +35,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-desi
   `models` (resolved planner/executor/verifier model+effort), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
-- If `settings.models.coordinator` is set and this is a DIRECT invocation (a
-  user typed `/acs:create-design`, not driven under /acs:ship): tell the user in
-  one line that `models.coordinator` governs the ship coordinator's own run, not
-  a directly typed skill — a directly invoked skill runs on the session's model.
-  Never silently diverge.
 
 Throughout this file `<partition>` means the `partition` path from the context JSON
 and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -199,7 +194,7 @@ under `<adr_path>` as part of its documentation updates." If unset, omit it.
 
 All diagrams are Mermaid. The design references architecture docs by path; it
 never copies them wholesale. For an epic: design at epic level — children
-INHERIT this design via cross-partition read in their /acs:create-spec; never
+INHERIT this design via cross-partition read in their /acs:code; never
 duplicate or split it into child partitions.
 
 You MAY run multiple executors in parallel ONLY when their outputs cannot
@@ -329,17 +324,17 @@ MANDATORY final step — never skipped, including on failure or handoff:
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --ticket <id> --result-file <partition>/phases/create-design/result.json
    ```
 
-   If it exits non-zero, surface its stderr verbatim — the /acs:create-spec gate
+   If it exits non-zero, surface its stderr verbatim — the /acs:code gate
    stays closed until it succeeds.
 
 3. Report:
    - Direct invocation: a compact summary — decision (one line), options
      considered, conformance vs. required architecture changes, iterations used,
-     and the next step (`/acs:create-spec <id>`; for an epic, /acs:create-spec on
+     and the next step (`/acs:code <id>`; for an epic, /acs:code on
      each child, which inherits this design).
    - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` <=1KB, `<artifacts>` referencing
-     `<partition>/design.md`, `<next-step>/acs:create-spec <id></next-step>`.
+     `<partition>/design.md`, `<next-step>/acs:code <id></next-step>`.
      Validate it with validate_xml.py like every other message.
 
 ## Completion report (normative)
@@ -358,5 +353,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: `/acs:create-spec <ticket-id>`
+- **Next**: `/acs:code <ticket-id>`
 ```

@@ -32,15 +32,24 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 
 ## Charter — what a /acs:code plan contains
 
-1. **Spec intake — trust the gate, plan the execution.** The specs arrive
-   already verified (the create-spec verifier checked ticket mapping and
-   design conformance before the pre-code gate opened): do NOT re-derive the
-   spec↔ticket analysis. Read each spec, in numeric order, for what execution
-   needs: scope, contracts, test plan, out-of-scope boundary. Raise a question
-   ONLY for what blocks execution — a contradiction between specs, with the
-   design, or with repo reality discovered while building the file map;
-   undefined behavior with user-visible consequences. Ambiguities become
-   explicit questions; never resolve them by silent assumption.
+1. **Spec intake — dual-mode, forking on whether `<partition>/specs/`
+   already has content.** When `<partition>/specs/*.md` already has content
+   (a pre-existing spec set — e.g. an in-flight ticket predating this
+   change, or a consumer repo that still authors specs by hand), read each
+   spec, in numeric order, for what execution needs: scope, contracts, test
+   plan, out-of-scope boundary — trust the gate, do NOT re-derive the
+   spec↔ticket analysis. When `specs/` is absent or empty, there is no
+   separate upstream phase to trust: self-author the five-section fold
+   content (Scope, Approach, API/data changes, Test plan, Out of scope)
+   inline as part of this same plan artifact, owning the ticket-mapping and
+   — when a design applies — the design-conformance analysis yourself. Both
+   modes converge on the same downstream charter (executor decomposition,
+   test strategy, documentation map); only intake forks on which mode
+   applies. Raise a question ONLY for what blocks execution — a
+   contradiction between specs, with the design, or with repo reality
+   discovered while building the file map; undefined behavior with
+   user-visible consequences. Ambiguities become explicit questions; never
+   resolve them by silent assumption.
 2. **Executor decomposition with a file map.** Typically ONE executor task per
    spec. For each task list the spec it implements and the EXACT repo files it
    will touch — source, test, and doc paths. This file map is what the
@@ -49,6 +58,32 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    so make the map complete and honest. Keep the minimal change surface: the
    file map and executor tasks must not invite speculative scope beyond what the
    spec requires (executor **Simplicity First** and **Surgical Changes** rules).
+   **Spec-simplicity gate** (migrated from the deleted create-spec-planner.md,
+   ADR 0037-0039, now that this planner self-authors the folded spec content):
+   while choosing this decomposition, evaluate whether a **materially**
+   simpler alternative decomposition would satisfy the **same acceptance
+   criteria** with materially less code/complexity — mirror the "would a
+   senior engineer call this overcomplicated?" bar (naming and style
+   preferences are never material). If one is found, do not implement it
+   silently and do not decide it yourself: record the current approach vs.
+   the simpler alternative, the shared AC set both satisfy, and the material
+   saving as an explicit question in `<questions>` — the same
+   ambiguity-surfacing seam step 1 uses — so the coordinator can **surface**
+   it to the user for a **decision**. This is a surfaced question, never a
+   block: continue planning against the current approach while the question
+   is open.
+   **Oversize signal** (ADR 0069): while building this decomposition, also
+   compare it against `create-ticket-planner.md:57-65`'s existing
+   reviewable-diff rubric — roughly ~4 tasks, ~400 changed lines, or ~7
+   acceptance criteria, or the surface otherwise clearly exceeding a
+   reviewable diff. When the decomposition itself exceeds that bar, record
+   the split seams in this plan artifact
+   (`<partition>/phases/code/iter-<n>-plan.md` — the evidence
+   `/acs:create-ticket split` reads) and surface a `<question>` alongside
+   the Spec-simplicity gate's, reusing the identical "surface, never block,
+   continue planning" contract (ADR 0038). This is a new trigger on an
+   existing seam, not a new mechanism: the signal itself never blocks — only
+   the user's answer to split may end the run.
 3. **Test strategy per spec — tests first.** Name the failing tests to write
    before any implementation (derived from the spec's Test plan), the repo's
    test and coverage tooling, and the exact commands to run them. The test
@@ -62,35 +97,53 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    coverage measurement — plan the single full-suite run that proves the
    change breaks nothing; if any spec requires touching executable code,
    flag the contradiction as a question instead of planning around it.
-4. **Documentation map — docs are part of the change.** From each spec's
-   API/data-changes section, list every consumer-repo doc the change touches:
-   README, API/usage docs, the changelog where the repo keeps one. For code
-   comments, plan the **minimal, idea-only** scope: one short
-   single-responsibility line per new function/class, no ticket ids in source,
-   and on edits only the comments the change actually invalidates (e.g. a
-   changed parameter) — never a re-comment pass over unchanged logic. Always
-   include the **living-requirements file** for each touched feature area
-   (`<requirements_path>/<area>.md` — pick the area from the PRD feature the
-   ticket traces to; name the file even when it does not exist yet). Always
-   assess whether the change makes any factual claim in
+4. **Documentation map — docs are part of the change.** `/acs:docs-sync`
+   independently re-derives every other doc-delta this change touches —
+   README, API/usage docs, the changelog, code comments, the
+   living-requirements file for each touched feature area, the HLD under
+   `architecture_path`, the `lld/flows/` sequence diagrams, and the ADRs
+   under `adr_path` — from the diff (and the design, when one applies) after
+   `/code` completes; this plan does not name them. Always assess whether the
+   change makes any factual claim in
    `docs/product/prd.md` or `docs/product/roadmap.md` stale (factual items:
    agent/subagent counts, feature/epic shipped-vs-planned status, component
    topology, version numbers, file path references); if so, include prd.md
    and/or roadmap.md in the documentation map for the executor to reconcile.
-   When the change adds/removes components or alters the data model, integrations, or
-   deployment: name the HLD files under `architecture_path` to update (C4
-   views, data model, deployment) and the design sequence diagrams to merge
-   into `<architecture_path>/lld/flows/`. When `adr_path` is set and the design
-   carries accepted decisions, list the ADRs to commit there.
    **Boy-scout drift repair:** while surveying the touched area, compare its
    architecture docs (the relevant C4 component entries, data-model rows,
    `lld/flows/` diagrams) against the CURRENT code; any section that already
    disagrees with reality — e.g. drift from commits that bypassed the
-   pipeline — goes into the documentation map to be corrected as part of
-   this change. Cite the disagreement (doc section vs file:line). Scope:
+   pipeline — goes into the documentation map, flagged as a **Boy-scout
+   drift item**: the executor carries it verbatim into the execute report's
+   `problems` field, and `/acs:docs-sync` — which reads `problems` as a
+   mandatory input and runs on the same branch/PR after `/acs:code` —
+   performs the repair. Cite the disagreement (doc section vs file:line). Scope:
    only the area this ticket touches — whole-repo reconciliation belongs to
    a /acs:create-architecture re-run, which you should recommend in the plan
    when the drift you found looks widespread.
+   **Doc-graph-gap check (ADR 0012 third amendment) — bounded,
+   touched-area only:** the same survey also detects a MISSING
+   doc-graph **edge** (not disagreement, but absence) across four
+   bounded edge types, checkable against the same docs this item
+   already opens: **E1** a touched/added component has no entry in
+   `<architecture_path>/hld/c4-component.md`; **E2** a touched/added
+   persisted entity or state shape has no row in
+   `<architecture_path>/hld/data-model.md`; **E3** a touched/added
+   runtime flow has no sequence diagram under
+   `<architecture_path>/lld/flows/`; **E4** a user-visible capability
+   the change delivers has no PRD goal or roadmap row to trace to in
+   `docs/product/prd.md` / `docs/product/roadmap.md`. A found E1-E4 gap
+   rides the SAME `problems` carrier as a Boy-scout drift item: cite
+   the edge type plus the touched component/entity/flow/capability and
+   the doc it is missing from — no new question type, no new field, no
+   new lifecycle. Bound: touched-area only, the same scope as the
+   drift repair above — no whole-repo reconciliation. Explicitly NOT
+   covered: `requirements_path` edges and `adr_path` edges — they
+   remain the responsibility of `/acs:create-design`'s full ADR-0012
+   step (for `needs_design: true` tickets) and `/acs:docs-sync`'s
+   diff-grounded re-derivation. When the consumer repo has no
+   architecture doc set on disk, this check finds nothing to compare
+   against and raises no finding — it never fails or blocks.
 5. **Risks.** Known hazards for the executor: fragile areas of the codebase,
    shared files between specs, migrations, generated code that resists
    coverage, anything that could force the coverage hard-fail.

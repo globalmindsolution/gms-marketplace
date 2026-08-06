@@ -28,8 +28,8 @@ Ground rules, non-negotiable:
 
 ## Start
 
-**Step 1 — resolve settings, repo partition id, and the coordinator
-model.** Run exactly (the heredoc terminator `PY` must stay at column 0):
+**Step 1 — resolve settings and repo partition id.** Run exactly (the
+heredoc terminator `PY` must stay at column 0):
 
 ```bash
 python3 - <<'PY'
@@ -47,15 +47,14 @@ print(json.dumps({
     "workspace": workspace,
     "repo_id": lib.repo_partition_id(cwd),
     "ticket_prefix": settings["ticket_prefix"],
-    "coordinator": lib.resolve_role_model(settings, "ship", "coordinator"),
     "settings_sources": sources,
 }, indent=2))
 PY
 ```
 
 On exit 2: surface stderr verbatim (typically "Run /acs:init first") and
-stop. Otherwise record `workspace`, `repo_id`, `ticket_prefix`, and
-`coordinator`. The ticket partition path is always
+stop. Otherwise record `workspace`, `repo_id`, and `ticket_prefix`. The
+ticket partition path is always
 `<workspace>/<repo_id>/<ticket-id>/` — call it `<partition>` below.
 
 **Step 2 — parse `$ARGUMENTS`.**
@@ -66,12 +65,12 @@ stop. Otherwise record `workspace`, `repo_id`, `ticket_prefix`, and
 - Anything else → **new request**: the whole text is the prompt for the
   first step, /acs:create-ticket.
 
-**Step 3 — model note.** `models.coordinator` (`coordinator.model` /
-`coordinator.effort`, when not `"inherit"`) governs your own ship
-coordinator session/run — you invoke each step skill directly in your own
-context, so there is no separate per-step agent for it to apply to. If the
-runtime rejects the configured model or effort, fail the run with that error;
-never silently fall back.
+**Step 3 — model note.** Your own ship coordinator session has no
+configurable model override in settings — the `coordinator` role was
+retired from the `models` settings contract. You simply inherit whatever
+model and reasoning effort the invoking session already has, and invoke
+each step skill directly in that same context; there is no separate
+per-step agent for a per-role setting to apply to.
 
 ## Pipeline order
 
@@ -79,9 +78,10 @@ never silently fall back.
 |---|------|-----------|
 | 1 | create-ticket | new request, or resume with the step not completed |
 | 2 | create-design | conditional — see below |
-| 3 | create-spec | STANDARD, COMPLEX, high-stakes, absent, or unrecognized lanes only. Fast lanes (TRIVIAL/SMALL) skip this step — spec authoring is folded into /code's plan phase. Note: `stakes == "high"` resolves to STANDARD via `derive_lane` (rule 3), so high-stakes tickets never reach the TRIVIAL/SMALL branch and always keep the full create-spec path. |
-| 4 | code | always |
-| 5 | create-pr | always |
+| 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
+| 4 | test (post-code) | conditional — see "Post-code test gate" below |
+| 5 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
+| 6 | create-pr | always |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from
@@ -93,11 +93,72 @@ Design step rules (read `needs_design` and `parent` from
   the design lives in the **parent's** partition. If the parent's
   pipeline-state.json does not show create-design `completed`, run the
   create-design step with the **parent epic's id**; otherwise skip to
-  create-spec (the child never repeats design).
+  code (the child never repeats design).
 - Neither → skip create-design entirely.
 
 Epic tickets stop after create-design: implementation happens on the
 children (see Epic fan-out), never on the epic itself.
+
+## Post-code test gate
+
+Before advancing from `code` to `create-pr`, evaluate whether the
+conditional `test` step (post-code, pre-create-pr) is active for this
+ticket. Read the resolved settings the same way Step 1 already does (via
+`acs_lib.load_settings`/`build_context`), then decide in order:
+
+1. If `settings.post_code_test.enabled` is explicitly `true` or `false`
+   (not `null`/absent), that value wins outright.
+2. Otherwise (`enabled` is `null`, or `post_code_test` is absent entirely),
+   resolve the step's activation from e2e presence: the step is **OFF only
+   when neither `settings.e2e` nor `suites.e2e` is set; ON by default
+   whenever either is configured** — this preserves PRD G13's e2e-gating
+   guarantee, never silently regressing it.
+
+An explicit `enabled: true` with no e2e configured is not a validation
+error: the step still runs, scoped to whatever ticket-named Test-plan
+suites exist (a harmless no-op when the ticket names none).
+
+**Running the step, when active.** Reusing the same `import acs_lib as lib`
+inline-Python pattern Step 1 already uses to read/write
+`pipeline-state.json`, and the existing generic `update_pipeline(tdir,
+ticket_id, skill, status, summary=None, ...)` helper (no `acs_lib.py`
+code change — it already writes an arbitrary-shape step dict):
+
+1. Read `pipeline-state.json.steps.test.fix_loops` (default `0` when the
+   `test` step entry is absent) and the cap from
+   `settings.post_code_test.fix_loops_cap` (default `2`). `fix_loops` is
+   independent of `/code`'s own internal iteration cap — the two counters
+   never interact.
+2. Invoke `/acs:test --for-ticket <ticket-id>`, which runs scoped to `e2e`
+   plus the ticket's Test-plan-named suites, unconditionally skips its own
+   regression-ticket triage, and returns a `{"status", "failure_output"}`
+   verdict.
+3. **Verdict is `pass`** → `update_pipeline(...)` records `steps.test` as
+   `completed`, and you proceed to "Picking the next step" (which now
+   advances to docs-sync).
+4. **Verdict is `fail` and `fix_loops < cap`** → increment `fix_loops` in
+   `pipeline-state.json.steps.test` (status stays `in_progress`), then
+   relay the verdict's `failure_output` into `/acs:code <ticket-id>`
+   **exactly via the existing "Re-invoke after needs_input" pattern**
+   (see "Step-specific adjustments" below) — not a new relay mechanism.
+   After `/acs:code`'s handoff completes, loop back to step 2 above; this
+   is the fix-and-re-test loop.
+5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...)`
+   records `steps.test` as `failed` with a summary noting the cap was
+   reached; STOP, mirroring the existing failed-handling shape (see
+   "Handling the handoff").
+
+**Orchestration, not step-work.** `/acs:test` has and keeps no post-hook
+of its own (it is not in `WORKFLOW_SKILLS`), so this ledger bookkeeping —
+reading/writing the `steps.test` entry via `acs_lib`'s existing generic
+functions — is `/acs:ship`'s own responsibility to fill a gap only it can
+fill. This is orchestration bookkeeping, consistent with "You orchestrate;
+you never implement" above — the step's actual work (suite execution,
+verdict computation) remains entirely inside `/acs:test`'s own Steps 1-3,
+invoked the same way any other step skill is invoked. Note also that
+`/acs:test`'s Steps 1-3 execute inline in `/acs:ship`'s own context (it has
+no coordinator/subagent separation to delegate to, unlike the other three
+hooked steps).
 
 ## Picking the next step
 
@@ -113,24 +174,16 @@ not your memory, decides what comes next.
    a product-level delivery ticket — /acs:ship does not drive those; tell
    the user to re-run the matching product skill (/acs:create-prd,
    /acs:create-architecture, /acs:create-project) and stop.
-3. A step is complete iff `steps.<skill>.status == "completed"`. Before
-   walking, read `ticket.lane` from `<partition>/ticket.json` (already
-   loaded in step 2):
-   - If `ticket.lane` is `"TRIVIAL"` or `"SMALL"`: walk the order
-     create-ticket → create-design (when required per the rules above) →
-     code → create-pr, **skipping create-spec**. Spec authoring is folded
-     into /code's plan phase (no separate /acs:create-spec invocation).
-   - For any other value — `"STANDARD"`, `"COMPLEX"`, absent, or
-     unrecognized — walk the full order: create-ticket → create-design
-     (when required per the rules above) → create-spec → code → create-pr.
-     An absent or unrecognized lane is treated as STANDARD (fail-closed;
-     consistent with `derive_lane`'s conservative default). Note: a
-     high-stakes ticket (`stakes == "high"`) resolves to STANDARD via
-     `derive_lane` and always keeps the full create-spec path.
-   Pick the FIRST step in the applicable order that is not complete. A step
-   recorded `in_progress`, `failed`, `interrupted`, or `handed_off` is
-   simply re-run — the step's own skill-start reconciles recorded state
-   against reality; you never reconcile yourself.
+3. A step is complete iff `steps.<skill>.status == "completed"`. Walk the
+   SAME order on every lane — the fold is universal now, so no lane branches
+   the walk: create-ticket → create-design (when required per the rules
+   above) → code → test (when the gate is active, per "Post-code test
+   gate" above) → docs-sync → create-pr. Spec authoring is folded into
+   /code's plan phase on every lane. Pick the
+   FIRST step in that order that is not complete. A step recorded
+   `in_progress`, `failed`, `interrupted`, or `handed_off` is simply
+   re-run — the step's own skill-start reconciles recorded state against
+   reality; you never reconcile yourself.
 4. If create-pr is complete → go to Finish.
 
 ## Running a step
@@ -178,6 +231,12 @@ Step-specific adjustments:
   context. The re-invoked step coordinator records the relayed answers in the
   ticket's clarification ledger (per its own "Clarification ledger first"
   rule) — /ship only relays; it never writes the ledger itself.
+- **Post-code test-step failure relay**: on a failing ticket-scoped
+  `/acs:test` verdict (see "Post-code test gate" above), re-invoke
+  `/acs:code <ticket-id>` **via the same "Re-invoke after needs_input"
+  pattern above** — the verdict's `failure_output` is the relayed context
+  text, in place of `Q: ... A: ...` lines. This reuses the existing relay;
+  it is not a new mechanism.
 
 If you compose any XML context to hand into a step, validate it first:
 
@@ -215,6 +274,15 @@ Branch strictly on `status`:
   it needs back-and-forth). Do not retry a failed step yourself.
 - **handed_off** — treat as interrupted: stop and print the same resume
   commands; the step flushed its own handoff context to the partition.
+- **post-code test cap reached** — when the post-code test gate's
+  `fix_loops` counter reaches `settings.post_code_test.fix_loops_cap` on a
+  failing verdict (see "Post-code test gate" above), STOP the pipeline the
+  same way as failed/interrupted: surface a "persistent test failure"
+  report, say where the state lives (`<partition>` and
+  `<partition>/phases/test/`), and tell the user how to resume:
+  `/acs:ship <ticket-id>` to retry from this step, or `/acs:test
+  --for-ticket <ticket-id>` to re-run just the test step interactively. Do
+  not proceed to create-pr.
 
 Hook-blocked step: if the step's Skill call was denied (pre-hook exit 2),
 surface that stderr message verbatim and stop — it names exactly which skill
@@ -227,7 +295,7 @@ When the create-ticket handoff (or resume) yields a ticket with
 `"type": "epic"`:
 
 1. Run create-design on the epic itself first (epics always have
-   `needs_design: true`; every child's create-spec gates on the epic's
+   `needs_design: true`; every child's /code gates on the epic's
    `design.md`).
 2. Read the epic's `children` array from `ticket.json`. If it is empty, ask
    the user whether to re-run `/acs:create-ticket <epic-id>` to fan out
@@ -236,7 +304,7 @@ When the create-ticket handoff (or resume) yields a ticket with
    the children's ids and titles — read each child's `ticket.json` title
    only, nothing more).
 4. Run the selected children **sequentially**, each through its own
-   create-spec → code → create-pr (children never run create-design). Tell
+   code → create-pr (children never run create-design). Tell
    the user that parallel children belong in separate worktrees/sessions:
    open one worktree per child and run `/acs:ship <child-id>` in each.
 5. After each child's create-pr, report its PR, then continue with the next

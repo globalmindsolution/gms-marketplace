@@ -3,9 +3,14 @@ name: test
 description: Run this product's configured test suites (all of them, or a --suite-selected subset), capture pass/fail results to an auditable workspace artifact, and (on a failure) triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
 ---
 
-You are the coordinator of `/acs:test`, the acs standing suite runner. This is
-NOT a hooked pipeline skill: no skill-start, no pre/post hooks, no subagents,
-no reflection loop. You do everything yourself with Bash.
+You are the coordinator of `/acs:test`, the acs standing suite runner. In its
+default/standing invocation (no `--for-ticket`), this is NOT a hooked
+pipeline skill: no skill-start, no pre/post hooks, no subagents, no
+reflection loop. You do everything yourself with Bash. The `--for-ticket
+<id>` mode (see "Ticket-scoped mode" below) is invoked as one step inside
+`/acs:ship`'s own hooked pipeline walk -- but `/acs:test` itself still gains
+no pre/post hooks of its own, no skill-start ticket allocation, and no
+planner/executor/verifier triad in either mode.
 
 Scope honesty up front: this skill is **not read-only**. Every run **writes**
 a results artifact to the workspace (see Step 3), and on a failure path it
@@ -24,17 +29,30 @@ Call `acs_lib.build_context(cwd)` to resolve `settings`, `workspace`, and
 (it carries the normalized `"e2e"` entry automatically when `settings.e2e` is
 configured; you never read the raw `e2e` key yourself).
 
-Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
+Parse `$ARGUMENTS` for zero or more `--suite <name>` flags and an optional
+`--for-ticket <id>` flag:
 
-- **No `--suite` flag:** run every entry in `suites`.
+- **`--for-ticket <id>`** (optional, combinable with `--suite`): switches
+  this run into **ticket-scoped mode** — see "Ticket-scoped mode" below.
+  `<id>` must match `^[A-Z][A-Z0-9]*-[0-9]+$` (the same pattern
+  `pipeline-state.schema.json`'s `ticket_id` property uses); an id that
+  fails this pattern, or that resolves to no partition under
+  `<workspace>/<repo_id>/<id>/` or `archive/<id>/`, fails fast with a clear
+  error — the same fail-fast posture below already applies to an unknown
+  `--suite` name. Without `--for-ticket`, behavior is completely unchanged
+  (default/standing mode); this flag is purely additive.
+- **No `--suite` flag:** run every entry in the mode's run set (the full
+  `suites` map in standing mode; the narrower ticket-scoped run set,
+  described below, in `--for-ticket` mode).
 - **One or more `--suite <name>` flags:** run only the named subset, in the
-  order given. If a named suite is not a key in `suites`, fail fast with a
-  clear error identifying the unknown name(s) — do not silently skip it or
-  fall back to running all suites.
-- If `suites` resolves to `{}` (nothing configured at all), report that
-  plainly ("no suites configured, nothing to run") and stop. There is
-  nothing to execute, but you still emit a valid, empty-arrays artifact
-  (`suites: [], regressions: []`) per Step 3.
+  order given, narrowing whichever run set the mode already resolved. If a
+  named suite is not a key in `suites`, fail fast with a clear error
+  identifying the unknown name(s) — do not silently skip it or fall back to
+  running all suites.
+- If the resolved run set is `{}` (nothing configured/selected at all),
+  report that plainly ("no suites configured, nothing to run") and stop.
+  There is nothing to execute, but you still emit a valid, empty-arrays
+  artifact (`suites: [], regressions: []`) per Step 3.
 
 ## Step 2 — Per-suite execution: setup → command → teardown
 
@@ -114,6 +132,64 @@ branch.
 Only when at least one suite's `status` is `"fail"` does control pass to the
 failure-path steps below (triage, regression-key derivation, dedup/recurrence,
 ticket mint/comment/link).
+
+## Ticket-scoped mode (`--for-ticket`)
+
+This section applies only when `--for-ticket <id>` was given on this
+invocation. Standing invocations (no `--for-ticket`) never consult it, and
+Steps 4a-4b below are completely unaffected by anything in this section.
+
+**Run-set resolution.** Once `--for-ticket <id>` resolves a partition (via
+`acs_lib.find_ticket_partition(workspace, repo_id, id)`, active partition
+first, then `archive/`, mirroring how other skills resolve a partition from
+a ticket id), the run set for Steps 2-3 below is narrowed to:
+
+1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one.
+2. Any suite named in the ticket's own folded Test-plan section, read from
+   the most recent `iter-<n>-plan.md` file (the highest `n`) present under
+   `<partition>/phases/code/` at the time this invocation runs — glob
+   `<partition>/phases/code/iter-*-plan.md` and take the entry with the
+   highest `n`. This selection is re-evaluated fresh on every
+   `--for-ticket` invocation, never cached from an earlier call, so a
+   later, higher-numbered plan iteration is picked up automatically the
+   next time this mode runs. A suite named there is included only when it
+   is also a key in `ctx["settings"]["suites"]`.
+
+This is narrower than the standing default (which runs every `suites`
+entry): ticket-scoped mode never runs a suite unrelated to the ticket's own
+change or to e2e. When neither an `e2e` entry nor any Test-plan-named suite
+resolves to a real `suites` key, apply the same "nothing configured,
+nothing to run" empty-artifact behavior Step 1 already defines for the
+zero-suites case.
+
+**Steps 2-4 reused unmodified.** The per-suite setup→command→teardown
+execution (Step 2), the results-artifact write (Step 3), and the all-green
+short-circuit (Step 4) run exactly as documented above, taking the
+ticket-scoped run set as input — no separate mechanism is introduced for
+any of the three.
+
+**Skip of Steps 4a-4b.** In ticket-scoped mode, once at least one suite has
+failed, control never passes to Step 4a or Step 4b — this is checked once,
+on the presence of `--for-ticket`, with no secondary branch and no
+exception of any kind: a failure in this mode always belongs to the
+current, not-yet-merged ticket, never a spurious new standing regression
+ticket.
+
+**Verdict emission (replaces Step 4a-4b's ticket-mint reporting, in this
+mode only).** After the skip above, in addition to writing the same Step 3
+results artifact, ticket-scoped mode emits a compact verdict object (a
+returned/printed value, not a second artifact file):
+
+```json
+{"status": "pass" | "fail", "failure_output": "<captured, truncated>"}
+```
+
+- `status` is `"pass"` iff every suite that ran has `status: "pass"` (the
+  same test as Step 4's short-circuit condition).
+- `failure_output` is present only when `status` is `"fail"`; it is the
+  concatenation of the failing suites' `failure_output` values from the
+  results artifact (the same truncation bound Step 2 already applies per
+  suite — no larger bound is introduced for this mode).
 
 ## Step 4a — Triage (model step, failure path only)
 
@@ -241,6 +317,12 @@ tickets minted/bumped/linked" since `regressions` is always `[]` on that
 path). State explicitly that the results artifact is left in place on disk
 after the run — it is not cleaned up — so `/acs:metrics` can read it later.
 
+**Ticket-scoped mode variant.** Replace the tickets-minted/bumped/linked
+line with the verdict (`pass`/`fail`, per "Ticket-scoped mode" above), and
+add a one-line note that this run was ticket-scoped (naming the `--for-ticket`
+id), so the caller (`/acs:ship`) can tell the two modes apart in a
+transcript.
+
 ## Scheduling surface
 
 `/acs:test` carries no notion of "I am scheduled" versus "I was invoked by a
@@ -252,7 +334,10 @@ routine recipe; this skill itself has no built-in scheduler (ADR 0011 G8).
 ## Completion report (normative)
 
 End your final message with the standard completion block; replace the
-Ticket line with **Run** (this skill is run-scoped, not tied to one ticket):
+Ticket line with **Run** (this skill is run-scoped, not tied to one ticket).
+In ticket-scoped mode, the **Findings** line states the verdict
+(`pass`/`fail`) instead of a tickets-minted count, and the **Run** line
+additionally names the `--for-ticket` id:
 
 ```markdown
 ## /acs:test · <status>

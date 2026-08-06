@@ -164,10 +164,6 @@ exists with a `states.pr`). The pre-hook gate already validated that a
 completed run recorded this reference, so product-level delivery tickets merge
 exactly like any other ticket.
 
-If `settings.models.coordinator` is set, tell the user in one line that
-`models.coordinator` only applies under /acs:ship — and /acs:merge-pr never
-runs under /acs:ship, so it does not apply here. Never silently diverge.
-
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality

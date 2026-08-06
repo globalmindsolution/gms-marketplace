@@ -52,7 +52,7 @@ Finish (result document → post-hook → completion report).
 
 The work loop has two shapes. The **twelve triad-keeping skills** (create-prd,
 create-architecture, create-project, create-quality, create-operations,
-create-principles, create-standards, create-design, create-spec, code,
+create-principles, create-standards, create-design, code, docs-sync,
 standardize-project, create-requirements) run the full plan→execute→verify
 reflection loop, spawning a separate planner, executor, and verifier subagent
 per phase — so **12 active triads (36 agents in triads)**. The **three
