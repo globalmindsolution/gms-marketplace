@@ -29,55 +29,8 @@ sys.path.insert(0, SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 
-class AcsWorkspaceCase(unittest.TestCase):
-    """Fixture: a consumer git repo with valid .acs settings + empty workspace."""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.repo = os.path.join(self.tmp, "shop")
-        self.ws = os.path.join(self.tmp, "workspace")
-        os.makedirs(self.repo)
-        subprocess.run(["git", "init", "-q", self.repo], check=True)
-        subprocess.run(["git", "-C", self.repo, "remote", "add", "origin",
-                        "https://github.com/acme/shop.git"], check=True)
-        os.makedirs(os.path.join(self.repo, ".acs"))
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
-        with open(os.path.join(self.repo, ".acs", "settings.local.json"), "w") as fh:
-            json.dump({"workspace_path": self.ws}, fh)
-
-    def write_settings(self, data):
-        with open(os.path.join(self.repo, ".acs", "settings.json"), "w") as fh:
-            json.dump(data, fh)
-
-    def run_script(self, script, *args, stdin=None, cwd=None, env=None):
-        return subprocess.run(
-            [sys.executable, os.path.join(SCRIPTS, script)] + list(args),
-            input=stdin, capture_output=True, text=True, cwd=cwd or self.repo,
-            env=env,
-        )
-
-    def pre(self, skill, args_text="", cwd=None):
-        payload = json.dumps({
-            "cwd": cwd or self.repo, "tool_name": "Skill",
-            "tool_input": {"skill": "acs:" + skill, "args": args_text},
-        })
-        return self.run_script("dispatch.py", "pre", stdin=payload, cwd=cwd)
-
-    def post(self, skill, ticket, result):
-        return self.run_script("post-%s.py" % skill, "--ticket", ticket,
-                               stdin=json.dumps(result))
-
-    def start(self, skill, ticket):
-        return self.run_script("skill-start.py", "--skill", skill, "--ticket", ticket)
-
-    def new_ticket(self, title, ttype, *extra):
-        out = self.run_script("new-ticket.py", "--title", title, "--type", ttype, *extra)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        return json.loads(out.stdout)["ticket_id"]
-
-    def tdir(self, ticket):
-        return lib.ticket_dir(self.ws, "acme-shop", ticket)
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+from acs_case import AcsWorkspaceCase  # noqa: E402
 
 
 class TestDispatcher(AcsWorkspaceCase):
