@@ -104,7 +104,9 @@ class TestFakeGh(unittest.TestCase):
 
     def test_fake_gh_none_body_simulates_absent_binary(self):
         env = acs_case.fake_gh("/unused", None)
-        self.assertNotIn("gh", env.get("PATH", "").split(os.pathsep))
+        # Assert the real property -- gh must be genuinely unresolvable on the
+        # returned PATH -- not merely absent as a literal PATH-directory name.
+        self.assertIsNone(shutil.which("gh", path=env.get("PATH", "")))
 
 
 class TestPy39Compatibility(unittest.TestCase):

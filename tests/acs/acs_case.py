@@ -128,17 +128,22 @@ def fake_gh(bin_dir, gh_body):
     """Write an executable `gh` shim under bin_dir and return a PATH-prepended env.
 
     gh_body is the shell script body (after the shebang) the shim runs. A
-    gh_body of None simulates the binary being entirely absent: PATH points
-    only at real system dirs that carry git but not gh.
+    gh_body of None simulates the binary being entirely absent: PATH is the
+    caller's own PATH with every directory where `gh` actually resolves
+    stripped out, so git and everything else already reachable stay
+    reachable, but a real gh never does -- regardless of where a given
+    runner happens to have it installed.
     """
-    base_path = "/usr/bin:/bin"
     env = dict(os.environ)
     if gh_body is None:
-        env["PATH"] = base_path
+        real_dirs = env.get("PATH", os.defpath).split(os.pathsep)
+        env["PATH"] = os.pathsep.join(
+            d for d in real_dirs if shutil.which("gh", path=d) is None
+        )
         return env
     gh = os.path.join(bin_dir, "gh")
     with open(gh, "w") as fh:
         fh.write("#!/bin/sh\n" + gh_body + "\n")
     os.chmod(gh, 0o755)
-    env["PATH"] = bin_dir + os.pathsep + base_path
+    env["PATH"] = bin_dir + os.pathsep + "/usr/bin:/bin"
     return env
