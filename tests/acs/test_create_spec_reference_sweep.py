@@ -146,27 +146,31 @@ def changelog_unreleased_section(body):
 
 
 def changelog_entry_section(body):
-    """The section carrying this change's entry, durable across a release cut.
+    """The section carrying THIS entry (MAR-164), durable across a release cut
+    and across later unrelated entries landing under [Unreleased] (MAR-176).
 
     Before a cut the entry sits under [Unreleased]; `/acs:release` moves it
     into the new version's section and leaves [Unreleased] empty. Pinning
-    [Unreleased] specifically would make these assertions fail the moment a
-    release is cut, so resolve to [Unreleased] when it has content and to the
-    topmost released version section otherwise. The [Unreleased] heading
-    itself must still exist -- changelog_unreleased_section() enforces that.
+    [Unreleased] specifically, or "whichever section is currently non-empty",
+    both break the moment ANOTHER ticket's entry lands under [Unreleased]
+    ahead of a release cut -- resolving by section-emptiness conflates "this
+    entry's section" with "the topmost section that happens to have content".
+    Instead, resolve by locating the literal '(MAR-164' marker across every
+    '## [...]' span, mirroring
+    tests/acs/test_standards_conformance_chain.py's
+    ChangelogMar119EntryTest.test_changelog_mar119_entry_durable_and_references_g10.
+    The [Unreleased] heading itself must still exist --
+    changelog_unreleased_section() enforces that.
     """
-    unreleased = changelog_unreleased_section(body)
-    if unreleased.strip():
-        return unreleased
-    m = re.search(r"(?m)^## \[(?!Unreleased\])[^\]]+\].*$", body)
-    if m is None:
-        raise AssertionError("plugins/acs/CHANGELOG.md has an empty "
-                             "[Unreleased] section and no released version "
-                             "section to fall back to")
-    start = m.end()
-    nxt = re.search(r"(?m)^## \[", body[start:])
-    end = start + nxt.start() if nxt else len(body)
-    return body[start:end]
+    changelog_unreleased_section(body)  # heading-presence guard, see docstring
+    spans = [m.start() for m in re.finditer(r"(?m)^## \[[^\]]*\]", body)] + [len(body)]
+    for start, end in zip(spans, spans[1:]):
+        candidate = body[start:end]
+        if "(MAR-164" in candidate:
+            return candidate
+    raise AssertionError(
+        "plugins/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
+        "'## [...]' section span")
 
 
 class Ac2ExactSetPredicateTest(unittest.TestCase):

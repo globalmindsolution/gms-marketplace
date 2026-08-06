@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`plugins/acs/schemas/acs-messages.xsd`'s `skillName` enumeration reconciled from 9 stale values to the 24 shipped skills plus a deliberately retained `create-spec` — 25 total (MAR-176).** The same set is applied to `skill-state.schema.json` and `clarifications.schema.json`, which carried identical stale copies, and to `validate_xml.py`'s hardcoded `SKILLS` mirror — the in-process default decider, so an XSD-only fix would have left the defect live. `create-spec` is kept as a documented backward-compat value per MAR-164 rather than dropped, so the change is pure widening and invalidates nothing that was previously valid. Concretely, skills such as `docs-sync` could not validate their own `<task>`/`<result>` messages even though their SKILL.md instructs the coordinator to do exactly that. A new bidirectional drift guard (`tests/acs/test_message_schema_skill_enum.py`) now fails on a shipped skill directory with no matching enum value, or an enum value with no matching directory (the documented `create-spec` exemption aside), across all three schemas and the validator mirror.
+
 ## [0.4.6] - 2026-08-05
 
 ### Removed
