@@ -8,7 +8,7 @@ MAR-168's three residual-gap children (MAR-169, MAR-172, MAR-173) need to
 add independent test files concurrently to close the per-module coverage
 gaps correct measurement (ADR 0070) reveals. Before this change, the
 throwaway-repo/workspace `setUp` and driving helpers lived only as a
-47-line inline class defined inside `tests/acs/test_acs_plugin.py`
+49-line inline class defined inside `tests/acs/test_acs_plugin.py`
 (223KB). Three children editing that same file concurrently multiplies
 merge-conflict surface for no benefit — none of them need to change
 `test_acs_plugin.py`'s own scenarios, only to reuse its fixture shape.
@@ -56,7 +56,7 @@ precondition above) is pinned once and inherited by every child rather than
 reimplemented per test file, reducing the chance any one of them
 reintroduces cwd- or module-state leakage across test methods.
 
-**Accepted cost.** `test_acs_plugin.py`'s inline 47-line fixture class is
+**Accepted cost.** `test_acs_plugin.py`'s inline 49-line fixture class is
 replaced by an import; any future change to the fixture's shape is now a
 shared-surface change reviewed once, not per test file. `fake_gh`'s
 `gh_body=None` precondition (fresh/empty/writable `bin_dir`) is enforced by
