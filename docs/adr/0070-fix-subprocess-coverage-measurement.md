@@ -14,14 +14,21 @@ default (design.md:19-27). Those call sites already exercise the real CLI
 contract (argv, exit codes, stdout/stderr); they just weren't getting
 measurement credit for it.
 
-Two options were weighed (design.md:128-243): duplicate every
-subprocess-driven scenario as an in-process equivalent (Option A), or fix
-subprocess measurement itself so the existing suite gets credit for what it
-already exercises (Option B). Option B alone — `parallel=true`, an absolute
-`${VAR}`-substituted `source`, `COVERAGE_PROCESS_START`, and `coverage
-combine` — moved the *same* suite, zero new tests, from 62% to **87%**
-(4026 stmts, 510 missed), **88%** with the 29 true argument-forwarder shims
-omitted (3852 stmts, 444 missed; see ADR 0071 for the omit rule). Two
+Three options were weighed (design.md:128-243): duplicate every
+subprocess-driven scenario as an in-process equivalent (Option A,
+design.md:128); fix subprocess measurement only (Option B, design.md:151);
+or fix measurement first, then close only the residual gaps correct
+measurement reveals (Option C, design.md:177 — chosen). The epic's decision
+adopts Option C (design.md:245); Option B alone was rejected in isolation
+because it leaves five acceptance criteria unmet (design.md:256). This
+record covers Option C's measurement half — the part MAR-175 lands; the
+residual gap-closing half is separate, subsequent work tracked on MAR-168's
+other children (see Decision, below). Measured effect: Option B's
+measurement fix alone — `parallel=true`, an absolute `${VAR}`-substituted
+`source`, `COVERAGE_PROCESS_START`, and `coverage combine` — moved the
+*same* suite, zero new tests, from 62% to **87%** (4026 stmts, 510
+missed), **88%** with the 29 true argument-forwarder shims omitted (3852
+stmts, 444 missed; see ADR 0071 for the omit rule). Two
 verified footguns make this fix easy to get subtly wrong: a relative
 `source`/`data_file`/`COVERAGE_PROCESS_START` is never resolved by a child
 process spawned at a throwaway `cwd` (`tempfile.mkdtemp()`), so measurement
