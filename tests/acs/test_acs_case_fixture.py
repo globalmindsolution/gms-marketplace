@@ -13,7 +13,6 @@ import sys
 import tempfile
 import unittest
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 

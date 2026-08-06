@@ -1,7 +1,7 @@
 """Guard test pinning the coverage measurement configuration (MAR-175).
 
 Coverage.py does not measure subprocesses by default, and the deterministic
-suite drives the real hook CLIs via subprocess.run (test_acs_plugin.py's
+suite drives the real hook CLIs via subprocess.run (tests/acs/acs_case.py:49-54's
 run_script, 169 call sites) -- a relative `source`, `data_file`, or
 `COVERAGE_PROCESS_START` each silently degrades measured coverage back
 toward ~62% with no error. This module pins the committed configuration

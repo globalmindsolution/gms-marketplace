@@ -1,6 +1,6 @@
 # Coverage measurement configuration for this repo's "Tests & coverage" gate (MAR-175).
 #
-# The suite drives the real hook CLIs through subprocess.run (tests/acs/test_acs_plugin.py:53-58,
+# The suite drives the real hook CLIs through subprocess.run (tests/acs/acs_case.py:49-54,
 # 169 call sites) and coverage.py does not measure subprocesses by default. parallel=true plus
 # COVERAGE_PROCESS_START (exported by .acs/settings.json tests.command, which activates coverage's
 # own shipped a1_coverage.pth hook) plus `coverage combine` is what gives those runs measurement
