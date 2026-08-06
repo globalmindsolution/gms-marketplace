@@ -22,12 +22,15 @@ Strategy (stdlib-only requirement):
   duplicate maxOccurs=1 sequence children (cardinality), xs:decimal grammar for
   cost-usd (no exponent, no inf/nan, no underscores), and — closing the content
   model — undeclared attributes (the XSD declares no anyAttribute/wildcard) and
-  element children inside text-only (xs:string) leaves.  The ALLOWED_ATTRS and
-  TEXT_LEAVES tables below mirror acs-messages.xsd and MUST be kept in sync with
-  it.  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is the
-  binding proof — every listed class produces identical pass/fail verdicts under
-  both paths.  If the XSD gains a construct not in that corpus, extend the corpus
-  so any in-process/xmllint divergence fails the build.
+  element children inside text-only (xs:string) leaves.  The SKILLS, ALLOWED_ATTRS
+  and TEXT_LEAVES tables below mirror acs-messages.xsd and MUST be kept in sync
+  with it.  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is
+  the binding proof — every listed class produces identical pass/fail verdicts
+  under both paths.  If the XSD gains a construct not in that corpus, extend the
+  corpus so any in-process/xmllint divergence fails the build.  SKILLS drift
+  specifically (missing or stale skill names, versus acs-messages.xsd and the two
+  identical schema copies) is caught by
+  tests/acs/test_message_schema_skill_enum.py, which recomputes every side live.
 
 Usage:
   validate_xml.py <file.xml> [more.xml ...]
@@ -65,8 +68,17 @@ import xml.etree.ElementTree as ET
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 XSD_PATH = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), "schemas", "acs-messages.xsd")
 
-SKILLS = {"create-prd", "create-architecture", "create-project", "create-ticket",
-          "create-design", "create-spec", "code", "create-pr", "merge-pr"}
+# Every shipped plugins/acs/skills/ directory, plus the single documented
+# backward-compat exemption "create-spec" (retired MAR-156, retained MAR-164).
+# Mirrors acs-messages.xsd's skillName enum (and the identical copies in
+# skill-state.schema.json / clarifications.schema.json) exactly -- kept in
+# sync by tests/acs/test_message_schema_skill_enum.py.
+SKILLS = {"code", "create-architecture", "create-design", "create-operations",
+          "create-pr", "create-prd", "create-principles", "create-project",
+          "create-quality", "create-requirements", "create-standards",
+          "create-ticket", "docs-sync", "handoff", "init", "install-hooks",
+          "merge-pr", "metrics", "release", "ship", "standardize-project",
+          "test", "update", "usage", "create-spec"}
 PHASES = {"plan", "execute", "verify", "coordinate"}
 RESULT_STATUSES = {"completed", "failed", "needs_input"}
 HANDOFF_STATUSES = {"completed", "failed", "interrupted", "handed_off", "needs_input"}

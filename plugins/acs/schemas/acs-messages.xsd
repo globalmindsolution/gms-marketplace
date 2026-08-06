@@ -16,15 +16,33 @@
 
   <xs:simpleType name="skillName">
     <xs:restriction base="xs:string">
-      <xs:enumeration value="create-prd"/>
-      <xs:enumeration value="create-architecture"/>
-      <xs:enumeration value="create-project"/>
-      <xs:enumeration value="create-ticket"/>
-      <xs:enumeration value="create-design"/>
-      <xs:enumeration value="create-spec"/>
       <xs:enumeration value="code"/>
+      <xs:enumeration value="create-architecture"/>
+      <xs:enumeration value="create-design"/>
+      <xs:enumeration value="create-operations"/>
       <xs:enumeration value="create-pr"/>
+      <xs:enumeration value="create-prd"/>
+      <xs:enumeration value="create-principles"/>
+      <xs:enumeration value="create-project"/>
+      <xs:enumeration value="create-quality"/>
+      <xs:enumeration value="create-requirements"/>
+      <xs:enumeration value="create-standards"/>
+      <xs:enumeration value="create-ticket"/>
+      <xs:enumeration value="docs-sync"/>
+      <xs:enumeration value="handoff"/>
+      <xs:enumeration value="init"/>
+      <xs:enumeration value="install-hooks"/>
       <xs:enumeration value="merge-pr"/>
+      <xs:enumeration value="metrics"/>
+      <xs:enumeration value="release"/>
+      <xs:enumeration value="ship"/>
+      <xs:enumeration value="standardize-project"/>
+      <xs:enumeration value="test"/>
+      <xs:enumeration value="update"/>
+      <xs:enumeration value="usage"/>
+      <!-- create-spec retired (MAR-156); enum value retained deliberately
+           for backward compatibility (MAR-164). Do not remove. -->
+      <xs:enumeration value="create-spec"/>
     </xs:restriction>
   </xs:simpleType>
 
