@@ -53,7 +53,10 @@ class TestSummaryRequired(unittest.TestCase):
 
     def test_missing_summary_exits_2(self):
         mod = acs_case.load_module(MODULE_FILENAME)
-        code, out, err = acs_case.run_main(mod, [])
+        nongit = tempfile.mkdtemp(prefix="acs-handoff-nosummary-")
+        self.addCleanup(shutil.rmtree, nongit, True)
+        with acs_case.pushd(nongit):
+            code, out, err = acs_case.run_main(mod, [])
         self.assertEqual(code, 2)
         self.assertEqual(out, "")
         self.assertEqual(
@@ -68,7 +71,8 @@ class TestSummaryRequired(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write("   \n\t\n")
         mod = acs_case.load_module(MODULE_FILENAME)
-        code, out, err = acs_case.run_main(mod, ["--summary-file", path])
+        with acs_case.pushd(tmp):
+            code, out, err = acs_case.run_main(mod, ["--summary-file", path])
         self.assertEqual(code, 2)
         self.assertEqual(
             err,
@@ -107,13 +111,14 @@ class TestTicketResolutionRefusals(acs_case.AcsWorkspaceCase):
 
     def test_archived_partition_is_refused(self):
         tdir = _mint_archived(self.ws, "SHOP-500")
+        acs_case.lib.acquire_lock(tdir, self.repo)
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):
             code, out, err = acs_case.run_main(
                 mod, ["--summary", "s", "--ticket", "SHOP-500"])
         self.assertEqual(code, 2)
         self.assertEqual(err, "acs handoff: no active partition for SHOP-500\n")
-        self.assertFalse(os.path.exists(os.path.join(tdir, ".lock")))
+        self.assertTrue(os.path.exists(acs_case.lib.lock_path(tdir)))
 
     def test_missing_partition_is_refused(self):
         mod = acs_case.load_module(MODULE_FILENAME)
