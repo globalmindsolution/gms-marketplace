@@ -166,8 +166,7 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         self.assertEqual(index_after["tickets"]["SHOP-20"]["status"], "in_progress")
 
     def test_parent_epic_already_in_progress_is_not_re_flipped(self):
-        epic_dir, epic = _mint(self.ws, "SHOP-30", ttype="epic", status="in_progress")
-        before_updated_at = epic["updated_at"]
+        epic_dir, _epic = _mint(self.ws, "SHOP-30", ttype="epic", status="in_progress")
         _mint(self.ws, "SHOP-31", ttype="task", status="open", parent="SHOP-30")
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):
@@ -175,15 +174,14 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
                 mod, ["--skill", "code", "--ticket", "SHOP-31"])
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
+        # epic_marked_in_progress (line 205) is set only inside the guarded
+        # re-flip block, so None here is the discriminator that the guard at
+        # skill-start.py:201 (parent already "in_progress") held -- unlike a
+        # same-second updated_at comparison, this cannot pass by clock luck:
+        # the guard mutant makes it a non-None string, never a coincidence.
         self.assertIsNone(payload["epic_marked_in_progress"])
         epic_after = acs_case.lib.load_ticket(epic_dir)
         self.assertEqual(epic_after["status"], "in_progress")
-        # updated_at unchanged proves save_ticket (and thus the whole guarded
-        # flip block, including the index write) never ran -- a stronger,
-        # non-dominated discriminator than re-reading the index would be, since
-        # any mutation reaching the index write necessarily reaches save_ticket
-        # first and would already fail here.
-        self.assertEqual(epic_after["updated_at"], before_updated_at)
 
 
 if __name__ == "__main__":
