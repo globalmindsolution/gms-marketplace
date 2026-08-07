@@ -144,6 +144,13 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
     def test_first_child_run_flips_the_parent_epic_to_in_progress(self):
         _mint(self.ws, "SHOP-20", ttype="epic", status="open")
         _mint(self.ws, "SHOP-21", ttype="task", status="open", parent="SHOP-20")
+        # Straddle the invocation: read the index BEFORE running so the "open"
+        # pre-state is observed, not merely assumed from the fixture -- this is
+        # what makes the post-run assertion below prove line 204 (the parent's
+        # lib.update_index call) actually ran, instead of sampling one side twice.
+        index_before = acs_case.lib.read_json(
+            acs_case.lib.index_path(self.ws, REPO_ID))
+        self.assertEqual(index_before["tickets"]["SHOP-20"]["status"], "open")
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):
             code, out, err = acs_case.run_main(
@@ -154,15 +161,13 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         epic = acs_case.lib.load_ticket(
             acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-20"))
         self.assertEqual(epic["status"], "in_progress")
-        index = acs_case.lib.read_json(
+        index_after = acs_case.lib.read_json(
             acs_case.lib.index_path(self.ws, REPO_ID))
-        self.assertEqual(index["tickets"]["SHOP-20"]["status"], "in_progress")
+        self.assertEqual(index_after["tickets"]["SHOP-20"]["status"], "in_progress")
 
     def test_parent_epic_already_in_progress_is_not_re_flipped(self):
         epic_dir, epic = _mint(self.ws, "SHOP-30", ttype="epic", status="in_progress")
         before_updated_at = epic["updated_at"]
-        index_before = acs_case.lib.read_json(
-            acs_case.lib.index_path(self.ws, REPO_ID))["tickets"]["SHOP-30"]
         _mint(self.ws, "SHOP-31", ttype="task", status="open", parent="SHOP-30")
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):
@@ -173,10 +178,12 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         self.assertIsNone(payload["epic_marked_in_progress"])
         epic_after = acs_case.lib.load_ticket(epic_dir)
         self.assertEqual(epic_after["status"], "in_progress")
+        # updated_at unchanged proves save_ticket (and thus the whole guarded
+        # flip block, including the index write) never ran -- a stronger,
+        # non-dominated discriminator than re-reading the index would be, since
+        # any mutation reaching the index write necessarily reaches save_ticket
+        # first and would already fail here.
         self.assertEqual(epic_after["updated_at"], before_updated_at)
-        index_after = acs_case.lib.read_json(
-            acs_case.lib.index_path(self.ws, REPO_ID))["tickets"]["SHOP-30"]
-        self.assertEqual(index_after, index_before)
 
 
 if __name__ == "__main__":
