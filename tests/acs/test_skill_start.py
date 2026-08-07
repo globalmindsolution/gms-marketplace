@@ -130,6 +130,9 @@ class TestTicketResolutionRefusals(acs_case.AcsWorkspaceCase):
             code, out, err = acs_case.run_main(
                 mod, ["--skill", "code", "--ticket", "SHOP-42"])
         self.assertEqual(code, 2)
+        # Pin skill-start.py's own message prefix (line 168's formatting) --
+        # not just acquire_lock's exception body (assertIn below).
+        self.assertTrue(err.startswith("acs skill-start: "), err)
         self.assertIn("locked by another session", err)
         lock = acs_case.lib.read_lock(tdir)
         self.assertEqual(lock["checkout_id"], "elsewhere-checkout")
@@ -151,10 +154,15 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         epic = acs_case.lib.load_ticket(
             acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-20"))
         self.assertEqual(epic["status"], "in_progress")
+        index = acs_case.lib.read_json(
+            acs_case.lib.index_path(self.ws, REPO_ID))
+        self.assertEqual(index["tickets"]["SHOP-20"]["status"], "in_progress")
 
     def test_parent_epic_already_in_progress_is_not_re_flipped(self):
         epic_dir, epic = _mint(self.ws, "SHOP-30", ttype="epic", status="in_progress")
         before_updated_at = epic["updated_at"]
+        index_before = acs_case.lib.read_json(
+            acs_case.lib.index_path(self.ws, REPO_ID))["tickets"]["SHOP-30"]
         _mint(self.ws, "SHOP-31", ttype="task", status="open", parent="SHOP-30")
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):
@@ -166,6 +174,9 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         epic_after = acs_case.lib.load_ticket(epic_dir)
         self.assertEqual(epic_after["status"], "in_progress")
         self.assertEqual(epic_after["updated_at"], before_updated_at)
+        index_after = acs_case.lib.read_json(
+            acs_case.lib.index_path(self.ws, REPO_ID))["tickets"]["SHOP-30"]
+        self.assertEqual(index_after, index_before)
 
 
 if __name__ == "__main__":
