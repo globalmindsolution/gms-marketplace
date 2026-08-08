@@ -9,6 +9,16 @@ Three conventions, each with the concrete failure that motivated it:
    second writes an identical string; such an assertion survived an injected
    mutant in 17 of 20 runs in MAR-169, and in 14 of 20 runs in this ticket's
    own experiment at the site AC-4 repairs, tests/acs/test_acs_plugin.py:4515.
+   Detection is AST-based rather than textual, and the counts measured on this
+   tree say why: a naive substring sweep for the field name under tests/ matches
+   66 lines, a tuned line regex over the assert* forms matches 4 -- all four
+   false positives inside this very module, three in its own inline fixture
+   strings and one on the detector's own assertEqual -- and the AST detector
+   flags 0. Convention 2 compares the same way: 138 substring lines against 7
+   real AST sites. The advantage is structural, not a headline number -- the
+   AST sees a call split across lines, tells a value read from key-list
+   membership, and cannot be fooled by a fixture that merely quotes the shape
+   it forbids.
 2. No acs_case.run_main() call outside a `with ... .pushd(...):`. MAR-177
    proved an unguarded call can flip a live coordinator run to handed_off,
    release the partition lock, and rewrite the operator's REAL
@@ -27,9 +37,12 @@ Three conventions, each with the concrete failure that motivated it:
    measured setting with zero false positives on the 7 legitimate sites
    while still catching every negative control (depth 0 false-positives on
    5 of 7 -- lock_path/state_path/sessions_dir live one hop away in
-   acs_lib.py; depth 2 leaks index.json as "reachable" from handoff.py). No
-   MODULE_FILENAME, or no derivable artifact token, and the site abstains
-   rather than guesses.
+   acs_lib.py; the planning prototype's transitive depth 2 additionally leaked
+   index.json as "reachable" from handoff.py -- that leak is a prototype
+   measurement and is not reproducible here, because build_corpus below
+   implements the single hop only, which makes its depth argument effectively
+   binary: 0, versus 1-or-more). No MODULE_FILENAME, or no derivable artifact
+   token, and the site abstains rather than guesses.
 
 A fourth convention -- all mutation testing on a copy OUTSIDE the repo, run
 synchronously -- is documented in MAR-180 only: an in-tree mutation run that
@@ -620,6 +633,34 @@ def assert_no_vacuous_absence(results):
             + "\n  ".join(lines))
 
 
+# A floor, not an inventory: the (file, artifact-token) pairs detector 3 decides
+# today, and how many sites stand behind them. New checked sites are welcome;
+# losing these is the signal that the repo arm stopped resolving anything.
+CHECKED_ABSENCE_SITES = {
+    ("tests/acs/test_clarify.py", "clarifications.json"),
+    ("tests/acs/test_handoff.py", "state_path"),
+    ("tests/acs/test_handoff.py", "lock_path"),
+    ("tests/acs/test_skill_start.py", "sessions_dir"),
+    ("tests/acs/test_skill_start.py", "lock_path"),
+}
+MIN_CHECKED_ABSENCE_SITES = 7
+
+
+def assert_repo_arm_still_checks_known_sites(results):
+    """Canary: detector 3 flags nothing today, so an all-abstain scan is
+    otherwise indistinguishable from a scan that checked everything."""
+    checked = [(f, l, t) for f, l, t, v in results if v != "abstain"]
+    missing = sorted(CHECKED_ABSENCE_SITES - {(f, t) for f, _lineno, t in checked})
+    if missing or len(checked) < MIN_CHECKED_ABSENCE_SITES:
+        raise AssertionError(
+            "detector 3 stopped deciding sites it used to decide -- %d non-abstaining "
+            "site(s), expected at least %d; missing %s. Either the resolution layer "
+            "(MODULE_FILENAME -> a script under SCRIPTS_DIR) broke and every site now "
+            "abstains silently, or a checked site was legitimately retired and this "
+            "floor must be re-derived from scan_vacuous_absence_repo()."
+            % (len(checked), MIN_CHECKED_ABSENCE_SITES, missing or "nothing"))
+
+
 class TestNoVacuousAbsenceAssertions(unittest.TestCase):
     """AC-3: assertFalse(os.path.<check>(...)) must target a path the module
     under test can actually create -- see the module docstring's convention 3
@@ -633,6 +674,23 @@ class TestNoVacuousAbsenceAssertions(unittest.TestCase):
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus = build_corpus(clarify_source, lib_source, depth=1)
         self.assertEqual(_verdict("clarifications.json", corpus), "pass")
+
+    def test_repo_arm_still_resolves_and_checks_its_known_sites(self):
+        """Canary (AC-5) for the real-repo arm, which every other detector-3
+        test here bypasses: module_under_test() returning None unconditionally
+        left every one of these tests green while the detector checked nothing
+        and a planted vacuous assertion went undetected. Pin the resolution
+        step in the positive direction, and pin the floor of sites the repo
+        scan actually decides -- detector 2's test_allowlist_has_no_stale_entries
+        is the in-file precedent."""
+        self.assertEqual(module_under_test(ast.parse('MODULE_FILENAME = "clarify.py"\n')),
+                         "clarify.py")
+        assert_repo_arm_still_checks_known_sites(scan_vacuous_absence_repo())
+
+    def test_canary_fires_when_every_site_abstains(self):
+        with self.assertRaises(AssertionError):
+            assert_repo_arm_still_checks_known_sites(
+                [("fixture.py", 1, "phantom.json", "abstain")])
 
     def test_abstains_without_a_resolvable_module_under_test(self):
         source = '''
@@ -668,6 +726,12 @@ class T(unittest.TestCase):
             assert_no_vacuous_absence([("fixture.py", lineno, token, _verdict(token, corpus))])
 
     def test_negative_controls_flag_against_real_scripts(self):
+        """Coupled to live production content on purpose: it holds only while
+        clarify.py never gains the token "pipeline-state.json" and codeowners.py
+        never gains "lock_path". If either script legitimately does, re-point the
+        control at a token that script still cannot create rather than deleting
+        it; the hermetic twin (test_detector_fires_on_a_never_created_path) is
+        the primary firing evidence, this control proves it on real sources."""
         lib_source = read(ACS_LIB_PATH)
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus_clarify = build_corpus(clarify_source, lib_source, depth=1)
