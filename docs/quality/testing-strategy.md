@@ -30,10 +30,13 @@ Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
 
 ## Coverage today (per skill)
 
-24 shipped skills exist under `plugins/acs/skills/` — one directory per skill,
-test-pinned by `test_skill_contracts.py`'s `test_all_skills_exist_no_strays`
-(`:46-47`, glob-vs-`ALL_SKILLS` set equality), so a new skill cannot ship
-without appearing in this table. The registry at
+24 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
+The on-disk `skills/*/SKILL.md` set is test-pinned to equal `acs_lib.ALL_SKILLS`
+by `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
+glob-vs-`ALL_SKILLS` set equality) — which is why the count below is
+re-derivable, not why the table stays current: no test reads this markdown
+file, so nothing yet stops a new skill shipping without a row here (see
+Roadmap item 2). The registry at
 [`acs_lib.py:41-44`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
 into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
@@ -48,10 +51,14 @@ never hand-picked:
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (`:46-47`) → 24 of 24.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
-  → 15 of 15 hooked; the 9 unhooked have none by construction, pinned by
-  `tests/acs/test_producer_skill_gates.py:41-46`
-  (`test_all_hooked_skills_have_a_gate` asserts `sorted(GATES) ==
-  sorted(HOOKED_SKILLS)`).
+  → 15 of 15 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
+  (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
+  `assertIn(skill, acs_lib.GATES)` loop); the 9 unhooked have none by
+  construction, closed by `tests/acs/test_release_skill_registry.py:87`
+  (`assertEqual(len(acs_lib.GATES), 15)` — with the loop above proving
+  `GATES` ⊇ the 15 hooked skills, an equal count pins it to exactly that
+  set) and `:71-72`, which separately confirms one such skill (`release`)
+  is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
   `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 22 of 24;
   `create-requirements` and `docs-sync` have none (`grep -rn
@@ -104,8 +111,10 @@ open gap: `create-pr` and `merge-pr` need a **forge tier** (a live GitHub
 remote) that is declared but not yet populated (`evals/README.md:61`) — see
 "Roadmap to close the gap" item 3. The other 20 `—` cells are the gap itself.
 
-**Structure is complete: 24 of 24** (set-pinned — a new skill cannot ship
-without a `SKILL.md` entry here). **Gating is complete for what can be
+**Structure is complete: 24 of 24** (the on-disk set is pinned against
+`acs_lib.ALL_SKILLS` by `test_skill_contracts.py:44-47` — no test yet pins
+this table itself, so a new skill's row here is not enforced; see Roadmap
+item 2). **Gating is complete for what can be
 gated: 15 of 15 hooked skills**; the other 9 are n/a by construction — no
 `pre-*.py`/`GATES` entry exists for them, and none should. **Routing covers
 22 of 24** — the two exceptions, `create-requirements` and `docs-sync`, both
