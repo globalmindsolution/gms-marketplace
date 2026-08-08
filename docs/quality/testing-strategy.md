@@ -31,12 +31,22 @@ Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
 ## Coverage today (per skill)
 
 24 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
-The on-disk `skills/*/SKILL.md` set is test-pinned to equal `acs_lib.ALL_SKILLS`
-by `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
-glob-vs-`ALL_SKILLS` set equality) — which is why the count below is
-re-derivable, not why the table stays current: no test reads this markdown
-file, so nothing yet stops a new skill shipping without a row here (see
-Roadmap item 2). The registry at
+The on-disk `skills/*/SKILL.md` set is test-pinned by
+`test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
+sorted `SKILL.md` glob vs sorted `ALL_SKILLS`) to equal `ALL_SKILLS` — a
+hand-maintained literal declared in that same test module (`:20-25`), *not*
+the runtime registry: that module imports only `glob`, `json`, `os`, `re` and
+`unittest` (`:11-15`) and never `acs_lib`, so the pinned list and the
+registry's `HOOKED_SKILLS`/`UNHOOKED_SKILLS` are two separately maintained
+copies of the same skill names. That pin is why the count below is
+re-derivable; it is not what keeps the table current. Two tests open this
+markdown file during a full suite run, and neither asserts anything about the
+table: `test_e2e_integrity_metric_docs.py:219-225` pins only the G13
+e2e-integrity validation section below (its `G13`, `MAR-127`, "sub-metric (a)"
+and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
+the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
+nothing yet stops a new skill shipping without a row here (see Roadmap
+item 2). The registry at
 [`acs_lib.py:41-44`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
 into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
@@ -111,18 +121,18 @@ open gap: `create-pr` and `merge-pr` need a **forge tier** (a live GitHub
 remote) that is declared but not yet populated (`evals/README.md:61`) — see
 "Roadmap to close the gap" item 3. The other 20 `—` cells are the gap itself.
 
-**Structure is complete: 24 of 24** (the on-disk set is pinned against
-`acs_lib.ALL_SKILLS` by `test_skill_contracts.py:44-47` — no test yet pins
-this table itself, so a new skill's row here is not enforced; see Roadmap
-item 2). **Gating is complete for what can be
-gated: 15 of 15 hooked skills**; the other 9 are n/a by construction — no
-`pre-*.py`/`GATES` entry exists for them, and none should. **Routing covers
-22 of 24** — the two exceptions, `create-requirements` and `docs-sync`, both
-shipped with no trigger eval. **The gap is behavioral (artifact) coverage:
-only 2 of 24 skills** (`create-ticket`, `code`) are verified at the output
-level — so the *common* skill bugs (a missing script reference, a malformed
-completion report, a broken gate, the wrong skill firing) are already caught
-cheaply for nearly the whole surface.
+**Structure is complete: 24 of 24** (`test_skill_contracts.py:44-47` pins the
+on-disk set against the `ALL_SKILLS` literal at
+`test_skill_contracts.py:20-25`, not against `acs_lib` — and no test pins this
+table itself, so a new skill's row here is not enforced; see Roadmap item 2).
+**Gating is complete for what can be gated: 15 of 15 hooked skills**; the other
+9 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
+none should. **Routing covers 22 of 24** — the two exceptions,
+`create-requirements` and `docs-sync`, both shipped with no trigger eval. **The
+gap is behavioral (artifact) coverage: only 2 of 24 skills** (`create-ticket`,
+`code`) are verified at the output level — so the *common* skill bugs (a
+missing script reference, a malformed completion report, a broken gate, the
+wrong skill firing) are already caught cheaply for nearly the whole surface.
 
 ## Principles
 
