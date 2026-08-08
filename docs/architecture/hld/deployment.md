@@ -64,11 +64,13 @@ Key facts:
   through the user's authenticated CLIs.
 - **This repo's own CI** runs the deterministic-layer suite (Python 3.9 +
   3.12), JSON/schema validation, and the prose contract tests on every PR via
-  per-plugin test discovery (`tests/acs/` and `tests/tabp/`), gated by its own
-  **`Tests & coverage`** required check (`.github/workflows/acs-tests.yml`,
-  run via `.acs/ci/run-tests.py`) — diff-scoped against the PR's base branch
-  today. Behavioral evals (`evals/<plugin>/`) run **locally only** — they
-  make LLM calls and are not coupled to CI.
+  per-plugin test discovery (`tests/acs/` and `tests/tabp/`). Coverage
+  measurement is a separate, single-interpreter run of that same suite,
+  gated by its own **`Tests & coverage`** required check
+  (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
+  diff-scoped against the PR's base branch today. Behavioral evals
+  (`evals/<plugin>/`) run **locally only** — they make LLM calls and are not
+  coupled to CI.
 - **Consumer-repo required-check gates**: `/acs:init` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
   (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e

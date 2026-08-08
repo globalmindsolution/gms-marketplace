@@ -19,10 +19,17 @@ MAR-168, must land last) flips `tests.command`'s tail from
 --fail-under=$ACS_COVERAGE` — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md),
 whose sequence diagram covers the current diff-scoped shape and whose prose
-(`:52-56`) describes the post-MAR-174 flip. Repo-wide TOTAL measured at the time
-of writing is **92%** (3852 statements, 309 missed) — already above the 90
-floor, so the pending MAR-174 flip is not itself expected to require new
-tests.
+(`:52-56`) describes the post-MAR-174 flip. Repo-wide TOTAL, as of `7a3368e`,
+is **92%** (3852 statements, 309 missed) — already above the 90 floor, so the
+pending MAR-174 flip is not itself expected to require new tests. Re-derive
+it directly (bypassing the diff-scoped `tests.command` above) with:
+
+```
+export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc && \
+python3 -m coverage run -m unittest discover -s tests && \
+python3 -m coverage combine && \
+python3 -m coverage report
+```
 
 ## Exclusions
 
@@ -44,13 +51,15 @@ version matrix. A separate `3.9`/`3.12` matrix runs in `.github/workflows/ci.yml
 `Tests & validation` job, but that job runs the plain suite
 (`python3 -m unittest discover -s tests -v`, `ci.yml:32-33`) with no coverage
 measurement, and it is not a required check.
-`.acs/settings.json`'s `tests.command` is:
+`.acs/settings.json`'s `tests.command` is (shown with its `;`/`&&` chaining
+kept verbatim, just line-wrapped for readability — a failing suite short-
+circuits the rest via `&&`, so it never reaches `diff-cover`):
 
 ```
-export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc
-python3 -m coverage run -m unittest discover -s tests
-python3 -m coverage combine
-python3 -m coverage xml -o coverage.xml
+export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; \
+python3 -m coverage run -m unittest discover -s tests && \
+python3 -m coverage combine && \
+python3 -m coverage xml -o coverage.xml && \
 python3 -m diff_cover.diff_cover_tool coverage.xml \
   --compare-branch "origin/${GITHUB_BASE_REF:-main}" --fail-under $ACS_COVERAGE
 ```
