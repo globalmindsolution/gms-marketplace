@@ -4499,7 +4499,8 @@ class TestRecordExternal(AcsWorkspaceCase):
             self.new_ticket("Wishlist notifications", "task", "--parent", epic,
                             "--needs-design", "false"),
         ]
-        epic_before = lib.load_ticket(self.tdir(epic))
+        epic_json = os.path.join(self.tdir(epic), "ticket.json")
+        epic_stat_before = os.stat(epic_json)
 
         for i, child in enumerate(children):
             key = str(200 + i)
@@ -4512,9 +4513,13 @@ class TestRecordExternal(AcsWorkspaceCase):
         self.assertIsNone(epic_after.get("external"),
                           "the parent epic's own external must stay untouched by "
                           "child-scoped writes (AC-6)")
-        self.assertEqual(epic_after.get("updated_at"), epic_before.get("updated_at"),
-                         "writing a child's external must not touch the parent "
-                         "epic's ticket.json at all (AC-6)")
+        epic_stat_after = os.stat(epic_json)
+        self.assertEqual(
+            (epic_stat_after.st_mtime_ns, epic_stat_after.st_ino),
+            (epic_stat_before.st_mtime_ns, epic_stat_before.st_ino),
+            "writing a child's external must not touch the parent epic's ticket.json "
+            "at all (AC-6); st_mtime_ns/st_ino detect a re-save that acs_lib.now_iso()'s "
+            "second-resolution updated_at cannot (acs_lib.py:391-392, 419-431)")
 
     def test_ac4_product_flow_title_refused(self):
         """AC-4 defense-in-depth: a ticket titled exactly a PRODUCT_TICKET_TITLES
