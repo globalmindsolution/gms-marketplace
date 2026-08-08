@@ -8,14 +8,18 @@ Three conventions, each with the concrete failure that motivated it:
    is second-resolution (acs_lib.py:391-392), so a re-save inside the same
    second writes an identical string; such an assertion survived an injected
    mutant in 17 of 20 runs in MAR-169, and in 14 of 20 runs in this ticket's
-   own experiment at the site AC-4 repairs, tests/acs/test_acs_plugin.py:4515.
+   own experiment at the site AC-4 repairs, the parent-untouched assertion in
+   TestRecordExternal.test_ac6_fanout_children_all_written_parent_untouched
+   (named rather than line-anchored: the repair itself moved the line).
    Detection is AST-based rather than textual, and the counts measured on this
    tree say why: a naive substring sweep for the field name under tests/ matches
    66 lines, a tuned line regex over the assert* forms matches 4 -- all four
    false positives inside this very module, three in its own inline fixture
    strings and one on the detector's own assertEqual -- and the AST detector
-   flags 0. Convention 2 compares the same way: 138 substring lines against 7
-   real AST sites. The advantage is structural, not a headline number -- the
+   flags 0. Convention 2 compares the same way, sweeping for the call form --
+   the helper's name immediately followed by an open paren, not the bare name
+   (spelling it out here keeps this docstring from counting itself) -- and
+   finds 138 substring lines against 7 real AST sites. The advantage is structural, not a headline number -- the
    AST sees a call split across lines, tells a value read from key-list
    membership, and cannot be fooled by a fixture that merely quotes the shape
    it forbids.
