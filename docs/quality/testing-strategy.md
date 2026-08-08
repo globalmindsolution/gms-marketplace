@@ -15,7 +15,7 @@ deterministic at the base, most expensive and least deterministic at the top.
 | # | Layer | What it verifies | Cost / determinism | Where | Runs |
 |---|-------|------------------|--------------------|-------|------|
 | 1 | Structural / contract | every skill & agent is wired right — frontmatter, lifecycle-script calls, completion reports, tool restrictions, grounding, phase artifacts | free, deterministic | [tests/test_skill_contracts.py](../../tests/acs/test_skill_contracts.py) | every PR |
-| 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | [tests/test_acs_plugin.py](../../tests/acs/test_acs_plugin.py) | every PR |
+| 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — as of `7a3368e`: [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring) | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
 | 4 | Free eval smoke | the *shipped build* still installs & gates; SessionEnd cleanup | free, deterministic | `evals/` (`install_gate_smoke`, `session_end_safety_net`) | pre-commit + CI |
 | 5 | Trigger evals | the *right skill fires* for a natural-language request | paid (cheap), ~deterministic w/ re-probe | `evals/skill_triggers` | on-demand |
@@ -67,6 +67,30 @@ report, a broken gate, the wrong skill firing) are already caught cheaply.
 5. **Cost-aware tiering.** Free tiers gate every commit/PR; the paid suite is a
    **pre-release gate** (`python3 evals/run_evals.py --paid` before tagging).
    Never put paid evals on a per-commit or scheduled path.
+6. **Never assert equality or ordering on an `updated_at` value.**
+   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:391-392`); such an
+   assertion survived an injected mutant in 17 of 20 runs in MAR-169.
+   **Enforced** by `tests/acs/test_testing_conventions_guard.py` (detector 1,
+   deliberately with no allowlist).
+7. **Run all mutation testing on a copy outside the repo, synchronously —
+   never in-tree, never backgrounded.** Two interrupted in-tree runs each
+   left a MUTANT in `clarify.py`, and one left an orphaned background
+   mutator that corrupted a coordinator diagnosis (MAR-177). **Not
+   enforceable by a test** — a completed in-tree run restores the file and
+   leaves no durable trace, so no test here can detect it; honour-system,
+   with a pre-commit `git diff --quiet origin/main -- plugins/` hook as the
+   next lever if it recurs.
+8. **Wrap every `run_main()` call in `with ... .pushd(<tmpdir>):`.** An
+   unguarded call was proven able to flip a live coordinator run to
+   `handed_off`, release the partition lock, and rewrite the operator's REAL
+   `pipeline-state.json` (MAR-177). **Enforced** by
+   `tests/acs/test_testing_conventions_guard.py` (detector 2, a
+   staleness-checked allowlist of 7 legitimately-exempt sites).
+9. **Never assert the absence of an artifact the code under test never
+   creates.** This shape recurred across MAR-175, MAR-172, MAR-169 and
+   MAR-177 — six sites in total. **Enforced** by
+   `tests/acs/test_testing_conventions_guard.py` (detector 3, which resolves
+   the module under test and abstains rather than guesses when it cannot).
 
 ## Roadmap to close the gap (prioritized by value ÷ cost)
 

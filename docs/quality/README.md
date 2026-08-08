@@ -9,7 +9,7 @@ covers, and the policy that gates a release.
 |-----|---------------|--------|
 | [testing-strategy.md](testing-strategy.md) | The layered test pyramid (contract → deterministic → static → free/paid evals → runtime verifier → dogfooding), the per-skill coverage matrix, principles, and the roadmap to close the gap | ✅ |
 | `test-plan.md` | Concrete per-area test plans and the pre-release checklist (currently inline in the [root README](../../README.md#releasing--updating) and [evals/README.md](../../evals/README.md)) | planned |
-| `coverage-policy.md` | The measurable coverage bar (which skills need which layers; the guardrail that blocks regressions) | planned |
+| [coverage-policy.md](coverage-policy.md) | The 90% coverage floor and its hard-fail rule, the `.coveragerc` exclusions, and the two-form gate — diff-scoped today against the PR base branch, repo-wide once MAR-174 lands | ✅ |
 
 Verification flows from the layers above it: a `quality/` claim ("create-ticket
 is behaviorally covered") must trace to a real check in
