@@ -17,8 +17,9 @@ once MAR-174 ("Tighten the CI coverage gate back to repo-wide", parent
 MAR-168, must land last) flips `tests.command`'s tail from
 `coverage xml && diff-cover` to a plain `coverage report
 --fail-under=$ACS_COVERAGE` — see
-[`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for the sequence diagram of both shapes. Repo-wide TOTAL measured at the time
+[`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md),
+whose sequence diagram covers the current diff-scoped shape and whose prose
+(`:52-56`) describes the post-MAR-174 flip. Repo-wide TOTAL measured at the time
 of writing is **92%** (3852 statements, 309 missed) — already above the 90
 floor, so the pending MAR-174 flip is not itself expected to require new
 tests.
@@ -36,7 +37,13 @@ branch and is measured, currently at 21 statements / 100%.
 
 ## Measurement per stack
 
-Single stack: Python, run under both the CI floor (3.9) and 3.12.
+Single stack: Python. Coverage is measured by one job, `Tests & coverage`
+in `.github/workflows/acs-tests.yml`, which installs a single unpinned
+`3.x` interpreter via `actions/setup-python@v5` (`acs-tests.yml:43-45`) — no
+version matrix. A separate `3.9`/`3.12` matrix runs in `.github/workflows/ci.yml`'s
+`Tests & validation` job, but that job runs the plain suite
+(`python3 -m unittest discover -s tests -v`, `ci.yml:32-33`) with no coverage
+measurement, and it is not a required check.
 `.acs/settings.json`'s `tests.command` is:
 
 ```
