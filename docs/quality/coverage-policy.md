@@ -19,8 +19,8 @@ MAR-168, must land last) flips `tests.command`'s tail from
 --fail-under=$ACS_COVERAGE` — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md),
 whose sequence diagram covers the current diff-scoped shape and whose prose
-(`:52-56`) describes the post-MAR-174 flip. Repo-wide TOTAL, as of `7a3368e`,
-is **92%** (3852 statements, 309 missed) — already above the 90 floor, so the
+(`:52-56`) describes the post-MAR-174 flip. Repo-wide TOTAL, as of MAR-173,
+is **95%** (3852 statements, 174 missed) — already above the 90 floor, so the
 pending MAR-174 flip is not itself expected to require new tests. Re-derive
 it directly (bypassing the diff-scoped `tests.command` above) with:
 
