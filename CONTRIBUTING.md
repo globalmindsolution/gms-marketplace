@@ -36,7 +36,10 @@ python3 evals/run_evals.py --paid          # full agentic suite — PRE-RELEASE 
 ### Reproducing the *Tests & coverage* gate locally
 
 The required `Tests & coverage` check runs the exact command committed at
-`.acs/settings.json`'s `tests.command`. Measurement now depends on a
+`.acs/settings.json`'s `tests.command`. The floor itself, its exclusions, and
+the escalation path are the normative subject of
+[docs/quality/coverage-policy.md](docs/quality/coverage-policy.md) — this
+section only covers reproducing the gate locally. Measurement now depends on a
 committed repo-root [`.coveragerc`](.coveragerc), so reproducing the gate
 locally needs a couple of extra pieces beyond the stdlib-only commands
 above:
