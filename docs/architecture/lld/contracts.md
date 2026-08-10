@@ -33,10 +33,11 @@ of messages in one in-process loop (MAR-61).
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
 | `release_notes.py status\|draft\|bump --version X.Y.Z --repo-root P [--workspace W] [--dry-run] --release-config <json>` | stdout JSON per subcommand — `status`: four idempotency signals (manifests/changelog/branch-PR/tag), now resolved against the block's `version_locations`/`changelog_path`/`tag_format`/`release_branch_format`; `draft`: authoritative `draft_section` + `{merged,covered,missing}` coverage report; `bump`: `files_changed[]` per the block's `version_locations`+`extra_refs`+`changelog_path`, atomic per-file write (temp-file + rename); exit 0 on all data outcomes (incl. nothing-to-release), exit 2 on malformed invocation, unreadable/missing CHANGELOG/manifest, or a malformed/absent `--release-config` block |
 
-Exit codes: 0 ok; **2 blocked/invalid** for the pre-hook gate (`run_pre`) and for
-malformed invocation of the argument-validating helpers — **unless a row above states
-otherwise** (`post-<skill>.py` exits 1 on failure; `mermaid_lint.py`/`structure_lint.py`
-exit 1 on findings). Always with actionable stderr.
+Exit codes: 0 ok; **2 blocked/invalid** — a failed gate, an unresolvable
+ticket/partition, an archived ticket, a held lock, or a malformed invocation —
+**unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
+failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py` exit 1
+on findings). Always with actionable stderr.
 
 ## Hook events (Claude Code)
 
