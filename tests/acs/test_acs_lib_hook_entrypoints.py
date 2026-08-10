@@ -267,13 +267,15 @@ class TestClearPointersForTicket(unittest.TestCase):
 
         lib.read_json = shim
         try:
+            # Non-raising completion IS the assertion for the OSError-swallow
+            # branch: the shim already unlinked target, so if
+            # _clear_pointers_for_ticket's own except OSError: pass were
+            # removed, its os.unlink(target) would raise and fail this call.
             lib._clear_pointers_for_ticket(self.ctx, "SHOP-1")
         finally:
             lib.read_json = original_read_json
 
         self.assertTrue(os.path.isfile(stray))  # non-.json entry: untouched
-        self.assertFalse(os.path.isfile(target))  # removed by the shim's race
-
 
 
 class TestSessionEndEntryPoint(AcsWorkspaceCase):
@@ -329,3 +331,7 @@ class TestSessionEndEntryPoint(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         lock = lib.read_json(lib.lock_path(tdir))
         self.assertEqual(lock["checkout_id"], "some-other-checkout-deadbeef")
+
+
+if __name__ == "__main__":
+    unittest.main()
