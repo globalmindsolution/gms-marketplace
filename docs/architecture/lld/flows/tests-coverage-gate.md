@@ -24,7 +24,7 @@ sequenceDiagram
     participant Report as coverage report
 
     GHA->>Runner: python3 .acs/ci/run-tests.py
-    Runner->>Runner: run tests.setup - install coverage, diff-cover
+    Runner->>Runner: run tests.setup - install coverage
     Runner->>ParentCov: run tests.command with ACS_COV_ROOT and COVERAGE_PROCESS_START set
     ParentCov->>Suite: -m unittest discover -s tests
     Suite->>TestCase: invoke test method, e.g. the run_script helper

@@ -9,7 +9,7 @@ identity, per the docs-sync sidecar convention (`docs-sync-executor.md:58-66`) -
 - "GHA->>Runner: python3 .acs/ci/run-tests.py": `.acs/ci/run-tests.py:37-45`
   (reads `.acs/settings.json`'s `tests` block and exports `ACS_COVERAGE`
   from `settings.test_coverage_percent`)
-- "Runner->>Runner: run tests.setup - install coverage, diff-cover":
+- "Runner->>Runner: run tests.setup - install coverage":
   `.acs/ci/run-tests.py:47-53` (runs `tests.setup` via
   `subprocess.run(setup, shell=True, env=env)`, failing the check if setup
   exits non-zero)

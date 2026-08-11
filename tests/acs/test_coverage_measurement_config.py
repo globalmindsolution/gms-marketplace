@@ -174,6 +174,30 @@ class TestSettingsTestsCommand(unittest.TestCase):
         self.assertNotIn("diff-cover", self.command)
 
 
+class TestSettingsTestsSetup(unittest.TestCase):
+    """AC-2 (MAR-183): tests.setup carries no diff-cover reference and no
+    deep base-branch git fetch -- both existed only to support the retired
+    diff-cover gate (MAR-174) and its now-moot rollback path."""
+
+    def setUp(self):
+        self.setup = _read_settings()["tests"]["setup"]
+
+    def test_tests_setup_has_no_diff_cover_reference(self):
+        self.assertNotIn("diff_cover", self.setup)
+        self.assertNotIn("diff-cover", self.setup)
+
+    def test_tests_setup_has_no_git_fetch(self):
+        self.assertNotIn("git fetch", self.setup)
+        self.assertNotIn("GITHUB_BASE_REF", self.setup)
+
+    def test_tests_setup_matches_a_pinned_form(self):
+        self.assertEqual(
+            self.setup,
+            'sudo apt-get update -qq && sudo apt-get install -y -qq '
+            'libxml2-utils && python3 -m pip install --quiet '
+            '"coverage>=7.14.2" jsonschema')
+
+
 class TestNoHandRolledSitecustomize(unittest.TestCase):
     """A repo-root sitecustomize.py shadows Homebrew's own and breaks the parent interpreter."""
 
