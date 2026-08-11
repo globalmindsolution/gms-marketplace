@@ -102,20 +102,30 @@ class TestTokens(unittest.TestCase):
 
 
 class TestRowTruncation(unittest.TestCase):
-    """108-111: a row within the column budget is left untouched; a row over
-    budget is truncated to columns - 1 plus an ellipsis."""
+    """108-111: a row exactly at the column budget is left untouched (the `>`
+    boundary, not `>=`); a row over budget is truncated to columns - 1 plus
+    an ellipsis; a degenerate budget at or under the columns > 4 guard is
+    left untouched rather than truncated to something unusably short."""
 
     def test_row_truncates_to_the_column_budget_with_an_ellipsis(self):
         mod = acs_case.load_module(MODULE_FILENAME)
         task = {"id": "t1", "type": "acs:code-verifier", "status": "running"}
 
-        untruncated = mod.row(task, 200)
-        self.assertEqual(untruncated["content"], "▶ verify · code-verifier")
+        # "▶ verify · code-verifier" is exactly 24 chars: columns == len(content)
+        # must pass through unchanged (24 > 24 is False), distinguishing `>`
+        # from a `>=` mutant that would truncate here instead.
+        at_boundary = mod.row(task, 24)
+        self.assertEqual(at_boundary["content"], "▶ verify · code-verifier")
 
         truncated = mod.row(task, 12)
         self.assertEqual(truncated["content"], "▶ verify · …")
         self.assertEqual(len(truncated["content"]), 12)
         self.assertTrue(truncated["content"].endswith("…"))
+
+        # columns == 4 fails the `columns > 4` guard, so content must pass
+        # through unchanged even though it is far longer than 4.
+        narrow = mod.row(task, 4)
+        self.assertEqual(narrow["content"], "▶ verify · code-verifier")
 
 
 class TestMainSkipsUnusableTasks(unittest.TestCase):
