@@ -68,7 +68,7 @@ Key facts:
   measurement is a separate, single-interpreter run of that same suite,
   gated by its own **`Tests & coverage`** required check
   (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
-  diff-scoped against the PR's base branch today. Behavioral evals
+  graded repo-wide against the 90% floor. Behavioral evals
   (`evals/<plugin>/`) run **locally only** — they make LLM calls and are not
   coupled to CI.
 - **Consumer-repo required-check gates**: `/acs:init` can opt-in scaffold up

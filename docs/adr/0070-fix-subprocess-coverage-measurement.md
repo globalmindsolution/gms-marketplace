@@ -86,3 +86,16 @@ chain rather than only the `run` segment.
 against the PR's own changed lines (`.acs/settings.json:122`). Flipping the
 gate to a repo-wide `coverage report --fail-under` bar is a later, separate
 change, once the residual per-module gaps above are closed.
+
+## Amendment (2026-08-11)
+
+The flip anticipated by "Gate today" above has landed: MAR-174
+(`808ddf1`) changed `.acs/settings.json`'s `tests.command`
+(`.acs/settings.json:122`) to end in `python3 -m coverage report
+--fail-under=$ACS_COVERAGE`, so the `Tests & coverage` required check
+now grades the whole measured `source` tree repo-wide, not just the
+PR's own changed lines. The `coverage xml` + `diff-cover` step this
+record originally described no longer runs. This amendment records
+that fact only; it does not alter this ADR's Decision or Consequences
+above, which remain the historical record of what ADR 0070 itself
+changed and did not change at the time it was accepted.
