@@ -66,9 +66,6 @@ def render(payload):
                 parts.append("%s%s" % (glyph, skill.replace("create-", "")))
     else:
         needs_design = bool(ticket.get("needs_design"))
-        if not needs_design and ticket.get("parent"):
-            # children inherit the parent epic's design — design is not their step
-            needs_design = False
         for skill, label in SHORT_STEPS:
             if skill == "create-design" and not needs_design:
                 continue
