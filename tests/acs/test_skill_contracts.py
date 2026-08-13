@@ -2495,7 +2495,7 @@ class TestSpecSimplicityGate(unittest.TestCase):
 class TestReconcileTicketIssueLinkage(unittest.TestCase):
     """MAR-75 spec 02: pin the reconciliation prose contract (acs ticket id <->
     GitHub issue/PR) that spec 01 introduces across create-ticket, create-pr,
-    merge-pr, and init, plus the three description templates and pr-default.md.
+    merge-pr, and initialize, plus the three description templates and pr-default.md.
     Written TDD-first (RED before spec 01's SKILL.md/template edits land);
     turns GREEN once spec 01 is implemented. Additive only — no existing
     assertion in this file is modified."""

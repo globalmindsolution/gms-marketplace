@@ -49,7 +49,7 @@ CHECK_DEFAULTS = {
     "pr_title": True,
     "pr_description": True,
     "acs_label": True,
-    "commit_message": False,  # noisy under squash-merge; init turns it on per repo
+    "commit_message": False,  # noisy under squash-merge; initialize turns it on per repo
 }
 
 ENFORCEMENT_DEFAULTS = {

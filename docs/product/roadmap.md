@@ -253,7 +253,7 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
 A small, near-term interim release that closed the `/acs:initialize` configuration-completeness gap ahead of the larger v0.4.x milestone track. **Shipped** via MAR-89 / PR #176 (squash `ad2cafc`); tag v0.3.4 published 2026-07-03.
 
 - **Delivered (MAR-89, PR #176): `/acs:initialize` init-prompt configuration-completeness slice (part of G21).** A fresh `/acs:initialize` now actively OFFERS every user-configurable `settings.schema.json` key (no user-settable capability reachable only by hand-editing `.acs/settings.json`), closing the three concrete init-prompt gaps:
-  1. **Per-role model at specific-version granularity** — the model prompt offers version-pinned choices (e.g. `claude-opus-4-8`, `claude-sonnet-5`) for all four roles, not only coarse tiers (`opus`/`sonnet`). (Strengthens the existing prompt at `init/SKILL.md`; not a new prompt.)
+  1. **Per-role model at specific-version granularity** — the model prompt offers version-pinned choices (e.g. `claude-opus-4-8`, `claude-sonnet-5`) for all four roles, not only coarse tiers (`opus`/`sonnet`). (Strengthens the existing prompt at `initialize/SKILL.md`; not a new prompt.)
   2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (previously effort was only an object-shape note, never surfaced as a choice).
   3. **Explicit e2e offer** — e2e is explicitly offered on a fresh init (candidate-detected), not left in the silently-defaultable optional batch.
 - **Delivered the init-prompt slice of G21** and its metric (100% user-configurable keys reachable + the three named offers, verified by a fresh-init walkthrough on the dogfood repo within 1 release).

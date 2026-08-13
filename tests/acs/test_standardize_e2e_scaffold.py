@@ -291,7 +291,7 @@ class Mar126NoSettingsSchemaChangeCase(unittest.TestCase):
 class Mar126UntouchedSurfacesCase(unittest.TestCase):
     """Risks R3/R4/R6/scope guard: this spec never re-authors E2E-1's
     templates, never edits classify_additive_diff, and never touches
-    init/SKILL.md or merge-pr/SKILL.md."""
+    initialize/SKILL.md or merge-pr/SKILL.md."""
 
     def test_untouched_paths_have_empty_diff(self):
         untouched = [
