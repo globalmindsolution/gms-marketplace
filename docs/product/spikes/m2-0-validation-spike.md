@@ -71,7 +71,7 @@ In a fresh session inside `/tmp/acs-spike`:
 - ✅ `~/acs-workspace/` exists (created and write-probed).
 - ✅ Final validation passes (init refuses to finish on invalid settings).
 
-Validates: [init/SKILL.md](../../../plugins/acs/skills/init/SKILL.md) steps 5–7,
+Validates: [init/SKILL.md](../../../plugins/acs/skills/initialize/SKILL.md) steps 5–7,
 G6.
 
 ## Step 2 — Gate proof (exit-2 blocks) — the G1 core
