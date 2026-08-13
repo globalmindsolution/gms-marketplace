@@ -12,7 +12,7 @@ folder.
 | Project (shared) | `<repo>/.acs/settings.json` | **committed** | Team-shared, repo-specific settings (formats, tracker, coverage, merge strategy). |
 | Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific keys — notably `workspace_path`. |
 
-- `/initialize` MUST let the user choose the scope (user or project) at init time.
+- `/initialize` MUST let the user choose the scope (user or project) at initialize time.
 - Machine-specific keys are **split into the gitignored
   `settings.local.json`**; `/initialize` writes `workspace_path` there and ensures
   the file is listed in the repo's `.gitignore`.
@@ -25,10 +25,10 @@ folder.
 
 | Key | Type | Default | Required | Description |
 |-----|------|---------|----------|-------------|
-| `workspace_path` | string (absolute path) | — | **Yes — user input at init time** | Folder where all skills and hooks read/write ticket state. MUST be **outside the consumer repo** so git worktrees and parallel tasks work (a path inside the repo would be duplicated/dirtied per worktree). Lives in `settings.local.json` (machine-specific). |
+| `workspace_path` | string (absolute path) | — | **Yes — user input at initialize time** | Folder where all skills and hooks read/write ticket state. MUST be **outside the consumer repo** so git worktrees and parallel tasks work (a path inside the repo would be duplicated/dirtied per worktree). Lives in `settings.local.json` (machine-specific). |
 | `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
-| `ticket_prefix` | string | — | **Yes — user input at init time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/initialize` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
+| `ticket_prefix` | string | — | **Yes — user input at initialize time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/initialize` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
 | `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
 | `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
 | `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file as part of its documentation work; `/create-ticket` reads it as the area's current behavior and flags contradictions. Grows organically — no bootstrap skill required. |
@@ -169,7 +169,7 @@ overwriting an existing value) — the plugin never forces them.
   `settings.json` can be resolved, and fail clearly if `workspace_path` is
   missing or invalid.
 - `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.
-- `ticket_prefix` is required at init time (suggested from the repo name)
+- `ticket_prefix` is required at initialize time (suggested from the repo name)
   and MUST be a non-empty uppercase identifier — ticket ids are
   `<prefix>-<n>`, scoped per repo.
 - `formats.branch_name` MUST include the `{ticket_id}` placeholder — ticket

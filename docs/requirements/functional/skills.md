@@ -62,9 +62,9 @@ configuration.
 
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
-  scope at init time.
+  scope at initialize time.
 - MUST prompt the user for `workspace_path` — there is no default; this is
-  required input at init time.
+  required input at initialize time.
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
   global default prefix.
