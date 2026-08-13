@@ -89,7 +89,7 @@ the hooks enforce the order either way. The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 16 skills
+## The 24 skills
 
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
@@ -100,15 +100,23 @@ name.
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:metrics` | — (utility) | Read-only in-session dashboard: renders the PM delivery view: delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS, DEADLINE, coverage, review iterations, lead/cycle time — from workspace state. Writes nothing. |
 | `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, cost and time per ticket by step, the four per-ticket/per-PR averages, token burn by role — from workspace state. Writes nothing. |
+| `/acs:test` | — (utility) | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable workspace artifact, and on failure triages/drives a closed regression-ticket loop; `--for-ticket` mode runs as one step inside `/acs:ship`'s pipeline walk. |
+| `/acs:release` | — (utility) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 | `/acs:create-prd` | `/acs:initialize` done | Product-level: elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | PRD doc set exists | Product-level: HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
 | `/acs:create-project` | Architecture doc set exists | Product-level, greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |
+| `/acs:create-quality` | Architecture doc set exists | Product-level: bootstraps or maintains the quality/ doc set (test strategy, coverage policy) at `quality_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
+| `/acs:create-operations` | Architecture doc set exists | Product-level: bootstraps or maintains the operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) at `operations_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
+| `/acs:create-principles` | Architecture doc set exists | Product-level: bootstraps or maintains the principles/ doc set (engineering principles + rationale) at `principles_path`, reading the PRD and the architecture set; docs PR via its own delivery ticket. |
+| `/acs:create-standards` | Architecture doc set exists | Product-level: bootstraps or maintains the standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) at `standards_path`, reading the PRD, the architecture set, and the principles set when present; docs PR via its own delivery ticket. |
+| `/acs:create-requirements` | `/acs:initialize` done | Product-level: bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. |
 | `/acs:create-design` | `/acs:create-ticket` completed; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) in the ticket partition; epics' children inherit it. |
 | `/acs:code` | `/acs:create-ticket` completed | TDD implementation on a ticket branch against the coverage target; reconciles factual product-doc claims; verifier review loop (max 3 iterations). |
 | `/acs:docs-sync` | `/acs:code` completed (**and** `/acs:test`, when it ran) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 | `/acs:create-pr` | `/acs:code` completed **and** its verifier passed **and** `/acs:docs-sync` completed | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. |
 | `/acs:merge-pr` | PR reference recorded; **user-invoked only** | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
+| `/acs:standardize-project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. |
 
 ## How gating works
 
