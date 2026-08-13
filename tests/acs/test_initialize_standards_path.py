@@ -1,16 +1,16 @@
-"""MAR-118 — /acs:init Step 4 documents and defaults standards_path (AC-7),
+"""MAR-118 — /acs:initialize Step 4 documents and defaults standards_path (AC-7),
 plus create-standards registry membership (AC-8).
 
-Prose-contract unit test for `plugins/acs/skills/init/SKILL.md`. `standards_path`
+Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`. `standards_path`
 must be defaulted like `principles_path`/`quality_path`/`operations_path` in
 the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
 
 Stdlib-only (os, re, sys, unittest), mirroring
-tests/acs/test_init_principles_path.py's `section()` bounded-window
+tests/acs/test_initialize_principles_path.py's `section()` bounded-window
 technique so a stray mention elsewhere in the file cannot satisfy either
 assertion, plus direct acs_lib registry assertions mirroring
-tests/acs/test_init_principles_path.py's registry-case shape.
+tests/acs/test_initialize_principles_path.py's registry-case shape.
 
 Run:  python3 -m unittest tests.acs.test_mar118_standards_path_init -v
 """
@@ -22,7 +22,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "init", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)
 

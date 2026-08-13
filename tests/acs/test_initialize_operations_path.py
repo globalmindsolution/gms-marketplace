@@ -1,12 +1,12 @@
-"""MAR-113 — /acs:init Step 4 documents and defaults operations_path (AC-3).
+"""MAR-113 — /acs:initialize Step 4 documents and defaults operations_path (AC-3).
 
-Prose-contract unit test for `plugins/acs/skills/init/SKILL.md`.
+Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`.
 `operations_path` must be defaulted like `architecture_path`/`quality_path` in
 the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
 
 Stdlib-only (os, re, unittest), mirroring
-tests/acs/test_init_quality_path.py's `section()` bounded-window
+tests/acs/test_initialize_quality_path.py's `section()` bounded-window
 technique so a stray mention elsewhere in the file cannot satisfy either
 assertion.
 
@@ -19,7 +19,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "init", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
 
 
 def read(path):

@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
 WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
-UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
+UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
@@ -572,7 +572,7 @@ def validate_settings(settings, cwd, require_workspace=True):
     if require_workspace:
         if not workspace:
             raise GateError(
-                "acs is not initialized for this repo: workspace_path is not configured. Run /acs:init first."
+                "acs is not initialized for this repo: workspace_path is not configured. Run /acs:initialize first."
             )
         workspace = os.path.abspath(os.path.expanduser(str(workspace)))
         for root in (main_repo_root(cwd), checkout_root(cwd)):
@@ -581,7 +581,7 @@ def validate_settings(settings, cwd, require_workspace=True):
                     if os.path.commonpath([workspace, os.path.abspath(root)]) == os.path.abspath(root):
                         raise GateError(
                             "workspace_path (%s) is inside the repository (%s); it must live outside the "
-                            "consumer repo so worktrees and parallel tickets work. Re-run /acs:init." % (workspace, root)
+                            "consumer repo so worktrees and parallel tickets work. Re-run /acs:initialize." % (workspace, root)
                         )
                 except ValueError:
                     pass  # different drives (Windows) — necessarily outside
@@ -590,7 +590,7 @@ def validate_settings(settings, cwd, require_workspace=True):
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):
             raise GateError(
                 "ticket_prefix is missing or invalid (must be a non-empty uppercase identifier, e.g. SHOP). "
-                "Run /acs:init."
+                "Run /acs:initialize."
             )
     coverage = settings.get("test_coverage_percent", 90)
     if not isinstance(coverage, (int, float)) or not (0 < coverage <= 100):
@@ -778,7 +778,7 @@ def ticket_id_from_text(text, prefix=None):
 
 
 # ---------------------------------------------------------------------------
-# CLAUDE.md managed-block helpers (written/refreshed by /acs:init). Pure string
+# CLAUDE.md managed-block helpers (written/refreshed by /acs:initialize). Pure string
 # functions so the splice and the placeholder substitution are unit-testable.
 # The markers MUST match templates/CLAUDE.acs.md exactly.
 # ---------------------------------------------------------------------------
@@ -884,7 +884,7 @@ def upsert_managed_block(existing_text, block_body):
 def managed_block_is_malformed(text):
     """True when *text* does NOT contain exactly one acs-managed marker pair.
 
-    Pure detector used by /acs:init Step 7e to decide whether the consumer
+    Pure detector used by /acs:initialize Step 7e to decide whether the consumer
     CLAUDE.md needs REPAIR before the refresh: a doubled block (2+ BEGIN and/or
     END) or an orphaned marker (unequal counts, a lone BEGIN or END) all read as
     malformed. Note a file with NO markers is likewise "not exactly one pair" and
@@ -1502,7 +1502,7 @@ def build_context(cwd, require_workspace=True):
         raise GateError("acs requires a git repository; %s is not inside one." % cwd)
     settings, sources = load_settings(cwd)
     if require_workspace and not sources:
-        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:init first.")
+        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:initialize first.")
     workspace = validate_settings(settings, cwd, require_workspace=require_workspace)
     repo_id = repo_partition_id(cwd)
     if not repo_id:
@@ -1784,7 +1784,7 @@ def tracker_cli_warning(settings):
 
 # Every external tool the full acs workflow touches. kind: required (no pipeline
 # without it), recommended (a major capability needs it), optional (graceful
-# fallback). gh/acli are bumped to required by tracker provider. /init's Step 0b
+# fallback). gh/acli are bumped to required by tracker provider. /initialize's Step 0b
 # preflight reports these and offers to install the missing ones.
 TOOLCHAIN = [
     {"name": "git", "kind": "required",
@@ -1821,7 +1821,7 @@ def _tool_version(name):
 
 
 def check_toolchain(settings=None):
-    """Status of every tool the full acs workflow uses (for /init's preflight).
+    """Status of every tool the full acs workflow uses (for /initialize's preflight).
 
     Returns a list of dicts: name, kind (required|recommended|optional), present
     (bool), version (str|None), why, install (platform -> command). A tool's kind
@@ -1845,7 +1845,7 @@ def check_toolchain(settings=None):
 
 
 def missing_tools(settings=None, kinds=("required", "recommended")):
-    """Names of not-present tools in the given kinds — what /init should offer to install."""
+    """Names of not-present tools in the given kinds — what /initialize should offer to install."""
     return [r["name"] for r in check_toolchain(settings)
             if r["kind"] in kinds and not r["present"]]
 

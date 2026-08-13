@@ -15,7 +15,7 @@
         "properties": {
           "id": {"type": "string", "pattern": "^C-[0-9]+$"},
           "skill": {
-            "enum": ["code", "create-architecture", "create-design", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "handoff", "init", "install-hooks", "merge-pr", "metrics", "release", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
+            "enum": ["code", "create-architecture", "create-design", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "handoff", "initialize", "install-hooks", "merge-pr", "metrics", "release", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
           },
           "question": {"type": "string", "minLength": 1},
           "answer": {"oneOf": [{"type": "string"}, {"type": "null"}]},

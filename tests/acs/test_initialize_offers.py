@@ -1,7 +1,7 @@
-"""MAR-89 — /acs:init offers version-pinned per-role model, per-role effort, and explicit e2e (G21).
+"""MAR-89 — /acs:initialize offers version-pinned per-role model, per-role effort, and explicit e2e (G21).
 
-Prose-contract unit test for `plugins/acs/skills/init/SKILL.md`. A fresh
-`/acs:init` must actively OFFER every user-configurable setting, so no
+Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`. A fresh
+`/acs:initialize` must actively OFFER every user-configurable setting, so no
 capability is reachable only by hand-editing `.acs/settings.json`. This module
 pins the three previously-gapped offers:
 
@@ -21,7 +21,7 @@ pins the three previously-gapped offers:
 
 MAR-154 dropped the `coordinator` role from the `models` settings contract
 entirely and renamed the default planner/verifier tier from claude-opus-4-8
-to claude-opus-5 — `/acs:init`'s offer now names three roles, not four, and
+to claude-opus-5 — `/acs:initialize`'s offer now names three roles, not four, and
 no coordinator-scope caveat remains.
 
 Stdlib-only (os, re, unittest, json), mirroring
@@ -32,7 +32,7 @@ silently diverge). Assertions are bounded-window / co-occurrence anchored on the
 `### models` heading and the Step 4 carve-out — never bare file-wide assertIn —
 so a too-loose match cannot pass vacuously.
 
-Run:  python3 -m unittest tests.acs.test_init_offers -v
+Run:  python3 -m unittest tests.acs.test_initialize_offers -v
 """
 
 import json
@@ -42,7 +42,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "init", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 ROLES = ("planner", "executor", "verifier")
