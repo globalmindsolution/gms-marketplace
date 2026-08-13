@@ -8,12 +8,6 @@ historical carve-outs plus the m2-0 spike doc, ledger C-7, are preserved
 verbatim), and AC-8 (a full-repo grep for a live `/acs:init` or bare `/init`
 skill-name token returns zero hits outside that same historical allowlist).
 
-T1 is the FIRST of five executor tasks and authors this module as the
-integrating oracle for T2-T5: `test_no_live_acs_init_reference_outside_history`
-and `test_eval_trigger_case_expects_initialize` are expected to stay RED until
-the last Wave-B task lands (T2-T5 still contain live `/acs:init` references
-by design at the end of T1) -- that is the intended TDD signal, not a defect.
-
 Run:
   python3 -m unittest tests.acs.test_initialize_skill_reference_sweep -v
 """
@@ -62,7 +56,7 @@ HISTORICAL_FILES = (os.path.realpath(CHANGELOG), os.path.realpath(SPIKE_DOC))
 # ".git" is a FILE (a "gitdir: <path>" pointer) whose target path can itself
 # contain "/init..." as an unrelated directory-name substring, so it is
 # skipped explicitly too, not just as a directory.
-SKIP_DIR_NAMES = {".git", "__pycache__"}
+SKIP_DIR_NAMES = {".git", "node_modules", "__pycache__", ".claude"}
 SKIP_FILE_NAMES = {".git"}
 
 # Built from parts so this module's own source text can never self-match the
