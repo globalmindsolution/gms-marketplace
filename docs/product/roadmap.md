@@ -4,7 +4,7 @@
 > ship through the pipeline. Maintained alongside the PRD via `/acs:create-prd`.
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
-track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:init` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; **v0.3.8** shipped the full-SDLC verify & operate epic (M3 Wave 1, G8) on the v0.3.x patch line, and **v0.4.0** shipped M3 Wave 2 (principles & standards, G10), and **v0.4.1** shipped the e2e-integrity epic (G13); **v0.4.2** shipped Wave 3's release-versions half — first-class release versions + one-command release cut (**G17**) plus the consumer-general program (**C-20** + the Consumer-repo-generality principle); **v0.4.3** shipped the generated-doc-quality epic (**G36**); **v0.4.4** shipped the brownfield requirements-extraction epic (**G37**) — the new `/acs:create-requirements` skill, and **v0.4.5** shipped the readable/audience-aware-docs + configurable design/spec-templates epic (**G38, G39**); the **v0.4.6+ delivery waves** (M3 Wave 4) — org-level policy/scale (G12, G24) — are the next major milestone track after them (team-shared delivery state, **G23**, is deferred to a post-GA milestone — see M8)), followed by a **tentative pre-GA
+track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:initialize` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; **v0.3.8** shipped the full-SDLC verify & operate epic (M3 Wave 1, G8) on the v0.3.x patch line, and **v0.4.0** shipped M3 Wave 2 (principles & standards, G10), and **v0.4.1** shipped the e2e-integrity epic (G13); **v0.4.2** shipped Wave 3's release-versions half — first-class release versions + one-command release cut (**G17**) plus the consumer-general program (**C-20** + the Consumer-repo-generality principle); **v0.4.3** shipped the generated-doc-quality epic (**G36**); **v0.4.4** shipped the brownfield requirements-extraction epic (**G37**) — the new `/acs:create-requirements` skill, and **v0.4.5** shipped the readable/audience-aware-docs + configurable design/spec-templates epic (**G38, G39**); the **v0.4.6+ delivery waves** (M3 Wave 4) — org-level policy/scale (G12, G24) — are the next major milestone track after them (team-shared delivery state, **G23**, is deferred to a post-GA milestone — see M8)), followed by a **tentative pre-GA
 sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
 **The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
 sequenced by what flagship external-consumer-product delivery needs first** — see
@@ -29,7 +29,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.1.0–v0.1.2 | M1 — Foundation | marketplace/plugin skeleton; deterministic layer; skills+agents; quality systems; test suites | shipped |
 | v0.2.0 | M2 — Hardening (exit) | E1 behavioral eval harness; E5 convention enforcement & repo hardening | shipped |
 | v0.3.0 | M2 exit — dogfood + metrics + complexity-adaptive | E3 dogfood; E4 acs:metrics dashboard; complexity-adaptive delivery G14/G15/G16 | shipped |
-| v0.3.4 | M2.5 | `/acs:init` init-prompt configuration-completeness — G21 slice | shipped |
+| v0.3.4 | M2.5 | `/acs:initialize` init-prompt configuration-completeness — G21 slice | shipped |
 | v0.3.5 | M2.6 — Group A core | PR metadata acs sets on create/update — G22 | shipped |
 | v0.3.6 | M2.6 — status + remaining fields | full-lifecycle ticket Status + reviewers/priority/points/parent — G22 | shipped |
 | v0.3.7 | M2.6 — dynamic lane | dynamic (mid-flight) lane correctness — G25 | shipped |
@@ -76,7 +76,7 @@ lower-priority track. Goal references (G1–G6) point at
 #### M2-0 — Validation spike *(prerequisite, ~1 session)*
 
 Traces G1, G2, G6. Install published v0.1.1 into a throwaway consumer repo; run
-`/acs:init` → `/acs:create-ticket` → `/acs:ship` on a trivial change. Assert
+`/acs:initialize` → `/acs:create-ticket` → `/acs:ship` on a trivial change. Assert
 that workspace partitions, hook gates (exit-2 blocks), and the PR flow match
 the docs. Step-by-step runbook with per-step assertions:
 [m2-0-validation-spike.md](spikes/m2-0-validation-spike.md).
@@ -163,7 +163,7 @@ records — what actually shipped under the M2 hardening banner. Delivers the PR
 Must-have convention-enforcement, `/acs:install-hooks`, and Step 0b preflight
 features.
 
-- **E5.1 — Step 7c repo-side CI convention check.** `/acs:init` Step 7c scaffolds
+- **E5.1 — Step 7c repo-side CI convention check.** `/acs:initialize` Step 7c scaffolds
   `.github/workflows/acs-conventions.yml` backed by a stdlib-only
   `.acs/ci/check-conventions.py` (fail-closed; modes `pr` / `pre-push` /
   `commit-msg`), config-driven local git hooks (`commit-msg` + `pre-push`), and a
@@ -176,7 +176,7 @@ features.
 - **E5.2 — `/acs:install-hooks` skill** + committed `.acs/ci/install-hooks.sh`.
   The per-clone `pre-commit install` equivalent for acs; the committed script
   lets teammates install the local hooks without the plugin.
-- **E5.3 — `/acs:init` Step 0b toolchain preflight.** Detects and offers to
+- **E5.3 — `/acs:initialize` Step 0b toolchain preflight.** Detects and offers to
   install `git`, `python3`, `gh`, `pre-commit`, `xmllint`, `acli` with
   per-platform install commands, so onboarding fails up front with consent.
 - **E5.4 — Repo hardening.** This repo is public under the MIT `LICENSE`; a branch
@@ -197,7 +197,7 @@ features.
   branch/worktree cleanup as the ticket path, but resolving no ticket, writing no
   partition/state, and skipping tracker sync and archiving (bumping only the repo
   `pr_merged` metric); it refuses and redirects when the PR is actually ticket-backed.
-  `/acs:init` Step 7e (opt-in, default-on) writes an idempotent, marker-delimited
+  `/acs:initialize` Step 7e (opt-in, default-on) writes an idempotent, marker-delimited
   `CLAUDE.md` acs-managed block (from `templates/CLAUDE.acs.md`) steering in-repo
   Claude sessions to `/acs:ship` rather than a raw `gh pr create`. Pending merge in
   PR #50; targeted for a v0.2.x release.
@@ -250,9 +250,9 @@ dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
 
 ### M2.5 — v0.3.4 *(shipped)*
 
-A small, near-term interim release that closed the `/acs:init` configuration-completeness gap ahead of the larger v0.4.x milestone track. **Shipped** via MAR-89 / PR #176 (squash `ad2cafc`); tag v0.3.4 published 2026-07-03.
+A small, near-term interim release that closed the `/acs:initialize` configuration-completeness gap ahead of the larger v0.4.x milestone track. **Shipped** via MAR-89 / PR #176 (squash `ad2cafc`); tag v0.3.4 published 2026-07-03.
 
-- **Delivered (MAR-89, PR #176): `/acs:init` init-prompt configuration-completeness slice (part of G21).** A fresh `/acs:init` now actively OFFERS every user-configurable `settings.schema.json` key (no user-settable capability reachable only by hand-editing `.acs/settings.json`), closing the three concrete init-prompt gaps:
+- **Delivered (MAR-89, PR #176): `/acs:initialize` init-prompt configuration-completeness slice (part of G21).** A fresh `/acs:initialize` now actively OFFERS every user-configurable `settings.schema.json` key (no user-settable capability reachable only by hand-editing `.acs/settings.json`), closing the three concrete init-prompt gaps:
   1. **Per-role model at specific-version granularity** — the model prompt offers version-pinned choices (e.g. `claude-opus-4-8`, `claude-sonnet-5`) for all four roles, not only coarse tiers (`opus`/`sonnet`). (Strengthens the existing prompt at `init/SKILL.md`; not a new prompt.)
   2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (previously effort was only an object-shape note, never surfaced as a choice).
   3. **Explicit e2e offer** — e2e is explicitly offered on a fresh init (candidate-detected), not left in the silently-defaultable optional batch.
@@ -345,7 +345,7 @@ order — `/acs:test` is last because it needs the `suites` generalization of
   templates), and adds **`/acs:test`** — a standing, schedulable skill that runs
   the product's suites, triages regressions, and opens a ticket per failure
   (closed loop). `settings.schema.json` gains `quality_path`/`operations_path`
-  and a `suites` map; `/acs:init` defaults them. Skill count 16 → 19. Traces
+  and a `suites` map; `/acs:initialize` defaults them. Skill count 16 → 19. Traces
   **G8**. Design: [ADR 0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md).
   All design skills also gain a shared **design-time consistency step** — detect
   doc gaps/staleness across the graph and recommend adjustments in-session, no
@@ -377,7 +377,7 @@ ships as its own **v0.4.1** release — see the e2e-integrity section below.
   reviewed PR — **never moving or renaming existing source**; structural gaps
   become recommended follow-up tickets (additive-only guardrail, C-2). Maps to
   PRD G10 and the acs Could-have features. `settings.schema.json` gains
-  `principles_path`/`standards_path`; `/acs:init` defaults them. Skill count grows
+  `principles_path`/`standards_path`; `/acs:initialize` defaults them. Skill count grows
   accordingly. Traces **G10** (+ the Tech-lead persona).
 
 #### e2e integrity — v0.4.1 (shipped)
@@ -387,7 +387,7 @@ Delivers PRD **G13** (enforceable e2e integrity). **E2E-2 hard-depends on
 required e2e merge gate) may start independently.
 
 - **Epic: enforceable e2e integrity (opt-in merge gate + brownfield e2e scaffolding)** — extends the already-shipped opt-in e2e layer (M1) with enforcement and brownfield onboarding. Three deliverables:
-  - **E2E-1 — Optional required e2e merge gate.** `/acs:init` scaffolds a repo-side e2e CI workflow + runner from `settings.e2e` and, opt-in, wires it as a REQUIRED status check on the protected default branch — a red e2e becomes a fail-closed merge brake (symmetric to E5's convention gate and the coverage hard-fail), making `/acs:merge-pr`'s report-only CI read enforceable via branch protection. The fresh-init EXPLICIT e2e OFFER (raising e2e from silently-defaultable to explicitly-offered at init, G21) ships in **v0.3.4** (M2.5); E2E-1 here adds only the CI workflow + required-status-check gate on top of an already-offered e2e config. Maps to PRD acs Should-have (e2e bullet). Traces **G13**, **G9**.
+  - **E2E-1 — Optional required e2e merge gate.** `/acs:initialize` scaffolds a repo-side e2e CI workflow + runner from `settings.e2e` and, opt-in, wires it as a REQUIRED status check on the protected default branch — a red e2e becomes a fail-closed merge brake (symmetric to E5's convention gate and the coverage hard-fail), making `/acs:merge-pr`'s report-only CI read enforceable via branch protection. The fresh-init EXPLICIT e2e OFFER (raising e2e from silently-defaultable to explicitly-offered at init, G21) ships in **v0.3.4** (M2.5); E2E-1 here adds only the CI workflow + required-status-check gate on top of an already-offered e2e config. Maps to PRD acs Should-have (e2e bullet). Traces **G13**, **G9**.
   - **E2E-2 — Brownfield e2e scaffolding via `/acs:standardize-project`.** The greenfield-only `/acs:create-project` e2e scaffolding gains a brownfield counterpart: `/acs:standardize-project` additively scaffolds the e2e CI workflow + runner for an EXISTING repo that lacks one, as part of its one reviewed PR — never moving or renaming source (C-2). Maps to PRD acs Could-have (`/acs:standardize-project`). Traces **G13**, **G10**.
   - **E2E-3 — Measured e2e integrity (G13).** Validate the metric on the dogfood repo: 0 PRs merged with a red e2e suite (gate enabled) and 100% of user-facing-surface specs declare e2e impact, per release. Maps to PRD **G13**. **Validated 2026-07-12 (MAR-127)** — see the `prd.md` G13 annotation for the recorded result (sub-metric (a) vacuous-0, gate not yet wired; sub-metric (b) 2/2 = 100%).
   The opt-in invariant holds throughout: `settings.e2e` unset = no e2e suite, no gate.
@@ -498,11 +498,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   personas). The MECHANISM (which skills go blocking, the sidecar shape, the
   `formats` schema keys, reconciliation with the skills' existing
   `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)**
-- **Epic: onboarding polish** — `/acs:init` guided flows, repo-detection
+- **Epic: onboarding polish** — `/acs:initialize` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
   read-only skill index / next-step advisor (e.g. `/acs:help`) listing available
   skills and the current ticket's next pipeline step from workspace state —
-  distinct from the `/acs:init` flow work above but sequenced in the same epic.
+  distinct from the `/acs:initialize` flow work above but sequenced in the same epic.
   Maps to the acs Could-have "Discoverability" feature (`prd.md`). The
   fresh-init configuration-completeness fix — actively offering every
   user-configurable setting (G21) — ships in **v0.3.4** (M2.5); this epic
@@ -619,7 +619,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      tracker-first (**G11**) recorded as the sanctioned interim team protocol
      until **G23** (Team-shared delivery state, post-GA — M8) / **G24** (Wave 4, v0.4.6+, above) ship. Maps to PRD's
      workflow-gap-promotions Should-have. **Traces G23, G24, G11.**
-  2. **Team-mode init option (CODEOWNERS scaffolding)** — an `/acs:init`
+  2. **Team-mode init option (CODEOWNERS scaffolding)** — an `/acs:initialize`
      option scaffolding CODEOWNERS mirroring `high_stakes_paths` + docs-path
      ownership; role gates live at the forge (**C-19**), not in acs. Maps to
      PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner

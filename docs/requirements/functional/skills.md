@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-four skills in total: the bootstrap skill (`/init`), the umbrella
+Twenty-four skills in total: the bootstrap skill (`/initialize`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
@@ -55,7 +55,7 @@ Every **workflow** skill MUST:
 
 ---
 
-## `/init` (bootstrap)
+## `/initialize` (bootstrap)
 
 Purpose: make the `acs` plugin work on any consumer repo by generating its
 configuration.
@@ -74,11 +74,11 @@ configuration.
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
-- `/init` is not part of the gated pipeline (no planner/executor/verifier
+- `/initialize` is not part of the gated pipeline (no planner/executor/verifier
   subagents); it is a simple setup skill.
-- All other skills' pre-hooks fail fast (exit 2) with a "run /init first"
+- All other skills' pre-hooks fail fast (exit 2) with a "run /initialize first"
   message when no `settings.json` can be found.
-- Re-running `/init` on an initialized repo/user scope **updates the
+- Re-running `/initialize` on an initialized repo/user scope **updates the
   existing settings in place** (preserving keys it does not touch).
 
 ## `/ship` (umbrella)
@@ -134,7 +134,7 @@ this skill owns the workflow around it.
   when the plugin's `version` bumps (semver; automated release tagging).
 - Runs post-update migration checks: settings valid against the new schema,
   status-line paths still resolve (they hold absolute install paths —
-  re-run `/init` Step 7b when the install moved), workspace reachable.
+  re-run `/initialize` Step 7b when the install moved), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
@@ -206,7 +206,7 @@ closing the loop on failures with a regression ticket.
   suite, or check whether anything broke routes here.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
-- **Unhooked** — like `/init`/`/update`/`/metrics`/`/usage`, `/acs:test` has
+- **Unhooked** — like `/initialize`/`/update`/`/metrics`/`/usage`, `/acs:test` has
   no planner/executor/verifier triad and no `test-state.json` skill-start
   ticket allocation. It is not part of the gated pipeline.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
@@ -616,10 +616,10 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
 - **e2e CI-gate scaffold (E2E-2):** when `settings.e2e`/`suites.e2e` is set and
   `.github/workflows/acs-e2e.yml` is missing, the readiness-tooling audit's e2e
   dimension becomes a concrete scaffold target — `acs-e2e.yml` + `run-e2e.py`,
-  reused verbatim from `/acs:init`'s (E2E-1) committed templates, under
+  reused verbatim from `/acs:initialize`'s (E2E-1) committed templates, under
   allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
   gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
-  — that stays with `/acs:init`, surfaced as a `recommended_follow_ups` entry pointing there.
+  — that stays with `/acs:initialize`, surfaced as a `recommended_follow_ups` entry pointing there.
 - Runs the full Reflection cycle — `standardize-project-planner`,
   `standardize-project-executor`, `standardize-project-verifier`.
 - Structural gaps outside the additive-surface allowlist are surfaced as

@@ -8,7 +8,7 @@ in the sibling files; this doc adds no new rules, it shows them in action.
 
 ```text
 cd acme-shop
-/init
+/initialize
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
   → workspace_path?   ~/acs-workspace    (must be outside the repo)
   → ticket_prefix?    SHOP               (suggested from the repo name)
