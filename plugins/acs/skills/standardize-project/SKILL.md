@@ -115,7 +115,7 @@ The audit inputs, read before spawning the planner:
       re-author or hand-write them (mirrors `create-project/SKILL.md:150-164`'s
       greenfield e2e-scaffold framing). Both land under allowlist categories 1 + 2,
       `A`-status only. Whenever this fires, also add a `recommended_follow_ups` entry
-      pointing at `/acs:init` to wire the `E2E suite` required check into branch
+      pointing at `/acs:initialize` to wire the `E2E suite` required check into branch
       protection — this skill itself never wires branch protection (D1).
     - **Set AND `.github/workflows/acs-e2e.yml` already present** ⇒ standardize-project
       does NOT overwrite the existing file; the conflict becomes a

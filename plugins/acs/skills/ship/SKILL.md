@@ -52,7 +52,7 @@ print(json.dumps({
 PY
 ```
 
-On exit 2: surface stderr verbatim (typically "Run /acs:init first") and
+On exit 2: surface stderr verbatim (typically "Run /acs:initialize first") and
 stop. Otherwise record `workspace`, `repo_id`, and `ticket_prefix`. The
 ticket partition path is always
 `<workspace>/<repo_id>/<ticket-id>/` — call it `<partition>` below.

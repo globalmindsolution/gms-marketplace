@@ -39,7 +39,7 @@ writing anything.
    chmod +x .acs/ci/run-e2e.py
    ```
 
-   This mirrors `plugins/acs/skills/init/SKILL.md`'s Step 7f (same `cp`/`chmod` shape,
+   This mirrors `plugins/acs/skills/initialize/SKILL.md`'s Step 7f (same `cp`/`chmod` shape,
    same `${CLAUDE_PLUGIN_ROOT}/templates/ci/` source, same two target paths).
 4. **NEVER edit, rename, move, or delete any pre-existing source file** not named as an
    append target by the plan — this restriction holds regardless of what the plan's
@@ -47,7 +47,7 @@ writing anything.
    `disallowedTools` restriction above. **This executor also never mutates branch
    protection** — it does not call the GitHub API to add or change required status
    checks on any branch; wiring the `E2E suite` (or any) required check into branch
-   protection stays exclusively with `/acs:init` Step 7f (D1).
+   protection stays exclusively with `/acs:initialize` Step 7f (D1).
 5. **NEVER write under `<principles_path>/**` or `<standards_path>/**`**, under any
    circumstance, even when the plan's Recommended follow-up candidates name a missing
    principles or standards set — that is a report-only finding this executor never acts
