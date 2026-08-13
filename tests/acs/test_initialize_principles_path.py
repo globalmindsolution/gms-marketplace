@@ -49,7 +49,7 @@ def section(body, heading):
 
 
 class Mar117PrinciplesPathInitCase(unittest.TestCase):
-    """Fixture: read the init SKILL.md once and isolate its Step 4 section."""
+    """Fixture: read the initialize SKILL.md once and isolate its Step 4 section."""
 
     @classmethod
     def setUpClass(cls):

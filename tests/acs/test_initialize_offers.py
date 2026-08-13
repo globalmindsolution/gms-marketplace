@@ -74,7 +74,7 @@ def section(body, heading):
 
 
 class Mar89InitOffersCase(unittest.TestCase):
-    """Fixture: read the init SKILL.md and the settings schema once."""
+    """Fixture: read the initialize SKILL.md and the settings schema once."""
 
     @classmethod
     def setUpClass(cls):
