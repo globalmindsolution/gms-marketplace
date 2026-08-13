@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: `/acs:init` no longer resolves — the skill is renamed to `/acs:initialize`** (MAR-184). The skill directory (`plugins/acs/skills/{init => initialize}/SKILL.md`), `acs_lib.UNHOOKED_SKILLS` (`acs_lib.py:44`), and the `skillName` enum in `plugins/acs/schemas/acs-messages.xsd:33`, `plugins/acs/schemas/skill-state.schema.json:10`, `plugins/acs/schemas/clarifications.schema.json:18`, and `validate_xml.SKILLS` (`plugins/acs/hooks/scripts/validate_xml.py:79`) all move together. No alias, shim, or redirect ships — this is deliberate, unlike the `/acs:create-spec` deletion (0.4.6, above), whose `create-spec` anchors in `plugins/acs/hooks/**` and `plugins/acs/schemas/**` were retained for backward compatibility: that retention protected live per-ticket state, but `initialize` is unhooked and writes no state file (`init-state.json`/`initialize-state.json` count across the workspace: **0**, versus **78** for `create-spec-state.json`), so removing the old name outright is non-regressive. After `claude plugin update`, run `/acs:initialize`; existing `.acs/settings.json` and workspace state are unaffected — nothing keys off the skill name.
+
 ## [0.4.7] - 2026-08-11
 
 ### Added
