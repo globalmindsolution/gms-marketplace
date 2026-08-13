@@ -1,4 +1,4 @@
-"""Unit tests for the convention checker that /acs:init ships into consumer repos.
+"""Unit tests for the convention checker that /acs:initialize ships into consumer repos.
 
 The checker (plugins/acs/templates/ci/check-conventions.py) runs in the
 consumer's CI and as a local pre-push hook with ZERO acs dependencies — only the

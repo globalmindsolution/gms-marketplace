@@ -3,13 +3,13 @@
 # hooks (commit-msg + pre-push). The `pre-commit install` equivalent for acs:
 # each teammate runs it once per clone. Idempotent and dependency-free.
 #
-# Committed into the consumer repo at .acs/ci/install-hooks.sh by /acs:init, so
+# Committed into the consumer repo at .acs/ci/install-hooks.sh by /acs:initialize, so
 # a teammate who has only cloned the repo (no acs plugin) can still run:
 #     sh .acs/ci/install-hooks.sh
 # or invoke the skill `/acs:install-hooks`, which wraps this.
 #
 # The hooks call .acs/ci/check-conventions.py, which reads the conventions you
-# configured at /acs:init from .acs/settings.json. Bypassable with
+# configured at /acs:initialize from .acs/settings.json. Bypassable with
 # `git commit --no-verify` / `git push --no-verify`; CI is the backstop.
 set -eu
 
@@ -18,7 +18,7 @@ cd "$root"
 
 checker=".acs/ci/check-conventions.py"
 if [ ! -f "$checker" ]; then
-  echo "error: $checker not found — run /acs:init (CI enforcement, Step 7c) or /acs:install-hooks first." >&2
+  echo "error: $checker not found — run /acs:initialize (CI enforcement, Step 7c) or /acs:install-hooks first." >&2
   exit 1
 fi
 

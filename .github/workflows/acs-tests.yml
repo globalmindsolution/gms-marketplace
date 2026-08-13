@@ -1,11 +1,11 @@
-# acs tests + coverage gate — installed by /acs:init into the consumer repo at
-# .github/workflows/acs-tests.yml. Re-run /acs:init to refresh it.
+# acs tests + coverage gate — installed by /acs:initialize into the consumer repo at
+# .github/workflows/acs-tests.yml. Re-run /acs:initialize to refresh it.
 #
 # Runs the configured test suite on every PR and fails on a failing suite or a
 # coverage shortfall (the command enforces coverage; acs passes
 # ACS_COVERAGE = test_coverage_percent). Make this a REQUIRED status check on
 # your default branch (and block direct pushes) so a PR with failing tests or
-# low coverage cannot merge — /acs:init offers to configure that.
+# low coverage cannot merge — /acs:initialize offers to configure that.
 #
 # Toolchain: ubuntu-latest ships python3/node/go/etc.; `tests.setup` installs
 # your dependencies. For a pinned runtime version, add the matching setup-*
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0 gives diff-cover the history it needs to resolve the
-      # merge-base against the PR's base branch. NOTE: /acs:init regenerates
+      # merge-base against the PR's base branch. NOTE: /acs:initialize regenerates
       # this file from the plugin template, which would reset this to the
       # default shallow clone — `tests.setup` in .acs/settings.json re-fetches
       # the base ref explicitly so the gate still works if that happens.

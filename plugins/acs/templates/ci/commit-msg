@@ -3,7 +3,7 @@
 # formats.commit_message the moment the commit is written, so a malformed
 # subject is caught before it exists (not after a failed push).
 #
-# Installed by /acs:init. Per-clone and bypassable with `git commit --no-verify`;
+# Installed by /acs:initialize. Per-clone and bypassable with `git commit --no-verify`;
 # the pre-push hook and CI re-check, so this is the earliest of several nets.
 # git passes the path to the message file as $1.
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0

@@ -1,11 +1,11 @@
-# acs convention enforcement — installed by /acs:init into the consumer repo at
-# .github/workflows/acs-conventions.yml. Re-run /acs:init to refresh it.
+# acs convention enforcement — installed by /acs:initialize into the consumer repo at
+# .github/workflows/acs-conventions.yml. Re-run /acs:initialize to refresh it.
 #
 # Validates that the branch name, PR title, PR description, labels, and commit
 # messages match the formats in .acs/settings.json — the same conventions the
 # acs pipeline renders from. Make this a REQUIRED status check on your default
 # branch (and block direct pushes) so a non-conforming PR cannot merge:
-#   /acs:init offers to configure that, or run it once as a repo admin:
+#   /acs:initialize offers to configure that, or run it once as a repo admin:
 #   gh api -X PUT repos/{owner}/{repo}/branches/{branch}/protection ...
 name: ACS conventions
 
