@@ -29,14 +29,7 @@ jobs:
     name: Tests & coverage
     runs-on: ubuntu-latest
     steps:
-      # fetch-depth: 0 gives diff-cover the history it needs to resolve the
-      # merge-base against the PR's base branch. NOTE: /acs:initialize regenerates
-      # this file from the plugin template, which would reset this to the
-      # default shallow clone — `tests.setup` in .acs/settings.json re-fetches
-      # the base ref explicitly so the gate still works if that happens.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       # Python is for the acs runner only; your suite uses the repo's own
       # toolchain (present on ubuntu-latest, deps installed by tests.setup).

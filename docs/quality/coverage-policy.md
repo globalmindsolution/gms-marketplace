@@ -41,7 +41,7 @@ branch and is measured, currently at 21 statements / 100%.
 
 Single stack: Python. Coverage is measured by one job, `Tests & coverage`
 in `.github/workflows/acs-tests.yml`, which installs a single unpinned
-`3.x` interpreter via `actions/setup-python@v5` (`acs-tests.yml:43-45`) — no
+`3.x` interpreter via `actions/setup-python@v5` (`acs-tests.yml:36-38`) — no
 version matrix. A separate `3.9`/`3.12` matrix runs in `.github/workflows/ci.yml`'s
 `Tests & validation` job, but that job runs the plain suite
 (`python3 -m unittest discover -s tests -v`, `ci.yml:32-33`) with no coverage
