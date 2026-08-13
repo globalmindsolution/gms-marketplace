@@ -39,9 +39,9 @@ META = {
 #     positive case is therefore the literal explicit invocation; their
 #     no-auto-route guarantee is covered by NEGATIVE below.
 CASES = [
-    ("init", False,
+    ("initialize", False,
      "Set up and initialize the acs configuration for this repository.",
-     "init"),
+     "initialize"),
     ("ship", True,
      "Take a CSV-export feature all the way from idea to an open pull request — "
      "drive the whole delivery pipeline end to end.",
@@ -148,8 +148,8 @@ def run():
     check = Check(META["name"])
 
     def _norm(skill):
-        # The Skill tool_use may report the skill name bare ("init") or
-        # namespaced ("acs:init") depending on the runtime; compare on the
+        # The Skill tool_use may report the skill name bare ("initialize") or
+        # namespaced ("acs:initialize") depending on the runtime; compare on the
         # bare name so the assertion is independent of that.
         return skill.split(":", 1)[-1] if isinstance(skill, str) else skill
 
