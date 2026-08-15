@@ -43,7 +43,7 @@ You need the partition path before flushing. Resolve it like the hooks do:
   first `workspace_path` (expand `~`) and `ticket_prefix` found. In a linked
   worktree also check the worktree's own `.acs/` files. No `workspace_path`
   anywhere means acs is not initialized — stop and tell the user to run
-  `/acs:init` first.
+  `/acs:initialize` first.
 - **repo-id**: from `git config --get remote.origin.url` take the last two
   path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
   replace `:` with `/`; sanitize any character outside `[A-Za-z0-9._-]` to
@@ -150,7 +150,7 @@ On success it prints JSON:
 
 If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
-- `workspace_path is not configured` — tell the user to run `/acs:init`.
+- `workspace_path is not configured` — tell the user to run `/acs:initialize`.
 - `no current ticket for this checkout (nothing to hand off)` — ask the user
   for the ticket id and re-run `/acs:handoff SHOP-123`.
 - `no active partition for <id>` — the ticket never started or is archived

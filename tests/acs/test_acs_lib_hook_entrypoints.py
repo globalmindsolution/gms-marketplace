@@ -290,7 +290,7 @@ class TestSessionEndEntryPoint(AcsWorkspaceCase):
 
     def test_uninitialized_repo_returns_quietly(self):
         """2037-2038: build_context's GateError is swallowed -- nothing to
-        clean up for a repo that never ran /acs:init. HOME is isolated so a
+        clean up for a repo that never ran /acs:initialize. HOME is isolated so a
         real ~/.acs/settings.json on the runner's machine can't mask this."""
         plain = os.path.join(self.tmp, "no-acs")
         os.makedirs(plain)

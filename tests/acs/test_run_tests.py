@@ -1,4 +1,4 @@
-"""Unit tests for the tests+coverage CI runner /acs:init ships into consumer repos.
+"""Unit tests for the tests+coverage CI runner /acs:initialize ships into consumer repos.
 
 run-tests.py (plugins/acs/templates/ci/run-tests.py) runs in the consumer's CI
 with ZERO acs dependencies — stdlib only. It reads `tests.command` from the

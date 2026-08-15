@@ -1,10 +1,10 @@
-# acs required e2e merge gate — installed by /acs:init Step 7f into the
-# consumer repo at .github/workflows/acs-e2e.yml. Re-run /acs:init to refresh it.
+# acs required e2e merge gate — installed by /acs:initialize Step 7f into the
+# consumer repo at .github/workflows/acs-e2e.yml. Re-run /acs:initialize to refresh it.
 #
 # Runs the configured e2e suite on every PR and fails on a red suite (the
 # command enforces its own pass/fail exit code; acs only observes it). Make
 # this a REQUIRED status check on your default branch (and block direct
-# pushes) so a PR with a red e2e suite cannot merge — /acs:init Step 7f offers
+# pushes) so a PR with a red e2e suite cannot merge — /acs:initialize Step 7f offers
 # to configure that when you are a repo admin, or prints the exact command
 # otherwise.
 #

@@ -110,7 +110,7 @@ The marketplace currently ships two plugins:
   Provides a complete agentic software-delivery workflow: from a raw request
   through product definition (PRD), architecture, ticketing, design,
   implementation specs, TDD implementation with an automatic review loop, pull
-  request, and merge. Sixteen skills (`/acs:init`, `/acs:ship`, `/acs:code`, …)
+  request, and merge. Twenty-four skills (`/acs:initialize`, `/acs:ship`, `/acs:code`, …)
   each run a plan → execute → verify reflection cycle with dedicated subagents;
   pre/post hooks gate every step on the recorded state of its predecessor; and
   all durable state lives in a workspace folder outside the consumer repo, making

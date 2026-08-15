@@ -1,5 +1,5 @@
 <!--
-  CLAUDE.acs.md — acs managed block, written/refreshed by /acs:init into the
+  CLAUDE.acs.md — acs managed block, written/refreshed by /acs:initialize into the
   consumer repo's own CLAUDE.md. Everything between the BEGIN and END markers is
   owned by acs and replaced wholesale on each re-run; edit guidance here, not in
   the consumer CLAUDE.md. Placeholders: {ticket_prefix}, {exempt_label}.

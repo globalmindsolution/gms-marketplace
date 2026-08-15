@@ -1,13 +1,13 @@
 ---
-name: init
-description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:init first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
+name: initialize
+description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:initialize first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
 ---
 
-You are the coordinator of `/acs:init`, the acs bootstrap skill. This is NOT a
+You are the coordinator of `/acs:initialize`, the acs bootstrap skill. This is NOT a
 hooked pipeline skill: no `skill-start.py`, no pre/post hooks, no subagents, no
 reflection loop. You do everything yourself in this session with Bash, Read,
 Write, Edit, and AskUserQuestion. Every other acs skill's pre-hook fails with
-"run /acs:init first" until this skill has produced a valid configuration.
+"run /acs:initialize first" until this skill has produced a valid configuration.
 
 Settings live in JSON files that MUST conform to
 `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json` — read that schema if you
@@ -30,7 +30,7 @@ print("repo_id:", acs_lib.repo_partition_id(cwd))
 PY
 ```
 
-If `checkout_root` is empty, stop: tell the user `/acs:init` must run inside
+If `checkout_root` is empty, stop: tell the user `/acs:initialize` must run inside
 the consumer repo. Use `main_repo_root` (the main checkout, even from a linked
 worktree) as `<repo>` everywhere below — local settings and `.gitignore`
 belong to the main checkout so linked worktrees inherit them.
@@ -462,7 +462,7 @@ The user may take either line, both, or neither — never overwrite an existing
 
 Resolve `${CLAUDE_PLUGIN_ROOT}` to its absolute path when writing — user
 settings do not expand plugin variables. Tell the user: if a plugin update
-relocates the install, re-run /acs:init to refresh the path. Test each once:
+relocates the install, re-run /acs:initialize to refresh the path. Test each once:
 `echo '{}' | python3 <path>/statusline.py` must print a line and exit 0;
 `echo '{"tasks":[]}' | python3 <path>/subagent-statusline.py` must exit 0
 silently.
@@ -536,7 +536,7 @@ teammate who only cloned the repo can install the local hooks without the acs
 plugin.
 
 These are regenerated on every re-run, so changing a format later and re-running
-`/acs:init` refreshes them. Stage `.acs/settings.json`, `.acs/ci/`, and
+`/acs:initialize` refreshes them. Stage `.acs/settings.json`, `.acs/ci/`, and
 `.github/workflows/acs-conventions.yml` for the user to commit (do not commit
 yourself unless asked).
 
@@ -723,7 +723,7 @@ settings the same way every other Step 7 substep does (`acs_lib.load_settings`)
 and check whether `suites.e2e` or the raw `e2e` key is **configured** (set and
 truthy). If neither is configured, **skip this entire step silently** — no
 prompt, no file copy, no `gh api` call: this is the opt-in invariant's
-enforcement point in `/acs:init` — a repo that never configured e2e sees zero
+enforcement point in `/acs:initialize` — a repo that never configured e2e sees zero
 new behavior from this ticket, full stop. Only when e2e IS configured do you
 proceed to offer the step below (skip on a plain "no", same pattern as 7c/7d).
 
@@ -778,10 +778,10 @@ echo "repo=$slug default=$branch admin=$admin"
 - **`admin` is not `true`, or the user declines the wiring** — do NOT attempt
   the mutating API call. Print the exact `gh api -X PUT …/protection` command
   (same shape as Step 7c's, with `"E2E suite"` added to `contexts`) for an
-  admin to run, **exactly once** per `/acs:init` run, and state clearly:
+  admin to run, **exactly once** per `/acs:initialize` run, and state clearly:
   enforcement is advisory until an admin runs it — the committed workflow file
   still runs and shows a red X on non-conforming PRs regardless, it simply
-  cannot yet block a merge. **Never hard-fail** `/acs:init` on this path — a
+  cannot yet block a merge. **Never hard-fail** `/acs:initialize` on this path — a
   missing admin scope or a failed protection call is a reported gap, printed
   once, not a stop condition.
 
@@ -801,7 +801,7 @@ written silently. Skip the whole step on an explicit "no".
 
 The block is **marker-delimited and idempotent**: it lives between
 `<!-- BEGIN acs-managed … -->` and `<!-- END acs-managed -->`, so re-running
-`/acs:init` replaces only that span and never touches the surrounding
+`/acs:initialize` replaces only that span and never touches the surrounding
 `CLAUDE.md` content the user owns. Render it from the plugin template
 `templates/CLAUDE.acs.md` (the configured `ticket_prefix` and the enforcement
 `exempt_label` fill its placeholders), then upsert it into the repo-root
@@ -899,7 +899,7 @@ command (`gh auth login` / `acli auth login`) in the summary.
 
 Confirm the full workflow is ready: a one-line toolchain status (from Step 0b)
 and the reminder that the plugin already provides every skill — bootstrap
-(`/acs:init`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
+(`/acs:initialize`), the pipeline (`/acs:create-prd` → `/acs:create-architecture` →
 `/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` →
 `/acs:code` → `/acs:create-pr` → `/acs:merge-pr`), the
 umbrella `/acs:ship`, and utilities `/acs:handoff`, `/acs:update`,
@@ -914,7 +914,7 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; replace the Ticket line with **Scope** (no ticket at init time):
 
 ```markdown
-## /acs:init · <ticket-id> · <status>
+## /acs:initialize · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>

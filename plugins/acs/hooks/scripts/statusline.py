@@ -6,7 +6,7 @@ state (the same files the hooks gate on — no model involvement):
 
     Opus 4.8 · SHOP-123 story · ✓ticket ✓design ✓spec ▶code ○pr ○merge · ~$4.21
 
-Wire-up (offered by /acs:init, or manually) — statusLine is a USER setting,
+Wire-up (offered by /acs:initialize, or manually) — statusLine is a USER setting,
 never forced by the plugin. In ~/.claude/settings.json or
 <repo>/.claude/settings.json:
 

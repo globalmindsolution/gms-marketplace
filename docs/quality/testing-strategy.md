@@ -106,7 +106,7 @@ never hand-picked:
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
-| `init` | ✅ | n/a (unhooked) | ✅ | — |
+| `initialize` | ✅ | n/a (unhooked) | ✅ | — |
 | `ship` | ✅ | n/a (unhooked) | ✅ | — |
 | `handoff` | ✅ | n/a (unhooked) | ✅ | — |
 | `update` | ✅ | n/a (unhooked) | ✅ | — |

@@ -1,7 +1,7 @@
 """Regression guard for MAR-43: the acs-conventions workflow must not cancel its
 own required status check.
 
-Both copies of the workflow (the template `/acs:init` installs, and this repo's
+Both copies of the workflow (the template `/acs:initialize` installs, and this repo's
 live copy) declare a per-PR concurrency group. With `cancel-in-progress: true`,
 the `opened` + `labeled` events that fire together on `gh pr create --label ACS`
 produced two runs in the same group; the cancelled one left a non-SUCCESS

@@ -111,8 +111,8 @@ class Sandbox:
             sb.run_skill("/acs:create-ticket Add X")   # paid
 
     By default the settings are pre-seeded (the skill-under-test is isolated
-    from `/acs:init`). Pass ``init=False`` to start uninitialized — e.g. to
-    eval `/acs:init` itself, or assert the "run /acs:init first" gate.
+    from `/acs:initialize`). Pass ``init=False`` to start uninitialized — e.g. to
+    eval `/acs:initialize` itself, or assert the "run /acs:initialize first" gate.
     """
 
     def __init__(self, prefix="EVAL", slug="sandbox", init=True, keep=False,

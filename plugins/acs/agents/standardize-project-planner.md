@@ -54,7 +54,7 @@ Audit each of the four categories independently — none gates the others:
        `plugins/acs/templates/ci/acs-e2e.yml`) and `run-e2e.py` (from
        `plugins/acs/templates/ci/run-e2e.py`), reused verbatim, under allowlist
        categories 1+2 — feeding the executor task breakdown; also draft a
-       `recommended_follow_ups` entry pointing at `/acs:init` to wire the required
+       `recommended_follow_ups` entry pointing at `/acs:initialize` to wire the required
        check — this skill never wires branch protection itself.
      - **Set AND `.github/workflows/acs-e2e.yml` already present** ⇒ no scaffold-able
        gap; draft a `recommended_follow_ups` entry for the conflict instead.

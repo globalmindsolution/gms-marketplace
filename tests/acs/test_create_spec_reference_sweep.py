@@ -42,7 +42,7 @@ CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 # --- This spec's sweep-set files ---
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
-INIT_SKILL = os.path.join(SKILLS_DIR, "init", "SKILL.md")
+INIT_SKILL = os.path.join(SKILLS_DIR, "initialize", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
 CREATE_QUALITY_SKILL = os.path.join(SKILLS_DIR, "create-quality", "SKILL.md")
@@ -309,7 +309,7 @@ class Rule2OutcomeTextTest(unittest.TestCase):
                     "/acs:create-design and /acs:code are not involved):",
                     read(path))
 
-    def test_init_pipeline_recital_adjacency(self):
+    def test_initialize_pipeline_recital_adjacency(self):
         body = read(INIT_SKILL)
         self.assertRegex(
             norm(body), phrase_re("`/acs:create-design` → `/acs:code`"))

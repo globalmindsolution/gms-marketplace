@@ -30,7 +30,7 @@
       <xs:enumeration value="create-ticket"/>
       <xs:enumeration value="docs-sync"/>
       <xs:enumeration value="handoff"/>
-      <xs:enumeration value="init"/>
+      <xs:enumeration value="initialize"/>
       <xs:enumeration value="install-hooks"/>
       <xs:enumeration value="merge-pr"/>
       <xs:enumeration value="metrics"/>

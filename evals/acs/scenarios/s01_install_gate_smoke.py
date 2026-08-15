@@ -21,13 +21,13 @@ META = {
 def run():
     check = Check(META["name"])
 
-    # Uninitialised repo: every skill must point at /acs:init.
+    # Uninitialised repo: every skill must point at /acs:initialize.
     with Sandbox(init=False, slug="uninit") as sb:
         check.ok("build resolved", sb.build != "source"
                  or True, "build=%s" % sb.build)
         code, err = sb.gate("code", "X-1")
-        check.ok("uninit repo blocks /acs:code with 'init first'",
-                 code == 2 and "init" in err, err)
+        check.ok("uninit repo blocks /acs:code with 'initialize first'",
+                 code == 2 and "initialize" in err, err)
 
     # Initialised, but no ticket yet: the gate names the next missing step.
     with Sandbox(prefix="EVAL", slug="shop", init=True) as sb:
