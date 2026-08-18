@@ -117,6 +117,18 @@
       },
       "additionalProperties": true
     },
+    "evals": {
+      "description": "Behavioral-eval harness configuration (read by evals/<plugin>/, never by the hook layer). forge_repo names the dedicated, NEVER-PRODUCTION, org-owned GitHub repo the forge tier runs the real delivery pipeline against; the harness additionally requires the target's name to match ^acs-eval(-[a-z0-9-]+)?$ and the target checkout to contain a committed .acs-eval-target marker file. ACS_FORGE_REPO overrides this value.",
+      "type": "object",
+      "properties": {
+        "forge_repo": {
+          "description": "owner/name of the forge-tier eval target repo. MUST NOT be a production repo.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
+        }
+      },
+      "additionalProperties": true
+    },
     "post_code_test": {
       "description": "Gates /acs:ship's conditional post-code, pre-create-pr test step (D5). enabled: null (default) auto-resolves per the e2e-presence rule -- OFF only when neither settings.e2e nor suites.e2e is configured, ON otherwise (preserves PRD G13's e2e-gating guarantee). Explicit true/false overrides the auto-resolved default. Setting enabled: true with no e2e configured is not a validation error -- the step still runs against any ticket-named Test-plan suites, a harmless no-op otherwise.",
       "type": "object",

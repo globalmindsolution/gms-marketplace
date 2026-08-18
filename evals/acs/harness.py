@@ -41,6 +41,7 @@ Run:  python3 evals/run_evals.py            # free tier only (default, via dispa
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -95,6 +96,100 @@ def _version_key(v):
     for chunk in v.split("."):
         parts.append(int(chunk) if chunk.isdigit() else -1)
     return parts
+
+
+# --------------------------------------------------------------------------- #
+# Forge-tier target config: resolution + non-production guards
+# --------------------------------------------------------------------------- #
+
+class ForgeConfigError(RuntimeError):
+    """Raised when the forge-tier target repo is unconfigured or fails a guard."""
+
+
+FORGE_MARKER = ".acs-eval-target"
+FORGE_NAME_RE = re.compile(r"^acs-eval(-[a-z0-9][a-z0-9-]*)?$")
+FORGE_REPO_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
+def resolve_forge_target(env=None, repo_root=REPO_ROOT):
+    """Resolve 'owner/name' for the forge tier and run its pre-clone guards.
+
+    Precedence: ACS_FORGE_REPO overrides evals.forge_repo, read from
+    <repo_root>/.acs/settings.json then .acs/settings.local.json (local
+    wins). Guards, in order: G-a unconfigured/malformed, G-b naming
+    convention, G-c never this repo's own remote. G-d (marker file) runs
+    post-clone via check_forge_marker() -- there is no checkout yet here.
+    """
+    env = os.environ if env is None else env
+    target = env.get("ACS_FORGE_REPO") or _forge_repo_from_settings(repo_root)
+
+    if not target or not FORGE_REPO_RE.match(target):
+        raise ForgeConfigError(
+            "no forge target configured: set the ACS_FORGE_REPO env var or "
+            "evals.forge_repo in .acs/settings.json to 'owner/name'"
+        )
+
+    _, _, name = target.partition("/")
+    if not FORGE_NAME_RE.match(name):
+        raise ForgeConfigError(
+            "forge target %r fails the non-production naming guard: its repo "
+            "name must match %s" % (target, FORGE_NAME_RE.pattern)
+        )
+
+    self_target = _self_owner_name(repo_root)
+    if self_target and target.lower() == self_target.lower():
+        raise ForgeConfigError(
+            "forge target %r must not be this repo's own remote (%s)"
+            % (target, self_target)
+        )
+
+    return target
+
+
+def check_forge_marker(checkout_root):
+    """G-d: the cloned checkout must commit the FORGE_MARKER opt-in file."""
+    if not os.path.isfile(os.path.join(checkout_root, FORGE_MARKER)):
+        raise ForgeConfigError(
+            "forge target checkout at %s is missing the required %s marker "
+            "file; the target repo must commit it as an explicit "
+            "non-production opt-in" % (checkout_root, FORGE_MARKER)
+        )
+
+
+def _forge_repo_from_settings(repo_root):
+    """Read evals.forge_repo from project settings, then local (local wins)."""
+    forge_repo = None
+    for rel in (".acs/settings.json", ".acs/settings.local.json"):
+        path = os.path.join(repo_root, rel)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        evals = data.get("evals") or {}
+        if "forge_repo" in evals:
+            forge_repo = evals["forge_repo"]
+    return forge_repo
+
+
+def _self_owner_name(repo_root):
+    """This checkout's own 'owner/name', or None with no readable remote."""
+    proc = subprocess.run(
+        ["git", "-C", repo_root, "config", "--get", "remote.origin.url"],
+        capture_output=True, text=True)
+    url = proc.stdout.strip()
+    return _owner_name_from_remote_url(url) if url else None
+
+
+def _owner_name_from_remote_url(url):
+    """Parse 'owner/name' out of a git remote URL (https, ssh, or scp form)."""
+    path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", url)
+    path = re.sub(r"^[^/@]+@", "", path)
+    path = path.replace(":", "/")
+    path = re.sub(r"\.git/?$", "", path)
+    segments = [s for s in path.split("/") if s]
+    if len(segments) >= 2:
+        return "%s/%s" % (segments[-2], segments[-1])
+    return None
 
 
 # --------------------------------------------------------------------------- #
