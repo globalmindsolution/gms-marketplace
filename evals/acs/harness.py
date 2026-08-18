@@ -655,8 +655,13 @@ class ForgeSandbox:
         self._write(".acs/settings.local.json", {"workspace_path": self.ws})
         with open(os.path.join(self.repo, ".gitignore"), "a") as fh:
             fh.write(".acs/settings.local.json\n")
-        self._git("add", ".acs/settings.json", ".gitignore")
-        self._git("commit", "-q", "-m", "acs forge config")
+        # Local -c overrides on these two calls only: neutralize the operator's
+        # real global git config (excludesFile/gpgsign/hooksPath) so it cannot
+        # crash the seeding commit; clone/push/gh keep the real global config
+        # for credential resolution (F-1).
+        seed_config = ("core.excludesFile=", "commit.gpgsign=false", "core.hooksPath=")
+        self._git("add", ".acs/settings.json", ".gitignore", config=seed_config)
+        self._git("commit", "-q", "-m", "acs forge config", config=seed_config)
 
     # -- __exit__ steps ------------------------------------------------------ #
 
@@ -734,8 +739,12 @@ class ForgeSandbox:
         """gh invocation seam; tests subclass/override this, never the network."""
         return subprocess.run(["gh", *args], capture_output=True, text=True, env=self.env)
 
-    def _git(self, *args):
-        subprocess.run(["git", "-C", self.repo, *args], check=True,
+    def _git(self, *args, config=()):
+        """Repo-scoped git call; `config` adds local -c overrides before the subcommand."""
+        cfg_args = []
+        for kv in config:
+            cfg_args += ["-c", kv]
+        subprocess.run(["git", "-C", self.repo, *cfg_args, *args], check=True,
                        capture_output=True, env=self.env)
 
     def _write(self, rel, data):

@@ -169,6 +169,28 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
                 self.assertEqual(sb.env.get("HOME"), real_home)
                 self.assertNotIn("GIT_DIR", sb.env)
 
+    def test_enter_succeeds_despite_global_git_config_excluding_acs(self):
+        # An isolated "global" config (via GIT_CONFIG_GLOBAL, never the real
+        # gitconfig) whose core.excludesFile ignores .acs/ -- reproduces the
+        # operator config that used to crash __enter__ with CalledProcessError.
+        cfg_dir = tempfile.mkdtemp(prefix="acs-forge-globalcfg-", dir=self.tmp)
+        excludes_file = os.path.join(cfg_dir, "excludes")
+        with open(excludes_file, "w") as fh:
+            fh.write(".acs/\n")
+        global_config = os.path.join(cfg_dir, "gitconfig")
+        with open(global_config, "w") as fh:
+            fh.write("[core]\n\texcludesFile = %s\n" % excludes_file)
+
+        sb = harness.ForgeSandbox(remote_url=self.bare)
+        # Set directly on sb.env (post-construction, after the GIT_* scrub) so
+        # this specific instance's git calls see the hostile global config.
+        sb.env["GIT_CONFIG_GLOBAL"] = global_config
+        with sb:
+            settings_path = os.path.join(sb.repo, ".acs", "settings.json")
+            self.assertTrue(os.path.isfile(settings_path))
+            log = _run(["git", "-C", sb.repo, "log", "--name-only", "-1"]).stdout
+            self.assertIn(".acs/settings.json", log)
+
     def test_remote_url_target_matching_self_owner_name_is_rejected(self):
         owner_name = harness._owner_name_from_remote_url(self.bare)
         with mock.patch.object(harness, "_self_owner_name", return_value=owner_name):
