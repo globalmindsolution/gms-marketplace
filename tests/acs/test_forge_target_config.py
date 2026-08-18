@@ -244,5 +244,20 @@ class NoRepoCreationCallTest(unittest.TestCase):
                               "harness.py must never call the repo-creation API (C-3)")
 
 
+class OnboardingRunbookDocTest(unittest.TestCase):
+    """AC-6: the onboarding runbook is the shipped (non-code) half of AC-6."""
+
+    def test_onboarding_runbook_section_present_in_evals_acs_readme(self):
+        readme_path = os.path.join(REPO_ROOT, "evals", "acs", "README.md")
+        with open(readme_path, encoding="utf-8") as fh:
+            readme = fh.read()
+        self.assertIn("Forge tier", readme)
+        self.assertIn(".acs-eval-target", readme)
+        self.assertIn("/acs:initialize", readme)
+        self.assertIn("minimal buildable baseline", readme)
+        self.assertIn("visibility", readme.lower())
+        self.assertIn("human-confirmed", readme.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
