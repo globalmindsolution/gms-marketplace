@@ -68,7 +68,8 @@ files of the apply-work skills remain on disk but are orphaned.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3),
-TRIVIAL/SMALL lanes fold spec authoring into the plan phase (MAR-59), and a lane
+spec authoring folds into the plan phase on every lane whenever
+`<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
 recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is
 never *automatically* downward — the sole exception is a user-confirmed

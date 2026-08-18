@@ -97,6 +97,11 @@ every skill's transcript in one context:
   planner/executor/verifier). Between steps it reads only `pipeline-state.json`,
   `ticket.json`, and the step's `<handoff>` / `result.json` — never the step's
   transcript — so its own context stays small.
+  - Exception: `code`'s full reflection cycle runs inside the coordinator's
+    own context, so at full verify depth the two rules are reconciled by
+    the boundary stop after `code` rather than by compaction
+    ([skills.md](skills.md#ship-umbrella)'s `/ship` entry; `ship/SKILL.md`
+    "Full-verify pipeline boundary").
 - A step returns only a **compact XML handoff result** (status, stop reason,
   artifact references — bounded to roughly a kilobyte); full detail lives in
   the workspace state files.
