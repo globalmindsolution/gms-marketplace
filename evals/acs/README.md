@@ -174,6 +174,13 @@ branch and its baseline SHA; creates an ephemeral run branch
 never checked out for writes); wipes this target's workspace-partition
 state; and seeds `.acs/settings.json` with the throwaway prefix.
 
+The seeding `add`/`commit` calls are isolated from the operator's
+global/system git config, HOME/XDG-derived config paths, clone-time
+template state, and system gitattributes -- but a `.gitignore` or
+`.git/info/exclude` actually committed in the target repo's own history is
+deliberately left untouched, since that is the target repo's own concern
+(see step 3 below), not the harness's isolation job.
+
 On `__exit__` it always runs a best-effort teardown — never raises — that
 closes any PR the run opened, deletes any remote branch carrying the run
 id, and verifies the default branch's SHA is unchanged (drift is reported

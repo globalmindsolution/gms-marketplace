@@ -23,8 +23,8 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 
 
-def _run(args, cwd=None, check=True):
-    proc = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+def _run(args, cwd=None, check=True, env=None):
+    proc = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=env)
     if check and proc.returncode != 0:
         raise AssertionError("%r failed: %s" % (args, proc.stderr))
     return proc
@@ -101,9 +101,12 @@ def _hazard_cases(cfg_root):
     isolation: excludesFile hiding .acs/, gpgsign with no working signer, a
     failing hooksPath hook, autocrlf+safecrlf rejecting the LF payload, a
     templateDir hook copied into .git/hooks at clone time (config isolation
-    cannot un-install an already-copied hook file), and the
-    XDG_CONFIG_HOME/git/ignore excludes fallback (resolved from HOME, not
-    from any config key)."""
+    cannot un-install an already-copied hook file), a templateDir
+    info/exclude copied at clone time (repo-local, unreachable by any
+    GIT_CONFIG_*/HOME/XDG isolation), a templateDir prepare-commit-msg hook
+    (a hook `--no-verify` never covered), the XDG_CONFIG_HOME/git/ignore
+    excludes fallback (resolved from HOME, not from any config key), and its
+    HOME-only variant (no XDG_CONFIG_HOME set at all)."""
     excludes_file = os.path.join(cfg_root, "excludes")
     with open(excludes_file, "w") as fh:
         fh.write(".acs/\n")
@@ -140,6 +143,31 @@ def _hazard_cases(cfg_root):
     with open(templatedir_cfg, "w") as fh:
         fh.write("[init]\n\ttemplateDir = %s\n" % template_dir)
 
+    # A templateDir whose info/exclude (not a hook) lists .acs/ -- copied
+    # into .git/info/exclude at clone time, repo-local so no GIT_CONFIG_*/
+    # HOME/XDG isolation can reach it; only an empty-template clone can.
+    template_exclude_dir = os.path.join(cfg_root, "template-exclude")
+    os.makedirs(os.path.join(template_exclude_dir, "info"), exist_ok=True)
+    with open(os.path.join(template_exclude_dir, "info", "exclude"), "w") as fh:
+        fh.write(".acs/\n")
+    template_exclude_cfg = os.path.join(cfg_root, "templateDirExclude.gitconfig")
+    with open(template_exclude_cfg, "w") as fh:
+        fh.write("[init]\n\ttemplateDir = %s\n" % template_exclude_dir)
+
+    # A templateDir whose hooks/prepare-commit-msg fails -- a hook
+    # `--no-verify` never covered (it only skips pre-commit/commit-msg).
+    template_prepare_dir = os.path.join(cfg_root, "template-prepare-commit-msg")
+    template_prepare_hooks_dir = os.path.join(template_prepare_dir, "hooks")
+    os.makedirs(template_prepare_hooks_dir, exist_ok=True)
+    template_prepare_hook_path = os.path.join(template_prepare_hooks_dir,
+                                              "prepare-commit-msg")
+    with open(template_prepare_hook_path, "w") as fh:
+        fh.write("#!/bin/sh\nexit 1\n")
+    os.chmod(template_prepare_hook_path, 0o755)
+    template_prepare_cfg = os.path.join(cfg_root, "templateDirPrepareCommitMsg.gitconfig")
+    with open(template_prepare_cfg, "w") as fh:
+        fh.write("[init]\n\ttemplateDir = %s\n" % template_prepare_dir)
+
     def _global_config(path):
         def apply(sb):
             sb.env["GIT_CONFIG_GLOBAL"] = path
@@ -152,6 +180,10 @@ def _hazard_cases(cfg_root):
         ("core.autocrlf + core.safecrlf rejecting LF", _global_config(autocrlf_cfg)),
         ("init.templateDir installing a failing pre-commit hook",
          _global_config(templatedir_cfg)),
+        ("init.templateDir installing a hostile info/exclude for .acs/",
+         _global_config(template_exclude_cfg)),
+        ("init.templateDir installing a failing prepare-commit-msg hook",
+         _global_config(template_prepare_cfg)),
     ]
 
     empty_cfg = os.path.join(cfg_root, "empty.gitconfig")
@@ -167,6 +199,21 @@ def _hazard_cases(cfg_root):
 
     cases.append(("XDG_CONFIG_HOME/git/ignore excludes fallback ignoring .acs/",
                  _xdg_config_home))
+
+    # HOME-only variant: no XDG_CONFIG_HOME at all, so git falls back to the
+    # HOME-derived default (~/.config/git/ignore).
+    home_only_dir = os.path.join(cfg_root, "home-only-config")
+    os.makedirs(os.path.join(home_only_dir, ".config", "git"), exist_ok=True)
+    with open(os.path.join(home_only_dir, ".config", "git", "ignore"), "w") as fh:
+        fh.write(".acs/\n")
+
+    def _home_only_git_ignore(sb):
+        sb.env["GIT_CONFIG_GLOBAL"] = empty_cfg
+        sb.env.pop("XDG_CONFIG_HOME", None)
+        sb.env["HOME"] = home_only_dir
+
+    cases.append(("HOME-only ~/.config/git/ignore excludes fallback "
+                 "(no XDG_CONFIG_HOME) ignoring .acs/", _home_only_git_ignore))
     return cases
 
 
@@ -263,6 +310,28 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
                     self.assertTrue(os.path.isfile(settings_path))
                     log = _run(["git", "-C", sb.repo, "log", "--name-only", "-1"]).stdout
                     self.assertIn(".acs/settings.json", log)
+
+    def test_isolated_git_env_sets_git_attr_nosystem(self):
+        # K-2: closes the system /etc/gitattributes vector for the seeding
+        # calls (e.g. a `*.json working-tree-encoding=UTF-16` system
+        # attribute breaking `git add` with "fatal: BOM is required").
+        #
+        # Git gives GIT_CONFIG_SYSTEM an override path for testing config,
+        # but there is no equivalent for the *attributes* system file: git
+        # resolves it from a compile-time path with no env-settable redirect
+        # (verified empirically -- setting GIT_ATTR_SYSTEM has zero effect on
+        # attribute resolution, unlike GIT_CONFIG_SYSTEM). Reproducing the
+        # hazard live would require writing to (or depending on the content
+        # of) the real /etc/gitattributes on the machine running this suite,
+        # which the hard constraints for this test file rule out. So this
+        # case is validated at the unit level -- the fix is a single,
+        # well-documented git flag (GIT_ATTR_NOSYSTEM) whose semantics are
+        # not in question, only its presence in the isolated seeding env is
+        # -- and the live hazard itself was independently reproduced and
+        # confirmed by two verify lenses (see iter-5-verify.md, finding K-2).
+        with harness.ForgeSandbox(remote_url=self.bare) as sb:
+            env = sb._isolated_git_env()
+        self.assertEqual(env.get("GIT_ATTR_NOSYSTEM"), "1")
 
     def test_remote_url_target_matching_self_owner_name_is_rejected(self):
         owner_name = harness._owner_name_from_remote_url(self.bare)
@@ -467,12 +536,20 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
         gh = FakeGh()
         Stubbed = stubbed(gh)
 
+        # This is ordinary post-seeding pipeline activity, outside the
+        # seeding calls' own isolation (by design -- see _isolated_git_env's
+        # docstring); GIT_ATTR_NOSYSTEM here only keeps this local test
+        # independent of whatever system gitattributes the test-running
+        # machine happens to carry, not part of the code under test.
+        pipeline_env = dict(os.environ, GIT_ATTR_NOSYSTEM="1")
         with Stubbed(remote_url=self.bare) as sb:
             with open(os.path.join(sb.repo, "CHANGES.md"), "w") as fh:
                 fh.write("forge run change\n")
-            _run(["git", "-C", sb.repo, "add", "-A"])
-            _run(["git", "-C", sb.repo, "commit", "-q", "-m", "forge run change"])
-            _run(["git", "-C", sb.repo, "push", "-q", "origin", sb.run_branch])
+            _run(["git", "-C", sb.repo, "add", "-A"], env=pipeline_env)
+            _run(["git", "-C", sb.repo, "commit", "-q", "-m", "forge run change"],
+                 env=pipeline_env)
+            _run(["git", "-C", sb.repo, "push", "-q", "origin", sb.run_branch],
+                 env=pipeline_env)
             gh.prs = [{"number": 1, "headRefName": sb.run_branch}]
             run_branch = sb.run_branch
 

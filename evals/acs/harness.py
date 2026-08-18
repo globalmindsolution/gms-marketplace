@@ -550,6 +550,7 @@ class ForgeSandbox:
         self.teardown_errors = []
         self._isolated_config_path = None
         self._isolated_home_path = None
+        self._empty_template_path = None
         # Scrub inherited GIT_* vars for the same reason Sandbox does: a git
         # hook (e.g. pre-commit) exports GIT_DIR/GIT_WORK_TREE/etc, which would
         # otherwise redirect every subprocess here onto the OUTER repo.
@@ -611,14 +612,30 @@ class ForgeSandbox:
         # remote: keep the real HOME so git/gh credential resolution works.
         name = self.slug or self.owner_name.rsplit("/", 1)[-1]
         self.repo = os.path.join(self.tmp, name)
-        proc = subprocess.run(["git", "clone", "-q", self.clone_url, self.repo],
-                              capture_output=True, text=True, env=self.env)
+        # --template=<empty dir>: overrides any init.templateDir the
+        # operator's global/system config sets (command-line flag beats
+        # config), so no hooks or .git/info/exclude are EVER populated from
+        # an operator template -- closed at the clone step itself, rather
+        # than neutralized after the fact in the seeding calls below.
+        proc = subprocess.run(
+            ["git", "clone", "-q", "--template=%s" % self._empty_template_dir(),
+             self.clone_url, self.repo],
+            capture_output=True, text=True, env=self.env)
         if proc.returncode != 0:
             shutil.rmtree(self.tmp, ignore_errors=True)
             raise ForgeConfigError("failed to clone forge target %r: %s"
                                    % (self.clone_url, proc.stderr.strip()))
         self._git("config", "user.email", "acs-forge@example.com")
         self._git("config", "user.name", "acs-forge")
+
+    def _empty_template_dir(self):
+        """Lazily create the empty clone-template dir under self.tmp (same
+        pattern as the isolated gitconfig/home paths below)."""
+        if self._empty_template_path is None:
+            path = os.path.join(self.tmp, ".acs-forge-empty-template")
+            os.makedirs(path, exist_ok=True)
+            self._empty_template_path = path
+        return self._empty_template_path
 
     def _capture_baseline(self):
         """Default branch + its SHA, so teardown can assert no drift."""
@@ -650,14 +667,26 @@ class ForgeSandbox:
             shutil.rmtree(os.path.join(self.ws, self.partition_id), ignore_errors=True)
 
     def _isolated_git_env(self):
-        """A copy of self.env with GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM pointed
-        at a shared empty temp file and HOME/XDG_CONFIG_HOME pointed at a
-        fresh empty temp dir, so the local seeding add/commit below see NO
-        global/system git config and no $XDG_CONFIG_HOME/git/ignore (or
-        ~/.config/git/ignore) excludes fallback either -- structural isolation
-        instead of an enumerated key/path allowlist, since any operator
-        setting (excludesFile, gpgsign, hooksPath, autocrlf/safecrlf, the
-        excludes fallback, ...) can otherwise crash it. Both live under
+        """A copy of self.env for the local seeding add/commit calls, with
+        every operator-global/system git surface those two calls can reach
+        neutralized: GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM point at a shared
+        empty temp file (no global/system git config), HOME/XDG_CONFIG_HOME
+        point at a fresh empty temp dir (no $XDG_CONFIG_HOME/git/ignore or
+        ~/.config/git/ignore excludes fallback), and GIT_ATTR_NOSYSTEM=1
+        disables system-level gitattributes (e.g. a working-tree-encoding
+        rule that would otherwise break `git add`) -- also restoring an
+        operator's own GIT_ATTR_NOSYSTEM protection that the blanket GIT_*
+        scrub in __init__ otherwise strips, for these two calls specifically.
+        Clone-time template state (hooks, info/exclude) is closed separately,
+        by _clone()'s empty --template= dir, before this env is ever built.
+        Together this is structural isolation, not an enumerated key/path
+        allowlist: any operator setting reachable through these surfaces
+        (excludesFile, gpgsign, hooksPath, autocrlf/safecrlf, the excludes
+        fallback, system gitattributes, ...) is closed as a class. What is
+        deliberately NOT touched: content actually committed in the target
+        repo's own history -- a real .gitignore or .git/info/exclude the
+        target repo itself carries -- that is the target repo's own concern,
+        not the harness's isolation job. Both temp paths below live under
         self.tmp, so they are cleaned up automatically wherever self.tmp is
         removed. Used ONLY for the seeding add/commit; clone/push/gh keep
         self.env unmodified for real credential resolution."""
@@ -674,6 +703,7 @@ class ForgeSandbox:
         env["GIT_CONFIG_SYSTEM"] = self._isolated_config_path
         env["HOME"] = self._isolated_home_path
         env["XDG_CONFIG_HOME"] = self._isolated_home_path
+        env["GIT_ATTR_NOSYSTEM"] = "1"
         return env
 
     def _seed_settings(self):
@@ -690,10 +720,7 @@ class ForgeSandbox:
             fh.write(".acs/settings.local.json\n")
         isolated = self._isolated_git_env()
         self._git("add", ".acs/settings.json", ".gitignore", env=isolated)
-        # --no-verify: a global init.templateDir can copy hooks into this
-        # checkout's .git/hooks/ at clone time (clone runs unisolated for
-        # credential resolution); config isolation alone can't skip them.
-        self._git("commit", "-q", "--no-verify", "-m", "acs forge config", env=isolated)
+        self._git("commit", "-q", "-m", "acs forge config", env=isolated)
 
     # -- __exit__ steps ------------------------------------------------------ #
 
