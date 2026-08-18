@@ -179,14 +179,14 @@ failure**.
 **Deciding the depth.** After `code` returns `completed`, re-read
 `<partition>/ticket.json` (already a permitted read — see "Keep your own
 context tiny") and resolve the depth with the same inline-Python
-`import acs_lib as lib` pattern Step 1 already uses:
+`import acs_lib as lib` pattern Step 1 already uses, passing the `<partition>` path resolved in Step 1 as the script argument:
 
 ```bash
-python3 - <<'PY'
+python3 - "<partition>" <<'PY'
 import json, os, sys
 sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
 import acs_lib as lib
-ticket = json.load(open(os.path.join(PARTITION, "ticket.json")))
+ticket = json.load(open(os.path.join(sys.argv[1], "ticket.json")))
 print(lib.verify_depth(ticket.get("lane"), ticket.get("stakes")))
 PY
 ```

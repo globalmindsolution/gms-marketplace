@@ -6,6 +6,8 @@ the previous implicit silent stop. Run:
   python3 -m unittest tests.acs.test_ship_full_verify_handoff -v
 """
 
+import ast
+import builtins
 import glob
 import os
 import re
@@ -143,6 +145,62 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
         skill_files = sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")))
         matches = [p for p in skill_files if BOUNDARY_MARKER_RE.search(read(p))]
         self.assertEqual(matches, [SHIP_SKILL])
+
+    def test_boundary_snippet_has_no_free_names(self):
+        sect = section(self.body, BOUNDARY_HEADING)
+        fence_m = re.search(r"```bash\n(.*?)```", sect, re.DOTALL)
+        self.assertIsNotNone(
+            fence_m, "the boundary section must contain a bash code fence")
+        lines = fence_m.group(1).splitlines()
+        self.assertTrue(
+            lines and lines[0].startswith("python3 -"),
+            "the fence must open with a `python3 -` heredoc invocation")
+        invocation_line = lines[0]
+
+        body_lines = []
+        for line in lines[1:]:
+            if line.strip() == "PY":
+                break
+            body_lines.append(line)
+        body = "\n".join(body_lines)
+        tree = ast.parse(body)
+
+        assigned = set()
+        imported = set()
+        used = set()
+
+        class Visitor(ast.NodeVisitor):
+            def visit_Import(self, node):
+                for alias in node.names:
+                    imported.add(alias.asname or alias.name.split(".")[0])
+
+            def visit_ImportFrom(self, node):
+                for alias in node.names:
+                    imported.add(alias.asname or alias.name)
+
+            def visit_Name(self, node):
+                if isinstance(node.ctx, ast.Store):
+                    assigned.add(node.id)
+                elif isinstance(node.ctx, ast.Load):
+                    used.add(node.id)
+                self.generic_visit(node)
+
+            def visit_FunctionDef(self, node):
+                assigned.add(node.name)
+                self.generic_visit(node)
+
+        Visitor().visit(tree)
+        bound = assigned | imported | set(dir(builtins))
+        free = sorted(used - bound)
+        self.assertEqual(
+            free, [],
+            "boundary snippet references unbound name(s): %r" % free)
+
+        if "sys.argv" in body:
+            self.assertRegex(
+                invocation_line, r"^python3 -\s+(?!<<)\S+\s+<<",
+                "the invocation line must pass at least one argument after "
+                "`python3 -` since the body reads sys.argv")
 
 
 if __name__ == "__main__":
