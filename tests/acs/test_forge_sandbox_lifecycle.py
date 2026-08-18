@@ -95,11 +95,15 @@ def push_drift_commit(bare, branch="main"):
         _run(["rm", "-rf", tmp], check=False)
 
 
-def _hazard_global_configs(cfg_root):
-    """(label, GIT_CONFIG_GLOBAL path) for every real-world global git config
-    value known to have crashed the seeding `add`/`commit` calls historically:
-    excludesFile hiding .acs/, gpgsign with no working signer, a failing
-    hooksPath hook, and autocrlf+safecrlf rejecting the LF payload."""
+def _hazard_cases(cfg_root):
+    """(label, apply(sb)) for every real-world git hazard known to have
+    crashed the seeding `add`/`commit` calls or bypassed config-only
+    isolation: excludesFile hiding .acs/, gpgsign with no working signer, a
+    failing hooksPath hook, autocrlf+safecrlf rejecting the LF payload, a
+    templateDir hook copied into .git/hooks at clone time (config isolation
+    cannot un-install an already-copied hook file), and the
+    XDG_CONFIG_HOME/git/ignore excludes fallback (resolved from HOME, not
+    from any config key)."""
     excludes_file = os.path.join(cfg_root, "excludes")
     with open(excludes_file, "w") as fh:
         fh.write(".acs/\n")
@@ -125,12 +129,45 @@ def _hazard_global_configs(cfg_root):
     with open(autocrlf_cfg, "w") as fh:
         fh.write("[core]\n\tautocrlf = true\n\tsafecrlf = true\n")
 
-    return [
-        ("core.excludesFile ignoring .acs/", excludes_cfg),
-        ("commit.gpgsign with no working signer", gpgsign_cfg),
-        ("core.hooksPath with a failing hook", hookspath_cfg),
-        ("core.autocrlf + core.safecrlf rejecting LF", autocrlf_cfg),
+    template_dir = os.path.join(cfg_root, "template")
+    template_hooks_dir = os.path.join(template_dir, "hooks")
+    os.makedirs(template_hooks_dir, exist_ok=True)
+    template_hook_path = os.path.join(template_hooks_dir, "pre-commit")
+    with open(template_hook_path, "w") as fh:
+        fh.write("#!/bin/sh\nexit 1\n")
+    os.chmod(template_hook_path, 0o755)
+    templatedir_cfg = os.path.join(cfg_root, "templateDir.gitconfig")
+    with open(templatedir_cfg, "w") as fh:
+        fh.write("[init]\n\ttemplateDir = %s\n" % template_dir)
+
+    def _global_config(path):
+        def apply(sb):
+            sb.env["GIT_CONFIG_GLOBAL"] = path
+        return apply
+
+    cases = [
+        ("core.excludesFile ignoring .acs/", _global_config(excludes_cfg)),
+        ("commit.gpgsign with no working signer", _global_config(gpgsign_cfg)),
+        ("core.hooksPath with a failing hook", _global_config(hookspath_cfg)),
+        ("core.autocrlf + core.safecrlf rejecting LF", _global_config(autocrlf_cfg)),
+        ("init.templateDir installing a failing pre-commit hook",
+         _global_config(templatedir_cfg)),
     ]
+
+    empty_cfg = os.path.join(cfg_root, "empty.gitconfig")
+    open(empty_cfg, "a").close()
+    xdg_home = os.path.join(cfg_root, "xdg-config-home")
+    os.makedirs(os.path.join(xdg_home, "git"), exist_ok=True)
+    with open(os.path.join(xdg_home, "git", "ignore"), "w") as fh:
+        fh.write(".acs/\n")
+
+    def _xdg_config_home(sb):
+        sb.env["GIT_CONFIG_GLOBAL"] = empty_cfg
+        sb.env["XDG_CONFIG_HOME"] = xdg_home
+
+    cases.append(("XDG_CONFIG_HOME/git/ignore excludes fallback ignoring .acs/",
+                 _xdg_config_home))
+    return cases
 
 
 class FakeGh:
@@ -215,12 +252,12 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
         # GIT_CONFIG_SYSTEM pointed at an empty temp config for just those two
         # calls) closes the whole class at once, not key-by-key.
         cfg_root = tempfile.mkdtemp(prefix="acs-forge-globalcfg-", dir=self.tmp)
-        for label, global_config in _hazard_global_configs(cfg_root):
+        for label, apply_hazard in _hazard_cases(cfg_root):
             with self.subTest(hazard=label):
                 sb = harness.ForgeSandbox(remote_url=self.bare)
                 # Set directly on sb.env (post-construction, after the GIT_*
                 # scrub) so this instance's git calls see the hostile config.
-                sb.env["GIT_CONFIG_GLOBAL"] = global_config
+                apply_hazard(sb)
                 with sb:
                     settings_path = os.path.join(sb.repo, ".acs", "settings.json")
                     self.assertTrue(os.path.isfile(settings_path))

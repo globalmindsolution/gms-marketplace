@@ -549,6 +549,7 @@ class ForgeSandbox:
         self.coverage = coverage
         self.teardown_errors = []
         self._isolated_config_path = None
+        self._isolated_home_path = None
         # Scrub inherited GIT_* vars for the same reason Sandbox does: a git
         # hook (e.g. pre-commit) exports GIT_DIR/GIT_WORK_TREE/etc, which would
         # otherwise redirect every subprocess here onto the OUTER repo.
@@ -650,20 +651,29 @@ class ForgeSandbox:
 
     def _isolated_git_env(self):
         """A copy of self.env with GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM pointed
-        at a shared empty temp file, so the local seeding commit below sees NO
-        global or system git config -- structural isolation instead of an
-        enumerated `-c` key allowlist, since any operator setting (excludesFile,
-        gpgsign, hooksPath, autocrlf/safecrlf, ...) can otherwise crash it.
-        The temp file lives under self.tmp, so it is cleaned up automatically
-        wherever self.tmp is removed. Used ONLY for the seeding add/commit;
-        clone/push/gh keep self.env unmodified for real credential resolution."""
+        at a shared empty temp file and HOME/XDG_CONFIG_HOME pointed at a
+        fresh empty temp dir, so the local seeding add/commit below see NO
+        global/system git config and no $XDG_CONFIG_HOME/git/ignore (or
+        ~/.config/git/ignore) excludes fallback either -- structural isolation
+        instead of an enumerated key/path allowlist, since any operator
+        setting (excludesFile, gpgsign, hooksPath, autocrlf/safecrlf, the
+        excludes fallback, ...) can otherwise crash it. Both live under
+        self.tmp, so they are cleaned up automatically wherever self.tmp is
+        removed. Used ONLY for the seeding add/commit; clone/push/gh keep
+        self.env unmodified for real credential resolution."""
         if self._isolated_config_path is None:
             path = os.path.join(self.tmp, ".acs-forge-isolated-gitconfig")
             open(path, "a").close()
             self._isolated_config_path = path
+        if self._isolated_home_path is None:
+            home = os.path.join(self.tmp, ".acs-forge-isolated-home")
+            os.makedirs(home, exist_ok=True)
+            self._isolated_home_path = home
         env = dict(self.env)
         env["GIT_CONFIG_GLOBAL"] = self._isolated_config_path
         env["GIT_CONFIG_SYSTEM"] = self._isolated_config_path
+        env["HOME"] = self._isolated_home_path
+        env["XDG_CONFIG_HOME"] = self._isolated_home_path
         return env
 
     def _seed_settings(self):
@@ -680,7 +690,10 @@ class ForgeSandbox:
             fh.write(".acs/settings.local.json\n")
         isolated = self._isolated_git_env()
         self._git("add", ".acs/settings.json", ".gitignore", env=isolated)
-        self._git("commit", "-q", "-m", "acs forge config", env=isolated)
+        # --no-verify: a global init.templateDir can copy hooks into this
+        # checkout's .git/hooks/ at clone time (clone runs unisolated for
+        # credential resolution); config isolation alone can't skip them.
+        self._git("commit", "-q", "--no-verify", "-m", "acs forge config", env=isolated)
 
     # -- __exit__ steps ------------------------------------------------------ #
 
