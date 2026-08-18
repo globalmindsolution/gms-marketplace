@@ -130,21 +130,25 @@ def resolve_forge_target(env=None, repo_root=REPO_ROOT):
             "evals.forge_repo in .acs/settings.json to 'owner/name'"
         )
 
-    _, _, name = target.partition("/")
+    _apply_target_guards(target, repo_root)
+    return target
+
+
+def _apply_target_guards(owner_name, repo_root=REPO_ROOT):
+    """G-b (naming) + G-c (never-self): shared by every source of a target."""
+    _, _, name = owner_name.partition("/")
     if not FORGE_NAME_RE.match(name):
         raise ForgeConfigError(
             "forge target %r fails the non-production naming guard: its repo "
-            "name must match %s" % (target, FORGE_NAME_RE.pattern)
+            "name must match %s" % (owner_name, FORGE_NAME_RE.pattern)
         )
 
     self_target = _self_owner_name(repo_root)
-    if self_target and target.lower() == self_target.lower():
+    if self_target and owner_name.lower() == self_target.lower():
         raise ForgeConfigError(
             "forge target %r must not be this repo's own remote (%s)"
-            % (target, self_target)
+            % (owner_name, self_target)
         )
-
-    return target
 
 
 def check_forge_marker(checkout_root):
@@ -588,11 +592,7 @@ class ForgeSandbox:
         """AC-2 resolve + guard, unless remote_url overrides it for a test."""
         if self.remote_url is not None:
             owner_name = _owner_name_from_remote_url(self.remote_url) or self.remote_url
-            _, _, name = owner_name.partition("/")
-            if not FORGE_NAME_RE.match(name):
-                raise ForgeConfigError(
-                    "forge target %r fails the non-production naming guard: its "
-                    "repo name must match %s" % (owner_name, FORGE_NAME_RE.pattern))
+            _apply_target_guards(owner_name)
             self.owner_name = owner_name
             self.clone_url = self.remote_url
         else:
@@ -601,9 +601,8 @@ class ForgeSandbox:
 
     def _clone(self):
         self.tmp = tempfile.mkdtemp(prefix="acs-forge-")
-        # HOME override: keep the sandbox's git from reading the user's global
-        # .gitignore/config, same rationale as Sandbox.__enter__.
-        self.env["HOME"] = self.tmp
+        # Unlike Sandbox, this class talks to a real authenticated GitHub
+        # remote: keep the real HOME so git/gh credential resolution works.
         name = self.slug or self.owner_name.rsplit("/", 1)[-1]
         self.repo = os.path.join(self.tmp, name)
         proc = subprocess.run(["git", "clone", "-q", self.clone_url, self.repo],
@@ -717,11 +716,17 @@ class ForgeSandbox:
                 % (self.default_branch, proc.stderr.strip()))
             return
         sha, _, _ = proc.stdout.strip().partition("\t")
-        if sha and sha != self.baseline_sha:
-            self.teardown_errors.append(
-                "default branch %r drifted: baseline=%s now=%s -- never auto-repaired, "
-                "a human must investigate"
-                % (self.default_branch, self.baseline_sha, sha))
+        if sha != self.baseline_sha:
+            if not sha:
+                self.teardown_errors.append(
+                    "default branch %r no longer exists on the remote (was %s) "
+                    "-- never auto-repaired, a human must investigate"
+                    % (self.default_branch, self.baseline_sha))
+            else:
+                self.teardown_errors.append(
+                    "default branch %r drifted: baseline=%s now=%s -- never auto-repaired, "
+                    "a human must investigate"
+                    % (self.default_branch, self.baseline_sha, sha))
 
     # -- seams ---------------------------------------------------------------- #
 

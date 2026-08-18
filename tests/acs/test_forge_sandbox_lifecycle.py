@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -63,6 +64,18 @@ def remote_branches(bare):
         if ref.startswith("refs/heads/"):
             names.append(ref[len("refs/heads/"):])
     return names
+
+
+def delete_remote_branch(bare, branch="main"):
+    """Simulate the default branch being deleted from the target mid-run."""
+    _run(["git", "-C", bare, "config", "receive.denyDeleteCurrent", "ignore"])
+    tmp = tempfile.mkdtemp(prefix="acs-forge-branchdelete-")
+    try:
+        clone = os.path.join(tmp, "delete")
+        _run(["git", "clone", "-q", bare, clone])
+        _run(["git", "-C", clone, "push", "-q", "origin", "--delete", branch])
+    finally:
+        _run(["rm", "-rf", tmp], check=False)
 
 
 def push_drift_commit(bare, branch="main"):
@@ -149,6 +162,27 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
         self.assertNotEqual(run_id1, run_id2)
         self.assertNotEqual(run_branch1, run_branch2)
 
+    def test_env_preserves_real_home_and_scrubs_git_vars(self):
+        with mock.patch.dict(os.environ, {"GIT_DIR": "/should/not/leak"}):
+            real_home = os.environ.get("HOME")
+            with harness.ForgeSandbox(remote_url=self.bare) as sb:
+                self.assertEqual(sb.env.get("HOME"), real_home)
+                self.assertNotIn("GIT_DIR", sb.env)
+
+    def test_remote_url_target_matching_self_owner_name_is_rejected(self):
+        owner_name = harness._owner_name_from_remote_url(self.bare)
+        with mock.patch.object(harness, "_self_owner_name", return_value=owner_name):
+            with self.assertRaises(harness.ForgeConfigError):
+                with harness.ForgeSandbox(remote_url=self.bare):
+                    pass
+
+    def test_enter_raises_and_cleans_up_when_marker_missing(self):
+        bare = make_target_repo(self.tmp, marker=False, name="acs-eval-nomarker")
+        sb = harness.ForgeSandbox(remote_url=bare)
+        with self.assertRaises(harness.ForgeConfigError):
+            sb.__enter__()
+        self.assertFalse(os.path.isdir(sb.tmp))
+
     def test_default_branch_never_checked_out_for_writes(self):
         with harness.ForgeSandbox(remote_url=self.bare) as sb:
             self.assertEqual(sb.default_branch, "main")
@@ -204,9 +238,18 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
 
         with Stubbed(remote_url=self.bare) as sb2:
             push_drift_commit(self.bare)
+            drifted_sha = remote_head_sha(self.bare)
         self.assertTrue(sb2.teardown_errors)
         self.assertTrue(any("drifted" in e for e in sb2.teardown_errors))
-        self.assertEqual(remote_head_sha(self.bare), remote_head_sha(self.bare))  # not reset
+        self.assertEqual(remote_head_sha(self.bare), drifted_sha)
+        self.assertNotEqual(remote_head_sha(self.bare), sb2.baseline_sha)
+
+    def test_default_branch_deleted_entirely_is_reported_as_drift(self):
+        Stubbed = stubbed()
+        with Stubbed(remote_url=self.bare) as sb:
+            delete_remote_branch(self.bare)
+        self.assertTrue(sb.teardown_errors)
+        self.assertTrue(any("no longer exists" in e for e in sb.teardown_errors))
 
     def test_teardown_is_idempotent_and_survives_gh_failure(self):
         gh = FakeGh(fail_list=True)
