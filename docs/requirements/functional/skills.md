@@ -97,6 +97,18 @@ Purpose: drive the whole pipeline from one command.
 - MUST NOT bypass any pre/post hook; it adds orchestration only.
 - SHOULD be resumable: re-running it for a ticket continues from the first
   incomplete step recorded in workspace state.
+- MUST stop after `/code` completes and before the post-code test gate when
+  the ticket's resolved verify depth is `full` (`verify_depth(lane,
+  stakes)`), re-read from `ticket.json` after `/code` returns because
+  `/code` may escalate the lane mid-flight and write it back durably. The
+  stop is a designed boundary, not a failure: no step is marked `failed`,
+  no run entry is written (`/ship` is unhooked and owns none),
+  `pipeline-state.json` records `code` completed, and the run ends with
+  status `handed_off`. The tail (`test` when the gate is active ->
+  `/docs-sync` -> `/create-pr`) runs in a fresh session resumed with
+  `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
+  through, unchanged
+  (`ship/SKILL.md` "Full-verify pipeline boundary"; workflow.md#context-handoff-between-steps).
 - No planner/executor/verifier of its own; each step skill is **invoked
   directly by the ship coordinator in its own context** and runs its own
   reflection cycle, returning only a compact XML handoff — `/ship` tracks the

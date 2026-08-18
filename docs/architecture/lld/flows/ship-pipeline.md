@@ -27,6 +27,7 @@ sequenceDiagram
             SH->>WS: (already updated by the step's post-hook)
         end
         note over SH: context may be cleared/compacted here — the ledger holds the pipeline
+        note over SH: full-verify lane — /ship stops after code by design, the tail resumes in a fresh session (MAR-179)
     end
     SH-->>Dev: pipeline report + "Review the PR, then /acs:merge-pr SHOP-123"
     note over Dev: /ship never invokes /acs:merge-pr — the PR is landed separately after review
@@ -77,3 +78,10 @@ runs each child's pipeline independently (parallel worktrees supported).
 > `completed`, alongside its existing `code` `completed` +
 > `verifier_passed: true` checks. See `design.md`'s sequence diagram 1 and
 > `ship/SKILL.md` "Pipeline order" / "Picking the next step".
+>
+> **NOTE (MAR-179):** On a full-verify lane the coordinator stops right
+> after `code` completes and before the post-code test gate, ending
+> `handed_off`; the remaining steps run in a fresh `/acs:ship <ticket-id>`
+> resumed from `pipeline-state.json`. Light lanes are unaffected. Which
+> steps run and in what order is unchanged. See `ship/SKILL.md` "Full-verify
+> pipeline boundary".

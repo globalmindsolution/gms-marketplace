@@ -22,7 +22,11 @@ Ground rules, non-negotiable:
   specs, or diffs. You read exactly three kinds of things:
   `pipeline-state.json`, `ticket.json`, and the compact `<handoff>` XML each
   step returns (~1 KB). Between steps your context is safe to compact — the
-  ledger holds everything you need to continue.
+  ledger holds everything you need to continue. One step is an exception:
+  `code` on a full-verify lane runs its own full reflection cycle inline in
+  your context, and that is allowed precisely because of the stop described
+  in "Full-verify pipeline boundary" below — the two rules coexist only via
+  that stop.
 - **Never run /acs:merge-pr.** /acs:ship deliberately stops at create-pr so the
   PR is reviewed before it lands; landing is a separate step, not part of ship.
 
@@ -160,6 +164,58 @@ invoked the same way any other step skill is invoked. Note also that
 no coordinator/subagent separation to delegate to, unlike the other three
 hooked steps).
 
+## Full-verify pipeline boundary
+
+`code` is the one step whose full reflection cycle — planner, every
+executor, and (on a full-verify lane) up to three multi-lens verifier
+iterations — lands entirely inside your own coordinator context, because you
+run it as its coordinator (see "Running a step"). On a light-verify lane
+that is small; on a full-verify lane it routinely leaves too little context
+left to safely reach create-pr. Left unacknowledged, the run just trails off
+after `code` completes — an implicit silent stop that reads as a failure.
+This section replaces that implicit stop with a **designed boundary, not a
+failure**.
+
+**Deciding the depth.** After `code` returns `completed`, re-read
+`<partition>/ticket.json` (already a permitted read — see "Keep your own
+context tiny") and resolve the depth with the same inline-Python
+`import acs_lib as lib` pattern Step 1 already uses, passing the `<partition>` path resolved in Step 1 as the script argument:
+
+```bash
+python3 - "<partition>" <<'PY'
+import json, os, sys
+sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
+import acs_lib as lib
+ticket = json.load(open(os.path.join(sys.argv[1], "ticket.json")))
+print(lib.verify_depth(ticket.get("lane"), ticket.get("stakes")))
+PY
+```
+
+Re-read `ticket.json` here rather than trusting whatever depth you resolved
+before `code` ran — `code` may have escalated the lane mid-flight and
+durably written the escalation back to `ticket.json`.
+
+- `"light"` → no stop. Cheap-tail pipelines are unaffected by this section:
+  continue straight through the post-code test gate → docs-sync → create-pr
+  exactly as today.
+- `"full"` → STOP. Stop right after `code` completes, before the post-code
+  test gate — `/acs:test`'s inline Steps 1-3 also run in your own context,
+  so stopping before them is strictly safer. Do not mark any step `failed`,
+  and do not run `handoff.py` (unchanged: /acs:ship is not hooked and owns
+  no run entry).
+
+**The stop report.** `code` is complete on a full-verify lane, and
+`/acs:ship` stops here by design. The remaining steps (test when the gate is
+active, docs-sync, create-pr) run in a fresh session. Resume with
+`/acs:ship <ticket-id>` — `<partition>/pipeline-state.json` already records
+`code` completed, so the resumed run picks up at the next incomplete step.
+Close with the standard completion report block below, `<status>` =
+`handed_off`.
+
+This section changes only **when** the tail runs, never **which** steps run
+or in what order — "Picking the next step" stays a single, lane-uniform
+walk.
+
 ## Picking the next step
 
 Do this in resume mode AND again after every completed step — the ledger,
@@ -192,7 +248,10 @@ For each step, **invoke the Skill tool directly** with skill `acs:<step>` and
 args `<ticket-id>`, and follow that step skill to completion as its
 coordinator. Run steps **sequentially**, one at a time — you are the step's
 coordinator, in your own context, holding the Agent tool the step needs to
-spawn its own planner/executor/verifier. Keep what you pass lean: the ticket
+spawn its own planner/executor/verifier. For `code` specifically, that
+reflection cycle can run to full-verify depth entirely inside your context —
+see "Full-verify pipeline boundary" for when that step then stops the
+pipeline by design. Keep what you pass lean: the ticket
 id is enough (`<partition>` is derivable from `<workspace>/<repo_id>/<ticket-id>/`).
 
 You do not prompt a subagent; you run the step skill yourself. A few
@@ -259,7 +318,9 @@ Branch strictly on `status`:
 - **completed** — re-read `<partition>/pipeline-state.json` to confirm the
   ledger agrees (the step's post-hook wrote it), keep only the one-line
   summary, drop the rest from your working context, and go back to "Picking
-  the next step".
+  the next step" — except immediately after `code` completes, where you
+  evaluate "Full-verify pipeline boundary" first, before returning to
+  "Picking the next step".
 - **needs_input** — a directly-invoked step normally asks the user itself;
   when it nonetheless returns `needs_input`, ask the user every `<question>`
   (use AskUserQuestion; plain questions if unavailable). Then re-invoke the
