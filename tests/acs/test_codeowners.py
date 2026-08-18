@@ -2,10 +2,10 @@
 
 Originating ticket: MAR-172. codeowners.py resolves the raw CODEOWNERS-matched
 owner set for a PR's changed files (git's own file-precedence order, last
-pattern wins). The scenario matrix here reproduces the 9-fixture set reviewed
-in tests/acs/cov_codeowners.py (left in place; retiring that harness is a
-separate ticket), reauthored as isolated unittest methods against the shared
-acs_case.py fixture (MAR-175) instead of that harness's own private helpers.
+pattern wins). The scenario matrix here reproduces the 9-fixture set formerly
+reviewed in the now-retired tests/acs/cov_codeowners.py harness, reauthored
+as isolated unittest methods against the shared acs_case.py fixture
+(MAR-175) instead of that harness's own private helpers.
 """
 
 import json
