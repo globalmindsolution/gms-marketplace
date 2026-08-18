@@ -548,6 +548,7 @@ class ForgeSandbox:
         self._workspace_override = workspace
         self.coverage = coverage
         self.teardown_errors = []
+        self._isolated_config_path = None
         # Scrub inherited GIT_* vars for the same reason Sandbox does: a git
         # hook (e.g. pre-commit) exports GIT_DIR/GIT_WORK_TREE/etc, which would
         # otherwise redirect every subprocess here onto the OUTER repo.
@@ -561,16 +562,20 @@ class ForgeSandbox:
         self._clone()
         try:
             check_forge_marker(self.repo)
+            self._capture_baseline()
+            self._create_run_branch()
+            self.ws = (self._workspace_override or os.environ.get("ACS_FORGE_WORKSPACE")
+                      or os.path.join(self.tmp, "workspace"))
+            os.makedirs(self.ws, exist_ok=True)
+            self._wipe_partition()
+            self._seed_settings()
         except ForgeConfigError:
             shutil.rmtree(self.tmp, ignore_errors=True)
             raise
-        self._capture_baseline()
-        self._create_run_branch()
-        self.ws = (self._workspace_override or os.environ.get("ACS_FORGE_WORKSPACE")
-                  or os.path.join(self.tmp, "workspace"))
-        os.makedirs(self.ws, exist_ok=True)
-        self._wipe_partition()
-        self._seed_settings()
+        except Exception as err:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+            raise ForgeConfigError(
+                "forge sandbox setup failed after clone: %s" % err) from err
         return self
 
     def __exit__(self, exc_type, exc, tb):
@@ -643,6 +648,24 @@ class ForgeSandbox:
         if self.partition_id:
             shutil.rmtree(os.path.join(self.ws, self.partition_id), ignore_errors=True)
 
+    def _isolated_git_env(self):
+        """A copy of self.env with GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM pointed
+        at a shared empty temp file, so the local seeding commit below sees NO
+        global or system git config -- structural isolation instead of an
+        enumerated `-c` key allowlist, since any operator setting (excludesFile,
+        gpgsign, hooksPath, autocrlf/safecrlf, ...) can otherwise crash it.
+        The temp file lives under self.tmp, so it is cleaned up automatically
+        wherever self.tmp is removed. Used ONLY for the seeding add/commit;
+        clone/push/gh keep self.env unmodified for real credential resolution."""
+        if self._isolated_config_path is None:
+            path = os.path.join(self.tmp, ".acs-forge-isolated-gitconfig")
+            open(path, "a").close()
+            self._isolated_config_path = path
+        env = dict(self.env)
+        env["GIT_CONFIG_GLOBAL"] = self._isolated_config_path
+        env["GIT_CONFIG_SYSTEM"] = self._isolated_config_path
+        return env
+
     def _seed_settings(self):
         """AC-5: seed the throwaway prefix; mirrors Sandbox._seed_settings."""
         os.makedirs(os.path.join(self.repo, ".acs"), exist_ok=True)
@@ -655,13 +678,9 @@ class ForgeSandbox:
         self._write(".acs/settings.local.json", {"workspace_path": self.ws})
         with open(os.path.join(self.repo, ".gitignore"), "a") as fh:
             fh.write(".acs/settings.local.json\n")
-        # Local -c overrides on these two calls only: neutralize the operator's
-        # real global git config (excludesFile/gpgsign/hooksPath) so it cannot
-        # crash the seeding commit; clone/push/gh keep the real global config
-        # for credential resolution (F-1).
-        seed_config = ("core.excludesFile=", "commit.gpgsign=false", "core.hooksPath=")
-        self._git("add", ".acs/settings.json", ".gitignore", config=seed_config)
-        self._git("commit", "-q", "-m", "acs forge config", config=seed_config)
+        isolated = self._isolated_git_env()
+        self._git("add", ".acs/settings.json", ".gitignore", env=isolated)
+        self._git("commit", "-q", "-m", "acs forge config", env=isolated)
 
     # -- __exit__ steps ------------------------------------------------------ #
 
@@ -739,13 +758,11 @@ class ForgeSandbox:
         """gh invocation seam; tests subclass/override this, never the network."""
         return subprocess.run(["gh", *args], capture_output=True, text=True, env=self.env)
 
-    def _git(self, *args, config=()):
-        """Repo-scoped git call; `config` adds local -c overrides before the subcommand."""
-        cfg_args = []
-        for kv in config:
-            cfg_args += ["-c", kv]
-        subprocess.run(["git", "-C", self.repo, *cfg_args, *args], check=True,
-                       capture_output=True, env=self.env)
+    def _git(self, *args, env=None):
+        """Repo-scoped git call; pass env= to override the subprocess environment
+        (e.g. the isolated seeding env), otherwise self.env is used."""
+        subprocess.run(["git", "-C", self.repo, *args], check=True,
+                       capture_output=True, env=env if env is not None else self.env)
 
     def _write(self, rel, data):
         path = os.path.join(self.repo, rel)

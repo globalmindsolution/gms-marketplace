@@ -95,6 +95,44 @@ def push_drift_commit(bare, branch="main"):
         _run(["rm", "-rf", tmp], check=False)
 
 
+def _hazard_global_configs(cfg_root):
+    """(label, GIT_CONFIG_GLOBAL path) for every real-world global git config
+    value known to have crashed the seeding `add`/`commit` calls historically:
+    excludesFile hiding .acs/, gpgsign with no working signer, a failing
+    hooksPath hook, and autocrlf+safecrlf rejecting the LF payload."""
+    excludes_file = os.path.join(cfg_root, "excludes")
+    with open(excludes_file, "w") as fh:
+        fh.write(".acs/\n")
+    excludes_cfg = os.path.join(cfg_root, "excludesFile.gitconfig")
+    with open(excludes_cfg, "w") as fh:
+        fh.write("[core]\n\texcludesFile = %s\n" % excludes_file)
+
+    gpgsign_cfg = os.path.join(cfg_root, "gpgsign.gitconfig")
+    with open(gpgsign_cfg, "w") as fh:
+        fh.write("[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = false\n")
+
+    hooks_dir = os.path.join(cfg_root, "hooks")
+    os.makedirs(hooks_dir, exist_ok=True)
+    hook_path = os.path.join(hooks_dir, "pre-commit")
+    with open(hook_path, "w") as fh:
+        fh.write("#!/bin/sh\nexit 1\n")
+    os.chmod(hook_path, 0o755)
+    hookspath_cfg = os.path.join(cfg_root, "hooksPath.gitconfig")
+    with open(hookspath_cfg, "w") as fh:
+        fh.write("[core]\n\thooksPath = %s\n" % hooks_dir)
+
+    autocrlf_cfg = os.path.join(cfg_root, "autocrlf.gitconfig")
+    with open(autocrlf_cfg, "w") as fh:
+        fh.write("[core]\n\tautocrlf = true\n\tsafecrlf = true\n")
+
+    return [
+        ("core.excludesFile ignoring .acs/", excludes_cfg),
+        ("commit.gpgsign with no working signer", gpgsign_cfg),
+        ("core.hooksPath with a failing hook", hookspath_cfg),
+        ("core.autocrlf + core.safecrlf rejecting LF", autocrlf_cfg),
+    ]
+
+
 class FakeGh:
     """Records every argv passed to the `_gh` seam; replies from a small script
     so `_close_open_prs` can be driven without any real `gh` process."""
@@ -169,27 +207,25 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
                 self.assertEqual(sb.env.get("HOME"), real_home)
                 self.assertNotIn("GIT_DIR", sb.env)
 
-    def test_enter_succeeds_despite_global_git_config_excluding_acs(self):
-        # An isolated "global" config (via GIT_CONFIG_GLOBAL, never the real
-        # gitconfig) whose core.excludesFile ignores .acs/ -- reproduces the
-        # operator config that used to crash __enter__ with CalledProcessError.
-        cfg_dir = tempfile.mkdtemp(prefix="acs-forge-globalcfg-", dir=self.tmp)
-        excludes_file = os.path.join(cfg_dir, "excludes")
-        with open(excludes_file, "w") as fh:
-            fh.write(".acs/\n")
-        global_config = os.path.join(cfg_dir, "gitconfig")
-        with open(global_config, "w") as fh:
-            fh.write("[core]\n\texcludesFile = %s\n" % excludes_file)
-
-        sb = harness.ForgeSandbox(remote_url=self.bare)
-        # Set directly on sb.env (post-construction, after the GIT_* scrub) so
-        # this specific instance's git calls see the hostile global config.
-        sb.env["GIT_CONFIG_GLOBAL"] = global_config
-        with sb:
-            settings_path = os.path.join(sb.repo, ".acs", "settings.json")
-            self.assertTrue(os.path.isfile(settings_path))
-            log = _run(["git", "-C", sb.repo, "log", "--name-only", "-1"]).stdout
-            self.assertIn(".acs/settings.json", log)
+    def test_enter_succeeds_despite_hostile_global_git_config(self):
+        # Isolated "global" configs (via GIT_CONFIG_GLOBAL, never the real
+        # gitconfig) reproducing every operator setting known to have crashed
+        # the seeding `add`/`commit` calls with an unhandled CalledProcessError
+        # and a leaked checkout. Structural isolation (GIT_CONFIG_GLOBAL/
+        # GIT_CONFIG_SYSTEM pointed at an empty temp config for just those two
+        # calls) closes the whole class at once, not key-by-key.
+        cfg_root = tempfile.mkdtemp(prefix="acs-forge-globalcfg-", dir=self.tmp)
+        for label, global_config in _hazard_global_configs(cfg_root):
+            with self.subTest(hazard=label):
+                sb = harness.ForgeSandbox(remote_url=self.bare)
+                # Set directly on sb.env (post-construction, after the GIT_*
+                # scrub) so this instance's git calls see the hostile config.
+                sb.env["GIT_CONFIG_GLOBAL"] = global_config
+                with sb:
+                    settings_path = os.path.join(sb.repo, ".acs", "settings.json")
+                    self.assertTrue(os.path.isfile(settings_path))
+                    log = _run(["git", "-C", sb.repo, "log", "--name-only", "-1"]).stdout
+                    self.assertIn(".acs/settings.json", log)
 
     def test_remote_url_target_matching_self_owner_name_is_rejected(self):
         owner_name = harness._owner_name_from_remote_url(self.bare)
@@ -204,6 +240,17 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
         with self.assertRaises(harness.ForgeConfigError):
             sb.__enter__()
         self.assertFalse(os.path.isdir(sb.tmp))
+
+    def test_enter_wraps_post_clone_step_failure_in_forge_config_error_and_cleans_up(self):
+        # Any post-clone __enter__ step (not just the marker guard) must be
+        # covered by the same cleanup-then-typed-raise pattern.
+        boom = RuntimeError("boom from a post-clone step")
+        with mock.patch.object(harness.ForgeSandbox, "_wipe_partition", side_effect=boom):
+            sb = harness.ForgeSandbox(remote_url=self.bare)
+            with self.assertRaises(harness.ForgeConfigError) as ctx:
+                sb.__enter__()
+            self.assertIn("boom from a post-clone step", str(ctx.exception))
+            self.assertFalse(os.path.isdir(sb.tmp))
 
     def test_default_branch_never_checked_out_for_writes(self):
         with harness.ForgeSandbox(remote_url=self.bare) as sb:
