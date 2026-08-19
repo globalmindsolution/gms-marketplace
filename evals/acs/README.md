@@ -142,3 +142,117 @@ of scenario modules the runner iterates. Each module exposes:
 | `resume_and_verify` | paid | G2–G4 | Seed code-ready state; one fresh code session must resume, pass verifier, stay under PR cap |
 | `skill_triggers` | paid | routing | One NL request per skill must route to that skill (12 probes) |
 | `session_end` | free | cleanup | Abnormal-ending SessionEnd hook finalizes in_progress runs correctly |
+
+## Forge tier
+
+The forge tier runs the real acs delivery pipeline (`/acs:create-pr`,
+`/acs:merge-pr`, ...) against a dedicated, persistent, org-owned GitHub
+repo, instead of the throwaway local git init `Sandbox` the free/paid tiers
+use. This gets real, inspectable coverage of the parts of the pipeline that
+touch an actual GitHub remote (PR creation, PR merge, branch protection)
+that no local sandbox can exercise.
+
+### `ForgeSandbox`
+
+`ForgeSandbox` (in `evals/acs/harness.py`) is the forge-tier equivalent of
+`Sandbox`: a context manager that clones the configured target repo,
+operates on an ephemeral run branch, and tears itself down afterwards.
+
+```python
+from harness import ForgeSandbox
+
+with ForgeSandbox() as sb:
+    ...  # drive the real pipeline against sb.repo, on sb.run_branch
+assert not sb.teardown_errors
+```
+
+On `__enter__` it: resolves and guards the configured target repo; mints a
+per-run throwaway ticket prefix (`FORGE<run_id>`); clones the target into a
+temp checkout; verifies the post-clone marker file; captures the default
+branch and its baseline SHA; creates an ephemeral run branch
+(`acs-eval/<run_id>`) off the default branch (the default branch itself is
+never checked out for writes); wipes this target's workspace-partition
+state; and seeds `.acs/settings.json` with the throwaway prefix.
+
+The seeding `add`/`commit` calls are isolated from the operator's
+global/system git config, HOME/XDG-derived config paths, clone-time
+template state, and system gitattributes -- but a `.gitignore` or
+`.git/info/exclude` actually committed in the target repo's own history is
+deliberately left untouched, since that is the target repo's own concern
+(see step 3 below), not the harness's isolation job.
+
+On `__exit__` it always runs a best-effort teardown — never raises — that
+closes any PR the run opened, deletes any remote branch carrying the run
+id, and verifies the default branch's SHA is unchanged (drift is reported
+into `sb.teardown_errors`, never force-repaired). `keep=True` (or
+`ACS_EVAL_KEEP=1`) preserves the temp checkout for inspection but teardown
+still runs and still reports.
+
+### Configuration: `evals.forge_repo` / `ACS_FORGE_REPO`
+
+The target repo is `owner/name`, read from `evals.forge_repo` in
+`.acs/settings.json` / `.acs/settings.local.json` (local wins), or from the
+`ACS_FORGE_REPO` env var, which overrides both. Unconfigured or malformed
+values raise `ForgeConfigError` naming both sources.
+
+`ACS_FORGE_WORKSPACE` overrides the workspace root the run's partition is
+wiped under; it defaults to `<temp checkout>/workspace`.
+
+`ForgeSandbox(slug=None, keep=False, remote_url=None, workspace=None,
+coverage=90)` are the constructor kwargs. `remote_url=` bypasses
+`resolve_forge_target()` (it still runs `_apply_target_guards`) and exists
+for tests, not operators.
+
+### The non-production guards
+
+Three independent guards, with **no override escape hatch**, because the
+worst-case failure mode here is the forge tier accidentally running its
+real, destructive delivery pipeline (branch pushes, PR merges, force-resets
+on drift) against a production repo:
+
+1. **Naming convention (G-b)** — the repo name must match
+   `^acs-eval(-[a-z0-9][a-z0-9-]*)?$`.
+2. **Never-self (G-c)** — the target must not be this repo's own remote.
+3. **Marker file (G-d)** — the cloned checkout must contain a committed
+   `.acs-eval-target` file, an explicit non-production opt-in made by the
+   target repo itself (a naming-convention rename alone cannot smuggle a
+   real repo in).
+
+### Branch-per-run + teardown contract
+
+Every forge run gets its own ephemeral branch and its own throwaway ticket
+prefix, so concurrent runs against the same target never collide and the
+target's default branch is only ever read, never written directly. Teardown
+deletes the run's branches and closes its PRs; it reports (but never
+repairs) any drift on the default branch, so an operator investigates rather
+than the harness silently force-resetting a repo.
+
+### Onboarding a forge target repo
+
+Wiring a real target repo up is a **human-confirmed follow-up action, not
+something this pipeline does autonomously** — creating a GitHub repo is a
+real, hard-to-reverse action, so no `/acs:code` run or scenario creates one
+on its own. Once a human has decided on the exact name/org/visibility and
+created the repo, onboarding it is:
+
+1. **Pick a name** matching `^acs-eval(-[a-z0-9][a-z0-9-]*)?$` — proposed:
+   `acs-eval-target`, under the `globalmindsolution` org. **Visibility is an
+   open choice a human must confirm**: private keeps throwaway pipeline
+   branches/PRs out of public view but requires `gh` auth with private scope
+   on every machine that runs the forge tier; public is simpler to
+   authenticate but publishes every run's branches and PRs.
+2. **Commit the `.acs-eval-target` marker file** at the repo root, with a
+   one-line "never-production; safe to force-reset" statement — the
+   authoritative opt-in the harness's marker-file guard checks for.
+3. **Seed a minimal buildable baseline**: a `README.md`, one trivial source
+   file, and one trivial passing test — small enough that a full clone is
+   instant and a `/acs:code` run against it is cheap.
+4. **Run `/acs:initialize`** in a clone of the new repo to produce its
+   `.acs/settings.json` (`ticket_prefix`, `test_coverage_percent`,
+   `tests.command` running that one trivial test).
+5. **Wire it up**: set `evals.forge_repo` in this repo's `.acs/settings.json`
+   (or export `ACS_FORGE_REPO`) to the new repo's `owner/name`.
+
+The target repo's default branch is assumed to be `main`; confirm this at
+onboarding time (`ForgeSandbox` falls back to `main` when
+`origin/HEAD` is unset).

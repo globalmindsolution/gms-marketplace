@@ -41,11 +41,13 @@ Run:  python3 evals/run_evals.py            # free tier only (default, via dispa
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 # REPO_ROOT: dirname x3 from evals/acs/harness.py reaches the repo root.
 # (dirname x2 would stop at evals/, making SOURCE_SCRIPTS resolve to
@@ -95,6 +97,104 @@ def _version_key(v):
     for chunk in v.split("."):
         parts.append(int(chunk) if chunk.isdigit() else -1)
     return parts
+
+
+# --------------------------------------------------------------------------- #
+# Forge-tier target config: resolution + non-production guards
+# --------------------------------------------------------------------------- #
+
+class ForgeConfigError(RuntimeError):
+    """Raised when the forge-tier target repo is unconfigured or fails a guard."""
+
+
+FORGE_MARKER = ".acs-eval-target"
+FORGE_NAME_RE = re.compile(r"^acs-eval(-[a-z0-9][a-z0-9-]*)?$")
+FORGE_REPO_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
+def resolve_forge_target(env=None, repo_root=REPO_ROOT):
+    """Resolve 'owner/name' for the forge tier and run its pre-clone guards.
+
+    Precedence: ACS_FORGE_REPO overrides evals.forge_repo, read from
+    <repo_root>/.acs/settings.json then .acs/settings.local.json (local
+    wins). Guards, in order: G-a unconfigured/malformed, G-b naming
+    convention, G-c never this repo's own remote. G-d (marker file) runs
+    post-clone via check_forge_marker() -- there is no checkout yet here.
+    """
+    env = os.environ if env is None else env
+    target = env.get("ACS_FORGE_REPO") or _forge_repo_from_settings(repo_root)
+
+    if not target or not FORGE_REPO_RE.match(target):
+        raise ForgeConfigError(
+            "no forge target configured: set the ACS_FORGE_REPO env var or "
+            "evals.forge_repo in .acs/settings.json to 'owner/name'"
+        )
+
+    _apply_target_guards(target, repo_root)
+    return target
+
+
+def _apply_target_guards(owner_name, repo_root=REPO_ROOT):
+    """G-b (naming) + G-c (never-self): shared by every source of a target."""
+    _, _, name = owner_name.partition("/")
+    if not FORGE_NAME_RE.match(name):
+        raise ForgeConfigError(
+            "forge target %r fails the non-production naming guard: its repo "
+            "name must match %s" % (owner_name, FORGE_NAME_RE.pattern)
+        )
+
+    self_target = _self_owner_name(repo_root)
+    if self_target and owner_name.lower() == self_target.lower():
+        raise ForgeConfigError(
+            "forge target %r must not be this repo's own remote (%s)"
+            % (owner_name, self_target)
+        )
+
+
+def check_forge_marker(checkout_root):
+    """G-d: the cloned checkout must commit the FORGE_MARKER opt-in file."""
+    if not os.path.isfile(os.path.join(checkout_root, FORGE_MARKER)):
+        raise ForgeConfigError(
+            "forge target checkout at %s is missing the required %s marker "
+            "file; the target repo must commit it as an explicit "
+            "non-production opt-in" % (checkout_root, FORGE_MARKER)
+        )
+
+
+def _forge_repo_from_settings(repo_root):
+    """Read evals.forge_repo from project settings, then local (local wins)."""
+    forge_repo = None
+    for rel in (".acs/settings.json", ".acs/settings.local.json"):
+        path = os.path.join(repo_root, rel)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        evals = data.get("evals") or {}
+        if "forge_repo" in evals:
+            forge_repo = evals["forge_repo"]
+    return forge_repo
+
+
+def _self_owner_name(repo_root):
+    """This checkout's own 'owner/name', or None with no readable remote."""
+    proc = subprocess.run(
+        ["git", "-C", repo_root, "config", "--get", "remote.origin.url"],
+        capture_output=True, text=True)
+    url = proc.stdout.strip()
+    return _owner_name_from_remote_url(url) if url else None
+
+
+def _owner_name_from_remote_url(url):
+    """Parse 'owner/name' out of a git remote URL (https, ssh, or scp form)."""
+    path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", url)
+    path = re.sub(r"^[^/@]+@", "", path)
+    path = path.replace(":", "/")
+    path = re.sub(r"\.git/?$", "", path)
+    segments = [s for s in path.split("/") if s]
+    if len(segments) >= 2:
+        return "%s/%s" % (segments[-2], segments[-1])
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -401,6 +501,315 @@ class Sandbox:
             raise AssertionError("expected artifact missing: %s" % path)
         with open(path) as fh:
             return json.load(fh)
+
+
+# --------------------------------------------------------------------------- #
+# ForgeSandbox: real target-repo checkout, ephemeral run branch, teardown
+# --------------------------------------------------------------------------- #
+
+def _partition_id_from_remote(remote_url):
+    """Mirror acs_lib.repo_partition_id's owner-name derivation for a remote
+    URL, without importing acs_lib (harness stays stdlib-only)."""
+    path = remote_url
+    path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)
+    path = re.sub(r"^[^/@]+@", "", path)
+    path = path.replace(":", "/")
+    path = re.sub(r"\.git/?$", "", path)
+    segments = [s for s in path.split("/") if s]
+    if len(segments) >= 2:
+        raw = "%s-%s" % (segments[-2], segments[-1])
+    elif segments:
+        raw = segments[-1]
+    else:
+        return None
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", raw)
+
+
+class ForgeSandbox:
+    """A real checkout of the forge-tier target repo, on its own run branch.
+
+    Use as a context manager: ``__enter__`` resolves/guards/clones the target,
+    wipes this run's workspace partition, and seeds a throwaway-prefixed
+    ``.acs/settings.json`` on an ephemeral run branch; ``__exit__`` is a
+    best-effort teardown (closes the run's PRs, deletes its remote branches,
+    verifies the default branch is unchanged) that never raises — failures
+    land in ``self.teardown_errors`` instead::
+
+        with ForgeSandbox() as sb:
+            ...  # drive the real pipeline against sb.repo
+        assert not sb.teardown_errors
+    """
+
+    def __init__(self, slug=None, keep=False, remote_url=None, workspace=None,
+                 coverage=90):
+        self.slug = slug
+        self.keep = keep or os.environ.get("ACS_EVAL_KEEP") == "1"
+        self.remote_url = remote_url
+        self._workspace_override = workspace
+        self.coverage = coverage
+        self.teardown_errors = []
+        self._isolated_config_path = None
+        self._isolated_home_path = None
+        self._empty_template_path = None
+        # Scrub inherited GIT_* vars for the same reason Sandbox does: a git
+        # hook (e.g. pre-commit) exports GIT_DIR/GIT_WORK_TREE/etc, which would
+        # otherwise redirect every subprocess here onto the OUTER repo.
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith("GIT_")}
+
+    def __enter__(self):
+        self._resolve_target()
+        self.run_id = uuid.uuid4().hex[:8].upper()
+        self.prefix = "FORGE" + self.run_id
+        self._clone()
+        try:
+            check_forge_marker(self.repo)
+            self._capture_baseline()
+            self._create_run_branch()
+            self.ws = (self._workspace_override or os.environ.get("ACS_FORGE_WORKSPACE")
+                      or os.path.join(self.tmp, "workspace"))
+            os.makedirs(self.ws, exist_ok=True)
+            self._wipe_partition()
+            self._seed_settings()
+        except ForgeConfigError:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+            raise
+        except Exception as err:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+            raise ForgeConfigError(
+                "forge sandbox setup failed after clone: %s" % err) from err
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        for step in (self._close_open_prs, self._delete_remaining_remote_branches,
+                    self._verify_default_branch_unchanged):
+            try:
+                step()
+            except Exception as err:  # best-effort teardown: never raise
+                self.teardown_errors.append("%s: %s" % (step.__name__, err))
+        if self.keep:
+            sys.stderr.write("[harness] kept forge checkout: %s\n" % self.tmp)
+        else:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+        return False
+
+    # -- __enter__ steps ---------------------------------------------------- #
+
+    def _resolve_target(self):
+        """AC-2 resolve + guard, unless remote_url overrides it for a test."""
+        if self.remote_url is not None:
+            owner_name = _owner_name_from_remote_url(self.remote_url) or self.remote_url
+            _apply_target_guards(owner_name)
+            self.owner_name = owner_name
+            self.clone_url = self.remote_url
+        else:
+            self.owner_name = resolve_forge_target()
+            self.clone_url = "https://github.com/%s.git" % self.owner_name
+
+    def _clone(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-forge-")
+        # Unlike Sandbox, this class talks to a real authenticated GitHub
+        # remote: keep the real HOME so git/gh credential resolution works.
+        name = self.slug or self.owner_name.rsplit("/", 1)[-1]
+        self.repo = os.path.join(self.tmp, name)
+        # --template=<empty dir>: overrides any init.templateDir the
+        # operator's global/system config sets (command-line flag beats
+        # config), so no hooks or .git/info/exclude are EVER populated from
+        # an operator template -- closed at the clone step itself, rather
+        # than neutralized after the fact in the seeding calls below.
+        proc = subprocess.run(
+            ["git", "clone", "-q", "--template=%s" % self._empty_template_dir(),
+             self.clone_url, self.repo],
+            capture_output=True, text=True, env=self.env)
+        if proc.returncode != 0:
+            shutil.rmtree(self.tmp, ignore_errors=True)
+            raise ForgeConfigError("failed to clone forge target %r: %s"
+                                   % (self.clone_url, proc.stderr.strip()))
+        self._git("config", "user.email", "acs-forge@example.com")
+        self._git("config", "user.name", "acs-forge")
+
+    def _empty_template_dir(self):
+        """Lazily create the empty clone-template dir under self.tmp (same
+        pattern as the isolated gitconfig/home paths below)."""
+        if self._empty_template_path is None:
+            path = os.path.join(self.tmp, ".acs-forge-empty-template")
+            os.makedirs(path, exist_ok=True)
+            self._empty_template_path = path
+        return self._empty_template_path
+
+    def _capture_baseline(self):
+        """Default branch + its SHA, so teardown can assert no drift."""
+        proc = subprocess.run(
+            ["git", "-C", self.repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+            capture_output=True, text=True, env=self.env)
+        branch = proc.stdout.strip()
+        if proc.returncode == 0 and branch.startswith("origin/"):
+            branch = branch[len("origin/"):]
+        else:
+            branch = "main"
+        self.default_branch = branch
+        self.baseline_sha = subprocess.run(
+            ["git", "-C", self.repo, "rev-parse", "origin/%s" % branch],
+            capture_output=True, text=True, env=self.env).stdout.strip()
+
+    def _create_run_branch(self):
+        self.run_branch = "acs-eval/%s" % self.run_id
+        self._git("checkout", "-q", "-b", self.run_branch,
+                  "origin/%s" % self.default_branch)
+
+    def _wipe_partition(self):
+        """AC-4: unconditionally wipe this target's workspace partition."""
+        remote = subprocess.run(
+            ["git", "-C", self.repo, "config", "--get", "remote.origin.url"],
+            capture_output=True, text=True, env=self.env).stdout.strip()
+        self.partition_id = _partition_id_from_remote(remote) if remote else None
+        if self.partition_id:
+            shutil.rmtree(os.path.join(self.ws, self.partition_id), ignore_errors=True)
+
+    def _isolated_git_env(self):
+        """A copy of self.env for the local seeding add/commit calls, with
+        every operator-global/system git surface those two calls can reach
+        neutralized: GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM point at a shared
+        empty temp file (no global/system git config), HOME/XDG_CONFIG_HOME
+        point at a fresh empty temp dir (no $XDG_CONFIG_HOME/git/ignore or
+        ~/.config/git/ignore excludes fallback), and GIT_ATTR_NOSYSTEM=1
+        disables system-level gitattributes (e.g. a working-tree-encoding
+        rule that would otherwise break `git add`) -- also restoring an
+        operator's own GIT_ATTR_NOSYSTEM protection that the blanket GIT_*
+        scrub in __init__ otherwise strips, for these two calls specifically.
+        Clone-time template state (hooks, info/exclude) is closed separately,
+        by _clone()'s empty --template= dir, before this env is ever built.
+        Together this is structural isolation, not an enumerated key/path
+        allowlist: any operator setting reachable through these surfaces
+        (excludesFile, gpgsign, hooksPath, autocrlf/safecrlf, the excludes
+        fallback, system gitattributes, ...) is closed as a class. What is
+        deliberately NOT touched: content actually committed in the target
+        repo's own history -- a real .gitignore or .git/info/exclude the
+        target repo itself carries -- that is the target repo's own concern,
+        not the harness's isolation job. Both temp paths below live under
+        self.tmp, so they are cleaned up automatically wherever self.tmp is
+        removed. Used ONLY for the seeding add/commit; clone/push/gh keep
+        self.env unmodified for real credential resolution."""
+        if self._isolated_config_path is None:
+            path = os.path.join(self.tmp, ".acs-forge-isolated-gitconfig")
+            open(path, "a").close()
+            self._isolated_config_path = path
+        if self._isolated_home_path is None:
+            home = os.path.join(self.tmp, ".acs-forge-isolated-home")
+            os.makedirs(home, exist_ok=True)
+            self._isolated_home_path = home
+        env = dict(self.env)
+        env["GIT_CONFIG_GLOBAL"] = self._isolated_config_path
+        env["GIT_CONFIG_SYSTEM"] = self._isolated_config_path
+        env["HOME"] = self._isolated_home_path
+        env["XDG_CONFIG_HOME"] = self._isolated_home_path
+        env["GIT_ATTR_NOSYSTEM"] = "1"
+        return env
+
+    def _seed_settings(self):
+        """AC-5: seed the throwaway prefix; mirrors Sandbox._seed_settings."""
+        os.makedirs(os.path.join(self.repo, ".acs"), exist_ok=True)
+        self._write(".acs/settings.json", {
+            "ticket_prefix": self.prefix,
+            "test_coverage_percent": self.coverage,
+            "merge_strategy": "squash",
+            "tracker": {"provider": "github"},
+        })
+        self._write(".acs/settings.local.json", {"workspace_path": self.ws})
+        with open(os.path.join(self.repo, ".gitignore"), "a") as fh:
+            fh.write(".acs/settings.local.json\n")
+        isolated = self._isolated_git_env()
+        self._git("add", ".acs/settings.json", ".gitignore", env=isolated)
+        self._git("commit", "-q", "-m", "acs forge config", env=isolated)
+
+    # -- __exit__ steps ------------------------------------------------------ #
+
+    def _close_open_prs(self):
+        proc = self._gh("pr", "list", "--repo", self.owner_name, "--state", "open",
+                        "--json", "number,headRefName")
+        if proc.returncode != 0:
+            self.teardown_errors.append(
+                "gh pr list failed: %s" % (proc.stderr or proc.stdout).strip())
+            return
+        try:
+            prs = json.loads(proc.stdout or "[]")
+        except ValueError:
+            self.teardown_errors.append(
+                "gh pr list returned unparseable JSON: %r" % proc.stdout)
+            return
+        for pr in prs:
+            head = pr.get("headRefName") or ""
+            if self.run_id not in head:
+                continue
+            close = self._gh("pr", "close", str(pr.get("number")), "--repo",
+                             self.owner_name, "--delete-branch")
+            if close.returncode != 0:
+                self.teardown_errors.append(
+                    "gh pr close %s failed: %s"
+                    % (pr.get("number"), (close.stderr or close.stdout).strip()))
+
+    def _delete_remaining_remote_branches(self):
+        proc = subprocess.run(["git", "-C", self.repo, "ls-remote", "--heads", "origin"],
+                              capture_output=True, text=True, env=self.env)
+        if proc.returncode != 0:
+            self.teardown_errors.append(
+                "git ls-remote --heads origin failed: %s" % proc.stderr.strip())
+            return
+        for line in proc.stdout.splitlines():
+            _, _, ref = line.partition("\t")
+            if not ref.startswith("refs/heads/"):
+                continue
+            branch = ref[len("refs/heads/"):]
+            if self.run_id not in branch:
+                continue
+            delete = subprocess.run(["git", "-C", self.repo, "push", "origin",
+                                     "--delete", branch],
+                                    capture_output=True, text=True, env=self.env)
+            if delete.returncode != 0:
+                self.teardown_errors.append(
+                    "git push origin --delete %s failed: %s" % (branch, delete.stderr.strip()))
+
+    def _verify_default_branch_unchanged(self):
+        proc = subprocess.run(
+            ["git", "-C", self.repo, "ls-remote", "origin",
+             "refs/heads/%s" % self.default_branch],
+            capture_output=True, text=True, env=self.env)
+        if proc.returncode != 0:
+            self.teardown_errors.append(
+                "could not verify default branch %r sha: %s"
+                % (self.default_branch, proc.stderr.strip()))
+            return
+        sha, _, _ = proc.stdout.strip().partition("\t")
+        if sha != self.baseline_sha:
+            if not sha:
+                self.teardown_errors.append(
+                    "default branch %r no longer exists on the remote (was %s) "
+                    "-- never auto-repaired, a human must investigate"
+                    % (self.default_branch, self.baseline_sha))
+            else:
+                self.teardown_errors.append(
+                    "default branch %r drifted: baseline=%s now=%s -- never auto-repaired, "
+                    "a human must investigate"
+                    % (self.default_branch, self.baseline_sha, sha))
+
+    # -- seams ---------------------------------------------------------------- #
+
+    def _gh(self, *args):
+        """gh invocation seam; tests subclass/override this, never the network."""
+        return subprocess.run(["gh", *args], capture_output=True, text=True, env=self.env)
+
+    def _git(self, *args, env=None):
+        """Repo-scoped git call; pass env= to override the subprocess environment
+        (e.g. the isolated seeding env), otherwise self.env is used."""
+        subprocess.run(["git", "-C", self.repo, *args], check=True,
+                       capture_output=True, env=env if env is not None else self.env)
+
+    def _write(self, rel, data):
+        path = os.path.join(self.repo, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            json.dump(data, fh, indent=2)
+            fh.write("\n")
 
 
 # --------------------------------------------------------------------------- #

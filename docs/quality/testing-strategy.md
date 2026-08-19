@@ -118,8 +118,10 @@ never hand-picked:
 
 Two of the Artifact `—` cells above carry a specific reason rather than being
 open gap: `create-pr` and `merge-pr` need a **forge tier** (a live GitHub
-remote) that is declared but not yet populated (`evals/README.md:61`) — see
-"Roadmap to close the gap" item 3. The other 20 `—` cells are the gap itself.
+remote). Its harness foundation shipped in MAR-67 (`ForgeSandbox` +
+`evals.forge_repo`/`ACS_FORGE_REPO` + non-production guards + branch-per-run
+teardown, `evals/README.md:61`) — see "Roadmap to close the gap" item 3 for
+what still blocks the two cells. The other 20 `—` cells are the gap itself.
 
 **Structure is complete: 24 of 24** (`test_skill_contracts.py:44-47` pins the
 on-disk set against the `ALL_SKILLS` literal at
@@ -189,7 +191,9 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    both shipped with no trigger eval (see the Trigger column above).
 3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
    `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
-   (throwaway GitHub repo), then `ship` end-to-end — covering the delivery spine.
+   (throwaway GitHub repo — foundation delivered by MAR-67: harness + config +
+   guards + teardown; the two scenarios and the onboarded target repo remain),
+   then `ship` end-to-end — covering the delivery spine.
 4. **LLM-as-judge for subjective skills** *(paid).* Rubric-scored evals for
    `create-prd` / `create-architecture` / `create-design`, whose quality is
    about content soundness rather than artifact shape.

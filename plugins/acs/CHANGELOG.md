@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **New optional `evals.forge_repo` settings key + `ACS_FORGE_REPO` override** (MAR-67), read only by `evals/<plugin>/` — never by the hook layer, so no consumer behavior changes and no migration is needed. Names the dedicated, `NEVER-PRODUCTION`, org-owned GitHub repo the forge-tier eval harness (`ForgeSandbox`, `evals/acs/harness.py`) runs the real delivery pipeline against, guarded by three independent, no-override-escape-hatch checks: the target's name must match `^acs-eval(-[a-z0-9][a-z0-9-]*)?$` (`plugins/acs/schemas/settings.schema.json`), it must not be this repo's own remote, and its checkout must contain a committed `.acs-eval-target` marker file.
+
 ### Changed
 
 - **BREAKING: `/acs:init` no longer resolves — the skill is renamed to `/acs:initialize`** (MAR-184). The skill directory (`plugins/acs/skills/{init => initialize}/SKILL.md`), `acs_lib.UNHOOKED_SKILLS` (`acs_lib.py:44`), and the `skillName` enum in `plugins/acs/schemas/acs-messages.xsd:33`, `plugins/acs/schemas/skill-state.schema.json:10`, `plugins/acs/schemas/clarifications.schema.json:18`, and `validate_xml.SKILLS` (`plugins/acs/hooks/scripts/validate_xml.py:79`) all move together. No alias, shim, or redirect ships — this is deliberate, unlike the `/acs:create-spec` deletion (0.4.6, below), whose `create-spec` anchors in `plugins/acs/hooks/**` and `plugins/acs/schemas/**` were retained for backward compatibility: that retention protected live per-ticket state, but `initialize` is unhooked and writes no state file (`init-state.json`/`initialize-state.json` count across the workspace: **0**, versus **78** for `create-spec-state.json`), so removing the old name outright is non-regressive. After `claude plugin update`, run `/acs:initialize`; existing `.acs/settings.json` and workspace state are unaffected — nothing keys off the skill name.
