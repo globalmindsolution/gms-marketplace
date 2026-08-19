@@ -220,10 +220,11 @@ helpers, `gh_json` and `commit_file`. That is the entire driving/seeding
 surface — not parity with `Sandbox`'s fourteen public methods. `Sandbox`'s
 other workspace helpers (`gate`, `repo_json`, `ticket_json`,
 `changed_lines`, `session_end`, `mint_ticket`, `start_run`, `complete_run`,
-`write_repo_file`, `trigger`, `partition_root`, `ticket_path`) have no
-`ForgeSandbox` counterpart, because there is no local `Sandbox`-style
-workspace partition to read them from — a forge scenario asserts through
-`gh_json` and files under `sb.repo` instead:
+`write_repo_file`, `trigger`, `partition_root`, `ticket_path`) simply are
+not implemented on `ForgeSandbox` — the run's workspace partition does
+exist (`sb.ws`/`sb.partition_id`, wiped per run), but nothing reads it back
+the way `Sandbox`'s helpers do. A forge scenario asserts through `gh_json`
+and files under `sb.repo` instead:
 
 - **`run_script(script, *args, stdin=None)`** — run an installed helper CLI
   (`new-ticket.py`, `skill-start.py`, `post-<skill>.py`, `pr-conventions.py`,
