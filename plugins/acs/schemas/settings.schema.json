@@ -118,7 +118,7 @@
       "additionalProperties": true
     },
     "evals": {
-      "description": "Behavioral-eval harness configuration (read by evals/<plugin>/, never by the hook layer). forge_repo names the dedicated, NEVER-PRODUCTION, org-owned GitHub repo the forge tier runs the real delivery pipeline against; the harness additionally requires the target's name to match ^acs-eval(-[a-z0-9-]+)?$ and the target checkout to contain a committed .acs-eval-target marker file. ACS_FORGE_REPO overrides this value.",
+      "description": "Behavioral-eval harness configuration (read by evals/<plugin>/, never by the hook layer). forge_repo names the dedicated, NEVER-PRODUCTION, org-owned GitHub repo the forge tier runs the real delivery pipeline against; the harness additionally requires the target's name to match ^acs-eval(-[a-z0-9][a-z0-9-]*)?$ and the target checkout to contain a committed .acs-eval-target marker file. ACS_FORGE_REPO overrides this value.",
       "type": "object",
       "properties": {
         "forge_repo": {
