@@ -21,11 +21,17 @@ python3 evals/run_evals.py --plugin acs
 # paid tier (spawns claude -p; costs money)
 python3 evals/run_evals.py --plugin acs --paid
 
+# forge tier (drives the real pipeline against a configured target repo;
+# skips cleanly with no evals.forge_repo/ACS_FORGE_REPO configured -- see
+# "Forge tier" below)
+python3 evals/run_evals.py --plugin acs --forge
+
 # list scenarios without running
 python3 evals/run_evals.py --plugin acs --list
 
 # run a single scenario by name (implies its tier)
 python3 evals/run_evals.py --plugin acs --only install_gate_smoke
+python3 evals/run_evals.py --plugin acs --only create_pr_forge
 
 # keep sandbox temp dirs for inspection after a run
 python3 evals/run_evals.py --plugin acs --paid --keep
@@ -140,8 +146,11 @@ of scenario modules the runner iterates. Each module exposes:
 | `install_gate_smoke` | free | G1 | Drive the installed dispatch hook through the main gate conditions |
 | `create_ticket_artifacts` | paid | G1 | Run `/acs:create-ticket`; assert on ticket.json and pipeline-state.json |
 | `resume_and_verify` | paid | G2–G4 | Seed code-ready state; one fresh code session must resume, pass verifier, stay under PR cap |
-| `skill_triggers` | paid | routing | One NL request per skill must route to that skill (12 probes) |
-| `session_end` | free | cleanup | Abnormal-ending SessionEnd hook finalizes in_progress runs correctly |
+| `skill_triggers` | paid | routing | One NL request per skill must route to that skill (24 probes covering all 22 skills) |
+| `session_end_safety_net` | free | cleanup | Abnormal-ending SessionEnd hook finalizes in_progress runs correctly |
+| `update_migration` | free | update | `/acs:update` semver compare + Step-6 migration checks |
+| `fanout_tracker_sync` | forge | G11 | `/acs:create-ticket` syncs every epic fan-out child's external via GitHub |
+| `create_pr_forge` | forge | G8+G9 | `/acs:create-pr` opens a real, GitHub-API-verified PR against the forge target |
 
 ## Forge tier
 
@@ -202,6 +211,64 @@ wiped under; it defaults to `<temp checkout>/workspace`.
 coverage=90)` are the constructor kwargs. `remote_url=` bypasses
 `resolve_forge_target()` (it still runs `_apply_target_guards`) and exists
 for tests, not operators.
+
+### Driving a forge-tier scenario
+
+`ForgeSandbox` has four public methods total: `run_script` and `run_skill`,
+which share their names and shapes with `Sandbox`, plus two forge-only
+helpers, `gh_json` and `commit_file`. That is the entire driving/seeding
+surface — not parity with `Sandbox`'s fourteen public methods. `Sandbox`'s
+other workspace helpers (`gate`, `repo_json`, `ticket_json`,
+`changed_lines`, `session_end`, `mint_ticket`, `start_run`, `complete_run`,
+`write_repo_file`, `trigger`, `partition_root`, `ticket_path`) simply are
+not implemented on `ForgeSandbox` — the run's workspace partition does
+exist (`sb.ws`/`sb.partition_id`, wiped per run), but nothing reads it back
+the way `Sandbox`'s helpers do. A forge scenario asserts through `gh_json`
+and files under `sb.repo` instead:
+
+- **`run_script(script, *args, stdin=None)`** — run an installed helper CLI
+  (`new-ticket.py`, `skill-start.py`, `post-<skill>.py`, `pr-conventions.py`,
+  ...) in the checkout, for free. Used to seed pipeline state deterministically
+  before spending a paid session.
+- **`run_skill(prompt, allowed_tools=..., timeout=1800)`** — drive one headless
+  `claude -p` session against the forge checkout; same envelope shape as
+  `Sandbox.run_skill` (`{ok, is_error, result, cost_usd, num_turns, raw}`).
+- **`gh_json(*args)`** — read PR facts through the `gh` CLI, parsed as JSON;
+  degrades to `None` (never raises) when `gh` is absent, unauthenticated, or
+  returns unparseable output, so an assertion built on it fails cleanly
+  instead of crashing the runner.
+- **`commit_file(rel, content, message, branch=None)`** — seed one
+  deterministic file+commit (optionally on a new branch) for the paid session
+  to build on; the `add`/`commit` calls run under the same isolated git env
+  the `__enter__` seeding uses.
+
+A forge scenario's real assertions must come from `gh_json` alone — never
+from `run_skill`'s `result`/`raw` (the model's prose) — per this harness's
+established convention. See `s08_create_pr_forge.py` for the shape: resolve
+the target, seed a ticket + branch + both `gate_create_pr` halves for free,
+spend exactly one paid session, then assert the resulting PR's title/label/
+body sections through `gh_json` before the `with ForgeSandbox()` block exits.
+
+`run_skill` runs that headless session **inside the cloned target checkout,
+under the operator's real credentials** (`self.env` deliberately keeps the
+real `HOME` so git/gh credential resolution works) — so anything the target
+repo commits (`CLAUDE.md`, `.claude/settings.json`, `.acs/settings.json`,
+hooks) becomes input to that session. The three guards below protect the
+*target* from acs; this is the *reverse* direction, and is why the target
+must be an org-owned, never-production repo whose contents the operator
+controls.
+
+### Skip contract
+
+A forge scenario must call `resolve_forge_target()` inside a
+`try/except ForgeConfigError` **before** constructing a `ForgeSandbox` at
+all. On `ForgeConfigError` it records exactly one passing
+`check.ok("skipped: ...", True)` naming both `evals.forge_repo` and
+`ACS_FORGE_REPO`, and returns immediately — no PR/label/section assertion is
+ever recorded on that path, and no `ForgeSandbox` is ever constructed. This
+is distinct from `s07_fanout_tracker_sync.py`'s `ACS_EVAL_GH_PROJECT`
+env-var gate, which predates `ForgeSandbox` and is scoped to that one
+scenario.
 
 ### The non-production guards
 

@@ -22,12 +22,15 @@ evals/
 │   ├── run_evals.py    # acs runner: tier selection, scenario loop, banner (MAR-33)
 │   ├── README.md       # acs eval subtree docs
 │   └── scenarios/
-│       ├── __init__.py # SCENARIOS registry (imports s01..s05)
+│       ├── __init__.py # SCENARIOS registry (imports s01..s08)
 │       ├── s01_install_gate_smoke.py
 │       ├── s02_create_ticket_artifacts.py
 │       ├── s03_resume_and_verify.py
 │       ├── s04_skill_triggers.py
-│       └── s05_session_end.py
+│       ├── s05_session_end.py
+│       ├── s06_update_migration.py
+│       ├── s07_fanout_tracker_sync.py
+│       └── s08_create_pr_forge.py
 └── tabp/               # tabp behavioral eval subtree (MAR-32, live)
     ├── __init__.py     # tabp package marker
     ├── run_evals.py    # tabp runner
@@ -58,7 +61,7 @@ out of `tests/` is what stops `unittest discover` from ever picking it up.
 |------|------------------|----------|-----|
 | `free`  | no  | yes | drive the **installed** dispatch hook through pipeline states; assert exit codes/messages. Catches packaging/release drift the unittest suite (source tree) can't see. |
 | `paid`  | yes | no (`--paid`) | invoke a skill for real; assert on the artifacts the agents write. |
-| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); the `create-pr` / `merge-pr` scenarios are still pending (MAR-68 / MAR-69). |
+| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); `create-pr` shipped (`create_pr_forge`, skipping without a configured target), `merge-pr` still pending (MAR-69). |
 
 ## Prerequisites
 
@@ -140,8 +143,13 @@ release steps in the [root README](../README.md#releasing--updating).
    `from harness import Sandbox, Check` — the acs runner inserts `evals/acs/`
    on `sys.path` so the import resolves to `evals/acs/harness.py`. A
    `tier: "forge"` scenario uses `evals/acs/harness.ForgeSandbox` instead of
-   `Sandbox`, driving the real pipeline against `sb.repo` on `sb.run_branch`,
-   and asserting `not sb.teardown_errors` after the `with` block.
+   `Sandbox` — `gate`/`repo_json`/`ticket_json` are `Sandbox`-only and have no
+   `ForgeSandbox` counterpart. Seed with `run_script`/`commit_file`, drive
+   with `run_skill` against the real pipeline on `sb.repo`/`sb.run_branch`,
+   assert with `gh_json` (never the model's prose), and assert
+   `not sb.teardown_errors` after the `with` block. See
+   [`evals/acs/README.md#driving-a-forge-tier-scenario`](acs/README.md#driving-a-forge-tier-scenario)
+   for the full surface.
 4. For a skills-only plugin (e.g. tabp): inside `run()`, drive the skill
    directly (no `Sandbox`); assert on the artifacts the skill produces. Return a
    `Check` object with `ok/eq` assertions.
@@ -188,9 +196,11 @@ scenario loop — it simply peels `--plugin` and delegates.
 - **E1.3 (done)** — per-goal scenarios. `resume_and_verify` (paid) seeds a
   code-ready pipeline for free, then one fresh `claude -p` `code` session — told
   only the ticket id — must resume from the workspace specs (G2), pass the
-  verifier so the create-pr gate opens (G3), and keep the change under the
-  ~400-line PR cap (G4, measured as the repo diff since the seed — no forge
-  needed). `session_end_safety_net` (free) covers the SessionEnd abnormal-ending
+  verifier (G3), and keep the change under the ~400-line PR cap (G4, measured
+  as the repo diff since the seed — no forge needed). Passing the verifier
+  opens only the code half of `gate_create_pr`; the gate also requires a
+  completed `docs-sync` run before the PR half opens.
+  `session_end_safety_net` (free) covers the SessionEnd abnormal-ending
   cleanup against the shipped build. With `install_gate_smoke` (G1), the harness
   now exercises G1–G4 plus cleanup.
 - **E1.4 (done)** — the **free** tier is wired into

@@ -551,6 +551,7 @@ class ForgeSandbox:
         self._isolated_config_path = None
         self._isolated_home_path = None
         self._empty_template_path = None
+        self.scripts, self.build = installed_scripts_dir()
         # Scrub inherited GIT_* vars for the same reason Sandbox does: a git
         # hook (e.g. pre-commit) exports GIT_DIR/GIT_WORK_TREE/etc, which would
         # otherwise redirect every subprocess here onto the OUTER repo.
@@ -722,6 +723,70 @@ class ForgeSandbox:
         self._git("add", ".acs/settings.json", ".gitignore", env=isolated)
         self._git("commit", "-q", "-m", "acs forge config", env=isolated)
 
+    # -- driving + seeding: the forge-tier counterpart of Sandbox's helpers -- #
+
+    def run_script(self, script, *args, stdin=None):
+        """Seed deterministically via an installed helper CLI, for free."""
+        return subprocess.run(
+            [sys.executable, os.path.join(self.scripts, script)] + list(args),
+            input=stdin, capture_output=True, text=True, cwd=self.repo,
+            env=self.env)
+
+    def run_skill(self, prompt, allowed_tools=("Bash", "Read", "Write", "Edit",
+                                               "Glob", "Grep", "Task",
+                                               "TodoWrite", "Skill"),
+                  timeout=1800):
+        """Drive a headless `claude -p` session against the forge checkout;
+        same envelope shape as Sandbox.run_skill so scenario code reads
+        identically across tiers."""
+        cmd = [
+            "claude", "-p", prompt,
+            "--output-format", "json",
+            "--permission-mode", "acceptEdits",
+            "--allowedTools", " ".join(allowed_tools),
+        ]
+        proc = self._claude(cmd, timeout)
+        out = {"ok": proc.returncode == 0, "is_error": None, "result": "",
+               "cost_usd": None, "num_turns": None, "raw": proc.stdout,
+               "stderr": proc.stderr, "returncode": proc.returncode}
+        try:
+            env = json.loads(proc.stdout)
+            out["is_error"] = env.get("is_error")
+            out["result"] = env.get("result", "")
+            out["cost_usd"] = env.get("total_cost_usd")
+            out["num_turns"] = env.get("num_turns")
+            out["ok"] = proc.returncode == 0 and not env.get("is_error")
+        except (json.JSONDecodeError, TypeError):
+            out["ok"] = False
+        return out
+
+    def gh_json(self, *args):
+        """Read PR facts through the `gh` seam, degrading to None (never
+        raising) so an absent/unauthenticated gh becomes a failing check."""
+        try:
+            proc = self._gh(*args)
+        except OSError:
+            return None
+        if proc.returncode != 0:
+            return None
+        try:
+            return json.loads(proc.stdout)
+        except ValueError:
+            return None
+
+    def commit_file(self, rel, content, message, branch=None):
+        """Seed one deterministic file+commit for the paid session to build
+        on; add/commit MUST run under _isolated_git_env(), never self.env."""
+        if branch:
+            self._git("checkout", "-q", "-b", branch)
+        path = os.path.join(self.repo, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(content)
+        isolated = self._isolated_git_env()
+        self._git("add", rel, env=isolated)
+        self._git("commit", "-q", "-m", message, env=isolated)
+
     # -- __exit__ steps ------------------------------------------------------ #
 
     def _close_open_prs(self):
@@ -797,6 +862,12 @@ class ForgeSandbox:
     def _gh(self, *args):
         """gh invocation seam; tests subclass/override this, never the network."""
         return subprocess.run(["gh", *args], capture_output=True, text=True, env=self.env)
+
+    def _claude(self, cmd, timeout):
+        """claude invocation seam; tests subclass/override this, never spawning
+        a real session."""
+        return subprocess.run(cmd, capture_output=True, text=True,
+                              cwd=self.repo, timeout=timeout, env=self.env)
 
     def _git(self, *args, env=None):
         """Repo-scoped git call; pass env= to override the subprocess environment
