@@ -366,7 +366,12 @@ class RealRunnerSkipGuardTest(unittest.TestCase):
     INNER_TEST_NAME = "test_runner_reports_the_scenario_as_a_clean_skip_when_unconfigured"
 
     def test_skip_test_skips_when_a_forge_target_is_configured_in_settings(self):
-        with mock.patch.object(harness, "_forge_repo_from_settings",
+        # The guard checks ACS_FORGE_REPO *before* the settings file
+        # (harness.py:125), so an ambient env var on the operator's host would
+        # send the inner test down the env branch and never exercise the
+        # settings branch this test exists to prove. Blank it for this test.
+        with mock.patch.dict(os.environ, {"ACS_FORGE_REPO": ""}), \
+             mock.patch.object(harness, "_forge_repo_from_settings",
                                return_value="acme/acs-eval"):
             result = unittest.TestResult()
             RealRunnerSkipTest(self.INNER_TEST_NAME).run(result)
@@ -375,6 +380,7 @@ class RealRunnerSkipGuardTest(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertEqual(result.failures, [])
         self.assertIn("evals.forge_repo", result.skipped[0][1])
+        self.assertIn("acme/acs-eval", result.skipped[0][1])
 
     def test_skip_test_skips_when_the_forge_target_env_var_is_set(self):
         with mock.patch.dict(os.environ, {"ACS_FORGE_REPO": "acme/acs-eval"}):
