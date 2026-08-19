@@ -58,7 +58,7 @@ out of `tests/` is what stops `unittest discover` from ever picking it up.
 |------|------------------|----------|-----|
 | `free`  | no  | yes | drive the **installed** dispatch hook through pipeline states; assert exit codes/messages. Catches packaging/release drift the unittest suite (source tree) can't see. |
 | `paid`  | yes | no (`--paid`) | invoke a skill for real; assert on the artifacts the agents write. |
-| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); scenarios still pending. |
+| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); the `create-pr` / `merge-pr` scenarios are still pending (MAR-68 / MAR-69). |
 
 ## Prerequisites
 
