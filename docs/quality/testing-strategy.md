@@ -103,9 +103,13 @@ never hand-picked:
 | `create-design` | ✅ | ✅ | ✅ | — |
 | `code` | ✅ | ✅ | ✅ | ✅ |
 | `docs-sync` | ✅ | ✅ | — | — |
-| `create-pr` | ✅ | ✅ | ✅ | ✅ |
+| `create-pr` | ✅ | ✅ | ✅ | ✅* |
 | `merge-pr` | ✅ | ✅ | ✅ | — |
 | `standardize-project` | ✅ | ✅ | ✅ | — |
+
+\* shipped but never run: `create_pr_forge` skips without a configured forge
+target, so this repo's own run of it is a skip, not live coverage (see
+"Artifact (6)" above).
 
 **Unhooked (9)**
 
@@ -121,14 +125,17 @@ never hand-picked:
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
 
-The remaining `merge-pr` Artifact `—` cell carries a specific reason rather
-than being open gap: it needs a **forge tier** (a live GitHub remote). Its
-harness foundation shipped in MAR-67 (`ForgeSandbox` +
-`evals.forge_repo`/`ACS_FORGE_REPO` + non-production guards + branch-per-run
-teardown, `evals/README.md:61`); `create-pr`'s forge-tier eval itself shipped
-(`create_pr_forge`) — see "Roadmap to close the gap" item 3 for what still
-blocks both cells from running their real assertions: an onboarded target
-repo. The other 20 `—` cells are the gap itself.
+The `create-pr` Artifact cell above is `✅*` and the remaining `merge-pr`
+Artifact `—` cell carries a specific reason rather than being open gap; both
+share the same **forge tier** (a live GitHub remote) foundation, shipped in
+MAR-67 (`ForgeSandbox` + `evals.forge_repo`/`ACS_FORGE_REPO` + non-production
+guards + branch-per-run teardown, `evals/README.md:61`), but are not blocked
+on the same remaining thing. `create-pr`'s forge-tier eval itself shipped
+(`create_pr_forge`) — it is blocked only on an onboarded target repo before
+its real assertions run. `merge-pr` has no scenario at all yet, so it is
+blocked on both its scenario (`merge_pr_forge`, MAR-69) *and* the onboarded
+target repo — see "Roadmap to close the gap" item 3. The other 20 `—` cells
+are the gap itself.
 
 **Structure is complete: 24 of 24** (`test_skill_contracts.py:44-47` pins the
 on-disk set against the `ALL_SKILLS` literal at

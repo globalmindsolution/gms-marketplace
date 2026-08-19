@@ -99,7 +99,10 @@ future change safe; built on what M2-0 learns by hand.
 All four sub-epics are implemented in [`evals/`](../../evals/README.md): a tiered
 runner (free deterministic checks + paid `claude -p`), a `Sandbox`/`Check`
 harness asserting on workspace artifacts, and 8 scenarios covering G1–G4,
-G8+G9, G11, plus cleanup. Validated green against installed v0.1.2.
+G8+G9, G11, plus cleanup. The 6 free/paid scenarios (`s01`–`s06`) validated
+green against installed v0.1.2; the 2 forge-tier scenarios
+(`fanout_tracker_sync`, `create_pr_forge`) skip cleanly with no target
+configured and have not yet been validated against a live remote.
 
 - **E1.1 (done)** — `claude -p` scenario runner + sandbox + artifact assertions;
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
