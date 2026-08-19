@@ -25,9 +25,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install xmllint (libxml2-utils)
+        timeout-minutes: 5
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libxml2-utils
+          for attempt in 1 2 3; do
+            if timeout 60 sudo apt-get update -qq && timeout 60 sudo apt-get install -y -qq libxml2-utils; then
+              exit 0
+            fi
+            echo "apt-get attempt $attempt failed or timed out, retrying..." >&2
+            sleep 5
+          done
+          echo "::error::apt-get failed after 3 attempts" >&2
+          exit 1
 
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
