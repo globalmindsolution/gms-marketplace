@@ -58,7 +58,7 @@ out of `tests/` is what stops `unittest discover` from ever picking it up.
 |------|------------------|----------|-----|
 | `free`  | no  | yes | drive the **installed** dispatch hook through pipeline states; assert exit codes/messages. Catches packaging/release drift the unittest suite (source tree) can't see. |
 | `paid`  | yes | no (`--paid`) | invoke a skill for real; assert on the artifacts the agents write. |
-| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Not yet populated. |
+| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); scenarios still pending. |
 
 ## Prerequisites
 
@@ -68,6 +68,13 @@ out of `tests/` is what stops `unittest discover` from ever picking it up.
   pre-commit hook does this, to test the code being committed).
 - **Paid tier:** an authenticated `claude` CLI with the `acs` plugin installed
   and a working model/API credential.
+- **Forge tier:** an authenticated `gh` CLI with push/PR rights on the target
+  repo; `evals.forge_repo` set in `.acs/settings.json` / `.acs/settings.local.json`
+  (local wins) or `ACS_FORGE_REPO` (overrides both); the target's repo name
+  must match `^acs-eval(-[a-z0-9][a-z0-9-]*)?$`, must not be this repo's own
+  remote, and must commit a `.acs-eval-target` marker file — no override
+  escape hatch. See [`ForgeSandbox`](acs/README.md#forge-tier) for the
+  onboarding runbook.
 - Python >= 3.9, stdlib only (same as the rest of the repo).
 
 ## Run
@@ -131,7 +138,10 @@ release steps in the [root README](../README.md#releasing--updating).
    `sb.run_skill(...)` (paid), and assert with `Check.ok/eq` against
    `sb.repo_json(...)` / `sb.ticket_json(...)`. Import via
    `from harness import Sandbox, Check` — the acs runner inserts `evals/acs/`
-   on `sys.path` so the import resolves to `evals/acs/harness.py`.
+   on `sys.path` so the import resolves to `evals/acs/harness.py`. A
+   `tier: "forge"` scenario uses `evals/acs/harness.ForgeSandbox` instead of
+   `Sandbox`, driving the real pipeline against `sb.repo` on `sb.run_branch`,
+   and asserting `not sb.teardown_errors` after the `with` block.
 4. For a skills-only plugin (e.g. tabp): inside `run()`, drive the skill
    directly (no `Sandbox`); assert on the artifacts the skill produces. Return a
    `Check` object with `ok/eq` assertions.
