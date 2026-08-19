@@ -195,6 +195,14 @@ The target repo is `owner/name`, read from `evals.forge_repo` in
 `ACS_FORGE_REPO` env var, which overrides both. Unconfigured or malformed
 values raise `ForgeConfigError` naming both sources.
 
+`ACS_FORGE_WORKSPACE` overrides the workspace root the run's partition is
+wiped under; it defaults to `<temp checkout>/workspace`.
+
+`ForgeSandbox(slug=None, keep=False, remote_url=None, workspace=None,
+coverage=90)` are the constructor kwargs. `remote_url=` bypasses
+`resolve_forge_target()` (it still runs `_apply_target_guards`) and exists
+for tests, not operators.
+
 ### The non-production guards
 
 Three independent guards, with **no override escape hatch**, because the
