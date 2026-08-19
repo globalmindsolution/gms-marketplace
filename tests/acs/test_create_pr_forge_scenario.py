@@ -313,9 +313,37 @@ class SkipContractTest(unittest.TestCase):
 
 class RealRunnerSkipTest(unittest.TestCase):
     """T5.3 -- a real, $0, no-claude run of the shipped runner: a clean skip
-    when no forge target is configured."""
+    when no forge target is configured. Guarded against both config sources
+    (env var and settings file) so it self-skips rather than spending money
+    on any host where a forge target is actually configured; see
+    RealRunnerSkipGuardTest immediately below, which proves the guard fires
+    on each source and hard-codes this method's name to do so."""
 
     def test_runner_reports_the_scenario_as_a_clean_skip_when_unconfigured(self):
+        env_target = os.environ.get("ACS_FORGE_REPO")
+        if env_target:
+            self.skipTest(
+                "ACS_FORGE_REPO=%r is configured in the parent environment; "
+                "this test only proves the unconfigured-repo skip path and "
+                "must not spend money against a real forge target"
+                % (env_target,)
+            )
+        try:
+            settings_target = harness._forge_repo_from_settings(harness.REPO_ROOT)
+        except Exception as exc:
+            self.skipTest(
+                "could not read evals.forge_repo from .acs/settings.json or "
+                ".acs/settings.local.json (%r); a target may be configured "
+                "and this test cannot prove otherwise" % (exc,)
+            )
+        if settings_target:
+            self.skipTest(
+                "evals.forge_repo=%r is configured in .acs/settings.json or "
+                ".acs/settings.local.json; this test only proves the "
+                "unconfigured-repo skip path and must not spend money "
+                "against a real forge target" % (settings_target,)
+            )
+
         env = dict(os.environ)
         env.pop("ACS_FORGE_REPO", None)
         env["ACS_EVAL_SOURCE"] = "1"
@@ -327,6 +355,36 @@ class RealRunnerSkipTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("[PASS]", result.stdout)
         self.assertNotIn("FAILED", result.stdout)
+
+
+class RealRunnerSkipGuardTest(unittest.TestCase):
+    """T6.1/T6.2 -- proves RealRunnerSkipTest's own guard fires on each of
+    the two forge-target config sources. Coupled by name to
+    test_runner_reports_the_scenario_as_a_clean_skip_when_unconfigured
+    above; renaming that method breaks this test with a confusing error."""
+
+    INNER_TEST_NAME = "test_runner_reports_the_scenario_as_a_clean_skip_when_unconfigured"
+
+    def test_skip_test_skips_when_a_forge_target_is_configured_in_settings(self):
+        with mock.patch.object(harness, "_forge_repo_from_settings",
+                               return_value="acme/acs-eval"):
+            result = unittest.TestResult()
+            RealRunnerSkipTest(self.INNER_TEST_NAME).run(result)
+
+        self.assertEqual(len(result.skipped), 1)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.failures, [])
+        self.assertIn("evals.forge_repo", result.skipped[0][1])
+
+    def test_skip_test_skips_when_the_forge_target_env_var_is_set(self):
+        with mock.patch.dict(os.environ, {"ACS_FORGE_REPO": "acme/acs-eval"}):
+            result = unittest.TestResult()
+            RealRunnerSkipTest(self.INNER_TEST_NAME).run(result)
+
+        self.assertEqual(len(result.skipped), 1)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.failures, [])
+        self.assertIn("ACS_FORGE_REPO", result.skipped[0][1])
 
 
 if __name__ == "__main__":
