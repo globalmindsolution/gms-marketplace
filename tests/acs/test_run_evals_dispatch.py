@@ -22,9 +22,9 @@ RUN_EVALS = os.path.join(REPO_ROOT, "evals", "run_evals.py")
 
 
 class DispatchAcsPluginTest(unittest.TestCase):
-    """--plugin acs routes to evals/acs/run_evals.py which lists 7 scenarios."""
+    """--plugin acs routes to evals/acs/run_evals.py which lists 8 scenarios."""
 
-    def test_plugin_acs_list_shows_six_scenarios(self):
+    def test_plugin_acs_list_shows_eight_scenarios(self):
         """--plugin acs --list must list exactly 8 scenarios without import error."""
         result = subprocess.run(
             [sys.executable, RUN_EVALS, "--plugin", "acs", "--list"],
