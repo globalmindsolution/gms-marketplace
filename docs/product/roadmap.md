@@ -98,8 +98,8 @@ future change safe; built on what M2-0 learns by hand.
 
 All four sub-epics are implemented in [`evals/`](../../evals/README.md): a tiered
 runner (free deterministic checks + paid `claude -p`), a `Sandbox`/`Check`
-harness asserting on workspace artifacts, and 6 scenarios covering G1–G4 plus
-cleanup. Validated green against installed v0.1.2.
+harness asserting on workspace artifacts, and 8 scenarios covering G1–G4,
+G8+G9, G11, plus cleanup. Validated green against installed v0.1.2.
 
 - **E1.1 (done)** — `claude -p` scenario runner + sandbox + artifact assertions;
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`

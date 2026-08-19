@@ -22,12 +22,15 @@ evals/
 │   ├── run_evals.py    # acs runner: tier selection, scenario loop, banner (MAR-33)
 │   ├── README.md       # acs eval subtree docs
 │   └── scenarios/
-│       ├── __init__.py # SCENARIOS registry (imports s01..s05)
+│       ├── __init__.py # SCENARIOS registry (imports s01..s08)
 │       ├── s01_install_gate_smoke.py
 │       ├── s02_create_ticket_artifacts.py
 │       ├── s03_resume_and_verify.py
 │       ├── s04_skill_triggers.py
-│       └── s05_session_end.py
+│       ├── s05_session_end.py
+│       ├── s06_update_migration.py
+│       ├── s07_fanout_tracker_sync.py
+│       └── s08_create_pr_forge.py
 └── tabp/               # tabp behavioral eval subtree (MAR-32, live)
     ├── __init__.py     # tabp package marker
     ├── run_evals.py    # tabp runner
@@ -58,7 +61,7 @@ out of `tests/` is what stops `unittest discover` from ever picking it up.
 |------|------------------|----------|-----|
 | `free`  | no  | yes | drive the **installed** dispatch hook through pipeline states; assert exit codes/messages. Catches packaging/release drift the unittest suite (source tree) can't see. |
 | `paid`  | yes | no (`--paid`) | invoke a skill for real; assert on the artifacts the agents write. |
-| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); the `create-pr` / `merge-pr` scenarios are still pending (MAR-68 / MAR-69). |
+| `forge` | yes | no (`--forge`) | needs a GitHub remote (create-pr / merge-pr). Harness shipped ([`ForgeSandbox`](acs/README.md#forge-tier)); `create-pr` shipped (`create_pr_forge`, skipping without a configured target), `merge-pr` still pending (MAR-69). |
 
 ## Prerequisites
 

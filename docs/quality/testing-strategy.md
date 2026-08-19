@@ -75,12 +75,17 @@ never hand-picked:
   "docs-sync\|create-requirements" evals/` returns no hits — neither skill
   appears anywhere under `evals/`).
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
-  artifacts → 2 of 24: `create-ticket`
+  artifacts → 3 of 24: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),
   forge-tier
-  [`s07_fanout_tracker_sync.py`](../../evals/acs/scenarios/s07_fanout_tracker_sync.py))
-  and `code`
-  ([`s03_resume_and_verify.py`](../../evals/acs/scenarios/s03_resume_and_verify.py)).
+  [`s07_fanout_tracker_sync.py`](../../evals/acs/scenarios/s07_fanout_tracker_sync.py)),
+  `code`
+  ([`s03_resume_and_verify.py`](../../evals/acs/scenarios/s03_resume_and_verify.py)),
+  and `create-pr` (forge-tier
+  [`s08_create_pr_forge.py`](../../evals/acs/scenarios/s08_create_pr_forge.py) —
+  runs its real title/label/section assertions once a forge target is
+  configured; skips cleanly otherwise, so this repo's own run of it is a skip,
+  not live coverage).
 
 **Hooked (15)**
 
@@ -98,7 +103,7 @@ never hand-picked:
 | `create-design` | ✅ | ✅ | ✅ | — |
 | `code` | ✅ | ✅ | ✅ | ✅ |
 | `docs-sync` | ✅ | ✅ | — | — |
-| `create-pr` | ✅ | ✅ | ✅ | — |
+| `create-pr` | ✅ | ✅ | ✅ | ✅ |
 | `merge-pr` | ✅ | ✅ | ✅ | — |
 | `standardize-project` | ✅ | ✅ | ✅ | — |
 
@@ -116,12 +121,14 @@ never hand-picked:
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
 
-Two of the Artifact `—` cells above carry a specific reason rather than being
-open gap: `create-pr` and `merge-pr` need a **forge tier** (a live GitHub
-remote). Its harness foundation shipped in MAR-67 (`ForgeSandbox` +
+The remaining `merge-pr` Artifact `—` cell carries a specific reason rather
+than being open gap: it needs a **forge tier** (a live GitHub remote). Its
+harness foundation shipped in MAR-67 (`ForgeSandbox` +
 `evals.forge_repo`/`ACS_FORGE_REPO` + non-production guards + branch-per-run
-teardown, `evals/README.md:61`) — see "Roadmap to close the gap" item 3 for
-what still blocks the two cells. The other 20 `—` cells are the gap itself.
+teardown, `evals/README.md:61`); `create-pr`'s forge-tier eval itself shipped
+(`create_pr_forge`) — see "Roadmap to close the gap" item 3 for what still
+blocks both cells from running their real assertions: an onboarded target
+repo. The other 20 `—` cells are the gap itself.
 
 **Structure is complete: 24 of 24** (`test_skill_contracts.py:44-47` pins the
 on-disk set against the `ALL_SKILLS` literal at
@@ -131,8 +138,9 @@ table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 9 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
 none should. **Routing covers 22 of 24** — the two exceptions,
 `create-requirements` and `docs-sync`, both shipped with no trigger eval. **The
-gap is behavioral (artifact) coverage: only 2 of 24 skills** (`create-ticket`,
-`code`) are verified at the output level — so the *common* skill bugs (a
+gap is behavioral (artifact) coverage: only 3 of 24 skills** (`create-ticket`,
+`code`, `create-pr`) are verified at the output level (`create-pr`'s eval
+skips without a configured forge target) — so the *common* skill bugs (a
 missing script reference, a malformed completion report, a broken gate, the
 wrong skill firing) are already caught cheaply for nearly the whole surface.
 
@@ -192,8 +200,10 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
    `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
    (throwaway GitHub repo — foundation delivered by MAR-67: harness + config +
-   guards + teardown; the two scenarios and the onboarded target repo remain),
-   then `ship` end-to-end — covering the delivery spine.
+   guards + teardown; `create-pr`'s scenario shipped in MAR-68
+   (`create_pr_forge`), so one scenario (`merge_pr_forge`, MAR-69) and the
+   onboarded target repo remain), then `ship` end-to-end — covering the
+   delivery spine.
 4. **LLM-as-judge for subjective skills** *(paid).* Rubric-scored evals for
    `create-prd` / `create-architecture` / `create-design`, whose quality is
    about content soundness rather than artifact shape.

@@ -11,6 +11,7 @@ from . import s04_skill_triggers
 from . import s05_session_end
 from . import s06_update_migration
 from . import s07_fanout_tracker_sync
+from . import s08_create_pr_forge
 
 SCENARIOS = [
     s01_install_gate_smoke,
@@ -20,4 +21,5 @@ SCENARIOS = [
     s05_session_end,
     s06_update_migration,
     s07_fanout_tracker_sync,
+    s08_create_pr_forge,
 ]

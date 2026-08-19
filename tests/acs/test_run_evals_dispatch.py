@@ -25,7 +25,7 @@ class DispatchAcsPluginTest(unittest.TestCase):
     """--plugin acs routes to evals/acs/run_evals.py which lists 7 scenarios."""
 
     def test_plugin_acs_list_shows_six_scenarios(self):
-        """--plugin acs --list must list exactly 7 scenarios without import error."""
+        """--plugin acs --list must list exactly 8 scenarios without import error."""
         result = subprocess.run(
             [sys.executable, RUN_EVALS, "--plugin", "acs", "--list"],
             capture_output=True,
@@ -38,12 +38,12 @@ class DispatchAcsPluginTest(unittest.TestCase):
                          + result.stderr)
         lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
         self.assertEqual(
-            len(lines), 7,
-            "Expected 7 scenario lines, got %d:\n%s" % (len(lines), result.stdout),
+            len(lines), 8,
+            "Expected 8 scenario lines, got %d:\n%s" % (len(lines), result.stdout),
         )
 
     def test_plugin_acs_list_scenario_names(self):
-        """The 7 acs scenario names appear in --list output."""
+        """The 8 acs scenario names appear in --list output."""
         result = subprocess.run(
             [sys.executable, RUN_EVALS, "--plugin", "acs", "--list"],
             capture_output=True,
@@ -60,6 +60,7 @@ class DispatchAcsPluginTest(unittest.TestCase):
             "session_end",
             "update_migration",
             "fanout_tracker_sync",
+            "create_pr_forge",
         ):
             self.assertIn(name, result.stdout,
                           "Scenario '%s' missing from --list output" % name)
