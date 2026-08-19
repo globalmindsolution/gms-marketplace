@@ -50,15 +50,16 @@ def section(body, start_heading, end_heading):
 
 
 class GateMessageWordingTest(unittest.TestCase):
-    """The literal breakdown-command string this module's assertions reuse is
-    read from acs_lib.py itself (not hand-copied), so a drift in T1's message
-    fails here loudly instead of silently desyncing the prose."""
+    """GATE_BREAKDOWN_COMMAND is defined once at module level and reused by
+    every assertion site below (not hand-copied per site); this test asserts
+    that constant against acs_lib.py's actual gate_code source, so a drift in
+    T1's message fails here loudly instead of silently desyncing the prose."""
 
     def test_gate_code_message_contains_expected_breakdown_command(self):
         import inspect
         src = inspect.getsource(lib.gate_code)
         self.assertIn(
-            "epic fan-out", src,
+            GATE_BREAKDOWN_COMMAND, src,
             "acs_lib.py's gate_code message wording changed -- re-check this "
             "module's GATE_BREAKDOWN_COMMAND constant for drift")
 
@@ -306,7 +307,7 @@ class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
         gate_src = norm(inspect.getsource(lib.gate_code))
         design_body = norm(read(CREATE_DESIGN_SKILL))
         self.assertIn(
-            "/acs:create-ticket %s (epic fan-out)", gate_src,
+            GATE_BREAKDOWN_COMMAND, gate_src,
             "sanity check: gate_code's own message wording")
         self.assertIsNotNone(
             re.search(r"/acs:create-ticket <(id|ticket-id)>`? \(epic fan-out\)",

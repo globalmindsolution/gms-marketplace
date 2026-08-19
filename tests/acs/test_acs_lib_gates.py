@@ -1,6 +1,6 @@
 """Behavior tests for acs_lib.py's pre-hook gate functions.
 
-Originating ticket: MAR-173. _require_completed's in_progress and
+Originating tickets: MAR-173, MAR-75. _require_completed's in_progress and
 last-ended-with-status detail branches, gate_create_prd's unconditional
 return, gate_create_architecture's PRD-found return, gate_create_project's
 missing/found tech-stack.md branches, _resolve_ticket_for_gate's archived
