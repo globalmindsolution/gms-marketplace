@@ -119,8 +119,11 @@ absent, the counts are recomputed from each ticket's `status` / `type` in
 How far tickets progress through the pipeline. For each ticket, the per-skill
 step status comes from `pipeline-state.json` (`steps.<skill>.status`), counted in
 `HOOKED_SKILLS` order — a ticket is counted at a step when that step is
-`completed`. The PR terminus comes from the repo-level `metrics.json.prs`
-(`created` / `merged`).
+`completed`. Since `PLANNING_SKILLS` (`create-design`) is appended last to
+`HOOKED_SKILLS`, this order now renders the planning step after the terminal
+`merge-pr` step. The reorder is accepted as cosmetic; a follow-up ticket
+owns the funnel display-order fix. The PR terminus comes from the repo-level
+`metrics.json.prs` (`created` / `merged`).
 
 **Distinct-PR counting (deliberate semantics).** `prs.created` reflects the number
 of **distinct PRs** created, not the number of completed `create-pr` skill runs.

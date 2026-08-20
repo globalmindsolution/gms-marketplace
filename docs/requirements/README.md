@@ -75,15 +75,16 @@ actually enforce it.
 1. **Installable plugin**: acs MUST be installable as a Claude Code plugin,
    distributed through a marketplace manifest — normative clause in
    [non-functional/packaging-distribution.md](non-functional/packaging-distribution.md).
-2. **End-to-end delivery workflow**: acs MUST provide six
-   workflow skills that run in a fixed order (one of them, `/create-design`,
-   conditional on the ticket), a `/ship` umbrella command that drives them
-   end-to-end up to the PR, and an `/initialize` bootstrap skill — normative clause
-   in [functional/workflow.md](functional/workflow.md).
-3. **Quality through reflection**: every workflow skill and every
-   product-level skill MUST apply the Reflection pattern: a plan → execute →
-   verify cycle using a dedicated subagent for each step — normative clause
-   in [functional/reflection.md](functional/reflection.md).
+2. **End-to-end delivery workflow**: acs MUST provide five
+   workflow skills that run in a fixed order, plus one planning skill
+   (`/create-design`, conditional on the ticket), a `/ship` umbrella command
+   that drives them end-to-end up to the PR, and an `/initialize` bootstrap
+   skill — normative clause in [functional/workflow.md](functional/workflow.md).
+3. **Quality through reflection**: every workflow skill, the planning skill
+   (`/create-design`), and every product-level skill MUST apply the
+   Reflection pattern: a plan → execute → verify cycle using a dedicated
+   subagent for each step — normative clause in
+   [functional/reflection.md](functional/reflection.md).
 4. **Hook-enforced sequencing**: pre/post hooks MUST gate each skill on the
    completion state of its predecessor and persist each skill's own state —
    normative clause in [functional/hooks.md](functional/hooks.md).
@@ -162,6 +163,7 @@ Resolved questions, newest first. Details live in the linked docs.
 
 | Date | Decision |
 |------|----------|
+| 2026-08-20 | **`/create-design` is reclassified from a workflow skill to a planning skill**: `acs_lib.PLANNING_SKILLS = ['create-design']` is introduced and `acs_lib.HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS` (total membership and the 15-skill hooked count are unchanged, so every hooked consumer — dispatch, skill-start, clarify, metrics, handoff — keeps routing `/create-design` exactly as before); `/acs:ship`'s implementation step table stops listing it as an implementation step (MAR-77). `functional/workflow.md`'s six-step pipeline table is not yet updated to match — that repoint is tracked separately. See [functional/skills.md](functional/skills.md). |
 | 2026-08-13 | **The bootstrap skill is renamed from `init` to `initialize`** (invoked as `/acs:initialize`) — a breaking bootstrap-command change, no alias/shim/redirect ships: the skill directory, `acs_lib.UNHOOKED_SKILLS`, and the three skill-name enums (`acs-messages.xsd`, `skill-state.schema.json`, `clarifications.schema.json`) move together (MAR-184). See [functional/configuration.md](functional/configuration.md), [functional/skills.md](functional/skills.md). |
 | 2026-07-30 | **`/acs:create-spec` is retired** (ADR 0066): spec authoring is folded into `/code`'s plan phase on every lane — the `code-planner` self-authors the spec content inside its plan artifact when `<partition>/specs/` is absent or empty, and still reads a pre-existing `specs/` directory when one is present; the vacated pipeline slot goes to `/docs-sync` (MAR-160), which runs after `/code` and before `/create-pr`. See [functional/skills.md](functional/skills.md), [functional/workflow.md](functional/workflow.md). |
 | 2026-07-28 | **`coordinator` role retired from the `models` settings contract**: acs no longer supports a distinct coordinator model tier — `models.coordinator` and `overrides.<skill>.coordinator` are removed from the schema and settings; the default planner/verifier tier renames from `claude-opus-4-8` to `claude-opus-5`. The ship coordinator's own session simply inherits whatever model/effort the invoking session already has, with no configurable override left in settings. Supersedes the two 2026-06-12 rows below ("Coordinator model is configurable..." and "Per-role subagent models configurable..."). See [configuration.md](functional/configuration.md). |

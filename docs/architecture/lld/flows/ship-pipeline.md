@@ -53,7 +53,7 @@ runs each child's pipeline independently (parallel worktrees supported).
 > plan, Out of scope) inside its plan phase on EVERY lane when
 > `<partition>/specs/` is absent or empty, and reads pre-existing specs
 > unchanged when they are present (backward-compat with tickets minted
-> before this ADR). See `ship/SKILL.md` "Pipeline order" step 3 and
+> before this ADR). See `ship/SKILL.md` "Pipeline order" (the `code` row) and
 > `code/SKILL.md`'s "Spec authoring fold" section.
 >
 > **NOTE (MAR-159):** The pipeline also gains a new **conditional** step between

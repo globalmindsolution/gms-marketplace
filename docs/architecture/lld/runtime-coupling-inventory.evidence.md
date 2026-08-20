@@ -16,7 +16,7 @@ distinct anchors.
 - Surface #1 — Hook gating — Verified entry points: `hooks.json:3-14`
 - Surface #1 — Hook gating — Verified entry points: `dispatch.py:25-38`
 - Surface #1 — Hook gating — Verified entry points: `dispatch.py:41-75`
-- Surface #1 — Hook gating — Verified entry points: `acs_lib.py:43`
+- Surface #1 — Hook gating — Verified entry points: `acs_lib.py:44`
 - Surface #2 — Session termination — Verified entry points: `hooks.json:16-26`
 - Surface #2 — Session termination — Verified entry points: `dispatch.py:49-54`
 - Surface #2 — Session termination — Verified entry points: `acs_lib.py:1621`
@@ -29,6 +29,6 @@ distinct anchors.
 - Entry-point anchor verification record — `def skill_name_from_payload(payload)`: `dispatch.py:25-38`
 - Entry-point anchor verification record — `def main()` — routes by skill, exit 2 on missing/blocked: `dispatch.py:41-75`
 - Entry-point anchor verification record — session-end branch → `acs_lib.session_end`: `dispatch.py:49-54`
-- Entry-point anchor verification record — `HOOKED_SKILLS` allowlist: `acs_lib.py:43`
+- Entry-point anchor verification record — `HOOKED_SKILLS` allowlist: `acs_lib.py:44`
 - Entry-point anchor verification record — `def resolve_role_model(settings, skill, role)`: `acs_lib.py:485-500`
 - Entry-point anchor verification record — `def session_end(payload)`: `acs_lib.py:1621`

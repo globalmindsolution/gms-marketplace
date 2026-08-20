@@ -15,7 +15,7 @@ deterministic at the base, most expensive and least deterministic at the top.
 | # | Layer | What it verifies | Cost / determinism | Where | Runs |
 |---|-------|------------------|--------------------|-------|------|
 | 1 | Structural / contract | every skill & agent is wired right — frontmatter, lifecycle-script calls, completion reports, tool restrictions, grounding, phase artifacts | free, deterministic | [test_skill_contracts.py](../../tests/acs/test_skill_contracts.py) | every PR |
-| 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **13** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_statusline.py`](../../tests/acs/test_statusline.py), [`test_subagent_statusline.py`](../../tests/acs/test_subagent_statusline.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring) | every PR |
+| 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **14** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_statusline.py`](../../tests/acs/test_statusline.py), [`test_subagent_statusline.py`](../../tests/acs/test_subagent_statusline.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring) | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
 | 4 | Free eval smoke | the *shipped build* still installs & gates; SessionEnd cleanup | free, deterministic | `evals/` (`install_gate_smoke`, `session_end_safety_net`) | pre-commit + CI |
 | 5 | Trigger evals | the *right skill fires* for a natural-language request | paid (cheap), ~deterministic w/ re-probe | `evals/skill_triggers` | on-demand |
@@ -47,8 +47,8 @@ and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
 the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
-[`acs_lib.py:41-44`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
-into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS`, each with a
+[`acs_lib.py:41-45`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
+into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
 **9 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of `7a3368e`**;
 re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `24`) and a Python one-liner
@@ -169,7 +169,7 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    **pre-release gate** (`python3 evals/run_evals.py --paid` before tagging).
    Never put paid evals on a per-commit or scheduled path.
 6. **Never assert equality or ordering on an `updated_at` value.**
-   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:391-392`); such an
+   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:392-393`); such an
    assertion survived an injected mutant in 17 of 20 runs in MAR-169.
    **Enforced** by `tests/acs/test_testing_conventions_guard.py` (detector 1,
    deliberately with no allowlist).

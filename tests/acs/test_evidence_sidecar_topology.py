@@ -151,7 +151,7 @@ class CoverageNotReducedTest(unittest.TestCase):
         anchors = [
             "hooks.json:3-14", "hooks.json:16-26",
             "dispatch.py:25-38", "dispatch.py:41-75", "dispatch.py:49-54",
-            "acs_lib.py:43", "acs_lib.py:485-500", "acs_lib.py:1621",
+            "acs_lib.py:44", "acs_lib.py:485-500", "acs_lib.py:1621",
         ]
         for anchor in anchors:
             with self.subTest(anchor=anchor):

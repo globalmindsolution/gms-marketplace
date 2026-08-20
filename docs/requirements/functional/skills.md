@@ -10,8 +10,8 @@ read-only usage dashboard (`/usage`), and the standing suite runner
 `/create-principles`, `/create-standards`, and `/create-requirements`, `/acs:standardize-project`
 (its own triad-keeping workflow skill with its own delivery ticket — **not**
 one of the product-level `<set>_path` doc-set producers just listed, and
-adds no new settings key), and six workflow skills (one of them,
-`/create-design`, conditional).
+adds no new settings key), five workflow skills, and one planning skill
+(`/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Twelve **workflow/product skills** (docs-sync, code, create-prd,
@@ -52,6 +52,14 @@ Every **workflow** skill MUST:
   (Ticket / Status / Results / Findings / Artifacts / Metrics / Next), rendered
   only after the post-hook succeeded; under `/ship` the compact XML handoff
   replaces it.
+
+`/create-design` remains bound by every clause above despite MAR-77's split of
+`acs_lib.PLANNING_SKILLS` out of `acs_lib.WORKFLOW_SKILLS`: it keeps the same
+hooked lifecycle — pre-hook gate and post-hook persistence, partition-scoped
+state, settings-driven subagent models, the per-ticket clarification ledger,
+and the standard completion report. MAR-77 changed only where `/create-design`
+sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
+table; none of its runtime obligations changed.
 
 ---
 
