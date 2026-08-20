@@ -690,15 +690,18 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
   directly, optionally delegating to at most one `create-ticket-executor`
   subagent; no planner subagent; no verifier subagent. Correctness is gated by
-  schema validation and the user-confirmation gate (size/stakes/lane/needs_design),
+  schema validation and the user-confirmation gate (size/stakes/lane),
   not an in-skill verifier.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
   per-repo counter lives in `<workspace>/<repo>/counters.json`.
 - MAY **import an existing remote ticket**: `/create-ticket <remote-key>`
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs
-  the normal analysis/clarification on the imported description (incl.
-  setting `needs_design`). From there the ticket ships like any local one.
+  the normal analysis/clarification on the imported description — imports get
+  the same clarification, typing, PRD trace, and `needs_design` decision as a
+  local request (`needs_design` is set only when the imported ticket is an
+  epic; story/task imports are always `false`). From there the ticket ships
+  like any local one.
 - Two-way sync runs **on demand** (triggered explicitly by the user or a
   skill); scheduled background sync routines are a later enhancement.
 - Sync conflicts (both the local and the remote ticket changed) are resolved
@@ -707,9 +710,9 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   criteria, priority, parent epic, children, status, external mapping,
   assignee, story points, needs-design flag, docs-only flag**. Parent/child links are stored
   in **both directions** (epic lists `children`; each child stores `parent`).
-- MUST set **`needs_design`** during analysis: always `true` for epics; for
-  stories/tasks the planner recommends a value and the user confirms it
-  ([workflow.md](workflow.md)).
+- MUST set **`needs_design`**, epic-only: always `true` for epics (stated,
+  not asked); always `false` for stories and tasks, never offered or
+  confirmed ([workflow.md](workflow.md)).
 - MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
@@ -721,7 +724,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
     `auth/**`, `payments/**`, `migrations/**`, `public-api/**`, `security/**`) to
     RECOMMEND a `stakes` value. Any match yields `stakes=high` (full-verify); no match
     yields `stakes=normal`. The planner also recommends `size` based on scope analysis.
-  - The user CONFIRMS or overrides both values (same pattern as `needs_design`/`docs_only`).
+  - The user CONFIRMS or overrides both values (same pattern as `docs_only`).
     Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires
     explicit user confirmation.
   - The executor writes the confirmed `size`, `stakes`, and the derived `lane` (computed
@@ -776,9 +779,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 Purpose: settle the system design before implementation is specified — for
 tickets where the change is architecturally significant.
 
-- Runs only when the ticket carries **`needs_design: true`** (always set for
-  epics; set for stories/tasks during `/create-ticket` analysis with user
-  confirmation). All other tickets skip straight to `/code`.
+- Runs only when the ticket carries **`needs_design: true`** (set for epics
+  only; stories/tasks are always `false` and skip straight to `/code`, unless
+  they inherit a parent epic's design). All other tickets skip straight to
+  `/code`.
 - MUST analyze the ticket, the codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
   genuinely open decision points before settling.

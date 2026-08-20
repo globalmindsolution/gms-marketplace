@@ -2506,13 +2506,13 @@ class TestDeriveLane(unittest.TestCase):
         """large + high -> COMPLEX because Rule 2 (size=large) fires before Rule 3."""
         self.assertEqual(self._lane("large", "high", False, "story"), "COMPLEX")
 
-    # --- needs_design floor (Rule 4) ---
+    # --- needs_design no longer floors the lane (Rule 4 removed) ---
 
-    def test_trivial_low_needs_design_floors_to_standard(self):
-        self.assertEqual(self._lane("trivial", "low", True, "story"), "STANDARD")
+    def test_needs_design_true_does_not_floor_trivial_low(self):
+        self.assertEqual(self._lane("trivial", "low", True, "story"), "TRIVIAL")
 
-    def test_small_normal_needs_design_floors_to_standard(self):
-        self.assertEqual(self._lane("small", "normal", True, "story"), "STANDARD")
+    def test_needs_design_true_does_not_floor_small_normal(self):
+        self.assertEqual(self._lane("small", "normal", True, "story"), "SMALL")
 
     # --- epic override (Rule 1) ---
 
@@ -2525,7 +2525,7 @@ class TestDeriveLane(unittest.TestCase):
     def test_standard_high_epic_is_complex(self):
         self.assertEqual(self._lane("standard", "high", False, "epic"), "COMPLEX")
 
-    # --- absent / None / unrecognized inputs (Rule 6 — AC-3) ---
+    # --- absent / None / unrecognized inputs (Rule 5 — AC-3) ---
 
     def test_none_none_defaults_to_standard(self):
         self.assertEqual(self._lane(None, None, False, "story"), "STANDARD")
@@ -2545,11 +2545,10 @@ class TestDeriveLane(unittest.TestCase):
     def test_task_type_uses_size_dispatch(self):
         self.assertEqual(self._lane("small", "low", False, "task"), "SMALL")
 
-    def test_needs_design_true_with_trivial_low_gives_standard_not_trivial(self):
-        """needs_design=True must prevent TRIVIAL even with size=trivial, stakes=low."""
+    def test_needs_design_true_no_longer_prevents_trivial(self):
+        """needs_design=True no longer floors the lane; size dispatch alone decides it."""
         result = self._lane("trivial", "low", True, "task")
-        self.assertEqual(result, "STANDARD")
-        self.assertNotEqual(result, "TRIVIAL")
+        self.assertEqual(result, "TRIVIAL")
 
 
 
