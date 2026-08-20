@@ -1,5 +1,5 @@
 {
-  "_comment": "MAR-145 Spec 02 content-preservation fixture. Captured from docs/requirements/*.md on branch story/MAR-145-... at commit d1531e3 (Spec 01 HEAD), BEFORE the functional/non-functional reorg. Each clause line below MUST appear in exactly one file under the post-reorg docs/requirements/functional/ + docs/requirements/non-functional/ tree. overview.md's Vision/ Goals-framing/Target-domains/Out-of-scope sections are deliberately excluded (product context retained only in the rewritten README.md per the design's non-1:1 seam rule, not part of this functional/non-functional exact-one-place check). MAR-161 (ADR 0066): create-spec is retired outright; the three clauses that named its own hooks.md gate row, hooks.md hook-inventory row, and workflow.md pipeline-table row (former hooks.md '/create-spec' gate-conditions row, hooks.md '/create-spec' hook-inventory row, and workflow.md '| 3 | /create-spec | ...' pipeline row) were deleted rather than rewritten — 280 - 3 = 277 clauses remain.",
+  "_comment": "MAR-145 Spec 02 content-preservation fixture. Captured from docs/requirements/*.md on branch story/MAR-145-... at commit d1531e3 (Spec 01 HEAD), BEFORE the functional/non-functional reorg. Each clause line below MUST appear in exactly one file under the post-reorg docs/requirements/functional/ + docs/requirements/non-functional/ tree. overview.md's Vision/ Goals-framing/Target-domains/Out-of-scope sections are deliberately excluded (product context retained only in the rewritten README.md per the design's non-1:1 seam rule, not part of this functional/non-functional exact-one-place check). MAR-161 (ADR 0066): create-spec is retired outright; the three clauses that named its own hooks.md gate row, hooks.md hook-inventory row, and workflow.md pipeline-table row (former hooks.md '/create-spec' gate-conditions row, hooks.md '/create-spec' hook-inventory row, and workflow.md '| 3 | /create-spec | ...' pipeline row) were deleted rather than rewritten — 280 - 3 = 277 clauses remain. MAR-75: gate_code gained an epic-refusal branch, making the pre-code.py gate's 'only' claim false; the skills.md and hooks.md pre-code.py clauses below were trimmed to a substring that survives the wording fix (dropping 'only'/the now-superseded first clause of the hooks.md table cell) rather than rewritten to the new full text, since this fixture pins presence, not exact historical wording.",
   "clauses_by_source_file": {
     "skills.md": [
       "**conform to it**, and the **`code-verifier`** MUST check that",
@@ -43,7 +43,7 @@
       "- MUST update the consumer repo's **documentation affected by the change**",
       "- MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume",
       "- PR title and PR description MUST follow the formats configured in",
-      "- Pre-hook (`pre-code.py`) MUST verify only that `/create-ticket` has",
+      "- Pre-hook (`pre-code.py`) MUST verify that `/create-ticket` has",
       "- SHOULD be resumable: re-running it for a ticket continues from the first",
       "- SHOULD compose the PR title/description from workspace state (ticket,",
       "- SHOULD create the workspace folder if it does not exist, and verify it is",
@@ -82,7 +82,7 @@
       "| Exit code | Meaning |",
       "| Skill | Pre-hook gate (predecessor must be completed) |",
       "| Skill | Pre-hook | Post-hook | Post-hook writes |",
-      "| `/code` | `/create-ticket` completed. (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |",
+      "(Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |",
       "| `/code` | `pre-code.py` | `post-code.py` | `code-state.json` |",
       "| `/create-architecture` | `/initialize` done; PRD doc set exists (`prd_path`). |",
       "| `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |",

@@ -1646,10 +1646,18 @@ def gate_docs_sync(ctx, payload):
 
 
 def gate_code(ctx, payload):
-    # AC-4: unconditional pass-through once create-ticket has completed -- no
-    # lane branch, no create-spec/specs/ precondition (create-spec is deleted;
-    # the code-planner self-authors the folded spec content when needed).
-    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    # AC-4: unconditional pass-through on LANE once create-ticket has completed --
+    # no lane branch, no create-spec/specs/ precondition (create-spec is deleted;
+    # the code-planner self-authors the folded spec content when needed). The one
+    # branch here keys on the ticket's own type: epics are refused outright.
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    if ticket.get("type") == "epic":
+        raise GateError(
+            "ticket %s is an epic — epics are never implemented directly; run "
+            "/acs:create-design %s first if the epic has no design yet, then break it down "
+            "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
+            "on a child." % (ticket_id, ticket_id, ticket_id)
+        )
     return ticket_id
 
 
