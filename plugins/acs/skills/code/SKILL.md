@@ -22,11 +22,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill code --args
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (pre-code.py has verified the gate precondition: only
-that /acs:create-ticket has completed — the gate is unconditional on lane and
-never requires `specs/` to exist. Whether `<partition>/specs/` already has
-content is discovered by the planner below, on every lane, not asserted by
-the gate).
+improvise a workaround (pre-code.py has verified the gate precondition: that
+/acs:create-ticket has completed and that the ticket is not an epic — the
+gate is unconditional on lane and never requires `specs/` to exist. Whether
+`<partition>/specs/` already has content is discovered by the planner below,
+on every lane, not asserted by the gate).
 
 Parse the printed context JSON. Fields you will use:
 
