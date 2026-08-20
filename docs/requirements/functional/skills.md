@@ -676,11 +676,15 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   is introduced — the check is inline coordinator judgment folded into the
   existing Step 1/Step 2 flow.
 - MUST create a ticket with a type of **epic**, **story**, or **task**.
-- When the ticket type is **epic**, MUST suggest creating child
-  **story**/**task** tickets; each child gets its own `<ticket-id>` and runs
-  its own pipeline. The epic's status is auto-managed: **In Progress** when
-  work starts on any child, **Done** when all children are merged
-  (see [workflow.md](workflow.md#epic-fan-out)).
+- When the ticket type is **epic**, its own creation run mints no children
+  and ends with `children: []`; `/create-ticket <epic-id> --fan-out`, run
+  after the epic's design is approved, mints them — the breakdown is
+  derived from the design's slice/seam content when present and
+  user-confirmed at the same Step-2 gate. Each child gets its own
+  `<ticket-id>` and runs its own pipeline. The epic's status is
+  auto-managed: **In Progress** when work starts on any child, **Done**
+  when all children are merged (see
+  [workflow.md](workflow.md#epic-fan-out)).
 - Ticket title and description MUST follow the per-type ticket formats
   configured in `settings.json` — epic, story, and task each have their own
   title/description format ([configuration.md](configuration.md)).
@@ -765,13 +769,17 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - **Fan-out tracker sync (standing behavior, MAR-84):** the tracker-sync set
   Step 5 syncs is the root ticket (unless it is an import) plus **every child
   minted during epic fan-out** (Step 4) — no fanned-out child is left
-  unsynced. Product-flow delivery tickets ("Product definition (PRD)",
-  "Product architecture doc set") are excluded from this set and always stay
-  unsynced. A sync failure for any one ticket in the set is surfaced (never
-  silently swallowed) and does not abort the rest of the batch; that ticket's
-  `external` stays `null` for a later retry. `external` is written into each
-  synced ticket's own `ticket.json` by the deterministic write seam
-  `record-external.py`.
+  unsynced — **EXCLUDING any ticket whose `external` is already non-null**,
+  so a `--fan-out` (or split/restructure) run syncs only the newly minted
+  children and never re-creates the already-synced root's remote issue as a
+  duplicate; a split run's already-synced root has its remote issue
+  **updated** instead. Product-flow delivery tickets ("Product definition
+  (PRD)", "Product architecture doc set") are excluded from this set and
+  always stay unsynced. A sync failure for any one ticket in the set is
+  surfaced (never silently swallowed) and does not abort the rest of the
+  batch; that ticket's `external` stays `null` for a later retry. `external`
+  is written into each synced ticket's own `ticket.json` by the
+  deterministic write seam `record-external.py`.
 - **Group-B issue-item field sync (standing behavior, MAR-103):** at
   creation, Priority, Story Points, and Parent sync to the board's matching
   named field (fixed case-insensitive table: `Priority`; `Story
@@ -961,7 +969,7 @@ bind `/code`'s plan phase:
   unconditional on lane and has no `specs/` or predecessor-decomposition
   precondition, but an epic ticket is refused outright with a `GateError`
   directing the user to `/acs:create-design` (if the epic has no design yet)
-  then `/acs:create-ticket` (epic fan-out) then `/acs:code` on a child;
+  then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
   otherwise it exits 2 to stop the skill (`gate_code` in `acs_lib.py`).
   Whether `<partition>/specs/` already has
   content is discovered by the `code-planner`, not asserted by the gate — when
