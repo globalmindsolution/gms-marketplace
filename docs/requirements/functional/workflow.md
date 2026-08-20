@@ -27,7 +27,7 @@ flowchart LR
     U[User prompt] --> T[/create-ticket/]
     T -->|needs design, epic| D[/create-design/]
     D -->|child inherits the design| C
-    T -->|otherwise| C
+    T -->|otherwise| C[/code/]
     D -->|epic: after design| FO[/create-ticket --fan-out/]
     FO -->|per child| C
     C --> DS[/docs-sync/]
