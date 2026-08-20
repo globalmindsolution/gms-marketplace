@@ -1,5 +1,5 @@
 {
-  "_comment": "MAR-145 Spec 02 content-preservation fixture. Captured from docs/requirements/*.md on branch story/MAR-145-... at commit d1531e3 (Spec 01 HEAD), BEFORE the functional/non-functional reorg. Each clause line below MUST appear in exactly one file under the post-reorg docs/requirements/functional/ + docs/requirements/non-functional/ tree. overview.md's Vision/ Goals-framing/Target-domains/Out-of-scope sections are deliberately excluded (product context retained only in the rewritten README.md per the design's non-1:1 seam rule, not part of this functional/non-functional exact-one-place check). MAR-161 (ADR 0066): create-spec is retired outright; the three clauses that named its own hooks.md gate row, hooks.md hook-inventory row, and workflow.md pipeline-table row (former hooks.md '/create-spec' gate-conditions row, hooks.md '/create-spec' hook-inventory row, and workflow.md '| 3 | /create-spec | ...' pipeline row) were deleted rather than rewritten — 280 - 3 = 277 clauses remain.",
+  "_comment": "MAR-145 Spec 02 content-preservation fixture. Captured from docs/requirements/*.md on branch story/MAR-145-... at commit d1531e3 (Spec 01 HEAD), BEFORE the functional/non-functional reorg. Each clause line below MUST appear in exactly one file under the post-reorg docs/requirements/functional/ + docs/requirements/non-functional/ tree. overview.md's Vision/ Goals-framing/Target-domains/Out-of-scope sections are deliberately excluded (product context retained only in the rewritten README.md per the design's non-1:1 seam rule, not part of this functional/non-functional exact-one-place check). MAR-161 (ADR 0066): create-spec is retired outright; the three clauses that named its own hooks.md gate row, hooks.md hook-inventory row, and workflow.md pipeline-table row (former hooks.md '/create-spec' gate-conditions row, hooks.md '/create-spec' hook-inventory row, and workflow.md '| 3 | /create-spec | ...' pipeline row) were deleted rather than rewritten — 280 - 3 = 277 clauses remain. MAR-76: needs_design became epic-only (the old story/task planner-recommends-user-confirms flow was removed); the skills.md MUST-set clause and the workspace-and-state.md ticket.json field-table row below were trimmed to a substring that survives the wording fix, following the same precedent MAR-75 used in this fixture's own history — content presence is what this fixture guards, not frozen historical wording.",
   "clauses_by_source_file": {
     "skills.md": [
       "**conform to it**, and the **`code-verifier`** MUST check that",
@@ -32,7 +32,7 @@
       "- MUST require/validate that `workspace_path` is **outside the consumer",
       "- MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review",
       "- MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,",
-      "- MUST set **`needs_design`** during analysis: always `true` for epics; for",
+      "- MUST set **`needs_design`**, epic-only: always `true` for epics",
       "- MUST set `test_coverage_percent` with a default of **90** (user may",
       "- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400",
       "- MUST take the **PRD's non-functional requirements** and the full",
@@ -179,7 +179,7 @@
       "| `due_date` | string\\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |",
       "| `external` | object\\|null | Remote tracker mapping (`provider`/`key`) |",
       "| `id` | string | Allocated ticket id, e.g. `SHOP-123` |",
-      "| `needs_design` | boolean | True for epics; user-confirmed for stories/tasks |",
+      "| `needs_design` | boolean | True for epics only; always `false` for stories/tasks",
       "| `parent` | string\\|null | Parent epic id; null for roots |",
       "| `status` | `\"open\"\\|\"in_progress\"\\|\"in_review\"\\|\"done\"` | Managed by hooks |",
       "| `title` | string | Human-readable summary |",
