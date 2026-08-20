@@ -45,13 +45,19 @@ input file before writing anything.
    `${CLAUDE_PLUGIN_ROOT}/schemas/ticket.schema.json`: `title`, `type`,
    `description`, `acceptance_criteria` (array of testable strings),
    `priority` (`critical|high|medium|low`), `parent` (null — this skill
-   creates roots), `children` (filled by step 4, else `[]`), `external` (the
+   creates roots), `children` (`[]` on every creation run, including an
+   epic's own — Step 4 fills it later, in a `--fan-out` or split/restructure
+   run), `external` (the
    import mapping, the step-5 sync result, or null), `assignee` (or null),
    `story_points` (or null), `needs_design` (the confirmed value); refresh
    `updated_at` (ISO-8601 UTC).
-4. **Epic fan-out** — runs ONLY in `--fan-out` mode (step 3's root
-   `ticket.json` rewrite above is skipped entirely in that mode: the epic's
-   own fields are never touched, only its `children` array changes). For
+4. **Epic fan-out** — runs in `--fan-out` mode or in the split/restructure
+   mode (above) — the two modes that mint children. The step-3 skip applies
+   ONLY in `--fan-out` mode: step 3's root `ticket.json` rewrite above is
+   skipped entirely in that mode, because the epic's own fields are never
+   touched — only its `children` array changes. In the split/restructure
+   mode, step 3 DOES run: the ticket becomes an epic (`SKILL.md:126-131`)
+   before its children are minted in this same step 4. For
    each user-confirmed child, run exactly:
 
    ```bash
@@ -61,7 +67,10 @@ input file before writing anything.
    The script mints the child id, writes BOTH link directions (child `parent`,
    epic `children`), and records the child's completed create-ticket run —
    children never rerun /acs:create-ticket; their pipeline starts at
-   /acs:code. Capture each printed `ticket_id`. Create ONLY the
+   /acs:code. Capture each printed `ticket_id`. After minting, write each
+   confirmed child's `acceptance_criteria` (from the confirmed breakdown in
+   `<context>`) into that child's own `ticket.json` — `new-ticket.py` exposes
+   no `--acceptance-criteria` flag. Create ONLY the
    confirmed children; on a reflection iteration never re-mint ones already in
    the epic's `children`. Re-read `ticket.json` after fan-out.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github` or
@@ -70,7 +79,11 @@ input file before writing anything.
      [every child minted in step 4]`, EXCLUDING any ticket whose title is a
      product-flow delivery title (`PRODUCT_TICKET_TITLES`: "Product definition
      (PRD)", "Product architecture doc set") — those are never synced by this
-     skill's fan-out (AC-4).
+     skill's fan-out (AC-4) — **and EXCLUDING any ticket whose `external` is
+     already non-null**: a `--fan-out` run's "root ticket" is an
+     already-synced epic, so applying this set literally would re-create its
+     issue as a duplicate; only the newly minted children (whose `external`
+     is still null) enter the sync set.
    - Imported tickets: keep `external` as pulled; NEVER create a remote
      duplicate. If your local title/description changed AND the remote also
      changed since the pull, do not pick a side: return `status="needs_input"`
@@ -128,7 +141,9 @@ input file before writing anything.
 
 ## Output contract
 
-Your FINAL message is ONLY the `<result>` XML — no prose before or after:
+Your FINAL message is ONLY the `<result>` XML — no prose before or after. The
+example below shows a `--fan-out` (or split) run that minted children; a
+plain creation run carries no `children` finding — `children` stays `[]`:
 
 ```xml
 <result skill="create-ticket" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
@@ -157,7 +172,9 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
 
 - NEVER spawn subagents; parallel work is the coordinator's call.
 - Mutate ONLY what the plan covers: the ticket partition (child partitions via
-  `new-ticket.py`) and the remote tracker. Never touch consumer-repo source,
+  `new-ticket.py`, plus the confirmed `acceptance_criteria` write into each
+  minted child's own `ticket.json` after minting) and the remote tracker.
+  Never touch consumer-repo source,
   never create branches/commits, never hand-edit `counters.json` /
   `tickets-index.json` / `pipeline-state.json` — the helper scripts own those.
 - Never allocate ticket ids yourself — only `new-ticket.py` mints ids.

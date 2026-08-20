@@ -47,9 +47,15 @@ NEW_TICKET_PY = os.path.join(HOOKS_DIR, "new-ticket.py")
 REPO_ID = "acme-shop"
 
 FAN_OUT_HEADING = "## Epic fan-out mode (`--fan-out`)"
+STEP1_HEADING = "### Step 1 — Analyze and recommend fields"
+STEP2_HEADING = "### Step 2 — User-confirmation gate (human-in-the-loop checkpoint)"
+STEP3_HEADING = "### Step 3 — Rewrite ticket.json"
 STEP4_HEADING = "### Step 4 — Epic fan-out via new-ticket.py"
 STEP5_HEADING = "### Step 5 — Tracker sync"
+FINISH_HEADING = "## Finish"
 SHIP_FAN_OUT_HEADING = "## Epic fan-out"
+SPLIT_HEADING = "## Splitting an existing oversized ticket"
+RESUME_HEADING = "## Resume & reconcile"
 
 
 def read(path):
@@ -90,6 +96,29 @@ def step5_section():
     return _section(read(CREATE_TICKET_SKILL), STEP5_HEADING)
 
 
+def step1_section():
+    return _section(read(CREATE_TICKET_SKILL), STEP1_HEADING)
+
+
+def step2_section():
+    return _section(read(CREATE_TICKET_SKILL), STEP2_HEADING)
+
+
+def step3_section():
+    return _section(read(CREATE_TICKET_SKILL), STEP3_HEADING)
+
+
+def finish_section():
+    return _section(read(CREATE_TICKET_SKILL), FINISH_HEADING)
+
+
+def split_section():
+    body = read(CREATE_TICKET_SKILL)
+    start = body.index(SPLIT_HEADING)
+    end = body.index(RESUME_HEADING)
+    return body[start:end]
+
+
 def ship_fan_out_section():
     return _section(read(SHIP_SKILL), SHIP_FAN_OUT_HEADING)
 
@@ -99,6 +128,28 @@ def executor_step4_section():
     start = body.index("4. **Epic fan-out**")
     end = body.index("5. **Tracker sync**")
     return body[start:end]
+
+
+def executor_step3_section():
+    body = read(CREATE_TICKET_EXECUTOR)
+    start = body.index("3. **Rewrite")
+    end = body.index("4. **Epic fan-out**")
+    return body[start:end]
+
+
+def executor_step5_section():
+    body = read(CREATE_TICKET_EXECUTOR)
+    start = body.index("5. **Tracker sync**")
+    end = body.index("6. **Write the execute report**")
+    return body[start:end]
+
+
+def executor_hard_rules_section():
+    return _section(read(CREATE_TICKET_EXECUTOR), "## Hard rules")
+
+
+def executor_output_contract_section():
+    return _section(read(CREATE_TICKET_EXECUTOR), "## Output contract")
 
 
 class FanOutSectionExistsAndNamesTheFlagCase(unittest.TestCase):
@@ -178,16 +229,24 @@ class FanOutBreakdownDerivesFromDesignSlicesCase(unittest.TestCase):
 
 
 class FanOutSyncSetExcludesAlreadySyncedTicketsCase(unittest.TestCase):
-    """AC-1: Step 5's sync-set clause excludes a ticket whose external is
-    already non-null (duplicate-issue guard, MAR-69 precedent #354/#355-363)."""
+    """AC-1/F2-a: Step 5's sync-set clause excludes a ticket whose external
+    is already non-null (duplicate-issue guard, MAR-69 precedent
+    #354/#355-363), in BOTH create-ticket/SKILL.md and
+    create-ticket-executor.md -- widened from a SKILL.md-only check to the
+    MAR-84 both-files-in-one-loop pattern (test_skill_contracts.py:2982-3040)
+    so a one-sided mirror edit fails by construction."""
 
-    def test_fan_out_sync_set_excludes_already_synced_tickets(self):
-        section_norm = norm(step5_section())
-        self.assertIsNotNone(
-            re.search(r"(?i)external.{0,120}non-null.{0,200}exclud|"
-                      r"exclud.{0,200}external.{0,120}non-null", section_norm),
-            "Step 5 must state a ticket whose external is already non-null "
-            "is excluded from the sync set")
+    def test_sync_set_excludes_already_synced_tickets_in_both_files(self):
+        sections = {
+            "SKILL.md Step 5": norm(step5_section()),
+            "executor step 5": norm(executor_step5_section()),
+        }
+        for name, section_norm in sections.items():
+            self.assertIsNotNone(
+                re.search(r"(?i)external.{0,120}non-null.{0,200}exclud|"
+                          r"exclud.{0,200}external.{0,120}non-null", section_norm),
+                "%s must state a ticket whose external is already non-null "
+                "is excluded from the sync set" % name)
 
 
 class StepFourDeferredOutOfEpicCreationRunCase(unittest.TestCase):
@@ -317,6 +376,273 @@ class FanOutRunLeavesEpicCreateTicketStepCompletedCase(acs_case.AcsWorkspaceCase
         })
         self.assertEqual(post.returncode, 0, post.stderr)
         self.assertTrue(lib.skill_completed(epic_tdir, "create-ticket"))
+
+
+# --------------------------------------------------------------------- G1-G7
+# F1: the creation-run flow no longer describes a breakdown+confirm+mint at
+# epic-creation time -- each site scoped by MODE, never by lane.
+
+class StepOneChildBreakdownBulletIsScopedToFanOutRunCase(unittest.TestCase):
+    """F1-a: Step 1's epic child-breakdown bullet states the breakdown is
+    produced only in a --fan-out (or split/restructure) run, and an epic's
+    own creation run ends with children: []."""
+
+    def test_step_1_child_breakdown_bullet_is_scoped_to_the_fan_out_run(self):
+        section_norm = norm(step1_section())
+        idx = section_norm.index(
+            "For epics: proposed child story/task breakdown")
+        tail = section_norm[idx:idx + 600]
+        self.assertIn("only in a `--fan-out` run", tail)
+        self.assertIn("split/restructure run", tail)
+        self.assertIn("children: []", tail)
+
+
+class StepTwoChildBreakdownConfirmationIsScopedByModeNotLaneCase(unittest.TestCase):
+    """F1-b/F1-c: Step 2 item 7's sentence stays byte-intact (the fan-out
+    section quotes it verbatim) and gains a mode-scoping clause; the
+    over-correction guard (MAR-55 invariant (c), "NOT skipped in any lane")
+    must survive untouched -- scoping is by MODE, never by LANE."""
+
+    def test_step_2_child_breakdown_confirmation_is_scoped_by_mode_not_lane(self):
+        section_norm = norm(step2_section())
+        idx = section_norm.index(
+            "present the proposed child breakdown and obtain user "
+            "confirmation or edits before any child is minted.")
+        tail = section_norm[idx:idx + 300]
+        self.assertIsNotNone(
+            re.search(r"(?i)only in the `?--fan-out`? mode or a "
+                      r"split/restructure run", tail),
+            "item 7 must state it is reached only in the --fan-out mode "
+            "or a split/restructure run")
+        self.assertIn("NOT skipped in any lane", section_norm)
+
+
+class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):
+    """F1-c structural pin: the fan-out section's double-quoted Confirmation
+    gate text, once markdown emphasis (**) is stripped, is a substring of
+    Step 2's own section -- any future edit to item 7 that forgets to keep
+    the fan-out section's quote in sync fails here."""
+
+    def test_fan_out_section_quotes_step_2_item_7_verbatim(self):
+        section = fan_out_section()
+        quotes = re.findall(r'"([^"]+)"', section)
+        candidates = [q for q in quotes if "Epic only" in q]
+        self.assertTrue(
+            candidates,
+            "fan-out section must quote Step 2 item 7 in double quotes")
+        quoted = norm(candidates[0])
+        step2_plain = norm(step2_section()).replace("**", "")
+        self.assertIn(quoted, step2_plain)
+
+
+class ChildrenFieldStatesTheEmptyCreationRunInvariantInBothFilesCase(unittest.TestCase):
+    """F1-d/F1-e: Step 3's (and the executor's mirror step 3's) `children`
+    field description states [] on every creation run, including an epic's
+    own, and names Step 4 / --fan-out as the later filler."""
+
+    def test_children_field_states_the_empty_creation_run_invariant_in_both_files(self):
+        sections = {
+            "SKILL.md Step 3": norm(step3_section()),
+            "executor step 3": norm(executor_step3_section()),
+        }
+        for name, section_norm in sections.items():
+            self.assertIsNotNone(
+                re.search(r"(?i)children.{0,40}`\[\]`.{0,200}every creation run",
+                          section_norm),
+                "%s must state children is [] on every creation run" % name)
+            self.assertIsNotNone(
+                re.search(r"(?i)step 4.{0,80}--fan-out|--fan-out.{0,80}step 4",
+                          section_norm),
+                "%s must name Step 4 / --fan-out as the later filler" % name)
+
+
+class FinishResultExampleIsAnEpicCreationRunWithNoChildrenCase(unittest.TestCase):
+    """F1-f: the Finish result.json example is an epic CREATION run
+    (children: [], stop_reason names the deferral), parsed with json.loads
+    -- non-vacuous by construction, unlike a regex over the fenced block."""
+
+    def test_finish_result_example_is_an_epic_creation_run_with_no_children(self):
+        section = finish_section()
+        m = re.search(r"```json\s*(\{.*?\})\s*```", section, re.S)
+        self.assertIsNotNone(m, "Finish section must contain a fenced JSON example")
+        payload = json.loads(m.group(1))
+        self.assertEqual(payload["states"]["type"], "epic")
+        self.assertEqual(payload["states"]["children"], [])
+        section_norm = norm(section)
+        self.assertIsNotNone(
+            re.search(r"(?i)children.{0,40}`\[\]`.{0,200}epic's own creation run",
+                      section_norm),
+            "Finish section prose must state children is [] for an epic's "
+            "own creation run")
+
+
+class HandoffExampleClaimsNoChildrenAtCreationTimeCase(unittest.TestCase):
+    """F1-g: the <handoff> example's <summary> makes no children-minted
+    claim and names --fan-out as the later step."""
+
+    def test_handoff_example_claims_no_children_at_creation_time(self):
+        section_norm = norm(finish_section())
+        m = re.search(r"<summary>(.*?)</summary>", section_norm)
+        self.assertIsNotNone(m, "Finish section must contain a <handoff> summary")
+        summary = m.group(1)
+        self.assertIsNone(
+            re.search(r"children SHOP-\d+", summary),
+            "handoff summary must not claim children were minted at "
+            "creation time")
+        self.assertIn("--fan-out", summary)
+
+
+class ExecutorResultExampleIsLabelledAsAChildMintingRunCase(unittest.TestCase):
+    """F1-i: create-ticket-executor.md's output-contract region states its
+    minted-children example belongs to a --fan-out (or split) run, and that
+    a plain creation run reports no children finding."""
+
+    def test_executor_result_example_is_labelled_as_a_child_minting_run(self):
+        section_norm = norm(executor_output_contract_section())
+        self.assertIsNotNone(
+            re.search(r"(?i)--fan-out.{0,80}\(or split\).{0,120}"
+                      r"run that minted children", section_norm),
+            "executor output-contract region must label the minted-children "
+            "example as belonging to a --fan-out (or split) run")
+        self.assertIsNotNone(
+            re.search(r"(?i)creation run.{0,120}no.{0,20}children.{0,20}finding",
+                      section_norm),
+            "executor output-contract region must state a plain creation "
+            "run carries no children finding")
+
+
+# ------------------------------------------------------------------------ H1-H3
+# F2: the executor mirror is complete -- both-files loops so a one-sided
+# edit fails by construction (the MAR-84 pattern).
+
+class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
+    """F2-b: both the fan-out section (SKILL.md) and the executor's step 4
+    region instruct writing the confirmed child's acceptance_criteria into
+    the child's own ticket.json after minting, naming the absent
+    --acceptance-criteria flag."""
+
+    def test_child_acceptance_criteria_write_instructed_in_both_files(self):
+        sections = {
+            "SKILL.md fan-out section": norm(fan_out_section()),
+            "executor step 4": norm(executor_step4_section()),
+        }
+        for name, section_norm in sections.items():
+            self.assertIsNotNone(
+                re.search(r"(?i)acceptance_criteria.{0,200}child's own "
+                          r"`?ticket\.json`?|"
+                          r"child's own `?ticket\.json`?.{0,200}acceptance_criteria",
+                          section_norm),
+                "%s must state acceptance_criteria is written into the "
+                "child's own ticket.json after minting" % name)
+            self.assertIn("--acceptance-criteria", section_norm)
+
+
+class ExecutorHardRulesPermitTheChildAcceptanceCriteriaWriteCase(unittest.TestCase):
+    """F2-c: the executor's Hard rules permit the child ticket.json AC
+    write while still forbidding counters.json/tickets-index.json/
+    pipeline-state.json hand-edits -- landing F2-b without this widening
+    would leave the executor contract self-contradictory."""
+
+    def test_executor_hard_rules_permit_the_child_acceptance_criteria_write(self):
+        section_norm = norm(executor_hard_rules_section())
+        self.assertIsNotNone(
+            re.search(r"(?i)acceptance_criteria.{0,200}child|"
+                      r"child.{0,200}acceptance_criteria", section_norm),
+            "Hard rules must permit the child acceptance_criteria write")
+        for token in ("counters.json", "tickets-index.json", "pipeline-state.json"):
+            self.assertIn(token, section_norm)
+
+
+# ------------------------------------------------------------------------ I1-I5
+# F3: un-orphan the split/restructure mode -- both gating clauses widen to
+# "the two modes that mint children" without breaking A8/A11.
+
+class StepFourGatingCoversBothChildMintingModesCase(unittest.TestCase):
+    """F3-a: Step 4's gating paragraph names both --fan-out and the
+    split/restructure mode, and still states it never runs at the epic's
+    own creation time (A8's pinned fragments must both still hold)."""
+
+    def test_step_4_gating_covers_both_child_minting_modes(self):
+        section_norm = norm(step4_section())
+        self.assertIn("ONLY under `--fan-out` mode", section_norm)
+        self.assertIn("split/restructure", section_norm)
+        self.assertIsNotNone(
+            re.search(r"(?i)never (at|during) the epic's own creation",
+                      section_norm))
+
+
+class ExecutorStepFourGatingCoversBothModesAndScopesTheStepThreeSkipCase(unittest.TestCase):
+    """F3-d: executor step 4 names both modes; the step-3 skip is scoped
+    explicitly to --fan-out only; a split run is stated to run step 3
+    (A11's pinned fragments must both still hold)."""
+
+    def test_executor_step_4_gating_covers_both_modes_and_scopes_the_step_3_skip(self):
+        section_norm = norm(executor_step4_section())
+        self.assertIsNotNone(
+            re.search(r"(?i)--fan-out.{0,80}split/restructure|"
+                      r"split/restructure.{0,80}--fan-out", section_norm),
+            "executor step 4 must name both modes")
+        self.assertIsNotNone(
+            re.search(r"(?i)ONLY in `?--fan-out`? mode", section_norm),
+            "the step-3 skip must be scoped to --fan-out mode only")
+        self.assertIsNotNone(
+            re.search(r"(?i)split/restructure mode, step 3 DOES run",
+                      section_norm),
+            "executor step 4 must state a split run runs step 3")
+
+
+class StepFiveSyncSetCoversChildrenMintedByEitherModeCase(unittest.TestCase):
+    """F3-c: Step 5's child-inclusion clause covers children minted by
+    either mode, and states a split run's already-synced root is updated,
+    never re-created."""
+
+    def test_step_5_sync_set_covers_children_minted_by_either_mode(self):
+        section_norm = norm(step5_section())
+        self.assertIsNotNone(
+            re.search(r"(?i)children minted in step 4.{0,80}"
+                      r"(--fan-out|split/restructure)", section_norm),
+            "Step 5's child-inclusion clause must cover children minted "
+            "by either mode")
+        self.assertIsNotNone(
+            re.search(r"(?i)split/restructure run.{0,200}already-synced"
+                      r".{0,120}updated", section_norm),
+            "Step 5 must state a split run's already-synced root is "
+            "updated, not re-created")
+
+
+class SplitSectionPointsAtStepFourForChildMintingCase(unittest.TestCase):
+    """F3-e: the split section (sliced exactly as
+    test_oversize_split_signal.py:127-129 slices it) cross-references Step
+    4's mint command and conservative-defaults rule, without introducing
+    the create-spec/escalation tokens that section forbids."""
+
+    def test_split_section_points_at_step_4_for_child_minting(self):
+        section_norm = norm(split_section())
+        self.assertIsNotNone(
+            re.search(r"(?i)step 4.{0,80}mint command|"
+                      r"mint command.{0,80}step 4", section_norm),
+            "split section must cross-reference Step 4's mint command")
+        self.assertIsNotNone(
+            re.search(r"(?i)conservative.default", section_norm),
+            "split section must cross-reference Step 4's "
+            "conservative-defaults rule")
+        self.assertNotIn("create-spec", section_norm)
+        self.assertNotIn("escalation", section_norm)
+
+
+class ConservativeDefaultsSingleConfirmationCoversBothModesCase(unittest.TestCase):
+    """F3-b: Step 4's conservative-defaults paragraph names the split
+    mode's own confirmation as the equivalent single gate; the literal
+    "confirmed ONCE" survives."""
+
+    def test_conservative_defaults_single_confirmation_covers_both_modes(self):
+        section_norm = norm(step4_section())
+        self.assertIsNotNone(re.search(r"(?i)confirmed ONCE", section_norm))
+        self.assertIsNotNone(
+            re.search(r"(?i)split/restructure run.{0,120}own user confirmation",
+                      section_norm),
+            "the conservative-defaults paragraph must name the split "
+            "mode's own confirmation as the equivalent single gate")
 
 
 if __name__ == "__main__":
