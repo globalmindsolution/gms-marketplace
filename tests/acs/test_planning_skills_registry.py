@@ -144,22 +144,24 @@ class MetricsAggregateFunnelCase(unittest.TestCase):
             self.assertIn("create-design", out["panels"]["2"]["steps"])
 
 
-class HandoffScanOrderCase(unittest.TestCase):
-    """AC-2: handoff.py's candidate scan still includes create-design, and
-    its pipeline flow classification stays 'ticket' -- the PRODUCT_SKILLS
-    hazard guard (create-design must never be folded into PRODUCT_SKILLS)."""
+class HandoffScanOrderCase(acs_case.AcsWorkspaceCase):
+    """AC-2: handoff.py's in-progress-run resume actually picks create-design
+    up as a candidate via HOOKED_SKILLS, and classifies its pipeline flow as
+    "ticket" -- the PRODUCT_SKILLS hazard guard (create-design must never be
+    folded into PRODUCT_SKILLS, which would silently flip this to
+    "product")."""
 
-    def test_create_design_reachable_via_hooked_skills(self):
-        # Mirrors handoff.py:64's candidate build: seed candidates from the
-        # pointer file (none here), then append every HOOKED_SKILLS member
-        # not already present.
-        candidates = []
-        candidates += [s for s in acs_lib.HOOKED_SKILLS if s not in candidates]
-        self.assertIn("create-design", candidates)
-
-    def test_create_design_flow_classification_is_ticket(self):
-        flow = "product" if "create-design" in acs_lib.PRODUCT_SKILLS else "ticket"
-        self.assertEqual(flow, "ticket")
+    def test_create_design_resumes_via_handoff(self):
+        ticket = self.new_ticket("Design system revamp", "story")
+        tdir = self.tdir(ticket)
+        acs_lib.append_in_progress_run(tdir, "create-design", ticket)
+        result = self.run_script("handoff.py", "--summary", "s", "--ticket", ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["skill"], "create-design")
+        self.assertEqual(payload["continue_with"], "/acs:create-design %s" % ticket)
+        pipeline = acs_lib.read_json(os.path.join(tdir, "pipeline-state.json"))
+        self.assertEqual(pipeline["flow"], "ticket")
 
 
 class ShipPipelineOrderTableCase(unittest.TestCase):
