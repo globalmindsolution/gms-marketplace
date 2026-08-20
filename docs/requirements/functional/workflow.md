@@ -26,7 +26,7 @@ epic's `design.md`.
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
     T -->|needs design, epic| D[/create-design/]
-    D --> C[/code/]
+    D -->|child inherits the design| C
     T -->|otherwise| C
     D -->|epic: after design| FO[/create-ticket --fan-out/]
     FO -->|per child| C
@@ -147,16 +147,17 @@ branch name. See [hooks.md](hooks.md) and
 
 ## Epic fan-out
 
-`/create-ticket` has two invocation modes for an epic. An epic's own
-**creation** run MUST NOT propose a child breakdown and MUST end with
-`children: []` — no children are minted at epic-creation time. Children are
-minted only by a separate, later run: `/acs:create-ticket <epic-id>
---fan-out`, invoked **after** the epic's `/create-design` has completed.
-That run mints children only (it does not repeat the epic's own Steps 1-3);
-the proposed breakdown is derived from the epic's `design.md` slice/seam
-content when a design exists, and is presented and user-confirmed at the
-same Step-2 confirmation gate before any child is minted. Each child
-ticket:
+An epic's own **creation** run MUST NOT propose a child breakdown and MUST
+end with `children: []` — no children are minted at epic-creation time. Two
+of `/create-ticket`'s modes mint children, and neither is the epic's own
+creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
+**after** the epic's `/create-design` has completed, and a split/restructure
+run, which mints children at the recorded seams (see
+[skills.md](skills.md)). The `--fan-out` run mints children only (it does
+not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
+the epic's `design.md` slice/seam content when a design exists, and is
+presented and user-confirmed at the same Step-2 confirmation gate before any
+child is minted. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
 - runs its own pipeline (`/code` → … → `/merge-pr`) independently —
