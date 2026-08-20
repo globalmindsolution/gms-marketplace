@@ -27,6 +27,11 @@ CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 # committed d7d345d) -- cross-consistency requires the SAME command string.
 GATE_BREAKDOWN_COMMAND = "/acs:create-ticket %s (epic fan-out)"
 
+# design.md:813-818 (D6-B) prescribes routing the user through
+# /acs:create-design FIRST when the epic has no design yet, before the
+# breakdown fan-out -- added in iteration 3 remediation of F-4.
+GATE_DESIGN_FIRST_COMMAND = "/acs:create-design %s first if the epic has no design yet"
+
 
 def read(path):
     with open(path, encoding="utf-8") as fh:
@@ -62,6 +67,25 @@ class GateMessageWordingTest(unittest.TestCase):
             GATE_BREAKDOWN_COMMAND, src,
             "acs_lib.py's gate_code message wording changed -- re-check this "
             "module's GATE_BREAKDOWN_COMMAND constant for drift")
+
+    def test_gate_code_message_routes_through_create_design_first(self):
+        """F-4 (iteration 3 remediation): design.md:813-818 (D6-B) prescribes
+        routing through /acs:create-design BEFORE the fan-out breakdown --
+        the ordering clause must be present, and precede the fan-out
+        command, not just co-occur with it."""
+        import inspect
+        src = inspect.getsource(lib.gate_code)
+        self.assertIn(
+            GATE_DESIGN_FIRST_COMMAND, src,
+            "acs_lib.py's gate_code message must route the user through "
+            "/acs:create-design first when the epic has no design yet")
+        design_pos = src.index(GATE_DESIGN_FIRST_COMMAND)
+        breakdown_pos = src.index(GATE_BREAKDOWN_COMMAND)
+        self.assertLess(
+            design_pos, breakdown_pos,
+            "the create-design step must be ordered BEFORE the fan-out "
+            "breakdown command in gate_code's message, per design.md's "
+            "prescribed ordering")
 
 
 class StartStepBreakdownRecommendationTest(unittest.TestCase):
@@ -107,6 +131,60 @@ class StartStepBreakdownRecommendationTest(unittest.TestCase):
             re.search(r"(?i)never read the cached|never.{0,20}ticket\.lane", body),
             "code/SKILL.md's Start step must state the cached ticket.lane "
             "must never be trusted (NFR-S4)")
+
+
+class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
+    """F-3 (iteration 3 remediation): code/SKILL.md's 'Non-epic COMPLEX
+    breakdown recommendation' section states an absolute invariant
+    ('ticket.type != "epic"') that is false on a best-effort pre-gate
+    runtime; a defense-in-depth STOP instruction must follow it for the
+    case where an epic reaches this step anyway."""
+
+    def _section(self):
+        body = read(CODE_SKILL)
+        return section(
+            body,
+            "### Non-epic COMPLEX breakdown recommendation (surfaced, non-blocking; D7-C)",
+            "## Branch")
+
+    def test_invariant_sentence_still_present_verbatim(self):
+        self.assertIn(
+            'Every ticket that reaches this\nstep therefore has `ticket.type != "epic"`.',
+            self._section(),
+            "the existing invariant sentence must survive this ticket's "
+            "insertion verbatim -- ADD the defense-in-depth instruction "
+            "after it, never replace it")
+
+    def test_defense_in_depth_stop_instruction_present(self):
+        body_norm = norm(self._section())
+        self.assertIsNotNone(
+            re.search(
+                r'(?i)if `ticket\.type == "epic"`.{0,60}nonetheless reaches '
+                r'this step.{0,200}STOP immediately.{0,200}same breakdown '
+                r'message.{0,60}gate_code.{0,60}would have raised',
+                body_norm),
+            "code/SKILL.md's Non-epic COMPLEX section must instruct the "
+            "coordinator to STOP immediately and surface the same "
+            "breakdown message gate_code would have raised, if an epic "
+            "nonetheless reaches this step")
+
+    def test_defense_in_depth_never_implement_epic_clause_present(self):
+        body_norm = norm(self._section())
+        self.assertIsNotNone(
+            re.search(r"(?i)never implement an epic under any circumstance",
+                      body_norm),
+            "code/SKILL.md's defense-in-depth instruction must state an "
+            "epic is never implemented under any circumstance, regardless "
+            "of the pre-gate's enforcement")
+
+    def test_defense_in_depth_instruction_follows_invariant_sentence(self):
+        body = self._section()
+        invariant_pos = body.index('ticket.type != "epic"')
+        stop_pos = body.index("STOP immediately")
+        self.assertGreater(
+            stop_pos, invariant_pos,
+            "the defense-in-depth STOP instruction must be inserted AFTER "
+            "the existing invariant sentence, not before or in place of it")
 
 
 class EscalationStepBreakdownRecommendationTest(unittest.TestCase):
@@ -315,6 +393,19 @@ class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
             "create-design/SKILL.md must name the SAME breakdown command "
             "(/acs:create-ticket <epic-id>, epic fan-out) that gate_code's "
             "GateError message names")
+
+    def test_gate_code_message_orders_create_design_before_fan_out(self):
+        """F-4 (iteration 3 remediation): gate_code's own message must place
+        the /acs:create-design step before the fan-out breakdown command,
+        per design.md:813-818's (D6-B) prescribed ordering."""
+        import inspect
+        gate_src = inspect.getsource(lib.gate_code)
+        self.assertIn(GATE_DESIGN_FIRST_COMMAND, gate_src)
+        self.assertLess(
+            gate_src.index(GATE_DESIGN_FIRST_COMMAND),
+            gate_src.index(GATE_BREAKDOWN_COMMAND),
+            "gate_code's message must route through /acs:create-design "
+            "before the /acs:create-ticket fan-out step")
 
 
 if __name__ == "__main__":

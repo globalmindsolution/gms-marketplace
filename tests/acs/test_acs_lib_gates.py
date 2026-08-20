@@ -157,8 +157,15 @@ class TestGateCodeEpicRefusal(AcsWorkspaceCase):
         msg = str(ctx.exception)
         self.assertIn("SHOP-4", msg)
         self.assertIn("epic", msg)
+        self.assertIn("/acs:create-design", msg)
         self.assertIn("/acs:create-ticket", msg)
         self.assertIn("child", msg)
+        # design.md:813-818 (D6-B): create-design must be routed to BEFORE
+        # the fan-out breakdown command, not just co-occur with it.
+        self.assertLess(
+            msg.index("/acs:create-design"), msg.index("/acs:create-ticket"),
+            "the create-design step must precede the fan-out breakdown "
+            "command in the GateError message")
 
     def test_epic_refusal_surfaces_as_exit_2_through_the_pre_hook(self):
         tdir = self.tdir("SHOP-5")

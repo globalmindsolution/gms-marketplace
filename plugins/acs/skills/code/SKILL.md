@@ -58,7 +58,11 @@ Parse the printed context JSON. Fields you will use:
 An epic ticket is refused outright by the `code` gate before this skill ever
 starts (`gate_code` raises `GateError` for `ticket.type == "epic"` — the
 message the user sees comes from the gate). Every ticket that reaches this
-step therefore has `ticket.type != "epic"`.
+step therefore has `ticket.type != "epic"`. If `ticket.type == "epic"`
+nonetheless reaches this step (a bypassed or best-effort pre-gate on some
+runtimes), STOP immediately and surface the same breakdown message
+`gate_code` would have raised — never implement an epic under any
+circumstance, regardless of what the pre-gate did or did not enforce.
 
 For this non-epic ticket, **recompute** `derive_lane(ticket.size,
 ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib.py`) fresh —

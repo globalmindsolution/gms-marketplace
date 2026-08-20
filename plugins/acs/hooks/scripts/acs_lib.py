@@ -1653,9 +1653,10 @@ def gate_code(ctx, payload):
     ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
     if ticket.get("type") == "epic":
         raise GateError(
-            "ticket %s is an epic — epics are never implemented directly; break it down into "
-            "child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code on a "
-            "child." % (ticket_id, ticket_id)
+            "ticket %s is an epic — epics are never implemented directly; run "
+            "/acs:create-design %s first if the epic has no design yet, then break it down "
+            "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
+            "on a child." % (ticket_id, ticket_id, ticket_id)
         )
     return ticket_id
 
