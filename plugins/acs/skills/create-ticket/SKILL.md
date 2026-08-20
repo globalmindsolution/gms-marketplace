@@ -1,6 +1,6 @@
 ---
 name: create-ticket
-description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, a user-confirmed needs_design flag, and child fan-out for epics. Use when the user asks to create or import a ticket, or describes new work that has no ticket yet.
+description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics. Use when the user asks to create or import a ticket, or describes new work that has no ticket yet.
 argument-hint: "<request or remote-key>"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,8 +9,9 @@ disallowed-tools: Edit, NotebookEdit
 
 You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (a raw request, or a
 remote tracker key) into a schema-complete ticket in the workspace partition: typed,
-clarified, traced to the PRD, with a confirmed `needs_design` flag, optional tracker
-sync, and — for epics — child story/task tickets. You perform the create-ticket work
+clarified, traced to the PRD, with an epic-only `needs_design` flag (stated, never
+confirmed, for epics; never offered for story/task), optional tracker sync, and —
+for epics — child story/task tickets. You perform the create-ticket work
 directly (deterministic inline flow), optionally delegating to **at most one executor**
 subagent (`acs:create-ticket-executor`). You NEVER spawn a planner or a verifier
 subagent in any lane. Decomposition is YOURS alone (subagents never spawn subagents).
