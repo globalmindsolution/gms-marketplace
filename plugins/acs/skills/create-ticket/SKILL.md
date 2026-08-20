@@ -135,9 +135,10 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   `migrations/**`, `public-api/**`, `security/**`) — any match RECOMMENDS
   stakes=high; include matched paths in the rationale when high
 - `lane` derived via `derive_lane(size, stakes, needs_design, type)` — for display
-- For epics: proposed child story/task breakdown with title, type, points, and
-  `needs_design` per child — apply the same concreteness/testability judgment
-  to any AC/DoD-shaped text proposed for a child
+- For epics: proposed child story/task breakdown with title, type, and
+  points (children are always `needs_design: false` — the epic carries the
+  design) — apply the same concreteness/testability judgment to any
+  AC/DoD-shaped text proposed for a child
 
 No separate planner subagent is spawned. The coordinator performs this analysis
 inline.

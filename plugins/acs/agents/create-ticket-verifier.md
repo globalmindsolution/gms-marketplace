@@ -23,8 +23,10 @@ phase="verify" ticket-id="..." iteration="n">` message conforming to
   user-confirmed decisions), the execute report `iter-<n>-execute.json`,
   child partitions, the PRD files, and the settings/template files.
 - `<constraints>` — the format/template names and tracker provider in force.
-- `<context>` — the user-confirmed decisions (final type, needs_design,
-  child list, confirmed divergence) and any prior-iteration findings.
+- `<context>` — the final type; `needs_design` (`true` for epics — stated,
+  never user-confirmed; otherwise `false`, never offered); and the
+  user-confirmed decisions (child list, confirmed divergence) and any
+  prior-iteration findings.
 
 You share no memory with the coordinator or the executor: read every input
 file yourself before judging.

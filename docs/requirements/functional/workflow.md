@@ -16,8 +16,7 @@ is conditional — see below):
 | 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
-always set for **epics**, and set for stories/tasks during `/create-ticket`
-analysis (planner recommendation, confirmed with the user). Child tickets of
+set for **epics only**; stories/tasks are always `false`. Child tickets of
 an epic do **not** repeat design: their `/code` consumes the parent
 epic's `design.md`.
 

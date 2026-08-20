@@ -75,3 +75,27 @@ TRIVIAL from SMALL/STANDARD/COMPLEX, since it now applies on every lane
 identically. The four-lane routing decision itself (`derive_lane`, the
 size/stakes axes, the routing table and rule order above) is UNCHANGED and
 unamended beyond this note — this ticket does not touch lane derivation.
+
+## Amendment — MAR-76
+
+**Date**: 2026-08-20 · **Status**: Accepted (rule removal)
+
+This amendment supersedes the MAR-156 amendment's closing sentence above:
+the four-lane routing decision is no longer unamended, because `needs_design`
+narrows to epic-only in this changeset (`plugins/acs/skills/create-ticket/SKILL.md`)
+and Rule 1 already routes every epic to COMPLEX before Rule 4 could ever be
+reached — so Rule 4 was unreachable for epics and unwanted for non-epics, and
+`derive_lane` drops it:
+
+- Rule 4 ("`needs_design == True` → STANDARD floor", Decision above) is
+  **removed**. The Decision table's STANDARD row ("standard or any with
+  stakes=high or needs_design=True") now reads, in the code, "standard, or
+  any with stakes=high" (`plugins/acs/hooks/scripts/acs_lib.py:84-108`).
+- The rule list renumbers 1-6 → 1-5 (`acs_lib.py:87-93`): Rule 3 (high-stakes
+  floor) is followed directly by the size dispatch, then the default.
+- Rule 1 (`ticket_type == "epic"` → COMPLEX) and Rule 3 (`stakes == "high"` →
+  STANDARD floor, non-bypassable per the surviving decision above) are
+  **untouched** by this amendment.
+- `derive_lane`'s signature (`size, stakes, needs_design, ticket_type`) is
+  unchanged for call-site stability; the `needs_design` argument is still
+  accepted but no longer affects the result.

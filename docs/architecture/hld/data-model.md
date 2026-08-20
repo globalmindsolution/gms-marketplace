@@ -32,7 +32,7 @@ erDiagram
         json external "tracker mapping or null"
         string assignee
         number story_points
-        bool needs_design
+        bool needs_design "true for epics only; always false for story/task (MAR-76)"
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
         enum size "trivial|small|standard|large (axis for derive_lane; MAR-56)"
