@@ -126,8 +126,6 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   boilerplate (e.g. "works correctly", "is better", "no bugs", "handles X
   properly") — and flag any non-concrete/non-testable entry as part of the
   proposal presented to the user in Step 2
-- `needs_design` recommendation + one-line rationale (epics are always
-  `needs_design: true`; for story/task recommend and rationale)
 - `prd_trace`: the PRD feature/goal this ticket traces to (epics to a roadmap
   milestone), or a divergence flag when the request goes beyond the PRD
 - `size` (trivial/small/standard/large) + one-line rationale
@@ -160,10 +158,9 @@ and blocks until the user confirms or overrides:
    as-is — the ticket does not finalize with a flagged entry unless the user
    explicitly confirms it anyway.
 4. **Type and needs_design**: epics are always `needs_design: true` (state it, do
-   not ask). For story/task, present the recommendation and obtain USER CONFIRMATION
-   of the final `needs_design` value. Same for `docs_only` when recommended `true`
-   (it relaxes /acs:code's TDD/coverage gates — never set it without explicit user
-   confirmation; when `false`, don't ask).
+   not ask). For `docs_only`, present the recommendation and obtain USER CONFIRMATION
+   when recommended `true` (it relaxes /acs:code's TDD/coverage gates — never set it
+   without explicit user confirmation; when `false`, don't ask).
 5. **Size and stakes**: present recommended values with a one-line rationale
    (include matched paths when stakes=high). Obtain USER CONFIRMATION or override
    for each. Derive `lane` from the confirmed values via

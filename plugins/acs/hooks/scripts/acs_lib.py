@@ -88,9 +88,8 @@ def derive_lane(size, stakes, needs_design, ticket_type):
       Rule 1 (type override):     epic -> COMPLEX
       Rule 2 (size=large):        large -> COMPLEX
       Rule 3 (high-stakes floor): stakes=high -> STANDARD (size<=standard floor)
-      Rule 4 (needs_design):      needs_design=True -> at least STANDARD
-      Rule 5 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
-      Rule 6 (default):           STANDARD (conservative fallback for absent/unknown)
+      Rule 4 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
+      Rule 5 (default):           STANDARD (conservative fallback for absent/unknown)
 
     Returns one of: 'TRIVIAL', 'SMALL', 'STANDARD', 'COMPLEX'.
     Pure function; no side effects; stdlib only.
@@ -100,8 +99,6 @@ def derive_lane(size, stakes, needs_design, ticket_type):
     if size == "large":
         return "COMPLEX"
     if stakes == "high":
-        return "STANDARD"
-    if needs_design:
         return "STANDARD"
     if size == "standard":
         return "STANDARD"
