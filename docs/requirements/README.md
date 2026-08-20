@@ -80,10 +80,11 @@ actually enforce it.
    (`/create-design`, conditional on the ticket), a `/ship` umbrella command
    that drives them end-to-end up to the PR, and an `/initialize` bootstrap
    skill — normative clause in [functional/workflow.md](functional/workflow.md).
-3. **Quality through reflection**: every workflow skill and every
-   product-level skill MUST apply the Reflection pattern: a plan → execute →
-   verify cycle using a dedicated subagent for each step — normative clause
-   in [functional/reflection.md](functional/reflection.md).
+3. **Quality through reflection**: every workflow skill, the planning skill
+   (`/create-design`), and every product-level skill MUST apply the
+   Reflection pattern: a plan → execute → verify cycle using a dedicated
+   subagent for each step — normative clause in
+   [functional/reflection.md](functional/reflection.md).
 4. **Hook-enforced sequencing**: pre/post hooks MUST gate each skill on the
    completion state of its predecessor and persist each skill's own state —
    normative clause in [functional/hooks.md](functional/hooks.md).
