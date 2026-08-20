@@ -68,8 +68,8 @@ Find which hooked skill (if any) has a run in progress:
    `<workspace>/<repo-id>/sessions/<checkout-id>.json`.
 3. **Scan** — check `<partition>/<skill>-state.json` for
    `runs[-1].status == "in_progress"`, in `acs_lib.HOOKED_SKILLS` order
-   (`plugins/acs/hooks/scripts/acs_lib.py:41-43` — 8 product skills
-   followed by 7 workflow skills, 15 in total). That is the order
+   (`plugins/acs/hooks/scripts/acs_lib.py:41-44` — 8 product skills
+   followed by 6 workflow skills and 1 planning skill, 15 in total). That is the order
    `handoff.py:64` itself scans, so your flush lands where its
    finalization points. Do not restate the list here: the constant is
    the authority, and a copy of it is what drifted.

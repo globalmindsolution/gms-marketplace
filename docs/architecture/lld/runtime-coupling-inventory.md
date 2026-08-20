@@ -74,7 +74,7 @@ sidecar (Decision B / ADR 0064); the Anchor column here names the bare source fi
 | `dispatch.py` | `def skill_name_from_payload(payload)` | Line 25: `def skill_name_from_payload(payload):`; function ends at line 38 — confirmed |
 | `dispatch.py` | `def main()` — routes by skill, exit 2 on missing/blocked | Line 41: `def main():`; line 75: `sys.exit(proc.returncode)` — confirmed |
 | `dispatch.py` | session-end branch → `acs_lib.session_end` | Line 49: `if mode == "session-end":`; line 51: `acs_lib.session_end(payload)`; line 54: `sys.exit(0)` — confirmed |
-| `acs_lib.py` | `HOOKED_SKILLS` allowlist | Line 43: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS` — confirmed |
+| `acs_lib.py` | `HOOKED_SKILLS` allowlist | Line 44: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS` — confirmed |
 | `acs_lib.py` | `def resolve_role_model(settings, skill, role)` | Line 485: `def resolve_role_model(settings, skill, role):`; function ends at line 500 — confirmed |
 | `acs_lib.py` | `def session_end(payload)` | Line 1621: `def session_end(payload):` — confirmed |
 | `contracts.md:6-14` | XML coordinator ↔ subagent contract, `acs-messages.xsd` reference | Line 6: `## Coordinator ↔ subagent (XML, ...acs-messages.xsd...)`; lines 8-12 table; line 14: `Validation:...` — confirmed |

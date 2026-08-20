@@ -39,8 +39,9 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
-WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
-HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
+WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
+PLANNING_SKILLS = ["create-design"]
+HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]

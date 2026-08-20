@@ -81,11 +81,11 @@ per-step agent for a per-role setting to apply to.
 | # | Step | Runs when |
 |---|------|-----------|
 | 1 | create-ticket | new request, or resume with the step not completed |
-| 2 | create-design | conditional — see below |
-| 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
-| 4 | test (post-code) | conditional — see "Post-code test gate" below |
-| 5 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
-| 6 | create-pr | always |
+| 2 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
+| 3 | test (post-code) | conditional — see "Post-code test gate" below |
+| 4 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
+| 5 | create-pr | always |
+| — | create-design | **planning step, not implementation** — conditional, see below |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from

@@ -75,11 +75,11 @@ actually enforce it.
 1. **Installable plugin**: acs MUST be installable as a Claude Code plugin,
    distributed through a marketplace manifest — normative clause in
    [non-functional/packaging-distribution.md](non-functional/packaging-distribution.md).
-2. **End-to-end delivery workflow**: acs MUST provide six
-   workflow skills that run in a fixed order (one of them, `/create-design`,
-   conditional on the ticket), a `/ship` umbrella command that drives them
-   end-to-end up to the PR, and an `/initialize` bootstrap skill — normative clause
-   in [functional/workflow.md](functional/workflow.md).
+2. **End-to-end delivery workflow**: acs MUST provide five
+   workflow skills that run in a fixed order, plus one planning skill
+   (`/create-design`, conditional on the ticket), a `/ship` umbrella command
+   that drives them end-to-end up to the PR, and an `/initialize` bootstrap
+   skill — normative clause in [functional/workflow.md](functional/workflow.md).
 3. **Quality through reflection**: every workflow skill and every
    product-level skill MUST apply the Reflection pattern: a plan → execute →
    verify cycle using a dedicated subagent for each step — normative clause

@@ -47,8 +47,8 @@ and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
 the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
-[`acs_lib.py:41-44`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
-into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS`, each with a
+[`acs_lib.py:41-45`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
+into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
 **9 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of `7a3368e`**;
 re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `24`) and a Python one-liner
