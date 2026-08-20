@@ -697,9 +697,11 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - MAY **import an existing remote ticket**: `/create-ticket <remote-key>`
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs
-  the normal analysis/clarification on the imported description (epics only;
-  the flag is not applicable when the imported ticket is a story/task). From
-  there the ticket ships like any local one.
+  the normal analysis/clarification on the imported description — imports get
+  the same clarification, typing, PRD trace, and `needs_design` decision as a
+  local request (`needs_design` is set only when the imported ticket is an
+  epic; story/task imports are always `false`). From there the ticket ships
+  like any local one.
 - Two-way sync runs **on demand** (triggered explicitly by the user or a
   skill); scheduled background sync routines are a later enhancement.
 - Sync conflicts (both the local and the remote ticket changed) are resolved

@@ -298,7 +298,8 @@ growth path.
      still gates; there is no human-approval gate.
   2. **SMALL** (small size, not high stakes) — same fast-lane fold and **light
      verify** (1-iteration cap) as TRIVIAL.
-  3. **STANDARD** (standard size, or any ticket with `stakes = high`) — same
+  3. **STANDARD** (standard size; also the floor for a high-stakes ticket that
+     is not large or an epic) — same
      universal spec-authoring fold as every lane, differing only in **verify
      depth**; **full verify** (the existing up-to-3-iteration
      plan→execute→verify loop + 14-dimension, multi-lens review + e2e when configured).
