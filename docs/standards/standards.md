@@ -38,7 +38,7 @@ bought with a real failure during the coverage epic (MAR-168's C-9/C-10
 clarification payload):
 
 1. **Never assert equality or ordering on an `updated_at` value.**
-   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:391-392`), so a
+   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:392-393`), so a
    re-save inside the same second writes an identical string; such an
    assertion survived an injected mutant in 17 of 20 runs in MAR-169.
    **Enforced** — `tests/acs/test_testing_conventions_guard.py` detector 1,

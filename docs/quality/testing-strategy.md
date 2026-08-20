@@ -169,7 +169,7 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    **pre-release gate** (`python3 evals/run_evals.py --paid` before tagging).
    Never put paid evals on a per-commit or scheduled path.
 6. **Never assert equality or ordering on an `updated_at` value.**
-   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:391-392`); such an
+   `acs_lib.now_iso()` is second-resolution (`acs_lib.py:392-393`); such an
    assertion survived an injected mutant in 17 of 20 runs in MAR-169.
    **Enforced** by `tests/acs/test_testing_conventions_guard.py` (detector 1,
    deliberately with no allowlist).

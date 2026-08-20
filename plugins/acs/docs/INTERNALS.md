@@ -264,7 +264,7 @@ audit trail. Current conditional controls:
 
 | Control | Set where | Effect |
 |---------|-----------|--------|
-| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1531-1541`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
+| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1532-1542`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
 | `docs_only` | ticket analysis, user-confirmed | `true`: /code drops tests-first and the coverage hard fail (`coverage: n/a — docs_only`); the full suite still runs once and must be green; the verifier's Tests/Coverage dimensions become n/a, all others apply. A diff line touching executable code under this flag is a blocking finding. |
 | epic children | minted by `new-ticket.py` | a completed `create-ticket` run is recorded at mint time — children start at /create-design (epic's) or /code without a fake step. |
 | `flow: product` | product-level skills | the delivery ticket skips the six-step pipeline; /merge-pr's gate accepts the PR reference from the product skill's state file. |
