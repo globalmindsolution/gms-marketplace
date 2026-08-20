@@ -36,7 +36,7 @@
     "assignee": {"oneOf": [{"type": "string"}, {"type": "null"}]},
     "story_points": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
     "needs_design": {
-      "description": "Always true for epics; set for stories/tasks during /create-ticket analysis (user-confirmed).",
+      "description": "Always true for epics (stated, not asked); always false for stories and tasks — never offered or confirmed (MAR-76).",
       "type": "boolean"
     },
     "docs_only": {
