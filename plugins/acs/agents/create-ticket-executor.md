@@ -49,7 +49,10 @@ input file before writing anything.
    import mapping, the step-5 sync result, or null), `assignee` (or null),
    `story_points` (or null), `needs_design` (the confirmed value); refresh
    `updated_at` (ISO-8601 UTC).
-4. **Epic fan-out** — for each user-confirmed child, run exactly:
+4. **Epic fan-out** — runs ONLY in `--fan-out` mode (step 3's root
+   `ticket.json` rewrite above is skipped entirely in that mode: the epic's
+   own fields are never touched, only its `children` array changes). For
+   each user-confirmed child, run exactly:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
