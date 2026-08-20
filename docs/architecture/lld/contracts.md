@@ -49,7 +49,7 @@ on findings). Always with actionable stderr.
 `ticket.json` carries three new optional fields (additive; legacy tickets without them remain valid):
 - `size` — authoritative axis (enum: `trivial`, `small`, `standard`, `large`; default `standard` when absent)
 - `stakes` — authoritative axis (enum: `low`, `normal`, `high`; default `normal` when absent)
-- `lane` — derived cache, recomputable via `derive_lane(size, stakes, needs_design, type)` (enum: `TRIVIAL`, `SMALL`, `STANDARD`, `COMPLEX`; default `STANDARD`)
+- `lane` — derived cache, recomputable via `derive_lane(size, stakes, needs_design, type)` (enum: `TRIVIAL`, `SMALL`, `STANDARD`, `COMPLEX`; default `STANDARD`). As of MAR-76, `needs_design` is accepted for signature stability but no longer affects the result — the lane derives from `size` × `stakes` plus the epic override only.
 
 `pipeline-state.json` records `lane` alongside `flow` (written by `update_pipeline`).
 `tickets-index.json` mirrors `lane` per entry alongside `needs_design` (written by `update_index`).
