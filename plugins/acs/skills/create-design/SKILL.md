@@ -330,11 +330,15 @@ MANDATORY final step — never skipped, including on failure or handoff:
 3. Report:
    - Direct invocation: a compact summary — decision (one line), options
      considered, conformance vs. required architecture changes, iterations used,
-     and the next step (`/acs:code <id>`; for an epic, /acs:code on
-     each child, which inherits this design).
+     and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
+     break it down into child tickets with `/acs:create-ticket <id>` (epic
+     fan-out), then run `/acs:code` on a child, each of which inherits this
+     design.
    - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` <=1KB, `<artifacts>` referencing
-     `<partition>/design.md`, `<next-step>/acs:code <id></next-step>`.
+     `<partition>/design.md`, and exactly one `<next-step>`: `/acs:code <id>`
+     for a non-epic ticket; for an epic, `/acs:create-ticket <id>` (epic
+     fan-out), then `/acs:code` on a child.
      Validate it with validate_xml.py like every other message.
 
 ## Completion report (normative)
@@ -353,5 +357,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: `/acs:code <ticket-id>`
+- **Next**: `/acs:code <ticket-id>` for a non-epic ticket; for an epic,
+  `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
+  child
 ```
