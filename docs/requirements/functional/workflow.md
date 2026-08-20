@@ -16,8 +16,7 @@ is conditional — see below):
 | 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
-always set for **epics**, and set for stories/tasks during `/create-ticket`
-analysis (planner recommendation, confirmed with the user). Child tickets of
+set for **epics only**; stories/tasks are always `false`. Child tickets of
 an epic do **not** repeat design: their `/code` consumes the parent
 epic's `design.md`.
 
@@ -63,7 +62,9 @@ flowchart LR
   the user which skill to run first.
   - Example: `pre-code.py` is unconditional on lane once `/create-ticket` has
     completed (`gate_code` in `acs_lib.py`); e.g. `/code` blocked when
-    `/create-ticket` has not completed.
+    `/create-ticket` has not completed, and `/code` blocked when the ticket
+    is an `epic` (epics are never implemented directly — break the epic down
+    and run `/code` on a child).
 - Each workflow skill MUST be followed by a **post-hook** that writes the
   skill's own state into a JSON state file in the workspace
   (e.g. `post-code.py` writes `code-state.json`).

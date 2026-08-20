@@ -51,9 +51,8 @@ of reverse-engineer, and one extra step scaffolds the repo:
 What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
-   docs; creates epic `SHOP-4` with children `SHOP-5`, `SHOP-6` (you
-   confirm the breakdown and `needs_design` flags). Epic flips to
-   **In Progress** when work starts.
+   docs; creates epic `SHOP-4` with children `SHOP-5`, `SHOP-6` (you confirm
+   the breakdown). Epic flips to **In Progress** when work starts.
 2. Per child: `/create-design` (or the child inherits the epic's design) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.

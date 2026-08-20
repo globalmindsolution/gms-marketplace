@@ -22,11 +22,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill code --args
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (pre-code.py has verified the gate precondition: only
-that /acs:create-ticket has completed — the gate is unconditional on lane and
-never requires `specs/` to exist. Whether `<partition>/specs/` already has
-content is discovered by the planner below, on every lane, not asserted by
-the gate).
+improvise a workaround (pre-code.py has verified the gate precondition: that
+/acs:create-ticket has completed and that the ticket is not an epic — the
+gate is unconditional on lane and never requires `specs/` to exist. Whether
+`<partition>/specs/` already has content is discovered by the planner below,
+on every lane, not asserted by the gate).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -52,6 +52,26 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for planner/executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-code.py`.
+
+### Non-epic COMPLEX breakdown recommendation (surfaced, non-blocking; D7-C)
+
+An epic ticket is refused outright by the `code` gate before this skill ever
+starts (`gate_code` raises `GateError` for `ticket.type == "epic"` — the
+message the user sees comes from the gate). Every ticket that reaches this
+step therefore has `ticket.type != "epic"`. If `ticket.type == "epic"`
+nonetheless reaches this step (a bypassed or best-effort pre-gate on some
+runtimes), STOP immediately and surface the same breakdown message
+`gate_code` would have raised — never implement an epic under any
+circumstance, regardless of what the pre-gate did or did not enforce.
+
+For this non-epic ticket, **recompute** `derive_lane(ticket.size,
+ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib.py`) fresh —
+never read the cached `ticket.lane`, which can be stale or hand-edited
+(NFR-S4). When the recomputed lane is `COMPLEX` (e.g. `size: large` → lane
+COMPLEX), **surface** — never block — a breakdown recommendation: note the
+`size: large → lane COMPLEX` reading and suggest promoting the ticket to an
+epic and running `/acs:create-design`. Then continue the run at full verify
+depth; nothing here refuses or pauses it.
 
 ## Branch — FIRST, before any code
 
@@ -222,6 +242,16 @@ that mentions security but concludes the surface is within scope) do not trigger
 escalation — the coordinator must observe an unambiguous signal. A ticket stays
 at its current lane when in-flight signals are absent, ambiguous, or
 unrecognized; the lane is never lowered.
+
+**Non-epic COMPLEX breakdown recommendation on mid-flight escalation (D7-C).**
+When the on-trigger sequence above (step 2, `escalate_lane`) yields
+`new_lane == "COMPLEX"` for this non-epic ticket, surface — never block —
+the same breakdown recommendation as the Start step: note the axes that
+produced `COMPLEX` and suggest promoting the ticket to an epic and running
+`/acs:create-design`, then continue the run at the escalated verify depth.
+This recommendation is a report attached to the existing three-trigger
+sequence's outcome — it is never a fourth trigger, and it never causes
+automatic de-escalation; the lane stays upward-only.
 
 ### Boundary-only user-confirmed de-escalation (D3)
 
@@ -716,3 +746,7 @@ from code-verifier's demoted per-commit doc-sync, living-requirements, and
 architectural-impact sub-checks) surface on the **Findings** line above
 alongside open blocking findings and clarifications, or `none` when there
 are none.
+
+The non-epic COMPLEX breakdown recommendation (Start / escalation steps
+above), when surfaced during this run, also appears on the **Findings**
+line — a signal only in internal step-prose is not "surfaced" (D7-C).

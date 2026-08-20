@@ -89,9 +89,8 @@ def derive_lane(size, stakes, needs_design, ticket_type):
       Rule 1 (type override):     epic -> COMPLEX
       Rule 2 (size=large):        large -> COMPLEX
       Rule 3 (high-stakes floor): stakes=high -> STANDARD (size<=standard floor)
-      Rule 4 (needs_design):      needs_design=True -> at least STANDARD
-      Rule 5 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
-      Rule 6 (default):           STANDARD (conservative fallback for absent/unknown)
+      Rule 4 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
+      Rule 5 (default):           STANDARD (conservative fallback for absent/unknown)
 
     Returns one of: 'TRIVIAL', 'SMALL', 'STANDARD', 'COMPLEX'.
     Pure function; no side effects; stdlib only.
@@ -101,8 +100,6 @@ def derive_lane(size, stakes, needs_design, ticket_type):
     if size == "large":
         return "COMPLEX"
     if stakes == "high":
-        return "STANDARD"
-    if needs_design:
         return "STANDARD"
     if size == "standard":
         return "STANDARD"
@@ -1647,10 +1644,18 @@ def gate_docs_sync(ctx, payload):
 
 
 def gate_code(ctx, payload):
-    # AC-4: unconditional pass-through once create-ticket has completed -- no
-    # lane branch, no create-spec/specs/ precondition (create-spec is deleted;
-    # the code-planner self-authors the folded spec content when needed).
-    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    # AC-4: unconditional pass-through on LANE once create-ticket has completed --
+    # no lane branch, no create-spec/specs/ precondition (create-spec is deleted;
+    # the code-planner self-authors the folded spec content when needed). The one
+    # branch here keys on the ticket's own type: epics are refused outright.
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    if ticket.get("type") == "epic":
+        raise GateError(
+            "ticket %s is an epic — epics are never implemented directly; run "
+            "/acs:create-design %s first if the epic has no design yet, then break it down "
+            "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
+            "on a child." % (ticket_id, ticket_id, ticket_id)
+        )
     return ticket_id
 
 

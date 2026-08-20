@@ -22,9 +22,10 @@ phase="execute" ticket-id="..." iteration="n">` message conforming to
   settings/template files you need.
 - `<constraints>` — the rendered-format rules, tracker provider, and sync
   on/off.
-- `<context>` — the user-confirmed decisions (final type, needs_design, child
-  list, divergence confirmation, conflict resolutions) and on iteration >= 2
-  the verifier findings to remediate.
+- `<context>` — the final type, `needs_design` (`true` for epics — stated,
+  never user-confirmed; otherwise `false`, never offered), and the
+  user-confirmed decisions (child list, divergence confirmation, conflict
+  resolutions), plus on iteration >= 2 the verifier findings to remediate.
 
 You share no memory with the coordinator: read the plan artifact and every
 input file before writing anything.
@@ -49,7 +50,8 @@ input file before writing anything.
    epic's own — Step 4 fills it later, in a `--fan-out` or split/restructure
    run), `external` (the
    import mapping, the step-5 sync result, or null), `assignee` (or null),
-   `story_points` (or null), `needs_design` (the confirmed value); refresh
+   `story_points` (or null), `needs_design` (`true` for epics, `false`
+   otherwise — never user-confirmed); refresh
    `updated_at` (ISO-8601 UTC).
 4. **Epic fan-out** — runs in `--fan-out` mode or in the split/restructure
    mode (above) — the two modes that mint children. The step-3 skip applies

@@ -1,6 +1,6 @@
 ---
 name: create-ticket
-description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing and a user-confirmed needs_design flag; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved.
+description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved.
 argument-hint: "<request or remote-key> | <epic-id> --fan-out"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,14 +9,15 @@ disallowed-tools: Edit, NotebookEdit
 
 You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (a raw request, or a
 remote tracker key) into a schema-complete ticket in the workspace partition: typed,
-clarified, traced to the PRD, with a confirmed `needs_design` flag, and optional
-tracker sync. An epic's own creation run always ends with `children: []`; when
-invoked as `<epic-id> --fan-out` against an already-created epic, this skill instead
-mints that epic's child story/task tickets (see "Epic fan-out mode" below). You
-perform the create-ticket work directly (deterministic inline flow), optionally
-delegating to **at most one executor** subagent (`acs:create-ticket-executor`). You
-NEVER spawn a planner or a verifier subagent in any lane. Decomposition is YOURS
-alone (subagents never spawn subagents).
+clarified, traced to the PRD, with an epic-only `needs_design` flag (stated, never
+confirmed, for epics; never offered for story/task), and optional tracker sync. An
+epic's own creation run always ends with `children: []`; when invoked as
+`<epic-id> --fan-out` against an already-created epic, this skill instead mints that
+epic's child story/task tickets (see "Epic fan-out mode" below). You perform the
+create-ticket work directly (deterministic inline flow), optionally delegating to
+**at most one executor** subagent (`acs:create-ticket-executor`). You NEVER spawn a
+planner or a verifier subagent in any lane. Decomposition is YOURS alone (subagents
+never spawn subagents).
 
 Notation: `<partition>` = `context.partition`, `<id>` = `context.ticket_id`,
 `<repo>` = `context.checkout_root`. Substitute real values in every command.
@@ -184,8 +185,6 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   boilerplate (e.g. "works correctly", "is better", "no bugs", "handles X
   properly") — and flag any non-concrete/non-testable entry as part of the
   proposal presented to the user in Step 2
-- `needs_design` recommendation + one-line rationale (epics are always
-  `needs_design: true`; for story/task recommend and rationale)
 - `prd_trace`: the PRD feature/goal this ticket traces to (epics to a roadmap
   milestone), or a divergence flag when the request goes beyond the PRD
 - `size` (trivial/small/standard/large) + one-line rationale
@@ -194,9 +193,10 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   `migrations/**`, `public-api/**`, `security/**`) — any match RECOMMENDS
   stakes=high; include matched paths in the rationale when high
 - `lane` derived via `derive_lane(size, stakes, needs_design, type)` — for display
-- For epics: proposed child story/task breakdown with title, type, points, and
-  `needs_design` per child — apply the same concreteness/testability judgment
-  to any AC/DoD-shaped text proposed for a child. This breakdown is produced
+- For epics: proposed child story/task breakdown with title, type, and
+  points (children are always `needs_design: false` — the epic carries the
+  design) — apply the same concreteness/testability judgment to any
+  AC/DoD-shaped text proposed for a child. This breakdown is produced
   only in a `--fan-out` run (or a split/restructure run); an epic's own
   creation run proposes no child breakdown and ends with `children: []`.
 
@@ -221,10 +221,9 @@ and blocks until the user confirms or overrides:
    as-is — the ticket does not finalize with a flagged entry unless the user
    explicitly confirms it anyway.
 4. **Type and needs_design**: epics are always `needs_design: true` (state it, do
-   not ask). For story/task, present the recommendation and obtain USER CONFIRMATION
-   of the final `needs_design` value. Same for `docs_only` when recommended `true`
-   (it relaxes /acs:code's TDD/coverage gates — never set it without explicit user
-   confirmation; when `false`, don't ask).
+   not ask). For `docs_only`, present the recommendation and obtain USER CONFIRMATION
+   when recommended `true` (it relaxes /acs:code's TDD/coverage gates — never set it
+   without explicit user confirmation; when `false`, don't ask).
 5. **Size and stakes**: present recommended values with a one-line rationale
    (include matched paths when stakes=high). Obtain USER CONFIRMATION or override
    for each. Derive `lane` from the confirmed values via

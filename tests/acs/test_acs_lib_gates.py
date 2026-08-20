@@ -1,6 +1,6 @@
 """Behavior tests for acs_lib.py's pre-hook gate functions.
 
-Originating ticket: MAR-173. _require_completed's in_progress and
+Originating tickets: MAR-173, MAR-75. _require_completed's in_progress and
 last-ended-with-status detail branches, gate_create_prd's unconditional
 return, gate_create_architecture's PRD-found return, gate_create_project's
 missing/found tech-stack.md branches, _resolve_ticket_for_gate's archived
@@ -133,6 +133,68 @@ class TestGateCreateDesign(AcsWorkspaceCase):
         }
         payload = {"tool_input": {"args": "SHOP-3"}}
         self.assertEqual(lib.gate_create_design(ctx, payload), "SHOP-3")
+
+
+class TestGateCodeEpicRefusal(AcsWorkspaceCase):
+    """1648: refuses type=='epic' tickets with a breakdown-direction
+    GateError; non-epic tickets (including COMPLEX-lane and parentless
+    tasks, and stories whose parent is an epic) pass through unaffected."""
+
+    def _ctx(self):
+        return {
+            "cwd": self.repo, "settings": {"ticket_prefix": "SHOP"},
+            "workspace": self.ws, "repo_id": "acme-shop",
+            "checkout_id": lib.checkout_id(self.repo),
+        }
+
+    def test_epic_ticket_is_refused_with_breakdown_direction(self):
+        tdir = self.tdir("SHOP-4")
+        os.makedirs(tdir)
+        lib.save_ticket(tdir, {"id": "SHOP-4", "type": "epic"})
+        payload = {"tool_input": {"args": "SHOP-4"}}
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.gate_code(self._ctx(), payload)
+        msg = str(ctx.exception)
+        self.assertIn("SHOP-4", msg)
+        self.assertIn("epic", msg)
+        self.assertIn("/acs:create-design", msg)
+        self.assertIn("/acs:create-ticket", msg)
+        self.assertIn("child", msg)
+        # design.md:813-818 (D6-B): create-design must be routed to BEFORE
+        # the fan-out breakdown command, not just co-occur with it.
+        self.assertLess(
+            msg.index("/acs:create-design"), msg.index("/acs:create-ticket"),
+            "the create-design step must precede the fan-out breakdown "
+            "command in the GateError message")
+
+    def test_epic_refusal_surfaces_as_exit_2_through_the_pre_hook(self):
+        tdir = self.tdir("SHOP-5")
+        os.makedirs(tdir)
+        lib.save_ticket(tdir, {"id": "SHOP-5", "type": "epic"})
+        result = self.pre("code", "SHOP-5")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("epic", result.stderr)
+
+    def test_non_epic_large_size_ticket_is_not_refused(self):
+        tdir = self.tdir("SHOP-6")
+        os.makedirs(tdir)
+        lib.save_ticket(tdir, {"id": "SHOP-6", "type": "task", "size": "large"})
+        payload = {"tool_input": {"args": "SHOP-6"}}
+        self.assertEqual(lib.gate_code(self._ctx(), payload), "SHOP-6")
+
+    def test_task_with_null_parent_and_no_design_still_passes(self):
+        tdir = self.tdir("SHOP-7")
+        os.makedirs(tdir)
+        lib.save_ticket(tdir, {"id": "SHOP-7", "type": "task", "parent": None})
+        payload = {"tool_input": {"args": "SHOP-7"}}
+        self.assertEqual(lib.gate_code(self._ctx(), payload), "SHOP-7")
+
+    def test_story_child_of_epic_is_not_refused(self):
+        tdir = self.tdir("SHOP-8")
+        os.makedirs(tdir)
+        lib.save_ticket(tdir, {"id": "SHOP-8", "type": "story", "parent": "SHOP-1"})
+        payload = {"tool_input": {"args": "SHOP-8"}}
+        self.assertEqual(lib.gate_code(self._ctx(), payload), "SHOP-8")
 
 
 class TestTrackerCliWarning(unittest.TestCase):

@@ -99,7 +99,7 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
-| `needs_design` | boolean | True for epics; user-confirmed for stories/tasks |
+| `needs_design` | boolean | True for epics only; always `false` for stories/tasks (never offered or confirmed) — MAR-76 |
 | `docs_only` | boolean | True when the change is docs/comments only; default false |
 | `due_date` | string\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |
 | `created_at` | ISO-8601 datetime | Set at ticket creation, never changed |
