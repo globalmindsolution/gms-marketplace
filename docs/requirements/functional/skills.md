@@ -948,10 +948,14 @@ bind `/code`'s plan phase:
   against reality (e.g. re-run tests for specs marked implemented) and
   resume from the first unfinished spec/phase
   ([workflow.md](workflow.md#resuming-a-ticket)).
-- Pre-hook (`pre-code.py`) MUST verify only that `/create-ticket` has
-  completed: the gate is unconditional on lane and has no `specs/` or
-  predecessor-decomposition precondition; otherwise it exits 2 to stop the
-  skill (`gate_code` in `acs_lib.py`). Whether `<partition>/specs/` already has
+- Pre-hook (`pre-code.py`) MUST verify that `/create-ticket` has completed
+  **and** that the ticket's own `type` is not `epic`: the gate is
+  unconditional on lane and has no `specs/` or predecessor-decomposition
+  precondition, but an epic ticket is refused outright with a `GateError`
+  directing the user to `/acs:create-design` (if the epic has no design yet)
+  then `/acs:create-ticket` (epic fan-out) then `/acs:code` on a child;
+  otherwise it exits 2 to stop the skill (`gate_code` in `acs_lib.py`).
+  Whether `<partition>/specs/` already has
   content is discovered by the `code-planner`, not asserted by the gate — when
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded

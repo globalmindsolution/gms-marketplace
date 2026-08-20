@@ -90,9 +90,9 @@ CREATE_DESIGN_ROUTING_PHRASES = [
     "verifier before it gates `/acs:code`.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
-    "the next step (`/acs:code <id>`; for an epic, /acs:code on",
-    "`<next-step>/acs:code <id></next-step>`.",
-    "**Next**: `/acs:code <ticket-id>`",
+    "the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,",
+    "exactly one `<next-step>`: `/acs:code <id>`",
+    "**Next**: `/acs:code <ticket-id>` for a non-epic ticket",
 ]
 
 

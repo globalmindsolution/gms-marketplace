@@ -27,8 +27,9 @@ A pre-hook runs before its skill and checks **readiness**:
 
 - The predecessor skill's state file exists for the current ticket and
   reports **completed**.
-- Required input artifacts exist (e.g. `pre-code.py` requires only that
-  `/create-ticket` has completed — `gate_code` in `acs_lib.py`).
+- Required input artifacts exist (e.g. `pre-code.py` requires that
+  `/create-ticket` has completed and that the ticket is not an `epic` —
+  `gate_code` in `acs_lib.py`).
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
   "run /initialize"), `workspace_path` is valid and outside the repo, and the
   `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
@@ -98,7 +99,7 @@ examples given in the requirements; exact names to confirm.
 | `/create-standards` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
 | `/create-ticket` | `/initialize` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
-| `/code` | `/create-ticket` completed. (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
+| `/code` | `/create-ticket` completed and the ticket is not an `epic` — an epic is refused with an actionable breakdown message (`gate_code` in `acs_lib.py`). (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
 | `/docs-sync` | `/code` completed (and `/test`, when the post-code test gate was active for this ticket). |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |
