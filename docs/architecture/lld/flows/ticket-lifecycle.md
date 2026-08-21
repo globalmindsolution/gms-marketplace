@@ -4,7 +4,7 @@
 
 ```mermaid
 stateDiagram-v2
-    [*] --> open: created (/create-ticket, child mint, import)
+    [*] --> open: created (/create-ticket, --fan-out/split child mint, import)
     open --> in_progress: first skill run starts work<br/>(child activity also flips its epic)
     in_progress --> in_review: /create-pr completed<br/>(or product-level skill records its PR)
     in_review --> done: /merge-pr completed
@@ -71,7 +71,10 @@ sequenceDiagram
 
 Epic auto-management: **In Progress** on first child activity (skill-start),
 **Done** when the last child merges (post-merge-pr checks siblings via the
-index) — both performed by the deterministic layer, not prose.
+index) — both performed by the deterministic layer, not prose. Child mint
+never happens during an epic's own creation run: it happens only in a
+`--fan-out` run (after the epic's design is approved) or a split/restructure
+run.
 
 ## Ticket classification fields
 

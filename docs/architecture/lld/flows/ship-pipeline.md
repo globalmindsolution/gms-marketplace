@@ -3,7 +3,10 @@
 `/ship` adds orchestration only: the coordinator invokes each step's hook-gated
 flow **directly** via the Skill tool in its own context, reading a compact
 `<handoff>` back; the ledger (`pipeline-state.json`) is the only memory `/ship`
-needs.
+needs. This diagram is the **implementation loop** — the pipeline for a
+ticket that has already been created (and, for an epic child, already fanned
+out). See "Planning pipeline (epics)" below for what happens before it on an
+epic.
 
 ```mermaid
 sequenceDiagram
@@ -34,8 +37,38 @@ sequenceDiagram
 ```
 
 Properties: every hook gate still fires on the coordinator's direct Skill call
-(no bypass); re-running `/ship <ticket>` resumes from the ledger; epic fan-out
-runs each child's pipeline independently (parallel worktrees supported).
+(no bypass); re-running `/ship <ticket>` resumes from the ledger; epic
+fan-out — its own `--fan-out` invocation, run once after the epic's design
+is approved, never part of the epic's creation run — mints the children,
+and each child's implementation pipeline above then runs independently
+(parallel worktrees supported).
+
+## Planning pipeline (epics)
+
+An epic follows a separate, shorter pipeline before any child's
+implementation loop starts: it is created childless, its design is
+approved, and only then are children minted — never at the epic's own
+creation time.
+
+```mermaid
+sequenceDiagram
+    actor Dev as Developer
+    participant CT as create-ticket
+    participant CD as create-design
+    participant FO as create-ticket fan-out mode
+
+    Dev->>CT: acs create-ticket, type epic
+    CT-->>Dev: epic created, children empty
+    Dev->>CD: acs create-design EPIC-id
+    CD-->>Dev: design.md approved, decision recorded
+    Dev->>FO: acs create-ticket EPIC-id --fan-out
+    FO-->>Dev: children minted per the design's seams, Step-2 gate reused
+    note over Dev: planning pipeline stops here, implementation is a separate pipeline per child
+```
+
+The epic path in one sentence: `create-ticket` (epic, `children: []`) →
+`create-design` → `create-ticket <epic-id> --fan-out` → STOP; implementation
+is the separate, per-child pipeline diagrammed above.
 
 > **NOTE (MAR-56):** The ship coordinator reads `ticket.lane` from `ticket.json` (written
 > by `/create-ticket`) to determine which pipeline steps are active. The `lane` field is

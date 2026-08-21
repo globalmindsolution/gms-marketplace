@@ -51,7 +51,9 @@ of reverse-engineer, and one extra step scaffolds the repo:
 What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
-   docs; creates epic `SHOP-4` with children `SHOP-5`, `SHOP-6` (you confirm
+   docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
+   `/create-design` runs next; then `/acs:create-ticket SHOP-4 --fan-out`
+   mints children `SHOP-5`, `SHOP-6` from the design's slices (you confirm
    the breakdown). Epic flips to **In Progress** when work starts.
 2. Per child: `/create-design` (or the child inherits the epic's design) →
    `/code` (TDD against 90% coverage, verifier review loop

@@ -62,6 +62,7 @@ context and consequences.
 | [0070](0070-fix-subprocess-coverage-measurement.md) | Fix subprocess coverage measurement (parallel `.coveragerc` + `COVERAGE_PROCESS_START` + `coverage combine`) instead of duplicating subprocess scenarios as in-process tests | Accepted |
 | [0071](0071-coverage-omit-true-forwarder-shims-only.md) | Coverage `omit` rule excludes true argument-forwarder shims only; `post-merge-pr.py`'s real `--pr` branch stays measured, never waived | Accepted |
 | [0072](0072-shared-importable-test-fixture.md) | Shared importable test fixture (`tests/acs/acs_case.py`) for concurrent per-module test authoring across child tickets | Accepted |
+| [0075](0075-planning-implementation-pipeline-split-epics-never-implemented.md) | Pipeline splits into a planning phase (`create-ticket(epic) → create-design → fan-out`) and an implementation phase (`create-ticket → code → … → merge-pr`); epics are never implemented | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

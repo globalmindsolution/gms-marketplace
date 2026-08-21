@@ -1,7 +1,7 @@
 ---
 name: create-ticket
-description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics. Use when the user asks to create or import a ticket, or describes new work that has no ticket yet.
-argument-hint: "<request or remote-key>"
+description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved.
+argument-hint: "<request or remote-key> | <epic-id> --fan-out"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -10,11 +10,14 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (a raw request, or a
 remote tracker key) into a schema-complete ticket in the workspace partition: typed,
 clarified, traced to the PRD, with an epic-only `needs_design` flag (stated, never
-confirmed, for epics; never offered for story/task), optional tracker sync, and —
-for epics — child story/task tickets. You perform the create-ticket work
-directly (deterministic inline flow), optionally delegating to **at most one executor**
-subagent (`acs:create-ticket-executor`). You NEVER spawn a planner or a verifier
-subagent in any lane. Decomposition is YOURS alone (subagents never spawn subagents).
+confirmed, for epics; never offered for story/task), and optional tracker sync. An
+epic's own creation run always ends with `children: []`; when invoked as
+`<epic-id> --fan-out` against an already-created epic, this skill instead mints that
+epic's child story/task tickets (see "Epic fan-out mode" below). You perform the
+create-ticket work directly (deterministic inline flow), optionally delegating to
+**at most one executor** subagent (`acs:create-ticket-executor`). You NEVER spawn a
+planner or a verifier subagent in any lane. Decomposition is YOURS alone (subagents
+never spawn subagents).
 
 Notation: `<partition>` = `context.partition`, `<id>` = `context.ticket_id`,
 `<repo>` = `context.checkout_root`. Substitute real values in every command.
@@ -54,6 +57,60 @@ analysis below on the imported description — imports get the same clarificatio
 typing, PRD trace, and needs_design decision as a local request. Never create a new
 remote issue for an imported ticket: the mapping points at the existing one.
 
+## Epic fan-out mode (`--fan-out`)
+
+Check this BEFORE the split check below: `$ARGUMENTS` resolves to a local
+ticket id AND carries the `--fan-out` token — i.e. this run was invoked as
+`/acs:create-ticket <epic-id> --fan-out`. This run does not create anything
+new — it mints the child story/task tickets of an EXISTING, already-created
+epic, after that epic's own design is approved. Resulting precedence:
+`--fan-out` -> split -> remote import -> raw request.
+
+1. **Start.** `skill-start.py --skill create-ticket --ticket <epic-id>` — no
+   `--allocate`: the epic's partition already exists, and this run is
+   recorded as a second `create-ticket` run against it (mirroring the split
+   mode's Start below).
+2. **Type refusal.** When the resolved ticket's `type` is not `epic`, stop
+   with a message explaining `--fan-out` applies to epics only — this mode
+   mints an epic's children, never a story or task's own children. This
+   mirrors, in prose, the refusal `new-ticket.py` already enforces in code
+   (`parent %s is a %s, not an epic`), so the two can never disagree.
+3. **Design precondition.** Read the epic's design source (its own
+   partition's `design.md`, or the `create-design` step in
+   `pipeline-state.json`). When `create-design` has not completed, or
+   `design.md` is absent, surface that to the user and obtain their explicit
+   confirmation before proceeding — never proceed silently, and never
+   hard-refuse; the user may still choose to fan out an undesigned epic.
+4. **Breakdown derivation.** When the epic's `design.md` exists, derive the
+   proposed child breakdown from the design's own slice/seam content (the
+   acs design template's Rollout/migration slice table, when present);
+   otherwise derive it from the epic's own description and acceptance
+   criteria. Apply Step 1's concreteness/testability judgment to every
+   proposed child AC/DoD entry, the same as the root flow.
+5. **Confirmation gate.** Reuse Step 2 item 7 — "Epic only: present the
+   proposed child breakdown and obtain user confirmation or edits before any
+   child is minted" — verbatim; this fan-out run IS that gate's actual
+   invocation for an already-created epic. No child is minted before the
+   user confirms or edits the breakdown.
+6. **Idempotency.** Read the epic's `children` array first; never re-mint a
+   child already listed there (see Resume & reconcile, below).
+7. **Mint.** For each user-confirmed child, run Step 4 exactly as written
+   below. Steps 1-3 do NOT run in this mode — the epic's own `ticket.json`
+   (title, description, acceptance criteria, size/stakes/lane, needs_design)
+   is not re-analyzed or rewritten; only the epic's `children` array
+   changes, via `new-ticket.py`. After minting, write each confirmed
+   child's `acceptance_criteria` into the child's own `ticket.json` —
+   `new-ticket.py` exposes no `--acceptance-criteria` flag.
+8. **Sync.** Run Step 5 below, scoped to the newly minted children only —
+   see Step 5's sync-set clause for the exclusion rule that keeps the
+   epic's own already-synced issue from being re-created.
+9. **Finish.** The mandatory Finish below still applies unchanged:
+   `result.json` with `states.ticket_id` = the epic, `type: "epic"`,
+   `needs_design`, `children` (the epic's full children after this run),
+   `prd_trace` (the epic's), then `post-create-ticket.py`. Never leave the
+   epic's `create-ticket` run non-`completed` — an interrupted fan-out would
+   block a later `create-design` re-run via `_require_completed`.
+
 ## Splitting an existing oversized ticket
 
 Check this BEFORE the import check: when `$ARGUMENTS` asks to split/restructure
@@ -71,7 +128,8 @@ signal, ADR 0069), this run restructures instead of creating:
   the partition counts as that design); children are cut at the analysis' seams,
   each sized to ONE reviewable PR and independently shippable.
 - The executor rewrites `ticket.json` (type `epic`, `children` filled) and
-  mints each child with `new-ticket.py --parent <id>`; when tracker sync is on,
+  mints each child with `new-ticket.py --parent <id>` — using Step 4's mint
+  command block and conservative-defaults rule (below); when tracker sync is on,
   update the remote issue's type/links accordingly.
 - If downstream work already exists (specs, a branch), say so and get the
   user's confirmation first; prior state files stay in the epic's partition as
@@ -138,7 +196,9 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
 - For epics: proposed child story/task breakdown with title, type, and
   points (children are always `needs_design: false` — the epic carries the
   design) — apply the same concreteness/testability judgment to any
-  AC/DoD-shaped text proposed for a child
+  AC/DoD-shaped text proposed for a child. This breakdown is produced
+  only in a `--fan-out` run (or a split/restructure run); an epic's own
+  creation run proposes no child breakdown and ends with `children: []`.
 
 No separate planner subagent is spawned. The coordinator performs this analysis
 inline.
@@ -155,7 +215,8 @@ and blocks until the user confirms or overrides:
    confirmation to proceed (or stop at the user's choice). Record the confirmed
    divergence one-liner.
 3. **AC/DoD substantiveness**: present every flagged `acceptance_criteria` entry
-   (root proposal, and any flagged child-breakdown AC/DoD text for an epic) to the
+   (root proposal, and — in a `--fan-out` or split/restructure run only — any
+   flagged child-breakdown AC/DoD text for an epic) to the
    user. The user must either revise the entry or explicitly confirm keeping it
    as-is — the ticket does not finalize with a flagged entry unless the user
    explicitly confirms it anyway.
@@ -172,7 +233,9 @@ and blocks until the user confirms or overrides:
 6. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
    blank").
 7. **Epic only**: present the proposed child breakdown and obtain user confirmation
-   or edits before any child is minted.
+   or edits before any child is minted. This item is reached only in the
+   `--fan-out` mode or a split/restructure run; an epic's own creation run has
+   no child breakdown to present and ends with `children: []`.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run), return
 `<handoff skill="create-ticket" ticket-id="<id>" status="needs_input">` with the
@@ -185,7 +248,9 @@ setting all fields required by `schemas/ticket.schema.json`:
 
 - `title`, `type`, `description`, `acceptance_criteria` (array of testable strings),
   `priority` (`critical|high|medium|low`), `parent` (null — this skill creates
-  roots), `children` (filled by step 4, else `[]`), `status`, `external` (the
+  roots), `children` (`[]` on every creation run, including an epic's own —
+  Step 4 fills it later, in a `--fan-out` or split/restructure run), `status`,
+  `external` (the
   import mapping, the sync result from step 5, or null), `assignee` (or null),
   `story_points` (or null), `needs_design`, `docs_only` (confirmed value, default
   false), `due_date` (ISO-8601 date string or null); refresh `updated_at`
@@ -215,7 +280,14 @@ skips sync entirely — no regression for unsynced tickets, AC-4).
 
 ### Step 4 — Epic fan-out via new-ticket.py
 
-For epics: for each user-confirmed child, run:
+Step 4 runs ONLY under `--fan-out` mode (above) or in the split/restructure
+mode (above) — the two modes that mint children — and never during the
+epic's own creation run. An epic's
+creation run (Steps 1-3) always finishes with `children: []`; fan-out is
+deferred until after `/acs:create-design` completes, when the user
+re-invokes `/acs:create-ticket <epic-id> --fan-out`.
+
+For each user-confirmed child, run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
@@ -223,9 +295,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist AP
 
 Do NOT pass `--size` or `--stakes` when minting child tickets in the fan-out.
 This ensures children mint with conservative defaults (size=standard, stakes=normal,
-lane=STANDARD) and will each be confirmed individually when their own
-`/acs:create-ticket` runs. Conservative defaults never silently assign a fast lane to
-unconfirmed work.
+lane=STANDARD). Children are confirmed ONCE, at the `--fan-out` mode's own
+confirmation gate (Step 2 item 7) — or, in a split/restructure run, at that
+mode's own user confirmation of the seams (above) — never individually
+re-confirmed by a
+child's own `/acs:create-ticket` run, since a child never runs one (below); a
+child's axes are only ever raised afterward by `/acs:code`'s mid-flight
+`escalate_lane` or an explicit user edit. Conservative defaults never
+silently assign a fast lane to unconfirmed work.
 
 This mints the child id, writes BOTH link directions (child `parent`, epic
 `children`), and records a completed create-ticket run for the child — children do
@@ -249,14 +326,25 @@ content, not new GitHub-facing behavior; this is expected and not a regression
 - **Tickets to sync** = `[root ticket, unless it is an import] + [every child
   minted in Step 4]`, EXCLUDING any product-flow delivery title
   (`PRODUCT_TICKET_TITLES`: "Product definition (PRD)", "Product architecture
-  doc set") — never sync a product-flow ticket (AC-4). **For each ticket to
+  doc set") — never sync a product-flow ticket (AC-4) — **and EXCLUDING any
+  ticket whose `external` is already non-null**: a `--fan-out` run's "root
+  ticket" is an already-synced epic, so re-applying this set literally would
+  re-create its issue as a duplicate; excluding it means only the newly
+  minted children (whose `external` is still null) enter the sync set, the
+  same split MAR-69's own fan-out produced (issue kept, new issues created
+  for the children only). **For each ticket to
   sync**, run the `gh issue create` sequence below once per ticket — a failed
   `gh`/`acli` call for any one ticket is never silently swallowed: it produces
   a finding naming that ticket's id + error, surfaced in `findings` and the
   `<handoff>`, and does not abort the batch (the loop continues to other
   tickets; that ticket's `external` stays null). The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
-  failed ones can be retried individually.
+  failed ones can be retried individually. This set covers children minted in
+  Step 4 by either the `--fan-out` mode or the split/restructure mode; a
+  split/restructure run's already-synced root is excluded by the same
+  `external`-non-null rule above and instead has its remote issue
+  **updated** (title/type/links), as the split section already instructs
+  (above).
 - `github` (`tracker.github.owner`, `tracker.github.project_number`):
   `gh issue create --title "<rendered title>" --body-file <body.md>` → issue
   number + URL; `gh project item-add <project_number> --owner <owner> --url
@@ -405,12 +493,12 @@ MANDATORY final step — never skipped, also on failure:
    ```json
    {
      "status": "completed",
-     "stop_reason": "ticket created; 2 children minted",
+     "stop_reason": "epic created; children deferred to --fan-out",
      "states": {
        "ticket_id": "SHOP-123",
        "type": "epic",
        "needs_design": true,
-       "children": ["SHOP-124", "SHOP-125"],
+       "children": [],
        "prd_trace": {"feature": "Wishlist (Must-have, roadmap M2)", "divergence": null}
      },
      "findings": [],
@@ -420,7 +508,9 @@ MANDATORY final step — never skipped, also on failure:
    }
    ```
 
-   `children` is `[]` for non-epics. `prd_trace.feature` is the PRD feature/goal
+   `children` is `[]` for non-epics **and for an epic's own creation run**;
+   only a `--fan-out` (or split/restructure) run reports a non-empty list.
+   `prd_trace.feature` is the PRD feature/goal
    the ticket traces to (null when no PRD exists); `prd_trace.divergence` is null
    or the user-confirmed divergence one-liner. On failure keep whatever is true
    (e.g. minted children) and record blocking findings under `findings` with
@@ -441,7 +531,7 @@ MANDATORY final step — never skipped, also on failure:
 
    ```xml
    <handoff skill="create-ticket" ticket-id="SHOP-123" status="completed">
-     <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); children SHOP-124, SHOP-125; traced to PRD feature "Wishlist (Must-have)"; synced to jira PROJ-789.</summary>
+     <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); no children yet — fan out later with /acs:create-ticket SHOP-123 --fan-out after its design; traced to PRD feature "Wishlist (Must-have)"; synced to jira PROJ-789.</summary>
      <artifacts>
        <file><partition>/ticket.json</file>
        <file><partition>/phases/create-ticket/result.json</file>
@@ -449,6 +539,10 @@ MANDATORY final step — never skipped, also on failure:
      <next-step>/acs:create-design SHOP-123</next-step>
    </handoff>
    ```
+
+   For a `--fan-out` run, the same `<handoff>` shape applies; `children` in
+   the result document is the epic's full child list after this run, and the
+   summary states how many children were minted.
 
 ## Completion report (normative)
 
@@ -462,9 +556,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: ticket id, type, title; `needs_design`; children created (ids); PRD trace or flagged divergence; tracker key when synced
+- **Results**: ticket id, type, title; `needs_design`; children created (ids) (none on an epic's own creation run); PRD trace or flagged divergence; tracker key when synced
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design
+- **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
 ```

@@ -2,14 +2,16 @@
 
 ## Pipeline
 
-The `acs` plugin implements a multi-step delivery workflow. The six workflow
-skills MUST run in the following order for a given ticket (`/create-design`
-is conditional — see below):
+The `acs` plugin implements a multi-step delivery workflow. Five **workflow
+skills** — `/create-ticket`, `/code`, `/docs-sync`, `/create-pr`,
+`/merge-pr` — MUST run in the following order for a given ticket;
+`/create-design` is a **planning skill**, conditional on `needs_design`, not
+counted among the five (see below):
 
 | # | Skill | Purpose (summary) |
 |---|-------|-------------------|
 | 1 | `/create-ticket` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
-| 2 | `/create-design` | *(conditional — when the ticket needs design)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. |
+| 2 | `/create-design` | *(planning step, conditional on `needs_design`)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not `/code` — the epic's own ticket never proceeds to `/code`. |
 | 3 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
 | 4 | `/docs-sync` | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
 | 5 | `/create-pr` | Create a pull request shipping the implementation. |
@@ -23,20 +25,23 @@ epic's `design.md`.
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
-    T -->|needs design| D[/create-design/]
-    D --> C[/code/]
-    T -->|otherwise| C
+    T -->|needs design, epic| D[/create-design/]
+    D -->|child inherits the design| C
+    T -->|otherwise| C[/code/]
+    D -->|epic: after design| FO[/create-ticket --fan-out/]
+    FO -->|per child| C
     C --> DS[/docs-sync/]
     DS --> P[/create-pr/]
     P --> M[/merge-pr/]
 
     T -. "ticket JSON" .-> W[(workspace/<repo>/<ticket-id>/)]
     D -. "design.md + state" .-> W
+    FO -. "child ticket JSONs" .-> W
     C -. "code-state.json incl. review findings" .-> W
     DS -. "docs-sync state" .-> W
     P -. "pr state" .-> W
     M -. "merge state" .-> W
-    W -. "pre-hooks read predecessor state" .-> T & D & C & DS & P & M
+    W -. "pre-hooks read predecessor state" .-> T & D & FO & C & DS & P & M
 ```
 
 > **NOTE (MAR-160):** A new hooked skill, `/docs-sync`, now runs after `/code`
@@ -53,10 +58,14 @@ flowchart LR
 - Each workflow skill MUST be guarded by a **pre-hook** that checks readiness
   before the skill runs. Readiness means, at minimum: the predecessor skill's
   state file exists in `<workspace>/<repo>/<ticket-id>/` and reports **completed**.
-  The conditional design step branches the chain: `/code`'s
-  predecessor is `/create-design` when the ticket (or its parent epic) needs
-  design, otherwise `/create-ticket`; `/create-design`'s own gate
-  additionally requires `needs_design: true`.
+  The conditional design step branches the chain: `/code`'s predecessor is
+  `/create-design` when a **child** ticket's parent epic needs design (a
+  child inherits, never reruns, its epic's design), otherwise
+  `/create-ticket`; `/create-design`'s own gate additionally requires
+  `needs_design: true`. For an **epic** itself, the step that follows
+  `/create-design` is the fan-out run
+  (`/acs:create-ticket <epic-id> --fan-out`), never `/code` — the epic's own
+  ticket never proceeds to `/code`.
 - If the predecessor is not complete, the pre-hook MUST exit with code **2**,
   which blocks the skill from running, and SHOULD emit a clear message telling
   the user which skill to run first.
@@ -138,8 +147,17 @@ branch name. See [hooks.md](hooks.md) and
 
 ## Epic fan-out
 
-When `/create-ticket` creates an **epic**, it MUST suggest creating child
-**story**/**task** tickets for it. Each child ticket:
+An epic's own **creation** run MUST NOT propose a child breakdown and MUST
+end with `children: []` — no children are minted at epic-creation time. Two
+of `/create-ticket`'s modes mint children, and neither is the epic's own
+creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
+**after** the epic's `/create-design` has completed, and a split/restructure
+run, which mints children at the recorded seams (see
+[skills.md](skills.md)). The `--fan-out` run mints children only (it does
+not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
+the epic's `design.md` slice/seam content when a design exists, and is
+presented and user-confirmed at the same Step-2 confirmation gate before any
+child is minted. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
 - runs its own pipeline (`/code` → … → `/merge-pr`) independently —
@@ -157,11 +175,14 @@ Done.
 
 ## Inside each step: Reflection
 
-Every skill MUST internally run a **plan → execute → verify** cycle using a
-dedicated subagent per phase (e.g. `code-planner`, `code-executor`,
-`code-verifier`). The coordinator orchestrates these subagents and
-communicates with them in XML. Details in
-[reflection.md](reflection.md).
+Every one of the twelve **triad-keeping** workflow and product-level skills
+MUST internally run a **plan → execute → verify** cycle using a dedicated
+subagent per phase (e.g. `code-planner`, `code-executor`, `code-verifier`).
+The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
+run **inline** instead — the coordinator, optionally delegating to at most
+one `<skill>-executor` subagent, spawns no planner and no verifier in any
+lane. The coordinator orchestrates these subagents and communicates with
+them in XML. Details in [reflection.md](reflection.md).
 
 ## Review feedback loop
 
@@ -332,7 +353,8 @@ ticket:
    linters, CI, and a minimal green vertical slice. Without this, the
    `/code` TDD gates have no harness to run against.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
-   roadmap, fanned out into child stories/tasks
+   roadmap, created childless; its `/create-design` then runs; then
+   `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.

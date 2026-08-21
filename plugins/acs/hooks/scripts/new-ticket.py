@@ -110,10 +110,10 @@ def main():
     lib.update_index(workspace, repo_id, ticket, archived=False)
 
     # Children of an epic (and remote imports finalized here) do not run
-    # /create-ticket themselves — their pipeline starts at /create-spec (or
-    # /create-design). Record a completed create-ticket run so the downstream
-    # gates hold uniformly: "create-ticket completed" == "the ticket was
-    # properly created".
+    # /create-ticket themselves — their pipeline starts at /acs:code, which
+    # reads the parent epic's design.md directly. Record a completed
+    # create-ticket run so the downstream gates hold uniformly:
+    # "create-ticket completed" == "the ticket was properly created".
     lib.append_in_progress_run(tdir, "create-ticket", ticket_id)
     lib.finalize_run(tdir, "create-ticket", ticket_id, {
         "status": "completed",

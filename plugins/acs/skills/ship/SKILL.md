@@ -359,8 +359,8 @@ When the create-ticket handoff (or resume) yields a ticket with
    `needs_design: true`; every child's /code gates on the epic's
    `design.md`).
 2. Read the epic's `children` array from `ticket.json`. If it is empty, ask
-   the user whether to re-run `/acs:create-ticket <epic-id>` to fan out
-   children — an epic with no children has nothing to ship.
+   the user whether to run `/acs:create-ticket <epic-id> --fan-out` to fan
+   out children — an epic with no children has nothing to ship.
 3. Ask the user which child(ren) to ship now (AskUserQuestion, options from
    the children's ids and titles — read each child's `ticket.json` title
    only, nothing more).
