@@ -83,7 +83,11 @@ win — change them first, then the implementation.
    executor `iter-<n>-execute[-<k>].json`, verifier `iter-<n>-verify.md`
    (see INTERNALS.md "Phase artifacts") and references it in `<outputs>`.
    Resumption depends on these files existing even when the run dies right
-   after the phase.
+   after the phase. Exception: `/acs:code`'s planner writes a single
+   per-ticket `plan.md` instead, rewritten in place each iteration (MAR-70) —
+   see `skills/code/SKILL.md`'s "Plan artifact resolution (read-both compat)"
+   section for the resume fallback; every other triad skill keeps the
+   generic rule.
 4. **No memory assumptions.** The subagent shares nothing with the
    coordinator: every fact it needs must come from `<inputs>` file paths it
    reads itself. Never write "as discussed" or rely on the ticket being "the

@@ -78,7 +78,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    acceptance criteria, or the surface otherwise clearly exceeding a
    reviewable diff. When the decomposition itself exceeds that bar, record
    the split seams in this plan artifact
-   (`<partition>/phases/code/iter-<n>-plan.md` — the evidence
+   (`<partition>/phases/code/plan.md` — the evidence
    `/acs:create-ticket split` reads) and surface a `<question>` alongside
    the Spec-simplicity gate's, reusing the identical "surface, never block,
    continue planning" contract (ADR 0038). This is a new trigger on an
@@ -158,8 +158,10 @@ A finding with no mapped remediation makes the plan defective.
 
 ## Phase artifact
 
-Write the complete plan to `<partition>/phases/code/iter-<n>-plan.md` (`<n>` =
-the task's `iteration`). Write it with the Write tool.
+Write the complete plan to `<partition>/phases/code/plan.md`. The plan phase
+still runs per iteration, so on iteration 2+ this write rewrites the same
+file in place — it is never renamed or numbered. Write it with the Write
+tool.
 
 
 Required headings: `## Spec analysis`, `## Executor tasks & file map`,
@@ -188,7 +190,7 @@ after it. Self-check it first:
 ```xml
 <result skill="code" phase="plan" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-plan.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/plan.md</file>
   </outputs>
   <questions>
     <question>Spec 03: should DELETE /items/{id} soft-delete or hard-delete?</question>

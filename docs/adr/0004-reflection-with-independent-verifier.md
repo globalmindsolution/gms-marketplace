@@ -15,7 +15,9 @@ ticket, design) — never the same-iteration plan (it consumes only the plan's
 verifier-checklist section, a floor never a ceiling) and never executor
 narratives; it re-runs every cheap check itself. All findings block;
 remediation loops are capped at 3 iterations. Every phase writes its own
-artifact (`iter-<n>-plan.md` / `-execute.json` / `-verify.md`).
+artifact (`iter-<n>-plan.md` / `-execute.json` / `-verify.md`) — except
+`/acs:code`, whose plan artifact is the single per-ticket `plan.md` from
+MAR-70 onward (execute/verify artifacts are unaffected).
 
 ## Consequences
 
