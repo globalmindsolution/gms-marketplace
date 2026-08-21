@@ -79,6 +79,17 @@ erDiagram
     }
 ```
 
+**PHASE_ARTIFACT note (MAR-70).** The `"plan/execute/verify per iteration"`
+cardinality above holds as stated for the execute and verify artifacts, and
+for the plan artifact of the eleven triad skills other than `/acs:code`.
+`/acs:code`'s plan artifact is a single per-ticket
+`phases/code/plan.md`, rewritten in place on each planning iteration rather
+than written once per iteration; `phases/code/plan-superseded-<k>.md` is
+reserved for a future revocation path and is neither written nor read today.
+Modelling this precisely — a `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
+entity block and a narrowed `PHASE_ARTIFACT` relationship label — is owned by
+MAR-69 slices 3/4; this note records the gap without pre-empting that edit.
+
 Invariants (enforced by `acs_lib` + schemas + tests):
 
 - `runs[-1]` is the only source of current status — nothing mirrored at top level.

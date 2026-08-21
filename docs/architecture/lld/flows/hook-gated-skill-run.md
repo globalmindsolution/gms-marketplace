@@ -8,7 +8,10 @@ verifier), which is how the twelve triad-keeping skills run (`create-prd`,
 `create-architecture`, `create-project`, `create-quality`,
 `create-operations`, `create-principles`, `create-standards`,
 `create-design`, `code`, `docs-sync`, `standardize-project`,
-`create-requirements` — `/acs:code` is the example traced here). The three **apply-work
+`create-requirements` — `/acs:code` is the example traced here; the diagram's
+`PL->>WS` plan write is therefore labeled `plan.md`, `/acs:code`'s single
+per-ticket plan artifact (MAR-70) — the other eleven triad skills write
+`iter-n-plan.md` there instead). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —
@@ -46,7 +49,7 @@ sequenceDiagram
         end
         loop reflection (max 3 iterations)
             CO->>PL: XML <task phase="plan">
-            PL->>WS: iter-n-plan.md
+            PL->>WS: plan.md
             PL-->>CO: XML <result> (validated)
             opt open questions
                 CO->>Dev: clarify (ledger first, record answers)
