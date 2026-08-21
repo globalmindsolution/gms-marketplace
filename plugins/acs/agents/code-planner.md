@@ -27,8 +27,9 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<constraints>` — at least `coverage_target` (settings.test_coverage_percent),
   `branch` (the ticket branch name), `commit_message` (the configured format);
   plus `architecture_path` and `adr_path` when set;
-- `<context>` — on iteration 2+, the verifier findings from the previous
-  iteration that your new plan MUST remediate one by one.
+- `<context>` — clarification answers only. The planner runs once per run,
+  before the loop, and never receives verifier findings; those route
+  straight to the executor on iteration 2+.
 
 ## Charter — what a /acs:code plan contains
 
@@ -152,22 +153,17 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    doc files must show diffs, which commands prove tests and coverage — on top
    of its standing dimensions.
 
-On iteration 2+, open the plan with a remediation table: every verifier finding
-from `<context>`, verbatim, next to the specific plan change that resolves it.
-A finding with no mapped remediation makes the plan defective.
-
 ## Phase artifact
 
 Write the complete plan to `<partition>/phases/code/plan.md`. The plan phase
-still runs per iteration, so on iteration 2+ this write rewrites the same
-file in place — it is never renamed or numbered. Write it with the Write
-tool.
+runs exactly once per run, before the loop; this is a single write, never
+rewritten in place on a later iteration, and never renamed or numbered.
+Write it with the Write tool.
 
 
 Required headings: `## Spec analysis`, `## Executor tasks & file map`,
-`## Test strategy`, `## Documentation map`, `## Risks`, `## Verifier checklist`
-— plus `## Findings remediation` first on iteration 2+. The XML result
-references this file; it never inlines the plan body.
+`## Test strategy`, `## Documentation map`, `## Risks`, `## Verifier checklist`.
+The XML result references this file; it never inlines the plan body.
 
 ## Hard rules
 

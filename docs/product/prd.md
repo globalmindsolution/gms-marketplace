@@ -302,7 +302,7 @@ growth path.
      is not large or an epic) — same
      universal spec-authoring fold as every lane, differing only in **verify
      depth**; **full verify** (the existing up-to-3-iteration
-     plan→execute→verify loop + 14-dimension, multi-lens review + e2e when configured).
+     execute→verify loop (one up-front plan, not a per-iteration plan→execute→verify loop) + 14-dimension, multi-lens review + e2e when configured).
      Apply-work skills (create-pr, merge-pr, create-ticket) run **inline**
      (coordinator + at most one executor), never a full triad, in every lane.
   4. **COMPLEX / UNATTENDED** (large size, epic, or `/acs:ship` autonomous run) —

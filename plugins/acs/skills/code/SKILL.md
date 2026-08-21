@@ -171,6 +171,11 @@ check described in the next section — it is never lowered):
   holds regardless of lane. Escalation never relaxes the coverage gate — it can
   only tighten it (higher lane → higher rigor).
 
+**What an iteration counts.** One iteration is one execute → verify round; the
+plan phase runs exactly once, before the loop starts, and is not part of any
+iteration — the caps above therefore count execute+verify rounds, not
+plan+execute+verify triads.
+
 ### In-loop escalation check (upward-only, MAR-57)
 
 At the **start of each iteration** — after the verifier for the previous
@@ -312,7 +317,10 @@ lowers the lane or axes — every downgrade mention here stays inside this
 user-confirmed, boundary-gated sequence, and `confirm_deescalation` cannot be
 reached without a resolved, answered `clarify_ref`.
 
-Run plan -> execute -> verify, at most verify_depth-determined iterations (light: cap 1; full: cap 3). Spawn subagents with the
+Plan once, before the loop, then run execute -> verify for at most
+verify_depth-determined iterations (light: cap 1; full: cap 3) — exactly one
+`acs:code-planner` subagent is spawned across the whole run, however many
+iterations the loop uses. Spawn subagents with the
 Agent tool: `acs:code-planner`, `acs:code-executor`, `acs:code-verifier` (fall
 back to the un-namespaced name only if the runtime rejects the namespaced
 one). For each role, apply `context.models.<role>.model` / `.effort` at spawn
@@ -342,7 +350,7 @@ Messaging rules (schemas/acs-messages.xsd):
   sequential execution. The verifier runs after all executors finish and
   judges the combined changeset.
 
-### Plan (per iteration)
+### Plan (once, before the loop)
 
 Task the planner with `<inputs>` of all `<partition>/specs/*.md`,
 `<partition>/ticket.json`, `<design.dir>/design.md` when `design.required`,
@@ -408,8 +416,10 @@ block (AC-6) apply unchanged in every lane; see those sections.
   check (`code-planner.md`'s item 4, edges E1-E4) — not the full shared
   design-time step `create-design`'s planner runs — riding the same
   `problems` carrier as the existing Boy-scout drift item.
-- On iterations 2-3: how the plan remediates EVERY verifier finding from the
-  previous iteration, explicitly, one by one.
+- The plan is authored once, before iteration 1; there is no per-iteration
+  re-plan. On iterations 2-3, the verifier's findings route straight to the
+  executor's `<task>` `<context>` (`code-executor.md:29-30`), where the
+  executor authors the remediation.
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 
@@ -584,10 +594,12 @@ constraint, no `-lens-` suffix — checking all 13 base dimensions
 `<partition>/phases/code/iter-<n>-verify.md` directly, exactly as today.
 
 ALL findings block — zero findings = pass (`verifier_passed: true`). On
-findings: persist the verify output, then AUTOMATICALLY re-plan and re-execute
-(TDD still applies to fixes: failing test first when a finding is behavioral).
-After the lane's iteration cap (light: 1 / full: 3) with findings remaining: stop
-with final status `"failed"`, findings recorded, gate closed.
+findings: persist the verify output, then AUTOMATICALLY re-execute, passing
+every finding to the next iteration's executor(s) in `<context>` with no
+planner spawn in between (TDD still applies to fixes: failing test first when
+a finding is behavioral). After the lane's iteration cap (light: 1 / full: 3)
+with findings remaining: stop with final status `"failed"`, findings
+recorded, gate closed.
 
 ### Coverage hard fail
 
