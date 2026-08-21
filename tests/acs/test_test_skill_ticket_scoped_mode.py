@@ -100,7 +100,8 @@ class TicketScopedSubsectionTest(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)most recent|highest", sub),
             "suite-scoping rule must state 'most recent'/'highest'")
-        self.assertIn("iter-<n>-plan.md", sub)
+        self.assertIn("phases/code/plan.md", sub)
+        self.assertIn("iter-*-plan.md", sub)
         self.assertIn("`n`", sub)
 
 

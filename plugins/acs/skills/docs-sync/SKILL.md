@@ -124,10 +124,12 @@ entries that justify it. No file writes.
 Objective: apply the planned doc updates as additional commits on the SAME
 ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
-using the FIXED v1 structure — the existing `iter-<n>-plan.md` /
-`iter-<n>-execute.json` / `iter-<n>-verify.md` artifact triad every hooked
-skill already writes. No new artifact type, no settings-driven template, no
-new `settings.schema.json` keys.
+using the FIXED v1 structure — the existing `iter-<n>-execute.json` /
+`iter-<n>-verify.md` artifact shape every hooked skill already writes
+(`/acs:code`'s own plan phase writes `plan.md` instead of
+`iter-<n>-plan.md` from MAR-70 onward; the other hooked skills' plan
+artifacts are unaffected). No new artifact type, no settings-driven
+template, no new `settings.schema.json` keys.
 
 ### Phase: verify — `acs:docs-sync-verifier`
 

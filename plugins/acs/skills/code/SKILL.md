@@ -118,6 +118,30 @@ If `context.handoff_summary` exists, read it plus
 reconcile (trust the summary, but cheaply verify by running the tests it says
 pass), and continue from where it points.
 
+### Plan artifact resolution (read-both compat)
+
+The plan artifact is `<partition>/phases/code/plan.md`, written and read by
+the coordinator, the planner, the executor, and the verifier.
+
+**Fresh run.** When no plan artifact of either name exists yet, read and
+write only `plan.md`; a fresh run never creates a new iteration-numbered
+plan file.
+
+**Resume only.** When `plan.md` is absent on resume, resolve the plan
+artifact to the highest-numbered existing
+`<partition>/phases/code/iter-*-plan.md` (glob
+`<partition>/phases/code/iter-*-plan.md`, take the largest `n`) — an
+in-flight ticket that started before this rename shipped. Pass the resolved
+absolute path to executor and verifier in `<inputs>`; the legacy file is
+never renamed, moved, or copied (no backfill).
+
+**One release.** This read-both fallback is supported for one release
+(current plugin version `0.4.7`).
+
+**Reservation.** `<partition>/phases/code/plan-superseded-<k>.md` is
+reserved for the plan-revocation path (MAR-69 slice 4) and is not written or
+read by any behavior today.
+
 ## Reflection loop
 
 ### Verify-depth (lane-driven iteration ceiling — initial ceiling)
@@ -323,7 +347,7 @@ Messaging rules (schemas/acs-messages.xsd):
 Task the planner with `<inputs>` of all `<partition>/specs/*.md`,
 `<partition>/ticket.json`, `<design.dir>/design.md` when `design.required`,
 and the relevant consumer-repo source/docs. The planner returns (artifact:
-`<partition>/phases/code/iter-<n>-plan.md`):
+`<partition>/phases/code/plan.md`):
 
 **Spec authoring fold (`specs/` absent or empty, every lane)**
 
@@ -332,7 +356,7 @@ Before producing the standard plan content, check whether
 
 When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
 the code-planner ADDITIONALLY produces, as part of its plan artifact
-(`<partition>/phases/code/iter-<n>-plan.md`), the spec content a standalone
+(`<partition>/phases/code/plan.md`), the spec content a standalone
 create-spec planner would once have produced. This content covers, in order:
 
 - **Scope** — what the ticket delivers; acceptance criteria quoted verbatim.
@@ -465,7 +489,7 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
 Spawn the verifier AFTER all executors finish, with `<inputs>` of the branch
 diff (`git diff <default-branch>...HEAD`), all `<partition>/specs/*.md`,
 `<partition>/ticket.json`, `<design.dir>/design.md` when it applies, and
-`<partition>/phases/code/iter-<n>-plan.md`. The verify `<task>`'s
+`<partition>/phases/code/plan.md`. The verify `<task>`'s
 `<constraints>` always carry `<constraint name="audience_style_profile">engineers
 (implementation-contract prose)</constraint>` — the register the folded plan
 content (or the plan's own analysis/decomposition prose) is judged against. The
@@ -610,7 +634,7 @@ like any other terminal run), writing `<partition>/phases/code/result.json`
 with `status: "failed"` and `stop_reason` "user chose to split; restructure
 required before implementation", and only then return `<handoff
 status="failed">` whose `<next-step>` reads `/acs:create-ticket split <id>
-per <partition>/phases/code/iter-<n>-plan.md` — it is the handoff element's
+per <partition>/phases/code/plan.md` — it is the handoff element's
 own `status` attribute, not only `result.json`'s field, that must read
 `failed`. The `<summary>` (<=1 KB) must also restate the split instruction
 in prose, not only `<next-step>`: under `/ship` the failed branch surfaces
@@ -716,7 +740,7 @@ MANDATORY final step — never skipped, also on failure:
    tests/coverage vs target, docs updated, review iterations and open
    findings, and the next step (`/acs:create-pr <ticket-id>` on success, or
    `/acs:create-ticket split <ticket-id> per
-   <partition>/phases/code/iter-<n>-plan.md` after a split answer).
+   <partition>/phases/code/plan.md` after a split answer).
    Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
    message — status, summary (<=1KB), `<artifacts>` listing the branch and key
    changed paths, and `<next-step>` pointing at /acs:create-pr (or at

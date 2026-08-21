@@ -21,9 +21,10 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<objective>` — verify this iteration's combined changeset;
 - `<inputs>` — absolute file paths: every `<partition>/specs/*.md`,
   `<partition>/ticket.json`, `design.md` when the ticket or its parent epic has
-  one, and `<partition>/phases/code/iter-<n>-plan.md` (read ONLY its
-  `## Verifier checklist` — it is a floor, never a ceiling). READ EVERY ONE.
-  Derive `<partition>` from the directory containing `ticket.json`;
+  one, and the plan artifact `<partition>/phases/code/plan.md` (the path
+  supplied in `<inputs>`; read ONLY its `## Verifier checklist` — it is a
+  floor, never a ceiling). READ EVERY ONE. Derive `<partition>` from the
+  directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
   plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
   when set (full-depth lens spawns only — see Multi-lens review);
@@ -51,7 +52,7 @@ ALL of the following — every dimension that fails produces blocking findings:
    satisfied with no matching test/implementation evidence, is a finding.
 
    **Completeness sub-check.** When the fold was active (read
-   `iter-<n>-plan.md`'s own statement of which mode applied —
+   the plan artifact's own statement of which mode applied —
    `<partition>/specs/` was absent or empty at plan time), the folded plan
    artifact must contain the five mandatory sections (Scope, Approach,
    API/data changes, Test plan, Out of scope) substantively, with no stubs.
@@ -61,7 +62,8 @@ ALL of the following — every dimension that fails produces blocking findings:
    **Structure sub-check** (only when the fold was active). Run `Bash python3
    ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections "Scope;
    Approach; API/data changes; Test plan; Out of scope" --ordered
-   <partition>/phases/code/iter-<n>-plan.md`. Each stderr `source:line:
+   <plan path>` — the plan path supplied in `<inputs>`, i.e.
+   `<partition>/phases/code/plan.md`. Each stderr `source:line:
    [rule] message` finding becomes one `<finding severity="blocking"
    dimension="acceptance-criteria conformance">`; exit 0 = pass; exit 2
    (usage error / unreadable file) is itself a blocking finding. This
@@ -190,7 +192,7 @@ ALL of the following — every dimension that fails produces blocking findings:
     (changed lines that do not trace to the spec/ticket) are blocking findings
     looped back to the executor.
 13. **Audience-style** — BLOCKING: judge the folded plan artifact's prose
-    (`iter-<n>-plan.md`, when the fold was active) — or the plan's own
+    (`plan.md`, when the fold was active) — or the plan's own
     analysis/decomposition prose (when the fold was not active, i.e.
     `specs/` already had content) — against the task's
     `audience_style_profile` constraint. Never the pre-existing spec files

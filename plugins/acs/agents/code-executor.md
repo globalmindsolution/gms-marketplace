@@ -19,10 +19,10 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<objective>` — which spec (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
-  the plan `<partition>/phases/code/iter-<n>-plan.md` (your task's file map and
-  test strategy live there), `<partition>/ticket.json`, and `design.md` when
-  one applies. READ EVERY ONE. Derive `<partition>` from the directory
-  containing `ticket.json`;
+  the plan artifact `<partition>/phases/code/plan.md` (the path supplied in
+  `<inputs>`; your task's file map and test strategy live there),
+  `<partition>/ticket.json`, and `design.md` when one applies. READ EVERY
+  ONE. Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch` (the ticket branch the
   coordinator already created), `commit_message` (format with `{ticket_id}`,
   `{summary}`, optionally `{type}`/`{external_key}`);
