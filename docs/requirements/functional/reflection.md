@@ -210,11 +210,12 @@ during design:
 - Subagents MUST write their **states, findings, error details, and stop
   reasons** into JSON files in the workspace folder. Concretely, every phase
   writes its own artifact into `<partition>/phases/<skill>/`: the planner
-  `iter-<n>-plan.md` (the complete plan), each executor
-  `iter-<n>-execute[-<k>].json` (artifacts produced, repo files changed,
-  commands run with outcomes), the verifier `iter-<n>-verify.md` (every check
-  with evidence, every finding in detail). XML results reference these files,
-  never inline their bodies.
+  `iter-<n>-plan.md` (the complete plan) — except `/acs:code`, whose planner
+  writes a single per-ticket `plan.md`, rewritten in place each iteration
+  (MAR-70) — each executor `iter-<n>-execute[-<k>].json` (artifacts produced,
+  repo files changed, commands run with outcomes), the verifier
+  `iter-<n>-verify.md` (every check with evidence, every finding in detail).
+  XML results reference these files, never inline their bodies.
 - **Grounding**: every subagent decision, claim, and finding MUST be traceable
   to a source read or run in that task — cited file/section next to the
   statement, or the quoted command and output. A missing input is an error,

@@ -842,7 +842,7 @@ implement them in the consumer repo using TDD.
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
 `<partition>/specs/` is absent or empty the `code-planner` authors the spec
 content itself inside its plan artifact
-(`<partition>/phases/code/iter-<n>-plan.md`), on EVERY lane with no lane
+(`<partition>/phases/code/plan.md`), on EVERY lane with no lane
 check; when specs are already present it reads them unchanged
 (`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
 from ticket clarification through the oversized-ticket escalation — moved
@@ -855,7 +855,7 @@ bind `/code`'s plan phase:
   larger tickets.
 - MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume
   them without conversation history. Since ADR 0066 the folded spec content
-  lives in that same partition, at `phases/code/iter-<n>-plan.md`; a
+  lives in that same partition, at `phases/code/plan.md`; a
   pre-existing `specs/` directory is still read when one is present.
 - Spec format: **markdown** with required sections — **scope, approach,
   API/data changes, test plan, out-of-scope**. The **approach** section stays
@@ -898,7 +898,18 @@ bind `/code`'s plan phase:
   `"failed"` (`stop_reason` "user chose to split; restructure required
   before implementation"), runs its mandatory Finish steps, and returns
   `<next-step>` pointing at `/acs:create-ticket split <id> per
-  <partition>/phases/code/iter-<n>-plan.md`.
+  <partition>/phases/code/plan.md`.
+- **Plan-artifact naming (MAR-70).** The `code-planner`'s plan artifact is a
+  single per-ticket `<partition>/phases/code/plan.md`, rewritten in place on
+  each planning iteration — not one file per iteration. On **resume only**,
+  when `plan.md` is absent, `/code` resolves the highest-numbered
+  `<partition>/phases/code/iter-*-plan.md` instead (never renaming, moving,
+  or copying it), a read-both compatibility path supported for **one
+  release**. `<partition>/phases/code/plan-superseded-<k>.md` is **reserved**
+  for the plan-revocation path and is neither written nor read today. This is
+  the naming axis only — the executor's `-execute[-<k>].json`, the
+  verifier's `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml`
+  message snapshots are unaffected.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
