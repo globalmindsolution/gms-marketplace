@@ -161,8 +161,7 @@ class CodeSkillPointerSentenceTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(CODE_SKILL)
         start = cls.body.index("- The documentation map: whether any factual")
-        end = cls.body.index(
-            "- On iterations 2-3: how the plan remediates")
+        end = cls.body.index("### Docs-only tickets")
         cls.bullet = cls.body[start:end]
         cls.bullet_norm = norm(cls.bullet)
 
