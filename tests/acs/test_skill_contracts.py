@@ -172,6 +172,12 @@ class TestAgentContracts(unittest.TestCase):
         for skill in HOOKED_SKILLS:
             for role, kind in artifact.items():
                 body = read(self.agent_path(skill, role))
+                if skill == "code" and role == "planner":
+                    # MAR-70: /acs:code's plan artifact is the single
+                    # per-ticket plan.md, not iter-<n>-plan.md.
+                    self.assertIn("phases/code/plan.md", body,
+                                 "code-planner missing plan.md artifact")
+                    continue
                 self.assertRegex(body, r"iter-<n(?:>|\b)[^\n]*%s" % kind,
                                  "%s-%s missing iter-<n>-%s artifact" % (skill, role, kind))
 
