@@ -23,8 +23,11 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   `<partition>/ticket.json`, `design.md` when the ticket or its parent epic has
   one, and the plan artifact `<partition>/phases/code/plan.md` (the path
   supplied in `<inputs>`; read ONLY its `## Verifier checklist` — it is a
-  floor, never a ceiling). READ EVERY ONE. Derive `<partition>` from the
-  directory containing `ticket.json`;
+  floor, never a ceiling). On TRIVIAL/SMALL this plan artifact may be
+  coordinator-authored rather than `code-planner`-authored (MAR-72); judge it
+  identically either way — dimensions 1, 8, 9, and 13 apply in full and are
+  never waived on authorship grounds. READ EVERY ONE. Derive `<partition>`
+  from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
   plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
   when set (full-depth lens spawns only — see Multi-lens review);

@@ -291,8 +291,11 @@ growth path.
   Routing is **two axes — size × stakes** — assembled into four lanes; lighter
   lanes reduce process volume but never drop a gate. Four delivery lanes:
   1. **TRIVIAL** (trivial size, not high stakes) — no separate planner subagent
-     (spec authoring is folded into `/code`'s plan phase — the fold is now
-     **universal** across every lane, not a fast-lane-only property); **light
+     at all: spec authoring was already folded into `/code`'s plan phase (the
+     fold is now **universal** across every lane, not a fast-lane-only
+     property), and since MAR-72 the `code-planner` subagent itself is also
+     never spawned — the coordinator authors `plan.md` directly, against the
+     same artifact contract; **light
      verify**: a single verifier pass that may iterate at most **once** on
      blocking findings (`VERIFY_ITERATION_CAP["light"] = 1`). The verifier
      still gates; there is no human-approval gate.
@@ -300,8 +303,12 @@ growth path.
      verify** (1-iteration cap) as TRIVIAL.
   3. **STANDARD** (standard size; also the floor for a high-stakes ticket that
      is not large or an epic) — same
-     universal spec-authoring fold as every lane, differing only in **verify
-     depth**; **full verify** (the existing up-to-3-iteration
+     universal spec-authoring fold as every lane; since MAR-72 this is also
+     the floor lane where the coordinator spawns the `code-planner` subagent
+     (TRIVIAL/SMALL author `plan.md` coordinator-side instead, with zero
+     planner spawns) — the fast and full lane pairs now differ in **both**
+     planner-spawn and verify depth, not depth alone; **full verify** (the
+     existing up-to-3-iteration
      execute→verify loop (one up-front plan, not a per-iteration plan→execute→verify loop) + 14-dimension, multi-lens review + e2e when configured).
      Apply-work skills (create-pr, merge-pr, create-ticket) run **inline**
      (coordinator + at most one executor), never a full triad, in every lane.

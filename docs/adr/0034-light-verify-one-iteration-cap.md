@@ -45,6 +45,15 @@ Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
    an iteration counts changed, from a plan+execute+verify triad to an
    execute+verify round.
 
+   **Amendment (MAR-72, slice 2 of MAR-69):** the coordinator's planner spawn
+   this ADR assumed as unconditional (one `acs:code-planner` subagent per
+   run, every lane) is now STANDARD/COMPLEX-only. On TRIVIAL/SMALL, the
+   coordinator authors `plan.md` itself with zero planner spawns, against the
+   identical artifact contract — this ADR's iteration caps (light = 1, full =
+   3) are unchanged; see
+   `docs/adr/0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md`
+   for the full decision and the honest G14 scoping this narrowing implies.
+
 5. **Two invariants hold in every lane**, unconditionally:
    - The **verifier subagent is the in-loop quality gate in every lane** (C-5).
      Light verify reduces the iteration ceiling only; the verifier always runs.

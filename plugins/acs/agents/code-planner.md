@@ -31,6 +31,11 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   before the loop, and never receives verifier findings; those route
   straight to the executor on iteration 2+.
 
+**This agent is spawned only on STANDARD/COMPLEX lanes (MAR-72).** On
+TRIVIAL/SMALL, the coordinator authors `<partition>/phases/code/plan.md`
+itself, against the same required-heading contract this agent's Phase
+artifact section below defines — this agent is never invoked on those lanes.
+
 ## Charter — what a /acs:code plan contains
 
 1. **Spec intake — dual-mode, forking on whether `<partition>/specs/`
