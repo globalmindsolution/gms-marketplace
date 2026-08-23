@@ -18,6 +18,7 @@ erDiagram
     TICKET ||--o{ PHASE_ARTIFACT : "plan/execute/verify per iteration"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
+    TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
 
     TICKET {
         string id PK "SHOP-123"
@@ -42,9 +43,20 @@ erDiagram
     SKILL_STATE {
         string skill PK
         string ticket_id FK
-        json states "canonical keys per skill"
+        json states "canonical keys per skill; code's states.plan_approved is the first key written by a script (plan-approval.py) rather than the skill's own post-hook or coordinator — MAR-73, slice 3 of MAR-69; see INTERNALS.md's canonical-keys table"
         array findings
         array errors
+    }
+    PLAN_APPROVAL {
+        string ticket_id FK
+        string skill "code"
+        enum lane "STANDARD|COMPLEX (recomputed, never cached ticket.lane)"
+        datetime approved_at
+        bool eligible
+        string plan_path "relative to the ticket partition"
+        string plan_sha256 "digest of the approved plan.md bytes"
+        json predicate "function, inputs, checks, failures — acs_lib.plan_approval_eligible's verdict"
+        string writer "plan-approval.py (sole writer, never a subagent or the coordinator)"
     }
     RUN_ENTRY {
         datetime started_at
@@ -92,6 +104,13 @@ reserved for a future revocation path and is neither written nor read today.
 Modelling this precisely — a `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
 entity block and a narrowed `PHASE_ARTIFACT` relationship label — is owned by
 MAR-69 slices 3/4; this note records the gap without pre-empting that edit.
+
+**Amendment (MAR-73, slice 3 of MAR-69).** The `PLAN_APPROVAL` half of the
+gap above is now modelled: the `PLAN_APPROVAL` entity block and its
+`TICKET ||--o| PLAN_APPROVAL` relationship above are the real artifact
+behind it, written solely by `plan-approval.py` on STANDARD/COMPLEX. `PLAN`
+and `PLAN_SUPERSEDED` — and the narrowed `PHASE_ARTIFACT` relationship label
+covering them — remain unwritten and unread, and stay owned by **slice 4**.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 

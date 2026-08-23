@@ -118,25 +118,20 @@ If `context.handoff_summary` exists, read it plus
 reconcile (trust the summary, but cheaply verify by running the tests it says
 pass), and continue from where it points.
 
-### Plan artifact resolution (read-both compat)
+### Plan artifact resolution
 
 The plan artifact is `<partition>/phases/code/plan.md`, written and read by
-the coordinator, the planner, the executor, and the verifier.
+the coordinator, the planner, the executor, and the verifier. This is the
+only name or path ever read or written for the plan artifact, in every
+lane, on every run.
 
-**Fresh run.** When no plan artifact of either name exists yet, read and
-write only `plan.md`; a fresh run never creates a new iteration-numbered
-plan file.
+**Fresh run.** When no plan artifact exists yet, read and write only
+`plan.md`; a fresh run never creates a new iteration-numbered plan file.
 
-**Resume only.** When `plan.md` is absent on resume, resolve the plan
-artifact to the highest-numbered existing
-`<partition>/phases/code/iter-*-plan.md` (glob
-`<partition>/phases/code/iter-*-plan.md`, take the largest `n`) — an
-in-flight ticket that started before this rename shipped. Pass the resolved
-absolute path to executor and verifier in `<inputs>`; the legacy file is
-never renamed, moved, or copied (no backfill).
-
-**One release.** This read-both fallback is supported for one release
-(current plugin version `0.4.7`).
+**Resume.** If `plan.md` is absent on resume, that is treated the same as
+any other missing or incomplete phase artifact under "Resume & reconcile"
+above — re-derive from what actually exists rather than fabricating a plan.
+There is no other name for this artifact to fall back to.
 
 **Reservation.** `<partition>/phases/code/plan-superseded-<k>.md` is
 reserved for the plan-revocation path (MAR-69 slice 4) and is not written or
@@ -476,6 +471,44 @@ subagent is spawned, no `<task phase="plan">` message is sent and no
 the durable record on every lane; the resume path is unchanged because it
 keys on the presence of `plan.md`, never on who authored it.
 
+### Plan approval (STANDARD/COMPLEX, after the plan, before the loop)
+
+On STANDARD/COMPLEX lanes only — the same freshly recomputed lane as the
+Plan step above — immediately after `plan.md` is written and before the
+reflection loop begins, run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
+```
+
+This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
+— never a subagent's `Write` tool, and never the coordinator's own `Write`
+either. An LLM-asserted approval is not an approval: eligibility is computed
+by `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
+`settings.test_coverage_percent`, never by any agent's self-report.
+
+The script writes at most one record per approved plan digest: a second
+invocation over the same `plan.md` bytes is a no-op that re-asserts the
+existing verdict (idempotent on resume, once per run otherwise); a revised
+`plan.md` (a new sha256 digest) writes a fresh record. On TRIVIAL/SMALL the
+script no-ops with `plan_approved: false` and writes no record at all — this
+release does not extend approval to the fast lanes.
+
+An ineligible plan does NOT block this release: the script exits 0, prints
+the failing checks, and the coordinator continues the run with
+`states.plan_approved: false`, at most revising `plan.md` once and
+re-running the script before moving on — no loop, and nothing gates on
+`plan_approved` in this release.
+
+Copy the script's printed `plan_approved` value verbatim into
+`<partition>/phases/code/result.json`'s `states.plan_approved` at Finish —
+never assert it yourself.
+
+An explicit `--plan` must resolve within `<partition>/phases/code/`; the
+script rejects (clean stderr, exit 2, no record written) any `--plan` whose
+realpath escapes that directory, and any future consumer of this record must
+do the same rather than trust a caller-supplied path.
+
 ### Docs-only tickets (`ticket.docs_only: true`)
 
 When the ticket carries the user-confirmed `docs_only` flag, the TDD steps
@@ -753,6 +786,7 @@ MANDATORY final step — never skipped, also on failure:
      "stop_reason": "verifier passed on iteration 2 with 0 findings",
      "states": {
        "verifier_passed": true,
+       "plan_approved": true,
        "branch": "task/SHOP-123-bulk-import",
        "specs_implemented": ["01-data-model.md", "02-import-endpoint.md"],
        "tests": {"passed": 84, "failed": 0, "coverage_percent": 93.4, "coverage_target": 90},
@@ -769,6 +803,9 @@ MANDATORY final step — never skipped, also on failure:
    Canonical `states` keys — EXACT names; pre-create-pr.py gates on them:
    - `verifier_passed`: `true` ONLY on a zero-findings verifier pass. This is
      the /acs:create-pr gate.
+   - `plan_approved`: `true`/`false`, copied verbatim from `plan-approval.py`'s
+     printed output on STANDARD/COMPLEX (see `### Plan approval` above);
+     `false` on TRIVIAL/SMALL or an ineligible plan. Not a gate this release.
    - `branch`: the ticket branch name (rendered from `formats.branch_name`).
    - `specs_implemented`: spec basenames fully implemented AND verified, in
      order.

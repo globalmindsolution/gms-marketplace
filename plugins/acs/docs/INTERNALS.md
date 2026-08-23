@@ -195,7 +195,7 @@ The next skill reads these — keep the names exact:
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (partition-relative `design.md`), `decision` (one line) |
-| code | `verifier_passed: true/false` (the /create-pr gate), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
+| code | `verifier_passed: true/false` (the /create-pr gate), `plan_approved: true/false` (written by `plan-approval.py`; not a gate this release), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr gate) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
 

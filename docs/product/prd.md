@@ -306,8 +306,11 @@ growth path.
      universal spec-authoring fold as every lane; since MAR-72 this is also
      the floor lane where the coordinator spawns the `code-planner` subagent
      (TRIVIAL/SMALL author `plan.md` coordinator-side instead, with zero
-     planner spawns) — the fast and full lane pairs now differ in **both**
-     planner-spawn and verify depth, not depth alone; **full verify** (the
+     planner spawns) — the fast and full lane pairs now differ in
+     planner-spawn, verify depth, **and** whether a deterministic
+     plan-approval record is written (`states.plan_approved`, computed from
+     the plan's own content by a hook script and gating nothing this
+     release), not verify depth alone; **full verify** (the
      existing up-to-3-iteration
      execute→verify loop (one up-front plan, not a per-iteration plan→execute→verify loop) + 14-dimension, multi-lens review + e2e when configured).
      Apply-work skills (create-pr, merge-pr, create-ticket) run **inline**

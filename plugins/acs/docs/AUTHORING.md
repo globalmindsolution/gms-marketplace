@@ -86,8 +86,9 @@ win — change them first, then the implementation.
    after the phase. Exception: `/acs:code`'s planner writes a single
    per-ticket `plan.md` instead (MAR-70), written once per run, before the
    loop (MAR-71, slice 1b of MAR-69) — see `skills/code/SKILL.md`'s "Plan
-   artifact resolution (read-both compat)" section for the resume fallback;
-   every other triad skill keeps the generic rule. Since MAR-72, on
+   artifact resolution" section (`plan.md` is the only name ever read or
+   written, in every case, including on resume); every other triad skill
+   keeps the generic rule. Since MAR-72, on
    TRIVIAL/SMALL that `plan.md` is written by the **coordinator**, not a
    planner subagent — an agent author must not assume a `-planner` body is
    always the writer of `/acs:code`'s plan artifact.

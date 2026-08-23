@@ -900,19 +900,21 @@ bind `/code`'s plan phase:
   before implementation"), runs its mandatory Finish steps, and returns
   `<next-step>` pointing at `/acs:create-ticket split <id> per
   <partition>/phases/code/plan.md`.
-- **Plan-artifact naming (MAR-70).** The plan artifact is a
-  single per-ticket `<partition>/phases/code/plan.md` (authored by the
-  `code-planner` on STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL —
-  MAR-72), written exactly once
-  per run, before the loop. On **resume only**,
-  when `plan.md` is absent, `/code` resolves the highest-numbered
-  `<partition>/phases/code/iter-*-plan.md` instead (never renaming, moving,
-  or copying it), a read-both compatibility path supported for **one
-  release**. `<partition>/phases/code/plan-superseded-<k>.md` is **reserved**
-  for the plan-revocation path and is neither written nor read today. This is
-  the naming axis only — the executor's `-execute[-<k>].json`, the
-  verifier's `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml`
-  message snapshots are unaffected.
+- **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
+  MAR-73).** The plan artifact is a single per-ticket
+  `<partition>/phases/code/plan.md` (authored by the `code-planner` on
+  STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
+  exactly once per run, before the loop. `plan.md` is the only name ever
+  read or written for the plan artifact, in every case, on every lane — the
+  MAR-70-era resume-only read-both fallback to the highest-numbered
+  `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
+  explicit product decision); a ticket that never completed its MAR-70-era
+  transition to `plan.md` is no longer resumable via this path.
+  `<partition>/phases/code/plan-superseded-<k>.md` is **reserved** for the
+  plan-revocation path and is neither written nor read today. This is the
+  naming axis only — the executor's `-execute[-<k>].json`, the verifier's
+  `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml` message
+  snapshots are unaffected.
 - **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
   execute → verify: the plan above is authored exactly once per run, before
   the loop starts, so exactly one `code-planner` subagent is spawned across
@@ -927,6 +929,22 @@ bind `/code`'s plan phase:
   execute+verify rounds rather than plan+execute+verify triads. Mid-flight
   escalation (MAR-57)'s detection point and monotone ceiling are unaffected;
   escalation never retro-spawns a planner (D-3).
+- **Coordinator plan approval (MAR-73, slice 3 of MAR-69).** On
+  **STANDARD/COMPLEX** only, after `plan.md` is authored and before the loop
+  starts, `/code` MUST record a **deterministic plan-approval verdict**:
+  `plan-approval.py` computes `acs_lib.plan_approval_eligible` from the plan
+  artifact's own content plus `settings.test_coverage_percent` and is the
+  **sole writer** of `<partition>/phases/code/plan-approval.json` — never a
+  subagent's `Write`, never the coordinator's, never an LLM self-assertion.
+  The record carries the predicate's inputs, checks, failures and the
+  approved plan's **sha256**, and is written **at most once per approved
+  plan digest** (idempotent on resume; a revised `plan.md` writes a fresh
+  record). `states.plan_approved` is copied verbatim into `/code`'s
+  `result.json` and mirrored into `code-state.json`; it is **`false`** on
+  TRIVIAL/SMALL (no record is written at all) and on an ineligible plan. An
+  ineligible plan **does not block** this release: the run continues, at
+  most revising `plan.md` once and re-running the script. **Nothing gates on
+  `plan_approved`** — the `/create-pr` gate remains `verifier_passed` alone.
 - **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
   `code-planner.md` charter items that would otherwise run as part of the
   (unspawned) planner — the spec-simplicity gate, the oversize signal, the

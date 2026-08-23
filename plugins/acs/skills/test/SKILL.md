@@ -146,16 +146,10 @@ a ticket id), the run set for Steps 2-3 below is narrowed to:
 
 1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one.
 2. Any suite named in the ticket's own folded Test-plan section, read from
-   `<partition>/phases/code/plan.md`; when that file is absent (an in-flight
-   ticket that started before the plan artifact was renamed to `plan.md`),
-   fall back to the most recent `iter-<n>-plan.md` file (the highest `n`)
-   present under `<partition>/phases/code/` at the time this invocation runs
-   — glob `<partition>/phases/code/iter-*-plan.md` and take the entry with
-   the highest `n`. This selection is re-evaluated fresh on every
-   `--for-ticket` invocation, never cached from an earlier call, so a
-   later plan write (or, for the fallback, a later higher-numbered plan
-   iteration) is picked up automatically the next time this mode runs. A
-   suite named there is included only when it is also a key in
+   `<partition>/phases/code/plan.md`. This selection is re-evaluated fresh
+   on every `--for-ticket` invocation, never cached from an earlier call, so
+   a later plan write is picked up automatically the next time this mode
+   runs. A suite named there is included only when it is also a key in
    `ctx["settings"]["suites"]`.
 
 This is narrower than the standing default (which runs every `suites`
