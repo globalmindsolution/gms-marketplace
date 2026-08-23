@@ -14,8 +14,9 @@ per-ticket plan artifact (MAR-70) — the other eleven triad skills write
 `iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
 MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 / `PL->>WS` steps below happen **once, before** the `loop reflection` block for
-`/acs:code`; the other eleven triad skills re-enter the plan step on every
-iteration as drawn). The three **apply-work
+`/acs:code`; for the other eleven triad skills the plan step instead sits
+**inside** the `loop reflection` block, a shape this `/acs:code`-traced diagram
+no longer draws). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —
