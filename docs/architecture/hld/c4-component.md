@@ -67,8 +67,11 @@ apply-work executors that is **39 reachable agents**; the 6 plan/verify
 files of the apply-work skills remain on disk but are orphaned.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
-lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3),
-spec authoring folds into the plan phase on every lane whenever
+lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
+`/code`'s loop body is execute → verify with the plan authored once before the
+loop — MAR-71, slice 1b of MAR-69 — so this ceiling counts execute+verify
+rounds, and exactly one `code-planner` is spawned per run), spec authoring
+folds into the plan phase on every lane whenever
 `<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
 recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is

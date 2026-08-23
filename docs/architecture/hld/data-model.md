@@ -79,12 +79,15 @@ erDiagram
     }
 ```
 
-**PHASE_ARTIFACT note (MAR-70).** The `"plan/execute/verify per iteration"`
-cardinality above holds as stated for the execute and verify artifacts, and
-for the plan artifact of the eleven triad skills other than `/acs:code`.
-`/acs:code`'s plan artifact is a single per-ticket
-`phases/code/plan.md`, rewritten in place on each planning iteration rather
-than written once per iteration; `phases/code/plan-superseded-<k>.md` is
+**PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b).** The
+`"plan/execute/verify per iteration"` cardinality above holds as stated for
+the execute and verify artifacts, and for the plan artifact of the eleven
+triad skills other than `/acs:code`. `/acs:code`'s plan artifact is a single
+per-ticket `phases/code/plan.md`, written **exactly once per run**, before
+the loop, so `/acs:code` has one plan artifact per ticket regardless of
+iteration count (never rewritten in place on a later iteration — MAR-71,
+slice 1b of MAR-69; this covers the `plan` leg of the ER label above for
+`/acs:code`); `phases/code/plan-superseded-<k>.md` is
 reserved for a future revocation path and is neither written nor read today.
 Modelling this precisely — a `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
 entity block and a narrowed `PHASE_ARTIFACT` relationship label — is owned by

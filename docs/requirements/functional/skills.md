@@ -900,8 +900,8 @@ bind `/code`'s plan phase:
   `<next-step>` pointing at `/acs:create-ticket split <id> per
   <partition>/phases/code/plan.md`.
 - **Plan-artifact naming (MAR-70).** The `code-planner`'s plan artifact is a
-  single per-ticket `<partition>/phases/code/plan.md`, rewritten in place on
-  each planning iteration — not one file per iteration. On **resume only**,
+  single per-ticket `<partition>/phases/code/plan.md`, written exactly once
+  per run, before the loop. On **resume only**,
   when `plan.md` is absent, `/code` resolves the highest-numbered
   `<partition>/phases/code/iter-*-plan.md` instead (never renaming, moving,
   or copying it), a read-both compatibility path supported for **one
@@ -910,6 +910,15 @@ bind `/code`'s plan phase:
   the naming axis only — the executor's `-execute[-<k>].json`, the
   verifier's `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml`
   message snapshots are unaffected.
+- **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
+  execute → verify: the plan above is authored exactly once per run, before
+  the loop starts, so exactly one `code-planner` subagent is spawned across
+  the whole run, however many iterations it uses. On iteration 2+, the
+  verifier's findings are delivered to the executor's `<context>` — never to
+  a new planner spawn — and the executor authors the remediation. The
+  light=1 / full=3 verify-depth caps are unchanged in value; they now count
+  execute+verify rounds rather than plan+execute+verify triads. Mid-flight
+  escalation (MAR-57)'s detection point and monotone ceiling are unaffected.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 

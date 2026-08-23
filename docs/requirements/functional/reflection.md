@@ -47,14 +47,19 @@ Requirements:
   the verifier judges the work fresh rather than rubber-stamping its own
   output.
 - On verification failure, the cycle reflects: the coordinator feeds the
-  verifier's findings back into another plan/execute iteration.
+  verifier's findings back into another plan/execute iteration. Exception:
+  for `/acs:code`, findings feed the **executor's** `<context>` on the next
+  iteration — execute → verify only, with no re-plan and no second planner
+  spawn (MAR-71, slice 1b of MAR-69).
   - The cycle runs at most **lane-driven iterations**:
     - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **1 iteration** (light
       verify — single verifier pass that may iterate once on blocking findings;
       cap = `VERIFY_ITERATION_CAP["light"]` = 1).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
-      **3 iterations** (full verify — existing plan→execute→verify loop + full
-      14-dimension, multi-lens review + e2e when configured, unchanged; cap =
+      **3 iterations** (full verify — execute → verify loop, with the plan
+      authored once before it starts rather than a per-iteration
+      plan→execute→verify loop, + full 14-dimension, multi-lens review + e2e
+      when configured; an iteration is one execute+verify round; cap =
       `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 14 dimensions are
       split across 4 parallel independent lenses (each reading a distinct
       evidence source), followed by a coordinator-performed
@@ -164,8 +169,13 @@ flowchart TD
     CO -->|XML task + result| VF[verifier]
     VF -->|XML verdict| CO
     CO -->|verdict = fail, iterations left| PL
+    CO -->|verdict = fail, iterations left (/acs:code)| EX
     CO -->|verdict = pass| ST[(write state JSON via post-hook)]
 ```
+
+For `/acs:code` (MAR-71, slice 1b of MAR-69), a failing verdict with
+iterations left routes straight back to the **executor** (`EX`), never to
+the planner — the plan is authored once, before iteration 1.
 
 ## Coordinator ↔ subagent communication: XML
 
@@ -211,8 +221,9 @@ during design:
   reasons** into JSON files in the workspace folder. Concretely, every phase
   writes its own artifact into `<partition>/phases/<skill>/`: the planner
   `iter-<n>-plan.md` (the complete plan) — except `/acs:code`, whose planner
-  writes a single per-ticket `plan.md`, rewritten in place each iteration
-  (MAR-70) — each executor `iter-<n>-execute[-<k>].json` (artifacts produced,
+  writes a single per-ticket `plan.md` (MAR-70), written once per run,
+  before the loop (MAR-71, slice 1b of MAR-69) — each executor
+  `iter-<n>-execute[-<k>].json` (artifacts produced,
   repo files changed, commands run with outcomes), the verifier
   `iter-<n>-verify.md` (every check with evidence, every finding in detail).
   XML results reference these files, never inline their bodies.

@@ -18,4 +18,5 @@ respectively, per the reorg mapping.
 | Living architecture | The product architecture doc set (HLD: C4 views; LLD: sequence-diagram flows) in the consumer repo frames every design; `/code` keeps it current as changes land. |
 | PRD at the top | The PRD (vision, goals, features, product NFRs) is the root of the conformance chain **PRD → architecture → principles → standards → design → code**; tickets trace to it, divergence is flagged. |
 | Automatic review loop | The `code-verifier` reviews the whole changeset (business logic, quality, architecture, security, …); blocking findings loop back through plan → execute automatically, max 3 iterations. |
+| Automatic review loop (amended, MAR-71 slice 1b of MAR-69) | For `/acs:code`, the row above's loop-shape description no longer holds: blocking findings now loop back through **execute → verify** only — the plan is authored once, before the loop, and the executor remediates each finding — while the max-3-iteration cap **value** is unchanged. |
 | Human merge gate | `/merge-pr` only runs on explicit user invocation, after the user has reviewed the PR themselves. |

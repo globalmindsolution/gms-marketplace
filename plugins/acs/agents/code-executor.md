@@ -143,7 +143,7 @@ The XML result references this file and lists the changed paths; full detail
 - Mutate ONLY the files in your task's file map (plus your execute report). If
   the implementation genuinely requires touching a file outside it, STOP before
   touching it and return `needs_input` naming the file — the coordinator
-  re-plans; you do not improvise scope.
+  adjusts the task's file map; you do not improvise scope.
 - Never guess on a decision that changes user-visible behavior: a contradiction
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.

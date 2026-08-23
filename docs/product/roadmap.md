@@ -57,7 +57,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
 - 24 skills + 45 agent files on disk (verified `ls plugins/acs/skills` = 24,
   `ls plugins/acs/agents` = 45); the reflection (plan→execute→verify) protocol is
-  active on the twelve triad-keeping skills, while the three apply-work skills
+  active on the twelve triad-keeping skills (`/acs:code` now plans once per
+  run rather than per iteration; the other eleven keep the per-iteration
+  shape), while the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
