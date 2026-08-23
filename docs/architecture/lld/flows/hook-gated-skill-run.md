@@ -11,7 +11,11 @@ verifier), which is how the twelve triad-keeping skills run (`create-prd`,
 `create-requirements` — `/acs:code` is the example traced here; the diagram's
 `PL->>WS` plan write is therefore labeled `plan.md`, `/acs:code`'s single
 per-ticket plan artifact (MAR-70) — the other eleven triad skills write
-`iter-n-plan.md` there instead). The three **apply-work
+`iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
+MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
+/ `PL->>WS` steps below happen **once, before** the `loop reflection` block for
+`/acs:code`; the other eleven triad skills re-enter the plan step on every
+iteration as drawn). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —
@@ -47,13 +51,13 @@ sequenceDiagram
         opt reconcile / handoff resume
             CO->>WS: read runs[-1], phase artifacts, re-verify recorded work
         end
-        loop reflection (max 3 iterations)
-            CO->>PL: XML <task phase="plan">
-            PL->>WS: plan.md
-            PL-->>CO: XML <result> (validated)
-            opt open questions
-                CO->>Dev: clarify (ledger first, record answers)
-            end
+        CO->>PL: XML <task phase="plan">
+        PL->>WS: plan.md
+        PL-->>CO: XML <result> (validated)
+        opt open questions
+            CO->>Dev: clarify (ledger first, record answers)
+        end
+        loop reflection (execute → verify, max 3 iterations)
             CO->>EX: XML <task phase="execute"> (parallel if file maps disjoint)
             EX->>WS: iter-n-execute.json (+ repo edits, commits)
             EX-->>CO: XML <result>
@@ -80,8 +84,10 @@ The iteration ceiling for the reflection loop is **lane-driven**:
 - **TRIVIAL/SMALL lanes** (low/normal stakes): cap = **1** iteration — light
   verify (single verifier pass that may iterate once on blocking findings).
 - **STANDARD/COMPLEX lanes** (or any high-stakes ticket): cap = **3** iterations
-  — full verify (existing plan→execute→verify loop + full 12-dimension review
-  + e2e when configured), unchanged.
+  — full verify (execute → verify loop, with the plan authored once
+  before it starts rather than a per-iteration plan→execute→verify loop, + full
+  12-dimension review + e2e when configured); the cap counts execute+verify
+  rounds (MAR-71, slice 1b of MAR-69).
 
 The ceiling is determined by `verify_depth(ticket.lane, ticket.stakes)` in
 `acs_lib.py` (see `VERIFY_ITERATION_CAP`). High-stakes tickets ALWAYS use full
