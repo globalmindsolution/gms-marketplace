@@ -55,7 +55,12 @@ create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, create-design, code, docs-sync,
 standardize-project, create-requirements) run the full plan→execute→verify
 reflection loop, spawning a separate planner, executor, and verifier subagent
-per phase — so **12 active triads (36 agents in triads)**. The **three
+per phase — so **12 active triads (36 agents in triads)**. Within that,
+`/code`'s planner leg is lane-conditional since MAR-72: the planner subagent is
+spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator authors the plan
+artifact itself, with zero planner spawns (ADR 0074). The execute and verify
+legs stay unconditional in every lane, for `/code` and for the other eleven
+triad-keeping skills, so the counts above are unaffected. The **three
 apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**
 (MAR-60): the coordinator performs the work
 directly or delegates to **at most one** executor subagent, and **never
@@ -70,7 +75,9 @@ files of the apply-work skills remain on disk but are orphaned.
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
 `/code`'s loop body is execute → verify with the plan authored once before the
 loop — MAR-71, slice 1b of MAR-69 — so this ceiling counts execute+verify
-rounds, and exactly one `code-planner` is spawned per run), spec authoring
+rounds, and exactly one `code-planner` is spawned per run **on STANDARD/COMPLEX
+only — on TRIVIAL/SMALL the coordinator authors `plan.md` itself and no
+`code-planner` is spawned** (MAR-72, ADR 0074)), spec authoring
 folds into the plan phase on every lane whenever
 `<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
