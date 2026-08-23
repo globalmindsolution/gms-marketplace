@@ -64,6 +64,7 @@ context and consequences.
 | [0072](0072-shared-importable-test-fixture.md) | Shared importable test fixture (`tests/acs/acs_case.py`) for concurrent per-module test authoring across child tickets | Accepted |
 | [0074](0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md) | Lane-conditional planning: `/acs:code`'s coordinator spawns `code-planner` only on STANDARD/COMPLEX; TRIVIAL/SMALL get a coordinator-authored `plan.md` instead | Accepted |
 | [0075](0075-planning-implementation-pipeline-split-epics-never-implemented.md) | Pipeline splits into a planning phase (`create-ticket(epic) → create-design → fan-out`) and an implementation phase (`create-ticket → code → … → merge-pr`); epics are never implemented | Accepted |
+| [0076](0076-plan-approval-deterministic-predicate-hook-script-sole-writer.md) | Coordinator plan approval: a deterministic predicate, recorded by a hook script, never gated this release | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.
