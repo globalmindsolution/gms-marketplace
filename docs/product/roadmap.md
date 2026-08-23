@@ -637,9 +637,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
   4. **code-planner user-confirmed stakes-bump** — `/acs:code`'s planner
-     (which self-authors spec content on every lane, ADR 0066) may propose a
-     user-confirmed ticket stakes bump on discovering a high-stakes surface
-     (metadata-accuracy only; composes with **C-7**/**C-12**, does not alter
+     (spec content's author is lane-conditional: the code-planner on
+     STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL, per ADR-0074) may
+     propose a user-confirmed ticket stakes bump on discovering a
+     high-stakes surface (metadata-accuracy only; composes with
+     **C-7**/**C-12**, does not alter
      **G25**'s escalation mechanism). Maps to PRD **G25, C-12**. The
      MECHANISM is settled in this epic's design phase.
 

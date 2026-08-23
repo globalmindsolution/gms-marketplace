@@ -39,10 +39,6 @@ def norm(body):
     return re.sub(r"\s+", " ", body)
 
 
-def section(body, start_heading, end_heading):
-    return body[body.index(start_heading):body.index(end_heading)]
-
-
 def mermaid_block_and_after(body, after_len=800):
     """Return (fenced ```mermaid block text, prose immediately following it)."""
     start = body.index("```mermaid")

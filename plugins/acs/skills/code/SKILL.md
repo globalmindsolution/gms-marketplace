@@ -367,50 +367,6 @@ ticket.needs_design, ticket.type)`, never the cached `ticket.lane` (D-2).
 consumer-repo source/docs. The planner returns (artifact:
 `<partition>/phases/code/plan.md`):
 
-**TRIVIAL/SMALL — the coordinator authors `plan.md` itself; zero
-`acs:code-planner` spawns.** No Agent-tool spawn happens for this phase on
-these lanes. The coordinator writes `<partition>/phases/code/plan.md`
-directly, against the IDENTICAL artifact contract `code-planner.md` requires
-— the same six required headings
-(`## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
-`## Documentation map`, `## Risks`, `## Verifier checklist`), the same five
-fold section literals in the exact order
-`structure_lint.py --sections "Scope; Approach; API/data changes; Test plan; Out of scope" --ordered`
-checks when the fold is active, the same two
-mandatory verbatim clauses below, and an explicit statement of which intake
-mode applied. **"Minimal" means the coordinator skips the separate-subagent
-authorship step, never that a section is empty, a placeholder, or "see
-ticket"** — every section must be substantive, because the verifier's
-completeness sub-check (dimension 1) judges this artifact identically
-whether the planner or the coordinator wrote it. This coordinator-authored
-`plan.md` is passed to the executor's and the verifier's `<inputs>` exactly
-like a planner-authored one — no downstream consumer sees a lesser artifact.
-
-On TRIVIAL/SMALL the coordinator performs, at minimum: the AC-to-test
-mapping, the executor file map, the test/coverage commands and tooling, the
-`docs/product/prd.md`/`docs/product/roadmap.md` factual assessment (this
-sub-check stays BLOCKING on every lane — skipping it only manufactures a
-verifier finding), and the verifier checklist. The remaining
-`code-planner.md` charter items — the Boy-scout drift survey, the E1-E4
-doc-graph-gap check, the spec-simplicity gate, and the oversize signal — are
-**best-effort** on these lanes only; their omission is never a finding.
-
-**D-3 — mid-flight escalation never retro-spawns a planner.** When a
-TRIVIAL/SMALL run escalates to STANDARD/COMPLEX mid-flight (see "In-loop
-escalation check" above), the escalation raises verify depth and the
-iteration ceiling only — it never spawns a planner after the fact, and the
-coordinator-authored `plan.md` remains the plan artifact for the rest of the
-run, because it already satisfies the same contract. The symmetric
-user-confirmed de-escalation (see "Boundary-only user-confirmed
-de-escalation" above) likewise never revokes an already-authored plan.
-
-**D-4 — no plan XML message on the fast lanes.** Because no planner
-subagent is spawned, no `<task phase="plan">` message is sent and no
-`<result>` is returned — there is no plan message to validate and no
-`iter-<n>-plan.xml` snapshot to persist on TRIVIAL/SMALL. `plan.md` remains
-the durable record on every lane; the resume path is unchanged because it
-keys on the presence of `plan.md`, never on who authored it.
-
 **Spec authoring fold (`specs/` absent or empty, every lane)**
 
 Before producing the standard plan content, check whether
@@ -475,6 +431,50 @@ block (AC-6) apply unchanged in every lane; see those sections.
   re-plan. On iterations 2-3, the verifier's findings route straight to the
   executor's `<task>` `<context>` (`code-executor.md:29-30`), where the
   executor authors the remediation.
+
+**TRIVIAL/SMALL — the coordinator authors `plan.md` itself; zero
+`acs:code-planner` spawns.** No Agent-tool spawn happens for this phase on
+these lanes. The coordinator writes `<partition>/phases/code/plan.md`
+directly, against the IDENTICAL artifact contract `code-planner.md` requires
+— the same six required headings
+(`## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
+`## Documentation map`, `## Risks`, `## Verifier checklist`), the same five
+fold section literals in the exact order
+`structure_lint.py --sections "Scope; Approach; API/data changes; Test plan; Out of scope" --ordered`
+checks when the fold is active, the same two
+mandatory verbatim clauses above, and an explicit statement of which intake
+mode applied. **"Minimal" means the coordinator skips the separate-subagent
+authorship step, never that a section is empty, a placeholder, or "see
+ticket"** — every section must be substantive, because the verifier's
+completeness sub-check (dimension 1) judges this artifact identically
+whether the planner or the coordinator wrote it. This coordinator-authored
+`plan.md` is passed to the executor's and the verifier's `<inputs>` exactly
+like a planner-authored one — no downstream consumer sees a lesser artifact.
+
+On TRIVIAL/SMALL the coordinator performs, at minimum: the AC-to-test
+mapping, the executor file map, the test/coverage commands and tooling, the
+`docs/product/prd.md`/`docs/product/roadmap.md` factual assessment (this
+sub-check stays BLOCKING on every lane — skipping it only manufactures a
+verifier finding), and the verifier checklist. The remaining
+`code-planner.md` charter items — the Boy-scout drift survey, the E1-E4
+doc-graph-gap check, the spec-simplicity gate, and the oversize signal — are
+**best-effort** on these lanes only; their omission is never a finding.
+
+**D-3 — mid-flight escalation never retro-spawns a planner.** When a
+TRIVIAL/SMALL run escalates to STANDARD/COMPLEX mid-flight (see "In-loop
+escalation check" above), the escalation raises verify depth and the
+iteration ceiling only — it never spawns a planner after the fact, and the
+coordinator-authored `plan.md` remains the plan artifact for the rest of the
+run, because it already satisfies the same contract. The symmetric
+user-confirmed de-escalation (see "Boundary-only user-confirmed
+de-escalation" above) likewise never revokes an already-authored plan.
+
+**D-4 — no plan XML message on the fast lanes.** Because no planner
+subagent is spawned, no `<task phase="plan">` message is sent and no
+`<result>` is returned — there is no plan message to validate and no
+`iter-<n>-plan.xml` snapshot to persist on TRIVIAL/SMALL. `plan.md` remains
+the durable record on every lane; the resume path is unchanged because it
+keys on the presence of `plan.md`, never on who authored it.
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 
