@@ -900,19 +900,21 @@ bind `/code`'s plan phase:
   before implementation"), runs its mandatory Finish steps, and returns
   `<next-step>` pointing at `/acs:create-ticket split <id> per
   <partition>/phases/code/plan.md`.
-- **Plan-artifact naming (MAR-70).** The plan artifact is a
-  single per-ticket `<partition>/phases/code/plan.md` (authored by the
-  `code-planner` on STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL —
-  MAR-72), written exactly once
-  per run, before the loop. On **resume only**,
-  when `plan.md` is absent, `/code` resolves the highest-numbered
-  `<partition>/phases/code/iter-*-plan.md` instead (never renaming, moving,
-  or copying it), a read-both compatibility path supported for **one
-  release**. `<partition>/phases/code/plan-superseded-<k>.md` is **reserved**
-  for the plan-revocation path and is neither written nor read today. This is
-  the naming axis only — the executor's `-execute[-<k>].json`, the
-  verifier's `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml`
-  message snapshots are unaffected.
+- **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
+  MAR-73).** The plan artifact is a single per-ticket
+  `<partition>/phases/code/plan.md` (authored by the `code-planner` on
+  STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
+  exactly once per run, before the loop. `plan.md` is the only name ever
+  read or written for the plan artifact, in every case, on every lane — the
+  MAR-70-era resume-only read-both fallback to the highest-numbered
+  `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
+  explicit product decision); a ticket that never completed its MAR-70-era
+  transition to `plan.md` is no longer resumable via this path.
+  `<partition>/phases/code/plan-superseded-<k>.md` is **reserved** for the
+  plan-revocation path and is neither written nor read today. This is the
+  naming axis only — the executor's `-execute[-<k>].json`, the verifier's
+  `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml` message
+  snapshots are unaffected.
 - **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
   execute → verify: the plan above is authored exactly once per run, before
   the loop starts, so exactly one `code-planner` subagent is spawned across

@@ -97,12 +97,16 @@ class TicketScopedSubsectionTest(unittest.TestCase):
 
     def test_suite_scoping_selection_rule_language(self):
         sub = self._subsection()
-        self.assertIsNotNone(
-            re.search(r"(?i)most recent|highest", sub),
-            "suite-scoping rule must state 'most recent'/'highest'")
         self.assertIn("phases/code/plan.md", sub)
-        self.assertIn("iter-*-plan.md", sub)
-        self.assertIn("`n`", sub)
+        self.assertIsNotNone(
+            re.search(r"(?i)re-evaluated fresh", sub),
+            "suite-scoping rule must state the selection is re-evaluated "
+            "fresh on every --for-ticket invocation")
+        # MAR-73 retired the MAR-70 read-both resume fallback: plan.md is
+        # the only name ever read here now -- no legacy iter-*-plan.md
+        # literal should survive in this subsection.
+        self.assertNotIn("iter-*-plan.md", sub)
+        self.assertNotIn("iter-<n>-plan.md", sub)
 
 
 class UnconditionalSkipTest(unittest.TestCase):

@@ -118,25 +118,20 @@ If `context.handoff_summary` exists, read it plus
 reconcile (trust the summary, but cheaply verify by running the tests it says
 pass), and continue from where it points.
 
-### Plan artifact resolution (read-both compat)
+### Plan artifact resolution
 
 The plan artifact is `<partition>/phases/code/plan.md`, written and read by
-the coordinator, the planner, the executor, and the verifier.
+the coordinator, the planner, the executor, and the verifier. This is the
+only name or path ever read or written for the plan artifact, in every
+lane, on every run.
 
-**Fresh run.** When no plan artifact of either name exists yet, read and
-write only `plan.md`; a fresh run never creates a new iteration-numbered
-plan file.
+**Fresh run.** When no plan artifact exists yet, read and write only
+`plan.md`; a fresh run never creates a new iteration-numbered plan file.
 
-**Resume only.** When `plan.md` is absent on resume, resolve the plan
-artifact to the highest-numbered existing
-`<partition>/phases/code/iter-*-plan.md` (glob
-`<partition>/phases/code/iter-*-plan.md`, take the largest `n`) — an
-in-flight ticket that started before this rename shipped. Pass the resolved
-absolute path to executor and verifier in `<inputs>`; the legacy file is
-never renamed, moved, or copied (no backfill).
-
-**One release.** This read-both fallback is supported for one release
-(current plugin version `0.4.7`).
+**Resume.** If `plan.md` is absent on resume, that is treated the same as
+any other missing or incomplete phase artifact under "Resume & reconcile"
+above — re-derive from what actually exists rather than fabricating a plan.
+There is no other name for this artifact to fall back to.
 
 **Reservation.** `<partition>/phases/code/plan-superseded-<k>.md` is
 reserved for the plan-revocation path (MAR-69 slice 4) and is not written or

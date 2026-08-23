@@ -11,17 +11,14 @@ Usage:
 """
 
 import argparse
-import glob
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 
 RECORD_NAME = "plan-approval.json"
-_ITER_PLAN_RE = re.compile(r"iter-(\d+)-plan\.md$")
 
 
 def record_path(tdir):
@@ -29,22 +26,11 @@ def record_path(tdir):
 
 
 def _resolve_plan_path(tdir, explicit):
-    """--plan wins; else plan.md; else (resume only) the highest-numbered
-    iter-*-plan.md."""
+    """--plan wins; else <partition>/phases/code/plan.md -- the only name
+    ever read or written for the plan artifact."""
     if explicit:
         return explicit
-    default_path = os.path.join(tdir, "phases", "code", "plan.md")
-    if os.path.isfile(default_path):
-        return default_path
-    candidates = glob.glob(os.path.join(tdir, "phases", "code", "iter-*-plan.md"))
-    if not candidates:
-        return default_path
-
-    def _iter_num(path):
-        m = _ITER_PLAN_RE.search(path)
-        return int(m.group(1)) if m else -1
-
-    return max(candidates, key=_iter_num)
+    return os.path.join(tdir, "phases", "code", "plan.md")
 
 
 def _plan_dir_contains(tdir, path):

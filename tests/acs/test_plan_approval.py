@@ -418,14 +418,6 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         state = self._state(tid)
         self.assertFalse(state["states"]["plan_approved"])
 
-    def test_resume_falls_back_to_highest_iter_plan(self):
-        tid = self._new_standard_ticket()
-        self._write_plan(tid, CONFORMING_PLAN, filename="iter-2-plan.md")
-        out = self.run_script("plan-approval.py", "--ticket", tid)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        record = self._read_record(tid)
-        self.assertEqual(record["plan_path"], "phases/code/iter-2-plan.md")
-
     def test_fast_lane_writes_no_record(self):
         tid = self.new_ticket("Trivial fix", "task", "--size", "trivial")
         self._write_plan(tid, CONFORMING_PLAN)
