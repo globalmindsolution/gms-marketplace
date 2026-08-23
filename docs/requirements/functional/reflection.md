@@ -243,15 +243,21 @@ during design:
   `iter-<n>-execute[-<k>].json` (artifacts produced,
   repo files changed, commands run with outcomes), the verifier
   `iter-<n>-verify.md` (every check with evidence, every finding in detail).
-  XML results reference these files, never inline their bodies.
+  `/acs:code` additionally persists `phases/code/plan-approval.json` on
+  STANDARD/COMPLEX — written by `plan-approval.py`, **not** by a subagent
+  (MAR-73, slice 3 of MAR-69). XML results reference these files, never
+  inline their bodies.
 - **Grounding**: every subagent decision, claim, and finding MUST be traceable
   to a source read or run in that task — cited file/section next to the
   statement, or the quoted command and output. A missing input is an error,
   not a guess; an unverifiable point is an explicit assumption with rationale;
   verifiers treat ungrounded plans/reports as blocking findings.
 - Native **plan mode is not used** for the reflection plan phase: planners are
-  spawned subagents with no user to approve a plan, and resumability comes
-  from the phase artifacts plus gates. The planner's read-only discipline is
+  spawned subagents with no user to give **human/interactive** approval to a
+  plan, and resumability comes from the phase artifacts plus gates. This is
+  unaffected by `/acs:code`'s deterministic plan-approval record (MAR-73,
+  slice 3 of MAR-69) — a machine conformance verdict over the plan's own
+  bytes, never an interactive gate. The planner's read-only discipline is
   enforced by its tool allowlist (planners/verifiers: read tools + Write
   solely for their own phase artifact; executors additionally may not spawn
   agents or invoke skills).
