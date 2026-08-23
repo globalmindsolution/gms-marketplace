@@ -194,6 +194,27 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
             any(f.startswith("section-order:") for f in evaluation["failures"]),
             evaluation["failures"])
 
+    def test_ambiguous_section_name_does_not_false_block_order(self):
+        """A tracked fold-section name (e.g. "Out of scope") that also
+        occurs earlier in the doc as a legitimate nested subheading under an
+        unrelated section must not resolve to that decoy occurrence for the
+        order check. structure_lint's own `ambiguous` relaxation excludes
+        any name matching more than one heading from the order check
+        entirely, "so an ambiguous list can never false-block a conforming
+        doc" (structure_lint.py:19-23, 72-81, 100-108)."""
+        anchor = "## Spec analysis\n\nSpec analysis content.\n\n"
+        decoy = "#### Out of scope\n\nNested mention under Spec analysis, not the fold section.\n\n"
+        self.assertIn(anchor, CONFORMING_PLAN)
+        mutated = CONFORMING_PLAN.replace(anchor, anchor + decoy, 1)
+        self.assertIn("\n#### Out of scope\n", mutated)
+        self.assertIn("\n### Out of scope\n", mutated)
+        eligible, evaluation = lib.plan_approval_eligible(
+            mutated, {"test_coverage_percent": 90})
+        self.assertTrue(eligible, evaluation["failures"])
+        self.assertFalse(
+            any(f.startswith("section-order:") for f in evaluation["failures"]),
+            evaluation["failures"])
+
     def test_missing_mandatory_clause_fails(self):
         for clause in lib.PLAN_FOLD_CLAUSES:
             self.assertIn(clause, CONFORMING_PLAN)

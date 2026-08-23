@@ -420,11 +420,21 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
         by_name.setdefault(htext, []).append(i)
 
     def _scan(names):
+        # Mirrors structure_lint.lint_structure's `ambiguous` safeguard
+        # (structure_lint.py:72-81): a name repeated in the declared list, or
+        # matching more than one heading in the doc, is flagged so the order
+        # check below can exclude it -- an ambiguous name must never
+        # false-block a conforming doc (structure_lint.py:19-23).
+        unique_names = list(dict.fromkeys(names))
+        ambiguous = {n for n in unique_names if names.count(n) > 1}
+        for n in unique_names:
+            if len(by_name.get(n, [])) > 1:
+                ambiguous.add(n)
         out = {}
         for name in names:
             occs = by_name.get(name, [])
             if not occs:
-                out[name] = (False, False, None)
+                out[name] = (False, False, None, name in ambiguous)
                 continue
             i = occs[0]
             own_level = headings[i][1]
@@ -434,13 +444,13 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
                     end_line = headings[j][0]
                     break
             body = lines[headings[i][0]:end_line - 1]
-            out[name] = (True, any(l.strip() for l in body), i)
+            out[name] = (True, any(l.strip() for l in body), i, name in ambiguous)
         return out
 
     required_scan = _scan(PLAN_REQUIRED_SECTIONS)
     required_ok = True
     for name in PLAN_REQUIRED_SECTIONS:
-        present, non_empty, _idx = required_scan[name]
+        present, non_empty, _idx, _ambiguous = required_scan[name]
         if not present:
             failures.append("missing-section: %s" % name)
             required_ok = False
@@ -453,7 +463,7 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
         fold_scan = _scan(PLAN_FOLD_SECTIONS)
         fold_ok = True
         for name in PLAN_FOLD_SECTIONS:
-            present, non_empty, _idx = fold_scan[name]
+            present, non_empty, _idx, _ambiguous = fold_scan[name]
             if not present:
                 failures.append("missing-section: %s" % name)
                 fold_ok = False
@@ -463,7 +473,8 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
         checks["fold_sections_ok"] = fold_ok
 
         ordered_ok = True
-        present_seq = [(name, fold_scan[name][2]) for name in PLAN_FOLD_SECTIONS if fold_scan[name][0]]
+        present_seq = [(name, fold_scan[name][2]) for name in PLAN_FOLD_SECTIONS
+                        if fold_scan[name][0] and not fold_scan[name][3]]
         for k in range(len(present_seq) - 1):
             name_a, idx_a = present_seq[k]
             name_b, idx_b = present_seq[k + 1]
