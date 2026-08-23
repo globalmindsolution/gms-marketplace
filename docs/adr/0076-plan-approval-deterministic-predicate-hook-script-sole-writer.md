@@ -14,6 +14,16 @@ which requires an approval that cannot be forged by the same LLM whose work
 it certifies — an approval must not be an LLM self-assertion (`ticket.json`
 acceptance criteria and description, this ticket, MAR-73).
 
+**Evidence provenance.** This ADR records the decision **as implemented**
+by MAR-73's shipped code rather than as ratified against MAR-69's epic
+design, because that `design.md` — cited by this ticket's `ticket.json`
+description as "design.md slice 3, decision D1-A" — was unreachable in
+this workspace this session (no local workspace partition exists for
+MAR-69, and the GitHub API was unavailable), so this decision could not
+be cross-checked against or reconciled with the epic-level design; if
+that design fixes a different framing for this decision, a future
+amendment should reconcile the two.
+
 ## Decision
 
 1. **D-1 — approval is a pure deterministic predicate.** Approval is
