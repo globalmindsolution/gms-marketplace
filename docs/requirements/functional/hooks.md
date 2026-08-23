@@ -99,7 +99,7 @@ examples given in the requirements; exact names to confirm.
 | `/create-standards` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
 | `/create-ticket` | `/initialize` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
-| `/code` | `/create-ticket` completed and the ticket is not an `epic` — an epic is refused with an actionable breakdown message (`gate_code` in `acs_lib.py`). (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
+| `/code` | `/create-ticket` completed and the ticket is not an `epic` — an epic is refused with an actionable breakdown message (`gate_code` in `acs_lib.py`). (Unconditional on lane — the plan's author self-authors folded spec content when `specs/` is absent or empty (the `code-planner` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72); see [skills.md](skills.md).) |
 | `/docs-sync` | `/code` completed (and `/test`, when the post-code test gate was active for this ticket). |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |

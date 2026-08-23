@@ -158,7 +158,9 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
-> **Spec-time vs. code-time simplicity (MAR-88)**: the `code-planner`
+> **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author (the
+> `code-planner` on STANDARD/COMPLEX; the coordinator on TRIVIAL/SMALL,
+> **best-effort**, MAR-72)
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on

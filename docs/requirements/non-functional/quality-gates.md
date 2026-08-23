@@ -10,6 +10,7 @@ respectively, per the reorg mapping.
 | Principle | Requirement |
 |-----------|-------------|
 | Reflection | Each of the twelve **triad-keeping** workflow and product-level skills runs plan → execute → verify with dedicated subagents; the three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`) run inline — the coordinator plus at most one executor, never a planner or verifier, in any lane. |
+| Reflection (amended, MAR-72 slice 2 of MAR-69) | For `/acs:code`, the row above's "dedicated subagents" description is lane-conditional for the plan phase only: a dedicated `code-planner` subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator authors the plan artifact itself, with zero planner spawns (ADR 0074). The execute and verify subagents, and the verifier-as-gate, are unchanged in every lane, for `/acs:code` and for the other eleven triad-keeping skills. |
 | Gated pipeline | A skill refuses to run (pre-hook exit 2) until its predecessor's state file says it is complete. |
 | XML messaging | Coordinator ↔ subagent communication uses a defined XML format. |
 | Dynamic decomposition | The coordinator decomposes work into subagent tasks dynamically based on the ticket/spec at hand, not a fixed task list. |

@@ -177,7 +177,12 @@ Done.
 
 Every one of the twelve **triad-keeping** workflow and product-level skills
 MUST internally run a **plan → execute → verify** cycle using a dedicated
-subagent per phase (e.g. `code-planner`, `code-executor`, `code-verifier`).
+subagent per phase (e.g. `code-planner`, `code-executor`, `code-verifier`) —
+with one exception: for `/acs:code`, the plan phase's dedicated subagent is
+spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors
+the plan artifact itself, with zero planner spawns (MAR-72, ADR 0074). The
+execute and verify phases keep dedicated subagents in every lane, for
+`/acs:code` and for the other eleven triad-keeping skills.
 The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator, optionally delegating to at most
 one `<skill>-executor` subagent, spawns no planner and no verifier in any

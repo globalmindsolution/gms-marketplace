@@ -840,8 +840,9 @@ Purpose: author the ticket's implementation specs when none exist, then
 implement them in the consumer repo using TDD.
 
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
-`<partition>/specs/` is absent or empty the `code-planner` authors the spec
-content itself inside its plan artifact
+`<partition>/specs/` is absent or empty the plan's author (the `code-planner`
+on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72) authors the
+spec content itself inside the plan artifact
 (`<partition>/phases/code/plan.md`), on EVERY lane with no lane
 check; when specs are already present it reads them unchanged
 (`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
@@ -899,8 +900,10 @@ bind `/code`'s plan phase:
   before implementation"), runs its mandatory Finish steps, and returns
   `<next-step>` pointing at `/acs:create-ticket split <id> per
   <partition>/phases/code/plan.md`.
-- **Plan-artifact naming (MAR-70).** The `code-planner`'s plan artifact is a
-  single per-ticket `<partition>/phases/code/plan.md`, written exactly once
+- **Plan-artifact naming (MAR-70).** The plan artifact is a
+  single per-ticket `<partition>/phases/code/plan.md` (authored by the
+  `code-planner` on STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL —
+  MAR-72), written exactly once
   per run, before the loop. On **resume only**,
   when `plan.md` is absent, `/code` resolves the highest-numbered
   `<partition>/phases/code/iter-*-plan.md` instead (never renaming, moving,
@@ -913,12 +916,26 @@ bind `/code`'s plan phase:
 - **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
   execute → verify: the plan above is authored exactly once per run, before
   the loop starts, so exactly one `code-planner` subagent is spawned across
-  the whole run, however many iterations it uses. On iteration 2+, the
+  the whole run **on STANDARD/COMPLEX**, however many iterations it uses.
+  On TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero
+  planner spawns, against the identical artifact contract (MAR-72, slice 2
+  of MAR-69, ADR 0074). On iteration 2+, the
   verifier's findings are delivered to the executor's `<context>` — never to
-  a new planner spawn — and the executor authors the remediation. The
+  a new planner spawn — and the executor authors the remediation, on every
+  lane. The
   light=1 / full=3 verify-depth caps are unchanged in value; they now count
   execute+verify rounds rather than plan+execute+verify triads. Mid-flight
-  escalation (MAR-57)'s detection point and monotone ceiling are unaffected.
+  escalation (MAR-57)'s detection point and monotone ceiling are unaffected;
+  escalation never retro-spawns a planner (D-3).
+- **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
+  `code-planner.md` charter items that would otherwise run as part of the
+  (unspawned) planner — the spec-simplicity gate, the oversize signal, the
+  ADR-0012 doc-graph-gap check (E1-E4), and the Boy-scout drift survey — are
+  **best-effort**, carried by the coordinator instead, and their omission on
+  those lanes is never a finding. This does **not** extend to the
+  `docs/product/prd.md`/`docs/product/roadmap.md` factual-impact assessment
+  below, which stays **BLOCKING on every lane** regardless of who performs
+  it.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
@@ -992,13 +1009,16 @@ bind `/code`'s plan phase:
   then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
   otherwise it exits 2 to stop the skill (`gate_code` in `acs_lib.py`).
   Whether `<partition>/specs/` already has
-  content is discovered by the `code-planner`, not asserted by the gate — when
+  content is discovered by the plan's author (the `code-planner` on
+  STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72), not asserted
+  by the gate — when
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded
-  into `/code`'s plan phase by the code-planner, on EVERY lane. The
+  into `/code`'s plan phase by the plan's author, on EVERY lane. The
   TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
   gate) are preserved unchanged in every lane.
-- Subagents: `code-planner`, `code-executor`, `code-verifier`.
+- Subagents: `code-planner`, `code-executor`, `code-verifier` (the planner is
+  spawned on STANDARD/COMPLEX only — MAR-72).
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
   stop, record the achieved coverage and reason in `code-state.json`, and
   leave the `/create-pr` gate closed.
@@ -1084,8 +1104,9 @@ run. The following contract governs all automatic mid-flight lane changes:
    ambiguous inputs.
 
 9. **Sibling behavior unchanged.** The spec-authoring fold (MAR-59, universal
-   since ADR 0066: the code-planner self-authors the spec content on every
-   lane when `<partition>/specs/` is absent or empty) applies to
+   since ADR 0066: the plan's author — the code-planner on STANDARD/COMPLEX,
+   the coordinator on TRIVIAL/SMALL, MAR-72 — self-authors the spec content on
+   every lane when `<partition>/specs/` is absent or empty) applies to
    non-escalating tickets and is not changed by this contract. The apply-tier
    inlining (MAR-60: `create-pr` → `merge-pr` → `create-ticket`) is also
    unchanged.
