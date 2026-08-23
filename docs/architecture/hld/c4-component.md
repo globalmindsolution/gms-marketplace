@@ -55,12 +55,7 @@ create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, create-design, code, docs-sync,
 standardize-project, create-requirements) run the full plan→execute→verify
 reflection loop, spawning a separate planner, executor, and verifier subagent
-per phase — so **12 active triads (36 agents in triads)**. Within that,
-`/code`'s planner leg is lane-conditional since MAR-72: the planner subagent is
-spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator authors the plan
-artifact itself, with zero planner spawns (ADR 0074). The execute and verify
-legs stay unconditional in every lane, for `/code` and for the other eleven
-triad-keeping skills, so the counts above are unaffected. The **three
+per phase — so **12 active triads (36 agents in triads)**. The **three
 apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**
 (MAR-60): the coordinator performs the work
 directly or delegates to **at most one** executor subagent, and **never
@@ -69,7 +64,13 @@ otherwise — create-ticket by its schema plus the Step-2 user-confirmation
 gate, create-pr/merge-pr verifier-gated upstream by `/code`'s verifier
 (`code-state.json` `states.verifier_passed == true`). With the 3 reachable
 apply-work executors that is **39 reachable agents**; the 6 plan/verify
-files of the apply-work skills remain on disk but are orphaned.
+files of the apply-work skills remain on disk but are orphaned. Within the
+12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
+planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the
+coordinator authors the plan artifact itself, with zero planner spawns (ADR
+0074). The execute and verify legs stay unconditional in every lane — for
+`/code`, and for every other skill among the twelve triad-keeping ones — so
+the counts above are unaffected.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
