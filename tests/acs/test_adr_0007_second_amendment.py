@@ -1,8 +1,9 @@
 """MAR-162 spec 03 — ADR 0007 second amendment + plugin-internal reconciliation.
 
 Falsifiable AC-4/AC-5 guard: asserts docs/adr/0007-living-docs-by-induction.md
-carries exactly two `## Amendment — ` headings with the MAR-162 one strictly
-after the MAR-65 one and the MAR-65 span byte-unchanged; the MAR-162 block
+carries exactly three `## Amendment — ` headings with the MAR-162 one strictly
+after the MAR-65 one and the MAR-72 one after both (MAR-72 promoted the third
+amendment to top level), and the MAR-65 span byte-unchanged; the MAR-162 block
 has all four required sub-headings and states MAR-65's obligations are
 unchanged; docs-sync's shipped existence (AC-5 evidence); and cross-file
 coherence — the reworded plugin-internal files no longer assert the retired
@@ -44,12 +45,12 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(ADR_0007)
 
-    def test_exactly_two_amendment_headings(self):
+    def test_exactly_three_amendment_headings(self):
         headings = re.findall(r"^## Amendment — ", self.body, re.MULTILINE)
         self.assertEqual(
-            len(headings), 2,
-            "docs/adr/0007 must carry exactly two '## Amendment — ' headings "
-            "(MAR-65 + MAR-162)")
+            len(headings), 3,
+            "docs/adr/0007 must carry exactly three '## Amendment — ' headings "
+            "(MAR-65 + MAR-162 + MAR-72)")
 
     def test_mar162_strictly_after_mar65(self):
         mar65_at = self.body.index("## Amendment — MAR-65")
@@ -125,7 +126,7 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
         What MAR-162 actually guaranteed, and what this test still checks
         directly against the ADR directory: its concern (the docs-sync
         six-input contract / AC #5 execute-phase divergence) lives solely as
-        ADR 0007's *second amendment* (see test_exactly_two_amendment_headings
+        ADR 0007's *second amendment* (see test_exactly_three_amendment_headings
         above) and never consumed a standalone ADR number of its own. So no
         OTHER ADR file's own title may name MAR-162 as its subject — that
         would mean the concern had been split into a new ADR after all,

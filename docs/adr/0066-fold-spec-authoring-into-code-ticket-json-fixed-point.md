@@ -78,3 +78,30 @@ time — `docs/adr/0006` is Accepted/relocated, not wrong. This ADR documents
 why a different mechanism now achieves the same underlying guarantee (an
 immovable review-loop yardstick) without a separately-authored spec
 artifact.
+
+## Amendment — MAR-72
+
+**Date**: 2026-08-23 · **Status**: Accepted (narrowed)
+
+`/acs:code`'s plan phase becomes lane-conditional (MAR-72, slice 2 of
+MAR-69, ADR 0074 —
+`docs/adr/0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md`):
+on STANDARD/COMPLEX a `code-planner` subagent is spawned as before; on
+TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero planner
+spawns. This narrows Decision 2's attribution to its plan's-author form,
+without changing the fold's substance:
+
+- **What narrows**: Decision 2's "`/acs:code`'s planner" becomes **the
+  plan's author** — the `code-planner` on STANDARD/COMPLEX, the coordinator
+  on TRIVIAL/SMALL (`plugins/acs/skills/code/SKILL.md:376`: "the plan's
+  author (the code-planner on STANDARD/COMPLEX, the coordinator on
+  TRIVIAL/SMALL, MAR-72)").
+- **What does NOT narrow**: the fold's activation is still **every lane**
+  and still unconditional — the trigger (`<partition>/specs/` absent or
+  empty), the five sections (Scope, Approach, API/data changes, Test plan,
+  Out of scope), and the read-pre-existing-specs backward-compat clause are
+  all unchanged. Only *who writes it* changes.
+- **Decisions 1, 3 and 4 are untouched** by this amendment — create-spec's
+  deletion, the `ticket.json` `acceptance_criteria`/DoD fixed point, and the
+  re-homed create-spec-verifier dimensions all stand as originally decided,
+  and this ADR's Supersession of ADR 0006 above is unaffected.

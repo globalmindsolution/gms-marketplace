@@ -169,7 +169,7 @@ Sub-check (c), the MAR-65 product-doc-consistency check, is OUTSIDE this
 two-layer net's scope entirely — it has its own single, unchanged, blocking
 enforcement inside `/acs:code`, per the Ownership boundary above.
 
-### Amendment — MAR-72
+## Amendment — MAR-72
 
 **Date**: 2026-08-23 · **Status**: Accepted (extended)
 

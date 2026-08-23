@@ -90,7 +90,7 @@ lane-conditional for `/acs:code`'s plan phase (**D-4**, MAR-72): on
 TRIVIAL/SMALL no `<task phase="plan">` message is ever sent and no
 `<result>` is returned, so there is no plan XML to validate and no
 `iter-<n>-plan.xml` snapshot to persist — the execute/verify XML persistence
-in the loop below is unaffected in every lane.
+in the `loop reflection` block above is unaffected in every lane.
 
 ## Verify-depth scaling (MAR-58 / D4)
 
