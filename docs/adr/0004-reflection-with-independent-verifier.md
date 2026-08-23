@@ -17,11 +17,15 @@ narratives; it re-runs every cheap check itself. All findings block;
 remediation loops are capped at 3 iterations. Every phase writes its own
 artifact (`iter-<n>-plan.md` / `-execute.json` / `-verify.md`) — except
 `/acs:code`, whose plan artifact is the single per-ticket `plan.md` from
-MAR-70 onward (execute/verify artifacts are unaffected).
+MAR-70 onward (execute/verify artifacts are unaffected) — and, from MAR-71
+(slice 1b of MAR-69) onward, whose remediation loop is execute → verify
+only: the plan is authored once, before the loop, and iteration-2+ findings
+are remediated by the **executor**, not by a new plan.
 
 ## Consequences
 
 A wrong plan is caught (code judged against specs fails; the next plan must
-remediate); resumption can lose at most the in-flight phase; native plan
+remediate — for `/acs:code`, the next **execute** remediates); resumption
+can lose at most the in-flight phase; native plan
 mode is unused — planners are headless subagents (ADR context: user approval
 has no meaning there).

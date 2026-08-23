@@ -38,6 +38,13 @@ Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
    + full 12-dimension review + e2e when configured. Applies to STANDARD/COMPLEX
    tickets and ALL high-stakes tickets. This behavior is **unchanged**.
 
+   **Amendment (MAR-71, slice 1b of MAR-69):** for `/acs:code`, the loop body
+   is now execute → verify with a single up-front plan authored once, before
+   the loop, rather than a per-iteration plan→execute→verify loop. The cap
+   **values** set by this ADR (light = 1, full = 3) are unchanged — only what
+   an iteration counts changed, from a plan+execute+verify triad to an
+   execute+verify round.
+
 5. **Two invariants hold in every lane**, unconditionally:
    - The **verifier subagent is the in-loop quality gate in every lane** (C-5).
      Light verify reduces the iteration ceiling only; the verifier always runs.
