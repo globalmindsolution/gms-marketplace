@@ -476,6 +476,39 @@ subagent is spawned, no `<task phase="plan">` message is sent and no
 the durable record on every lane; the resume path is unchanged because it
 keys on the presence of `plan.md`, never on who authored it.
 
+### Plan approval (STANDARD/COMPLEX, after the plan, before the loop)
+
+On STANDARD/COMPLEX lanes only — the same freshly recomputed lane as the
+Plan step above — immediately after `plan.md` is written and before the
+reflection loop begins, run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
+```
+
+This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
+— never a subagent's `Write` tool, and never the coordinator's own `Write`
+either. An LLM-asserted approval is not an approval: eligibility is computed
+by `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
+`settings.test_coverage_percent`, never by any agent's self-report.
+
+The script writes at most one record per approved plan digest: a second
+invocation over the same `plan.md` bytes is a no-op that re-asserts the
+existing verdict (idempotent on resume, once per run otherwise); a revised
+`plan.md` (a new sha256 digest) writes a fresh record. On TRIVIAL/SMALL the
+script no-ops with `plan_approved: false` and writes no record at all — this
+release does not extend approval to the fast lanes.
+
+An ineligible plan does NOT block this release: the script exits 0, prints
+the failing checks, and the coordinator continues the run with
+`states.plan_approved: false`, at most revising `plan.md` once and
+re-running the script before moving on — no loop, and nothing gates on
+`plan_approved` in this release.
+
+Copy the script's printed `plan_approved` value verbatim into
+`<partition>/phases/code/result.json`'s `states.plan_approved` at Finish —
+never assert it yourself.
+
 ### Docs-only tickets (`ticket.docs_only: true`)
 
 When the ticket carries the user-confirmed `docs_only` flag, the TDD steps
@@ -753,6 +786,7 @@ MANDATORY final step — never skipped, also on failure:
      "stop_reason": "verifier passed on iteration 2 with 0 findings",
      "states": {
        "verifier_passed": true,
+       "plan_approved": true,
        "branch": "task/SHOP-123-bulk-import",
        "specs_implemented": ["01-data-model.md", "02-import-endpoint.md"],
        "tests": {"passed": 84, "failed": 0, "coverage_percent": 93.4, "coverage_target": 90},
@@ -769,6 +803,9 @@ MANDATORY final step — never skipped, also on failure:
    Canonical `states` keys — EXACT names; pre-create-pr.py gates on them:
    - `verifier_passed`: `true` ONLY on a zero-findings verifier pass. This is
      the /acs:create-pr gate.
+   - `plan_approved`: `true`/`false`, copied verbatim from `plan-approval.py`'s
+     printed output on STANDARD/COMPLEX (see `### Plan approval` above);
+     `false` on TRIVIAL/SMALL or an ineligible plan. Not a gate this release.
    - `branch`: the ticket branch name (rendered from `formats.branch_name`).
    - `specs_implemented`: spec basenames fully implemented AND verified, in
      order.
