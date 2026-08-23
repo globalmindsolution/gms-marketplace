@@ -47,6 +47,14 @@ def _resolve_plan_path(tdir, explicit):
     return max(candidates, key=_iter_num)
 
 
+def _plan_dir_contains(tdir, path):
+    """True if path's realpath stays within <tdir>/phases/code/ -- guards
+    against an escaping --plan describing bytes outside the ticket partition."""
+    base = os.path.realpath(os.path.join(tdir, "phases", "code"))
+    target = os.path.realpath(path)
+    return target == base or target.startswith(base + os.sep)
+
+
 def _fold_active(tdir):
     """Mirrors code/SKILL.md's fold trigger: specs/ absent, or present with no
     non-blank .md content."""
@@ -104,6 +112,11 @@ def main():
         sys.exit(0)
 
     plan_path = _resolve_plan_path(tdir, args.plan)
+    if not _plan_dir_contains(tdir, plan_path):
+        sys.stderr.write(
+            "acs plan-approval: --plan must resolve within <partition>/phases/code/\n")
+        sys.exit(2)
+
     try:
         with open(plan_path, "r", encoding="utf-8") as fh:
             plan_text = fh.read()

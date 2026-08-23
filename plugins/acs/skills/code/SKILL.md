@@ -509,6 +509,11 @@ Copy the script's printed `plan_approved` value verbatim into
 `<partition>/phases/code/result.json`'s `states.plan_approved` at Finish —
 never assert it yourself.
 
+An explicit `--plan` must resolve within `<partition>/phases/code/`; the
+script rejects (clean stderr, exit 2, no record written) any `--plan` whose
+realpath escapes that directory, and any future consumer of this record must
+do the same rather than trust a caller-supplied path.
+
 ### Docs-only tickets (`ticket.docs_only: true`)
 
 When the ticket carries the user-confirmed `docs_only` flag, the TDD steps

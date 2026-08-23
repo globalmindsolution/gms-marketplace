@@ -326,7 +326,7 @@ def classify_additive_diff(diff_output, allowlist_globs):
 
 
 # ---------------------------------------------------------------------------
-# Plan-approval predicate (MAR-69 slice 3)
+# Plan-approval predicate
 # ---------------------------------------------------------------------------
 
 PLAN_REQUIRED_SECTIONS = [
@@ -361,14 +361,15 @@ _PLAN_HEADING_RE = re.compile(r"^(#{1,6}) (.*)$")
 
 
 def _plan_headings(text):
-    """(index, level, stripped-text) for every markdown heading line, in doc
-    order. A self-contained duplicate of structure_lint._headings -- kept
-    import-free so this predicate stays pure (a first import touches disk)."""
+    """(line_no, level, stripped-text) for every markdown heading line, in
+    doc order -- same heading-matching semantics as structure_lint._headings
+    (1-based line_no, same regex), but kept import-free so this predicate
+    stays pure (a first import touches disk)."""
     found = []
-    for raw in text.split("\n"):
+    for i, raw in enumerate(text.split("\n")):
         m = _PLAN_HEADING_RE.match(raw)
         if m:
-            found.append((len(m.group(1)), m.group(2).strip()))
+            found.append((i + 1, len(m.group(1)), m.group(2).strip()))
     return found
 
 
@@ -414,9 +415,8 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
 
     lines = text.split("\n")
     headings = _plan_headings(text)
-    heading_linenos = [i + 1 for i, raw in enumerate(lines) if _PLAN_HEADING_RE.match(raw)]
     by_name = {}
-    for i, (_level, htext) in enumerate(headings):
+    for i, (_lineno, _level, htext) in enumerate(headings):
         by_name.setdefault(htext, []).append(i)
 
     def _scan(names):
@@ -427,13 +427,13 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
                 out[name] = (False, False, None)
                 continue
             i = occs[0]
-            own_level = headings[i][0]
+            own_level = headings[i][1]
             end_line = len(lines) + 1
             for j in range(i + 1, len(headings)):
-                if headings[j][0] <= own_level:
-                    end_line = heading_linenos[j]
+                if headings[j][1] <= own_level:
+                    end_line = headings[j][0]
                     break
-            body = lines[heading_linenos[i]:end_line - 1]
+            body = lines[headings[i][0]:end_line - 1]
             out[name] = (True, any(l.strip() for l in body), i)
         return out
 

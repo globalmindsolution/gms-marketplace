@@ -481,6 +481,20 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         record = self._read_record(tid)
         self.assertEqual(record["plan_path"], "phases/code/alt-plan.md")
 
+    def test_escaping_plan_argument_is_rejected(self):
+        tid = self._new_standard_ticket()
+        outside_dir = tempfile.mkdtemp(prefix="acs-plan-approval-escape-")
+        self.addCleanup(shutil.rmtree, outside_dir, True)
+        evil_path = os.path.join(outside_dir, "evil-plan.md")
+        with open(evil_path, "w", encoding="utf-8") as fh:
+            fh.write(CONFORMING_PLAN)
+        out = self.run_script("plan-approval.py", "--ticket", tid, "--plan", evil_path)
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stdout, "")
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+
     def test_unresolvable_ticket_exits_two_with_clean_stderr(self):
         out = self.run_script("plan-approval.py")
         self.assertEqual(out.returncode, 2)
