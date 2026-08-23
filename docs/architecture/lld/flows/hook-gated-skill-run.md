@@ -25,6 +25,10 @@ skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 one executor**, with **no planner and no verifier subagent** in any lane —
 their correctness is gated upstream by `/code`'s verifier (`create-pr`,
 `merge-pr`) or by the schema plus the user-confirmation gate (`create-ticket`).
+Immediately after the plan step and before the reflection loop, on
+STANDARD/COMPLEX only, `/acs:code` also runs `plan-approval.py`, which
+records a deterministic plan-approval verdict and gates nothing this release
+(MAR-73, slice 3 of MAR-69).
 
 ```mermaid
 sequenceDiagram
@@ -38,6 +42,7 @@ sequenceDiagram
     participant EX as <skill>-executor(s)
     participant VF as <skill>-verifier
     participant POST as post-<skill>.py
+    participant PA as plan-approval.py
     participant WS as Workspace partition
 
     Dev->>CC: /acs:code SHOP-123
@@ -64,6 +69,11 @@ sequenceDiagram
         end
         opt open questions
             CO->>Dev: clarify (ledger first, record answers)
+        end
+        opt /acs:code plan approval on STANDARD/COMPLEX (MAR-73, slice 3 of MAR-69)
+            CO->>PA: plan-approval.py --ticket <ticket-id>
+            PA->>WS: plan-approval.json + code-state.json states.plan_approved
+            PA-->>CO: stdout JSON (eligible, plan_approved, failures)
         end
         loop reflection (execute → verify, max 3 iterations)
             CO->>EX: XML <task phase="execute"> (parallel if file maps disjoint)

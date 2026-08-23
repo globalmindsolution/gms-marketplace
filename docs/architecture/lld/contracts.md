@@ -32,6 +32,7 @@ of messages in one in-process loop (MAR-61).
 | `mermaid_lint.py FILE.md [FILE.md ...]` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; also importable — `lint_text(text, source="<text>")`, `lint_file(path)`, `Finding(source, line, rule, message)` |
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
 | `release_notes.py status\|draft\|bump --version X.Y.Z --repo-root P [--workspace W] [--dry-run] --release-config <json>` | stdout JSON per subcommand — `status`: four idempotency signals (manifests/changelog/branch-PR/tag), now resolved against the block's `version_locations`/`changelog_path`/`tag_format`/`release_branch_format`; `draft`: authoritative `draft_section` + `{merged,covered,missing}` coverage report; `bump`: `files_changed[]` per the block's `version_locations`+`extra_refs`+`changelog_path`, atomic per-file write (temp-file + rename); exit 0 on all data outcomes (incl. nothing-to-release), exit 2 on malformed invocation, unreadable/missing CHANGELOG/manifest, or a malformed/absent `--release-config` block |
+| `plan-approval.py --ticket T [--plan P]` | stdout JSON — `{ok, eligible, plan_approved, lane, failures[]}`, or `{ok, skipped:"lane", …}` on TRIVIAL/SMALL, or `{ok, skipped:"already-approved", …}` on an unchanged approved digest; writes `<partition>/phases/code/plan-approval.json` (sole writer) and mirrors `code-state.json` `states.plan_approved`; **exit 0 on every data outcome including ineligible**; **exit 2** on an unresolvable ticket/partition, an unreadable `ticket.json`, or a `--plan` whose realpath escapes `<partition>/phases/code/` (MAR-73, slice 3 of MAR-69) |
 
 Exit codes: 0 ok; **2 blocked/invalid** — a failed gate, an unresolvable
 ticket/partition, an archived ticket, a held lock, or a malformed invocation —
@@ -93,7 +94,10 @@ The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
 `code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
 reference in `create-pr-state` (or the product skill's state). Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
-`plugins/acs/schemas/*.schema.json`.
+`plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
+recorded by `plan-approval.py` and is **not** read by any gate this
+release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
+true` (unchanged; MAR-73, slice 3 of MAR-69).
 
 ## Settings (consumer repo)
 

@@ -16,6 +16,7 @@ C4Component
         Component(mint, "new-ticket.py", "ticket factory", "id allocation, partition + ticket.json, epic backlinks, mint-time create-ticket state")
         Component(clarify, "clarify.py", "Q&A ledger", "add/answer/list clarifications; assumption protocol")
         Component(handoff, "handoff.py", "session handoff", "finalize handed_off + summary; release lock; print continue_with")
+        Component(planapproval, "plan-approval.py", "plan approval", "sole writer of <partition>/phases/code/plan-approval.json; records acs_lib.plan_approval_eligible's deterministic verdict plus the approved plan's sha256 once per digest; mirrors states.plan_approved into code-state.json; STANDARD/COMPLEX only; never a gate this release")
         Component(codeowners, "codeowners.py", "reviewer resolution", "stdlib-only CODEOWNERS parser — last-match-wins pattern matching against changed files, team+user owner extraction, no workspace/lock coupling")
         Component(release_notes, "release_notes.py", "changelog aggregation + version bump", "stdlib-only, settings-driven helper — reads the .acs/settings.json release block (Decision 5), drafts the changelog section from the merged-ticket archive, cross-checks [Unreleased] coverage, bumps the block's version_locations + extra_refs + changelog_path")
         Component(vxml, "validate_xml.py", "message validation", "in-process stdlib structural validation (XSD-equivalent, default fast path); xmllint opt-in via ACS_XML_AUTHORITATIVE=1")
@@ -24,7 +25,7 @@ C4Component
         Component(sline, "statusline.py / subagent-statusline.py", "observability", "prompt line + agent-panel rows from workspace state")
         Component(metrics, "metrics_aggregate.py", "observability", "read-only: aggregate all panels for /acs:metrics (PM view) and /acs:usage (usage view) from workspace artifacts; emits one superset JSON, never writes/gates/locks")
         Component(mrender, "metrics_render.py", "observability", "read-only: deterministic cross-surface renderer of the aggregate JSON — serves two views via render_pm_terminal/html (/acs:metrics) and render_usage_terminal/html (/acs:usage), selected by --view {pm,usage}; bare default is PM view; self-contained HTML (--html → show_widget); pure, no clock, never writes")
-        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer; confirm_deescalation() sole user-confirmed lane-lowering writer")
+        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer; confirm_deescalation() sole user-confirmed lane-lowering writer; plan_approval_eligible() pure plan-conformance predicate")
     }
     ContainerDb_Ext(ws, "Workspace store")
 
@@ -35,6 +36,8 @@ C4Component
     Rel(mint, lib, "")
     Rel(clarify, lib, "")
     Rel(handoff, lib, "")
+    Rel(planapproval, lib, "build_context + plan_approval_eligible")
+    Rel(planapproval, ws, "atomic JSON read/write")
     Rel(sline, lib, "")
     Rel(metrics, lib, "build_context + read-only state reads")
     Rel(mrender, metrics, "consumes aggregate JSON (stdin or self-invoke)")
@@ -86,4 +89,7 @@ recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is
 never *automatically* downward — the sole exception is a user-confirmed
 de-escalation, offered only at an iteration/run boundary, applied by
 `confirm_deescalation` (MAR-108, ADR 0042 D3), which is unreachable without a
-resolved `clarify.py` confirmation reference.
+resolved `clarify.py` confirmation reference. After the plan is authored, on
+STANDARD/COMPLEX a deterministic plan-approval record is written
+(`plan-approval.py`, `states.plan_approved`) and gates nothing this release
+(MAR-73, slice 3 of MAR-69).
