@@ -20,7 +20,12 @@ artifact (`iter-<n>-plan.md` / `-execute.json` / `-verify.md`) — except
 MAR-70 onward (execute/verify artifacts are unaffected) — and, from MAR-71
 (slice 1b of MAR-69) onward, whose remediation loop is execute → verify
 only: the plan is authored once, before the loop, and iteration-2+ findings
-are remediated by the **executor**, not by a new plan.
+are remediated by the **executor**, not by a new plan; and, from MAR-72
+onward, whose plan phase has **no separate agent context at all** on
+TRIVIAL/SMALL — the coordinator authors `plan.md` itself (ADR 0074) — while
+this ADR's actual subject, verifier independence (the verifier never judges
+its own output and anchors on gated upstream contracts as above), is
+unchanged in every lane.
 
 ## Consequences
 

@@ -64,13 +64,21 @@ otherwise — create-ticket by its schema plus the Step-2 user-confirmation
 gate, create-pr/merge-pr verifier-gated upstream by `/code`'s verifier
 (`code-state.json` `states.verifier_passed == true`). With the 3 reachable
 apply-work executors that is **39 reachable agents**; the 6 plan/verify
-files of the apply-work skills remain on disk but are orphaned.
+files of the apply-work skills remain on disk but are orphaned. Within the
+12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
+planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the
+coordinator authors the plan artifact itself, with zero planner spawns (ADR
+0074). The execute and verify legs stay unconditional in every lane — for
+`/code`, and for every other skill among the twelve triad-keeping ones — so
+the counts above are unaffected.
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
 `/code`'s loop body is execute → verify with the plan authored once before the
 loop — MAR-71, slice 1b of MAR-69 — so this ceiling counts execute+verify
-rounds, and exactly one `code-planner` is spawned per run), spec authoring
+rounds, and exactly one `code-planner` is spawned per run **on STANDARD/COMPLEX
+only — on TRIVIAL/SMALL the coordinator authors `plan.md` itself and no
+`code-planner` is spawned** (MAR-72, ADR 0074)), spec authoring
 folds into the plan phase on every lane whenever
 `<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably

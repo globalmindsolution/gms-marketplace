@@ -81,9 +81,10 @@ is the separate, per-child pipeline diagrammed above.
 > The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
 > `[create-design]` bracketing above is still conditional — on
 > `ticket.needs_design`, independent of lane — but there is no
-> bracketed spec-authoring step on any lane: `/code`'s planner self-authors the
-> five-section spec content (Scope, Approach, API/data changes, Test
-> plan, Out of scope) inside its plan phase on EVERY lane when
+> bracketed spec-authoring step on any lane: `/code`'s plan's author (the
+> planner on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
+> self-authors the five-section spec content (Scope, Approach, API/data
+> changes, Test plan, Out of scope) inside its plan phase on EVERY lane when
 > `<partition>/specs/` is absent or empty, and reads pre-existing specs
 > unchanged when they are present (backward-compat with tickets minted
 > before this ADR). See `ship/SKILL.md` "Pipeline order" (the `code` row) and

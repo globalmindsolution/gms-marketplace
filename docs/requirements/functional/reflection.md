@@ -21,8 +21,14 @@ create-principles, create-standards, standardize-project, create-requirements) M
 Reflection pattern as a
 **plan–execute–verify cycle**, with a **different subagent for each phase**.
 Each phase runs in a separate context window so the verify phase judges the work
-fresh rather than rubber-stamping its own output. The table below shows the three
-phases and their responsibilities for a representative triad-running skill:
+fresh rather than rubber-stamping its own output. **`code` is a conditional
+triad (MAR-72):** its plan phase spawns the `code-planner` subagent only on
+STANDARD/COMPLEX lanes; on TRIVIAL/SMALL the coordinator authors the plan
+artifact itself, with zero planner spawns, against the identical artifact
+contract — execute and verify stay unconditional on every lane, so only the
+plan phase's subagent-vs-coordinator authorship varies by lane. The table
+below shows the three phases and their responsibilities for a representative
+triad-running skill:
 
 | Phase | Subagent (example for `/code`) | Responsibility |
 |-------|--------------------------------|----------------|
@@ -50,7 +56,11 @@ Requirements:
   verifier's findings back into another plan/execute iteration. Exception:
   for `/acs:code`, findings feed the **executor's** `<context>` on the next
   iteration — execute → verify only, with no re-plan and no second planner
-  spawn (MAR-71, slice 1b of MAR-69).
+  spawn (MAR-71, slice 1b of MAR-69). On TRIVIAL/SMALL specifically there is
+  no planner to feed back into in the first place — the plan was
+  coordinator-authored with zero planner spawns, so the loop-back is
+  executor-only on every lane; escalating mid-flight to STANDARD/COMPLEX
+  never retro-spawns a planner either (MAR-72, D-3).
   - The cycle runs at most **lane-driven iterations**:
     - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **1 iteration** (light
       verify — single verifier pass that may iterate once on blocking findings;
@@ -148,7 +158,9 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
-> **Spec-time vs. code-time simplicity (MAR-88)**: the `code-planner`
+> **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author (the
+> `code-planner` on STANDARD/COMPLEX; the coordinator on TRIVIAL/SMALL,
+> **best-effort**, MAR-72)
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on
@@ -164,6 +176,7 @@ Requirements:
 flowchart TD
     CO[Coordinator] -->|XML task| PL[planner]
     PL -->|XML plan| CO
+    CO -->|TRIVIAL/SMALL: self-authors plan.md, no planner spawn| CO
     CO -->|XML task + plan| EX[executor]
     EX -->|XML result| CO
     CO -->|XML task + result| VF[verifier]
@@ -175,7 +188,11 @@ flowchart TD
 
 For `/acs:code` (MAR-71, slice 1b of MAR-69), a failing verdict with
 iterations left routes straight back to the **executor** (`EX`), never to
-the planner — the plan is authored once, before iteration 1.
+the planner — the plan is authored once, before iteration 1. **The `CO
+-->|XML task| PL` edge is itself lane-conditional (MAR-72, ADR-0074):** it
+fires only on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator instead
+takes the self-loop edge above, authoring `plan.md` itself with zero
+`code-planner` spawns.
 
 ## Coordinator ↔ subagent communication: XML
 

@@ -16,7 +16,10 @@ MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 / `PL->>WS` steps below happen **once, before** the `loop reflection` block for
 `/acs:code`; for the other eleven triad skills the plan step instead sits
 **inside** the `loop reflection` block, a shape this `/acs:code`-traced diagram
-no longer draws). The three **apply-work
+no longer draws. Those same two steps are additionally **lane-conditional**
+since MAR-72: they fire on STANDARD/COMPLEX only; on TRIVIAL/SMALL the
+coordinator writes `plan.md` itself and there is no `PL` participant leg at
+all for that run (ADR 0074) — see the `alt` branch below). The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —
@@ -52,9 +55,13 @@ sequenceDiagram
         opt reconcile / handoff resume
             CO->>WS: read runs[-1], phase artifacts, re-verify recorded work
         end
-        CO->>PL: XML <task phase="plan">
-        PL->>WS: plan.md
-        PL-->>CO: XML <result> (validated)
+        alt /acs:code on TRIVIAL/SMALL (MAR-72)
+            CO->>WS: plan.md (coordinator-authored, no planner spawn)
+        else STANDARD/COMPLEX, or any other triad-keeping skill
+            CO->>PL: XML <task phase="plan">
+            PL->>WS: plan.md
+            PL-->>CO: XML <result> (validated)
+        end
         opt open questions
             CO->>Dev: clarify (ledger first, record answers)
         end
@@ -77,6 +84,13 @@ sequenceDiagram
 Failure shapes: iteration cap → `failed` with findings recorded; coverage
 hard-fail → `failed`, `/create-pr` gate stays closed; crash → `in_progress`
 left behind, SessionEnd marks `interrupted`, next run reconciles.
+
+The `CO->>WS: persist iter-n-*.xml at each boundary` step above is itself
+lane-conditional for `/acs:code`'s plan phase (**D-4**, MAR-72): on
+TRIVIAL/SMALL no `<task phase="plan">` message is ever sent and no
+`<result>` is returned, so there is no plan XML to validate and no
+`iter-<n>-plan.xml` snapshot to persist — the execute/verify XML persistence
+in the `loop reflection` block above is unaffected in every lane.
 
 ## Verify-depth scaling (MAR-58 / D4)
 
@@ -104,7 +118,10 @@ Completed iterations are preserved (no restart). De-escalation is never
 automatic. If escalation crosses the fast→full fold boundary (TRIVIAL/SMALL →
 STANDARD/COMPLEX), the iteration ceiling and verify depth are raised to the
 escalated lane's values; there is no stage re-entry and no re-spawn of any
-prior phase — completed iterations are preserved (`code/SKILL.md`'s "In-loop
+prior phase — including no retro-spawn of a `code-planner` for a run that
+started on a fast lane (**D-3**, MAR-72): the escalation raises verify depth
+and the iteration ceiling only; it never spawns a planner after the fact.
+Completed iterations are preserved (`code/SKILL.md`'s "In-loop
 escalation check" section).
 
 **The verifier subagent runs in every lane as the in-loop gate (C-5).** Light

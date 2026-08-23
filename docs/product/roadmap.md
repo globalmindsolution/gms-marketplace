@@ -58,8 +58,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 - 24 skills + 45 agent files on disk (verified `ls plugins/acs/skills` = 24,
   `ls plugins/acs/agents` = 45); the reflection (plan→execute→verify) protocol is
   active on the twelve triad-keeping skills (`/acs:code` now plans once per
-  run rather than per iteration; the other eleven keep the per-iteration
-  shape), while the three apply-work skills
+  run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
+  coordinator-authored with zero `code-planner` spawns (MAR-72); the other
+  eleven keep the per-iteration shape), while the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
@@ -636,9 +637,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
   4. **code-planner user-confirmed stakes-bump** — `/acs:code`'s planner
-     (which self-authors spec content on every lane, ADR 0066) may propose a
-     user-confirmed ticket stakes bump on discovering a high-stakes surface
-     (metadata-accuracy only; composes with **C-7**/**C-12**, does not alter
+     (spec content's author is lane-conditional: the code-planner on
+     STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL, per ADR-0074) may
+     propose a user-confirmed ticket stakes bump on discovering a
+     high-stakes surface (metadata-accuracy only; composes with
+     **C-7**/**C-12**, does not alter
      **G25**'s escalation mechanism). Maps to PRD **G25, C-12**. The
      MECHANISM is settled in this epic's design phase.
 

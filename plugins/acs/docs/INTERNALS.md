@@ -66,6 +66,9 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations):
      plan    -> spawn <skill>-planner   (XML <task phase="plan">,   returns <result>)
+                (for /acs:code this line is lane-conditional since MAR-72: STANDARD/COMPLEX
+                 spawn the planner as shown; on TRIVIAL/SMALL the coordinator writes plan.md
+                 directly, with no XML plan message sent or returned — D-4)
      execute -> spawn <skill>-executor(s) (XML <task phase="execute">; parallel executors
                 allowed when outputs cannot conflict; decomposition is coordinator-only)
      verify  -> spawn <skill>-verifier  (XML <task phase="verify">,  returns <result> with findings)
@@ -104,7 +107,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; the other eleven triad skills, including `/acs:docs-sync`, keep `iter-<n>-plan.md`) | planner | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; the other eleven triad skills, including `/acs:docs-sync`, keep `iter-<n>-plan.md`) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
@@ -357,7 +360,10 @@ induction invariant, not a periodic chore:
 - **Drift repair (boy-scout)** — commits that bypass the pipeline can still
   desynchronize docs. Both the design planner and the code planner compare
   the touched area's docs against current code and schedule stale sections
-  for repair as part of the ticket; widespread drift triggers a recommended
+  for repair as part of the ticket (on TRIVIAL/SMALL this survey is
+  **best-effort** and coordinator-carried instead of planner-carried, since
+  there is no code-planner spawn on those lanes — MAR-72; its omission there
+  is never a finding); widespread drift triggers a recommended
   /create-architecture re-run (the full reconcile, shipped as its own
   delivery ticket + docs PR).
 

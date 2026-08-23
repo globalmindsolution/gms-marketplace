@@ -318,14 +318,19 @@ user-confirmed, boundary-gated sequence, and `confirm_deescalation` cannot be
 reached without a resolved, answered `clarify_ref`.
 
 Plan once, before the loop, then run execute -> verify for at most
-verify_depth-determined iterations (light: cap 1; full: cap 3) — exactly one
-`acs:code-planner` subagent is spawned across the whole run, however many
-iterations the loop uses. Spawn subagents with the
-Agent tool: `acs:code-planner`, `acs:code-executor`, `acs:code-verifier` (fall
-back to the un-namespaced name only if the runtime rejects the namespaced
-one). For each role, apply `context.models.<role>.model` / `.effort` at spawn
-when not `"inherit"`; if the runtime rejects the model or effort, FAIL the run
-with that exact error — no silent fallback.
+verify_depth-determined iterations (light: cap 1; full: cap 3). **On
+STANDARD/COMPLEX**, exactly one `acs:code-planner` subagent is spawned across
+the whole run, however many iterations the loop uses. **On TRIVIAL/SMALL**
+(MAR-72), the coordinator authors `<partition>/phases/code/plan.md` itself at
+the Plan step below — zero `acs:code-planner` spawns on those lanes, every
+run. The lane read for this fork is the SAME freshly recomputed
+`derive_lane(...)` value used at Start (never the cached `ticket.lane`,
+D-2). Spawn subagents with the
+Agent tool: `acs:code-planner` (STANDARD/COMPLEX only), `acs:code-executor`,
+`acs:code-verifier` (fall back to the un-namespaced name only if the runtime
+rejects the namespaced one). For each role, apply `context.models.<role>.model`
+/ `.effort` at spawn when not `"inherit"`; if the runtime rejects the model or
+effort, FAIL the run with that exact error — no silent fallback.
 
 Messaging rules (schemas/acs-messages.xsd):
 
@@ -352,9 +357,14 @@ Messaging rules (schemas/acs-messages.xsd):
 
 ### Plan (once, before the loop)
 
-Task the planner with `<inputs>` of all `<partition>/specs/*.md`,
-`<partition>/ticket.json`, `<design.dir>/design.md` when `design.required`,
-and the relevant consumer-repo source/docs. The planner returns (artifact:
+**Lane fork (D-1/D-2, MAR-72).** This step forks on the SAME freshly
+recomputed lane used at Start — `derive_lane(ticket.size, ticket.stakes,
+ticket.needs_design, ticket.type)`, never the cached `ticket.lane` (D-2).
+
+**STANDARD/COMPLEX — unchanged from MAR-71.** Task the planner with
+`<inputs>` of all `<partition>/specs/*.md`, `<partition>/ticket.json`,
+`<design.dir>/design.md` when `design.required`, and the relevant
+consumer-repo source/docs. The planner returns (artifact:
 `<partition>/phases/code/plan.md`):
 
 **Spec authoring fold (`specs/` absent or empty, every lane)**
@@ -363,7 +373,8 @@ Before producing the standard plan content, check whether
 `<partition>/specs/` already has `.md` content.
 
 When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
-the code-planner ADDITIONALLY produces, as part of its plan artifact
+the plan's author (the code-planner on STANDARD/COMPLEX, the coordinator on
+TRIVIAL/SMALL, MAR-72) ADDITIONALLY produces, as part of the plan artifact
 (`<partition>/phases/code/plan.md`), the spec content a standalone
 create-spec planner would once have produced. This content covers, in order:
 
@@ -389,8 +400,8 @@ the split seams recorded above are what `/acs:create-ticket split` reads
 - "every ticket.acceptance_criteria entry maps to at least one test the folded
   plan will write" (AC-4)
 
-If specs already exist, the fold does NOT activate — the planner reads the
-existing specs normally, on every lane. The fold only activates when
+If specs already exist, the fold does NOT activate — the plan's author reads
+the existing specs normally, on every lane. The fold only activates when
 `<partition>/specs/` is absent or empty.
 
 This fold does NOT alter the execute or verify phases. The existing
@@ -420,6 +431,50 @@ block (AC-6) apply unchanged in every lane; see those sections.
   re-plan. On iterations 2-3, the verifier's findings route straight to the
   executor's `<task>` `<context>` (`code-executor.md:29-30`), where the
   executor authors the remediation.
+
+**TRIVIAL/SMALL — the coordinator authors `plan.md` itself; zero
+`acs:code-planner` spawns.** No Agent-tool spawn happens for this phase on
+these lanes. The coordinator writes `<partition>/phases/code/plan.md`
+directly, against the IDENTICAL artifact contract `code-planner.md` requires
+— the same six required headings
+(`## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
+`## Documentation map`, `## Risks`, `## Verifier checklist`), the same five
+fold section literals in the exact order
+`structure_lint.py --sections "Scope; Approach; API/data changes; Test plan; Out of scope" --ordered`
+checks when the fold is active, the same two
+mandatory verbatim clauses above, and an explicit statement of which intake
+mode applied. **"Minimal" means the coordinator skips the separate-subagent
+authorship step, never that a section is empty, a placeholder, or "see
+ticket"** — every section must be substantive, because the verifier's
+completeness sub-check (dimension 1) judges this artifact identically
+whether the planner or the coordinator wrote it. This coordinator-authored
+`plan.md` is passed to the executor's and the verifier's `<inputs>` exactly
+like a planner-authored one — no downstream consumer sees a lesser artifact.
+
+On TRIVIAL/SMALL the coordinator performs, at minimum: the AC-to-test
+mapping, the executor file map, the test/coverage commands and tooling, the
+`docs/product/prd.md`/`docs/product/roadmap.md` factual assessment (this
+sub-check stays BLOCKING on every lane — skipping it only manufactures a
+verifier finding), and the verifier checklist. The remaining
+`code-planner.md` charter items — the Boy-scout drift survey, the E1-E4
+doc-graph-gap check, the spec-simplicity gate, and the oversize signal — are
+**best-effort** on these lanes only; their omission is never a finding.
+
+**D-3 — mid-flight escalation never retro-spawns a planner.** When a
+TRIVIAL/SMALL run escalates to STANDARD/COMPLEX mid-flight (see "In-loop
+escalation check" above), the escalation raises verify depth and the
+iteration ceiling only — it never spawns a planner after the fact, and the
+coordinator-authored `plan.md` remains the plan artifact for the rest of the
+run, because it already satisfies the same contract. The symmetric
+user-confirmed de-escalation (see "Boundary-only user-confirmed
+de-escalation" above) likewise never revokes an already-authored plan.
+
+**D-4 — no plan XML message on the fast lanes.** Because no planner
+subagent is spawned, no `<task phase="plan">` message is sent and no
+`<result>` is returned — there is no plan message to validate and no
+`iter-<n>-plan.xml` snapshot to persist on TRIVIAL/SMALL. `plan.md` remains
+the durable record on every lane; the resume path is unchanged because it
+keys on the presence of `plan.md`, never on who authored it.
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 

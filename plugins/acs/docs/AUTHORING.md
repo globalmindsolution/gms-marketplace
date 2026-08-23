@@ -87,7 +87,10 @@ win — change them first, then the implementation.
    per-ticket `plan.md` instead (MAR-70), written once per run, before the
    loop (MAR-71, slice 1b of MAR-69) — see `skills/code/SKILL.md`'s "Plan
    artifact resolution (read-both compat)" section for the resume fallback;
-   every other triad skill keeps the generic rule.
+   every other triad skill keeps the generic rule. Since MAR-72, on
+   TRIVIAL/SMALL that `plan.md` is written by the **coordinator**, not a
+   planner subagent — an agent author must not assume a `-planner` body is
+   always the writer of `/acs:code`'s plan artifact.
 4. **No memory assumptions.** The subagent shares nothing with the
    coordinator: every fact it needs must come from `<inputs>` file paths it
    reads itself. Never write "as discussed" or rely on the ticket being "the
