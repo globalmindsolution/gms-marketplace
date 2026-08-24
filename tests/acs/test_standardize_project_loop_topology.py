@@ -14,7 +14,11 @@ MAR-301 topology change for the fully-independent-verifier case.
 
 Every assertion is by file + substring/regex over whitespace-normalized text,
 never by line number (line numbers drift as prose is revised). Stdlib-only
-(os, re, unittest). Run:
+(os, re, unittest). Iteration 2 adds the coordinator-side half of the
+approval gate: what happens when the executor refuses an out-of-frozen-
+allowlist finding by returning a `failed` result, so that refusal is
+observable (routed to `recommended_follow_ups`) rather than dead-ending as
+an undifferentiated run failure. Run:
   python3 -m unittest tests.acs.test_standardize_project_loop_topology -v
 """
 
@@ -254,6 +258,59 @@ class DesignDecisionTraceableTest(unittest.TestCase):
         window = section(body_norm, "## Additive-surface contract", "## Reflection loop")
         self.assertIn("bounds, and does not close, the trust gap", window)
         self.assertIn("mechanically derived allowlist", window)
+
+
+class ExecutorFailedResultRoutingTest(unittest.TestCase):
+    """AC-4 (F1 remediation): an executor `failed` result raised for an
+    out-of-frozen-allowlist finding is routed to `recommended_follow_ups`
+    rather than dead-ending as a generic run failure, fail-closed for
+    every other `failed` result."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SP_SKILL)
+        cls.norm = norm(cls.body)
+        cls.window = section(cls.norm, "## Reflection loop", "## Delivery")
+
+    def test_executor_failed_colocates_with_recommended_follow_ups(self):
+        for m in re.finditer(r'status="failed"', self.window):
+            near = self.window[max(0, m.start() - 500):m.end() + 500]
+            if "executor" in near.lower() and "recommended_follow_ups" in near:
+                return
+        self.fail(
+            "reflection-loop window must co-locate an executor "
+            "'status=\"failed\"' result with 'recommended_follow_ups' "
+            "within ~500 normalized chars")
+
+    def test_names_out_of_frozen_allowlist_trigger(self):
+        self.assertRegex(
+            self.window,
+            r"(?i)(outside.{0,60}frozen.{0,40}allowlist|out-of-frozen-allowlist)")
+
+    def test_states_not_a_run_failure(self):
+        self.assertRegex(self.window, r"(?i)is not a run failure")
+
+    def test_fail_closed_default_for_every_other_failed_result(self):
+        self.assertIn("remains a genuine run failure", self.window)
+        self.assertIn("never silently converted", self.window)
+
+    def test_never_redispatched_and_never_widens_allowlist(self):
+        self.assertRegex(self.window, r"(?i)never\s+re-?dispatch")
+        self.assertIn("never widen the frozen allowlist", self.window)
+
+    def test_both_sinks_present_and_cap_three_survives(self):
+        self.assertIn('severity="info"', self.window)
+        self.assertIn("recommended_follow_ups", self.window)
+        self.assertRegex(
+            self.window,
+            r"(?i)executor.{0,300}failed|failed.{0,300}executor")
+        for m in re.finditer(r"After iteration 3", self.window):
+            near = self.window[max(0, m.start() - 60):m.end() + 60]
+            if re.search(r"(?i)failed", near):
+                return
+        self.fail(
+            "the terminal iteration-cap-3 rule must still co-locate "
+            "'After iteration 3' with 'failed'")
 
 
 if __name__ == "__main__":
