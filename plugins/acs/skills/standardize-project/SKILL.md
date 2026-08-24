@@ -215,8 +215,6 @@ execute+verify rounds, not a plan+execute+verify triad. `standardize-project` ha
 lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this ticket
 introduces none.
 
-### Plan (once, before the loop)
-
 Example plan task (illustrates the audit-inputs contract and the narrowed allowlist
 together):
 
@@ -282,7 +280,22 @@ executor instead returns `status="failed"` whose `<errors>` unambiguously name t
 reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
 convert it into a `{title, rationale, target_path}` entry in the result document's
 `recommended_follow_ups` array, exactly as for a degraded `severity="info"` verifier
-finding, so it reaches the PR body's `## Recommended follow-ups` section. This does not
+finding, so it reaches the PR body's `## Recommended follow-ups` section. Convert ONLY
+when the refused finding is itself of the degradable class the verifier's own
+four-condition route uses: the finding this coordinator routed into that executor's
+`<context>` must carry `dimension="plan-conformance"` AND be of the missing-scaffold /
+under-coverage class — the plan's task breakdown expected path or category X and it was
+not scaffolded — never the over-scaffold "unplanned extra scaffold file" class, and
+never any other dimension. A refusal whose underlying finding is `additive-only`,
+`doc-set-authorship`, `recommended-follow-ups-only`, `completion-report-shape`, or an
+over-scaffold `plan-conformance` finding is NEVER convertible: it remains a genuine run
+failure however truthfully its `<errors>` name the frozen allowlist. Judge that class
+from the verifier's own prior `<finding>`, which you hold verbatim — never from the
+executor's self-report — and fail closed: if the class is undetermined, or the refusal
+cannot be mapped to exactly one such finding, there is no conversion and the `failed`
+status stands. (The verifier's fourth condition, the target being absent from this
+iteration's diff, holds by construction here: the executor refused, so it wrote nothing
+for that target.) This does not
 count against the pass/fail verdict: never re-dispatch the finding to a future executor
 `<context>`, and never widen the frozen allowlist. Every other executor `failed`
 result — missing input, plan/repo mismatch, or `<errors>` that do not unambiguously name

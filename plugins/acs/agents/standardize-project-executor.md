@@ -28,8 +28,11 @@ frozen iteration-1 Additive-surface allowlist is **NOT executable** — report i
 scaffold it. Scaffolding it would silently widen your writable surface past what the
 plan authorized; instead name it in the execute report's `problems` and, per the Output
 contract below, return a `failed` result with `<errors>` describing exactly why it is
-out of your frozen allowlist, so the coordinator can route it to `recommended_follow_ups`
-instead of it ever landing in a future context.
+out of your frozen allowlist, so the coordinator can apply its own conversion rule
+(`SKILL.md` §Reflection loop) — routing it to `recommended_follow_ups` only when the
+underlying finding is of the degradable plan-conformance class, and treating the
+refusal as a genuine run failure otherwise — instead of it ever landing in a future
+context.
 
 ## Doing the work
 
