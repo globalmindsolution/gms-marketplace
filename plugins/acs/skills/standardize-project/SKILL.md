@@ -277,7 +277,17 @@ Zero blocking verifier findings = pass — proceed to Delivery. `additive-only` 
 blocking, only when the verifier's four-condition conjunction holds (fail-closed
 otherwise) — see `standardize-project-verifier.md` for the exact conjunction. On
 remaining blocking findings, they go verbatim into the executor's `<task>` `<context>`,
-with no planner spawn in between, and the run continues execute -> verify. After
+with no planner spawn in between, and the run continues execute -> verify. When an
+executor instead returns `status="failed"` whose `<errors>` unambiguously name the
+reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
+convert it into a `{title, rationale, target_path}` entry in the result document's
+`recommended_follow_ups` array, exactly as for a degraded `severity="info"` verifier
+finding, so it reaches the PR body's `## Recommended follow-ups` section. This does not
+count against the pass/fail verdict: never re-dispatch the finding to a future executor
+`<context>`, and never widen the frozen allowlist. Every other executor `failed`
+result — missing input, plan/repo mismatch, or `<errors>` that do not unambiguously name
+that reason — remains a genuine run failure and is never silently converted; the
+executor's own `failed` status stands as reported. After
 iteration 3 with blocking findings remaining: stop, final status `failed`, findings
 recorded in the result document; commit whatever was written to the local ticket branch
 so nothing is lost, but do NOT push or open the PR.
