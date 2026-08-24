@@ -91,14 +91,15 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
-**`/acs:code` and `/acs:docs-sync` exception (MAR-71, slice 1b of MAR-69, for
-`/acs:code`; MAR-300 for `/acs:docs-sync`):** for these two skills, the plan
-step above runs exactly once, before this loop starts, and is not part of any
-iteration — it is never re-entered on iteration 2+. The loop body for both is
-execute → verify only: on iteration 2+, verifier findings feed straight into
-the next iteration's **executor** `<context>`, never back into a re-plan step,
-and the executor authors the remediation. The other ten triad-keeping skills
-keep the generic plan → execute → verify shape drawn above unchanged.
+**`/acs:code`, `/acs:docs-sync` and `/acs:create-project` exception (MAR-71,
+slice 1b of MAR-69, for `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for
+`/acs:create-project`):** for these three skills, the plan step above runs
+exactly once, before this loop starts, and is not part of any iteration — it
+is never re-entered on iteration 2+. The loop body for all three is execute →
+verify only: on iteration 2+, verifier findings feed straight into the next
+iteration's **executor** `<context>`, never back into a re-plan step, and the
+executor authors the remediation. The other nine triad-keeping skills keep the
+generic plan → execute → verify shape drawn above unchanged.
 
 ### Phase artifacts (written by the subagents themselves)
 
@@ -108,7 +109,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; the other ten triad skills keep the per-iteration shape; `/acs:docs-sync` keeps the `iter-<n>-plan.md` **name** but, since MAR-300, writes it exactly once per run — before the loop, never rewritten on a later iteration, `n` always 1) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; the other nine triad skills keep the per-iteration shape; `/acs:docs-sync` (MAR-300) and `/acs:create-project` (MAR-301) keep the `iter-<n>-plan.md` **name** but write it exactly once per run — before the loop, never rewritten on a later iteration, `n` always 1) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
