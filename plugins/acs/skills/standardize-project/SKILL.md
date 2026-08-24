@@ -63,6 +63,8 @@ continuing:
   committed, pushed, or already has a PR (`gh pr list --head <branch>`).
 - Distrust the record where it is cheap to re-check.
 - Continue from the first unfinished phase of the recorded iteration.
+- A resumed run reuses the existing `iter-1-plan.md` and never spawns a second
+  planner; the plan phase runs (once) only when that artifact is absent.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/standardize-project/handoff-context.md` (if present), do a light
@@ -159,6 +161,14 @@ from:
 Everything else the executor's diff touches must be `A` status (a wholly new file) —
 never `R`, `D`, or an `M` outside the two categories above.
 
+**The allowlist is frozen.** The planner authors the Additive-surface allowlist exactly
+once, in `iter-1-plan.md`; that allowlist is authoritative for the whole run — the
+executor's writable surface is monotonically non-increasing across iterations 1-3: it
+can shrink (a category the plan named can become moot once scaffolded), never grow. This
+freeze bounds, and does not close, the trust gap: the allowlist remains planner-authored
+prose, not a mechanically derived allowlist — closing that gap is a named future
+follow-up, not built by this ticket.
+
 **Deviation from the design's broader allowlist — resolved report-only.** The design's
 own allowlist text additionally lists `<principles_path>/**` and `<standards_path>/**`
 (new files only, or invoking the producer skill) as scaffold-able categories. This spec
@@ -186,17 +196,24 @@ through this same one array, never a second output channel.
 
 ## Reflection loop
 
-Mirrors `create-standards/SKILL.md:130-213` in structure: plan → execute → verify, max 3
-iterations. Spawn subagents via the Agent tool: `subagent_type`
-`acs:standardize-project-planner` / `acs:standardize-project-executor` /
-`acs:standardize-project-verifier` (fall back to the un-namespaced name if the runtime
-rejects the namespaced one). Apply `context.models.<role>.model`/`.effort` at spawn when
-not `"inherit"`; fail the run (no silent fallback) if the runtime rejects the
-model/effort. Communicate in XML per `schemas/acs-messages.xsd`; validate every message
-via `validate_xml.py`; on an invalid message, re-request once, then fail with the
-validation error recorded in `errors`. Persist every phase output to
-`<partition>/phases/standardize-project/iter-<n>-<phase>.xml` before starting the next
-phase.
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:standardize-project-planner` across the whole run, however many iterations the loop
+below uses. The loop itself is execute -> verify, at most 3 iterations. Spawn subagents
+via the Agent tool: `subagent_type` `acs:standardize-project-planner` /
+`acs:standardize-project-executor` / `acs:standardize-project-verifier` (fall back to the
+un-namespaced name if the runtime rejects the namespaced one). Apply
+`context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
+silent fallback) if the runtime rejects the model/effort. Communicate in XML per
+`schemas/acs-messages.xsd`; validate every message via `validate_xml.py`; on an invalid
+message, re-request once, then fail with the validation error recorded in `errors`.
+Persist every phase output to `<partition>/phases/standardize-project/iter-<n>-<phase>.xml`
+before starting the next phase.
+
+**What an iteration counts.** One iteration is one execute -> verify round; the plan
+phase runs once, before the loop, and is not part of any iteration, so the cap counts
+execute+verify rounds, not a plan+execute+verify triad. `standardize-project` has no
+lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this ticket
+introduces none.
 
 Example plan task (illustrates the audit-inputs contract and the narrowed allowlist
 together):
@@ -222,11 +239,15 @@ together):
 
 Phases:
 
-1. **Plan** — the planner AUDITS (read-only): reads the doc-set/target/readiness-tooling
-   inputs above, produces a gap list classified into scaffold-able (CI/tooling config)
-   vs recommended-follow-up-only (missing doc sets, missing `hld/project-structure.md`,
-   structural gaps against it), the additive-surface allowlist the verifier will
-   enforce, and the `recommended_follow_ups` candidates. Persist the plan.
+1. **Plan** (once, before the loop) — the planner AUDITS (read-only): reads the
+   doc-set/target/readiness-tooling inputs above, produces a gap list classified into
+   scaffold-able (CI/tooling config) vs recommended-follow-up-only (missing doc sets,
+   missing `hld/project-structure.md`, structural gaps against it), the additive-surface
+   allowlist the verifier will enforce, and the `recommended_follow_ups` candidates.
+   Persist the plan to `<partition>/phases/standardize-project/iter-1-plan.md`; this
+   allowlist is frozen for the whole run (see Additive-surface contract). On iterations
+   2-3 the verifier's findings go verbatim into the executor's `<task>` `<context>`, with
+   no planner spawn in between (see Execute below).
 2. **Execute** — the executor writes ONLY the allowlisted new files and named additive
    config appends — never edits, renames, or deletes any pre-existing source file, and
    never writes under `<principles_path>/**` or `<standards_path>/**`. Decomposition is
@@ -248,11 +269,41 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    recommended-follow-ups-only, plan-conformance, completion-report shape) is defined in
    its own agent prose (`standardize-project-verifier.md`) and re-run every iteration.
 
-Zero verifier findings = pass — proceed to Delivery. On findings, feed them verbatim
-into the next iteration's plan task and re-run plan → execute → verify. After iteration
-3 with findings remaining: stop, final status `failed`, findings recorded in the result
-document; commit whatever was written to the local ticket branch so nothing is lost, but
-do NOT push or open the PR.
+Zero blocking verifier findings = pass — proceed to Delivery. `additive-only` and
+`doc-set-authorship` findings always block. A `plan-conformance` finding degrades to
+`severity="info"` and is surfaced as a `recommended_follow_ups` entry, instead of
+blocking, only when the verifier's four-condition conjunction holds (fail-closed
+otherwise) — see `standardize-project-verifier.md` for the exact conjunction. On
+remaining blocking findings, they go verbatim into the executor's `<task>` `<context>`,
+with no planner spawn in between, and the run continues execute -> verify. When an
+executor instead returns `status="failed"` whose `<errors>` unambiguously name the
+reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
+convert it into a `{title, rationale, target_path}` entry in the result document's
+`recommended_follow_ups` array, exactly as for a degraded `severity="info"` verifier
+finding, so it reaches the PR body's `## Recommended follow-ups` section. Convert ONLY
+when the refused finding is itself of the degradable class the verifier's own
+four-condition route uses: the finding this coordinator routed into that executor's
+`<context>` must carry `dimension="plan-conformance"` AND be of the missing-scaffold /
+under-coverage class — the plan's task breakdown expected path or category X and it was
+not scaffolded — never the over-scaffold "unplanned extra scaffold file" class, and
+never any other dimension. A refusal whose underlying finding is `additive-only`,
+`doc-set-authorship`, `recommended-follow-ups-only`, `completion-report-shape`, or an
+over-scaffold `plan-conformance` finding is NEVER convertible: it remains a genuine run
+failure however truthfully its `<errors>` name the frozen allowlist. Judge that class
+from the verifier's own prior `<finding>`, which you hold verbatim — never from the
+executor's self-report — and fail closed: if the class is undetermined, or the refusal
+cannot be mapped to exactly one such finding, there is no conversion and the `failed`
+status stands. (The verifier's fourth condition, the target being absent from this
+iteration's diff, holds by construction here: the executor refused, so it wrote nothing
+for that target.) This does not
+count against the pass/fail verdict: never re-dispatch the finding to a future executor
+`<context>`, and never widen the frozen allowlist. Every other executor `failed`
+result — missing input, plan/repo mismatch, or `<errors>` that do not unambiguously name
+that reason — remains a genuine run failure and is never silently converted; the
+executor's own `failed` status stands as reported. After
+iteration 3 with blocking findings remaining: stop, final status `failed`, findings
+recorded in the result document; commit whatever was written to the local ticket branch
+so nothing is lost, but do NOT push or open the PR.
 
 ## Delivery
 

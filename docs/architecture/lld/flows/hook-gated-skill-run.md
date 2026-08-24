@@ -14,15 +14,19 @@ per-ticket plan artifact (MAR-70) — the other eleven triad skills write
 `iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
 MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 / `PL->>WS` steps below happen **once, before** the `loop reflection` block for
-`/acs:code`; for the other nine triad skills the plan step instead sits
+`/acs:code`; for the other eight triad skills the plan step instead sits
 **inside** the `loop reflection` block, a shape this `/acs:code`-traced diagram
-no longer draws. `/acs:docs-sync` (MAR-300) and `/acs:create-project`
-(MAR-301) have joined `/acs:code` outside the loop: their plan phase
-likewise runs once, before the loop, with iteration-2+ findings routed
-straight to their executor's `<context>`. Those same two steps are additionally **lane-conditional**
-since MAR-72: they fire on STANDARD/COMPLEX only; on TRIVIAL/SMALL the
-coordinator writes `plan.md` itself and there is no `PL` participant leg at
-all for that run (ADR 0074) — see the `alt` branch below). The three **apply-work
+no longer draws. `/acs:docs-sync` (MAR-300), `/acs:create-project`
+(MAR-301), and `/acs:standardize-project` (MAR-302) have joined `/acs:code`
+outside the loop: their plan phase likewise runs once, before the loop, with
+iteration-2+ findings routed straight to their executor's `<context>`. Those
+same two steps (`CO->>PL` / `PL->>WS`) are additionally **lane-conditional**
+for `/acs:code` specifically since MAR-72: they fire on STANDARD/COMPLEX
+only; on TRIVIAL/SMALL the coordinator writes `plan.md` itself and there is
+no `PL` participant leg at all for that run (ADR 0074) — see the `alt` branch
+below. None of `/acs:docs-sync`, `/acs:create-project`, or
+`/acs:standardize-project` has a lane-conditional planner — each runs a
+fixed iteration cap of 3 in every lane. The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —

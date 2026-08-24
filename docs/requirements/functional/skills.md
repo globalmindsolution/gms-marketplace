@@ -641,7 +641,45 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
   — that stays with `/acs:initialize`, surfaced as a `recommended_follow_ups` entry pointing there.
 - Runs the full Reflection cycle — `standardize-project-planner`,
-  `standardize-project-executor`, `standardize-project-verifier`.
+  `standardize-project-executor`, `standardize-project-verifier` — as three
+  separate subagent contexts, but the plan phase runs **exactly once per
+  run, before the loop**: exactly one `standardize-project-planner` spawn
+  across the whole run, including on resume (MAR-302). The loop body is
+  execute → verify only, cap 3 in every lane, counting execute+verify
+  rounds (never plan+execute+verify triads).
+- **Allowlist provenance and immutability (MAR-302).** The Additive-surface
+  allowlist is authored exactly once, by the iteration-1 planner, in
+  `iter-1-plan.md`, and is frozen and authoritative for the whole run: the
+  executor's writable surface is monotonically non-increasing across
+  iterations 1-3 (it may shrink, e.g. via a narrowing finding, but never
+  grow), and the verifier re-reads that same literal frozen path every
+  iteration rather than trusting a per-iteration re-derivation. This bounds,
+  and does not close, the iteration-1 trust gap (ADR-0079).
+- **Out-of-scope-finding route (MAR-302).** A verifier finding whose
+  remediation would need a path/category outside the frozen iteration-1
+  allowlist is never silently added to the executor's writable surface. It
+  degrades to `severity="info"` and is surfaced as a `recommended_follow_ups`
+  entry **only** when all four of these hold (fail-closed otherwise, i.e.
+  undetermined stays blocking): `dimension="plan-conformance"`; the finding
+  is of the missing-scaffold/under-coverage class (never the over-scaffold
+  "unplanned extra scaffold file" class); the remediation target lies
+  outside the frozen allowlist; and the target is absent from this
+  iteration's `git diff --name-status` output. `dimension="additive-only"`,
+  `dimension="doc-set-authorship"`, `dimension="recommended-follow-ups-only"`,
+  `completion-report` shape findings, and dimension 4's second clause ("no
+  unplanned extra scaffold file") are **never** degradable — they always
+  block (ADR-0079).
+- **Executor-refusal route, class-scoped (MAR-302).** An executor refusal
+  for an out-of-frozen-allowlist finding converts to a
+  `recommended_follow_ups` entry **only** when the underlying verifier
+  finding is of that same degradable `plan-conformance` missing-scaffold
+  class, judged from the verifier's own prior finding — never from the
+  executor's self-report. Every other refusal class — including an
+  over-scaffold `plan-conformance` finding, or any `additive-only` /
+  `doc-set-authorship` / `recommended-follow-ups-only` / `completion-report`
+  shape finding — remains a genuine run failure. This is **not** an
+  unconditional conversion; fail closed on any undetermined class
+  (ADR-0079).
 - Structural gaps outside the additive-surface allowlist are surfaced as
   `recommended_follow_ups` entries in the completion report and PR body —
   **never** auto-minted as new tickets (D7).

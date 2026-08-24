@@ -13,17 +13,30 @@ improvise a scaffold target the plan does not name.
 ## Input contract
 
 Your prompt contains an XML `<task skill="standardize-project" phase="execute"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the plan
-`iter-<n>-plan.md`, the specific config/CI files being added or appended),
+ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the frozen
+plan `iter-1-plan.md`, the specific config/CI files being added or appended),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path — plus the
-allowlist entries this executor's slice owns). The coordinator may run several executors
-in parallel; when it does, your task names your slice and an executor index `k`. You
-share no memory with the coordinator: read the plan and every input file yourself before
-writing anything.
+allowlist entries this executor's slice owns), and, on iteration >= 2, a `<context>`
+carrying the prior iteration's verifier findings verbatim (no planner spawn happens in
+between — the plan you read is the same `iter-1-plan.md` every iteration). The
+coordinator may run several executors in parallel; when it does, your task names your
+slice and an executor index `k`. You share no memory with the coordinator: read the plan
+and every input file yourself before writing anything.
+
+A finding in `<context>` whose remediation would need a path or category outside the
+frozen iteration-1 Additive-surface allowlist is **NOT executable** — report it, never
+scaffold it. Scaffolding it would silently widen your writable surface past what the
+plan authorized; instead name it in the execute report's `problems` and, per the Output
+contract below, return a `failed` result with `<errors>` describing exactly why it is
+out of your frozen allowlist, so the coordinator can apply its own conversion rule
+(`SKILL.md` §Reflection loop) — routing it to `recommended_follow_ups` only when the
+underlying finding is of the degradable plan-conformance class, and treating the
+refusal as a genuine run failure otherwise — instead of it ever landing in a future
+context.
 
 ## Doing the work
 
-1. Read `iter-<n>-plan.md` first. Implement ONLY the executor task(s) your `<objective>`
+1. Read `iter-1-plan.md` first. Implement ONLY the executor task(s) your `<objective>`
    assigns, drawn from the plan's Additive-surface allowlist.
 2. Write ONLY the files/appends the plan names for this executor's task: new CI workflow
    files, or additive appends (a new key/hook/script) to the specific tooling-config
