@@ -23,6 +23,7 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
+CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 
 
 def read(path):
@@ -52,6 +53,10 @@ def dimension_window(body, number, label, radius=900):
 
 def code_verifier_body():
     return read(CODE_VERIFIER)
+
+
+def skill_body():
+    return read(CODE_SKILL)
 
 
 class Dimension15PlanConformanceTest(unittest.TestCase):
@@ -184,6 +189,54 @@ class Dimension16ApprovalAuditTest(unittest.TestCase):
         self.assertRegex(window, r'stakes.{0,10}[:=].{0,10}"?high"?')
         self.assertIn("escalations", window)
         self.assertRegex(window, r'direction.{0,10}[:=].{0,10}"?up"?')
+
+
+class PlanRevocationTest(unittest.TestCase):
+    """AC-5: revocation preserves the superseded plan; existing verify
+    citations stay resolvable."""
+
+    def _section(self):
+        body = skill_body()
+        start = body.index("### Plan revocation")
+        end = body.index("### Docs-only tickets")
+        self.assertLess(start, end)
+        return body[start:end]
+
+    def test_skill_documents_a_plan_revocation_subsection(self):
+        body = skill_body()
+        approval_idx = body.index("### Plan approval")
+        revocation_idx = body.index("### Plan revocation")
+        docs_only_idx = body.index("### Docs-only tickets")
+        self.assertLess(approval_idx, revocation_idx)
+        self.assertLess(revocation_idx, docs_only_idx)
+
+    def test_revocation_copies_never_moves(self):
+        section = norm(self._section())
+        self.assertRegex(section, r"(?i)byte-identical")
+        self.assertRegex(section, r"(?i)\bcopy\b")
+        self.assertRegex(section, r"(?i)never.{0,10}(?:a\s+)?(?:rename|move)")
+
+    def test_revocation_preserves_citation_resolvability(self):
+        section = norm(self._section())
+        self.assertIn("plan.md:", section)
+        self.assertRegex(section, r"(?i)resolve[sd]?\s+unchanged")
+        self.assertIn("plan-superseded-", section)
+
+    def test_revocation_is_boundary_gated_and_user_confirmed(self):
+        section = norm(self._section())
+        self.assertIn("clarify.py", section)
+        self.assertRegex(section, r"(?i)iteration or run boundary|run boundary")
+        self.assertRegex(section, r"(?i)never\s+automatic|not\s+automatic")
+
+    def test_reservation_sentence_retired(self):
+        body = skill_body()
+        self.assertNotIn(
+            "is not written or read by any behavior today", body)
+        section = norm(self._section())
+        self.assertRegex(
+            section,
+            r"(?i)never.{0,60}(?:an?\s+)?approval input|"
+            r"never.{0,60}conformance contract")
 
 
 if __name__ == "__main__":

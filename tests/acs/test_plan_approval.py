@@ -632,16 +632,21 @@ class PlanApprovalContractTest(unittest.TestCase):
         row_end = self.internals_body.index("\n", row_start)
         self.assertIn("plan_approved", self.internals_body[row_start:row_end])
 
-    def test_subsection_sits_between_plan_and_docs_only(self):
+    def test_subsection_sits_between_plan_and_revocation(self):
+        """Re-bound to `### Plan revocation` (MAR-74, T2) instead of
+        `### Docs-only tickets`: the new subsection now sits between
+        `### Plan approval` and `### Docs-only tickets`, so slicing at the
+        old boundary would silently widen every slice-based assertion below
+        to include revocation prose too."""
         plan_idx = self.skill_body.index("### Plan (once, before the loop)")
         approval_idx = self.skill_body.index("### Plan approval")
-        docs_only_idx = self.skill_body.index("### Docs-only tickets")
+        revocation_idx = self.skill_body.index("### Plan revocation")
         self.assertGreater(approval_idx, plan_idx)
-        self.assertLess(approval_idx, docs_only_idx)
+        self.assertLess(approval_idx, revocation_idx)
 
     def test_subsection_is_lane_qualified_and_non_gating(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         section_norm = _norm(self.skill_body[start:end])
         self.assertRegex(section_norm, r"(?i)STANDARD/COMPLEX")
         self.assertRegex(section_norm, r"(?i)TRIVIAL/SMALL.{0,80}no-ops?")
@@ -649,12 +654,12 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_subsection_carries_the_exact_command(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         self.assertIn("hooks/scripts/plan-approval.py", self.skill_body[start:end])
 
     def test_subsection_avoids_forbidden_literals(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         section = self.skill_body[start:end]
         self.assertNotIn("create-spec", section)
         self.assertNotIn("E2", section)

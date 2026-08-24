@@ -133,9 +133,9 @@ any other missing or incomplete phase artifact under "Resume & reconcile"
 above — re-derive from what actually exists rather than fabricating a plan.
 There is no other name for this artifact to fall back to.
 
-**Reservation.** `<partition>/phases/code/plan-superseded-<k>.md` is
-reserved for the plan-revocation path (MAR-69 slice 4) and is not written or
-read by any behavior today.
+**Reservation.** `<partition>/phases/code/plan-superseded-<k>.md` is the
+plan-revocation path's superseded-plan artifact — see the Plan revocation
+subsection below (after Plan approval) for when it is written and read.
 
 ## Reflection loop
 
@@ -508,6 +508,35 @@ An explicit `--plan` must resolve within `<partition>/phases/code/`; the
 script rejects (clean stderr, exit 2, no record written) any `--plan` whose
 realpath escapes that directory, and any future consumer of this record must
 do the same rather than trust a caller-supplied path.
+
+### Plan revocation
+
+The escape hatch reached when a blocking `dimension="plan-conformance"`
+finding's remedy is that the *plan* is wrong, not the changeset.
+
+**Never automatic.** The trigger is reached only at an iteration or run
+boundary — never mid-iteration — and only on an explicit user answer
+recorded via `clarify.py add`, the same boundary-gated, confirmation-first
+shape as `### Boundary-only user-confirmed de-escalation` above; letting the
+loop dissolve its own contract without that confirmation is precisely the
+rubber-stamp failure ADR 0004 exists to prevent.
+
+1. **Copy before revise, never move.** `cp plan.md plan-superseded-<k>.md`,
+   `<k>` the smallest positive integer with no existing file. The copy is
+   byte-identical, so every `plan.md:<line>` citation already written into an
+   earlier `iter-<n>-verify.md` resolves unchanged against
+   `plan-superseded-<k>.md` — the operation is a copy, never a rename or
+   move, and the superseded bytes are never deleted.
+2. **Revise `plan.md` in place** (coordinator-authored; exactly one
+   `code-planner` is spawned per run, so no planner re-spawn happens here —
+   consistent with `### Plan approval`'s existing "at most revising `plan.md`
+   once and re-running the script").
+3. **Re-run `plan-approval.py --ticket <id>`.** The new digest writes a
+   fresh record, so `plan-approval.json` always describes the *current*
+   `plan.md`, and the superseded copies are the audit trail.
+4. **`plan-superseded-<k>.md` is never an approval input and never a
+   conformance contract** — guaranteed by dimension 15's activation
+   condition that `plan_path` must equal `phases/code/plan.md`.
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 
