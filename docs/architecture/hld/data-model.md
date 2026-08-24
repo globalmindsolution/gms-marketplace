@@ -105,10 +105,10 @@ erDiagram
     }
 ```
 
-**PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b).** The
-`"plan/execute/verify per iteration"` cardinality above holds as stated for
-the execute and verify artifacts, and for the plan artifact of the eleven
-triad skills other than `/acs:code`. `/acs:code`'s plan artifact is a single
+**PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
+MAR-74 slice 4).** The `"execute/verify per iteration; plan per iteration for
+the eleven non-/code triad skills"` cardinality above already carves out
+`/acs:code`'s plan leg. `/acs:code`'s plan artifact is a single
 per-ticket `phases/code/plan.md`, written **exactly once per run**, before
 the loop, so `/acs:code` has one plan artifact per ticket regardless of
 iteration count (never rewritten in place on a later iteration — MAR-71,
@@ -132,7 +132,7 @@ half of the gap left owned by **slice 4** above is now modelled: the `PLAN`
 and `PLAN_SUPERSEDED` entity blocks and their `TICKET ||--o| PLAN` /
 `PLAN ||--o{ PLAN_SUPERSEDED` relationships above are the real artifacts
 behind them, and the `PHASE_ARTIFACT` relationship label is narrowed
-accordingly. This corrects :112-113's "remain unwritten and unread" —
+accordingly. This corrects the MAR-73 Amendment's "remain unwritten and unread" —
 `plan.md` is the plan artifact modelled by `PLAN` (unchanged since MAR-70/71),
 and `plan-superseded-<k>.md`, modelled by `PLAN_SUPERSEDED`, is now written by
 the coordinator at a revocation boundary and read by nothing as an approval
