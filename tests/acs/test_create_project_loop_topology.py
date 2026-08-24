@@ -81,7 +81,7 @@ class SinglePlannerSpawnPerRunTest(unittest.TestCase):
                 "un-negated 're-plan' instruction found: %r" % window)
 
     def test_no_surviving_plan_execute_verify_triad_instruction(self):
-        triad_re = re.compile(r"plan\W{0,4}(->|→)\W{0,4}execute")
+        triad_re = re.compile(r"(?i)plan\W{0,4}(->|→)\W{0,4}execute")
         negating = re.compile(r"(?i)never|no |not|without|instead of")
 
         def assert_all_negated(text, label):
