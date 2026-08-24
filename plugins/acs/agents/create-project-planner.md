@@ -32,14 +32,14 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
   <constraints>
     <constraint name="coverage-target">90</constraint>
   </constraints>
-  <context>iteration 2+: summary of the verifier findings to address</context>
 </task>
 ```
 
 You share no memory with the coordinator. Read EVERY file listed in `<inputs>` before
-planning — the architecture docs, settings, and ticket are facts, not suggestions. On
-`iteration` > 1 the inputs include the previous `iter-<n>-verify.md`; treat each prior
-finding as the top of the agenda and state, finding by finding, what the new plan changes.
+planning — the architecture docs, settings, and ticket are facts, not suggestions. The
+planner is spawned exactly once per run, before iteration 1; verifier findings on
+iteration 2+ never reach a re-spawned planner — they route straight to the executor's
+`<context>` instead.
 
 ## What to analyze
 

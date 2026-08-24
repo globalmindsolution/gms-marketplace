@@ -60,8 +60,9 @@ Epic-level scope (retrofit; built before dogfooding began):
   active on the twelve triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
   coordinator-authored with zero `code-planner` spawns (MAR-72);
-  `/acs:docs-sync` likewise now plans once per run (MAR-300); the other ten
-  keep the per-iteration shape), while the three apply-work skills
+  `/acs:docs-sync` and `/acs:create-project` likewise now plan once per run
+  (MAR-300, MAR-301); the other nine keep the per-iteration shape), while
+  the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,

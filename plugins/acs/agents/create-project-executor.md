@@ -31,7 +31,7 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
   <constraints>
     <constraint name="coverage-target">90</constraint>
   </constraints>
-  <context>iteration 2+: verifier findings the new plan addresses</context>
+  <context>on iteration >= 2, the verifier findings your scaffold must fix</context>
 </task>
 ```
 
@@ -63,7 +63,7 @@ Work in this order:
    delivery is the coordinator's step after verification passes.
 7. Write your execute report (below), then emit the result XML.
 
-On `iteration` > 1, the plan embeds the verifier's findings: fix exactly those, re-run the
+On iteration >= 2, fix every finding listed in the task's `<context>`, re-run the
 four commands, and record per finding what you changed.
 
 ## Scope rules
