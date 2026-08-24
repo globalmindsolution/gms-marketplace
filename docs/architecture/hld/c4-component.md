@@ -92,4 +92,10 @@ de-escalation, offered only at an iteration/run boundary, applied by
 resolved `clarify.py` confirmation reference. After the plan is authored, on
 STANDARD/COMPLEX a deterministic plan-approval record is written
 (`plan-approval.py`, `states.plan_approved`) and gates nothing this release
-(MAR-73, slice 3 of MAR-69).
+(MAR-73, slice 3 of MAR-69). The record is now **read** by `code-verifier`
+itself as dimension 15's activation condition (`eligible`, `plan_path ==
+phases/code/plan.md`, `plan_sha256` matching the current `plan.md` bytes) —
+never a coordinator-relayed value; `plan-approval.py` stays its sole writer;
+it **still gates nothing** (dimension 15 is a verifier dimension, not a
+`/create-pr` gate change), and the revocation path re-runs the script for a
+fresh record (MAR-74, slice 4 of MAR-69, ADR 0073).
