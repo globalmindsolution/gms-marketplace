@@ -158,6 +158,29 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
+> **Bounded exception — `/acs:code` plan conformance (MAR-74, slice 4 of
+> MAR-69, ADR 0073)**: for `/acs:code` alone, and for the `code-verifier`'s
+> plan-conformance dimension (15) alone, the approved plan's `## Executor
+> tasks & file map` and its folded `Approach`/`API/data changes` content are
+> additionally a bounded conformance contract. The dimension is active only
+> while the verifier itself computes — never from a coordinator-relayed
+> value — that `<partition>/phases/code/plan-approval.json` exists and
+> parses, carries `eligible: true` and `plan_path == phases/code/plan.md`,
+> and pins a `plan_sha256` equal to the current `plan.md` bytes; when any
+> condition fails the dimension reports an evidenced **N/A**, never a block.
+> The hazards ADR-0004 named are structurally absent in exactly this case:
+> the approval is a deterministic non-LLM predicate over the plan's own
+> bytes (MAR-73), and since MAR-71 the plan is not a same-iteration artifact
+> at all — it is authored once, before the loop. The dimension is strictly
+> **subordinate to acceptance-criteria conformance** (dimension 1): an
+> approved plan is never evidence that an acceptance criterion is satisfied.
+> Everywhere else — every other dimension, every other skill, and every case
+> where the record is absent or does not hold — the rule above stands
+> unchanged, the plan a floor and never a ceiling. When the plan itself is
+> wrong, the boundary-gated, `clarify.py`-recorded revocation path
+> (`plan-superseded-<k>.md`) revises and re-approves it instead of bending
+> the rule.
+>
 > **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author (the
 > `code-planner` on STANDARD/COMPLEX; the coordinator on TRIVIAL/SMALL,
 > **best-effort**, MAR-72)
