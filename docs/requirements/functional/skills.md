@@ -910,8 +910,12 @@ bind `/code`'s plan phase:
   `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
   explicit product decision); a ticket that never completed its MAR-70-era
   transition to `plan.md` is no longer resumable via this path.
-  `<partition>/phases/code/plan-superseded-<k>.md` is **reserved** for the
-  plan-revocation path and is neither written nor read today. This is the
+  `<partition>/phases/code/plan-superseded-<k>.md` is the plan-revocation
+  path's superseded-plan artifact — a byte-identical copy of the revoked
+  `plan.md` (copy, never a move/rename), written by the coordinator at an
+  iteration/run boundary, so existing `iter-<n>-verify.md` `plan.md:<line>`
+  citations resolve unchanged; it is never an approval input and never a
+  conformance contract (MAR-74, slice 4 of MAR-69). This is the
   naming axis only — the executor's `-execute[-<k>].json`, the verifier's
   `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml` message
   snapshots are unaffected.
@@ -945,6 +949,15 @@ bind `/code`'s plan phase:
   ineligible plan **does not block** this release: the run continues, at
   most revising `plan.md` once and re-running the script. **Nothing gates on
   `plan_approved`** — the `/create-pr` gate remains `verifier_passed` alone.
+- **Plan revocation (MAR-74, slice 4 of MAR-69).** When a blocking
+  `dimension="plan-conformance"` finding's remedy is that the *plan* is
+  wrong, `/code` MAY revoke the plan — **never automatically**, only at an
+  iteration/run boundary and only on an explicit `clarify.py`-recorded user
+  answer; the sequence is copy (`plan-superseded-<k>.md`, `<k>` the smallest
+  free positive integer) → revise `plan.md` in place (coordinator-authored;
+  no `code-planner` re-spawn) → re-run `plan-approval.py` for a fresh
+  record; superseded copies are the audit trail and are never deleted, never
+  an approval input, never a conformance contract.
 - **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
   `code-planner.md` charter items that would otherwise run as part of the
   (unspawned) planner — the spec-simplicity gate, the oversize signal, the
@@ -999,8 +1012,17 @@ bind `/code`'s plan phase:
   standards** (conformant with the `standards/` doc set at `standards_path`
   when configured; falls back to documented architecture when unset),
   **architecture**, **system design**, **security**,
-  **documentation** (affected docs updated and consistent with the code), and
-  **Simplicity & scope** (overcomplication and out-of-scope edits are blocking)
+  **documentation** (affected docs updated and consistent with the code),
+  **Simplicity & scope** (overcomplication and out-of-scope edits are blocking),
+  **plan conformance** (MAR-74, slice 4 of MAR-69 — blocking when active, N/A
+  otherwise; active only when a deterministic approval record exists whose
+  `plan_path` is `phases/code/plan.md` and whose digest matches the current
+  `plan.md` bytes; the verifier computes activation itself; strictly
+  **subordinate to acceptance-criteria conformance**, which an approved plan
+  can never substitute for), and **approval-audit** (MAR-74, slice 4 of MAR-69
+  — re-runs `recommend_stakes` over the changed files; a `"high"` return
+  unaccounted for by `ticket.stakes: "high"` or a recorded upward escalation
+  event is blocking)
   — in addition to spec conformance, tests, and coverage. The architecture /
   system-design review judges the changeset against the approved `design.md`
   when one exists (the ticket's own or its parent epic's). On full-depth
