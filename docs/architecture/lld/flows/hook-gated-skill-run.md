@@ -86,7 +86,9 @@ sequenceDiagram
             EX->>WS: iter-n-execute.json (+ repo edits, commits)
             EX-->>CO: XML <result>
             CO->>VF: XML <task phase="verify">
-            VF->>WS: read plan-approval.json (dimension 15 activation)
+            opt /acs:code plan-conformance activation on STANDARD/COMPLEX (MAR-74, slice 4 of MAR-69)
+                VF->>WS: read plan-approval.json (dimension 15 activation)
+            end
             VF->>WS: iter-n-verify.md (re-runs tests/coverage/lint/e2e)
             VF-->>CO: XML <result> + findings
             CO->>WS: persist iter-n-*.xml at each boundary
