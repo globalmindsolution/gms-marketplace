@@ -138,7 +138,7 @@ the remediation.
 Objective: from the six inputs above, produce a doc-delta plan in its
 `<result>` — which doc files need which specific changes and why, each
 cross-referenced to the diff lines / `docs_updated` entries / `problems`
-entries that justify it. No file writes.
+entries that justify it. No writes beyond its own plan artifact.
 
 ### Phase: execute — `acs:docs-sync-executor`
 
