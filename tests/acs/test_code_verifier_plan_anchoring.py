@@ -29,6 +29,7 @@ ADR_README = os.path.join(ADR_DIR, "README.md")
 ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+MULTI_LENS_TEST = os.path.join(REPO_ROOT, "tests", "acs", "test_code_verifier_multi_lens.py")
 
 # Pinned at plan time from `main` (af0a11b), before any edit in this ticket --
 # AC-4's append-only guarantee: this file must never change as a byte.
@@ -295,6 +296,24 @@ class PlanRevocationTest(unittest.TestCase):
             section,
             r"(?i)never.{0,60}(?:an?\s+)?approval input|"
             r"never.{0,60}conformance contract")
+
+
+class MultiLensDocstringDriftTest(unittest.TestCase):
+    """MAR-74 finding 1 (iter-1-verify.md:37-46): a docstring drift guard
+    that lives outside the module it guards, so a future edit to
+    test_code_verifier_multi_lens.py cannot satisfy its own claim."""
+
+    def test_multi_lens_lens_table_docstring_states_16_dimensions(self):
+        window = window_around(read(MULTI_LENS_TEST), "class LensTableTest")
+        self.assertIn(
+            "16 dimensions", window,
+            "LensTableTest's docstring must state 16 dimensions, matching "
+            "the class's own range(1, 17) assertion in "
+            "test_dimensions_exhaustive_and_non_overlapping")
+        self.assertNotIn(
+            "14 dimensions", window,
+            "LensTableTest's docstring must not still claim 14 dimensions "
+            "after the MAR-74 dimension-count sweep")
 
 
 if __name__ == "__main__":

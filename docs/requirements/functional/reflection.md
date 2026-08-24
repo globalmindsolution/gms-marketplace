@@ -68,13 +68,13 @@ Requirements:
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
       **3 iterations** (full verify — execute → verify loop, with the plan
       authored once before it starts rather than a per-iteration
-      plan→execute→verify loop, + full 14-dimension, multi-lens review + e2e
+      plan→execute→verify loop, + full 16-dimension, multi-lens review + e2e
       when configured; an iteration is one execute+verify round; cap =
-      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 14 dimensions are
+      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 16 dimensions are
       split across 4 parallel independent lenses (each reading a distinct
       evidence source), followed by a coordinator-performed
       confidence-scoring/adversarial merge pass before findings count; light
-      verify keeps today's single-subagent, 13-dimension pass unchanged.
+      verify keeps today's single-subagent, 15-dimension pass unchanged.
     - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
       conservatively to full (3-iteration ceiling).
     - On hitting the lane's cap with findings remaining, the skill stops and
