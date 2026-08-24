@@ -54,6 +54,16 @@ def section(body, start_heading, end_heading):
     return body[start:end]
 
 
+def raw_section(body, start_heading, end_heading):
+    """Line-anchored window over the RAW (un-normalized) file text, so
+    markdown heading levels remain observable."""
+    start = re.search(r"(?m)^" + re.escape(start_heading) + r"\s*$", body)
+    end = re.search(r"(?m)^" + re.escape(end_heading) + r"\s*$", body)
+    assert start is not None, "%r heading not found" % start_heading
+    assert end is not None, "%r heading not found" % end_heading
+    return body[start.start():end.start()]
+
+
 class SinglePlannerSpawnPerRunTest(unittest.TestCase):
     """AC-2: a standardize-project run that needs 2 or 3 iterations spawns
     exactly one acs:standardize-project-planner subagent across the whole
@@ -311,6 +321,91 @@ class ExecutorFailedResultRoutingTest(unittest.TestCase):
         self.fail(
             "the terminal iteration-cap-3 rule must still co-locate "
             "'After iteration 3' with 'failed'")
+
+
+class ReflectionLoopHeadingStructureTest(unittest.TestCase):
+    """F1 (iteration-3 remediation): the '## Reflection loop' section carries
+    either zero H3 sub-headings or a full Plan/Execute/Verify triad of them
+    -- never a single orphan H3 whose scope runs unterminated to the end of
+    the section."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SP_SKILL)
+        cls.window = raw_section(cls.body, "## Reflection loop", "## Delivery")
+
+    def test_reflection_loop_h3_headings_are_balanced(self):
+        headings = re.findall(r"(?m)^###\s+(.+?)\s*$", self.window)
+        if not headings:
+            return
+        self.assertGreaterEqual(
+            len(headings), 3,
+            "a lone %r heading leaves the Execute and Verify phases reading "
+            "as its sub-content" % (headings[0],))
+        joined = " ".join(headings).lower()
+        for phase in ("plan", "execute", "verify"):
+            self.assertIn(
+                phase, joined,
+                "a lone %r heading leaves the Execute and Verify phases "
+                "reading as its sub-content" % (headings[0],))
+
+    def test_reflection_loop_phase_list_names_all_three_phases(self):
+        self.assertRegex(self.window, r"(?m)^1\.\s+\*\*Plan\*\*")
+        self.assertRegex(self.window, r"(?m)^2\.\s+\*\*Execute\*\*")
+        self.assertRegex(self.window, r"(?m)^3\.\s+\*\*Verify\*\*")
+
+
+class ExecutorFailedConversionScopeTest(unittest.TestCase):
+    """F2 (iteration-3 remediation): the executor-failed ->
+    recommended_follow_ups conversion clause is scoped to the same
+    degradable plan-conformance/missing-scaffold class the verifier's own
+    four-condition route uses -- never a blanket conversion keyed only on
+    the executor's stated reason."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.window = section(norm(read(SP_SKILL)), "## Reflection loop", "## Delivery")
+
+    def test_conversion_scoped_to_degradable_plan_conformance_class(self):
+        self.assertIn("Convert ONLY when", self.window)
+        self.assertIn('dimension="plan-conformance"', self.window)
+        self.assertRegex(self.window, r"(?i)missing-scaffold\s*/\s*under-coverage")
+
+    def test_over_scaffold_refusal_never_convertible(self):
+        self.assertRegex(self.window, r"(?i)never the over-scaffold")
+        self.assertIn("unplanned extra scaffold file", self.window)
+
+    def test_never_convertible_dimensions_enumerated(self):
+        self.assertRegex(self.window, r"(?i)NEVER convertible")
+        for token in ("additive-only", "doc-set-authorship",
+                      "recommended-follow-ups-only", "completion-report-shape"):
+            self.assertIn(token, self.window, "missing never-convertible token %r" % token)
+
+    def test_class_judged_from_verifier_finding_not_executor_self_report(self):
+        self.assertRegex(self.window, r"(?i)verifier'?s own prior")
+        self.assertRegex(self.window, r"(?i)never from the executor.{0,3}s self-report")
+
+    def test_conversion_is_fail_closed(self):
+        self.assertRegex(self.window, r"(?i)fail closed")
+        self.assertRegex(self.window, r"(?i)undetermined")
+
+    def test_scoping_colocated_with_the_failed_trigger(self):
+        found_any = False
+        for m in re.finditer(r'status="failed"', self.window):
+            found_any = True
+            near = self.window[m.start():m.end() + 900]
+            if "Convert ONLY when" in near:
+                continue
+            self.fail(
+                "'Convert ONLY when' scoping text must occur within ~900 "
+                "normalized chars after %r" % (self.window[m.start():m.end()],))
+        self.assertTrue(found_any, "no status=\"failed\" trigger found in the window")
+
+    def test_executor_defers_conversion_decision_to_the_scoped_coordinator_rule(self):
+        body_norm = norm(read(SP_EXECUTOR))
+        self.assertRegex(
+            body_norm,
+            r"recommended_follow_ups.{0,160}degradable plan-conformance class")
 
 
 if __name__ == "__main__":
