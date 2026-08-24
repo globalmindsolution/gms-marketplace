@@ -16,19 +16,39 @@ Run:
   python3 -m unittest tests.acs.test_code_verifier_plan_anchoring -v
 """
 
+import glob
+import hashlib
 import os
 import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_README = os.path.join(ADR_DIR, "README.md")
+ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+
+# Pinned at plan time from `main` (af0a11b), before any edit in this ticket --
+# AC-4's append-only guarantee: this file must never change as a byte.
+ADR_0004_SHA256 = "f4cee737c9b300dbe3b047ce7e012420d93b16c78c2f655bcc5fb4896e2fd34c"
 
 
 def read(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def window_around(body, literal, radius=600):
+    """A bounded substring window centered on the first match of `literal` in
+    a whitespace-normalized copy of `body` -- mirrors
+    tests/acs/test_plan_approval.py's `_norm` + windowing style."""
+    hay = norm(body)
+    idx = hay.find(literal)
+    if idx < 0:
+        raise AssertionError("literal %r not found in body" % literal)
+    return hay[max(0, idx - radius):idx + len(literal) + radius]
 
 
 def norm(text):
@@ -189,6 +209,44 @@ class Dimension16ApprovalAuditTest(unittest.TestCase):
         self.assertRegex(window, r'stakes.{0,10}[:=].{0,10}"?high"?')
         self.assertIn("escalations", window)
         self.assertRegex(window, r'direction.{0,10}[:=].{0,10}"?up"?')
+
+
+class Adr0073Test(unittest.TestCase):
+    """AC-4: docs/adr/0073-*.md is written, linked, and explicitly amends
+    ADR-0004, which itself stays byte-unchanged (append-only convention)."""
+
+    def _adr_path(self):
+        hits = glob.glob(os.path.join(ADR_DIR, "0073-*.md"))
+        self.assertEqual(
+            len(hits), 1,
+            "exactly one docs/adr/0073-*.md must exist, found %r" % hits)
+        return hits[0]
+
+    def test_adr_0073_exists_exactly_once(self):
+        self._adr_path()
+
+    def test_adr_0073_is_accepted(self):
+        body = read(self._adr_path())
+        self.assertRegex(body, r"(?i)status\W+accepted")
+
+    def test_adr_0073_explicitly_amends_adr_0004(self):
+        body = read(self._adr_path())
+        window = window_around(body, "0004")
+        self.assertRegex(window, r"(?i)amend")
+
+    def test_adr_0073_indexed_in_readme(self):
+        body = read(ADR_README)
+        self.assertRegex(
+            body, r"(?m)^\|\s*\[0073\]\(0073-[^)]+\.md\)\s*\|",
+            "docs/adr/README.md must carry a table row linking 0073-*.md")
+
+    def test_adr_0004_file_is_byte_unchanged(self):
+        with open(ADR_0004, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        self.assertEqual(
+            digest, ADR_0004_SHA256,
+            "docs/adr/0004-*.md must stay byte-unchanged -- append-only "
+            "ADR convention; amend via a new ADR instead")
 
 
 class PlanRevocationTest(unittest.TestCase):
