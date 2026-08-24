@@ -556,14 +556,27 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
                 hits.append(fname)
         self.assertEqual(hits, ["plan-approval.py"])
 
-    def test_no_agent_file_names_the_record(self):
+    def test_no_agent_file_writes_the_record(self):
+        """ADR 0076 D-2 constrains the WRITER, not every mention: no agent
+        file may co-locate `plan-approval.json`/`plan_approved` with a
+        `Write` instruction -- narrowed from the original blanket "no
+        mention at all" per 0076's own Consequences (0076:74-77), which
+        hands this exact amendment to slice 4 / MAR-74, so that
+        `code-verifier.md` can READ the record (AC-1) without becoming its
+        writer."""
         for dirpath, _dirnames, filenames in os.walk(AGENTS_DIR):
             for fname in filenames:
                 if not fname.endswith(".md"):
                     continue
                 body = _read(os.path.join(dirpath, fname))
-                self.assertNotIn("plan-approval.json", body, fname)
-                self.assertNotIn("plan_approved", body, fname)
+                norm_body = _norm(body)
+                for literal in ("plan-approval.json", "plan_approved"):
+                    for m in re.finditer(re.escape(literal), norm_body):
+                        window = norm_body[max(0, m.start() - 250):m.end() + 250]
+                        self.assertFalse(
+                            "Write" in window,
+                            "%s must not co-locate a Write instruction with "
+                            "%r" % (fname, literal))
 
     def test_skill_forbids_subagent_write_of_the_record(self):
         norm_body = _norm(_read(CODE_SKILL))
@@ -578,10 +591,21 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
             "no bounded window around plan-approval.json co-locates a "
             "Write-tool prohibition and never/only")
 
-    def test_verifier_agent_does_not_anchor_on_approval(self):
+    def test_verifier_agent_reads_but_never_writes_the_record(self):
+        """D-2 constrains the writer, not the reader: code-verifier.md is
+        positively asserted to READ plan-approval.json (dimension 15,
+        MAR-74), while still never co-locating it with a Write
+        instruction -- the writer-only guard applies here identically to
+        `test_no_agent_file_writes_the_record` above."""
         body = _read(CODE_VERIFIER)
-        self.assertNotIn("plan-approval", body)
-        self.assertNotIn("plan_approved", body)
+        self.assertIn("plan-approval.json", body)
+        norm_body = _norm(body)
+        for m in re.finditer(re.escape("plan-approval.json"), norm_body):
+            window = norm_body[max(0, m.start() - 250):m.end() + 250]
+            self.assertFalse(
+                "Write" in window,
+                "code-verifier.md must not co-locate a Write instruction "
+                "with plan-approval.json")
 
 
 class PlanApprovalContractTest(unittest.TestCase):
@@ -608,16 +632,21 @@ class PlanApprovalContractTest(unittest.TestCase):
         row_end = self.internals_body.index("\n", row_start)
         self.assertIn("plan_approved", self.internals_body[row_start:row_end])
 
-    def test_subsection_sits_between_plan_and_docs_only(self):
+    def test_subsection_sits_between_plan_and_revocation(self):
+        """Re-bound to `### Plan revocation` (MAR-74, T2) instead of
+        `### Docs-only tickets`: the new subsection now sits between
+        `### Plan approval` and `### Docs-only tickets`, so slicing at the
+        old boundary would silently widen every slice-based assertion below
+        to include revocation prose too."""
         plan_idx = self.skill_body.index("### Plan (once, before the loop)")
         approval_idx = self.skill_body.index("### Plan approval")
-        docs_only_idx = self.skill_body.index("### Docs-only tickets")
+        revocation_idx = self.skill_body.index("### Plan revocation")
         self.assertGreater(approval_idx, plan_idx)
-        self.assertLess(approval_idx, docs_only_idx)
+        self.assertLess(approval_idx, revocation_idx)
 
     def test_subsection_is_lane_qualified_and_non_gating(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         section_norm = _norm(self.skill_body[start:end])
         self.assertRegex(section_norm, r"(?i)STANDARD/COMPLEX")
         self.assertRegex(section_norm, r"(?i)TRIVIAL/SMALL.{0,80}no-ops?")
@@ -625,12 +654,12 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_subsection_carries_the_exact_command(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         self.assertIn("hooks/scripts/plan-approval.py", self.skill_body[start:end])
 
     def test_subsection_avoids_forbidden_literals(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Docs-only tickets")
+        end = self.skill_body.index("### Plan revocation")
         section = self.skill_body[start:end]
         self.assertNotIn("create-spec", section)
         self.assertNotIn("E2", section)

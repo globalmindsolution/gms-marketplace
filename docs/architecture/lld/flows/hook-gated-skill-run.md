@@ -28,7 +28,13 @@ their correctness is gated upstream by `/code`'s verifier (`create-pr`,
 Immediately after the plan step and before the reflection loop, on
 STANDARD/COMPLEX only, `/acs:code` also runs `plan-approval.py`, which
 records a deterministic plan-approval verdict and gates nothing this release
-(MAR-73, slice 3 of MAR-69).
+(MAR-73, slice 3 of MAR-69). The `code-verifier` now reads that record itself
+for dimension 15 (plan conformance) — never a coordinator-relayed value — and
+when dimension 15 blocks because the *plan* is wrong rather than the
+changeset, the boundary-gated revocation path copies `plan.md` to
+`plan-superseded-<k>.md`, revises it, and re-runs `plan-approval.py` for a
+fresh record; the record still gates nothing (MAR-74, slice 4 of MAR-69, ADR
+0073).
 
 ```mermaid
 sequenceDiagram
@@ -80,9 +86,19 @@ sequenceDiagram
             EX->>WS: iter-n-execute.json (+ repo edits, commits)
             EX-->>CO: XML <result>
             CO->>VF: XML <task phase="verify">
+            opt /acs:code plan-conformance activation on STANDARD/COMPLEX (MAR-74, slice 4 of MAR-69)
+                VF->>WS: read plan-approval.json (dimension 15 activation)
+            end
             VF->>WS: iter-n-verify.md (re-runs tests/coverage/lint/e2e)
             VF-->>CO: XML <result> + findings
             CO->>WS: persist iter-n-*.xml at each boundary
+            opt /acs:code plan revocation on a blocking plan-conformance finding (MAR-74, slice 4 of MAR-69)
+                CO->>Dev: confirm revocation (clarify.py-recorded answer, never automatic)
+                CO->>WS: cp plan.md plan-superseded-<k>.md (byte-identical, never a move)
+                CO->>WS: revised plan.md (coordinator-authored, no planner re-spawn)
+                CO->>PA: plan-approval.py --ticket <ticket-id>
+                PA->>WS: fresh plan-approval.json (new digest)
+            end
         end
         CO->>WS: phases/<skill>/result.json
         CO->>POST: --result-file result.json
@@ -111,7 +127,7 @@ The iteration ceiling for the reflection loop is **lane-driven**:
 - **STANDARD/COMPLEX lanes** (or any high-stakes ticket): cap = **3** iterations
   — full verify (execute → verify loop, with the plan authored once
   before it starts rather than a per-iteration plan→execute→verify loop, + full
-  12-dimension review + e2e when configured); the cap counts execute+verify
+  16-dimension review + e2e when configured); the cap counts execute+verify
   rounds (MAR-71, slice 1b of MAR-69).
 
 The ceiling is determined by `verify_depth(ticket.lane, ticket.stakes)` in

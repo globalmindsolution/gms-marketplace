@@ -11,8 +11,8 @@ and the v0.1 skill-roster snapshot line) are preserved verbatim. Cross-pins
 the doc claims against the settings schema and the docs-sync/code agent
 files so the doc and the code cannot silently re-diverge.
 
-Per clarification C-11, prd.md's four lane-neutral "13-dimension" cells
-(:172, :177, :268, :592) are intentionally NOT scanned here — they are
+Per clarification C-11, prd.md's four lane-neutral "15-dimension" cells
+(:172, :177, :268, :606) are intentionally NOT scanned here — they are
 correct as written and pinned green by
 tests/acs/test_code_verifier_multi_lens.py's PrdDimensionConsistencyTest.
 
@@ -219,7 +219,7 @@ class PrdG39DesignTemplateTest(unittest.TestCase):
 class PrdConformanceChainTest(unittest.TestCase):
     """C-6(b). The three conformance-chain statements drop the stale
     "-> specs" hop, matching the canonical chain
-    (contracts.md:137, workflow.md:286). Per C-11, the sibling "13-dimension"
+    (contracts.md:137, workflow.md:286). Per C-11, the sibling "15-dimension"
     drift claim is NOT reconciled here — those four cells are correct as
     written and stay out of this test's scope."""
 

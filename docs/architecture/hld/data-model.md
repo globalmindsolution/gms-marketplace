@@ -15,10 +15,12 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "plan/execute/verify per iteration"
+    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the eleven non-/code triad skills"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
+    TICKET ||--o| PLAN : "exactly one phases/code/plan.md, authored once per run before the loop"
+    PLAN ||--o{ PLAN_SUPERSEDED : "one plan-superseded-<k>.md per revocation; byte-identical copy, never deleted"
 
     TICKET {
         string id PK "SHOP-123"
@@ -89,18 +91,31 @@ erDiagram
         string ticket_id
         string skill
     }
+    PLAN {
+        string path "phases/code/plan.md — the only name, every lane"
+        string author "code-planner on STANDARD/COMPLEX; coordinator on TRIVIAL/SMALL (MAR-72)"
+        string sha256 "digest the PLAN_APPROVAL record pins"
+    }
+    PLAN_SUPERSEDED {
+        int k "smallest positive integer with no existing file"
+        string path "phases/code/plan-superseded-<k>.md"
+        string writer "coordinator, at an iteration/run boundary, on a clarify.py-recorded user answer"
+        string semantics "byte-identical cp of the revoked plan.md — never a rename/move; existing iter-<n>-verify.md plan.md:<line> citations resolve unchanged"
+        bool approval_input "false — never an approval input, never a conformance contract (dimension 15's plan_path condition)"
+    }
 ```
 
-**PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b).** The
-`"plan/execute/verify per iteration"` cardinality above holds as stated for
-the execute and verify artifacts, and for the plan artifact of the eleven
-triad skills other than `/acs:code`. `/acs:code`'s plan artifact is a single
+**PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
+MAR-74 slice 4).** The `"execute/verify per iteration; plan per iteration for
+the eleven non-/code triad skills"` cardinality above already carves out
+`/acs:code`'s plan leg. `/acs:code`'s plan artifact is a single
 per-ticket `phases/code/plan.md`, written **exactly once per run**, before
 the loop, so `/acs:code` has one plan artifact per ticket regardless of
 iteration count (never rewritten in place on a later iteration — MAR-71,
 slice 1b of MAR-69; this covers the `plan` leg of the ER label above for
-`/acs:code`); `phases/code/plan-superseded-<k>.md` is
-reserved for a future revocation path and is neither written nor read today.
+`/acs:code`); `phases/code/plan-superseded-<k>.md` is a real, written-and-read
+artifact of the plan-revocation path (MAR-74, slice 4 of MAR-69 — see the
+Amendment below).
 Modelling this precisely — a `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
 entity block and a narrowed `PHASE_ARTIFACT` relationship label — is owned by
 MAR-69 slices 3/4; this note records the gap without pre-empting that edit.
@@ -111,6 +126,17 @@ gap above is now modelled: the `PLAN_APPROVAL` entity block and its
 behind it, written solely by `plan-approval.py` on STANDARD/COMPLEX. `PLAN`
 and `PLAN_SUPERSEDED` — and the narrowed `PHASE_ARTIFACT` relationship label
 covering them — remain unwritten and unread, and stay owned by **slice 4**.
+
+**Amendment (MAR-74, slice 4 of MAR-69).** The `PLAN` / `PLAN_SUPERSEDED`
+half of the gap left owned by **slice 4** above is now modelled: the `PLAN`
+and `PLAN_SUPERSEDED` entity blocks and their `TICKET ||--o| PLAN` /
+`PLAN ||--o{ PLAN_SUPERSEDED` relationships above are the real artifacts
+behind them, and the `PHASE_ARTIFACT` relationship label is narrowed
+accordingly. This corrects the MAR-73 Amendment's "remain unwritten and unread" —
+`plan.md` is the plan artifact modelled by `PLAN` (unchanged since MAR-70/71),
+and `plan-superseded-<k>.md`, modelled by `PLAN_SUPERSEDED`, is now written by
+the coordinator at a revocation boundary and read by nothing as an approval
+input or conformance contract (ADR 0073).
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 
