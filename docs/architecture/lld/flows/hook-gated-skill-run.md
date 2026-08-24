@@ -14,11 +14,12 @@ per-ticket plan artifact (MAR-70) — the other eleven triad skills write
 `iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
 MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 / `PL->>WS` steps below happen **once, before** the `loop reflection` block for
-`/acs:code`; for the other ten triad skills the plan step instead sits
+`/acs:code`; for the other nine triad skills the plan step instead sits
 **inside** the `loop reflection` block, a shape this `/acs:code`-traced diagram
-no longer draws. `/acs:docs-sync` has joined `/acs:code` outside the loop
-(MAR-300): its plan phase likewise runs once, before the loop, with
-iteration-2+ findings routed straight to its executor's `<context>`. Those same two steps are additionally **lane-conditional**
+no longer draws. `/acs:docs-sync` (MAR-300) and `/acs:create-project`
+(MAR-301) have joined `/acs:code` outside the loop: their plan phase
+likewise runs once, before the loop, with iteration-2+ findings routed
+straight to their executor's `<context>`. Those same two steps are additionally **lane-conditional**
 since MAR-72: they fire on STANDARD/COMPLEX only; on TRIVIAL/SMALL the
 coordinator writes `plan.md` itself and there is no `PL` participant leg at
 all for that run (ADR 0074) — see the `alt` branch below). The three **apply-work
