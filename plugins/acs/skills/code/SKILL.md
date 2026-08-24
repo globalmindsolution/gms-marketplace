@@ -642,6 +642,20 @@ Dimensions, each producing blocking findings on failure:
   in the multi-lens split below); git history on touched paths shows a prior
   revert/hotfix pattern on the same lines, or the diff reintroduces
   something a prior commit deliberately removed.
+- **Plan conformance** — blocking when active, N/A otherwise (dimension 15,
+  lens C); the verifier computes activation itself from
+  `<partition>/phases/code/plan-approval.json` (never a coordinator-relayed
+  value): an eligible record whose `plan_path` is `phases/code/plan.md` and
+  whose `plan_sha256` matches the current `plan.md` bytes. When active, a
+  changed file tracing to no entry of the approved
+  `## Executor tasks & file map`, or an implementation contradicting the
+  approved Approach, is a blocking finding — strictly subordinate to
+  Acceptance-criteria conformance (dimension 1), which an approved plan can
+  never substitute for.
+- **Approval-audit** — blocking (dimension 16, lens B); re-runs
+  `recommend_stakes` over `git diff --name-only`'s changed files. A
+  `"high"` return unaccounted for by `ticket.json`'s `stakes: "high"` or a
+  recorded upward `escalations` event is a blocking finding.
 
 **`verify_depth=="full"` (multi-lens spawn).** After all executors finish,
 the coordinator spawns 4 parallel `acs:code-verifier` subagents via the
@@ -677,7 +691,7 @@ return, the coordinator itself performs the merge pass — never a subagent:
 
 **`verify_depth=="light"` (unchanged).** Exactly one `acs:code-verifier`
 spawn — the single-pass shape already documented above, no lens
-constraint, no `-lens-` suffix — checking all 13 base dimensions
+constraint, no `-lens-` suffix — checking all 15 base dimensions
 (dimension 14 is full-depth-only) and writing
 `<partition>/phases/code/iter-<n>-verify.md` directly, exactly as today.
 

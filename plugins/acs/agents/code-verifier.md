@@ -26,7 +26,9 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   floor, never a ceiling). On TRIVIAL/SMALL this plan artifact may be
   coordinator-authored rather than `code-planner`-authored (MAR-72); judge it
   identically either way — dimensions 1, 8, 9, and 13 apply in full and are
-  never waived on authorship grounds. READ EVERY ONE. Derive `<partition>`
+  never waived on authorship grounds. Also `<partition>/phases/code/plan-approval.json`,
+  when present — the verifier reads this itself for dimension 15; it is never
+  supplied as a coordinator-relayed value. READ EVERY ONE. Derive `<partition>`
   from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
   plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
@@ -213,12 +215,51 @@ ALL of the following — every dimension that fails produces blocking findings:
 14. **Regression-risk (git-history)** — BLOCKING, full-depth only, lens D
     (evaluated only when the task's `<constraints>` carries `verify_lens` —
     never when `verify_lens` is absent, keeping light-depth's dimension set
-    at 13 and AC-2's zero-functional-change guarantee intact): read git
+    at 15 and AC-2's zero-functional-change guarantee intact): read git
     history on the changeset's touched paths (`git log --follow -p` /
     `git log --oneline`, bounded lookback, scoped to touched files) for a
     prior revert/hotfix pattern on the same lines, or whether the diff
     reintroduces something a prior commit deliberately removed. A match is a
     `<finding severity="blocking" dimension="regression-risk">`.
+
+15. **Plan conformance** — BLOCKING when active, N/A otherwise; every lane.
+    Compute activation itself, from disk — never from a coordinator-relayed
+    value (that would re-import the LLM self-assertion ADR 0076 D-1
+    rejects). Read `<partition>/phases/code/plan-approval.json` and check
+    ALL of the following hold: (1) the record exists and parses; (2) its
+    `eligible` is `true`; (3) its `plan_path` is exactly `phases/code/plan.md`
+    — a record produced from an explicit `--plan alt-plan.md`/
+    `plan-superseded-<k>.md` does not describe the current plan and is
+    therefore never a conformance contract; (4) `sha256` of the current
+    `<partition>/phases/code/plan.md` bytes equals the record's
+    `plan_sha256` — a plan edited after approval is not an approved plan.
+    When any condition fails (no record, `eligible` false, a `plan_path`
+    other than `phases/code/plan.md`, or a digest mismatch), the dimension
+    is **N/A**: report a positive, evidenced "not active because `<reason>`"
+    conclusion — never a block and never a silent skip. This is why the
+    dimension never fires on TRIVIAL/SMALL: `plan-approval.py` writes no
+    record on those lanes. When active, judge the changeset against the
+    approved plan's `## Executor tasks & file map` and its folded
+    `Approach`/`API/data changes` content: a changed file tracing to no
+    entry of the approved file map, or an implementation contradicting the
+    approved Approach, is `<finding severity="blocking"
+    dimension="plan-conformance">`.
+    **Subordination.** This dimension never substitutes for dimension 1: a
+    changeset that conforms perfectly to the approved plan but leaves a
+    `ticket.acceptance_criteria` entry uncovered still fails dimension 1 —
+    an approved plan is never evidence that an AC is satisfied.
+16. **Approval-audit** — BLOCKING; every lane. Re-run the deterministic half
+    of the coordinator's escalation trigger (b) instead of trusting that it
+    fired: run `git diff --name-only <default_branch>...HEAD` over the
+    changeset, then feed the changed-file list to `recommend_stakes(changed_paths,
+    settings)` (`acs_lib.py`). A `"normal"` return is a positive, evidenced
+    no-op. A `"high"` return is **accounted for** when either (a)
+    `ticket.json`'s `stakes: "high"`, re-read fresh, already reflects it, or
+    (b) `code-state.json`'s `runs[-1].escalations` carries a
+    `direction: "up"` event whose `trigger` names the matching
+    `high_stakes_paths` glob. Otherwise it is `<finding severity="blocking"
+    dimension="approval-audit">` naming the matching path and the glob it
+    matched.
 
 **Retired dimensions.** create-spec-verifier's `consistency` dimension
 (checking agreement across multiple independently authored spec files:
@@ -236,7 +277,7 @@ truly fixed; an unfixed one is re-reported.
 When the task's `<constraints>` carries a `verify_lens` value (`A`, `B`,
 `C`, or `D`), this spawn is one of 4 parallel lenses examining the same
 changeset from a different evidence source — check ONLY that lens's
-dimension subset below, never all 14. The Charter's universal preamble
+dimension subset below, never all 16. The Charter's universal preamble
 (`git diff <default_branch>...HEAD` and `git log <default_branch>..HEAD
 --oneline`) still runs first for every lens spawn, lens-scoped or not — the
 lens scope narrows WHICH dimensions this spawn checks, never removes the
@@ -245,8 +286,8 @@ mandatory diff/log-read step.
 | Lens | Dimensions covered (numbered per this file) | Evidence source |
 |------|-----------------------------------------------|------------------|
 | A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + `ticket.json` re-read fresh; the ONLY lens that re-runs the test/coverage/e2e suite |
-| B — Security, Standards & Craftsmanship | 6, 7, 10, 12 | the branch diff + `standards/` at `standards_path` when configured; no suite re-run |
-| C — Architecture & Documentation | 8, 9, 11, 13 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose; no suite re-run |
+| B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `recommend_stakes`/`high_stakes_paths` (dimension 16); no suite re-run |
+| C — Architecture & Documentation | 8, 9, 11, 13, 15 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose (dimensions 13, 15) + `plan-approval.json` (dimension 15); no suite re-run |
 | D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |
 
 This 4-lens split is a **fixed literal** here — no settings key configures
@@ -264,7 +305,7 @@ scoring merge pass and writes the single `iter-<n>-verify.md` itself.
 
 When `verify_lens` is absent from `<constraints>` (light depth, or any spawn
 that predates this multi-lens shape), behavior is unchanged from today: all
-13 base dimensions are checked (never dimension 14, which is full-depth/
+15 base dimensions are checked (never dimension 14, which is full-depth/
 lens-D-only) and this spawn writes `iter-<n>-verify.md` directly.
 
 ## Phase artifact

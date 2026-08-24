@@ -556,14 +556,27 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
                 hits.append(fname)
         self.assertEqual(hits, ["plan-approval.py"])
 
-    def test_no_agent_file_names_the_record(self):
+    def test_no_agent_file_writes_the_record(self):
+        """ADR 0076 D-2 constrains the WRITER, not every mention: no agent
+        file may co-locate `plan-approval.json`/`plan_approved` with a
+        `Write` instruction -- narrowed from the original blanket "no
+        mention at all" per 0076's own Consequences (0076:74-77), which
+        hands this exact amendment to slice 4 / MAR-74, so that
+        `code-verifier.md` can READ the record (AC-1) without becoming its
+        writer."""
         for dirpath, _dirnames, filenames in os.walk(AGENTS_DIR):
             for fname in filenames:
                 if not fname.endswith(".md"):
                     continue
                 body = _read(os.path.join(dirpath, fname))
-                self.assertNotIn("plan-approval.json", body, fname)
-                self.assertNotIn("plan_approved", body, fname)
+                norm_body = _norm(body)
+                for literal in ("plan-approval.json", "plan_approved"):
+                    for m in re.finditer(re.escape(literal), norm_body):
+                        window = norm_body[max(0, m.start() - 250):m.end() + 250]
+                        self.assertFalse(
+                            "Write" in window,
+                            "%s must not co-locate a Write instruction with "
+                            "%r" % (fname, literal))
 
     def test_skill_forbids_subagent_write_of_the_record(self):
         norm_body = _norm(_read(CODE_SKILL))
@@ -578,10 +591,21 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
             "no bounded window around plan-approval.json co-locates a "
             "Write-tool prohibition and never/only")
 
-    def test_verifier_agent_does_not_anchor_on_approval(self):
+    def test_verifier_agent_reads_but_never_writes_the_record(self):
+        """D-2 constrains the writer, not the reader: code-verifier.md is
+        positively asserted to READ plan-approval.json (dimension 15,
+        MAR-74), while still never co-locating it with a Write
+        instruction -- the writer-only guard applies here identically to
+        `test_no_agent_file_writes_the_record` above."""
         body = _read(CODE_VERIFIER)
-        self.assertNotIn("plan-approval", body)
-        self.assertNotIn("plan_approved", body)
+        self.assertIn("plan-approval.json", body)
+        norm_body = _norm(body)
+        for m in re.finditer(re.escape("plan-approval.json"), norm_body):
+            window = norm_body[max(0, m.start() - 250):m.end() + 250]
+            self.assertFalse(
+                "Write" in window,
+                "code-verifier.md must not co-locate a Write instruction "
+                "with plan-approval.json")
 
 
 class PlanApprovalContractTest(unittest.TestCase):
