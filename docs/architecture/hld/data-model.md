@@ -15,7 +15,7 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the eleven non-/code triad skills"
+    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the ten non-/code non-/docs-sync triad skills"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
@@ -106,11 +106,11 @@ erDiagram
 ```
 
 **PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
-MAR-74 slice 4).** The `"execute/verify per iteration; plan per iteration for
-the eleven non-/code triad skills"` cardinality above already carves out
-`/acs:code`'s plan leg. `/acs:code`'s plan artifact is a single
-per-ticket `phases/code/plan.md`, written **exactly once per run**, before
-the loop, so `/acs:code` has one plan artifact per ticket regardless of
+MAR-74 slice 4 and by MAR-300).** The `"execute/verify per iteration; plan per
+iteration for the ten non-/code non-/docs-sync triad skills"` cardinality
+above already carves out `/acs:code`'s plan leg. `/acs:code`'s plan artifact is
+a single per-ticket `phases/code/plan.md`, written **exactly once per run**,
+before the loop, so `/acs:code` has one plan artifact per ticket regardless of
 iteration count (never rewritten in place on a later iteration — MAR-71,
 slice 1b of MAR-69; this covers the `plan` leg of the ER label above for
 `/acs:code`); `phases/code/plan-superseded-<k>.md` is a real, written-and-read
@@ -137,6 +137,16 @@ accordingly. This corrects the MAR-73 Amendment's "remain unwritten and unread" 
 and `plan-superseded-<k>.md`, modelled by `PLAN_SUPERSEDED`, is now written by
 the coordinator at a revocation boundary and read by nothing as an approval
 input or conformance contract (ADR 0073).
+
+**Amendment (MAR-300).** `/acs:docs-sync`'s plan artifact,
+`phases/docs-sync/iter-1-plan.md`, now has the same "exactly one per run,
+authored before the loop, never rewritten in place on a later iteration"
+cardinality as `/acs:code`'s `plan.md` above — this closes the E2 edge the
+code-planner recorded (ADR-0012). Unlike `/acs:code`, `/acs:docs-sync` keeps
+the `iter-<n>-plan.md` **name** (`n` is always 1, since the plan phase runs
+exactly once) and carries **no** `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
+semantics — no new entity block is added for it; the cardinality change is
+captured entirely by the narrowed `PHASE_ARTIFACT` relationship label above.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 
