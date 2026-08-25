@@ -46,7 +46,10 @@
             "description": "Never fabricated, never zero-padded: absent/unavailable means no dollar figure is claimed.",
             "enum": ["measured", "apportioned", "unavailable"]
           },
-          "cost_scope": {"enum": ["session_total", "main_session_only"]},
+          "cost_scope": {
+            "description": "\"session_total\"/\"main_session_only\" on a measured or apportioned charge; cost_sampler.allocate_cost also reuses this field as the degraded reason (\"no_unconsumed_sample_in_window\"/\"cost_total_reset\") when cost_usd is null -- verified against the module's own real return values, not just the design's abstract two-value description.",
+            "enum": ["session_total", "main_session_only", "no_unconsumed_sample_in_window", "cost_total_reset"]
+          },
           "excluded_cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
           "excluded_token_share": {"oneOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
           "role_usage": {
