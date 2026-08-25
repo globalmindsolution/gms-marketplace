@@ -18,7 +18,7 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: t
 `iter-<n>-plan.md`, the execute report(s) `iter-<n>-execute*.json`, the PRD, the
 architecture set, the produced `principles_path` file), `<constraints>` (at minimum
 `partition` — the absolute ticket-partition path — plus `principles_path`,
-`architecture_path`, `required_sections`, and `audience_style_profile`), and on
+`architecture_path`, `prd_path`, `required_sections`, and `audience_style_profile`), and on
 iteration > 1 a `<context>` listing the prior iteration's
 findings. You share no memory with the coordinator: read every input yourself.
 
@@ -35,6 +35,27 @@ findings. You share no memory with the coordinator: read every input yourself.
    rationale for each principle, stack-agnostic.
 4. **plan-conformance** — everything `iter-<n>-plan.md` promised exists; no missing
    section, no unplanned extra file.
+   - Independently re-open and check every upstream-fact citation the planner
+     recorded in the current iteration's `Upstream inventory` section — never
+     just diff the executor's output against the plan artifact. Run `Bash
+     python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
+     <partition>/phases/<skill>/iter-<n>-plan.md --root prd=<prd_path> --root
+     architecture=<architecture_path>` (`create-standards` additionally
+     passes `--root principles=<principles_path>`).
+   - Every stderr `source:line: [rule] message` finding becomes one `<finding
+     severity="blocking" dimension="plan-conformance">`; exit 2 (a usage
+     error, or an unreadable plan file) is itself a blocking
+     `plan-conformance` finding, so a broken invocation can never silently
+     pass.
+   - Then re-open each resolved citation named in the script's stdout
+     manifest yourself, at its cited locus, and judge whether the passage
+     actually substantiates the claim — never take the script's excerpt
+     match alone as proof of substantiation. A resolved citation that does
+     not substantiate its claim is its own `<finding severity="blocking"
+     dimension="plan-conformance">`, naming the claim, the cited path, and
+     why the passage does not support it. No advisory carve-out applies to
+     this check — every mapped or judged finding here is
+     `severity="blocking"`, with no lesser severity ever emitted.
 5. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
    change sits under `principles_path`; no source files, configs, or stray files touched.
 6. **consistency** — confirm any `consistency_findings` the planner surfaced

@@ -2,13 +2,18 @@
 create-quality/-standards/-operations/-principles planner and verifier
 charters.
 
-This module currently covers only the planner half: each of the 4 planners'
-`Upstream inventory` section must mandate a verbatim quoted excerpt per
-citation, state the citation grammar, mark the line/range advisory-only, and
-(create-standards only) keep its `principles/ N/A: <why>` note, explicitly
-exempted from the new grammar. Later commits extend this same module with
-the verifier-side (`plan-conformance` dimension invoking the shared
-`citation_check.py` floor) and SKILL.md-mirror coverage.
+Covers both halves: the planner half (each of the 4 planners' `Upstream
+inventory` section must mandate a verbatim quoted excerpt per citation, state
+the citation grammar, mark the line/range advisory-only, and (create-standards
+only) keep its `principles/ N/A: <why>` note, explicitly exempted from the new
+grammar) and the verifier half (each of the 4 verifiers' `plan-conformance`
+dimension invokes the shared `citation_check.py` floor, maps every finding and
+exit 2 to a blocking finding, and additionally requires a substantiation
+judgment over the script's resolved-citations manifest — the hybrid shape).
+Also pins the negative/regression space this ticket must not disturb:
+`create-prd-verifier.md` untouched, loop topology unchanged in all 5
+bootstrap-doc skills, and dimension 4's name/number/position/"eight" count
+unchanged.
 
 Mirrors the reading/extraction helper shapes from
 `test_structure_audience_verifiers.py` and `test_diagram_lint_verifiers.py`
@@ -35,6 +40,32 @@ PLANNERS = (
     "create-operations-planner.md",
     "create-principles-planner.md",
     "create-standards-planner.md",
+)
+
+VERIFIERS = (
+    "create-quality-verifier.md",
+    "create-standards-verifier.md",
+    "create-operations-verifier.md",
+    "create-principles-verifier.md",
+)
+
+PRD_VERIFIER = "create-prd-verifier.md"
+
+# create-prd-verifier.md's 9 pre-existing dimension labels (AC-5 negative
+# pin) — mirrors the VERIFIERS["create-prd-verifier.md"] entry in
+# test_structure_audience_verifiers.py:56-64.
+PRD_VERIFIER_DIMENSIONS = (
+    "Required sections", "Feature -> goal traceability",
+    "Measurable success metrics", "Prioritization discipline",
+    "Constraint consistency", "Roadmap coverage", "Plan conformance",
+    "Amend-mode diff discipline", "Iteration 2+ regression check",
+)
+
+# all 5 bootstrap-doc skills whose loop topology (per-iteration planner
+# re-spawn) must stay unchanged (AC-5).
+BOOTSTRAP_DOC_SKILLS = (
+    "create-quality", "create-standards", "create-operations",
+    "create-principles", "create-prd",
 )
 
 
@@ -105,6 +136,18 @@ def citation_excerpt_clause(bullet_text):
         r"Each citation is one line of the shape.*?never a paraphrase\.",
         bullet_text, re.DOTALL)
     assert m is not None, "citation excerpt clause not found in Upstream inventory bullet"
+    return re.sub(r"\s+", " ", m.group(0)).strip()
+
+
+def corroboration_clause(block):
+    """The shared citation-corroboration prose inside dimension 4's
+    plan-conformance block, whitespace-normalized for cross-verifier
+    identity comparison (AC-4)."""
+    m = re.search(
+        r"Independently re-open and check every upstream-fact citation.*?"
+        r"with no lesser severity ever emitted\.",
+        block, re.DOTALL)
+    assert m is not None, "corroboration clause not found in plan-conformance dimension"
     return re.sub(r"\s+", " ", m.group(0)).strip()
 
 
@@ -184,6 +227,190 @@ class PlannerExcerptClauseTest(unittest.TestCase):
                 body = read(os.path.join(AGENTS, fname))
                 bullet = upstream_inventory_bullet(body, fname)
                 self.assertNotIn("principles/ N/A:", bullet)
+
+
+class DimensionFourInvocationTest(unittest.TestCase):
+    """AC-2: all 4 verifiers' `plan-conformance` dimension invokes the shared
+    citation_check.py script with --plan/--root against the current
+    iteration's plan artifact; create-standards additionally names a
+    principles root."""
+
+    def test_all_four_invoke_helper_with_plan_and_root(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                self.assertIn(HELPER_PATH, block,
+                              "%s plan-conformance dimension must invoke %s" % (fname, HELPER_PATH))
+                self.assertIn("--plan", block)
+                self.assertIn("--root", block)
+                self.assertIn("iter-<n>-plan.md", block)
+
+    def test_standards_names_principles_root(self):
+        body = read(os.path.join(AGENTS, "create-standards-verifier.md"))
+        block = dimension_block(body, "plan-conformance")
+        self.assertIn("principles", block.lower())
+
+
+class PrdRootDeclaredTest(unittest.TestCase):
+    """AC-2/C-7: all 4 verifiers' input-contract `<constraints>` enumeration
+    now names `prd_path` (baseline: 0 matches in all four)."""
+
+    def test_all_four_declare_prd_path_constraint(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                self.assertIn(
+                    "prd_path", body,
+                    "%s must declare prd_path as a verify-task constraint" % fname)
+
+
+class BlockingFindingMappingTest(unittest.TestCase):
+    """AC-3/D3-a: each dim-4 block maps every stderr finding, and exit 2
+    itself, to severity="blocking" dimension="plan-conformance"; no
+    severity="info" path exists anywhere in the block."""
+
+    def test_maps_findings_and_exit_two_to_blocking(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                self.assertIn('severity="blocking"', block)
+                self.assertIn('dimension="plan-conformance"', block)
+                self.assertIn("exit 2", block)
+
+    def test_no_info_severity_in_block(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                self.assertNotIn('severity="info"', block)
+
+
+class SemanticCeilingTest(unittest.TestCase):
+    """AC-1/AC-3 (design R3, honest prose-only pin): each dim-4 block
+    requires the verifier to re-open every resolved citation from the
+    script's manifest and judge substantiation."""
+
+    def test_requires_reopening_and_judging_substantiation(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                lowered = block.lower()
+                self.assertIn("resolved", lowered)
+                self.assertIn("substantiat", lowered)
+                self.assertIn("manifest", lowered)
+
+
+class HybridMechanismTest(unittest.TestCase):
+    """AC-1 (D1-C): both halves co-exist in every dim-4 block — the
+    deterministic script invocation AND the substantiation judgment; neither
+    half alone is present."""
+
+    def test_both_deterministic_and_semantic_present(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                self.assertIn(HELPER_PATH, block,
+                              "%s missing the deterministic invocation half" % fname)
+                self.assertGreater(
+                    block.lower().count("substantiat"), 0,
+                    "%s missing the semantic substantiation-judgment half" % fname)
+
+
+class SharedIdenticallyTest(unittest.TestCase):
+    """AC-4: exactly one citation_check.py exists under
+    plugins/acs/hooks/scripts/, and the corroboration clause normalizes
+    identically across the 4 verifiers."""
+
+    def test_exactly_one_citation_check_script(self):
+        found = []
+        for root, _dirs, files in os.walk(PLUGIN):
+            for f in files:
+                if f == "citation_check.py":
+                    found.append(os.path.join(root, f))
+        self.assertEqual(
+            found, [os.path.join(PLUGIN, "hooks", "scripts", "citation_check.py")],
+            "expected exactly one citation_check.py, under hooks/scripts/: %r" % found)
+
+    def test_verifier_clause_identical_across_four(self):
+        clauses = {}
+        for fname in VERIFIERS:
+            body = read(os.path.join(AGENTS, fname))
+            block = dimension_block(body, "plan-conformance")
+            clauses[fname] = corroboration_clause(block)
+        unique = set(clauses.values())
+        self.assertEqual(
+            len(unique), 1,
+            "corroboration clause drifted across verifiers (not identical): %r" % clauses)
+
+
+class CreatePrdUntouchedTest(unittest.TestCase):
+    """AC-5: create-prd-verifier.md contains no citation_check.py reference
+    and its 9 pre-existing dimension labels all remain."""
+
+    def test_no_citation_check_reference(self):
+        body = read(os.path.join(AGENTS, PRD_VERIFIER))
+        self.assertNotIn("citation_check.py", body)
+
+    def test_all_nine_dimensions_present(self):
+        body = read(os.path.join(AGENTS, PRD_VERIFIER))
+        for label in PRD_VERIFIER_DIMENSIONS:
+            with self.subTest(dimension=label):
+                self.assertTrue(
+                    dimension_present(body, label),
+                    "dimension %r must remain present in %s" % (label, PRD_VERIFIER))
+
+
+class LoopTopologyUnchangedTest(unittest.TestCase):
+    """AC-5: all 5 bootstrap-doc SKILL.md files still carry the
+    per-iteration planner re-spawn sentence (plan -> execute -> verify)."""
+
+    def test_all_five_carry_plan_execute_verify(self):
+        for skill in BOOTSTRAP_DOC_SKILLS:
+            with self.subTest(skill=skill):
+                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                self.assertRegex(
+                    body.lower(), r"plan -> execute -> verify",
+                    "%s/SKILL.md must still carry the per-iteration re-spawn sentence" % skill)
+
+
+class DimensionFourStillNumberedFourTest(unittest.TestCase):
+    """D4-fold/R5: plan-conformance remains the 4th numbered dimension in
+    all 4 verifiers, between required-sections and docs-only-changeset, and
+    "eight" (never "nine") still names the dimension count."""
+
+    def test_plan_conformance_is_dimension_four(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                self.assertIsNotNone(
+                    re.search(r"(?m)^4\.\s+\*\*plan-conformance\*\*", body),
+                    "%s: plan-conformance must stay numbered 4." % fname)
+
+    def test_between_required_sections_and_docs_only_changeset(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                req = re.search(r"(?m)^3\.\s+\*\*required-sections\*\*", body)
+                pc = re.search(r"(?m)^4\.\s+\*\*plan-conformance\*\*", body)
+                docs = re.search(r"(?m)^5\.\s+\*\*docs-only-changeset\*\*", body)
+                self.assertIsNotNone(req)
+                self.assertIsNotNone(pc)
+                self.assertIsNotNone(docs)
+                self.assertLess(req.start(), pc.start())
+                self.assertLess(pc.start(), docs.start())
+
+    def test_eight_unchanged_no_ninth_dimension(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                self.assertIn("eight", body)
+                self.assertIsNone(
+                    re.search(r"(?m)^9\.\s+(?:\*\*|`)", body),
+                    "%s must not gain a 9th numbered dimension" % fname)
 
 
 if __name__ == "__main__":
