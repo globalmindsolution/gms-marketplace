@@ -377,6 +377,75 @@ class LoopTopologyUnchangedTest(unittest.TestCase):
                     "%s/SKILL.md must still carry the per-iteration re-spawn sentence" % skill)
 
 
+CORROBORATION_SKILLS = (
+    "create-quality", "create-standards", "create-operations", "create-principles",
+)
+
+
+def verify_constraints_sentence(region, skill_name):
+    """The 'The verify task's `<constraints>` also carry ...' paragraph
+    inside a SKILL.md's verify-phase region, up to the next blank line."""
+    m = re.search(
+        r"The verify task's `<constraints>` also carry.*?(?=\n\n)",
+        region, re.DOTALL)
+    assert m is not None, (
+        "%s/SKILL.md: verify-task <constraints> sentence not found" % skill_name)
+    return m.group(0)
+
+
+class SkillMirrorTest(unittest.TestCase):
+    """AC-2: each of the 4 SKILL.md 'the plan was followed exactly' bullets
+    is extended to also name citation corroboration — never by adding a new
+    bullet, since create-standards/SKILL.md's 'the six dimensions above'
+    count would then silently go stale (K4)."""
+
+    def test_bullet_extended_to_name_citation_corroboration(self):
+        for skill in CORROBORATION_SKILLS:
+            with self.subTest(skill=skill):
+                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                region = verify_phase_region(body, skill)
+                m = re.search(
+                    r"(?m)^\s*-\s+the plan was followed exactly.*?;",
+                    region, re.DOTALL)
+                self.assertIsNotNone(
+                    m,
+                    "%s/SKILL.md: 'the plan was followed exactly' bullet not found" % skill)
+                self.assertIn(
+                    "citation", m.group(0).lower(),
+                    "%s/SKILL.md: bullet must be extended to name citation "
+                    "corroboration" % skill)
+
+    def test_standards_six_dimensions_count_still_accurate(self):
+        # extending the existing bullet must not add a new one — the mirror
+        # verifier's own "checks ONLY ... the six dimensions above" count
+        # must stay unchanged (K4).
+        body = read(os.path.join(SKILLS, "create-standards", "SKILL.md"))
+        self.assertRegex(body.lower(), r"the six dimensions\s+above")
+        region = verify_phase_region(body, "create-standards")
+        bullets = re.findall(r"(?m)^   -\s+", region.split("**This producer verifier")[0])
+        self.assertEqual(
+            len(bullets), 6,
+            "create-standards/SKILL.md verify checklist must still list exactly "
+            "six top-level bullets (extend, don't add): %r" % bullets)
+
+
+class SkillVerifyConstraintPrdPathTest(unittest.TestCase):
+    """C-7: each of the 4 SKILL.md verify-task `<constraints>` sentences
+    names `prd_path`, so the coordinator actually renders the root the
+    verifier's new plan-conformance constraint needs."""
+
+    def test_verify_constraints_sentence_names_prd_path(self):
+        for skill in CORROBORATION_SKILLS:
+            with self.subTest(skill=skill):
+                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                region = verify_phase_region(body, skill)
+                sentence = verify_constraints_sentence(region, skill)
+                self.assertIn(
+                    "prd_path", sentence,
+                    "%s/SKILL.md: verify-task <constraints> sentence must name "
+                    "prd_path" % skill)
+
+
 class DimensionFourStillNumberedFourTest(unittest.TestCase):
     """D4-fold/R5: plan-conformance remains the 4th numbered dimension in
     all 4 verifiers, between required-sections and docs-only-changeset, and
