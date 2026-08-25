@@ -24,6 +24,7 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 import usage_reader  # noqa: E402
+import cost_sampler  # noqa: E402
 
 
 def _usage(input_tokens=0, output_tokens=0, cache_creation=0, cache_read=0):
@@ -172,9 +173,13 @@ class TestUnattributedTokensDropped(UsageReaderCase):
             self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
-        # The unattributed 300 must not land on coordinator (100 only).
+        # The unattributed 300 must not land on coordinator (100 only) --
+        # instead it lands in its own "unattributed" bucket (cost_sampler's
+        # documented apportionment-denominator convention), never merged in.
         self.assertEqual(coordinator["input"], 100)
-        self.assertEqual(len(result["role_usage"]), 1)
+        unattributed = next(r for r in result["role_usage"] if r["role"] == "unattributed")
+        self.assertEqual(unattributed["input"], 300)
+        self.assertEqual(len(result["role_usage"]), 2)
         self.assertIn("excluded_token_share", result)
         self.assertAlmostEqual(result["excluded_token_share"], 300 / 400)
 
@@ -332,7 +337,11 @@ class TestSubagentUnattributedAndOtherRole(UsageReaderCase):
         result = usage_reader.read_transcript_usage(
             self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
         self.assertFalse(result["degraded"])
-        self.assertEqual(len(result["role_usage"]), 1)
+        coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
+        self.assertEqual(coordinator["input"], 10)
+        unattributed = next(r for r in result["role_usage"] if r["role"] == "unattributed")
+        self.assertEqual(unattributed["input"], 90)
+        self.assertEqual(len(result["role_usage"]), 2)
         self.assertAlmostEqual(result["excluded_token_share"], 90 / 100)
 
     def test_unmatched_attribution_agent_buckets_as_other(self):
@@ -437,6 +446,45 @@ class TestCorruptLineSkipped(UsageReaderCase):
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 4)
+
+
+class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
+    """Cross-module contract check: usage_reader's role_usage, fed directly
+    into cost_sampler.allocate_cost, is consumed exactly per cost_sampler's
+    own documented convention (its module docstring / UNATTRIBUTED_ROLE) --
+    the "unattributed" bucket counts toward the apportionment denominator but
+    never receives a dollar share itself."""
+
+    def test_unattributed_bucket_excluded_from_cost_apportionment(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(100, 0, 0, 0), attribution_skill="acs:code"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0)),  # no attributionSkill
+        ])
+        usage = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+        self.assertFalse(usage["degraded"])
+
+        workspace = tempfile.mkdtemp(prefix="acs-test-cost-")
+        self.addCleanup(shutil.rmtree, workspace, True)
+        cost_sampler._append_sample_line(
+            cost_sampler.cost_samples_path(workspace, "acme-shop", "ck1"),
+            {"ts": "2026-01-01T00:00:30Z", "total_cost_usd": 1.0, "src": "cost.total_cost_usd"})
+
+        role_usage_with_cost, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share = (
+            cost_sampler.allocate_cost(workspace, "acme-shop", "ck1",
+                                        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
+                                        usage["role_usage"]))
+        self.assertEqual(cost_basis, "measured")
+        self.assertAlmostEqual(cost_usd, 1.0)
+        coordinator = next(r for r in role_usage_with_cost if r["role"] == "coordinator")
+        unattributed = next(r for r in role_usage_with_cost if r["role"] == "unattributed")
+        self.assertAlmostEqual(coordinator["cost_usd"], 0.25)  # 100 of 400 tokens
+        self.assertIsNone(unattributed["cost_usd"])
+        self.assertAlmostEqual(excluded_token_share, 300 / 400)
+        self.assertAlmostEqual(excluded_cost_usd, 0.75)
+        # Matches usage_reader's own reported share exactly -- the two
+        # modules' independent accountings agree.
+        self.assertAlmostEqual(excluded_token_share, usage["excluded_token_share"])
 
 
 if __name__ == "__main__":

@@ -18,6 +18,15 @@ usage fields, message.model, timestamp, and the attribution fields
 subagent's own *.jsonl) -- never message.content, prompt text, or tool
 results, and never opens a subagents/*.meta.json sidecar at all (only
 "*.jsonl" files are ever enumerated/opened).
+
+Unattributed-token / apportionment-denominator contract: unattributed
+same-window tokens (C-8's "drop, don't redistribute" policy) are folded into
+a `role_usage` entry with `"role": "unattributed"` -- the exact convention
+cost_sampler.allocate_cost's own docstring documents expecting from its
+caller -- rather than silently vanishing or inflating an attributed role's
+bucket. `excluded_token_share` is additionally reported at the top level of
+the result for direct/display consumers that do not want to re-derive it
+from the role_usage list themselves.
 """
 
 import json
@@ -34,6 +43,10 @@ _USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens",
 _BUCKET_KEYS = ("input", "output", "cache_creation", "cache_read")
 
 _KNOWN_SKILLS = frozenset(acs_lib.HOOKED_SKILLS + acs_lib.UNHOOKED_SKILLS)
+
+#: role bucket for same-window tokens with no attributionSkill/attributionAgent
+#: -- matches cost_sampler.UNATTRIBUTED_ROLE's own documented expectation.
+UNATTRIBUTED_ROLE = "unattributed"
 
 
 class _CapExceeded(Exception):
@@ -144,8 +157,8 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, rol
         role = _agent_role(record.get("attributionAgent")) if is_subagent else _skill_role(record.get("attributionSkill"))
         acc["total"] += total
         if role is None:
+            role = UNATTRIBUTED_ROLE
             acc["excluded"] += total
-            continue
         _add_usage(role_totals.setdefault(role, _empty_bucket()), usage)
 
 
