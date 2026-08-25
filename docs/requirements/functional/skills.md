@@ -405,10 +405,15 @@ pipeline verifies against.
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
 - **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the grammar
-  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
-  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
-  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
   `plan-conformance` dimension MUST independently re-open and check every
   such citation: it runs the shared deterministic `citation_check.py` floor
   over `prd_path` + `architecture_path`, then itself judges substantiation
@@ -455,10 +460,15 @@ operations contract the pipeline and the on-call team run against.
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
 - **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the grammar
-  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
-  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
-  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
   `plan-conformance` dimension MUST independently re-open and check every
   such citation: it runs the shared deterministic `citation_check.py` floor
   over `prd_path` + `architecture_path`, then itself judges substantiation
@@ -505,10 +515,15 @@ engineering principles and their rationale — the standing values contract
   the verifier's `consistency` dimension confirms any such findings were
   resolved or explicitly deferred.
 - **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the grammar
-  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
-  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
-  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
   `plan-conformance` dimension MUST independently re-open and check every
   such citation: it runs the shared deterministic `citation_check.py` floor
   over `prd_path` + `architecture_path`, then itself judges substantiation
@@ -558,10 +573,15 @@ values contract.
   dimension confirms any such findings were resolved or explicitly
   deferred.
 - **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the grammar
-  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
-  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
-  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
   `plan-conformance` dimension MUST independently re-open and check every
   such citation: it runs the shared deterministic `citation_check.py` floor
   over `prd_path` + `architecture_path`, plus `principles_path` when it is

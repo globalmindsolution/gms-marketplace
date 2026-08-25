@@ -43,8 +43,14 @@ phase artifacts, and would duplicate the plan's own `Upstream inventory`
 section).
 
 **(b) D2-c — Mandatory verbatim quoted excerpt per citation.** The 4
-planner charters' `Upstream inventory` citation grammar becomes
-`- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"`: the path is
+planner charters' `Upstream inventory` citation grammar becomes the
+one-line shape
+
+```
+- <claim> — `<path>[:line]` — "<verbatim excerpt>"
+```
+
+The path is
 backtick-quoted, the optional `:line`/`:line-start-line-end` suffix is
 advisory only (never a locus the script trusts), and the excerpt is now
 **mandatory and verbatim** — a real planner-contract change to all 4
