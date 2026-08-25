@@ -62,7 +62,11 @@ BASELINE_FLOWS = {
 # file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail
 # still catches an ACCIDENTAL new flow file from a future MAR-119-adjacent
 # change; it is not meant to freeze the directory against every later ticket.
-KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md"}
+# MAR-1 (ADR 0080) legitimately added acs-cost-metering.md — its own design
+# requires a new standing flow file for acs's own cost/time metering, which
+# no existing flow doc covered.
+KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
+                          "acs-cost-metering.md"}
 
 
 def read(path):
