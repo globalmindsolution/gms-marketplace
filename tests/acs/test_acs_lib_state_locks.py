@@ -142,7 +142,8 @@ class TestFinalizeRun(unittest.TestCase):
                 "tokens": {"input": 999999, "output": 999999},
                 "cost_usd": 123.45,
             })
-        read_usage.assert_called_once_with("/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"])
+        read_usage.assert_called_once_with(
+            "/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"], "code")
         allocate.assert_called_once_with(
             os.path.dirname(os.path.dirname(self.tdir)), os.path.basename(os.path.dirname(self.tdir)),
             "ck-1", entry["started_at"], entry["ended_at"], measured_role_usage)
@@ -150,6 +151,23 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(entry["role_usage"], priced_role_usage)
         self.assertEqual(entry["cost_usd"], 0.05)
         self.assertEqual(entry["cost_basis"], "measured")
+
+    def test_own_skill_is_threaded_through_to_usage_reader_not_hardcoded(self):
+        """finalize_run's own `skill` argument -- not a fixed constant -- is
+        what reaches usage_reader.read_transcript_usage, so a run's own-skill
+        filter always matches this run's own skill, whichever skill it is."""
+        lib.append_in_progress_run(self.tdir, "create-design", "SHOP-1", session={
+            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
+        })
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "model": "claude", "role_usage": [],
+            }
+            allocate.return_value = ([], None, "unavailable", "session_total", 0.0, 0.0)
+            state, entry = lib.finalize_run(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
+        read_usage.assert_called_once_with(
+            "/fake/sess-2.jsonl", entry["started_at"], entry["ended_at"], "create-design")
 
     def test_no_session_id_finalizes_completed_with_cost_unavailable_and_no_transcript_io(self):
         """Required short-circuit (Risk R-N): a run entry with no session_id/

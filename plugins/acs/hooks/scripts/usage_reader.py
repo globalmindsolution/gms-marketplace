@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """usage_reader.py -- reads real per-role token usage from a Claude Code
-transcript for a single run (MAR-1).
+transcript for a single run.
 
 Stdlib-only (Python 3.9+, no pip). Given the exact transcript_path recorded
 on a run entry (acs_lib.record_session_marker / append_in_progress_run) plus
@@ -26,7 +26,13 @@ cost_sampler.allocate_cost's own docstring documents expecting from its
 caller -- rather than silently vanishing or inflating an attributed role's
 bucket. `excluded_token_share` is additionally reported at the top level of
 the result for direct/display consumers that do not want to re-derive it
-from the role_usage list themselves.
+from the role_usage list themselves. This bucket also absorbs any
+attributionSkill that is present but not the run's own (`skill` argument):
+`read_transcript_usage` filters to the run's own skill only, so a
+same-window record attributed to a different acs skill (e.g. a concurrent
+or adjacent step of a long-running /acs:ship session) is dropped exactly
+like a genuinely unattributed record, never absorbed into this run's
+coordinator share.
 """
 
 import json
@@ -41,8 +47,6 @@ MAX_FILES = 64
 
 _USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 _BUCKET_KEYS = ("input", "output", "cache_creation", "cache_read")
-
-_KNOWN_SKILLS = frozenset(acs_lib.HOOKED_SKILLS + acs_lib.UNHOOKED_SKILLS)
 
 #: role bucket for same-window tokens with no attributionSkill/attributionAgent
 #: -- matches cost_sampler.UNATTRIBUTED_ROLE's own documented expectation.
@@ -61,18 +65,29 @@ def _empty_bucket():
     return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}
 
 
-def _skill_role(attribution_skill):
+def _normalize_skill(name):
+    """Strip the observed "acs:" prefix and apply
+    acs_lib.ATTRIBUTION_SKILL_MAP's override (e.g. "init" -> "initialize")."""
+    if not isinstance(name, str) or not name:
+        return None
+    name = name[len("acs:"):] if name.startswith("acs:") else name
+    return acs_lib.ATTRIBUTION_SKILL_MAP.get(name, name)
+
+
+def _skill_role(attribution_skill, own_skill):
     """Main-session attribution -> role bucket, or None when unattributed.
 
-    Strips the observed "acs:" prefix, applies acs_lib.ATTRIBUTION_SKILL_MAP's
-    override, then checks the combined skill registry. A present-but-unmapped
-    value still counts (bucketed "unknown-skill") rather than being dropped --
-    only a genuinely absent attributionSkill is unattributed (C-8)."""
-    if not isinstance(attribution_skill, str) or not attribution_skill:
+    Normalizes both attribution_skill and own_skill the same way (strip
+    "acs:", apply ATTRIBUTION_SKILL_MAP) and returns "coordinator" only when
+    they match -- the run's own-skill filter (design.md "usage_reader
+    filters to the run's own skill only"). ANY other value -- known or
+    unknown skill name -- is treated exactly like a genuinely absent
+    attributionSkill: dropped into the unattributed bucket (C-8), never
+    silently absorbed into a foreign run's coordinator share."""
+    normalized = _normalize_skill(attribution_skill)
+    if normalized is None:
         return None
-    name = attribution_skill[len("acs:"):] if attribution_skill.startswith("acs:") else attribution_skill
-    name = acs_lib.ATTRIBUTION_SKILL_MAP.get(name, name)
-    return "coordinator" if name in _KNOWN_SKILLS else "unknown-skill"
+    return "coordinator" if normalized == _normalize_skill(own_skill) else None
 
 
 def _agent_role(attribution_agent):
@@ -123,11 +138,13 @@ def _iter_capped_lines(path, cap_state):
             yield line
 
 
-def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, role_totals, acc):
+def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, role_totals, acc, own_skill):
     """Fold one transcript JSONL file's in-window usage into role_totals/acc.
 
     Skips (never raises on) a corrupt line, a non-dict record, an
-    out-of-window timestamp, or a record with no usable message.usage."""
+    out-of-window timestamp, or a record with no usable message.usage.
+    `own_skill` is the run's own skill name, used to filter main-session
+    attributionSkill records (see _skill_role); ignored for subagent files."""
     for line in _iter_capped_lines(path, cap_state):
         line = line.strip()
         if not line:
@@ -154,7 +171,8 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, rol
             model = message.get("model")
             if isinstance(model, str) and model:
                 model_holder[0] = model
-        role = _agent_role(record.get("attributionAgent")) if is_subagent else _skill_role(record.get("attributionSkill"))
+        role = (_agent_role(record.get("attributionAgent")) if is_subagent
+                else _skill_role(record.get("attributionSkill"), own_skill))
         acc["total"] += total
         if role is None:
             role = UNATTRIBUTED_ROLE
@@ -175,20 +193,24 @@ def _walk_jsonl(root):
                 yield os.path.join(dirpath, name)
 
 
-def read_transcript_usage(transcript_path, started_at, ended_at):
+def read_transcript_usage(transcript_path, started_at, ended_at, skill):
     """Real per-role token usage for one run's [started_at, ended_at] window.
 
     Reads the exact transcript_path plus dirname(transcript_path)/<session_id>/
     subagents/ (session_id derived from transcript_path's own basename -- the
     recorded shape is "<...>/<session_id>.jsonl" -- never a cwd-constructed
-    slug: P1). Never raises."""
+    slug: P1). `skill` is the run's own skill name (e.g. "code"); only
+    main-session records whose attributionSkill normalizes to this same
+    skill land in the "coordinator" bucket -- any other acs:*-attributed
+    record in the window (a concurrent or adjacent run's own skill) is
+    dropped, never absorbed. Never raises."""
     try:
-        return _read(transcript_path, started_at, ended_at)
+        return _read(transcript_path, started_at, ended_at, skill)
     except Exception:
         return _degraded("unexpected_error")
 
 
-def _read(transcript_path, started_at, ended_at):
+def _read(transcript_path, started_at, ended_at, skill):
     if not isinstance(transcript_path, str) or not transcript_path:
         return _degraded("no_session_marker")
 
@@ -207,7 +229,7 @@ def _read(transcript_path, started_at, ended_at):
     acc = {"total": 0, "excluded": 0}
 
     try:
-        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_holder, role_totals, acc)
+        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_holder, role_totals, acc, skill)
     except _CapExceeded:
         return _degraded("cap_exceeded")
     except OSError:
@@ -217,7 +239,7 @@ def _read(transcript_path, started_at, ended_at):
     subagents_dir = os.path.join(os.path.dirname(transcript_path), session_id, "subagents")
     for file_path in _walk_jsonl(subagents_dir):
         try:
-            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_holder, role_totals, acc)
+            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_holder, role_totals, acc, skill)
         except _CapExceeded:
             return _degraded("cap_exceeded")
         except OSError:

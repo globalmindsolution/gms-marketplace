@@ -91,7 +91,7 @@ class TestCacheTokenFieldsCounted(UsageReaderCase):
                      attribution_skill="acs:code"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 10)
@@ -114,7 +114,7 @@ class TestSubagentsSubtreeIncluded(UsageReaderCase):
                      attribution_agent="acs:code-executor"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         executor = next(r for r in result["role_usage"] if r["role"] == "executor")
         self.assertEqual(executor, {"role": "executor", "input": 5, "output": 6,
@@ -136,7 +136,7 @@ class TestNoSlugConstructed(UsageReaderCase):
                      attribution_agent="acs:code-verifier"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         totals = {r["role"]: r for r in result["role_usage"]}
         self.assertEqual(totals["coordinator"]["input"], 100)
@@ -152,7 +152,7 @@ class TestCoordinatorBucketPresent(UsageReaderCase):
             _record("2026-01-01T00:00:05Z", usage=_usage(50, 60, 0, 0), attribution_skill="acs:create-design"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "create-design")
         self.assertFalse(result["degraded"])
         coordinator = [r for r in result["role_usage"] if r["role"] == "coordinator"]
         self.assertEqual(len(coordinator), 1)
@@ -170,7 +170,7 @@ class TestUnattributedTokensDropped(UsageReaderCase):
             _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0)),  # no attributionSkill
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         # The unattributed 300 must not land on coordinator (100 only) --
@@ -203,7 +203,7 @@ class TestMetaJsonNeverOpened(UsageReaderCase):
         os.makedirs(booby, exist_ok=True)
 
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         planner = next(r for r in result["role_usage"] if r["role"] == "planner")
         self.assertEqual(planner["input"], 2)
@@ -218,21 +218,21 @@ class TestDegradedNeverRaises(UsageReaderCase):
         # IsADirectoryError -- root-proof, unlike a chmod-based fixture.
         os.makedirs(self.transcript_path, exist_ok=True)
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "unreadable_transcript")
 
     def test_missing_transcript_file_degrades(self):
         result = usage_reader.read_transcript_usage(
             os.path.join(self.project_dir, "does-not-exist.jsonl"),
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "unreadable_transcript")
 
     def test_empty_window_missing_started_at_degrades(self):
         self.write_main([_record("2026-01-01T00:00:05Z", usage=_usage(1, 1, 0, 0),
                                   attribution_skill="acs:code")])
-        result = usage_reader.read_transcript_usage(self.transcript_path, None, None)
+        result = usage_reader.read_transcript_usage(self.transcript_path, None, None, "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "empty_window")
 
@@ -240,12 +240,12 @@ class TestDegradedNeverRaises(UsageReaderCase):
         self.write_main([_record("2026-01-01T00:00:05Z", usage=_usage(1, 1, 0, 0),
                                   attribution_skill="acs:code")])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:01:00Z", "2026-01-01T00:00:00Z")
+            self.transcript_path, "2026-01-01T00:01:00Z", "2026-01-01T00:00:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "empty_window")
 
     def test_no_session_marker_degrades(self):
-        result = usage_reader.read_transcript_usage(None, "2026-01-01T00:00:00Z", None)
+        result = usage_reader.read_transcript_usage(None, "2026-01-01T00:00:00Z", None, "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "no_session_marker")
 
@@ -258,7 +258,7 @@ class TestDegradedNeverRaises(UsageReaderCase):
                 _record("2026-01-01T00:00:06Z", usage=_usage(1, 1, 0, 0), attribution_skill="acs:code"),
             ])
             result = usage_reader.read_transcript_usage(
-                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         finally:
             usage_reader.MAX_BYTES = original_max_bytes
         self.assertTrue(result["degraded"])
@@ -276,7 +276,7 @@ class TestDegradedNeverRaises(UsageReaderCase):
                          attribution_agent="acs:code-executor"),
             ])
             result = usage_reader.read_transcript_usage(
-                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         finally:
             usage_reader.MAX_FILES = original_max_files
         self.assertTrue(result["degraded"])
@@ -293,33 +293,78 @@ class TestZeroTokensNeverAValidZero(UsageReaderCase):
         ])
         # A well-formed window that simply contains no matching records.
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "no_tokens_in_window")
 
     def test_empty_transcript_file_degrades(self):
         self.write_main([])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "no_tokens_in_window")
 
 
-class TestUnmappedAttributionSkillBucketsAsUnknownSkill(UsageReaderCase):
-    """A present-but-unrecognized attributionSkill is bucketed as
-    "unknown-skill" rather than dropped -- distinct from a genuinely absent
-    attributionSkill, which IS dropped (TestUnattributedTokensDropped)."""
+class TestNonOwnAttributionSkillDropped(UsageReaderCase):
+    """A present attributionSkill that is NOT the run's own skill is dropped
+    (folded into "unattributed"), exactly like a genuinely absent
+    attributionSkill -- whether or not the value is a registered skill name.
+    Only a normalized match against the run's own skill ever lands in
+    "coordinator" (the own-skill filter, design.md's "usage_reader filters to
+    the run's own skill only" requirement)."""
 
-    def test_unrecognized_attribution_skill_is_not_dropped(self):
+    def test_unrecognized_attribution_skill_is_dropped(self):
         self.write_main([
             _record("2026-01-01T00:00:05Z", usage=_usage(7, 7, 0, 0),
                      attribution_skill="acs:totally-unregistered-skill"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
-        bucket = next(r for r in result["role_usage"] if r["role"] == "unknown-skill")
-        self.assertEqual(bucket["input"], 7)
+        self.assertEqual([r["role"] for r in result["role_usage"]], ["unattributed"])
+        unattributed = result["role_usage"][0]
+        self.assertEqual(unattributed["input"], 7)
+
+    def test_registered_but_foreign_skill_attribution_is_dropped(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(11, 0, 0, 0), attribution_skill="acs:ship"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        self.assertEqual([r["role"] for r in result["role_usage"]], ["unattributed"])
+        self.assertEqual(result["role_usage"][0]["input"], 11)
+
+
+class TestOwnSkillFiltering(UsageReaderCase):
+    """The real defect this fix closes: at finalize time usage_reader must
+    filter to the run's own skill only -- not any acs:*-attributed record in
+    the window (design.md "Module map and attribution mapping"). A
+    long-running session (e.g. /acs:ship) can carry main-session records for
+    several different attributionSkill values in one time window; only the
+    run's own skill's records may land in "coordinator"."""
+
+    def test_only_the_runs_own_skill_lands_in_coordinator(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(40, 0, 0, 0), attribution_skill="acs:code"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(70, 0, 0, 0), attribution_skill="acs:ship"),
+            _record("2026-01-01T00:00:07Z", usage=_usage(30, 0, 0, 0)),  # no attributionSkill
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        totals = {r["role"]: r for r in result["role_usage"]}
+        self.assertEqual(set(totals), {"coordinator", "unattributed"})
+        # Only the run's own "acs:code" record lands in coordinator.
+        self.assertEqual(totals["coordinator"]["input"], 40)
+        # The "acs:ship"-attributed record is excluded from role_usage
+        # entirely -- it behaves like unattributed tokens (dropped, not
+        # silently absorbed into coordinator, not silently vanished from the
+        # accounting), joining the plain-unattributed record in one bucket.
+        self.assertEqual(totals["unattributed"]["input"], 100)
+        # Total-tokens-observed invariant: nothing is double-counted or lost.
+        self.assertEqual(sum(r["input"] for r in result["role_usage"]), 140)
+        self.assertAlmostEqual(result["excluded_token_share"], 100 / 140)
 
 
 class TestSubagentUnattributedAndOtherRole(UsageReaderCase):
@@ -335,7 +380,7 @@ class TestSubagentUnattributedAndOtherRole(UsageReaderCase):
             _record("2026-01-01T00:00:06Z", usage=_usage(90, 0, 0, 0)),  # no attributionAgent
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 10)
@@ -352,7 +397,7 @@ class TestSubagentUnattributedAndOtherRole(UsageReaderCase):
             _record("2026-01-01T00:00:06Z", usage=_usage(12, 0, 0, 0), attribution_agent="Explore"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         other = next(r for r in result["role_usage"] if r["role"] == "other")
         self.assertEqual(other["input"], 12)
@@ -372,7 +417,7 @@ class TestUnreadableIndividualSubagentFileIsSkipped(UsageReaderCase):
         os.symlink(os.path.join(subagents_dir, "does-not-exist"), broken)
 
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 5)
@@ -396,7 +441,7 @@ class TestBlankLineAndMalformedRecordsSkipped(UsageReaderCase):
             fh.write(json.dumps(_record("2026-01-01T00:00:08Z", usage=_usage(3, 0, 0, 0),
                                          attribution_skill="acs:code")) + "\n")
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 3)
@@ -413,7 +458,7 @@ class TestUnexpectedErrorNeverRaises(UsageReaderCase):
         ])
         with mock.patch.object(usage_reader, "_scan_file", side_effect=RuntimeError("boom")):
             result = usage_reader.read_transcript_usage(
-                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+                self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertTrue(result["degraded"])
         self.assertEqual(result["reason"], "unexpected_error")
 
@@ -426,7 +471,7 @@ class TestOpenEndedWindow(UsageReaderCase):
             _record("2026-06-01T00:00:00Z", usage=_usage(9, 9, 0, 0), attribution_skill="acs:code"),
         ])
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", None)
+            self.transcript_path, "2026-01-01T00:00:00Z", None, "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 9)
@@ -442,7 +487,7 @@ class TestCorruptLineSkipped(UsageReaderCase):
             fh.write(json.dumps(_record("2026-01-01T00:00:05Z", usage=_usage(4, 4, 0, 0),
                                          attribution_skill="acs:code")) + "\n")
         result = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 4)
@@ -461,7 +506,7 @@ class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
             _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0)),  # no attributionSkill
         ])
         usage = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z")
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(usage["degraded"])
 
         workspace = tempfile.mkdtemp(prefix="acs-test-cost-")

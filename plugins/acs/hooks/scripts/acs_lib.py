@@ -1322,7 +1322,7 @@ def _sum_role_tokens(role_usage):
     return totals
 
 
-def _measure_run_usage(entry, tdir):
+def _measure_run_usage(entry, tdir, skill):
     """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
     own recorded transcript (usage_reader) and priced via
     cost_sampler.allocate_cost -- rather than trusting a coordinator's
@@ -1331,7 +1331,12 @@ def _measure_run_usage(entry, tdir):
     Required short-circuit (Risk R-N): a run entry with no session_id/
     transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
     create-ticket runs) never performs transcript I/O -- cost_usd=None,
-    cost_basis="unavailable", tokens empty."""
+    cost_basis="unavailable", tokens empty.
+
+    `skill` (the run's own skill, as finalize_run received it) is threaded
+    through to usage_reader so it can filter main-session attribution to
+    this run's own skill only, excluding same-window records attributed to
+    a different acs skill."""
     session_id = entry.get("session_id")
     transcript_path = entry.get("transcript_path")
     if not session_id or not transcript_path:
@@ -1343,7 +1348,7 @@ def _measure_run_usage(entry, tdir):
 
     import usage_reader
     usage = usage_reader.read_transcript_usage(
-        transcript_path, entry.get("started_at"), entry.get("ended_at"))
+        transcript_path, entry.get("started_at"), entry.get("ended_at"), skill)
     if usage.get("degraded"):
         # A failed measurement must never look like a successful one: no
         # cost sample may be consumed and no cursor may advance for a run
@@ -1396,7 +1401,7 @@ def finalize_run(tdir, skill, ticket_id, result):
     entry["ended_at"] = now_iso()
     entry["status"] = status
     entry["stop_reason"] = result.get("stop_reason")
-    _measure_run_usage(entry, tdir)
+    _measure_run_usage(entry, tdir, skill)
     if status == "handed_off":
         entry["handoff_summary"] = result.get("handoff_summary") or result.get("stop_reason") or ""
     if isinstance(result.get("states"), dict):
