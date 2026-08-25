@@ -85,9 +85,14 @@ Required sections:
 - **Mode** — `bootstrap` or `re-run`, with the evidence that decided it.
 - **Upstream inventory** — the PRD NFRs and architecture-set facts the doc set must
   reflect, with file/line citations. Each citation is one line of the shape
-  `- <claim text> — <relative-path>[:<line>|:<line-start>-<line-end>] — "<verbatim excerpt>"`;
-  the line/range is advisory only, and the excerpt is mandatory and must be a verbatim
-  quotation of the cited passage, never a paraphrase.
+
+  ```
+  - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown; the line/range is advisory only, and
+  the excerpt is mandatory and must be a verbatim quotation of the cited passage,
+  never a paraphrase.
 - **Target doc set** — the exact five files under `operations_path`:
   `release-process.md` (release cadence, versioning scheme, cut/rollback procedure),
   `runbooks.md` (operational runbook index, on-call procedures), `observability.md`

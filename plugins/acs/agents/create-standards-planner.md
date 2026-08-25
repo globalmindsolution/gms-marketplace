@@ -94,10 +94,15 @@ Required sections:
   reflect, with file/line citations, PLUS the principles-set facts when present — and an
   explicit "principles/ N/A: <why>" note when `principles_path` is null or the set is
   absent. Each citation is one line of the shape
-  `- <claim text> — <relative-path>[:<line>|:<line-start>-<line-end>] — "<verbatim excerpt>"`;
-  the line/range is advisory only, and the excerpt is mandatory and must be a verbatim
-  quotation of the cited passage, never a paraphrase. The `principles/ N/A: <why>` note is
-  exempt from this grammar — it carries no path or excerpt.
+
+  ```
+  - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown; the line/range is advisory only, and
+  the excerpt is mandatory and must be a verbatim quotation of the cited passage,
+  never a paraphrase. The `principles/ N/A: <why>` note is exempt from this grammar —
+  it carries no path or excerpt.
 - **Target doc set** — the exact three files under `standards_path`:
   `coding-standards.md`, `conventions.md`, `review-checklist.md`, each bootstrapped from
   its template verbatim, then lightly tailored to the detected stack and (when

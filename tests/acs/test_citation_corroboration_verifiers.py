@@ -24,14 +24,21 @@ Stdlib-only (re, os, unittest). Run:
   python3 -m unittest tests.acs.test_citation_corroboration_verifiers -v
 """
 
+import contextlib
+import io
 import os
 import re
+import sys
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
+
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+import citation_check  # noqa: E402
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py"
 
@@ -227,6 +234,96 @@ class PlannerExcerptClauseTest(unittest.TestCase):
                 body = read(os.path.join(AGENTS, fname))
                 bullet = upstream_inventory_bullet(body, fname)
                 self.assertNotIn("principles/ N/A:", bullet)
+
+
+GRAMMAR_LINE = re.compile(r'^.*<claim text>.*<verbatim excerpt>.*$', re.M)
+
+
+def charter_grammar_citation(body, claim, relpath, excerpt):
+    """The charter's OWN printed grammar line, placeholders replaced by real
+    values, ready to feed through citation_check.extract_citations."""
+    m = GRAMMAR_LINE.search(body)
+    assert m is not None, "grammar line not found"
+    line = m.group(0).strip().rstrip(';').strip().strip('`').strip()
+    line = line.replace('<claim text>', claim)
+    line = re.sub(r'<relative-path>\[[^\]]*\]', relpath, line)
+    return line.replace('<verbatim excerpt>', excerpt)
+
+
+def _run_citation_check(argv):
+    out = io.StringIO()
+    err = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = citation_check.main(["citation_check.py"] + argv)
+    return code, out.getvalue(), err.getvalue()
+
+
+class CitationGrammarRoundTripTest(unittest.TestCase):
+    """F1 (AC-2/AC-4): each planner's OWN printed grammar line, not a
+    hand-written stand-in, must round-trip through citation_check's real
+    extractor and CLI — i.e. the path must actually be backtick-quoted as
+    printed, matching design.md:559."""
+
+    def test_charter_grammar_line_yields_exactly_one_citation(self):
+        for fname in PLANNERS:
+            with self.subTest(planner=fname):
+                body = read(os.path.join(AGENTS, fname))
+                line = charter_grammar_citation(
+                    body, "The repo uses Python", "hld/tech-stack.md", "Tech stack")
+                text = "## Upstream inventory\n" + line + "\n"
+                citations = citation_check.extract_citations(text)
+                self.assertEqual(
+                    len(citations), 1,
+                    "%s: charter grammar line did not yield exactly 1 citation "
+                    "(got %r) — path is likely missing backticks" % (fname, citations))
+                self.assertEqual(citations[0].claim, "The repo uses Python")
+                self.assertEqual(citations[0].path, "hld/tech-stack.md")
+                self.assertEqual(citations[0].excerpt, "Tech stack")
+
+    def test_charter_grammar_survives_a_real_cli_run(self):
+        for fname in PLANNERS:
+            with self.subTest(planner=fname):
+                body = read(os.path.join(AGENTS, fname))
+                line = charter_grammar_citation(
+                    body, "The repo uses Python", "hld/tech-stack.md", "Tech stack")
+                root = tempfile.mkdtemp(prefix="citation_grammar_root_")
+                stack_path = os.path.join(root, "hld", "tech-stack.md")
+                os.makedirs(os.path.dirname(stack_path), exist_ok=True)
+                with open(stack_path, "w", encoding="utf-8") as fh:
+                    fh.write("Tech stack\n")
+                plan_fd, plan_path = tempfile.mkstemp(suffix=".md", prefix="plan_")
+                with os.fdopen(plan_fd, "w", encoding="utf-8") as fh:
+                    fh.write("## Upstream inventory\n" + line + "\n")
+                code, out, err = _run_citation_check(
+                    ["--plan", plan_path, "--root", "architecture=" + root])
+                self.assertEqual(code, 0, "%s: expected exit 0, stderr=%r" % (fname, err))
+                self.assertEqual(err, "", "%s: expected empty stderr, got %r" % (fname, err))
+                lines = [l for l in out.splitlines() if l.strip()]
+                self.assertEqual(
+                    len(lines), 1,
+                    "%s: expected exactly one manifest line, got %r" % (fname, lines))
+
+    def test_grammar_line_backtick_quotes_the_path(self):
+        for fname in PLANNERS:
+            with self.subTest(planner=fname):
+                body = read(os.path.join(AGENTS, fname))
+                m = GRAMMAR_LINE.search(body)
+                self.assertIsNotNone(m, "%s: grammar line not found" % fname)
+                self.assertRegex(
+                    m.group(0), r'`<relative-path>\[[^\]]*\]`',
+                    "%s: grammar line's path is not backtick-quoted" % fname)
+
+    def test_grammar_line_identical_across_four_planners(self):
+        lines = {}
+        for fname in PLANNERS:
+            body = read(os.path.join(AGENTS, fname))
+            m = GRAMMAR_LINE.search(body)
+            self.assertIsNotNone(m, "%s: grammar line not found" % fname)
+            lines[fname] = re.sub(r"\s+", " ", m.group(0).strip().strip('`')).strip()
+        unique = set(lines.values())
+        self.assertEqual(
+            len(unique), 1,
+            "grammar line drifted across planners (not identical): %r" % lines)
 
 
 class DimensionFourInvocationTest(unittest.TestCase):
