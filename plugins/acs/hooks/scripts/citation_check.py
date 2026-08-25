@@ -10,6 +10,15 @@ deterministic ($0, stdlib-only) mechanical floor the verifier invokes to
 independently re-open every cited file and confirm the excerpt is really
 there, rather than trusting the planner's citation on its word.
 
+The resolved-citations manifest printed to stdout is one JSON object per
+citation — {"claim", "path", "line", "excerpt"}. Its "line" key is the
+citation's line number in the PLAN file only; it is purely informational and
+is never a locus in the cited file. The advisory :line / :line-start-line-end
+suffix a planner may append to the cited path is stripped during extraction
+(_strip_line_ref) and is not retained anywhere, so a consumer that needs the
+substantiating passage inside the cited file must locate it by searching for
+the entry's own verbatim "excerpt" text.
+
 Rules:
   - citation-unresolved       : the cited path is absolute, escapes every
                                 declared root via a ".." segment or a

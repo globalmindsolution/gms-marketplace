@@ -54,9 +54,12 @@ coordinator: read every input yourself.
      `plan-conformance` finding, so a broken invocation can never silently
      pass.
    - Then re-open each resolved citation named in the script's stdout
-     manifest yourself, at its cited locus, and judge whether the passage
-     actually substantiates the claim — never take the script's excerpt
-     match alone as proof of substantiation. A resolved citation that does
+     manifest yourself and judge whether the passage actually substantiates
+     the claim — never take the script's excerpt match alone as proof of
+     substantiation. Locate that passage by searching the file for the
+     manifest entry's own verbatim `excerpt` text; the manifest's `line`
+     field is the citation's line in the plan file only, informational, and
+     never a locus in the cited file. A resolved citation that does
      not substantiate its claim is its own `<finding severity="blocking"
      dimension="plan-conformance">`, naming the claim, the cited path, and
      why the passage does not support it. No advisory carve-out applies to

@@ -399,6 +399,25 @@ class SemanticCeilingTest(unittest.TestCase):
                 self.assertIn("substantiat", lowered)
                 self.assertIn("manifest", lowered)
 
+    def test_locates_the_passage_by_excerpt_not_by_the_manifest_line(self):
+        """F4: the manifest's `line` is the citation's line in the PLAN file
+        (`citation_check.py:113` takes it from `_section_body_lines`; the
+        cited file's own advisory `:line` suffix is stripped at `:68-71` and
+        stored nowhere), so it can never locate a passage inside the cited
+        file. The prose must send the verifier to the entry's verbatim
+        `excerpt`, and must not claim a cited-file locus."""
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                block = dimension_block(read(os.path.join(AGENTS, fname)),
+                                        "plan-conformance")
+                clause = corroboration_clause(block)
+                self.assertNotIn("cited locus", clause.lower())
+                self.assertIn(
+                    "searching the file for the manifest entry's own "
+                    "verbatim `excerpt` text", clause)
+                self.assertIn("the citation's line in the plan file only",
+                              clause)
+
 
 class HybridMechanismTest(unittest.TestCase):
     """AC-1 (D1-C): both halves co-exist in every dim-4 block — the
