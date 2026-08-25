@@ -112,15 +112,13 @@ Escape `&` and `<` in text content. Self-check with
     <file>/abs/repo/.github/workflows/ci.yml</file>
   </outputs>
   <errors/>
-  <metrics tokens-input="30000" tokens-output="9000" cost-usd="0"/>
   <stop-reason>Scaffold committed on feature/SHOP-3-scaffold; build, lint, tests, coverage all green locally</stop-reason>
 </result>
 ```
 
 List the execute report plus every repo file you created or changed in `<outputs>`.
 `status="completed"` only when all four commands passed and the commit exists; otherwise
-`failed` (with `<errors>`) or `needs_input` (with `<questions>`). Estimate `<metrics>`
-honestly.
+`failed` (with `<errors>`) or `needs_input` (with `<questions>`).
 
 ## Grounding (anti-hallucination)
 

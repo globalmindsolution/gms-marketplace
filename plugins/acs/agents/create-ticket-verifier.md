@@ -94,7 +94,6 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
     <finding severity="blocking" dimension="children" file="/abs/path/SHOP-124/ticket.json">child SHOP-124 has parent=null; epic SHOP-123 lists it in children</finding>
     <finding severity="blocking" dimension="acceptance-criteria">criterion 2 "works smoothly" is not testable</finding>
   </findings>
-  <metrics tokens-input="25000" tokens-output="2500" cost-usd="0.18"/>
   <stop-reason>2 blocking findings across children, acceptance-criteria</stop-reason>
 </result>
 ```
@@ -110,7 +109,7 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
   the verdict. `failed` only when you could not verify (missing input,
   tracker CLI unavailable; name it in `<errors>`). Never `needs_input` —
   ambiguity about confirmed decisions is a blocking finding against the plan.
-- Estimate `<metrics>`; one-line `<stop-reason>`. Self-validate first:
+- One-line `<stop-reason>`. Self-validate first:
   `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ## Hard rules

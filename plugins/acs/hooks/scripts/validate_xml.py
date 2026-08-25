@@ -86,7 +86,7 @@ TICKET_RE = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+$")
 
 CHILD_ORDER = {
     "task": ["objective", "inputs", "constraints", "context"],
-    "result": ["outputs", "findings", "errors", "questions", "metrics", "stop-reason"],
+    "result": ["outputs", "findings", "errors", "questions", "stop-reason"],
     "handoff": ["summary", "artifacts", "questions", "next-step"],
 }
 REQUIRED_CHILDREN = {"task": ["objective"], "result": [], "handoff": ["summary"]}
@@ -100,7 +100,6 @@ ALLOWED_ATTRS = {
     "handoff": {"skill", "ticket-id", "status"},
     "finding": {"severity", "dimension", "file"},
     "constraint": {"name"},
-    "metrics": {"tokens-input", "tokens-output", "cost-usd"},
 }
 # Elements typed xs:string in the XSD: text-only, no element children allowed.
 TEXT_LEAVES = frozenset({

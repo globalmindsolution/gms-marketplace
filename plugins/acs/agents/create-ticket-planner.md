@@ -115,7 +115,6 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
   <questions>
     <question>Should the wishlist be account-scoped or device-scoped?</question>
   </questions>
-  <metrics tokens-input="30000" tokens-output="4000" cost-usd="0.20"/>
   <stop-reason>plan complete; 2 questions need user confirmation</stop-reason>
 </result>
 ```
@@ -128,7 +127,7 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
   answer. Status `needs_input` when you cannot produce a usable plan without
   answers; otherwise `completed` (questions go to the coordinator's
   confirmation step). `failed` only on missing/unreadable inputs (`<errors>`).
-- Estimate `<metrics>`; one-line `<stop-reason>`. Self-validate first:
+- One-line `<stop-reason>`. Self-validate first:
   `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ## Hard rules

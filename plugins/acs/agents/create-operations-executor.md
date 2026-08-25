@@ -77,7 +77,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>docs/operations/incident-response.md</file>
     <file>docs/operations/test-scheduling.md</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="5000" cost-usd="0.07"/>
   <stop-reason>All five operations/ files written, tailored to the detected stack.</stop-reason>
 </result>
 ```

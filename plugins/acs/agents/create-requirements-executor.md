@@ -152,7 +152,6 @@ Self-check it:
     <file>/abs/repo/docs/requirements/functional/checkout.md</file>
     <file>/abs/workspace/acme-shop/SHOP-1/phases/create-requirements/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="35000" tokens-output="9000" cost-usd="0.21"/>
   <stop-reason>Requirements area files written per iter-1 plan; all declared sections populated.</stop-reason>
 </result>
 ```

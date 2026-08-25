@@ -137,7 +137,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <findings>
     <finding severity="blocking" dimension="additive-only" file=".pre-commit-config.yaml">M status outside the allowlisted append target — the plan only allowlisted an appended hook, not a full rewrite.</finding>
   </findings>
-  <metrics tokens-input="14000" tokens-output="2100" cost-usd="0.05"/>
   <stop-reason>Verification complete: 1 blocking finding across 5 dimensions.</stop-reason>
 </result>
 ```

@@ -120,7 +120,6 @@ Your FINAL message is ONLY an XML `<result>` valid against
     <file>docs/api/import.md</file>
     <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="30000" tokens-output="6000" cost-usd="0.18"/>
   <stop-reason>1 doc file updated and committed on the ticket branch</stop-reason>
 </result>
 ```

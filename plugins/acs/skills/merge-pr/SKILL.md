@@ -419,8 +419,7 @@ resolves the workspace from cwd):
    `{"severity": "blocking", "dimension": "readiness", "detail": "..."}`
    finding, and the blockers summarized in `stop_reason`. On a
    merged-but-cleanup-failed stop: status `"failed"`, `merged: true`, the
-   unresolved verifier findings in `findings`. Always fill `tokens` and
-   `cost_usd` with your best estimates for this run.
+   unresolved verifier findings in `findings`.
 
 2. Run the post-hook:
 

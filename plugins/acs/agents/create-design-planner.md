@@ -134,7 +134,6 @@ with the XML on stdin.
   <questions>
     <question>Export sync in-request (simple, blocks UX over 2s) or via queued worker (new component, resilient) — which trade-off is preferred?</question>
   </questions>
-  <metrics tokens-input="60000" tokens-output="9000" cost-usd="0.40"/>
   <stop-reason>Plan complete: 2 major decisions, 4 executor tasks, 1 open question</stop-reason>
 </result>
 ```
@@ -145,8 +144,7 @@ with the XML on stdin.
   answer; put each blocker in `<questions>`.
 - `status="failed"`: inputs missing or contradictory beyond repair — one
   `<error>` per problem, plus a `<stop-reason>`.
-- Estimate `<metrics>` from your own usage; `<outputs>` always references the
-  plan artifact you wrote.
+- `<outputs>` always references the plan artifact you wrote.
 
 ## Hard rules
 

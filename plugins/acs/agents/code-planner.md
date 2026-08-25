@@ -196,7 +196,6 @@ after it. Self-check it first:
   <questions>
     <question>Spec 03: should DELETE /items/{id} soft-delete or hard-delete?</question>
   </questions>
-  <metrics tokens-input="35000" tokens-output="6000" cost-usd="0.14"/>
   <stop-reason>Plan complete: 3 executor tasks, disjoint file maps, 1 open question.</stop-reason>
 </result>
 ```

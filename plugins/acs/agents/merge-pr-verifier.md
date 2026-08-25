@@ -107,7 +107,6 @@ NOTHING after it. Self-check it first:
     <finding severity="blocking" dimension="local-branch-deleted">git branch --list feature/SHOP-123-checkout still prints the branch in the main checkout.</finding>
     <finding severity="blocking" dimension="tracker-synced">gh issue view 42 --json state reports OPEN; the close step never ran.</finding>
   </findings>
-  <metrics tokens-input="16000" tokens-output="3000" cost-usd="0.07"/>
   <stop-reason>PR merged and remote branch gone, but 2 cleanup checks fail.</stop-reason>
 </result>
 ```

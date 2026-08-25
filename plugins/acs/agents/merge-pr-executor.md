@@ -118,7 +118,6 @@ Your FINAL message is ONLY a `<result>` element valid against
   <outputs>
     <file>/abs/workspace/acme-shop/SHOP-123/phases/merge-pr/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="3500" cost-usd="0.09"/>
   <stop-reason>PR #87 squash-merged; remote+local branch deleted, worktree removed, GitHub issue #42 closed.</stop-reason>
 </result>
 ```

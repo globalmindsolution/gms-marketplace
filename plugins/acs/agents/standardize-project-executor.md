@@ -100,7 +100,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-execute.json</file>
     <file>.github/workflows/ci.yml</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="4200" cost-usd="0.07"/>
   <stop-reason>Scaffolded the CI workflow file the plan's allowlist named; no pre-existing source touched.</stop-reason>
 </result>
 ```
