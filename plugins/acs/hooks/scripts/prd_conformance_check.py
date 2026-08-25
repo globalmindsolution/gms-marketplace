@@ -66,7 +66,6 @@ roadmap input.
 """
 
 import json
-import os
 import re
 import sys
 
