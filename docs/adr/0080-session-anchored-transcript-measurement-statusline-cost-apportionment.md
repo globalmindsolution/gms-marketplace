@@ -139,10 +139,14 @@ figure at all.
    always the cursor, so a sample already consumed by one run can never
    again serve as another run's charge. The consumed delta is apportioned
    across the run's roles by measured token share. Every figure carries a
-   `cost_basis`: `measured` (a run-level dollar delta, honest regardless of
-   what the sampled total does or does not include), `apportioned` (a
-   per-role split — a stated approximation, since acs owns no per-model
-   price), or `unavailable` (never fabricated, never zero-padded).
+   `cost_basis`: `measured` (the run-level `cost_usd` — the attributed-token
+   share of the real session-window delta `statusLine` reported, i.e. that
+   delta net of the excluded/unattributed token share per C-8's "drop, don't
+   redistribute" policy — still sourced directly from Claude Code's own real
+   number, never an acs-invented estimate), `apportioned` (the further
+   per-role split of that same attributed share — a stated approximation,
+   since acs owns no per-model price), or `unavailable` (never fabricated,
+   never zero-padded).
 5. **Self-estimate removal.** The `<metrics>` XML element is removed
    outright from `acs-messages.xsd` and from every one of the 45 agent
    charter files that emitted it; the retired self-estimate instruction for

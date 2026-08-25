@@ -177,9 +177,13 @@ no network call:
   averages), cost + time per ticket by pipeline step with the four averages
   (avg working time and cost per ticket and per merged PR), and token burn by
   role (coordinator/planner/executor/verifier/other). Every cost figure
-  carries a `cost_basis` — `measured` (a real dollar delta sampled from
-  Claude Code's own statusLine cost payload), `apportioned` (that delta
-  split across roles by measured token share), or `unavailable` (no
+  carries a `cost_basis` — `measured` (the attributed-token share of the
+  real session-window dollar delta sampled from Claude Code's own statusLine
+  cost payload — that delta net of the excluded/unattributed token share,
+  per the "drop, don't redistribute" policy — still sourced directly from
+  Claude Code's own real number, never an acs-invented estimate),
+  `apportioned` (that same attributed share split further across roles by
+  measured token share), or `unavailable` (no
   fabricated number; excluded from sums, not zero-padded) — plus a
   `cost_scope` (`session_total` normally, `main_session_only` if a
   statusLine total proves not to include subagent spend). There is no

@@ -50,7 +50,7 @@ sequenceDiagram
         Post->>Post: short-circuit -- no transcript I/O (new-ticket.py's synthetic create-ticket runs land here)
         Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[]
     else session_id and transcript_path present
-        Post->>UR: read_transcript_usage(transcript_path, started_at, ended_at)
+        Post->>UR: read_transcript_usage(transcript_path, started_at, ended_at, skill)
         UR->>TR: stream the exact transcript_path, then a recursive walk of dirname(transcript_path)/<session_id>/subagents/*.jsonl (never a constructed slug, never *.meta.json)
         TR-->>UR: message.usage (4 integer fields) + model + timestamp + attributionSkill/attributionAgent, in-window records only
         alt transcript unreadable, cap breached (32 MiB / 64 files), empty window, or zero real tokens resolved
@@ -73,7 +73,7 @@ sequenceDiagram
                 else delta >= 0
                     CS->>CS: apportion delta across role_usage by token share (denominator = ALL in-window tokens, incl. unattributed) — unattributed entries receive no dollar share
                     CS->>WS: advance cursor to after
-                    CS-->>Post: (role_usage apportioned, cost_usd=delta, cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
+                    CS-->>Post: (role_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
                 end
                 Post->>WS: persist tokens, role_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
             end
