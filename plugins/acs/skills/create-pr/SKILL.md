@@ -432,8 +432,7 @@ MANDATORY final step — never skipped, also on failure:
    updated but verification failed, still record the real `pr` object; if no
    PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
    closed. Put verifier findings in `findings`, errors in `errors`, the reason
-   in `stop_reason`. Always fill `tokens` and `cost_usd` with your best
-   estimates for this run.
+   in `stop_reason`.
 
 2. Run the post-hook:
 

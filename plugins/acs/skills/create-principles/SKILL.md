@@ -304,8 +304,7 @@ MANDATORY final step — never skipped, also on failure:
 }
 ```
 
-   Fill `tokens`/`cost_usd` with your best estimate for this run. On
-   failure: `status: "failed"`, the blocking findings in `findings`, the
+   On failure: `status: "failed"`, the blocking findings in `findings`, the
    reason in `stop_reason`, keep whatever is true in `states` (e.g. the
    written `principles` files without `pr`). On handoff:
    `status: "handed_off"` plus `handoff_summary`.

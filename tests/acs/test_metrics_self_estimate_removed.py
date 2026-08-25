@@ -1,14 +1,18 @@
 """Sweep test proving the self-estimated <metrics> XML element is gone (D5-A).
 
-Originating ticket: MAR-1. D5-A removed <metrics> from acs-messages.xsd and
-the matching validate_xml.py content-model tables, and dropped the "fill
-tokens/cost_usd with your best estimates" instruction from every
-SKILL.md/agent charter, so token/cost figures come only from measured
-usage_reader/cost_sampler data. This module is the single place asserting
-the sweep is complete and stays complete.
+D5-A removed <metrics> from acs-messages.xsd and the matching validate_xml.py
+content-model tables, and dropped every "fill/estimate tokens and cost_usd
+yourself" instruction from every SKILL.md/agent charter (several distinct
+phrasings existed across skills -- "fill ... with your best estimate(s)",
+"Estimate `tokens`/`cost_usd` for this run", "your estimates for this entire
+run" -- all discarded now that finalize_run always overwrites a coordinator's
+self-reported tokens/cost_usd with measured usage_reader/cost_sampler data),
+so token/cost figures come only from that measured data. This module is the
+single place asserting the sweep is complete and stays complete.
 """
 
 import os
+import re
 import sys
 import unittest
 
@@ -80,6 +84,33 @@ class TestCharterSweepClean(unittest.TestCase):
             hits, [],
             "the retired 'best estimates' self-report instruction is still present "
             "in: %s" % hits,
+        )
+
+    def test_no_self_estimate_cost_instruction_in_any_skill(self):
+        """Broader than the literal 'best estimates' phrase above: every observed
+        phrasing told the coordinator to estimate/fill tokens+cost_usd itself
+        (singular "best estimate", "Estimate `tokens`/`cost_usd`", "your
+        estimates for this ... run"). Match the underlying instruction --
+        the word "estimate" within a short window of "cost_usd" -- so a new
+        skill reintroducing any variant of it is caught, not just this one
+        literal string."""
+        pattern = re.compile(r"estimate.{0,80}cost_usd|cost_usd.{0,80}estimate", re.IGNORECASE | re.DOTALL)
+        skills_dir = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+        hits = []
+        for dirpath, _dirnames, filenames in os.walk(skills_dir):
+            for filename in filenames:
+                if filename != "SKILL.md":
+                    continue
+                path = os.path.join(dirpath, filename)
+                with open(path, "r", encoding="utf-8") as fh:
+                    text = fh.read()
+                if pattern.search(text):
+                    hits.append(os.path.relpath(path, REPO_ROOT))
+        self.assertEqual(
+            hits, [],
+            "a self-estimate-cost instruction (any phrasing) is still present in: %s "
+            "-- finalize_run always overwrites a coordinator's self-reported "
+            "tokens/cost_usd with measured data, so this instruction is dead" % hits,
         )
 
 
