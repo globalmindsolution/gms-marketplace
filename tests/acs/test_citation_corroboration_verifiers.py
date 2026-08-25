@@ -1,6 +1,6 @@
 """Prose-contract tests for the citation-corroboration mechanism shared by the
 create-quality/-standards/-operations/-principles planner and verifier
-charters.
+charters. Written for MAR-303.
 
 Covers both halves: the planner half (each of the 4 planners' `Upstream
 inventory` section must mandate a verbatim quoted excerpt per citation, state
