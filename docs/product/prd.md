@@ -623,7 +623,8 @@ growth path.
   as a Claude plugin; this adds a **second execution runtime for the pipeline**, not a
   second product. The **MECHANISM** — how the Claude-Code-specific mechanisms map onto
   Codex CLI (hook gating, the planner/executor/verifier reflection-subagent protocol,
-  skill/agent dispatch, per-role model/effort config, self-reported cost/tokens) — is
+  skill/agent dispatch, per-role model/effort config, measured cost/tokens via
+  session-transcript/statusLine sampling (ADR 0080)) — is
   **deferred to a dedicated future multi-runtime epic's design phase**, mirroring how
   this PRD defers the Notion/remote-docs and org-policy mechanisms. That design MUST
   account for documented Codex-platform constraints rather than assume a 1:1 mapping:

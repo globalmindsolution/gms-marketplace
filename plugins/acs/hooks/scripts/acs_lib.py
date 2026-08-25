@@ -1305,6 +1305,7 @@ def append_in_progress_run(tdir, skill, ticket_id, session=None):
 
 
 _EMPTY_MEASURED_TOKENS = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}
+_TOKEN_TOTAL_FIELDS = ("input", "output", "cache_creation", "cache_read")
 
 
 def _sum_role_tokens(role_usage):
@@ -1343,6 +1344,15 @@ def _measure_run_usage(entry, tdir):
     import usage_reader
     usage = usage_reader.read_transcript_usage(
         transcript_path, entry.get("started_at"), entry.get("ended_at"))
+    if usage.get("degraded"):
+        # A failed measurement must never look like a successful one: no
+        # cost sample may be consumed and no cursor may advance for a run
+        # whose transcript read itself is unreliable.
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        return
     role_usage = usage.get("role_usage") or []
     entry["tokens"] = _sum_role_tokens(role_usage)
 
@@ -1528,7 +1538,8 @@ def compute_ticket_totals(tdir):
     or absent -- a legacy pre-cutover run, C-11) counts in
     runs_cost_unavailable and contributes nothing to the cost_usd sum."""
     totals = {
-        "runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
     }
     for skill in HOOKED_SKILLS:
@@ -1546,8 +1557,8 @@ def compute_ticket_totals(tdir):
                 totals["runs_timed"] += 1
                 totals["working_seconds"] += seconds
             tokens = entry.get("tokens") or {}
-            totals["tokens"]["input"] += int(tokens.get("input", 0) or 0)
-            totals["tokens"]["output"] += int(tokens.get("output", 0) or 0)
+            for field in _TOKEN_TOTAL_FIELDS:
+                totals["tokens"][field] += int(tokens.get(field, 0) or 0)
             cost_basis = entry.get("cost_basis") or "unavailable"
             cost_usd = entry.get("cost_usd")
             if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
@@ -1679,12 +1690,17 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     data.setdefault("tickets", {})
     data.setdefault("prs", {"created": 0, "merged": 0, "created_pr_numbers": []})
     data.setdefault("totals", {
-        "runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
     })
     # A pre-existing metrics.json predates these counters; backfill them at 0.
     for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable"):
         data["totals"].setdefault(counter, 0)
+    # A pre-existing metrics.json's tokens dict predates the cache fields; backfill at 0.
+    data["totals"].setdefault("tokens", {})
+    for field in _TOKEN_TOTAL_FIELDS:
+        data["totals"]["tokens"].setdefault(field, 0)
 
     index = read_json(index_path(workspace, repo_id)) or {"tickets": {}}
     by_status = {}
@@ -1713,9 +1729,9 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
             totals["runs_timed"] = int(totals.get("runs_timed", 0)) + 1
             totals["working_seconds"] = int(totals.get("working_seconds", 0)) + seconds
         tokens = run_entry.get("tokens") or {}
-        totals.setdefault("tokens", {"input": 0, "output": 0})
-        totals["tokens"]["input"] = int(totals["tokens"].get("input", 0)) + int(tokens.get("input", 0) or 0)
-        totals["tokens"]["output"] = int(totals["tokens"].get("output", 0)) + int(tokens.get("output", 0) or 0)
+        totals.setdefault("tokens", {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+        for field in _TOKEN_TOTAL_FIELDS:
+            totals["tokens"][field] = int(totals["tokens"].get(field, 0)) + int(tokens.get(field, 0) or 0)
         cost_basis = run_entry.get("cost_basis") or "unavailable"
         cost_usd = run_entry.get("cost_usd")
         if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \

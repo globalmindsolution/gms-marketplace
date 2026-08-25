@@ -79,9 +79,9 @@ def _agent_role(attribution_agent):
     """Subagent attribution -> role bucket, or None when unattributed.
 
     Suffix-matches the observed acs:<...>-<role> shape (the same
-    planner/executor/verifier vocabulary as metrics_aggregate.PHASE_ROLE); a
-    present-but-unmatched value (e.g. "Explore") still counts as "other"
-    rather than being dropped."""
+    planner/executor/verifier vocabulary acs's reflection-subagent protocol
+    uses throughout); a present-but-unmatched value (e.g. "Explore") still
+    counts as "other" rather than being dropped."""
     if not isinstance(attribution_agent, str) or not attribution_agent:
         return None
     for suffix, role in (("-planner", "planner"), ("-executor", "executor"), ("-verifier", "verifier")):

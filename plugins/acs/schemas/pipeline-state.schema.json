@@ -46,7 +46,9 @@
           "type": "object",
           "properties": {
             "input": {"type": "integer", "minimum": 0},
-            "output": {"type": "integer", "minimum": 0}
+            "output": {"type": "integer", "minimum": 0},
+            "cache_creation": {"type": "integer", "minimum": 0},
+            "cache_read": {"type": "integer", "minimum": 0}
           }
         },
         "cost_usd": {"type": "number", "minimum": 0},

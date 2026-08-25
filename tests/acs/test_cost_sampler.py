@@ -13,6 +13,7 @@ that drops the unattributed slice rather than redistributing it.
 
 import json
 import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -167,6 +168,40 @@ class TestLogRotation(unittest.TestCase):
         # Rotation must have actually dropped older entries.
         self.assertLess(len(lines), 3000)
 
+    def test_file_mode_is_0600_immediately_after_first_write(self):
+        # Before any rotation -- the sample log is a privacy-sensitive
+        # workspace artifact (operator cumulative AI spend) and must match
+        # every other acs artifact's 0600 convention, not the default umask.
+        cost_sampler._append_sample_line(
+            self.path, {"ts": "2026-08-25T00:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"})
+        mode = stat.S_IMODE(os.stat(self.path).st_mode)
+        self.assertEqual(mode, 0o600)
+
+
+# ---------------------------------------------------------------------------
+# read_latest_sample: the public accessor statusline.py uses instead of the
+# module-private _read_samples (encapsulation across the component boundary).
+# ---------------------------------------------------------------------------
+
+class TestReadLatestSample(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-latest-sample-")
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.workspace = self.tmp
+        self.repo_id = "acme-shop"
+        self.ckid = "shop-ab12cd34"
+
+    def test_returns_none_when_no_samples_exist(self):
+        self.assertIsNone(cost_sampler.read_latest_sample(self.workspace, self.repo_id, self.ckid))
+
+    def test_returns_the_most_recently_written_samples_value(self):
+        path = cost_sampler.cost_samples_path(self.workspace, self.repo_id, self.ckid)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0}) + "\n")
+            fh.write(json.dumps({"ts": "2026-08-25T06:01:00Z", "total_cost_usd": 2.5}) + "\n")
+        self.assertEqual(cost_sampler.read_latest_sample(self.workspace, self.repo_id, self.ckid), 2.5)
+
 
 # ---------------------------------------------------------------------------
 # allocate_cost: the cursor-based, non-overlapping consumption rule
@@ -295,7 +330,10 @@ class TestAllocateCost(unittest.TestCase):
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
 
-        self.assertEqual(cost_usd, 1.0)
+        # C-8 "drop, don't redistribute": the returned cost_usd is the
+        # attributed-only share of the session-window charge (delta minus the
+        # dropped unattributed slice), never the raw full delta.
+        self.assertAlmostEqual(cost_usd, 0.4)
         self.assertEqual(basis, "measured")
         self.assertAlmostEqual(excluded_token_share, 0.6)
         self.assertAlmostEqual(excluded_cost_usd, 0.6)
@@ -308,20 +346,42 @@ class TestAllocateCost(unittest.TestCase):
         self.assertIsNone(by_role["unattributed"]["cost_usd"])
         self.assertEqual(by_role["unattributed"]["cost_basis"], "unavailable")
 
-        # Attributed roles + excluded amount must sum back to the charged delta.
+        # Attributed roles alone must sum back to the returned cost_usd -- the
+        # excluded slice is dropped, not folded back in.
         attributed_sum = by_role["coordinator"]["cost_usd"] + by_role["executor"]["cost_usd"]
-        self.assertAlmostEqual(attributed_sum + excluded_cost_usd, cost_usd)
+        self.assertAlmostEqual(attributed_sum, cost_usd)
 
     def test_no_role_usage_data_excludes_entire_delta(self):
         self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.5, "src": "total_cost_usd"}])
         roles, cost_usd, basis, _scope, excluded_cost_usd, excluded_token_share = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", [])
-        self.assertEqual(cost_usd, 1.5)
+        # 100% of the delta is unattributed (no role_usage data at all), so the
+        # returned cost_usd -- the attributed-only share -- is zero, even
+        # though the session-window charge itself was real.
+        self.assertEqual(cost_usd, 0.0)
         self.assertEqual(basis, "measured")
         self.assertEqual(roles, [])
         self.assertEqual(excluded_token_share, 1.0)
         self.assertEqual(excluded_cost_usd, 1.5)
+
+    def test_returned_cost_usd_is_attributed_share_not_full_delta(self):
+        """FIX 1 (allocate_cost's own contract): the returned cost_usd for a
+        run with both attributed and unattributed same-window tokens equals
+        delta * attributed_token_fraction, not the raw full delta -- C-8's
+        "drop, don't redistribute" policy applies at the run level, not just
+        to the informational excluded_cost_usd side-channel."""
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 10.0, "src": "total_cost_usd"}])
+        role_usage = [
+            {"role": "executor", "input": 25, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 75, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        _roles, cost_usd, _basis, _scope, excluded_cost_usd, _share = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        # attributed fraction = 25/100 = 0.25 -> 10.0 * 0.25 = 2.5
+        self.assertAlmostEqual(cost_usd, 2.5)
+        self.assertAlmostEqual(excluded_cost_usd, 7.5)
 
     def test_cost_usd_none_leaves_every_role_null_no_apportionment(self):
         # No samples at all -> unavailable; roles must carry no cost figure.
@@ -339,6 +399,41 @@ class TestAllocateCost(unittest.TestCase):
         for r in roles:
             self.assertIsNone(r["cost_usd"])
             self.assertEqual(r["cost_basis"], "unavailable")
+
+
+class TestApportionExcludedCostNeverNegative(unittest.TestCase):
+    """_apportion's excluded_cost_usd must never go negative on an
+    all-attributed input -- schema's own minimum:0 constraint -- even though
+    per-role proportional floats can sum to marginally more than `delta`."""
+
+    def test_named_reproduction_case_all_attributed(self):
+        # The finding's own reproduction: delta=0.554199, tokens=[72256, 38154, 16360].
+        role_usage = [
+            {"role": "coordinator", "input": 72256, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "executor", "input": 38154, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "verifier", "input": 16360, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        _roles, excluded_cost_usd, excluded_token_share = cost_sampler._apportion(role_usage, 0.554199)
+        self.assertEqual(excluded_cost_usd, 0.0)
+        self.assertEqual(excluded_token_share, 0.0)
+
+    def test_varied_all_attributed_inputs_never_negative(self):
+        cases = [
+            (0.554199, [72256, 38154, 16360]),
+            (1.0, [1, 1, 1]),
+            (0.1, [3, 7]),
+            (2.718281828, [999983, 17, 65536, 4194304]),
+            (0.0001, [1, 2, 3, 4, 5, 6, 7]),
+            (9.999999, [123456789, 1]),
+        ]
+        for delta, token_counts in cases:
+            role_usage = [
+                {"role": "role-%d" % i, "input": tokens, "output": 0, "cache_creation": 0, "cache_read": 0}
+                for i, tokens in enumerate(token_counts)
+            ]
+            with self.subTest(delta=delta, token_counts=token_counts):
+                _roles, excluded_cost_usd, _share = cost_sampler._apportion(role_usage, delta)
+                self.assertGreaterEqual(excluded_cost_usd, 0.0)
 
 
 if __name__ == "__main__":

@@ -30,9 +30,12 @@ already excludes from its real per-skill role buckets (design.md C-8's
 "drop, don't redistribute" policy). Such entries count toward the
 apportionment denominator (all in-window usage) but never receive a dollar
 share themselves — the fraction of the charged delta their token share
-implies is instead reported as `excluded_cost_usd`/`excluded_token_share` on
-the return tuple. A caller with no such information to report simply omits
-the entry; nothing behaves differently absent it.
+implies is dropped from `allocate_cost`'s returned `cost_usd` (the
+attributed-only share of the session-window charge), and separately reported
+as `excluded_cost_usd`/`excluded_token_share` on the return tuple for
+callers that want to show what was dropped and why. A caller with no such
+information to report simply omits the entry; nothing behaves differently
+absent it.
 """
 
 import json
@@ -155,6 +158,11 @@ def _append_sample_line(path, sample):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(sample, ensure_ascii=False) + "\n")
+    # 0600, matching every other acs workspace artifact's convention (this
+    # file's content is the operator's cumulative AI spend) -- the default
+    # umask (typically 0644) is not private enough, and this must hold from
+    # the very first write, not just after the file's first rotation.
+    os.chmod(path, 0o600)
     _rotate_if_needed(path)
 
 
@@ -176,6 +184,18 @@ def _read_samples(workspace, repo_id, ckid):
     except OSError:
         return []
     return samples
+
+
+def read_latest_sample(workspace, repo_id, ckid):
+    """Public accessor for the checkout's most recent recorded sample's
+    total_cost_usd, or None when no valid sample exists yet -- the only
+    piece of cost_sampler's sample log a caller outside this module (e.g.
+    statusline.py's display) needs; the sample list itself stays private."""
+    for sample in reversed(_read_samples(workspace, repo_id, ckid)):
+        value = sample.get("total_cost_usd") if isinstance(sample, dict) else None
+        if _is_number(value):
+            return value
+    return None
 
 
 def record_cost_sample(payload):
@@ -224,14 +244,17 @@ def _apportion(role_usage, delta):
     in-window tokens (attributed + unattributed). Entries whose role is
     UNATTRIBUTED_ROLE count toward the denominator but never receive a
     dollar share; the fraction their tokens imply is returned as
-    (excluded_cost_usd, excluded_token_share), computed as the complement of
-    the attributed sum so the two always add back to `delta` exactly."""
+    (excluded_cost_usd, excluded_token_share), computed the same
+    proportional way as every attributed role's own share (delta *
+    excluded_tokens / total_tokens) -- never as the subtractive complement
+    of the accumulated per-role floats, which can drift marginally negative
+    on an all-attributed input by float rounding, violating the schema's own
+    minimum:0 constraint."""
     total_tokens = sum(_tokens(entry) for entry in role_usage)
     if total_tokens <= 0:
         return _unavailable_role_usage(role_usage), delta, 1.0
 
     out = []
-    attributed_sum = 0.0
     excluded_tokens = 0
     for entry in role_usage:
         item = dict(entry)
@@ -241,14 +264,12 @@ def _apportion(role_usage, delta):
             item["cost_usd"] = None
             item["cost_basis"] = "unavailable"
         else:
-            cost = delta * (tokens / total_tokens)
-            attributed_sum += cost
-            item["cost_usd"] = cost
+            item["cost_usd"] = delta * (tokens / total_tokens)
             item["cost_basis"] = "apportioned"
         out.append(item)
 
     excluded_token_share = excluded_tokens / total_tokens
-    excluded_cost_usd = delta - attributed_sum
+    excluded_cost_usd = max(0.0, delta * excluded_token_share)
     return out, excluded_cost_usd, excluded_token_share
 
 
@@ -263,6 +284,12 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
     ("no_unconsumed_sample_in_window" / "cost_total_reset") when cost_usd is
     None -- design.md's cost_scope enum has no dedicated reason field, and
     this reuse is this module's own documented choice.
+
+    `cost_usd` is the ATTRIBUTED-ONLY share of the session-window charge --
+    the full delta minus `excluded_cost_usd` -- never the raw full delta.
+    C-8's "drop, don't redistribute" policy means the unattributed slice is
+    dropped from the run's (and therefore the ticket's/repo's) cost, not
+    merely reported alongside a charge that still includes it.
     """
     role_usage = [dict(entry) for entry in (role_usage or [])]
     end_dt = lib.parse_iso(ended_at)
@@ -301,5 +328,6 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
     role_usage_with_cost, excluded_cost_usd, excluded_token_share = _apportion(role_usage, delta)
     lib.write_json(cost_cursor_path(workspace, repo_id, checkout_id),
                     {"ts": after["ts"], "total_cost_usd": after["total_cost_usd"]})
-    return (role_usage_with_cost, delta, "measured", "session_total",
+    attributed_cost_usd = max(0.0, delta - excluded_cost_usd)
+    return (role_usage_with_cost, attributed_cost_usd, "measured", "session_total",
             excluded_cost_usd, excluded_token_share)

@@ -54,11 +54,9 @@ def _display_cost(ctx, pipeline):
     only when no sample has been recorded yet for this checkout."""
     try:
         import cost_sampler
-        samples = cost_sampler._read_samples(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
-        for sample in reversed(samples):
-            value = sample.get("total_cost_usd") if isinstance(sample, dict) else None
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return float(value)
+        value = cost_sampler.read_latest_sample(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
     except Exception:
         pass
     return (pipeline.get("totals") or {}).get("cost_usd") or 0.0

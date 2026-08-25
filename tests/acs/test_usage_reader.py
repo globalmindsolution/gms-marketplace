@@ -475,7 +475,10 @@ class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
                                         "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
                                         usage["role_usage"]))
         self.assertEqual(cost_basis, "measured")
-        self.assertAlmostEqual(cost_usd, 1.0)
+        # C-8 "drop, don't redistribute": the returned cost_usd is the
+        # attributed-only share of the charge (100 of 400 tokens), not the
+        # raw full delta.
+        self.assertAlmostEqual(cost_usd, 0.25)
         coordinator = next(r for r in role_usage_with_cost if r["role"] == "coordinator")
         unattributed = next(r for r in role_usage_with_cost if r["role"] == "unattributed")
         self.assertAlmostEqual(coordinator["cost_usd"], 0.25)  # 100 of 400 tokens
