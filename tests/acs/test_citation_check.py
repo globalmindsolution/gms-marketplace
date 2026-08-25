@@ -467,5 +467,81 @@ class TestResolutionAndMatch(unittest.TestCase):
             ("source", "line", "rule", "message"))
 
 
+class TestMalformedPathDoesNotCrash(unittest.TestCase):
+    """F3: a NUL-byte (or otherwise unresolvable) citation path must become a
+    citation-unresolved finding for that one citation, never a process crash
+    that discards sibling citations' results."""
+
+    def test_nul_byte_path_is_a_finding_not_a_crash(self):
+        root = _mkroot()
+        text = (
+            "## Upstream inventory\n"
+            + _citation_line("nul claim", "a\x00.md", "anything") + "\n"
+        )
+        plan_path = _write_plan(text)
+        code, out, err = _run_main(["--plan", plan_path, "--root", "prd=" + root])
+        self.assertEqual(code, 1)
+        self.assertIn("citation-unresolved", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_sibling_citations_still_resolved_when_one_path_is_malformed(self):
+        root = _mkroot()
+        _write(root, "a.md", "first valid fact.\n")
+        _write(root, "b.md", "second valid fact.\n")
+        text = (
+            "## Upstream inventory\n"
+            + _citation_line("first claim", "a.md", "first valid fact") + "\n"
+            + _citation_line("nul claim", "bad\x00.md", "anything") + "\n"
+            + _citation_line("second claim", "b.md", "second valid fact") + "\n"
+        )
+        plan_path = _write_plan(text)
+        code, out, err = _run_main(["--plan", plan_path, "--root", "prd=" + root])
+        self.assertEqual(code, 1)
+        out_lines = [l for l in out.splitlines() if l.strip()]
+        self.assertEqual(len(out_lines), 2)
+        claims = {json.loads(l)["claim"] for l in out_lines}
+        self.assertEqual(claims, {"first claim", "second claim"})
+        err_lines = [l for l in err.splitlines() if l.strip()]
+        self.assertEqual(len(err_lines), 1)
+        self.assertIn("citation-unresolved", err_lines[0])
+
+    def test_malformed_path_finding_uses_documented_format(self):
+        root = _mkroot()
+        text = (
+            "# Plan\n\n"
+            "## Upstream inventory\n"
+            + _citation_line("nul claim", "a\x00.md", "anything") + "\n"
+        )
+        plan_path = _write_plan(text)
+        code, out, err = _run_main(["--plan", plan_path, "--root", "prd=" + root])
+        self.assertEqual(code, 1)
+        finding_lines = [l for l in err.splitlines() if l.startswith(plan_path + ":")]
+        self.assertTrue(finding_lines)
+        self.assertRegex(finding_lines[0], r"^.+:\d+: \[citation-unresolved\] .+$")
+        # the citation line is line 4 (1-indexed) in the plan file above.
+        self.assertTrue(finding_lines[0].startswith(plan_path + ":4:"))
+
+    def test_unexpected_valueerror_during_resolution_is_contained(self):
+        root = _mkroot()
+        _write(root, "a.md", "some real content.\n")
+        text = (
+            "## Upstream inventory\n"
+            + _citation_line("claim one", "a.md", "some real content") + "\n"
+        )
+        plan_path = _write_plan(text)
+        with mock.patch("citation_check.os.path.realpath", side_effect=ValueError("boom")):
+            code, out, err = _run_main(["--plan", plan_path, "--root", "prd=" + root])
+        self.assertEqual(code, 1)
+        self.assertIn("citation-unresolved", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_plan_path_with_nul_byte_exits_two(self):
+        root = _mkroot()
+        code, out, err = _run_main(["--plan", "pl\x00an.md", "--root", "prd=" + root])
+        self.assertEqual(code, 2)
+        self.assertIn("error reading", err.lower())
+        self.assertNotIn("Traceback", err)
+
+
 if __name__ == "__main__":
     unittest.main()

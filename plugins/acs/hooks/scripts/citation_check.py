@@ -118,6 +118,12 @@ def _has_dotdot(path):
     return ".." in path.split("/")
 
 
+def _is_unsafe_path(path):
+    """Screen planner-authored path text before any filesystem call: absolute,
+    `..`-escaping, or containing an embedded NUL byte."""
+    return os.path.isabs(path) or _has_dotdot(path) or "\x00" in path
+
+
 def _resolve_under_roots(path, roots):
     """Join *path* against each declared root and confirm realpath()
     containment. Returns the resolved real path, or None."""
@@ -139,13 +145,19 @@ def resolve_and_check(citations, roots, plan_path):
     file_cache = {}
 
     for citation in citations:
-        if os.path.isabs(citation.path) or _has_dotdot(citation.path):
+        if _is_unsafe_path(citation.path):
             findings.append(Finding(
                 plan_path, citation.line, "citation-unresolved",
-                "citation path %r is absolute or escapes its root" % citation.path))
+                "citation path %r is absolute, escapes its root, or contains a NUL byte" % citation.path))
             continue
 
-        resolved = _resolve_under_roots(citation.path, roots)
+        try:
+            resolved = _resolve_under_roots(citation.path, roots)
+        except ValueError as exc:
+            findings.append(Finding(
+                plan_path, citation.line, "citation-unresolved",
+                "citation path %r could not be resolved: %s" % (citation.path, exc)))
+            continue
         if resolved is None:
             findings.append(Finding(
                 plan_path, citation.line, "citation-unresolved",
@@ -227,7 +239,7 @@ def main(argv):
     try:
         with open(plan_path, encoding="utf-8") as fh:
             text = fh.read()
-    except (OSError, UnicodeDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         print("error reading %s: %s" % (plan_path, exc), file=sys.stderr)
         return 2
 
