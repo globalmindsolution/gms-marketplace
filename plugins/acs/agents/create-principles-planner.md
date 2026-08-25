@@ -84,7 +84,10 @@ Required sections:
 
 - **Mode** — `bootstrap` or `re-run`, with the evidence that decided it.
 - **Upstream inventory** — the PRD facts and architecture-set facts the doc set must
-  reflect, with file/line citations.
+  reflect, with file/line citations. Each citation is one line of the shape
+  `- <claim text> — <relative-path>[:<line>|:<line-start>-<line-end>] — "<verbatim excerpt>"`;
+  the line/range is advisory only, and the excerpt is mandatory and must be a verbatim
+  quotation of the cited passage, never a paraphrase.
 - **Target doc set** — the exact one file under `principles_path`: `principles.md`
   (engineering-principles list + rationale for each principle, stack-agnostic) —
   bootstrapped from the template verbatim, then lightly tailored to the detected stack.
