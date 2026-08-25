@@ -107,23 +107,19 @@ def _safe_avg(numerator, denominator):
 def _elapsed_seconds(start_iso, end_iso):
     """Wall-clock elapsed `end - start` in whole seconds, or None (AC-2).
 
-    Mirrors acs_lib.run_seconds but returns value-or-None (not 0), so a missing/invalid anchor
-    or a negative interval is distinguishable from a true zero-length interval. Total function:
-    parse_iso returns None on bad/missing input, so this never raises.
+    Thin delegate over acs_lib.elapsed_seconds, the single shared primitive both this
+    function and acs_lib.run_seconds adapt (design D1-C) — so a missing/invalid anchor or
+    an inverted interval is None, distinguishable from a true zero-length interval, with
+    that guarantee enforced in exactly one place. Total function: never raises.
 
-    Overlap-safe guarantee (spec 02 / design B1): an inverted interval (start > end, i.e.
-    `not (end >= start)`) returns None rather than raising or returning a negative value.
-    Callers (_panel7_row) map None to the string "no data" and append a meta.degraded entry;
-    aggregate() writes nothing in any case. This guarantee covers both the lead-inversion case
-    (merge-pr.ended_at < ticket.created_at) and the cycle-inversion case
-    (code.started_at > merge-pr.ended_at, e.g. a re-cycled ticket). The production guard on
-    line `end >= start` below is intentionally NOT a rewrite — it is the minimal total-function
-    property (design Decision B1: "a guarantee + test, not a rewrite").
+    Overlap-safe guarantee (spec 02 / design B1): an inverted interval (start > end) returns
+    None rather than raising or returning a negative value. Callers (_panel7_row) map None to
+    the string "no data" and append a meta.degraded entry; aggregate() writes nothing in any
+    case. This guarantee covers both the lead-inversion case (merge-pr.ended_at <
+    ticket.created_at) and the cycle-inversion case (code.started_at > merge-pr.ended_at, e.g.
+    a re-cycled ticket).
     """
-    start, end = acs_lib.parse_iso(start_iso), acs_lib.parse_iso(end_iso)
-    if start and end and end >= start:
-        return int((end - start).total_seconds())
-    return None
+    return acs_lib.elapsed_seconds(start_iso, end_iso)
 
 
 def _parse_due_date(value):

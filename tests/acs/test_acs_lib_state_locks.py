@@ -145,6 +145,24 @@ class TestComputeTicketTotals(unittest.TestCase):
         self.assertEqual(totals["runs"], 1)
         self.assertEqual(totals["tokens"], {"input": 1, "output": 2})
 
+    def test_none_elapsed_run_excluded_from_working_seconds_not_zeroed(self):
+        """AC-1: a completed run plus an in-progress (no ended_at) run yields
+        runs==2, runs_timed==1, runs_untimed==1, and working_seconds equal to
+        the completed run's seconds alone — excluded, not counted as zero."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
+            {"status": "in_progress", "started_at": "2026-01-01T01:00:00Z"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs"], 2)
+        self.assertEqual(totals["runs_timed"], 1)
+        self.assertEqual(totals["runs_untimed"], 1)
+        self.assertEqual(totals["working_seconds"], 300)
+
 
 class TestAllocateTicketId(unittest.TestCase):
     """1292-1296: removes a stale (>30s) guard file and proceeds; 1299-1300:

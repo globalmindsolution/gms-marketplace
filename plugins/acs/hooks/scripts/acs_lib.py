@@ -1359,11 +1359,19 @@ def confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes, clarify
     return ticket
 
 
+def elapsed_seconds(start, end):
+    """Wall-clock `end - start` in whole seconds, or None for a missing/malformed/
+    inverted interval — a true zero-length interval returns 0, distinguishable
+    from "unknown"."""
+    start_dt, end_dt = parse_iso(start), parse_iso(end)
+    if start_dt and end_dt and end_dt >= start_dt:
+        return int((end_dt - start_dt).total_seconds())
+    return None
+
+
 def run_seconds(entry):
-    start, end = parse_iso(entry.get("started_at")), parse_iso(entry.get("ended_at"))
-    if start and end and end >= start:
-        return int((end - start).total_seconds())
-    return 0
+    """Adapter: elapsed_seconds over a run entry's started_at/ended_at."""
+    return elapsed_seconds(entry.get("started_at"), entry.get("ended_at"))
 
 
 # ---------------------------------------------------------------------------
@@ -1399,8 +1407,17 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
 
 
 def compute_ticket_totals(tdir):
-    """Roll up time/tokens/cost across every skill state file in the partition."""
-    totals = {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0}
+    """Roll up time/tokens/cost across every skill state file in the partition.
+
+    A None-elapsed run (missing/malformed/inverted interval) is excluded from
+    working_seconds rather than counted as zero, but still counts in runs and
+    in exactly one of runs_timed/runs_untimed. runs_cost_measured/
+    runs_cost_unavailable are reserved counters keyed on a run's cost_basis
+    field, which does not exist yet — populated by a later unit."""
+    totals = {
+        "runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+    }
     for skill in HOOKED_SKILLS:
         state = read_json(state_path(tdir, skill))
         if not isinstance(state, dict):
@@ -1409,7 +1426,12 @@ def compute_ticket_totals(tdir):
             if not isinstance(entry, dict):
                 continue
             totals["runs"] += 1
-            totals["working_seconds"] += run_seconds(entry)
+            seconds = run_seconds(entry)
+            if seconds is None:
+                totals["runs_untimed"] += 1
+            else:
+                totals["runs_timed"] += 1
+                totals["working_seconds"] += seconds
             tokens = entry.get("tokens") or {}
             totals["tokens"]["input"] += int(tokens.get("input", 0) or 0)
             totals["tokens"]["output"] += int(tokens.get("output", 0) or 0)
@@ -1536,7 +1558,13 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     data = read_json(path) or {}
     data.setdefault("tickets", {})
     data.setdefault("prs", {"created": 0, "merged": 0, "created_pr_numbers": []})
-    data.setdefault("totals", {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0})
+    data.setdefault("totals", {
+        "runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+    })
+    # A pre-existing metrics.json predates these counters; backfill them at 0.
+    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable"):
+        data["totals"].setdefault(counter, 0)
 
     index = read_json(index_path(workspace, repo_id)) or {"tickets": {}}
     by_status = {}
@@ -1558,7 +1586,12 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     if run_entry:
         totals = data["totals"]
         totals["runs"] = int(totals.get("runs", 0)) + 1
-        totals["working_seconds"] = int(totals.get("working_seconds", 0)) + run_seconds(run_entry)
+        seconds = run_seconds(run_entry)
+        if seconds is None:
+            totals["runs_untimed"] = int(totals.get("runs_untimed", 0)) + 1
+        else:
+            totals["runs_timed"] = int(totals.get("runs_timed", 0)) + 1
+            totals["working_seconds"] = int(totals.get("working_seconds", 0)) + seconds
         tokens = run_entry.get("tokens") or {}
         totals.setdefault("tokens", {"input": 0, "output": 0})
         totals["tokens"]["input"] = int(totals["tokens"].get("input", 0)) + int(tokens.get("input", 0) or 0)
