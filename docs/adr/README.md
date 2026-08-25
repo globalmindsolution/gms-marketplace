@@ -69,6 +69,7 @@ context and consequences.
 | [0077](0077-docs-sync-remediation-loop-execute-verify-only.md) | Docs-sync remediation loop is execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name `/acs:docs-sync` (append-only; ADR-0004 itself unedited) | Accepted |
 | [0078](0078-create-project-remediation-loop-execute-verify-only.md) | Create-project remediation loop is execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name `/acs:create-project` (append-only; ADR-0004 itself unedited) | Accepted |
 | [0079](0079-standardize-project-remediation-loop-execute-verify-only.md) | Standardize-project remediation loop is execute → verify only with a frozen iteration-1 additive-surface allowlist, amending ADR-0004's `/acs:code` carve-out and its all-findings-block clause for a narrow, class-scoped plan-conformance degradation (append-only; ADR-0004 itself unedited) | Accepted |
+| [0080](0080-plan-conformance-citation-corroboration-hybrid-mechanism.md) | The shared `plan-conformance` verifier dimension across create-quality/-standards/-operations/-principles gains independent, always-blocking citation corroboration — a deterministic `citation_check.py` floor plus a mandatory verifier substantiation ceiling (append-only; ADR-0004 itself unedited) | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

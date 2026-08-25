@@ -404,6 +404,19 @@ pipeline verifies against.
   blocking) and a blocking `audience-style` check (an unwaived
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the grammar
+  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
+  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
+  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -441,6 +454,19 @@ operations contract the pipeline and the on-call team run against.
   blocking) and a blocking `audience-style` check (an unwaived
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the grammar
+  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
+  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
+  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -478,6 +504,19 @@ engineering principles and their rationale — the standing values contract
   surfacing gap/staleness findings through the existing clarification ledger;
   the verifier's `consistency` dimension confirms any such findings were
   resolved or explicitly deferred.
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the grammar
+  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
+  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
+  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - State lives in the delivery ticket's partition
   (`create-principles-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -518,6 +557,20 @@ values contract.
   through the existing clarification ledger; the verifier's `consistency`
   dimension confirms any such findings were resolved or explicitly
   deferred.
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the grammar
+  `- <claim> — \`<path>[:line]\` — "<verbatim excerpt>"` — path
+  backtick-quoted, the optional `:line`/`:line-start-line-end` suffix
+  advisory only, and the excerpt verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, plus `principles_path` when it is
+  non-null and the set exists on disk, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - State lives in the delivery ticket's partition
   (`create-standards-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
