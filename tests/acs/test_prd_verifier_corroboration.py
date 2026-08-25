@@ -377,5 +377,32 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
         self.assertLess(structure_m.start(), audience_m.start())
 
 
+class Adr0081DecisionRecordTest(unittest.TestCase):
+    """AC-1: docs/adr/0081-...md exists, is Accepted, and names all nine
+    decision records; docs/adr/README.md carries a 0081 row (Task 3)."""
+
+    ADR_PATH = os.path.join(
+        DOCS, "adr", "0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md")
+    ADR_README = os.path.join(DOCS, "adr", "README.md")
+
+    @classmethod
+    def setUpClass(cls):
+        assert os.path.isfile(cls.ADR_PATH), "%s does not exist" % cls.ADR_PATH
+        cls.body = read(cls.ADR_PATH)
+
+    def test_adr_file_exists_and_is_accepted(self):
+        self.assertIn("**Status**: Accepted", self.body)
+
+    def test_all_nine_decision_records_named(self):
+        for record in ("D1-A", "D2-a", "D3.1/D3.2-a", "D4-b+ii", "D5-fold",
+                        "D6", "D7", "D8", "D9"):
+            with self.subTest(record=record):
+                self.assertIn(record, self.body)
+
+    def test_readme_carries_0081_row(self):
+        readme = read(self.ADR_README)
+        self.assertIn("0081", readme)
+
+
 if __name__ == "__main__":
     unittest.main()
