@@ -28,6 +28,8 @@
         "properties": {
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+          "session_id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+          "transcript_path": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "tokens": {
             "type": "object",
             "properties": {

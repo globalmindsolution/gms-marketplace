@@ -44,6 +44,14 @@ PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
+# Explicit override for observed attributionSkill values (transcript records
+# carry "acs:<value>") that do not literally match a skill name once the
+# "acs:" prefix is stripped -- e.g. the initialize skill's own attribution
+# value is observed as "acs:init", not "acs:initialize". Covers both
+# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, initialize)
+# are observed as attributionSkill values even though they write no run entry.
+ATTRIBUTION_SKILL_MAP = {"init": "initialize"}
+
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
@@ -927,6 +935,30 @@ def pointer_path(workspace, repo_id, ckid):
     return os.path.join(sessions_dir(workspace, repo_id), "%s.json" % ckid)
 
 
+def session_marker_path(workspace, repo_id, ckid):
+    """Ticket-independent session-correlation marker, sibling of pointer_path."""
+    return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
+
+
+def record_session_marker(ctx, payload):
+    """Persist the PreToolUse(Skill) envelope's session-correlation fields so
+    skill-start.py can thread them onto the new run entry without guessing.
+    Fields come straight off the envelope; a missing one is written as null,
+    never constructed (e.g. never a cwd-derived guess)."""
+    tool_input = payload.get("tool_input")
+    marker = {
+        "session_id": payload.get("session_id"),
+        "transcript_path": payload.get("transcript_path"),
+        "cwd": payload.get("cwd"),
+        "checkout_id": ctx["checkout_id"],
+        "hook_event_name": payload.get("hook_event_name"),
+        "skill": tool_input.get("skill") if isinstance(tool_input, dict) else None,
+        "updated_at": now_iso(),
+    }
+    write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
+    return marker
+
+
 def state_path(tdir, skill):
     return os.path.join(tdir, "%s-state.json" % skill)
 
@@ -1246,16 +1278,24 @@ def skill_completed(tdir, skill):
     return last_run_status(tdir, skill) == "completed"
 
 
-def append_in_progress_run(tdir, skill, ticket_id):
+def append_in_progress_run(tdir, skill, ticket_id, session=None):
+    """Append a new in_progress run entry. `session` (an accepted session
+    marker dict) is optional -- when given, its session_id/transcript_path are
+    persisted onto the entry; the default None keeps every existing caller's
+    entry shape byte-identical."""
     state = load_state(tdir, skill, ticket_id)
-    state["runs"].append({
+    entry = {
         "started_at": now_iso(),
         "ended_at": None,
         "tokens": {"input": 0, "output": 0},
         "cost_usd": 0.0,
         "status": "in_progress",
         "stop_reason": None,
-    })
+    }
+    if session:
+        entry["session_id"] = session.get("session_id")
+        entry["transcript_path"] = session.get("transcript_path")
+    state["runs"].append(entry)
     write_json(state_path(tdir, skill), state)
     return state
 
@@ -2085,6 +2125,10 @@ def run_pre(skill):
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
+        try:
+            record_session_marker(ctx, payload)
+        except Exception:  # a marker-write bug must never block a gated skill
+            pass
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
