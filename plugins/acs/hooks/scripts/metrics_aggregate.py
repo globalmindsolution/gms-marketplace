@@ -17,13 +17,14 @@ aggregate JSON object to stdout:
 Design A1 (helper emits aggregate JSON; the SKILL renders show_widget — ZERO show_widget
 dependency here), B1 (every panel key "1".."7" PLUS the five new string keys is ALWAYS present;
 degradation is a "no data" marker inside the panel plus a meta.degraded entry, never a missing
-key), C1 (panel 6 token-burn buckets plan->planner / execute->executor / verify->verifier from
-the <metrics> element, the `coordinate` phase EXCLUDED from all three buckets per ledger C-5;
-panel 5 review iterations from code-state states.review.iterations authoritative with the max
+key), C1 (panel 6 token-burn buckets sourced from each HOOKED_SKILLS run entry's measured
+`role_usage` field (acs_lib.finalize_run), bucketed by role string as-is — this now
+includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; panel 5 review
+iterations from code-state states.review.iterations authoritative with the max
 verify-XML-iteration fallback), D1 (bounded single pass: enumerate tickets from
 tickets-index.json, resolve each partition active-then-archive, read the four state files once
-each, glob phases/*/iter-*-*.xml and extract <metrics> with a compiled attribute-order-INDEPENDENT
-regex; xml.etree is a documented reserved fallback, not used by default).
+each, plus each HOOKED_SKILLS `<skill>-state.json` for role_usage; xml.etree is a documented
+reserved fallback, not used by default).
 
 New panel keys (MAR-14 spec 01):
   "delivery_summary" — PM KPIs: done/total, prs_merged, avg lead/cycle, coverage_pass_rate.
@@ -57,19 +58,6 @@ PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 # New additive panel keys (MAR-14 spec 01). Not added to PANEL_KEYS (A1 contract preserved).
 _NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
 
-# phase attribute -> role bucket (panel 6). `coordinate` maps to no bucket (ledger C-5):
-# the role IS the phase; we invent no `role` attribute and add no fourth bucket.
-PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifier"}
-
-# Attribute-order-INDEPENDENT extraction (D1 / Risk R2): pull the <metrics ...> tag, then each
-# attribute by its own sub-pattern so tag order does not matter. xml.etree is the reserved
-# fallback (D2) and is intentionally not used here.
-_METRICS_TAG_RE = re.compile(r"<metrics\b([^>]*?)/?>")
-_TI_RE = re.compile(r'\btokens-input\s*=\s*"([^"]*)"')
-_TO_RE = re.compile(r'\btokens-output\s*=\s*"([^"]*)"')
-_COST_RE = re.compile(r'\bcost-usd\s*=\s*"([^"]*)"')
-# the enclosing element's phase attribute (result/task both expose phase=)
-_PHASE_RE = re.compile(r'\bphase\s*=\s*"([^"]*)"')
 # iteration="N" on a verify result XML (panel 5 fallback)
 _ITER_RE = re.compile(r'\biteration\s*=\s*"(\d+)"')
 
@@ -79,13 +67,6 @@ def _to_int(text):
         return int(text)
     except (TypeError, ValueError):
         return 0
-
-
-def _to_float(text):
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _is_number(value):
@@ -200,7 +181,8 @@ def aggregate(workspace, repo_id, now=None):
     p4_rows = []
     p5_rows = []
     p7_rows = []
-    burn = {role: {"input": 0, "output": 0, "cost": 0.0} for role in ("planner", "executor", "verifier")}
+    burn = {role: {"input": 0, "output": 0, "cost": 0.0}
+            for role in ("planner", "executor", "verifier", "coordinator")}
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
     # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
@@ -909,24 +891,30 @@ def _max_verify_iteration(tdir):
 
 
 def _accumulate_burn(burn, tdir):
-    """Sum <metrics> token burn into role buckets across the ticket's phase XMLs (panel 6)."""
-    for path in glob.glob(os.path.join(tdir, "phases", "*", "iter-*-*.xml")):
-        text = _read_text(path)
-        tag = _METRICS_TAG_RE.search(text)
-        if not tag:
-            continue  # no <metrics> (e.g. -task.xml or a no-metrics result) contributes 0
-        phase_match = _PHASE_RE.search(text)
-        role = PHASE_ROLE.get(phase_match.group(1)) if phase_match else None
-        if role is None:
-            continue  # `coordinate` (or any unmapped phase) is excluded — ledger C-5
-        attrs = tag.group(1)
-        ti = _TI_RE.search(attrs)
-        to = _TO_RE.search(attrs)
-        cost = _COST_RE.search(attrs)
-        bucket = burn[role]
-        bucket["input"] += _to_int(ti.group(1)) if ti else 0
-        bucket["output"] += _to_int(to.group(1)) if to else 0
-        bucket["cost"] = round(bucket["cost"] + (_to_float(cost.group(1)) if cost else 0.0), 6)
+    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6).
+
+    Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
+    <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
+    `coordinator` now surfaces like any other role instead of being silently excluded."""
+    for skill in acs_lib.HOOKED_SKILLS:
+        state = acs_lib.read_json(acs_lib.state_path(tdir, skill))
+        if not isinstance(state, dict):
+            continue
+        for entry in state.get("runs") or []:
+            if not isinstance(entry, dict):
+                continue
+            for item in entry.get("role_usage") or []:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get("role")
+                if not role:
+                    continue
+                bucket = burn.setdefault(role, {"input": 0, "output": 0, "cost": 0.0})
+                bucket["input"] += _to_int(item.get("input"))
+                bucket["output"] += _to_int(item.get("output"))
+                cost = item.get("cost_usd")
+                if _is_number(cost):
+                    bucket["cost"] = round(bucket["cost"] + cost, 6)
 
 
 def _read_text(path):

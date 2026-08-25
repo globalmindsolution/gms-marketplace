@@ -103,7 +103,6 @@ def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
 _RESULT_XML = (
     '<result skill="code" phase="{phase}" ticket-id="{tid}" iteration="{it}" status="completed">\n'
     '  <outputs><file>x</file></outputs>\n'
-    '  {metrics}\n'
     '</result>\n'
 )
 _TASK_XML = (
@@ -112,19 +111,42 @@ _TASK_XML = (
     '</task>\n'
 )
 
+# Test-local phase -> role vocabulary, mirroring the real attributionAgent/attributionSkill
+# suffix mapping usage_reader.py derives (planner/executor/verifier from a subagent suffix,
+# coordinator from the main-session attributionSkill). metrics_aggregate.py itself no longer
+# owns a phase->role table -- role_usage already carries the role string.
+_TEST_PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifier",
+                    "coordinate": "coordinator"}
+
 
 def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
                      reorder=False, no_metrics=False, archived=False):
-    """Write phases/<skill_dir>/iter-<it>-<phase>.xml (a result XML, optionally carrying <metrics>)."""
+    """Write phases/<skill_dir>/iter-<it>-<phase>.xml -- a result XML with no <metrics> element,
+    the only shape a result XML can carry now that element is retired.
+
+    Unless no_metrics, also appends a role_usage-bearing run entry (the real shape
+    acs_lib.finalize_run/usage_reader.py produce) to <skill_dir>-state.json's runs list, since
+    panel 6 sources token burn from there rather than from the XML file. `reorder` is now a
+    no-op, kept only for call-site compatibility with test_metrics_render.py (which imports and
+    reuses this fixture; that suite is outside this unit's file map)."""
     tdir = _ticket_dir(ws, tid, archived)
-    if no_metrics:
-        metrics = ""
-    elif reorder:
-        metrics = '<metrics cost-usd="%s" tokens-output="%s" tokens-input="%s"/>' % (cost, to, ti)
-    else:
-        metrics = '<metrics tokens-input="%s" tokens-output="%s" cost-usd="%s"/>' % (ti, to, cost)
-    body = _RESULT_XML.format(phase=phase, tid=tid, it=it, metrics=metrics)
+    body = _RESULT_XML.format(phase=phase, tid=tid, it=it)
     _write_text(os.path.join(tdir, "phases", skill_dir, "iter-%d-%s.xml" % (it, phase)), body)
+    if no_metrics:
+        return
+    state_path = os.path.join(tdir, "%s-state.json" % skill_dir)
+    state = acs_lib.read_json(state_path)
+    if not isinstance(state, dict):
+        state = {"skill": skill_dir, "ticket_id": tid, "states": {}, "runs": []}
+    role = _TEST_PHASE_ROLE.get(phase, phase)
+    state.setdefault("runs", []).append({
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+        "status": "completed",
+        "role_usage": [{"role": role, "input": ti, "output": to,
+                         "cache_creation": 0, "cache_read": 0,
+                         "cost_usd": cost, "cost_basis": "measured"}],
+    })
+    _write_json(state_path, state)
 
 
 def write_task_xml(ws, tid, skill_dir, phase, it, archived=False):
@@ -280,18 +302,18 @@ class Panel5ReviewIterations(unittest.TestCase):
 
 
 class Panel6TokenBurn(unittest.TestCase):
-    def test_three_role_buckets_order_independent_coordinate_excluded_and_zero(self):
+    def test_four_role_buckets_from_role_usage_coordinator_included(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            # plan -> planner; execute -> executor; verify -> verifier (one with reordered attrs)
+            # plan -> planner; execute -> executor; verify -> verifier; coordinate -> coordinator
             write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, cost=0.17, archived=True)
             write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, cost=3.5, archived=True)
-            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0,
-                             reorder=True, archived=True)
-            # coordinate phase -> contributes 0 to all role buckets (ledger C-5)
-            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=999999, to=999999, cost=99.0,
+            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0, archived=True)
+            # coordinator-attributed usage was silently excluded pre-fix (ledger C-5); it is now
+            # a first-class, present, non-empty bucket (AC-4)
+            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=15000, to=3000, cost=0.4,
                              archived=True)
-            # a -task.xml without metrics, and a merge-pr phase dir with NO metrics XML -> 0 contribution
+            # a -task.xml (never a run entry itself), and a merge-pr run with no_metrics -> 0 contribution
             write_task_xml(ws, "MAR-6", "code", "plan", 1, archived=True)
             write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1, no_metrics=True, archived=True)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -299,20 +321,37 @@ class Panel6TokenBurn(unittest.TestCase):
             self.assertEqual(p6["planner"], {"input": 42000, "output": 7500, "cost": 0.17})
             self.assertEqual(p6["executor"], {"input": 480000, "output": 90000, "cost": 3.5})
             self.assertEqual(p6["verifier"], {"input": 100000, "output": 20000, "cost": 1.0})
-            # coordinate's 999999 burn appears in no role bucket
-            self.assertNotIn("coordinate", p6)
-            self.assertEqual(p6["planner"]["input"], 42000)
+            # AC-4/AC-5: coordinator bucket is present and non-empty (inverted from the old exclusion)
+            self.assertIn("coordinator", p6)
+            self.assertEqual(p6["coordinator"], {"input": 15000, "output": 3000, "cost": 0.4})
 
-    def test_missing_attribute_defaults_to_zero(self):
+    def test_missing_role_usage_fields_default_to_zero(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-8": {"status": "done", "type": "task"}})
-            tdir = _ticket_dir(ws, "MAR-8")
-            # a metrics tag with only tokens-input present; the others default to schema 0
-            body = ('<result skill="code" phase="plan" ticket-id="MAR-8" iteration="1" status="completed">\n'
-                    '  <metrics tokens-input="500"/>\n</result>\n')
-            _write_text(os.path.join(tdir, "phases", "code", "iter-1-plan.xml"), body)
+            # a role_usage item with only "input" present -- output/cost default to 0, matching
+            # usage_reader.py's own optional-field contract
+            write_code_state(ws, "MAR-8", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [{"role": "planner", "input": 500}]},
+            ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["6"]["planner"], {"input": 500, "output": 0, "cost": 0.0})
+
+    def test_non_dict_role_usage_items_and_missing_role_skipped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
+                                {"role": "executor", "input": 7, "output": 2, "cost_usd": 0.02}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p6 = out["panels"]["6"]
+            self.assertEqual(p6["executor"], {"input": 7, "output": 2, "cost": 0.02})
+            # the malformed/roleless entries contributed to no bucket
+            self.assertEqual(p6["planner"], {"input": 0, "output": 0, "cost": 0.0})
+            self.assertEqual(p6["verifier"], {"input": 0, "output": 0, "cost": 0.0})
 
 
 # ---------------------------------------------------------------------------
