@@ -307,6 +307,25 @@ else is verified against.
   and a blocking `audience-style` check (declared audience/style profile; an
   unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
   makes it `severity="info"`, non-blocking).
+- **Independent corroboration (MAR-304).** The planner additionally records
+  three plan sections the deterministic floor parses: `## Code evidence`
+  (brownfield/amend only, one citation per brownfield code claim in the
+  house grammar; `N/A — greenfield, no code to cite` in greenfield),
+  `## Answer fidelity` (one line per `clarifications.json`
+  answered/assumed entry, naming a verbatim anchor in `prd.md`/`roadmap.md`,
+  or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
+  declared milestone, its verbatim `roadmap.md` heading text). The
+  verifier's `Plan conformance` dimension runs the shared deterministic
+  `prd_conformance_check.py` floor over these three families — importing
+  `citation_check.py`'s own resolution helpers unchanged for the
+  code-evidence family — then itself judges the semantic ceiling: whether
+  each answer is reflected and not contradicted (every `N/A` judged, never
+  silently accepted), whether each resolved code citation substantiates its
+  claim, and whether each matched milestone maps to the intended epic.
+  Every such finding — mechanical or semantic — and an exit 2 from the
+  script are `severity="blocking"`; there is no `severity="info"`
+  carve-out. `clarifications.json` and the repo root are declared
+  verify-task inputs/constraints for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
