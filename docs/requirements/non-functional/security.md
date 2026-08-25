@@ -21,3 +21,20 @@ the full behavioral definition lives in
 [../functional/reflection.md](../functional/reflection.md#file-based-state-instead-of-conversation-memory)
 (the Grounding paragraph) — cross-referenced here rather than duplicated,
 per the functional/non-functional tie-break rule.
+
+## Transcript privacy boundary (MAR-1, ADR 0080)
+
+Cost/time measurement reads the Claude Code transcript for a run's own
+recorded `transcript_path` plus its `subagents/` subtree. The boundary is
+structural, not merely a policy note: only `*.jsonl` files are ever
+enumerated or opened, so `subagents/*.meta.json` sidecars — which carry a
+free-text `description` field — are never opened at all, eliminating that
+free-text surface from exposure by construction rather than by convention.
+Within each `*.jsonl` record, only the four integer `message.usage` token
+fields, `message.model`, `timestamp`, and the attribution fields
+(`attributionSkill`/`attributionAgent`) are ever read. `message.content`,
+prompt text, and tool results are never read, and no transcript text of any
+kind is ever persisted into the workspace store — `usage_reader.py`
+persists only integer counts and a role/model string; `cost_sampler.py`
+persists only a float, a key-path string, and an ISO timestamp. No network
+calls occur anywhere in the measurement path.

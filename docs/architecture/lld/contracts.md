@@ -8,7 +8,7 @@ Canonical detail: `plugins/acs/docs/INTERNALS.md`.
 | Message | Direction | Key content |
 |---------|-----------|-------------|
 | `<task skill phase ticket-id iteration>` | coordinator → subagent | objective, `<inputs>` file refs, `<constraints>`, `<context>` (clarifications, prior findings) |
-| `<result … status>` | subagent → coordinator (final message, nothing after) | `<outputs>` file refs (incl. the phase artifact), `<findings>`, `<errors>`, `<questions>`, `<metrics>` |
+| `<result … status>` | subagent → coordinator (final message, nothing after) | `<outputs>` file refs (incl. the phase artifact), `<findings>`, `<errors>`, `<questions>` |
 | `<handoff … status>` | step coordinator → /ship | ≤ ~1 KB summary, artifact refs, `<next-step>`, `<questions>` on `needs_input` |
 
 Validation: `validate_xml.py` on every send/receive; one re-request, then fail.
@@ -19,12 +19,50 @@ spawned per message. `xmllint` is invoked only opt-in when
 absence never blocks a verdict. A `validate_batch()` Python API validates a list
 of messages in one in-process loop (MAR-61).
 
+**`<metrics>` removed (MAR-1, ADR 0080).** The self-estimated
+`<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
+gone from `<result>`'s content model — both `acs-messages.xsd` and, the
+actual in-process enforcement path, `validate_xml.py`'s
+`CHILD_ORDER["result"]`/`ALLOWED_ATTRS` tables reject a stray `<metrics>`
+element post-change. Token/cost figures are no longer part of the
+subagent-to-coordinator message contract at all; they are measured from the
+run's own transcript and the statusLine cost sample at `finalize_run` time
+(see the Run-entry / totals contract below).
+
+## Run-entry / totals contract (MAR-1, ADR 0080)
+
+`finalize_run` no longer trusts a coordinator-supplied `tokens`/`cost_usd`
+self-estimate. A `<skill>-state.json` `runs[]` item now carries, additive to
+the existing `started_at`/`ended_at`/`status`/`stop_reason`/`handoff_summary`
+shape:
+
+| Field | Shape | Meaning |
+|---|---|---|
+| `session_id`, `transcript_path` | nullable string | Captured off the `PreToolUse(Skill)` envelope by the session marker, threaded on at `skill-start.py`; `null` when no marker was accepted |
+| `checkout_id` | nullable string | Needed at finalize time to locate this checkout's cost-sample/cursor files |
+| `tokens.{input,output,cache_creation,cache_read}` | integers | Raw measured token counts (`tokens` widens its explicit allow-list under `additionalProperties: false`) |
+| `cost_usd` | number or `null` | `null` means `cost_basis="unavailable"` — never a fabricated `0` |
+| `cost_basis` | enum | `measured` / `apportioned` / `unavailable` |
+| `cost_scope` | enum | `session_total` / `main_session_only` on a charge; `no_unconsumed_sample_in_window` / `cost_total_reset` reused as the degraded reason when `cost_usd` is `null` |
+| `excluded_cost_usd`, `excluded_token_share` | number or `null` | The unattributed same-window slice dropped from the ticket's cost, per C-8 — never redistributed onto attributed roles |
+| `role_usage` | array | Per-role `{role, input, output, cache_creation, cache_read, cost_usd, cost_basis}` buckets, including a first-class `coordinator` bucket and an `unattributed` bucket that never receives a dollar share |
+
+`pipeline-state.json`/`metrics.json` `totals` gain four additive counters —
+`runs_timed`/`runs_untimed` and `runs_cost_measured`/`runs_cost_unavailable`
+— incremented for every run regardless of whether it contributes to the
+`working_seconds`/`cost_usd` sums; a run with a `None`-elapsed interval or a
+non-measured/apportioned `cost_basis` (including a legacy run with no
+`cost_basis` field at all) is excluded from those sums but still counted, so
+averages never divide by the wrong denominator. All of this is
+schema-additive — no previously valid state/pipeline/metrics document
+becomes invalid.
+
 ## Coordinator ↔ deterministic layer (CLI)
 
 | Helper | Contract |
 |--------|----------|
 | `skill-start.py --skill S [--ticket\|--args\|--allocate]` | stdout: context JSON (settings, partition, ticket, models, reconcile/handoff, post_hook path); registers `in_progress` run, lock, pointer |
-| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens, cost_usd[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate |
+| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens, cost_usd[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0080**: `tokens`/`cost_usd` on this input are vestigial — `finalize_run` measures both from the run's transcript/statusLine sample instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection |
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes …]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes `handed_off`, releases lock, prints `continue_with` |

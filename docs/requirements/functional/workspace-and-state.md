@@ -224,9 +224,24 @@ all of it:
   and runs for the ticket.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
   counts (created, merged), and total working time, tokens, and cost.
-- **[ASSUMPTION]** The coordinator reports token/cost usage in its XML
-  result, and post-hooks persist it; how usage data is obtained from the
-  Claude Code runtime is an implementation detail.
+- **Measured, not self-reported (MAR-1, ADR 0080).** The coordinator's XML
+  result carries no token/cost figures at all — the standing `[ASSUMPTION]`
+  this bullet used to record is resolved, not merely reworded. A run's
+  `session_id`/`transcript_path` are captured from the genuine
+  `PreToolUse(Skill)` hook envelope by a session-correlation marker,
+  threaded onto the run entry at `skill-start.py`. At finalize time,
+  `usage_reader.py` reads real token counts (all four `message.usage`
+  classes) from that exact recorded transcript plus its `subagents/`
+  subtree — never a constructed path — and buckets them by role, including a
+  first-class `coordinator` bucket. A dollar figure is sourced from Claude
+  Code's own real-time cost computation, sampled off the opt-in `statusLine`
+  hook and apportioned across roles by measured token share
+  (`cost_sampler.py`) via a cursor-consumed, non-overlapping partition that
+  makes double-charging structurally impossible. acs owns no price table.
+  Every figure carries a basis label — `measured` / `apportioned` /
+  `unavailable` — never fabricated, never zero-padded; coverage is
+  contingent on `statusLine` opt-in and on an unconsumed sample existing in
+  a run's window, a disclosed limitation rather than a silent one.
 
 ## Epic ↔ child linkage
 

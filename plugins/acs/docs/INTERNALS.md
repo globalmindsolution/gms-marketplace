@@ -41,12 +41,16 @@ onto the plugin hooks API like this:
    directly.
 2. **Post-hooks — coordinator-invoked, gate-backed.** `post-<skill>.py` is the
    skill's mandatory final step (each SKILL.md ends with it). It must be a
-   script the coordinator calls because its inputs — final status, stop reason,
-   findings, token/cost usage — exist only in the coordinator's context. The
-   pipeline does not depend on the model's goodwill: skill-start has already
-   appended an `in_progress` run entry, and every downstream pre-hook gates on
-   `runs[-1].status == "completed"`, so a skipped post-hook leaves the gate
-   closed, never open.
+   script the coordinator calls because its inputs — final status, stop
+   reason, and findings — exist only in the coordinator's context. Token/cost
+   usage is the one exception since MAR-1 (ADR 0080): `finalize_run` measures
+   both itself, from the run's own Claude Code transcript and a sampled
+   statusLine cost figure, rather than trusting a coordinator-supplied value —
+   a `tokens`/`cost_usd` pair on the result document is accepted for backward
+   compatibility but silently ignored. The pipeline does not depend on the
+   model's goodwill: skill-start has already appended an `in_progress` run
+   entry, and every downstream pre-hook gates on `runs[-1].status ==
+   "completed"`, so a skipped post-hook leaves the gate closed, never open.
 3. **SessionEnd safety net.** `dispatch.py session-end` finalizes any run this
    checkout left `in_progress` as `interrupted` (and releases the lock), so
    abnormal endings still write state. A hard kill that skips even SessionEnd

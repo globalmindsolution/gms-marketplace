@@ -19,6 +19,8 @@ C4Container
     ContainerDb_Ext(ws, "Workspace store", "Filesystem", "<workspace>/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
+    ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")
+    System_Ext(statusline_src, "statusLine cost payload", "Opt-in Claude Code stdin feed to statusline.py — a shape-agnostic total_cost_usd figure, sampled and persisted into the workspace store, never read back from Claude Code directly (MAR-1)")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
     Container(evals_plugin, "evals/<plugin>/", "Python, run_evals.py", "Per-plugin behavioral evals; run locally only, NOT in CI")
@@ -39,6 +41,9 @@ C4Container
     Rel(tabp_skills, tabp_helper, "run-start / state-write / decision-write / run-finalize / run-status (Bash)")
     Rel(tabp_helper, ws, ".tabp/ state: run.json, evidence, decision, history, lock")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")
+    Rel(hooks, transcript, "usage_reader.py reads the run's exact recorded transcript_path + subagents/, read-only, never a constructed path (MAR-1)")
+    Rel(cc, statusline_src, "pipes a JSON payload (model, workspace, session, cost) to statusline.py on every refresh")
+    Rel(hooks, statusline_src, "cost_sampler.py samples the real cost figure and persists it into the workspace store (MAR-1)")
 ```
 
 Container responsibilities are deliberately asymmetric: **skills/agents decide,
@@ -47,3 +52,10 @@ makes a judgment call. The marketplace boundary holds heterogeneous plugin
 shapes: acs (full-shape) and tabp (skills + helper + schemas + subagent charters).
 Tooling containers (`tests/<plugin>/`, `evals/<plugin>/`) are developer/CI support
 and sit outside the runtime boundary.
+
+**Transcript store and statusLine payload (MAR-1, ADR 0080).** Both new
+external data sources are read-only from the hook layer's side — the hook
+layer never writes into the transcript store, and it consumes the
+statusLine payload only to sample and persist a shape-agnostic cost figure,
+never to read it back. This is the read-outside-the-workspace exception
+recorded in `docs/requirements/non-functional/portability.md`.

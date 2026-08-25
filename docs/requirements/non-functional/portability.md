@@ -13,3 +13,13 @@ Core-principle row during the MAR-145 functional/non-functional reorg
 | Core principle | Requirement |
 |----------------|-------------|
 | Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`, outside the consumer repo, enabling worktrees and parallel tickets across any number of consumer repos. |
+
+**Read-outside-the-workspace exception (MAR-1, ADR 0080).** Cost/time
+measurement is the one place acs reads outside both the consumer repo and
+its own workspace store: the Claude Code transcript directory
+(`~/.claude/projects/`). The read is scoped strictly to the exact
+`transcript_path` recorded on the run entry (captured from the genuine
+`PreToolUse(Skill)` hook envelope, never a constructed path) plus that
+session's own `subagents/` subtree — never a sibling session's directory,
+never the whole transcript tree. Nothing is written there; the measured
+figures are persisted into the workspace store as usual.
