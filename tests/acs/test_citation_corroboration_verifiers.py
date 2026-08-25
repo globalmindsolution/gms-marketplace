@@ -444,6 +444,57 @@ class SharedIdenticallyTest(unittest.TestCase):
             "corroboration clause drifted across verifiers (not identical): %r" % clauses)
 
 
+class PrinciplesRootConditionalTest(unittest.TestCase):
+    """F2 (AC-2/AC-4): the `--root principles=<principles_path>` clause in
+    all 4 verifiers' plan-conformance dimension must be conditional on
+    `principles_path` being non-null and the `principles/` set existing on
+    disk — an absent set is documented optional at
+    create-standards/SKILL.md:151 and must never manufacture a finding."""
+
+    def test_principles_root_is_conditional_in_all_four(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                clause = corroboration_clause(block)
+                self.assertIn("principles_path", clause)
+                self.assertIn("only when", clause.lower())
+                self.assertIn("omit", clause.lower())
+
+    def test_absent_principles_set_is_never_a_block(self):
+        for fname in VERIFIERS:
+            with self.subTest(verifier=fname):
+                body = read(os.path.join(AGENTS, fname))
+                block = dimension_block(body, "plan-conformance")
+                clause = corroboration_clause(block)
+                lowered = clause.lower()
+                self.assertTrue(
+                    "never a block" in lowered
+                    or "must not manufacture a finding" in lowered,
+                    "%s: guarded clause must state the absent-principles case "
+                    "is never a block: %r" % (fname, clause))
+
+    def test_guard_identical_across_four_verifiers(self):
+        clauses = {}
+        for fname in VERIFIERS:
+            body = read(os.path.join(AGENTS, fname))
+            block = dimension_block(body, "plan-conformance")
+            clauses[fname] = corroboration_clause(block)
+        unique = set(clauses.values())
+        self.assertEqual(
+            len(unique), 1,
+            "guarded corroboration clause drifted across verifiers (not "
+            "identical): %r" % clauses)
+
+    def test_skill_md_principles_optional_contract_unchanged(self):
+        body = read(os.path.join(SKILLS, "create-standards", "SKILL.md"))
+        self.assertIn(
+            '<constraint name="principles-optional">principles_path may be '
+            "null, or the principles/ set may be absent — treat as grounding "
+            "N/A for this iteration, never a block.</constraint>",
+            body)
+
+
 class CreatePrdUntouchedTest(unittest.TestCase):
     """AC-5: create-prd-verifier.md contains no citation_check.py reference
     and its 9 pre-existing dimension labels all remain."""

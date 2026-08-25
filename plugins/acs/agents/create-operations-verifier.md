@@ -45,8 +45,13 @@ findings. You share no memory with the coordinator: read every input yourself.
      just diff the executor's output against the plan artifact. Run `Bash
      python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
      <partition>/phases/<skill>/iter-<n>-plan.md --root prd=<prd_path> --root
-     architecture=<architecture_path>` (`create-standards` additionally
-     passes `--root principles=<principles_path>`).
+     architecture=<architecture_path>` — and, for `create-standards` only,
+     additionally `--root principles=<principles_path>`, but ONLY when
+     `principles_path` is non-null and the `principles/` set exists on disk.
+     When it is null or the set is absent, omit the `--root principles=`
+     argument entirely — never pass an empty value: an empty root is a usage
+     error (exit 2) and the principles set is documented optional, never a
+     block, so an absent set must not manufacture a finding.
    - Every stderr `source:line: [rule] message` finding becomes one `<finding
      severity="blocking" dimension="plan-conformance">`; exit 2 (a usage
      error, or an unreadable plan file) is itself a blocking
