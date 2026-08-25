@@ -16,6 +16,16 @@ never forced by the plugin. In ~/.claude/settings.json or
 Claude Code pipes a JSON payload on stdin (model, workspace, session, cost);
 we parse it defensively and NEVER crash — on any problem we print a minimal
 fallback line, because a broken status line is worse than none.
+
+Every invocation also records a shape-agnostic cost sample from that payload
+(cost_sampler.record_cost_sample) — ticket-independent, so samples exist even
+before a ticket's first run can be measured against them.
+
+Diagnostics: set ACS_STATUSLINE_DEBUG_PAYLOAD=<path> to dump the raw stdin
+payload JSON to <path> on every invocation, for one-time inspection of what
+Claude Code actually sends (verifying the statusLine cost-payload shape).
+Permanent, env-gated debug code: unset (the default), it is a complete
+no-op with zero behavior change.
 """
 
 import json
@@ -35,6 +45,23 @@ def fallback(payload):
     model = ((payload.get("model") or {}).get("display_name")) or "Claude"
     cwd = ((payload.get("workspace") or {}).get("current_dir")) or payload.get("cwd") or os.getcwd()
     return "%s · %s" % (model, os.path.basename(cwd.rstrip("/")) or cwd)
+
+
+def _display_cost(ctx, pipeline):
+    """Prefer the latest real cost_sampler sample (design conformance item
+    31) over pipeline.totals.cost_usd, which lags the just-finalized run and
+    predates this ticket's own recompute; falls back to the pipeline figure
+    only when no sample has been recorded yet for this checkout."""
+    try:
+        import cost_sampler
+        samples = cost_sampler._read_samples(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
+        for sample in reversed(samples):
+            value = sample.get("total_cost_usd") if isinstance(sample, dict) else None
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+    except Exception:
+        pass
+    return (pipeline.get("totals") or {}).get("cost_usd") or 0.0
 
 
 def render(payload):
@@ -72,7 +99,7 @@ def render(payload):
             glyph = GLYPHS.get((steps.get(skill) or {}).get("status"), "○")
             parts.append("%s%s" % (glyph, label))
 
-    cost = (pipeline.get("totals") or {}).get("cost_usd") or 0.0
+    cost = _display_cost(ctx, pipeline)
     bits = [
         ((payload.get("model") or {}).get("display_name")) or "Claude",
         "%s%s%s" % (ticket_id,
@@ -88,12 +115,31 @@ def render(payload):
     return " · ".join(bits)
 
 
+def _maybe_dump_debug_payload(payload):
+    """ACS_STATUSLINE_DEBUG_PAYLOAD=<path>: dump the raw stdin payload JSON to
+    <path>, for one-time diagnostic use. Unset: a complete no-op."""
+    path = os.environ.get("ACS_STATUSLINE_DEBUG_PAYLOAD")
+    if not path:
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+    except Exception:
+        pass
+
+
 def main():
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}
     except Exception:
         payload = {}
+    _maybe_dump_debug_payload(payload)
+    try:
+        import cost_sampler
+        cost_sampler.record_cost_sample(payload)  # ticket-independent; swallows all
+    except Exception:
+        pass
     try:
         print(render(payload))
     except Exception:

@@ -1295,13 +1295,86 @@ def append_in_progress_run(tdir, skill, ticket_id, session=None):
     if session:
         entry["session_id"] = session.get("session_id")
         entry["transcript_path"] = session.get("transcript_path")
+        # Needed at finalize time to locate this checkout's cost-sample/cursor
+        # files (cost_sampler.allocate_cost) -- schema-safe under the run
+        # entry's own additionalProperties:true.
+        entry["checkout_id"] = session.get("checkout_id")
     state["runs"].append(entry)
     write_json(state_path(tdir, skill), state)
     return state
 
 
+_EMPTY_MEASURED_TOKENS = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}
+
+
+def _sum_role_tokens(role_usage):
+    """Sum every role_usage bucket's four token fields (including an
+    'unattributed' bucket, if present) into one raw-measured totals dict."""
+    totals = dict(_EMPTY_MEASURED_TOKENS)
+    for item in role_usage:
+        if not isinstance(item, dict):
+            continue
+        for key in totals:
+            value = item.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[key] += value
+    return totals
+
+
+def _measure_run_usage(entry, tdir):
+    """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
+    own recorded transcript (usage_reader) and priced via
+    cost_sampler.allocate_cost -- rather than trusting a coordinator's
+    self-reported result["tokens"]/result["cost_usd"] (AC-3).
+
+    Required short-circuit (Risk R-N): a run entry with no session_id/
+    transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
+    create-ticket runs) never performs transcript I/O -- cost_usd=None,
+    cost_basis="unavailable", tokens empty."""
+    session_id = entry.get("session_id")
+    transcript_path = entry.get("transcript_path")
+    if not session_id or not transcript_path:
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        return
+
+    import usage_reader
+    usage = usage_reader.read_transcript_usage(
+        transcript_path, entry.get("started_at"), entry.get("ended_at"))
+    role_usage = usage.get("role_usage") or []
+    entry["tokens"] = _sum_role_tokens(role_usage)
+
+    checkout_id = entry.get("checkout_id")
+    if not checkout_id:
+        # Tokens are measured (transcript-only); cost needs the checkout-scoped
+        # sample/cursor files this entry has no checkout_id to locate.
+        entry["role_usage"] = role_usage
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        return
+
+    import cost_sampler
+    workspace = os.path.dirname(os.path.dirname(tdir))
+    repo_id = os.path.basename(os.path.dirname(tdir))
+    (role_usage_with_cost, cost_usd, cost_basis, cost_scope,
+     excluded_cost_usd, excluded_token_share) = cost_sampler.allocate_cost(
+        workspace, repo_id, checkout_id,
+        entry.get("started_at"), entry.get("ended_at"), role_usage)
+    entry["role_usage"] = role_usage_with_cost
+    entry["cost_usd"] = cost_usd
+    entry["cost_basis"] = cost_basis
+    entry["cost_scope"] = cost_scope
+    entry["excluded_cost_usd"] = excluded_cost_usd
+    entry["excluded_token_share"] = excluded_token_share
+
+
 def finalize_run(tdir, skill, ticket_id, result):
-    """Finalize runs[-1] (or append, if the coordinator never registered the run)."""
+    """Finalize runs[-1] (or append, if the coordinator never registered the run).
+
+    tokens/role_usage/cost_usd/cost_basis are MEASURED (see
+    _measure_run_usage), never taken from `result`."""
     state = load_state(tdir, skill, ticket_id)
     status = result.get("status", "completed")
     if status not in RUN_STATUSES or status == "in_progress":
@@ -1313,9 +1386,7 @@ def finalize_run(tdir, skill, ticket_id, result):
     entry["ended_at"] = now_iso()
     entry["status"] = status
     entry["stop_reason"] = result.get("stop_reason")
-    tokens = result.get("tokens") or {}
-    entry["tokens"] = {"input": int(tokens.get("input", 0) or 0), "output": int(tokens.get("output", 0) or 0)}
-    entry["cost_usd"] = float(result.get("cost_usd", 0.0) or 0.0)
+    _measure_run_usage(entry, tdir)
     if status == "handed_off":
         entry["handoff_summary"] = result.get("handoff_summary") or result.get("stop_reason") or ""
     if isinstance(result.get("states"), dict):
@@ -1451,9 +1522,11 @@ def compute_ticket_totals(tdir):
 
     A None-elapsed run (missing/malformed/inverted interval) is excluded from
     working_seconds rather than counted as zero, but still counts in runs and
-    in exactly one of runs_timed/runs_untimed. runs_cost_measured/
-    runs_cost_unavailable are reserved counters keyed on a run's cost_basis
-    field, which does not exist yet — populated by a later unit."""
+    in exactly one of runs_timed/runs_untimed. Likewise, a run whose
+    cost_basis is "measured"/"apportioned" contributes its cost_usd and
+    counts in runs_cost_measured; every other run (cost_basis "unavailable",
+    or absent -- a legacy pre-cutover run, C-11) counts in
+    runs_cost_unavailable and contributes nothing to the cost_usd sum."""
     totals = {
         "runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
@@ -1475,7 +1548,14 @@ def compute_ticket_totals(tdir):
             tokens = entry.get("tokens") or {}
             totals["tokens"]["input"] += int(tokens.get("input", 0) or 0)
             totals["tokens"]["output"] += int(tokens.get("output", 0) or 0)
-            totals["cost_usd"] += float(entry.get("cost_usd", 0.0) or 0.0)
+            cost_basis = entry.get("cost_basis") or "unavailable"
+            cost_usd = entry.get("cost_usd")
+            if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                    and not isinstance(cost_usd, bool):
+                totals["runs_cost_measured"] += 1
+                totals["cost_usd"] += float(cost_usd)
+            else:
+                totals["runs_cost_unavailable"] += 1
     totals["cost_usd"] = round(totals["cost_usd"], 4)
     return totals
 
@@ -1636,7 +1716,14 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
         totals.setdefault("tokens", {"input": 0, "output": 0})
         totals["tokens"]["input"] = int(totals["tokens"].get("input", 0)) + int(tokens.get("input", 0) or 0)
         totals["tokens"]["output"] = int(totals["tokens"].get("output", 0)) + int(tokens.get("output", 0) or 0)
-        totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(run_entry.get("cost_usd", 0.0) or 0.0), 4)
+        cost_basis = run_entry.get("cost_basis") or "unavailable"
+        cost_usd = run_entry.get("cost_usd")
+        if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                and not isinstance(cost_usd, bool):
+            totals["runs_cost_measured"] = int(totals.get("runs_cost_measured", 0)) + 1
+            totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(cost_usd), 4)
+        else:
+            totals["runs_cost_unavailable"] = int(totals.get("runs_cost_unavailable", 0)) + 1
     data["updated_at"] = now_iso()
     write_json(path, data)
     return data

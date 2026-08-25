@@ -117,6 +117,53 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(state["errors"], ["boom"])
         self.assertEqual(entry["status"], "completed")
 
+    def test_persists_measured_tokens_and_role_usage_not_coordinator_self_report(self):
+        """AC-3: a coordinator-supplied tokens/cost_usd self-estimate in
+        `result` is ignored; the persisted figures come from
+        usage_reader/cost_sampler instead."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_role_usage = [
+            {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
+        ]
+        priced_role_usage = [
+            {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": 0.05, "cost_basis": "apportioned"},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "model": "claude", "role_usage": measured_role_usage,
+            }
+            allocate.return_value = (priced_role_usage, 0.05, "measured", "session_total", 0.0, 0.0)
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
+                "status": "completed",
+                "tokens": {"input": 999999, "output": 999999},
+                "cost_usd": 123.45,
+            })
+        read_usage.assert_called_once_with("/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"])
+        allocate.assert_called_once_with(
+            os.path.dirname(os.path.dirname(self.tdir)), os.path.basename(os.path.dirname(self.tdir)),
+            "ck-1", entry["started_at"], entry["ended_at"], measured_role_usage)
+        self.assertEqual(entry["tokens"], {"input": 10, "output": 20, "cache_creation": 0, "cache_read": 0})
+        self.assertEqual(entry["role_usage"], priced_role_usage)
+        self.assertEqual(entry["cost_usd"], 0.05)
+        self.assertEqual(entry["cost_basis"], "measured")
+
+    def test_no_session_id_finalizes_completed_with_cost_unavailable_and_no_transcript_io(self):
+        """Required short-circuit (Risk R-N): a run entry with no session_id/
+        transcript_path (e.g. new-ticket.py's synthetic create-ticket runs)
+        performs NO transcript I/O and finalizes as completed/unavailable."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        read_usage.assert_not_called()
+        self.assertEqual(entry["status"], "completed")
+        self.assertIsNone(entry["cost_usd"])
+        self.assertEqual(entry["cost_basis"], "unavailable")
+        self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+
 
 class TestRecordEscalationEventRequiresRun(unittest.TestCase):
     """1115: raises ValueError when no run entry exists to attach the event to."""
@@ -162,6 +209,47 @@ class TestComputeTicketTotals(unittest.TestCase):
         self.assertEqual(totals["runs_timed"], 1)
         self.assertEqual(totals["runs_untimed"], 1)
         self.assertEqual(totals["working_seconds"], 300)
+
+    def test_legacy_run_with_absent_cost_basis_excluded_from_cost_totals(self):
+        """C-11: a pre-cutover run entry with no cost_basis field at all is
+        treated the same as cost_basis="unavailable" -- excluded from the
+        cost_usd sum and counted in runs_cost_unavailable, never
+        runs_cost_measured."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
+            {"status": "completed", "started_at": "2026-01-01T01:00:00Z",
+             "ended_at": "2026-01-01T01:05:00Z",
+             "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs_cost_unavailable"], 1)
+        self.assertEqual(totals["runs_cost_measured"], 1)
+        self.assertEqual(totals["cost_usd"], 0.75)
+
+
+class TestUpdateMetricsCostBasisExclusion(unittest.TestCase):
+    """C-11: update_metrics excludes a run entry with absent (legacy) or
+    "unavailable" cost_basis from the repo-level cost_usd sum, counting it
+    in runs_cost_unavailable rather than runs_cost_measured."""
+
+    def test_absent_cost_basis_excluded_present_measured_included(self):
+        workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, workspace, True)
+        lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+            "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5,
+        })
+        data = lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
+            "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured",
+        })
+        self.assertEqual(data["totals"]["runs_cost_unavailable"], 1)
+        self.assertEqual(data["totals"]["runs_cost_measured"], 1)
+        self.assertEqual(data["totals"]["cost_usd"], 0.75)
 
 
 class TestAllocateTicketId(unittest.TestCase):
