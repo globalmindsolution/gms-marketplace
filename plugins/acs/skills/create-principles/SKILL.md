@@ -154,13 +154,14 @@ Phases:
      stack/technology claim not present in `architecture/hld/tech-stack.md` and the
      rest of the set);
    - required sections are present;
-   - the plan was followed exactly;
+   - the plan was followed exactly, including independent corroboration of
+     every upstream-fact citation in its Upstream inventory;
    - the changeset is docs-only;
    - **consistency**: any `consistency_findings` the planner surfaced (the
      shared ADR-0012 design-time doc-consistency step, see Plan above) were
      resolved or explicitly user-deferred in the clarification ledger.
 
-   The verify task's `<constraints>` also carry `required_sections`
+   The verify task's `<constraints>` also carry `prd_path`, `required_sections`
    (`Principles; Rationale`, declared in the Plan task example above) and
    `audience_style_profile` (`engineers (concise normative rules)`).
 
