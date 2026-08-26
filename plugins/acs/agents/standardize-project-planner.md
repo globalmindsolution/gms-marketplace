@@ -107,7 +107,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="21000" tokens-output="3400" cost-usd="0.09"/>
   <stop-reason>Plan complete: audit inventory covers all four dimensions, allowlist scoped to CI/tooling config, 2 recommended follow-ups.</stop-reason>
 </result>
 ```

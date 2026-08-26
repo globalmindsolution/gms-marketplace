@@ -104,7 +104,6 @@ after it. Self-check it first:
   <outputs>
     <file>/abs/workspace/acme-shop/SHOP-123/phases/create-pr/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="3500" cost-usd="0.07"/>
   <stop-reason>Plan complete: push task/SHOP-123-bulk-import, create PR onto main, pr-default body planned from state.</stop-reason>
 </result>
 ```

@@ -397,8 +397,7 @@ MANDATORY final step — never skipped, also on failure.
    }
    ```
 
-   Estimate `tokens`/`cost_usd` for this run (all subagents + coordinator). On
-   failure keep whatever is true: status `failed`, remaining verifier findings in
+   On failure keep whatever is true: status `failed`, remaining verifier findings in
    `findings`, `states.requirements` if any files were written, NO `states.pr` if no
    PR was opened, and the reason in `stop_reason`.
 

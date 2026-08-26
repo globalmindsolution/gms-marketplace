@@ -28,8 +28,11 @@
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── counters.json                   # ticket id sequence (next ticket number)
     ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens, cost
-    ├── sessions/                       # per-checkout pointers for parallel worktree sessions
-    │   └── <checkout-id>.json          # current ticket id for that checkout/worktree
+    ├── sessions/                       # per-checkout state for parallel worktree sessions
+    │   ├── <checkout-id>.json          # current ticket id for that checkout/worktree
+    │   ├── <checkout-id>-session.json  # ticket-independent session-correlation marker (MAR-1)
+    │   ├── <checkout-id>-cost-samples.jsonl  # append-only statusLine cost samples, rotated in place (MAR-1)
+    │   └── <checkout-id>-cost-cursor.json    # allocation cursor into the cost-sample log (MAR-1)
     ├── archive/                        # partitions of done tickets move here post-merge
     ├── SHOP-1/                         # a product-level delivery ticket (here: PRD)
     │   ├── ticket.json                 # type task, e.g. "Product definition (PRD)"
@@ -69,6 +72,17 @@ Repo-level files (all maintained by hooks):
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
   ([hooks.md](hooks.md)).
+- **`sessions/<checkout-id>-session.json`**,
+  **`sessions/<checkout-id>-cost-samples.jsonl`**,
+  **`sessions/<checkout-id>-cost-cursor.json`** (MAR-1) — three additional
+  per-checkout files backing real cost/time measurement: a
+  ticket-independent session-correlation marker (`session_id`/
+  `transcript_path`/`cwd`/`skill`, written by a pre-hook inside its own
+  fail-open guard, rejected by the consuming skill if stale past 15 minutes
+  or from a foreign `checkout_id`); an append-only log of `statusLine`
+  cost samples, rotated in place once it exceeds 64 KiB (no `.1` sibling);
+  and the allocation cursor marking how much of that log has already been
+  charged to a run ([hooks.md](hooks.md)).
 - **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
@@ -224,9 +238,24 @@ all of it:
   and runs for the ticket.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
   counts (created, merged), and total working time, tokens, and cost.
-- **[ASSUMPTION]** The coordinator reports token/cost usage in its XML
-  result, and post-hooks persist it; how usage data is obtained from the
-  Claude Code runtime is an implementation detail.
+- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's XML
+  result carries no token/cost figures at all — the standing `[ASSUMPTION]`
+  this bullet used to record is resolved, not merely reworded. A run's
+  `session_id`/`transcript_path` are captured from the genuine
+  `PreToolUse(Skill)` hook envelope by a session-correlation marker,
+  threaded onto the run entry at `skill-start.py`. At finalize time,
+  `usage_reader.py` reads real token counts (all four `message.usage`
+  classes) from that exact recorded transcript plus its `subagents/`
+  subtree — never a constructed path — and buckets them by role, including a
+  first-class `coordinator` bucket. A dollar figure is sourced from Claude
+  Code's own real-time cost computation, sampled off the opt-in `statusLine`
+  hook and apportioned across roles by measured token share
+  (`cost_sampler.py`) via a cursor-consumed, non-overlapping partition that
+  makes double-charging structurally impossible. acs owns no price table.
+  Every figure carries a basis label — `measured` / `apportioned` /
+  `unavailable` — never fabricated, never zero-padded; coverage is
+  contingent on `statusLine` opt-in and on an unconsumed sample existing in
+  a run's window, a disclosed limitation rather than a silent one.
 
 ## Epic ↔ child linkage
 

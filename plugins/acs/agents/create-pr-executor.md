@@ -167,7 +167,6 @@ Self-check it:
     <file>/abs/workspace/acme-shop/SHOP-123/phases/create-pr/pr-body.md</file>
     <file>/abs/workspace/acme-shop/SHOP-123/phases/create-pr/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="30000" tokens-output="6000" cost-usd="0.18"/>
   <stop-reason>Branch pushed, PR #42 created onto main with ACS label, tracker comment posted.</stop-reason>
 </result>
 ```

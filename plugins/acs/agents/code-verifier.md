@@ -361,7 +361,6 @@ after it. Self-check it first:
     <finding severity="blocking" dimension="coverage">Measured 86.2% vs target 90 (pytest --cov=src); src/import/parser.py error paths untested.</finding>
     <finding severity="blocking" dimension="documentation" file="docs/api/import.md">Spec 02 added a 409 response; doc still lists only 200/400.</finding>
   </findings>
-  <metrics tokens-input="90000" tokens-output="12000" cost-usd="0.55"/>
   <stop-reason>Verification complete: 14/16 dimensions pass, 2 blocking findings.</stop-reason>
 </result>
 ```

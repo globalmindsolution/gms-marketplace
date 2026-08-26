@@ -110,7 +110,6 @@ Self-check it:
     <finding severity="blocking" dimension="acs-label">PR #42 carries no ACS label.</finding>
     <finding severity="blocking" dimension="body-claims" file="phases/create-pr/pr-body.md">Test plan says coverage 92% but code-state.json records 90.4%.</finding>
   </findings>
-  <metrics tokens-input="24000" tokens-output="4500" cost-usd="0.10"/>
   <stop-reason>Verification complete: 8 of 10 dimensions pass, 2 blocking findings.</stop-reason>
 </result>
 ```

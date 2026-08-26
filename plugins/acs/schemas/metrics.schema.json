@@ -40,10 +40,16 @@
           "type": "object",
           "properties": {
             "input": {"type": "integer", "minimum": 0},
-            "output": {"type": "integer", "minimum": 0}
+            "output": {"type": "integer", "minimum": 0},
+            "cache_creation": {"type": "integer", "minimum": 0},
+            "cache_read": {"type": "integer", "minimum": 0}
           }
         },
-        "cost_usd": {"type": "number", "minimum": 0}
+        "cost_usd": {"type": "number", "minimum": 0},
+        "runs_timed": {"type": "integer", "minimum": 0},
+        "runs_untimed": {"type": "integer", "minimum": 0},
+        "runs_cost_measured": {"type": "integer", "minimum": 0},
+        "runs_cost_unavailable": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": true
     },

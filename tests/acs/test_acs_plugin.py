@@ -574,7 +574,6 @@ class TestValidators(AcsWorkspaceCase):
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<outputs><file>/src/foo.py</file></outputs>'
         '<findings><finding severity="info">all clear</finding></findings>'
-        '<metrics tokens-input="1000" tokens-output="200" cost-usd="0.05"/>'
         '<stop-reason>done</stop-reason>'
         '</result>'
     )
@@ -659,7 +658,12 @@ class TestValidators(AcsWorkspaceCase):
         '</handoff>'
     )
 
-    # duplicate <metrics> in <result> (optional, maxOccurs=1)
+    # <metrics> was removed from the schema outright (D5-A): any occurrence
+    # (let alone a duplicate) is now rejected as an unrecognized <result>
+    # child via CHILD_ORDER/ALLOWED_ATTRS, not via a maxOccurs=1 cardinality
+    # check. Retained in MALFORMED_CORPUS (still non-empty errors); dropped
+    # from the cardinality-specific case lists below since it no longer
+    # exercises that violation class.
     MALFORMED_DUP_METRICS = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<metrics tokens-input="100" tokens-output="50" cost-usd="0.01"/>'
@@ -685,8 +689,15 @@ class TestValidators(AcsWorkspaceCase):
         '</handoff>'
     )
 
-    # (vii) xs:decimal grammar: cost-usd must match optional-sign + digits +
-    # optional single decimal point — NO exponent, NO inf/nan, NO underscores.
+    # (vii) xs:decimal grammar for <metrics cost-usd>. <metrics> was removed
+    # from the schema outright (D5-A) — cost-usd is no longer a live contract
+    # attribute, and every case below is now rejected primarily because
+    # <metrics> itself is an unrecognized <result> child. validate_xml.py's
+    # decimal-grammar check (_is_xs_decimal) is left in place as defense in
+    # depth for any lingering caller and still fires as an additional error,
+    # so these fixtures still exercise that code path and still match
+    # xmllint (which now rejects them for "unknown element" instead of a
+    # decimal violation — both engines agree on INVALID either way).
     # Each of these is accepted by Python float() but rejected by xs:decimal.
     MALFORMED_COST_USD_INF = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
@@ -721,6 +732,13 @@ class TestValidators(AcsWorkspaceCase):
         '<task skill="code" phase="execute" ticket-id="SHOP-1" bogus="y">'
         '<objective>x</objective></task>'
     )
+    # <metrics> was removed from the schema outright (D5-A): this is no
+    # longer specifically an "undeclared attribute" case — <metrics> itself
+    # is now an unrecognized <result> child, so the whole element is
+    # rejected regardless of which attributes it carries. Retained in
+    # MALFORMED_CORPUS (still non-empty errors); dropped from
+    # CLOSED_CONTENT_CASES below since it no longer isolates that specific
+    # violation class.
     MALFORMED_UNDECLARED_ATTR_METRICS = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<metrics cost-usd="0.1" bogus="1"/></result>'
@@ -836,14 +854,16 @@ class TestValidators(AcsWorkspaceCase):
         """Duplicate maxOccurs=1 sequence children must be rejected by validate_structurally.
 
         xs:sequence in acs-messages.xsd has maxOccurs=1 (default) for every element.
-        Two <objective>, two <summary>, two <metrics>, two <inputs>, two <next-step>
+        Two <objective>, two <summary>, two <inputs>, two <next-step>
         must each produce at least one error (AC-2 cardinality gap closure).
+        (<metrics> was removed from the schema outright per D5-A, so a
+        duplicate <metrics> case no longer exercises this cardinality class —
+        see MALFORMED_DUP_METRICS's own comment.)
         """
         mod = self._load_validate_xml()
         cardinality_cases = [
             ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
             ("dup_summary", self.MALFORMED_DUP_SUMMARY),
-            ("dup_metrics", self.MALFORMED_DUP_METRICS),
             ("dup_inputs", self.MALFORMED_DUP_INPUTS),
             ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
         ]
@@ -862,7 +882,6 @@ class TestValidators(AcsWorkspaceCase):
         cardinality_cases = [
             ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
             ("dup_summary", self.MALFORMED_DUP_SUMMARY),
-            ("dup_metrics", self.MALFORMED_DUP_METRICS),
             ("dup_inputs", self.MALFORMED_DUP_INPUTS),
             ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
         ]
@@ -1235,9 +1254,11 @@ class TestValidators(AcsWorkspaceCase):
     # (the XSD has no anyAttribute/wildcard; in-process must match xmllint).
     # -----------------------------------------------------------------------
 
+    # (<metrics> was removed from the schema outright per D5-A, so
+    # undeclared_attr_metrics no longer isolates this violation class — see
+    # MALFORMED_UNDECLARED_ATTR_METRICS's own comment.)
     CLOSED_CONTENT_CASES = [
         ("undeclared_attr_root", MALFORMED_UNDECLARED_ATTR_ROOT),
-        ("undeclared_attr_metrics", MALFORMED_UNDECLARED_ATTR_METRICS),
         ("undeclared_attr_finding", MALFORMED_UNDECLARED_ATTR_FINDING),
         ("undeclared_attr_constraint", MALFORMED_UNDECLARED_ATTR_CONSTRAINT),
         ("child_in_file", MALFORMED_CHILD_IN_FILE),

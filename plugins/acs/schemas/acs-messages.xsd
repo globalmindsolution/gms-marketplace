@@ -156,13 +156,6 @@
         <xs:element name="findings" type="findingList" minOccurs="0"/>
         <xs:element name="errors" type="errorList" minOccurs="0"/>
         <xs:element name="questions" type="questionList" minOccurs="0"/>
-        <xs:element name="metrics" minOccurs="0">
-          <xs:complexType>
-            <xs:attribute name="tokens-input" type="xs:nonNegativeInteger" default="0"/>
-            <xs:attribute name="tokens-output" type="xs:nonNegativeInteger" default="0"/>
-            <xs:attribute name="cost-usd" type="xs:decimal" default="0"/>
-          </xs:complexType>
-        </xs:element>
         <xs:element name="stop-reason" type="xs:string" minOccurs="0"/>
       </xs:sequence>
       <xs:attribute name="skill" type="skillName" use="required"/>

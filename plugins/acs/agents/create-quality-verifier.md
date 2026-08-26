@@ -131,7 +131,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <findings>
     <finding severity="blocking" dimension="architecture-conformance" file="docs/quality/test-strategy.md">Suite inventory names "pytest" but hld/tech-stack.md documents Go/go test — the file was not tailored to the detected stack.</finding>
   </findings>
-  <metrics tokens-input="14000" tokens-output="2000" cost-usd="0.05"/>
   <stop-reason>Verification complete: 1 blocking finding across 5 dimensions.</stop-reason>
 </result>
 ```

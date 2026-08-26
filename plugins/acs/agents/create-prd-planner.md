@@ -182,7 +182,6 @@ after it. Self-check it first:
   <questions>
     <question>Greenfield: what is the primary persona — solo merchants or marketplace operators?</question>
   </questions>
-  <metrics tokens-input="22000" tokens-output="4000" cost-usd="0.08"/>
   <stop-reason>Plan complete (mode: greenfield); 3 open questions need user answers before execute.</stop-reason>
 </result>
 ```

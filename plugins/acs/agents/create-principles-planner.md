@@ -124,7 +124,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-43/phases/create-principles/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="21000" tokens-output="3000" cost-usd="0.09"/>
   <stop-reason>Plan complete: bootstrap mode, 1 doc file planned, tailored to the detected stack.</stop-reason>
 </result>
 ```

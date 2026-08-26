@@ -32,3 +32,15 @@ distinct anchors.
 - Entry-point anchor verification record — `HOOKED_SKILLS` allowlist: `acs_lib.py:44`
 - Entry-point anchor verification record — `def resolve_role_model(settings, skill, role)`: `acs_lib.py:485-500`
 - Entry-point anchor verification record — `def session_end(payload)`: `acs_lib.py:1621`
+
+## Runtime-coupled surfaces — Surface #5 (Cost/token sourcing, MAR-1)
+
+- Surface #5 — Cost/token sourcing — shipped `cost_basis` enum
+  (`measured|apportioned|unavailable`): `skill-state.schema.json:45-47`
+
+## Runtime-agnostic surfaces — `statusline.py` split note (MAR-1)
+
+- Runtime-agnostic surfaces — `statusline.py` cost-sampling half —
+  module docstring naming the Claude-Code-piped stdin payload: `statusline.py:16`
+- Runtime-agnostic surfaces — `statusline.py` cost-sampling half —
+  `main()` reads stdin then calls `cost_sampler.record_cost_sample(payload)`: `statusline.py:131-138`

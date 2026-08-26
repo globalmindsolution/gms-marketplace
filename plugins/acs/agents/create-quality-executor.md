@@ -74,7 +74,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>docs/quality/test-strategy.md</file>
     <file>docs/quality/coverage-policy.md</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="5000" cost-usd="0.07"/>
   <stop-reason>Both quality/ files written, tailored to the detected stack.</stop-reason>
 </result>
 ```

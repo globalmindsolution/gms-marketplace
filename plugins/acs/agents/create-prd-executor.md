@@ -108,7 +108,6 @@ Self-check it:
     <file>/abs/repo/docs/product/roadmap.md</file>
     <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="35000" tokens-output="9000" cost-usd="0.21"/>
   <stop-reason>PRD and roadmap written per iter-1 plan; all 8 sections populated.</stop-reason>
 </result>
 ```

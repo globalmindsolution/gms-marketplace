@@ -152,7 +152,6 @@ Self-check it:
     <finding severity="blocking" dimension="measurable-metrics" file="docs/product/prd.md">Goal G2 "delight power users" has no measurable metric (no value/unit/timeframe).</finding>
     <finding severity="blocking" dimension="roadmap-coverage" file="docs/product/roadmap.md">Must-have feature F4 (bulk import) appears in no milestone.</finding>
   </findings>
-  <metrics tokens-input="28000" tokens-output="5000" cost-usd="0.11"/>
   <stop-reason>Verification complete: 9 of 11 dimensions pass, 2 blocking findings.</stop-reason>
 </result>
 ```

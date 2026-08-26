@@ -871,8 +871,7 @@ MANDATORY final step — never skipped, also on failure:
    the specs that ARE implemented and green, the achieved
    `tests.coverage_percent`, docs actually updated, open findings in
    `findings` and `review.findings_open`, and the reason (coverage hard fail,
-   iteration cap, needs input) in `stop_reason`. Always fill `tokens` and
-   `cost_usd` with your best estimates for this run.
+   iteration cap, needs input) in `stop_reason`.
 
 2. Run the post-hook:
 

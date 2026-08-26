@@ -16,6 +16,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
@@ -182,6 +183,113 @@ class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):
         self.assertIsNone(payload["epic_marked_in_progress"])
         epic_after = acs_case.lib.load_ticket(epic_dir)
         self.assertEqual(epic_after["status"], "in_progress")
+
+
+def _write_marker(ws, ckid, **overrides):
+    """Write a session marker at sessions/<ckid>-session.json, fresh and
+    same-checkout by default; overrides let a test make it stale/foreign."""
+    marker = {
+        "session_id": "sess-abc",
+        "transcript_path": "/tmp/sess-abc.jsonl",
+        "cwd": "/wherever",
+        "checkout_id": ckid,
+        "hook_event_name": "PreToolUse",
+        "skill": "acs:code",
+        "updated_at": acs_case.lib.now_iso(),
+    }
+    marker.update(overrides)
+    acs_case.lib.write_json(
+        acs_case.lib.session_marker_path(ws, REPO_ID, ckid), marker)
+    return marker
+
+
+class TestSessionMarkerThreading(acs_case.AcsWorkspaceCase):
+    """118/125/189: skill-start.py reads the session marker as its first
+    action after build_context and before the --pr branch, applies the
+    staleness/cross-session guard, and threads the accepted (or None) marker
+    into append_in_progress_run(..., session=marker)."""
+
+    def test_fresh_same_checkout_marker_is_threaded_onto_the_run_entry(self):
+        _mint(self.ws, "SHOP-60")
+        ckid = acs_case.lib.checkout_id(self.repo)
+        _write_marker(self.ws, ckid)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-60"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-60")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-60")["runs"][-1]
+        self.assertEqual(entry["session_id"], "sess-abc")
+        self.assertEqual(entry["transcript_path"], "/tmp/sess-abc.jsonl")
+
+    def test_foreign_checkout_marker_is_rejected(self):
+        _mint(self.ws, "SHOP-61")
+        ckid = acs_case.lib.checkout_id(self.repo)
+        _write_marker(self.ws, ckid, checkout_id="some-other-checkout-deadbeef")
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-61"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-61")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-61")["runs"][-1]
+        self.assertNotIn("session_id", entry)
+        self.assertNotIn("transcript_path", entry)
+
+    def test_stale_marker_older_than_15_minutes_is_rejected(self):
+        _mint(self.ws, "SHOP-62")
+        ckid = acs_case.lib.checkout_id(self.repo)
+        stale = (datetime.now(timezone.utc) - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _write_marker(self.ws, ckid, updated_at=stale)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-62"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-62")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-62")["runs"][-1]
+        self.assertNotIn("session_id", entry)
+
+    def test_marker_within_15_minutes_is_accepted(self):
+        _mint(self.ws, "SHOP-63")
+        ckid = acs_case.lib.checkout_id(self.repo)
+        fresh_enough = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        _write_marker(self.ws, ckid, updated_at=fresh_enough)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-63"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-63")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-63")["runs"][-1]
+        self.assertEqual(entry["session_id"], "sess-abc")
+
+    def test_marker_with_unparseable_updated_at_is_rejected(self):
+        _mint(self.ws, "SHOP-65")
+        ckid = acs_case.lib.checkout_id(self.repo)
+        _write_marker(self.ws, ckid, updated_at="not-a-timestamp")
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-65"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-65")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-65")["runs"][-1]
+        self.assertNotIn("session_id", entry)
+
+    def test_no_marker_present_leaves_entry_without_session_fields(self):
+        _mint(self.ws, "SHOP-64")
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--ticket", "SHOP-64"])
+        self.assertEqual(code, 0, err)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-64")
+        entry = acs_case.lib.load_state(tdir, "code", "SHOP-64")["runs"][-1]
+        self.assertNotIn("session_id", entry)
+        self.assertNotIn("transcript_path", entry)
 
 
 if __name__ == "__main__":

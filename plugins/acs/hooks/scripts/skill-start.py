@@ -25,12 +25,36 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 
 
 _PR_VIEW_FIELDS = "number,state,headRefName,baseRefName,labels,isDraft,url"
+_SESSION_MARKER_MAX_AGE_SECONDS = 15 * 60
+
+
+def _accepted_session_marker(ctx):
+    """Read the pre-hook's session marker (acs_lib.record_session_marker) and
+    apply the staleness/cross-session guard: accepted only when it belongs to
+    this checkout and is at most 15 minutes old. Anything else -- absent,
+    foreign checkout_id, unparseable/missing updated_at, or stale -- is
+    treated as absent (None). Never falls back to constructing a marker from
+    cwd (that reintroduces the tabp cwd-slug defect)."""
+    marker = lib.read_json(
+        lib.session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
+    if not isinstance(marker, dict):
+        return None
+    if marker.get("checkout_id") != ctx["checkout_id"]:
+        return None
+    updated_at = lib.parse_iso(marker.get("updated_at"))
+    if updated_at is None:
+        return None
+    age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
+    if age_seconds > _SESSION_MARKER_MAX_AGE_SECONDS:
+        return None
+    return marker
 
 
 def _pr_view(number):
@@ -120,6 +144,8 @@ def main():
         sys.stderr.write("acs skill-start: %s\n" % exc)
         sys.exit(2)
 
+    session_marker = _accepted_session_marker(ctx)
+
     # Exempt non-ticket PR mode (MAR-9): no ticket resolution, no partition/lock/
     # pointer/state. Slots BEFORE all of that and returns.
     if args.pr is not None:
@@ -186,7 +212,7 @@ def main():
         handoff_summary = entry.get("handoff_summary")
     reconcile = prior_status in ("in_progress", "failed", "interrupted", "handed_off")
 
-    lib.append_in_progress_run(tdir, args.skill, ticket_id)
+    lib.append_in_progress_run(tdir, args.skill, ticket_id, session=session_marker)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", flow=flow)
 
     # Work starts: ticket open -> in_progress; first child activity flips the epic.

@@ -11,6 +11,9 @@ erDiagram
     REPO_PARTITION ||--|| COUNTERS : "id sequence"
     REPO_PARTITION ||--|| METRICS : "aggregates"
     REPO_PARTITION ||--o{ SESSION_POINTER : "one per checkout/worktree"
+    REPO_PARTITION ||--o| SESSION_MARKER : "one per checkout, ticket-independent (MAR-1)"
+    REPO_PARTITION ||--o{ COST_SAMPLE : "append-only log, one per checkout (MAR-1)"
+    REPO_PARTITION ||--o| COST_CURSOR : "one per checkout (MAR-1)"
     TICKET ||--o{ SKILL_STATE : "one per skill that ran"
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
@@ -18,6 +21,10 @@ erDiagram
     TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the three non-/code non-/docs-sync non-/create-project non-/standardize-project non-/create-prd non-/create-quality non-/create-standards non-/create-operations non-/create-principles triad skills"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
+    RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
+    SESSION_MARKER ||--o| RUN_ENTRY : "read at skill-start, threaded onto the new entry (MAR-1)"
+    RUN_ENTRY }o--o{ COST_SAMPLE : "cost consumed from the log via the cursor (MAR-1)"
+    COST_CURSOR ||--|| COST_SAMPLE : "advances to the newest consumed sample (MAR-1)"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
     TICKET ||--o| PLAN : "exactly one phases/code/plan.md, authored once per run before the loop"
     PLAN ||--o{ PLAN_SUPERSEDED : "one plan-superseded-<k>.md per revocation; byte-identical copy, never deleted"
@@ -63,17 +70,53 @@ erDiagram
     RUN_ENTRY {
         datetime started_at
         datetime ended_at
-        json tokens "input/output"
-        number cost_usd
+        string session_id "captured off the PreToolUse envelope via the session marker; null when no marker was accepted (MAR-1)"
+        string transcript_path "exact recorded path, never a constructed slug (MAR-1)"
+        string checkout_id "needed at finalize time to locate this checkout's cost-sample/cursor files (MAR-1)"
+        json tokens "input/output/cache_creation/cache_read -- raw measured counts, MAR-1 widened the allow-list"
+        number cost_usd "null means cost_basis=unavailable, never a fabricated 0 (MAR-1)"
+        enum cost_basis "measured|apportioned|unavailable (MAR-1, ADR 0082)"
+        enum cost_scope "session_total|main_session_only on a charge; reused as the degraded reason (no_unconsumed_sample_in_window|cost_total_reset) when cost_usd is null (MAR-1)"
+        number excluded_cost_usd "the unattributed same-window slice dropped per C-8, never redistributed (MAR-1)"
+        number excluded_token_share "0..1 (MAR-1)"
         enum status "in_progress|completed|failed|interrupted|handed_off"
         string stop_reason
         string handoff_summary "when handed_off"
+    }
+    ROLE_USAGE {
+        string role "coordinator|planner|executor|verifier|other|unattributed (MAR-1)"
+        int input
+        int output
+        int cache_creation
+        int cache_read
+        number cost_usd "null on an unattributed entry, which never receives a dollar share (MAR-1)"
+        enum cost_basis "measured|apportioned|unavailable (MAR-1)"
+    }
+    SESSION_MARKER {
+        string checkout_id PK "sessions/<checkout_id>-session.json, sibling of SESSION_POINTER (MAR-1)"
+        string session_id
+        string transcript_path
+        string cwd
+        string hook_event_name
+        string skill "off tool_input.skill, raw acs:<name> value"
+        datetime updated_at "staleness guard: rejected if > 15 min old or checkout_id mismatches"
+    }
+    COST_SAMPLE {
+        string checkout_id FK "sessions/<checkout_id>-cost-samples.jsonl, append-only, rotated past 64 KiB (MAR-1)"
+        datetime ts
+        number total_cost_usd "session-cumulative, monotonic barring a session reset"
+        string src "the matched probe key path, e.g. cost.total_cost_usd"
+    }
+    COST_CURSOR {
+        string checkout_id PK "sessions/<checkout_id>-cost-cursor.json -- the 'before' edge for the next allocate_cost call (MAR-1)"
+        datetime ts
+        number total_cost_usd
     }
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
         json steps "per-skill status/timestamps/summary"
-        json totals "runs, seconds, tokens, cost"
+        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
     CLARIFICATIONS {
@@ -171,6 +214,18 @@ exactly once) and carries **no** `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
 semantics — no new entity block is added for it; the cardinality change is
 captured entirely by the narrowed `PHASE_ARTIFACT` relationship label above.
 Zero migration: no new state key, no new schema field, no new artifact path.
+
+**Amendment (MAR-1, ADR 0082) — closes doc-graph gap E2.** Cost/time
+measurement replaced two self-estimated paths with real measurement: the
+`RUN_ENTRY` entity above gains `session_id`/`transcript_path`/`checkout_id`
+(session correlation), the widened `tokens` object, `cost_basis`/
+`cost_scope`/`excluded_cost_usd`/`excluded_token_share` (cost provenance),
+and a `ROLE_USAGE` breakdown; three new sibling entities —
+`SESSION_MARKER`, `COST_SAMPLE`, `COST_CURSOR` — are new files under
+`sessions/`, alongside the existing `SESSION_POINTER`. All of it is
+additive: no previously valid `RUN_ENTRY`/`PIPELINE_STATE` document becomes
+invalid, and `role_usage`/`cost_basis`/etc. are simply absent on any run
+entry finalized before this shipped (D7, forward-only — no backfill).
 
 **Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
 `/acs:create-standards`'s, `/acs:create-operations`'s, and

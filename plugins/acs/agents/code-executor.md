@@ -166,7 +166,6 @@ after it. Self-check it first:
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>
   </outputs>
-  <metrics tokens-input="120000" tokens-output="30000" cost-usd="0.95"/>
   <stop-reason>Spec 02 green: 84/84 tests pass, coverage 93.4% vs target 90, 2 commits.</stop-reason>
 </result>
 ```

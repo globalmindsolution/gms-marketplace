@@ -117,6 +117,126 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(state["errors"], ["boom"])
         self.assertEqual(entry["status"], "completed")
 
+    def test_persists_measured_tokens_and_role_usage_not_coordinator_self_report(self):
+        """AC-3: a coordinator-supplied tokens/cost_usd self-estimate in
+        `result` is ignored; the persisted figures come from
+        usage_reader/cost_sampler instead."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_role_usage = [
+            {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
+        ]
+        priced_role_usage = [
+            {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": 0.05, "cost_basis": "apportioned"},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "model": "claude", "role_usage": measured_role_usage,
+            }
+            allocate.return_value = (priced_role_usage, 0.05, "measured", "session_total", 0.0, 0.0)
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
+                "status": "completed",
+                "tokens": {"input": 999999, "output": 999999},
+                "cost_usd": 123.45,
+            })
+        read_usage.assert_called_once_with(
+            "/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"], "code")
+        allocate.assert_called_once_with(
+            os.path.dirname(os.path.dirname(self.tdir)), os.path.basename(os.path.dirname(self.tdir)),
+            "ck-1", entry["started_at"], entry["ended_at"], measured_role_usage)
+        self.assertEqual(entry["tokens"], {"input": 10, "output": 20, "cache_creation": 0, "cache_read": 0})
+        self.assertEqual(entry["role_usage"], priced_role_usage)
+        self.assertEqual(entry["cost_usd"], 0.05)
+        self.assertEqual(entry["cost_basis"], "measured")
+
+    def test_own_skill_is_threaded_through_to_usage_reader_not_hardcoded(self):
+        """finalize_run's own `skill` argument -- not a fixed constant -- is
+        what reaches usage_reader.read_transcript_usage, so a run's own-skill
+        filter always matches this run's own skill, whichever skill it is."""
+        lib.append_in_progress_run(self.tdir, "create-design", "SHOP-1", session={
+            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
+        })
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "model": "claude", "role_usage": [],
+            }
+            allocate.return_value = ([], None, "unavailable", "session_total", 0.0, 0.0)
+            state, entry = lib.finalize_run(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
+        read_usage.assert_called_once_with(
+            "/fake/sess-2.jsonl", entry["started_at"], entry["ended_at"], "create-design")
+
+    def test_no_session_id_finalizes_completed_with_cost_unavailable_and_no_transcript_io(self):
+        """Required short-circuit (Risk R-N): a run entry with no session_id/
+        transcript_path (e.g. new-ticket.py's synthetic create-ticket runs)
+        performs NO transcript I/O and finalizes as completed/unavailable."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        read_usage.assert_not_called()
+        self.assertEqual(entry["status"], "completed")
+        self.assertIsNone(entry["cost_usd"])
+        self.assertEqual(entry["cost_basis"], "unavailable")
+        self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+
+    def test_degraded_transcript_read_never_charges_or_calls_allocate_cost(self):
+        """FIX 2: a degraded usage_reader result (unreadable file, cap
+        breach, no tokens in window, ...) must never look like a successful
+        measurement -- cost_usd stays None/cost_basis="unavailable", tokens
+        stay empty, role_usage stays empty, and allocate_cost is never
+        invoked (no degraded run may consume a real cost sample or advance
+        the per-checkout cursor)."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": True, "reason": "cap_exceeded", "model": None, "role_usage": [],
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        allocate.assert_not_called()
+        self.assertIsNone(entry["cost_usd"])
+        self.assertEqual(entry["cost_basis"], "unavailable")
+        self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+        self.assertEqual(entry["role_usage"], [])
+
+    def test_ticket_rollup_reflects_only_attributed_spend_not_full_delta(self):
+        """FIX 1 composition test: finalize_run persists cost_sampler's
+        attributed-only cost_usd onto the run entry, and compute_ticket_totals
+        sums exactly that figure -- a ticket with a non-zero excluded_token_share
+        on one of its runs must never roll up the full (unattributed-inclusive)
+        session-window delta into its cost_usd total."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_role_usage = [
+            {"role": "executor", "input": 25, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 75, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        # delta was 10.0; 75% of tokens are unattributed -> attributed-only
+        # cost_usd of 2.5, matching cost_sampler.allocate_cost's own contract.
+        priced_role_usage = [
+            {"role": "executor", "input": 25, "output": 0, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": 2.5, "cost_basis": "apportioned"},
+            {"role": "unattributed", "input": 75, "output": 0, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": None, "cost_basis": "unavailable"},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "model": "claude", "role_usage": measured_role_usage,
+            }
+            allocate.return_value = (priced_role_usage, 2.5, "measured", "session_total", 7.5, 0.75)
+            lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+
+        totals = lib.compute_ticket_totals(self.tdir)
+        self.assertEqual(totals["cost_usd"], 2.5)
+        self.assertEqual(totals["runs_cost_measured"], 1)
+
 
 class TestRecordEscalationEventRequiresRun(unittest.TestCase):
     """1115: raises ValueError when no run entry exists to attach the event to."""
@@ -143,7 +263,103 @@ class TestComputeTicketTotals(unittest.TestCase):
         ]})
         totals = lib.compute_ticket_totals(tdir)
         self.assertEqual(totals["runs"], 1)
-        self.assertEqual(totals["tokens"], {"input": 1, "output": 2})
+        self.assertEqual(totals["tokens"], {"input": 1, "output": 2, "cache_creation": 0, "cache_read": 0})
+
+    def test_none_elapsed_run_excluded_from_working_seconds_not_zeroed(self):
+        """AC-1: a completed run plus an in-progress (no ended_at) run yields
+        runs==2, runs_timed==1, runs_untimed==1, and working_seconds equal to
+        the completed run's seconds alone — excluded, not counted as zero."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
+            {"status": "in_progress", "started_at": "2026-01-01T01:00:00Z"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs"], 2)
+        self.assertEqual(totals["runs_timed"], 1)
+        self.assertEqual(totals["runs_untimed"], 1)
+        self.assertEqual(totals["working_seconds"], 300)
+
+    def test_legacy_run_with_absent_cost_basis_excluded_from_cost_totals(self):
+        """C-11: a pre-cutover run entry with no cost_basis field at all is
+        treated the same as cost_basis="unavailable" -- excluded from the
+        cost_usd sum and counted in runs_cost_unavailable, never
+        runs_cost_measured."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
+            {"status": "completed", "started_at": "2026-01-01T01:00:00Z",
+             "ended_at": "2026-01-01T01:05:00Z",
+             "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs_cost_unavailable"], 1)
+        self.assertEqual(totals["runs_cost_measured"], 1)
+        self.assertEqual(totals["cost_usd"], 0.75)
+
+    def test_cache_tokens_summed_into_ticket_totals_not_dropped(self):
+        """FIX 3: cache_creation/cache_read are the dominant token volume --
+        compute_ticket_totals must accumulate all four token fields from each
+        run entry's tokens dict, not silently drop the cache pair."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 10, "output": 20, "cache_creation": 1000, "cache_read": 2000},
+             "cost_usd": 0.5, "cost_basis": "measured"},
+            {"status": "completed", "started_at": "2026-01-01T01:00:00Z",
+             "ended_at": "2026-01-01T01:05:00Z",
+             "tokens": {"input": 5, "output": 7, "cache_creation": 300, "cache_read": 400},
+             "cost_usd": 0.25, "cost_basis": "measured"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["tokens"], {"input": 15, "output": 27, "cache_creation": 1300, "cache_read": 2400})
+
+
+class TestUpdateMetricsCostBasisExclusion(unittest.TestCase):
+    """C-11: update_metrics excludes a run entry with absent (legacy) or
+    "unavailable" cost_basis from the repo-level cost_usd sum, counting it
+    in runs_cost_unavailable rather than runs_cost_measured."""
+
+    def test_absent_cost_basis_excluded_present_measured_included(self):
+        workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, workspace, True)
+        lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+            "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5,
+        })
+        data = lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
+            "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured",
+        })
+        self.assertEqual(data["totals"]["runs_cost_unavailable"], 1)
+        self.assertEqual(data["totals"]["runs_cost_measured"], 1)
+        self.assertEqual(data["totals"]["cost_usd"], 0.75)
+
+    def test_cache_tokens_summed_into_repo_totals_not_dropped(self):
+        """FIX 3: repo-level totals must accumulate cache_creation/cache_read
+        from each run entry, same as the ticket-level rollup."""
+        workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, workspace, True)
+        lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+            "tokens": {"input": 1, "output": 2, "cache_creation": 100, "cache_read": 200},
+            "cost_usd": 0.5, "cost_basis": "measured",
+        })
+        data = lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
+            "tokens": {"input": 3, "output": 4, "cache_creation": 50, "cache_read": 75},
+            "cost_usd": 0.75, "cost_basis": "measured",
+        })
+        self.assertEqual(data["totals"]["tokens"],
+                          {"input": 4, "output": 6, "cache_creation": 150, "cache_read": 275})
 
 
 class TestAllocateTicketId(unittest.TestCase):

@@ -380,7 +380,6 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
    - `states.pr` (`number`, `url`, `branch`) only when a PR was opened.
    - `findings`: every open finding as
      `{"severity": "blocking|info", "dimension": "...", "detail": "..."}`.
-   - `tokens` / `cost_usd`: your estimates for this entire run, subagents included.
    - `handoff_summary`: only when `status` is `handed_off`.
 
 2. Run the post-hook:

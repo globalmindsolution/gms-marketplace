@@ -108,7 +108,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>docs/architecture/hld/c4-container.md</file>
     <file>docs/architecture/lld/flows/checkout.md</file>
   </outputs>
-  <metrics tokens-input="55000" tokens-output="14000" cost-usd="0.48"/>
   <stop-reason>All 9 planned doc files written; HLD/LLD participants cross-checked.</stop-reason>
 </result>
 ```
