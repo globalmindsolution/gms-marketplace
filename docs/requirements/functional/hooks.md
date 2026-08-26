@@ -35,6 +35,15 @@ A pre-hook runs before its skill and checks **readiness**:
   `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
   `.lock` file and exit 2 if another session holds it
   ([workspace-and-state.md](workspace-and-state.md)).
+- A pre-hook is not purely a gate: it also **records** the
+  ticket-independent session-correlation marker (`session_id`,
+  `transcript_path`, `cwd`, `skill`) off the genuine `PreToolUse(Skill)` hook
+  envelope into `sessions/<checkout-id>-session.json`, inside its own
+  fail-open guard so a marker-write failure can never turn into a blocked
+  gate. The next skill's start step reads that marker (rejecting a foreign
+  `checkout_id` or one older than 15 minutes) to correlate real cost/time
+  measurement with this run (MAR-1,
+  [workspace-and-state.md](workspace-and-state.md)).
 
 **Exit code contract:**
 
@@ -127,7 +136,10 @@ examples given in the requirements; exact names to confirm.
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
   skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
-  branch name ([workflow.md](workflow.md#ticket-context)).
+  branch name ([workflow.md](workflow.md#ticket-context)). Since MAR-1, the
+  `sessions/` directory holds more than this pointer per checkout — see the
+  session-correlation marker and cost-sample/cursor files in
+  [workspace-and-state.md](workspace-and-state.md).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.
 - **Validation**: hooks perform lightweight structural validation of the

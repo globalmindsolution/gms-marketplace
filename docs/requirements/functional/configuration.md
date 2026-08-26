@@ -154,11 +154,25 @@ configured under `models`:
 ### Status lines (optional)
 
 The plugin ships two status-line scripts — a prompt line (active ticket +
-pipeline step glyphs + cost, straight from workspace state) and an
-agent-panel line (live rows for the reflection subagents). `statusLine` /
-`subagentStatusLine` are the **user's** Claude Code settings: `/initialize` offers
-the wiring opt-in (user or project scope, resolved absolute paths, never
-overwriting an existing value) — the plugin never forces them.
+pipeline step glyphs + cost) and an agent-panel line (live rows for the
+reflection subagents). `statusLine` / `subagentStatusLine` are the **user's**
+Claude Code settings: `/initialize` offers the wiring opt-in (user or project
+scope, resolved absolute paths, never overwriting an existing value) — the
+plugin never forces them.
+
+Since MAR-1, the prompt line's `statusLine` script is not a pure renderer:
+on every invocation it also **samples and persists** the real cost figure
+Claude Code piped it on stdin (`cost_sampler.record_cost_sample`), fail-open
+and ticket-independent, so samples accumulate even before a ticket's first
+run can be measured against them. The `~$…` figure it displays now means the
+**latest real session-cumulative cost sample** when one exists, falling back
+to `pipeline.totals.cost_usd` (the ticket's own recomputed total) only when
+no sample has been recorded yet for the checkout — a change from the prior
+pure-workspace-state reading. Declining the `statusLine` opt-in at
+`/acs:initialize` leaves per-run cost figures rendering as `unavailable`;
+token counts stay `measured` regardless, since they come from the Claude
+Code transcript, not the statusLine payload
+([ADR 0080](../../adr/0080-session-anchored-transcript-measurement-statusline-cost-apportionment.md)).
 
 ## Validation rules
 

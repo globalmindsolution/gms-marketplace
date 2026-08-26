@@ -280,21 +280,28 @@ from the wall-clock lead/cycle times in Panel 7 above.
 Token and cost spend bucketed by role — **coordinator**, **planner**,
 **executor**, **verifier**, plus **other** (a subagent whose
 `attributionAgent` doesn't match the planner/executor/verifier suffix
-convention, e.g. `Explore`) and **unknown-skill** (a main-session
-`attributionSkill` value not in acs's own skill registry). For each ticket,
-the spend is summed from each `runs[]` entry's measured `role_usage` field
-(`metrics_aggregate._accumulate_burn`), persisted by `finalize_run` at
-measurement time (MAR-1, ADR 0080) — **not** from the retired `<metrics>`
-XML element, which no longer exists on any phase artifact.
+convention, e.g. `Explore`) and **unattributed** (a main-session record with
+no attribution, or one attributed to a different acs skill than the run's
+own — see below). For each ticket, the spend is summed from each `runs[]`
+entry's measured `role_usage` field (`metrics_aggregate._accumulate_burn`),
+persisted by `finalize_run` at measurement time (MAR-1, ADR 0080) — **not**
+from the retired `<metrics>` XML element, which no longer exists on any
+phase artifact.
 
 The **coordinator** bucket (main-session work attributed to the run's own
 skill) is now first-class and present, resolving the prior silent exclusion
 of the `coordinate` phase. An **unattributed** slice — same-window tokens
-with no attribution at all — is dropped from the ticket's cost rather than
-redistributed onto an attributed role (C-8); it is visible via each run
-entry's `excluded_cost_usd`/`excluded_token_share`, not silently absorbed.
-Tickets with no measured `role_usage` on any run (e.g. every run predates
-this cutover, or every run degraded) contribute `0`.
+with no attribution, or attributed to a different acs skill than this run's
+own (`usage_reader._skill_role`) — is dropped from the ticket's cost rather
+than redistributed onto an attributed role (C-8). This slice is reported
+twice: per run entry via `excluded_cost_usd`/`excluded_token_share`, and
+accumulated across the ticket as a literal `unattributed` role bucket by
+`_accumulate_burn`, so it is never silently absorbed. `/acs:metrics` and
+`/acs:usage` render every bucket the aggregate produces — `coordinator` is
+always shown, and `other`/`unattributed` rows appear whenever the ticket has
+any such spend (`metrics_render.ROLE_ORDER` plus its dynamic extra-role
+rows). Tickets with no measured `role_usage` on any run (e.g. every run
+predates this cutover, or every run degraded) contribute `0`.
 
 ## Degradation and the `meta` block
 

@@ -205,7 +205,8 @@ existing workspace state — no network, no new config key, nothing written.
   (headline spend KPIs — total cost, total working time, total runs, plus four
   averages: avg working time per ticket and per merged PR, avg cost per ticket
   and per merged PR), cost + time per ticket by step with the four averages, and
-  token burn by role (planner/executor/verifier).
+  token burn by role (coordinator/planner/executor/verifier/other, plus
+  `unattributed` whenever the ticket has any such spend).
 - The coordinator **routes** the aggregate JSON through `metrics_render.py
   --view usage`: **terminal** (Claude Code CLI default) or `--html`
   (self-contained HTML → `show_widget`). Rendering is deterministic and
