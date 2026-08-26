@@ -132,7 +132,7 @@ Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iterati
 
 ```xml
 <task skill="create-prd" phase="plan" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (greenfield/brownfield/amend); produce the prd.md and roadmap.md outline, the elicitation or reverse-engineering plan, and the open questions for the user.</objective>
+  <objective>Classify mode (greenfield/brownfield/amend); produce the prd.md and roadmap.md outline, the elicitation or reverse-engineering plan, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the verifier's deterministic floor parses.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/product/prd.md</file>
@@ -202,11 +202,16 @@ finish and judges the combined result.
 ### Verify
 
 Spawn the verifier (`phase="verify"`) with ONLY artifact references (the two files,
-the ticket, the git diff) — never the executor's reasoning. Its `<constraints>` also
-carry `required_sections` and `audience_style_profile` (both declared above in the
+the ticket, the git diff) — never the executor's reasoning. Its `<inputs>` also carry
+`<partition>/clarifications.json`, and its `<constraints>` also carry
+`required_sections`, `audience_style_profile` (both declared above in the
 Plan task example — the same eight-section list the executor was instructed to write,
-so the structure gate has no second, driftable copy). It re-reads everything fresh
-and checks, all findings blocking:
+so the structure gate has no second, driftable copy), and `repo_root` (the consumer
+repo root, for the plan-conformance code-evidence family). In amend mode, the
+verifier itself derives the `--added-heading` values its plan-conformance check
+needs from its own `git diff -- <settings.prd_path>` (already dimension 8's
+mechanism): every `+###`/`+####` heading line added to `roadmap.md`. It re-reads
+everything fresh and checks, all findings blocking:
 
 - all eight required `prd.md` sections present and non-empty, plus `roadmap.md`;
 - every feature traces to at least one goal; no orphan features, no goal without a
