@@ -61,17 +61,17 @@ create-principles, create-standards, create-design, code, docs-sync,
 standardize-project, create-requirements) run the full plan→execute→verify
 reflection loop, spawning a separate planner, executor, and verifier subagent
 per phase — so **12 active triads (36 agents in triads)**. Within that
-twelve, `/acs:code`, `/acs:docs-sync`, `/acs:create-project`, and
-`/acs:standardize-project` (MAR-71/300/301/302) spawn the planner once per
+twelve, `/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
+`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
+`/acs:create-standards`, `/acs:create-operations`, and
+`/acs:create-principles` (MAR-71/300/301/302/305) spawn the planner once per
 run instead of per iteration — timing only; counts above hold.
-The **three apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**
-(MAR-60): the coordinator performs the work
-directly or delegates to **at most one** executor subagent, and **never
-spawns a planner or verifier** in any lane. Their correctness is gated
-otherwise — create-ticket by its schema plus the Step-2 user-confirmation
-gate, create-pr/merge-pr verifier-gated upstream by `/code`'s verifier
-(`code-state.json` `states.verifier_passed == true`). With the 3 reachable
-apply-work executors that is **39 reachable agents**; the 6 plan/verify
+The **three apply-work skills** (create-ticket, create-pr, merge-pr) run
+**inline** (MAR-60): the coordinator does the work directly, or delegates
+to **at most one** executor — never a planner or verifier, any lane.
+Correctness is gated instead: create-ticket by schema + Step-2
+confirmation; create-pr/merge-pr by `/code`'s verifier. 3 reachable
+apply-work executors give **39 reachable agents**; the 6 plan/verify
 files of the apply-work skills remain on disk but are orphaned. Within the
 12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
 planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the

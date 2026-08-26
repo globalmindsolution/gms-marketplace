@@ -15,7 +15,7 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the eight non-/code non-/docs-sync non-/create-project non-/standardize-project triad skills"
+    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the three non-/code non-/docs-sync non-/create-project non-/standardize-project non-/create-prd non-/create-quality non-/create-standards non-/create-operations non-/create-principles triad skills"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
@@ -106,9 +106,10 @@ erDiagram
 ```
 
 **PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
-MAR-74 slice 4, by MAR-300, by MAR-301 and by MAR-302).** The `"execute/verify
-per iteration; plan per iteration for the eight non-/code non-/docs-sync
-non-/create-project non-/standardize-project triad skills"` cardinality above already carves out
+MAR-74 slice 4, by MAR-300, by MAR-301, by MAR-302, and by MAR-305).** The `"execute/verify
+per iteration; plan per iteration for the three non-/code non-/docs-sync
+non-/create-project non-/standardize-project non-/create-prd non-/create-quality
+non-/create-standards non-/create-operations non-/create-principles triad skills"` cardinality above already carves out
 `/acs:code`'s plan leg. `/acs:code`'s plan artifact is
 a single per-ticket `phases/code/plan.md`, written **exactly once per run**,
 before the loop, so `/acs:code` has one plan artifact per ticket regardless of
@@ -170,6 +171,20 @@ exactly once) and carries **no** `PLAN_APPROVAL` / `PLAN_SUPERSEDED`
 semantics — no new entity block is added for it; the cardinality change is
 captured entirely by the narrowed `PHASE_ARTIFACT` relationship label above.
 Zero migration: no new state key, no new schema field, no new artifact path.
+
+**Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
+`/acs:create-standards`'s, `/acs:create-operations`'s, and
+`/acs:create-principles`'s plan artifacts (`phases/<skill>/iter-1-plan.md`
+each) now have the same "exactly one per run, authored before the loop,
+never rewritten in place on a later iteration" cardinality as `/acs:code`'s
+`plan.md`, `/acs:docs-sync`'s, `/acs:create-project`'s, and
+`/acs:standardize-project`'s `iter-1-plan.md` above. Like those four, each of
+these five skills keeps the `iter-<n>-plan.md` **name** (`n` is always 1,
+since the plan phase runs exactly once) and carries **no** `PLAN_APPROVAL` /
+`PLAN_SUPERSEDED` semantics — no new entity block is added for any of them;
+the cardinality change is captured entirely by the narrowed `PHASE_ARTIFACT`
+relationship label above. Zero migration: no new state key, no new schema
+field, no new artifact path.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 
