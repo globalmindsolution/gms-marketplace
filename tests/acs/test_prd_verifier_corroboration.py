@@ -267,10 +267,16 @@ class SkillMirrorTest(unittest.TestCase):
         self.assertIn("--added-heading", norm)
         self.assertIn("git diff -- <settings.prd_path>", norm)
 
-    def test_loop_topology_unchanged(self):
-        self.assertRegex(
+    def test_loop_topology_migrated_by_mar305(self):
+        self.assertNotRegex(
             self.body.lower(), r"plan -> execute -> verify",
-            "create-prd/SKILL.md must still carry the per-iteration re-spawn sentence")
+            "create-prd/SKILL.md must no longer carry the per-iteration "
+            "re-spawn sentence (MAR-305 drops it)")
+        norm = re.sub(r"\s+", " ", self.body)
+        self.assertRegex(
+            norm, r"(?i)exactly one.{0,80}acs:create-prd-planner",
+            "create-prd/SKILL.md must carry the single-planner-spawn topology "
+            "sentence")
 
 
 class Drift1Test(unittest.TestCase):
