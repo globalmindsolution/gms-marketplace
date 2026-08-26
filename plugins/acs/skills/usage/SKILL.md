@@ -75,15 +75,21 @@ same input — and present what it emits. Both surfaces invoke the renderer with
     | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/metrics_render.py" --view usage --html
   ```
 
-The usage view renders exactly three panels:
+The usage view renders exactly four panels:
 
 1. **Usage summary** — total and average cost, token consumption, run count, and
    working time across all tickets in the workspace.
 3. **Cost and time per ticket by pipeline step** — per-ticket rows broken down by
    pipeline step (working time and spend), with the four per-ticket / per-PR
    averages: avg cost, avg tokens, avg working time, avg duration per PR.
-6. **Token burn by role** — input/output tokens and cost bucketed into the three
-   roles planner / executor / verifier.
+6. **Token burn by role** — input/output tokens and cost bucketed into the four
+   roles planner / executor / verifier / coordinator, plus any dynamic
+   `other`/`unattributed` extras present in the data.
+7. **Usage by model** — input, output, cache-write, and cache-read tokens and
+   cost per model, at both repo scope and per ticket. Its cost pool is the
+   run's full charged delta with no unattributed-token exclusion, so
+   `sum(model_usage.cost_usd)` can exceed panel 6's attributed-only total by
+   `excluded_cost_usd` — a documented reconciliation identity, not a bug.
 
 PM-only panels (delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS,
 DEADLINE, coverage achieved vs target, review iterations, lead/cycle time) are
