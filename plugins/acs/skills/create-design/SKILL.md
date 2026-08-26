@@ -315,8 +315,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    `design_path` is partition-relative (always `"design.md"`); `decision` is the
    one-line decision statement from "Decision & rationale". On `failed`: keep
    whatever is true (e.g. `design_path` if a draft exists), put the verifier's
-   blocking findings in `findings`, and the reason in `stop_reason`. Estimate
-   `tokens`/`cost_usd` for this run from your subagent usage.
+   blocking findings in `findings`, and the reason in `stop_reason`.
 
 2. Run:
 

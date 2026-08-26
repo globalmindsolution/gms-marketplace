@@ -107,14 +107,13 @@ Escape `&` and `<` inside text content. Self-check before replying:
     <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-plan.md</file>
   </outputs>
   <errors/>
-  <metrics tokens-input="12000" tokens-output="3500" cost-usd="0"/>
   <stop-reason>Plan complete: 18-file scaffold, 4 verification commands, 2 risks named</stop-reason>
 </result>
 ```
 
 Use `status="completed"` when the plan is written, `failed` when planning is impossible
 (record why in `<errors>` and `<stop-reason>`), `needs_input` with `<questions>` when the
-user must decide. Estimate `<metrics>` honestly; never fabricate precision.
+user must decide.
 
 ## Grounding (anti-hallucination)
 

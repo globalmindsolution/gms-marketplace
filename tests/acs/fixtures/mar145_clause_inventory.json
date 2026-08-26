@@ -161,7 +161,6 @@
     "workspace-and-state.md": [
       "([workflow.md](workflow.md#resuming-a-ticket)). **[ASSUMPTION]** A",
       "**[ASSUMPTION]** Illustrative shape:",
-      "- **[ASSUMPTION]** The coordinator reports token/cost usage in its XML",
       "- Different tickets (different partitions) MUST be safely workable in",
       "- Skills MUST handle a partially-written/corrupt state file gracefully",
       "- State files MUST be valid JSON and SHOULD be human-readable",

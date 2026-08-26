@@ -176,4 +176,21 @@ no network call:
 - **`/usage`** (usage view) — usage summary (total cost, time, runs, and four
   averages), cost + time per ticket by pipeline step with the four averages
   (avg working time and cost per ticket and per merged PR), and token burn by
-  role (planner/executor/verifier).
+  role (coordinator/planner/executor/verifier/other, plus an `unattributed`
+  bucket for same-window tokens with no attribution or attributed to a
+  different acs skill than the run's own — `coordinator` is always rendered,
+  `other`/`unattributed` appear whenever the ticket has any such spend).
+  Every cost figure carries a `cost_basis` — `measured` (the
+  attributed-token share of the real session-window dollar delta sampled
+  from Claude Code's own statusLine cost payload — that delta net of the
+  excluded/unattributed token share, per the "drop, don't redistribute"
+  policy — still sourced directly from Claude Code's own real number, never
+  an acs-invented estimate), `apportioned` (that same attributed share split
+  further across roles by measured token share), or `unavailable` (no
+  fabricated number; excluded from sums, not zero-padded) — plus a
+  `cost_scope`: `session_total` or `main_session_only` (a statusLine total
+  proved not to include subagent spend) on a charge, reused as
+  `no_unconsumed_sample_in_window` or `cost_total_reset` to carry the
+  degraded reason when `cost_usd` is `null`. There is no
+  `pricing_snapshot_date`: acs owns no price table, so no derived-from-a-price-list
+  framing applies (MAR-1, ADR 0082).

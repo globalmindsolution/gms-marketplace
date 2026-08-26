@@ -164,7 +164,6 @@ after it. Self-check it first:
   <questions>
     <question>Brownfield: the "reports" module has no route/CLI entry point — reverse-engineer from its module docstring only, or mark [OPEN]?</question>
   </questions>
-  <metrics tokens-input="22000" tokens-output="4000" cost-usd="0.08"/>
   <stop-reason>Plan complete (mode: brownfield); 1 open question needs a user answer before execute.</stop-reason>
 </result>
 ```

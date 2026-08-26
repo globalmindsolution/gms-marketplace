@@ -44,6 +44,14 @@ PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
 
+# Explicit override for observed attributionSkill values (transcript records
+# carry "acs:<value>") that do not literally match a skill name once the
+# "acs:" prefix is stripped -- e.g. the initialize skill's own attribution
+# value is observed as "acs:init", not "acs:initialize". Covers both
+# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, initialize)
+# are observed as attributionSkill values even though they write no run entry.
+ATTRIBUTION_SKILL_MAP = {"init": "initialize"}
+
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
@@ -927,6 +935,30 @@ def pointer_path(workspace, repo_id, ckid):
     return os.path.join(sessions_dir(workspace, repo_id), "%s.json" % ckid)
 
 
+def session_marker_path(workspace, repo_id, ckid):
+    """Ticket-independent session-correlation marker, sibling of pointer_path."""
+    return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
+
+
+def record_session_marker(ctx, payload):
+    """Persist the PreToolUse(Skill) envelope's session-correlation fields so
+    skill-start.py can thread them onto the new run entry without guessing.
+    Fields come straight off the envelope; a missing one is written as null,
+    never constructed (e.g. never a cwd-derived guess)."""
+    tool_input = payload.get("tool_input")
+    marker = {
+        "session_id": payload.get("session_id"),
+        "transcript_path": payload.get("transcript_path"),
+        "cwd": payload.get("cwd"),
+        "checkout_id": ctx["checkout_id"],
+        "hook_event_name": payload.get("hook_event_name"),
+        "skill": tool_input.get("skill") if isinstance(tool_input, dict) else None,
+        "updated_at": now_iso(),
+    }
+    write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
+    return marker
+
+
 def state_path(tdir, skill):
     return os.path.join(tdir, "%s-state.json" % skill)
 
@@ -1246,22 +1278,118 @@ def skill_completed(tdir, skill):
     return last_run_status(tdir, skill) == "completed"
 
 
-def append_in_progress_run(tdir, skill, ticket_id):
+def append_in_progress_run(tdir, skill, ticket_id, session=None):
+    """Append a new in_progress run entry. `session` (an accepted session
+    marker dict) is optional -- when given, its session_id/transcript_path are
+    persisted onto the entry; the default None keeps every existing caller's
+    entry shape byte-identical."""
     state = load_state(tdir, skill, ticket_id)
-    state["runs"].append({
+    entry = {
         "started_at": now_iso(),
         "ended_at": None,
         "tokens": {"input": 0, "output": 0},
         "cost_usd": 0.0,
         "status": "in_progress",
         "stop_reason": None,
-    })
+    }
+    if session:
+        entry["session_id"] = session.get("session_id")
+        entry["transcript_path"] = session.get("transcript_path")
+        # Needed at finalize time to locate this checkout's cost-sample/cursor
+        # files (cost_sampler.allocate_cost) -- schema-safe under the run
+        # entry's own additionalProperties:true.
+        entry["checkout_id"] = session.get("checkout_id")
+    state["runs"].append(entry)
     write_json(state_path(tdir, skill), state)
     return state
 
 
+_EMPTY_MEASURED_TOKENS = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}
+_TOKEN_TOTAL_FIELDS = ("input", "output", "cache_creation", "cache_read")
+
+
+def _sum_role_tokens(role_usage):
+    """Sum every role_usage bucket's four token fields (including an
+    'unattributed' bucket, if present) into one raw-measured totals dict."""
+    totals = dict(_EMPTY_MEASURED_TOKENS)
+    for item in role_usage:
+        if not isinstance(item, dict):
+            continue
+        for key in totals:
+            value = item.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[key] += value
+    return totals
+
+
+def _measure_run_usage(entry, tdir, skill):
+    """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
+    own recorded transcript (usage_reader) and priced via
+    cost_sampler.allocate_cost -- rather than trusting a coordinator's
+    self-reported result["tokens"]/result["cost_usd"] (AC-3).
+
+    Required short-circuit (Risk R-N): a run entry with no session_id/
+    transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
+    create-ticket runs) never performs transcript I/O -- cost_usd=None,
+    cost_basis="unavailable", tokens empty.
+
+    `skill` (the run's own skill, as finalize_run received it) is threaded
+    through to usage_reader so it can filter main-session attribution to
+    this run's own skill only, excluding same-window records attributed to
+    a different acs skill."""
+    session_id = entry.get("session_id")
+    transcript_path = entry.get("transcript_path")
+    if not session_id or not transcript_path:
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        return
+
+    import usage_reader
+    usage = usage_reader.read_transcript_usage(
+        transcript_path, entry.get("started_at"), entry.get("ended_at"), skill)
+    if usage.get("degraded"):
+        # A failed measurement must never look like a successful one: no
+        # cost sample may be consumed and no cursor may advance for a run
+        # whose transcript read itself is unreliable.
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        return
+    role_usage = usage.get("role_usage") or []
+    entry["tokens"] = _sum_role_tokens(role_usage)
+
+    checkout_id = entry.get("checkout_id")
+    if not checkout_id:
+        # Tokens are measured (transcript-only); cost needs the checkout-scoped
+        # sample/cursor files this entry has no checkout_id to locate.
+        entry["role_usage"] = role_usage
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        return
+
+    import cost_sampler
+    workspace = os.path.dirname(os.path.dirname(tdir))
+    repo_id = os.path.basename(os.path.dirname(tdir))
+    (role_usage_with_cost, cost_usd, cost_basis, cost_scope,
+     excluded_cost_usd, excluded_token_share) = cost_sampler.allocate_cost(
+        workspace, repo_id, checkout_id,
+        entry.get("started_at"), entry.get("ended_at"), role_usage)
+    entry["role_usage"] = role_usage_with_cost
+    entry["cost_usd"] = cost_usd
+    entry["cost_basis"] = cost_basis
+    entry["cost_scope"] = cost_scope
+    entry["excluded_cost_usd"] = excluded_cost_usd
+    entry["excluded_token_share"] = excluded_token_share
+
+
 def finalize_run(tdir, skill, ticket_id, result):
-    """Finalize runs[-1] (or append, if the coordinator never registered the run)."""
+    """Finalize runs[-1] (or append, if the coordinator never registered the run).
+
+    tokens/role_usage/cost_usd/cost_basis are MEASURED (see
+    _measure_run_usage), never taken from `result`."""
     state = load_state(tdir, skill, ticket_id)
     status = result.get("status", "completed")
     if status not in RUN_STATUSES or status == "in_progress":
@@ -1273,9 +1401,7 @@ def finalize_run(tdir, skill, ticket_id, result):
     entry["ended_at"] = now_iso()
     entry["status"] = status
     entry["stop_reason"] = result.get("stop_reason")
-    tokens = result.get("tokens") or {}
-    entry["tokens"] = {"input": int(tokens.get("input", 0) or 0), "output": int(tokens.get("output", 0) or 0)}
-    entry["cost_usd"] = float(result.get("cost_usd", 0.0) or 0.0)
+    _measure_run_usage(entry, tdir, skill)
     if status == "handed_off":
         entry["handoff_summary"] = result.get("handoff_summary") or result.get("stop_reason") or ""
     if isinstance(result.get("states"), dict):
@@ -1359,11 +1485,19 @@ def confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes, clarify
     return ticket
 
 
+def elapsed_seconds(start, end):
+    """Wall-clock `end - start` in whole seconds, or None for a missing/malformed/
+    inverted interval — a true zero-length interval returns 0, distinguishable
+    from "unknown"."""
+    start_dt, end_dt = parse_iso(start), parse_iso(end)
+    if start_dt and end_dt and end_dt >= start_dt:
+        return int((end_dt - start_dt).total_seconds())
+    return None
+
+
 def run_seconds(entry):
-    start, end = parse_iso(entry.get("started_at")), parse_iso(entry.get("ended_at"))
-    if start and end and end >= start:
-        return int((end - start).total_seconds())
-    return 0
+    """Adapter: elapsed_seconds over a run entry's started_at/ended_at."""
+    return elapsed_seconds(entry.get("started_at"), entry.get("ended_at"))
 
 
 # ---------------------------------------------------------------------------
@@ -1399,8 +1533,20 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
 
 
 def compute_ticket_totals(tdir):
-    """Roll up time/tokens/cost across every skill state file in the partition."""
-    totals = {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0}
+    """Roll up time/tokens/cost across every skill state file in the partition.
+
+    A None-elapsed run (missing/malformed/inverted interval) is excluded from
+    working_seconds rather than counted as zero, but still counts in runs and
+    in exactly one of runs_timed/runs_untimed. Likewise, a run whose
+    cost_basis is "measured"/"apportioned" contributes its cost_usd and
+    counts in runs_cost_measured; every other run (cost_basis "unavailable",
+    or absent -- a legacy pre-cutover run, C-11) counts in
+    runs_cost_unavailable and contributes nothing to the cost_usd sum."""
+    totals = {
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+    }
     for skill in HOOKED_SKILLS:
         state = read_json(state_path(tdir, skill))
         if not isinstance(state, dict):
@@ -1409,11 +1555,23 @@ def compute_ticket_totals(tdir):
             if not isinstance(entry, dict):
                 continue
             totals["runs"] += 1
-            totals["working_seconds"] += run_seconds(entry)
+            seconds = run_seconds(entry)
+            if seconds is None:
+                totals["runs_untimed"] += 1
+            else:
+                totals["runs_timed"] += 1
+                totals["working_seconds"] += seconds
             tokens = entry.get("tokens") or {}
-            totals["tokens"]["input"] += int(tokens.get("input", 0) or 0)
-            totals["tokens"]["output"] += int(tokens.get("output", 0) or 0)
-            totals["cost_usd"] += float(entry.get("cost_usd", 0.0) or 0.0)
+            for field in _TOKEN_TOTAL_FIELDS:
+                totals["tokens"][field] += int(tokens.get(field, 0) or 0)
+            cost_basis = entry.get("cost_basis") or "unavailable"
+            cost_usd = entry.get("cost_usd")
+            if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                    and not isinstance(cost_usd, bool):
+                totals["runs_cost_measured"] += 1
+                totals["cost_usd"] += float(cost_usd)
+            else:
+                totals["runs_cost_unavailable"] += 1
     totals["cost_usd"] = round(totals["cost_usd"], 4)
     return totals
 
@@ -1536,7 +1694,18 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     data = read_json(path) or {}
     data.setdefault("tickets", {})
     data.setdefault("prs", {"created": 0, "merged": 0, "created_pr_numbers": []})
-    data.setdefault("totals", {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0})
+    data.setdefault("totals", {
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+    })
+    # A pre-existing metrics.json predates these counters; backfill them at 0.
+    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable"):
+        data["totals"].setdefault(counter, 0)
+    # A pre-existing metrics.json's tokens dict predates the cache fields; backfill at 0.
+    data["totals"].setdefault("tokens", {})
+    for field in _TOKEN_TOTAL_FIELDS:
+        data["totals"]["tokens"].setdefault(field, 0)
 
     index = read_json(index_path(workspace, repo_id)) or {"tickets": {}}
     by_status = {}
@@ -1558,12 +1727,24 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     if run_entry:
         totals = data["totals"]
         totals["runs"] = int(totals.get("runs", 0)) + 1
-        totals["working_seconds"] = int(totals.get("working_seconds", 0)) + run_seconds(run_entry)
+        seconds = run_seconds(run_entry)
+        if seconds is None:
+            totals["runs_untimed"] = int(totals.get("runs_untimed", 0)) + 1
+        else:
+            totals["runs_timed"] = int(totals.get("runs_timed", 0)) + 1
+            totals["working_seconds"] = int(totals.get("working_seconds", 0)) + seconds
         tokens = run_entry.get("tokens") or {}
-        totals.setdefault("tokens", {"input": 0, "output": 0})
-        totals["tokens"]["input"] = int(totals["tokens"].get("input", 0)) + int(tokens.get("input", 0) or 0)
-        totals["tokens"]["output"] = int(totals["tokens"].get("output", 0)) + int(tokens.get("output", 0) or 0)
-        totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(run_entry.get("cost_usd", 0.0) or 0.0), 4)
+        totals.setdefault("tokens", {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+        for field in _TOKEN_TOTAL_FIELDS:
+            totals["tokens"][field] = int(totals["tokens"].get(field, 0)) + int(tokens.get(field, 0) or 0)
+        cost_basis = run_entry.get("cost_basis") or "unavailable"
+        cost_usd = run_entry.get("cost_usd")
+        if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                and not isinstance(cost_usd, bool):
+            totals["runs_cost_measured"] = int(totals.get("runs_cost_measured", 0)) + 1
+            totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(cost_usd), 4)
+        else:
+            totals["runs_cost_unavailable"] = int(totals.get("runs_cost_unavailable", 0)) + 1
     data["updated_at"] = now_iso()
     write_json(path, data)
     return data
@@ -2052,6 +2233,10 @@ def run_pre(skill):
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
+        try:
+            record_session_marker(ctx, payload)
+        except Exception:  # a marker-write bug must never block a gated skill
+            pass
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)

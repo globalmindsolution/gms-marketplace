@@ -114,7 +114,6 @@ Escape `&` and `<` in text content. Self-check with
     <finding severity="blocking" dimension="coverage-tooling" file="pyproject.toml">fail_under is 80 but test_coverage_percent is 90; coverage run passes at 85% when it must fail</finding>
   </findings>
   <errors/>
-  <metrics tokens-input="25000" tokens-output="4000" cost-usd="0"/>
   <stop-reason>10 of 11 dimensions pass; 1 blocking finding</stop-reason>
 </result>
 ```
@@ -122,7 +121,7 @@ Escape `&` and `<` in text content. Self-check with
 `status="completed"` means you finished judging — even when findings exist (findings carry
 the verdict; the coordinator reflects on findings &gt; 0). Use `failed` only when you could
 not complete verification itself (record why in `<errors>`), `needs_input` only when a
-check is genuinely undecidable without the user. Estimate `<metrics>` honestly.
+check is genuinely undecidable without the user.
 
 ## Grounding (anti-hallucination)
 

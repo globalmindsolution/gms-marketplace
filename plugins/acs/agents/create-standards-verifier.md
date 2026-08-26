@@ -141,7 +141,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <findings>
     <finding severity="blocking" dimension="architecture-conformance" file="docs/standards/coding-standards.md">Tailored content names "Java" but hld/tech-stack.md documents a Python stack — the file was not tailored to the detected stack.</finding>
   </findings>
-  <metrics tokens-input="15000" tokens-output="2200" cost-usd="0.06"/>
   <stop-reason>Verification complete: 1 blocking finding across 6 dimensions.</stop-reason>
 </result>
 ```

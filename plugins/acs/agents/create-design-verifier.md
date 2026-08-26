@@ -164,7 +164,6 @@ actionable (file, expectation, observed behavior):
     <finding severity="blocking" dimension="nfr" file="design.md">Performance for the export flow is unquantified: ticket says "up to 50k rows" but Context &amp; constraints sets no latency/volume bound and Option B's queue sizing is unstated.</finding>
     <finding severity="blocking" dimension="consistency" file="design.md">Architecture conformance claims "no doc-set changes", but the new ExportWorker is absent from hld/c4-container.md — the doc-set change must be declared.</finding>
   </findings>
-  <metrics tokens-input="70000" tokens-output="8000" cost-usd="0.45"/>
   <stop-reason>5 dimensions checked; 2 blocking findings</stop-reason>
 </result>
 ```

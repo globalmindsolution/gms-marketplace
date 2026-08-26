@@ -73,7 +73,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>docs/standards/conventions.md</file>
     <file>docs/standards/review-checklist.md</file>
   </outputs>
-  <metrics tokens-input="20000" tokens-output="6000" cost-usd="0.08"/>
   <stop-reason>standards/ files written, tailored to the detected stack and principles.</stop-reason>
 </result>
 ```

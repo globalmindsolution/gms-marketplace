@@ -120,7 +120,6 @@ NOTHING after it. Self-check it first:
   <findings>
     <finding severity="blocking" dimension="readiness-approvals">reviewDecision is CHANGES_REQUESTED (review by @lee, 2026-06-11).</finding>
   </findings>
-  <metrics tokens-input="14000" tokens-output="3000" cost-usd="0.06"/>
   <stop-reason>Readiness: ci=pass approvals=fail(CHANGES_REQUESTED) conflicts=pass protections=pass; plan written.</stop-reason>
 </result>
 ```

@@ -129,7 +129,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-42/phases/create-architecture/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="42000" tokens-output="6000" cost-usd="0.21"/>
   <stop-reason>Plan complete: existing codebase, 9 doc files, 5 LLD flows proposed for confirmation.</stop-reason>
 </result>
 ```

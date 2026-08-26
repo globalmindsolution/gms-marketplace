@@ -68,7 +68,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>/abs/workspace/owner-repo/SHOP-43/phases/create-principles/iter-1-execute.json</file>
     <file>docs/principles/principles.md</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="5000" cost-usd="0.07"/>
   <stop-reason>principles/ file written, tailored to the detected stack.</stop-reason>
 </result>
 ```

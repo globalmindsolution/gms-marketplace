@@ -157,7 +157,6 @@ plain creation run carries no `children` finding — `children` stays `[]`:
     <finding severity="info" dimension="children">minted SHOP-124, SHOP-125</finding>
     <finding severity="info" dimension="external">synced as jira PROJ-789</finding>
   </findings>
-  <metrics tokens-input="20000" tokens-output="3000" cost-usd="0.15"/>
   <stop-reason>ticket written; 2 children minted; synced to jira</stop-reason>
 </result>
 ```
@@ -167,7 +166,7 @@ plain creation run carries no `children` finding — `children` stays `[]`:
 - `status="failed"` with `<errors>` when a step cannot complete (keep what you
   finished — never roll back minted children); `needs_input` plus
   `<questions>` only for the sync-conflict case above.
-- Estimate `<metrics>`; one-line `<stop-reason>`. Self-validate first:
+- One-line `<stop-reason>`. Self-validate first:
   `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ## Hard rules

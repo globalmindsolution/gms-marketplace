@@ -10,16 +10,19 @@ Fixtures mint tickets and pipeline state in-process via acs_case.lib (never
 through new-ticket.py's subprocess) -- this seam needs no subprocess at all.
 """
 
+import json
 import os
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
 import acs_case  # noqa: E402
+import cost_sampler  # noqa: E402
 
 MODULE_FILENAME = "statusline.py"
 REPO_ID = "acme-shop"
@@ -139,6 +142,77 @@ class TestMainNeverCrashes(unittest.TestCase):
             code, out, err = acs_case.run_main(mod, [], stdin="[]")
         self.assertEqual(code, 0)
         self.assertEqual(out, "Claude\n")
+
+
+class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
+    """cost_sampler.record_cost_sample is invoked from main(), independent of
+    render()'s early-return paths (no active ticket, resolvable ticket with
+    no partition) -- and a raising sampler never breaks the printed line
+    (G7 never-crash)."""
+
+    def test_record_cost_sample_called_with_no_active_ticket(self):
+        mod = acs_case.load_module(MODULE_FILENAME)
+        payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+        with mock.patch("cost_sampler.record_cost_sample") as record:
+            with acs_case.pushd(self.repo):
+                code, out, err = acs_case.run_main(mod, [], stdin=json.dumps(payload))
+        self.assertEqual(code, 0)
+        record.assert_called_once_with(payload)
+        self.assertIn("no active ticket", out)
+
+    def test_record_cost_sample_called_when_pointer_resolves_but_no_partition(self):
+        ckid = acs_case.lib.checkout_id(self.repo)
+        acs_case.lib.write_json(
+            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-404"})
+        mod = acs_case.load_module(MODULE_FILENAME)
+        payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+        with mock.patch("cost_sampler.record_cost_sample") as record:
+            with acs_case.pushd(self.repo):
+                code, out, err = acs_case.run_main(mod, [], stdin=json.dumps(payload))
+        self.assertEqual(code, 0)
+        record.assert_called_once_with(payload)
+        self.assertIn("no partition", out)
+
+    def test_a_raising_sampler_never_breaks_the_status_line(self):
+        ckid = acs_case.lib.checkout_id(self.repo)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-20")
+        os.makedirs(tdir, exist_ok=True)
+        acs_case.lib.save_ticket(tdir, acs_case.lib.new_ticket_doc("SHOP-20", "SHOP-20", "story"))
+        acs_case.lib.write_json(
+            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-20"})
+        mod = acs_case.load_module(MODULE_FILENAME)
+        payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+        with mock.patch("cost_sampler.record_cost_sample", side_effect=RuntimeError("boom")):
+            with acs_case.pushd(self.repo):
+                code, out, err = acs_case.run_main(mod, [], stdin=json.dumps(payload))
+        self.assertEqual(code, 0)
+        self.assertIn("SHOP-20", out)
+
+
+class TestDisplayCostPrefersSample(acs_case.AcsWorkspaceCase):
+    """108-111 (the '~$' bit, design conformance item 31): prefers a real,
+    recently recorded cost_sampler sample over pipeline.totals.cost_usd,
+    falling back to the pipeline figure only when no sample exists yet."""
+
+    def test_prefers_latest_sample_falls_back_to_pipeline_totals_when_none(self):
+        ckid = acs_case.lib.checkout_id(self.repo)
+        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-30")
+        os.makedirs(tdir, exist_ok=True)
+        acs_case.lib.save_ticket(
+            tdir, acs_case.lib.new_ticket_doc("SHOP-30", "SHOP-30", "story"))
+        pipeline = acs_case.lib.load_pipeline(tdir, "SHOP-30")
+        pipeline["totals"]["cost_usd"] = 4.21
+        acs_case.lib.write_json(os.path.join(tdir, "pipeline-state.json"), pipeline)
+        acs_case.lib.write_json(
+            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-30"})
+        mod = acs_case.load_module(MODULE_FILENAME)
+        payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+
+        self.assertIn("~$4.21", mod.render(payload))
+
+        cost_sampler.record_cost_sample({"cwd": self.repo, "cost": {"total_cost_usd": 9.99}})
+        self.assertIn("~$9.99", mod.render(payload))
+        self.assertNotIn("~$4.21", mod.render(payload))
 
 
 if __name__ == "__main__":

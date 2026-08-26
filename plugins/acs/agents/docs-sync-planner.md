@@ -77,7 +77,6 @@ with the XML on stdin.
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="25000" tokens-output="4000" cost-usd="0.15"/>
   <stop-reason>Plan complete: 2 doc-delta items, cross-checked against docs_updated, no open questions</stop-reason>
 </result>
 ```

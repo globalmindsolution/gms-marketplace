@@ -82,7 +82,11 @@ _USAGE_PANELS = (
 )
 
 # Canonical, fixed iteration orders (determinism — never rely on dict insertion order).
-ROLE_ORDER = ("planner", "executor", "verifier")
+# These four roles are ALWAYS present in the aggregate's panel-6 value dict (metrics_aggregate.py
+# seeds all four up front); "other"/"unattributed" are NOT always present (_accumulate_burn only
+# setdefaults them when such usage exists), so they are never added here — panel 6 derives them
+# dynamically from whatever extra keys actually appear in the value dict at render time.
+ROLE_ORDER = ("planner", "executor", "verifier", "coordinator")
 
 PANEL_TITLES = {
     "1": "Panel 1 — Throughput by status / type",
@@ -356,17 +360,23 @@ def _term_panel5(value):
     return out
 
 
+def _panel6_extra_roles(value):
+    """Extra panel-6 keys beyond ROLE_ORDER ("other"/"unattributed" when present), sorted."""
+    return sorted(k for k in value if k not in ROLE_ORDER)
+
+
 def _term_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
     out = ["  %-10s %12s %12s %10s" % ("role", "input", "output", "cost_usd")]
+    roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         if isinstance(bucket.get("input"), (int, float)):
             inputs.append(bucket.get("input"))
     peak = max(inputs or [0])
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
         out.append("  %-10s %12s %12s %10s   %s"
@@ -633,13 +643,14 @@ def _html_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
     # Bar on `input` tokens (consistent with the terminal surface's panel-6 peak).
+    roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inputs.append(bucket.get("input", 0))
     panel_max = _panel_max(inputs)
     rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th><th>bar</th></tr>"]
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
