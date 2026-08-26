@@ -946,7 +946,11 @@ def _full_workspace_data_with_new_panels():
                              "verifier_passed": True, "review": {"iterations": 1}},
                             archived=True)
         fx.write_result_xml(ws, "MAR-2", "code", "plan", 1, ti=50000, to=10000, cost=0.5, archived=True)
-        fx.write_result_xml(ws, "MAR-2", "code", "execute", 1, ti=200000, to=40000, cost=2.0, archived=True)
+        fx.write_result_xml(ws, "MAR-2", "code", "execute", 1, ti=200000, to=40000, cost=2.0,
+                            model_usage=[{"model": "opus", "input": 200000, "output": 40000,
+                                          "cache_creation": 1000, "cache_read": 500,
+                                          "cost_usd": 2.0, "cost_basis": "apportioned"}],
+                            archived=True)
         fx.write_result_xml(ws, "MAR-2", "code", "verify", 1, ti=50000, to=10000, cost=0.5,
                             reorder=True, archived=True)
         return metrics_aggregate.aggregate(ws, REPO_ID)
@@ -982,7 +986,7 @@ class TestViewPartition(unittest.TestCase):
         """PM ∪ usage covers the full rendered panel set (AC-5)."""
         expected = frozenset({
             "delivery_summary", "1", "2", "issues", "progress",
-            "deadline", "4", "5", "7", "usage_summary", "3", "6"
+            "deadline", "4", "5", "7", "usage_summary", "3", "6", "usage_by_model"
         })
         self.assertEqual(
             set(metrics_render._PM_PANELS) | set(metrics_render._USAGE_PANELS),
@@ -1515,6 +1519,100 @@ class TestUsageViewGolden(unittest.TestCase):
         out = metrics_render.render_usage_html(data)
         self.assertIn("Panel 3", out)
         self.assertIn("Panel 6", out)
+
+
+# ---------------------------------------------------------------------------
+# MAR-3 spec 05 — "Usage by model" table (AC-2, render half)
+# ---------------------------------------------------------------------------
+
+class TestUsageByModelPanel(unittest.TestCase):
+    """The usage_by_model panel rendered as a table on both usage-view surfaces."""
+
+    def test_usage_by_model_terminal_renders_repo_and_per_ticket_tables(self):
+        data = _full_workspace_data_with_new_panels()
+        out = metrics_render.render_usage_terminal(data)
+        self.assertIn("Usage by model", out)
+        self.assertIn("opus", out)
+        self.assertIn("MAR-2", out)
+
+    def test_usage_by_model_html_renders_repo_and_per_ticket_tables(self):
+        data = _full_workspace_data_with_new_panels()
+        out = metrics_render.render_usage_html(data)
+        self.assertIn("Usage by model", out)
+        self.assertIn("opus", out)
+        self.assertIn("MAR-2", out)
+
+    def test_usage_by_model_columns_cover_four_token_classes_and_cost(self):
+        """AC-2's literal column list, both surfaces, including the cache write/read labels."""
+        data = _full_workspace_data_with_new_panels()
+        term = metrics_render.render_usage_terminal(data)
+        term_section = term[term.index("Usage by model"):]
+        html = metrics_render.render_usage_html(data)
+        html_section = html[html.index("Usage by model"):]
+        for section in (term_section, html_section):
+            self.assertIn("input", section)
+            self.assertIn("output", section)
+            self.assertIn("cache write", section)
+            self.assertIn("cache read", section)
+            self.assertIn("cost_usd", section)
+
+    def test_usage_by_model_no_data_frame_present_both_surfaces(self):
+        """B1: whole-panel 'no data' still draws the 'Usage by model' frame."""
+        data = _full_workspace_data_with_new_panels()
+        data["panels"]["usage_by_model"] = "no data"
+        term = metrics_render.render_usage_terminal(data)
+        html = metrics_render.render_usage_html(data)
+        self.assertIn("Usage by model", term)
+        self.assertIn("Usage by model", html)
+        self.assertIn(metrics_render.NO_DATA, term)
+        self.assertIn(metrics_render.NO_DATA, html)
+
+    def test_usage_by_model_missing_key_and_no_data_ticket_row_render_no_data(self):
+        """B1: a missing 'repo' key and a 'no data' ticket models value each render no data."""
+        data = _full_workspace_data_with_new_panels()
+        data["panels"]["usage_by_model"] = {
+            "tickets": [{"ticket_id": "MAR-9", "models": "no data"}],
+        }
+        term = metrics_render.render_usage_terminal(data)
+        html = metrics_render.render_usage_html(data)
+        self.assertIn("MAR-9", term)
+        self.assertIn("MAR-9", html)
+        self.assertIn(metrics_render.NO_DATA, term)
+        self.assertIn(metrics_render.NO_DATA, html)
+
+    def test_usage_by_model_null_cost_renders_no_data_not_zero(self):
+        data = _full_workspace_data_with_new_panels()
+        data["panels"]["usage_by_model"] = {
+            "repo": [{"model": "opus", "input": 10, "output": 5,
+                      "cache_creation": 0, "cache_read": 0,
+                      "cost_usd": None, "cost_basis": "unavailable"}],
+            "tickets": [],
+        }
+        term = metrics_render.render_usage_terminal(data)
+        opus_line = next(line for line in term.splitlines() if "opus" in line)
+        self.assertIn(metrics_render.NO_DATA, opus_line)
+        self.assertNotIn("0.00", opus_line)
+
+        html = metrics_render.render_usage_html(data)
+        opus_row = next(r for r in html.split("<tr>") if "opus" in r)
+        self.assertIn(metrics_render.NO_DATA, opus_row)
+        self.assertNotIn("0.00", opus_row)
+
+    def test_pm_view_unaffected_by_usage_by_model(self):
+        """_PM_PANELS is untouched — the PM view never renders usage_by_model."""
+        data = _full_workspace_data_with_new_panels()
+        out_term = metrics_render.render_pm_terminal(data)
+        out_html = metrics_render.render_pm_html(data)
+        self.assertNotIn("Usage by model", out_term)
+        self.assertNotIn("Usage by model", out_html)
+        self.assertNotIn("usage_by_model", metrics_render._PM_PANELS)
+
+    def test_usage_view_byte_identical_with_usage_by_model(self):
+        data = _full_workspace_data_with_new_panels()
+        self.assertEqual(metrics_render.render_usage_terminal(data),
+                         metrics_render.render_usage_terminal(data))
+        self.assertEqual(metrics_render.render_usage_html(data),
+                         metrics_render.render_usage_html(data))
 
 
 # ---------------------------------------------------------------------------
