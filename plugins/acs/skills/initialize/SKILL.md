@@ -426,6 +426,11 @@ conform to `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`.
 Offer the acs status line: a one-liner under the Claude Code prompt showing
 the active ticket and live pipeline progress straight from workspace state,
 e.g. `Opus 4.8 · SHOP-123 task · ✓ticket ✓spec ▶code ○pr ○merge · ~$0.85`.
+Tell the user plainly what declining costs them: `statusLine` is also how
+acs samples real, Claude-Code-reported cost figures (MAR-1, ADR 0080), so
+without it every run's cost renders as `unavailable` — token counts still
+render as `measured` either way, since those come from the transcript, not
+the statusLine payload.
 
 `statusLine` is the USER's Claude Code setting — only write it with explicit
 consent, and never overwrite an existing `statusLine` (if one is set, show

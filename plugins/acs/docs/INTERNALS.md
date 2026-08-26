@@ -16,7 +16,7 @@ component follows.
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
 | Helper CLIs | `hooks/scripts/{skill-start,new-ticket,handoff,validate_xml,pr-conventions}.py` | 5 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /initialize Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /initialize Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
@@ -184,6 +184,11 @@ in each SKILL.md's "Completion report" section.
   "handoff_summary": "only when status=handed_off"
 }
 ```
+
+`tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
+silently ignored since MAR-1 — `finalize_run` measures both itself (see the
+Token/cost usage exception noted above) rather than trusting a coordinator-supplied
+value. Emitting them is harmless but has no effect.
 
 `post-<skill>.py` finalizes `runs[-1]`, merges `states` (replaces `findings` /
 `errors` when present), updates `pipeline-state.json`, `tickets-index.json`,
