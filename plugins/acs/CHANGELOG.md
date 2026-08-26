@@ -16,6 +16,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-08-26
+
 ### Added
 
 - **New optional `evals.forge_repo` settings key + `ACS_FORGE_REPO` override** (MAR-67), read only by `evals/<plugin>/` — never by the hook layer, so no consumer behavior changes and no migration is needed. Names the dedicated, `NEVER-PRODUCTION`, org-owned GitHub repo the forge-tier eval harness (`ForgeSandbox`, `evals/acs/harness.py`) runs the real delivery pipeline against, guarded by three independent, no-override-escape-hatch checks: the target's name must match `^acs-eval(-[a-z0-9][a-z0-9-]*)?$` (`plugins/acs/schemas/settings.schema.json`), it must not be this repo's own remote, and its checkout must contain a committed `.acs-eval-target` marker file.

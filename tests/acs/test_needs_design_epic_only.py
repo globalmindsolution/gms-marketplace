@@ -194,23 +194,22 @@ class TestDesignRequirementParentPath(AcsWorkspaceCase):
 
 
 class TestReleaseNoteDocumentsDeriveLaneChange(unittest.TestCase):
-    """AC-6: the CHANGELOG's [Unreleased] section documents the derive_lane
-    behavior change for consumer repos with legacy non-epic needs_design:true
-    tickets.
+    """AC-6: the CHANGELOG documents the derive_lane behavior change for
+    consumer repos with legacy non-epic needs_design:true tickets. The note
+    lives under [Unreleased] until a release cut dates that section and
+    moves it into a `## [<version>] - <date>` section instead (release_notes.py
+    `bump`) -- either location satisfies AC-6's "the CHANGELOG documents this"
+    requirement, so this test searches the whole file rather than pinning to
+    [Unreleased] specifically.
     """
 
     def test_unreleased_section_documents_derive_lane_needs_design_change(self):
         with open(CHANGELOG_MD, "r", encoding="utf-8") as fh:
             text = fh.read()
-        match = re.search(
-            r"## \[Unreleased\](.*?)(?=\n## \[)", text, re.DOTALL
-        )
-        self.assertIsNotNone(match, "no [Unreleased] section found")
-        body = match.group(1)
-        self.assertIn("derive_lane", body)
-        self.assertIn("needs_design", body)
+        self.assertIn("derive_lane", text)
+        self.assertIn("needs_design", text)
         recompute_cue = any(
-            cue in body for cue in ("recompute", "recomputes", "recomputed")
+            cue in text for cue in ("recompute", "recomputes", "recomputed")
         )
         self.assertTrue(
             recompute_cue,
