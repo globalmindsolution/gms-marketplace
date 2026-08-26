@@ -237,18 +237,16 @@ class TestAllocateCost(unittest.TestCase):
         result_1 = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
-        _roles_1, cost_usd_1, basis_1, scope_1, excluded_cost_1, excluded_share_1 = result_1
-        self.assertEqual(cost_usd_1, 2.0)
-        self.assertEqual(basis_1, "measured")
+        self.assertEqual(result_1["cost_usd"], 2.0)
+        self.assertEqual(result_1["cost_basis"], "measured")
 
         result_2 = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T06:05:00Z", "2026-08-25T06:15:00Z", role_usage)
-        roles_2, cost_usd_2, basis_2, scope_2, excluded_cost_2, excluded_share_2 = result_2
-        self.assertIsNone(cost_usd_2)
-        self.assertEqual(basis_2, "unavailable")
-        self.assertEqual(scope_2, "no_unconsumed_sample_in_window")
-        for r in roles_2:
+        self.assertIsNone(result_2["cost_usd"])
+        self.assertEqual(result_2["cost_basis"], "unavailable")
+        self.assertEqual(result_2["cost_scope"], "no_unconsumed_sample_in_window")
+        for r in result_2["role_usage"]:
             self.assertIsNone(r["cost_usd"])
             self.assertEqual(r["cost_basis"], "unavailable")
 
@@ -258,12 +256,12 @@ class TestAllocateCost(unittest.TestCase):
             {"ts": "2026-08-25T07:00:00Z", "total_cost_usd": 9.0, "src": "total_cost_usd"},
         ])
         role_usage = [{"role": "executor", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0}]
-        _roles, cost_usd, basis, _scope, _ec, _es = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:00:00Z", "2026-08-25T06:30:00Z", role_usage)
         # Only the 06:00 sample is <= T=06:30; the 07:00 sample must never be used.
-        self.assertEqual(cost_usd, 1.0)
-        self.assertEqual(basis, "measured")
+        self.assertEqual(result["cost_usd"], 1.0)
+        self.assertEqual(result["cost_basis"], "measured")
 
     def test_negative_delta_is_session_reset_charges_nothing_but_advances_cursor(self):
         # First call consumes an initial sample so the cursor is non-trivial.
@@ -279,12 +277,12 @@ class TestAllocateCost(unittest.TestCase):
             {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 5.0, "src": "total_cost_usd"},
             {"ts": "2026-08-25T06:10:00Z", "total_cost_usd": 0.3, "src": "total_cost_usd"},
         ])
-        _roles, cost_usd, basis, scope, _ec, _es = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T06:05:00Z", "2026-08-25T06:15:00Z", role_usage)
-        self.assertIsNone(cost_usd)
-        self.assertEqual(basis, "unavailable")
-        self.assertEqual(scope, "cost_total_reset")
+        self.assertIsNone(result["cost_usd"])
+        self.assertEqual(result["cost_basis"], "unavailable")
+        self.assertEqual(result["cost_scope"], "cost_total_reset")
         # The cursor still advances to the post-reset sample, not left stale.
         self.assertEqual(self._cursor()["total_cost_usd"], 0.3)
         self.assertEqual(self._cursor()["ts"], "2026-08-25T06:10:00Z")
@@ -297,23 +295,23 @@ class TestAllocateCost(unittest.TestCase):
             {"ts": "2026-08-25T06:10:00Z", "total_cost_usd": 0.3, "src": "total_cost_usd"},
             {"ts": "2026-08-25T06:20:00Z", "total_cost_usd": 0.5, "src": "total_cost_usd"},
         ])
-        _roles, cost_usd_3, basis_3, scope_3, _ec, _es = cost_sampler.allocate_cost(
+        result_3 = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T06:15:00Z", "2026-08-25T06:25:00Z", role_usage)
-        self.assertAlmostEqual(cost_usd_3, 0.2)
-        self.assertEqual(basis_3, "measured")
-        self.assertEqual(scope_3, "session_total")
+        self.assertAlmostEqual(result_3["cost_usd"], 0.2)
+        self.assertEqual(result_3["cost_basis"], "measured")
+        self.assertEqual(result_3["cost_scope"], "session_total")
 
     def test_no_sample_at_all_is_unavailable(self):
         role_usage = [{"role": "executor", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0}]
-        _roles, cost_usd, basis, scope, ec, es = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T06:00:00Z", "2026-08-25T06:10:00Z", role_usage)
-        self.assertIsNone(cost_usd)
-        self.assertEqual(basis, "unavailable")
-        self.assertEqual(scope, "no_unconsumed_sample_in_window")
-        self.assertIsNone(ec)
-        self.assertIsNone(es)
+        self.assertIsNone(result["cost_usd"])
+        self.assertEqual(result["cost_basis"], "unavailable")
+        self.assertEqual(result["cost_scope"], "no_unconsumed_sample_in_window")
+        self.assertIsNone(result["excluded_cost_usd"])
+        self.assertIsNone(result["excluded_token_share"])
 
     def test_apportionment_denominator_includes_unattributed_slice(self):
         # Two attributed roles plus a synthetic "unattributed" entry carrying the
@@ -326,19 +324,19 @@ class TestAllocateCost(unittest.TestCase):
             {"role": "unattributed", "input": 300, "output": 300, "cache_creation": 0, "cache_read": 0},  # 600
         ]
         # total in-window tokens = 1000; unattributed share = 600/1000 = 0.6
-        roles, cost_usd, basis, _scope, excluded_cost_usd, excluded_token_share = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
 
         # C-8 "drop, don't redistribute": the returned cost_usd is the
         # attributed-only share of the session-window charge (delta minus the
         # dropped unattributed slice), never the raw full delta.
-        self.assertAlmostEqual(cost_usd, 0.4)
-        self.assertEqual(basis, "measured")
-        self.assertAlmostEqual(excluded_token_share, 0.6)
-        self.assertAlmostEqual(excluded_cost_usd, 0.6)
+        self.assertAlmostEqual(result["cost_usd"], 0.4)
+        self.assertEqual(result["cost_basis"], "measured")
+        self.assertAlmostEqual(result["excluded_token_share"], 0.6)
+        self.assertAlmostEqual(result["excluded_cost_usd"], 0.6)
 
-        by_role = {r["role"]: r for r in roles}
+        by_role = {r["role"]: r for r in result["role_usage"]}
         self.assertAlmostEqual(by_role["coordinator"]["cost_usd"], 0.2)
         self.assertEqual(by_role["coordinator"]["cost_basis"], "apportioned")
         self.assertAlmostEqual(by_role["executor"]["cost_usd"], 0.2)
@@ -349,21 +347,21 @@ class TestAllocateCost(unittest.TestCase):
         # Attributed roles alone must sum back to the returned cost_usd -- the
         # excluded slice is dropped, not folded back in.
         attributed_sum = by_role["coordinator"]["cost_usd"] + by_role["executor"]["cost_usd"]
-        self.assertAlmostEqual(attributed_sum, cost_usd)
+        self.assertAlmostEqual(attributed_sum, result["cost_usd"])
 
     def test_no_role_usage_data_excludes_entire_delta(self):
         self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.5, "src": "total_cost_usd"}])
-        roles, cost_usd, basis, _scope, excluded_cost_usd, excluded_token_share = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", [])
         # 100% of the delta is unattributed (no role_usage data at all), so the
         # returned cost_usd -- the attributed-only share -- is zero, even
         # though the session-window charge itself was real.
-        self.assertEqual(cost_usd, 0.0)
-        self.assertEqual(basis, "measured")
-        self.assertEqual(roles, [])
-        self.assertEqual(excluded_token_share, 1.0)
-        self.assertEqual(excluded_cost_usd, 1.5)
+        self.assertEqual(result["cost_usd"], 0.0)
+        self.assertEqual(result["cost_basis"], "measured")
+        self.assertEqual(result["role_usage"], [])
+        self.assertEqual(result["excluded_token_share"], 1.0)
+        self.assertEqual(result["excluded_cost_usd"], 1.5)
 
     def test_returned_cost_usd_is_attributed_share_not_full_delta(self):
         """FIX 1 (allocate_cost's own contract): the returned cost_usd for a
@@ -376,12 +374,12 @@ class TestAllocateCost(unittest.TestCase):
             {"role": "executor", "input": 25, "output": 0, "cache_creation": 0, "cache_read": 0},
             {"role": "unattributed", "input": 75, "output": 0, "cache_creation": 0, "cache_read": 0},
         ]
-        _roles, cost_usd, _basis, _scope, excluded_cost_usd, _share = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
         # attributed fraction = 25/100 = 0.25 -> 10.0 * 0.25 = 2.5
-        self.assertAlmostEqual(cost_usd, 2.5)
-        self.assertAlmostEqual(excluded_cost_usd, 7.5)
+        self.assertAlmostEqual(result["cost_usd"], 2.5)
+        self.assertAlmostEqual(result["excluded_cost_usd"], 7.5)
 
     def test_cost_usd_none_leaves_every_role_null_no_apportionment(self):
         # No samples at all -> unavailable; roles must carry no cost figure.
@@ -389,16 +387,160 @@ class TestAllocateCost(unittest.TestCase):
             {"role": "coordinator", "input": 10, "output": 10, "cache_creation": 0, "cache_read": 0},
             {"role": "executor", "input": 90, "output": 90, "cache_creation": 0, "cache_read": 0},
         ]
-        roles, cost_usd, basis, _scope, ec, es = cost_sampler.allocate_cost(
+        result = cost_sampler.allocate_cost(
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T06:00:00Z", "2026-08-25T06:10:00Z", role_usage)
-        self.assertIsNone(cost_usd)
-        self.assertEqual(basis, "unavailable")
-        self.assertIsNone(ec)
-        self.assertIsNone(es)
-        for r in roles:
+        self.assertIsNone(result["cost_usd"])
+        self.assertEqual(result["cost_basis"], "unavailable")
+        self.assertIsNone(result["excluded_cost_usd"])
+        self.assertIsNone(result["excluded_token_share"])
+        for r in result["role_usage"]:
             self.assertIsNone(r["cost_usd"])
             self.assertEqual(r["cost_basis"], "unavailable")
+
+
+class TestAllocateCostModelUsage(unittest.TestCase):
+    """D1.2 Option A (design.md:173-200): model_usage's cost is the FULL
+    charged delta, apportioned by token share, with NO unattributed
+    exclusion -- unlike role_usage's attributed-only cost."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-allocate-cost-model-")
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.workspace = self.tmp
+        self.repo_id = "acme-shop"
+        self.ckid = "shop-ab12cd34"
+
+    def _samples(self, samples):
+        _write_samples(self.workspace, self.repo_id, self.ckid, samples)
+
+    def test_model_usage_cost_is_full_delta_without_unattributed_exclusion(self):
+        # 300 of 400 tokens are unattributed (role scope) -- but model_usage
+        # still gets the WHOLE delta apportioned across it, no exclusion.
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"}])
+        role_usage = [
+            {"role": "executor", "input": 100, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 300, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        model_usage = [
+            {"model": "model-a", "input": 100, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"model": "model-b", "input": 300, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+        by_model = {m["model"]: m for m in result["model_usage"]}
+        # Full delta (1.0) apportioned by token share -- model-b keeps its
+        # 300/400 share even though it would be excluded at the role level.
+        self.assertAlmostEqual(by_model["model-a"]["cost_usd"], 0.25)
+        self.assertAlmostEqual(by_model["model-b"]["cost_usd"], 0.75)
+        self.assertEqual(by_model["model-a"]["cost_basis"], "apportioned")
+        self.assertEqual(by_model["model-b"]["cost_basis"], "apportioned")
+        # Sum of model costs is the FULL delta, not the attributed-only share.
+        self.assertAlmostEqual(sum(m["cost_usd"] for m in result["model_usage"]), 1.0)
+
+    def test_model_cost_minus_attributed_role_cost_equals_excluded_cost_usd(self):
+        # The named D1.2 reconciliation identity (design.md:198-199):
+        # sum(model_usage.cost_usd) - sum(role_usage.cost_usd, attributed
+        # roles only) == excluded_cost_usd.
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 4.0, "src": "total_cost_usd"}])
+        role_usage = [
+            {"role": "coordinator", "input": 100, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 300, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        model_usage = [
+            {"model": "only-model", "input": 400, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+        model_cost_sum = sum(m["cost_usd"] for m in result["model_usage"])
+        attributed_role_cost_sum = sum(
+            r["cost_usd"] for r in result["role_usage"] if r["role"] != "unattributed")
+        self.assertAlmostEqual(model_cost_sum - attributed_role_cost_sum, result["excluded_cost_usd"])
+
+    def test_allocate_cost_returns_dict_with_documented_keys(self):
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"}])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        model_usage = [{"model": "m1", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+        self.assertIsInstance(result, dict)
+        self.assertEqual(set(result.keys()), {
+            "role_usage", "model_usage", "cost_usd", "cost_basis",
+            "cost_scope", "excluded_cost_usd", "excluded_token_share",
+        })
+
+    def test_model_usage_none_argument_returns_none(self):
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"}])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        self.assertIsNone(result["model_usage"])
+
+    def test_no_unconsumed_sample_marks_every_model_entry_unavailable(self):
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        model_usage = [{"model": "m1", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T06:00:00Z", "2026-08-25T06:10:00Z", role_usage, model_usage=model_usage)
+        self.assertEqual(result["cost_scope"], "no_unconsumed_sample_in_window")
+        for m in result["model_usage"]:
+            self.assertIsNone(m["cost_usd"])
+            self.assertEqual(m["cost_basis"], "unavailable")
+
+    def test_cost_total_reset_marks_every_model_entry_unavailable(self):
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 5.0, "src": "total_cost_usd"}])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        model_usage = [{"model": "m1", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+
+        self._samples([
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 5.0, "src": "total_cost_usd"},
+            {"ts": "2026-08-25T06:10:00Z", "total_cost_usd": 0.3, "src": "total_cost_usd"},
+        ])
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T06:05:00Z", "2026-08-25T06:15:00Z", role_usage, model_usage=model_usage)
+        self.assertEqual(result["cost_scope"], "cost_total_reset")
+        for m in result["model_usage"]:
+            self.assertIsNone(m["cost_usd"])
+            self.assertEqual(m["cost_basis"], "unavailable")
+
+    def test_zero_token_model_usage_degrades_to_unavailable_never_zero(self):
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"}])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        model_usage = [{"model": "m1", "input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+        self.assertIsNone(result["model_usage"][0]["cost_usd"])
+        self.assertEqual(result["model_usage"][0]["cost_basis"], "unavailable")
+
+    def test_role_usage_cost_apportionment_unchanged(self):
+        # Inverse obligation: passing model_usage must not change role_usage's
+        # own attributed-only apportionment or the excluded_* figures.
+        self._samples([{"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0, "src": "total_cost_usd"}])
+        role_usage = [
+            {"role": "executor", "input": 100, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 300, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        model_usage = [
+            {"model": "m1", "input": 400, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
+        by_role = {r["role"]: r for r in result["role_usage"]}
+        self.assertAlmostEqual(by_role["executor"]["cost_usd"], 0.25)
+        self.assertIsNone(by_role["unattributed"]["cost_usd"])
+        self.assertAlmostEqual(result["cost_usd"], 0.25)
+        self.assertAlmostEqual(result["excluded_cost_usd"], 0.75)
+        self.assertAlmostEqual(result["excluded_token_share"], 0.75)
 
 
 class TestApportionExcludedCostNeverNegative(unittest.TestCase):
