@@ -531,17 +531,24 @@ class CreatePrdUntouchedTest(unittest.TestCase):
                     "dimension %r must remain present in %s" % (label, PRD_VERIFIER))
 
 
-class LoopTopologyUnchangedTest(unittest.TestCase):
-    """AC-5: all 5 bootstrap-doc SKILL.md files still carry the
-    per-iteration planner re-spawn sentence (plan -> execute -> verify)."""
+class LoopTopologyMigratedTest(unittest.TestCase):
+    """AC-5 (MAR-305): all 5 bootstrap-doc SKILL.md files have dropped the
+    per-iteration planner re-spawn sentence (plan -> execute -> verify) in
+    favor of the single-planner-spawn-per-run topology."""
 
-    def test_all_five_carry_plan_execute_verify(self):
+    def test_loop_topology_migrated_by_mar305(self):
         for skill in BOOTSTRAP_DOC_SKILLS:
             with self.subTest(skill=skill):
                 body = read(os.path.join(SKILLS, skill, "SKILL.md"))
-                self.assertRegex(
+                self.assertNotRegex(
                     body.lower(), r"plan -> execute -> verify",
-                    "%s/SKILL.md must still carry the per-iteration re-spawn sentence" % skill)
+                    "%s/SKILL.md must no longer carry the per-iteration "
+                    "re-spawn sentence (MAR-305 drops it)" % skill)
+                norm = re.sub(r"\s+", " ", body)
+                self.assertRegex(
+                    norm, r"(?i)exactly one.{0,80}acs:%s-planner" % skill,
+                    "%s/SKILL.md must carry the single-planner-spawn "
+                    "topology sentence" % skill)
 
 
 CORROBORATION_SKILLS = (
