@@ -66,6 +66,10 @@ If `context.handoff_summary` exists, read it plus
 do a light reconcile (spot-check the claimed artifacts), and continue from
 where the summary points.
 
+- A resumed run reuses the existing `<partition>/phases/create-principles/iter-1-plan.md`
+  and never spawns a second planner; the plan phase runs (once) only when
+  that artifact is absent.
+
 ## Inputs & mode
 
 The upstream inputs are `<prd_path>/prd.md` and the full `<architecture_path>/` set
@@ -94,7 +98,15 @@ principles, not a running log.
 
 ## Reflection loop
 
-Run plan -> execute -> verify, max 3 iterations.
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:create-principles-planner` across the whole run, however many iterations the loop below
+uses. The loop itself is execute -> verify, max 3 iterations.
+
+**What an iteration counts.** One iteration is one execute -> verify round;
+the plan phase runs once, before the loop, and is not part of any iteration,
+so the cap counts execute+verify rounds, not a plan+execute+verify triad.
+`/acs:create-principles` has no lane-driven verify-depth selection: the cap is a fixed 3 in
+every lane, and this ticket introduces none.
 
 Spawn subagents with the Agent tool: subagent_type
 `acs:create-principles-planner` / `acs:create-principles-executor` /
@@ -136,13 +148,21 @@ Persist every phase output to
 `<partition>/phases/create-principles/iter-<n>-<phase>.xml` at the phase
 boundary, BEFORE starting the next phase.
 
+The plan phase runs once, so its message pair persists once as
+`iter-1-plan.xml` and its artifact is
+`<partition>/phases/create-principles/iter-1-plan.md`; execute and verify keep persisting
+per iteration, and every iteration's executor and verifier `<inputs>` name
+that same `iter-1-plan.md`.
+
 Phases:
 
-1. **Plan** — the planner reads the upstream doc-graph slice (PRD + architecture
+1. **Plan** (once, before the loop) — the planner reads the upstream doc-graph slice (PRD + architecture
    set), notes any gaps as `<questions>`, classifies bootstrap vs re-run, and produces
    the outline for `principles.md`. The planner also runs the shared ADR-0012
    design-time doc-consistency step; any findings surface through the "Clarification
-   ledger first" mechanism below (User interaction). Persist the plan.
+   ledger first" mechanism below (User interaction). Persist the plan. On iterations 2-3 the verifier's
+   findings go verbatim into the executor's `<task>` `<context>`, with no planner spawn in between (see Verify
+   below).
 2. **Execute** — executor(s) write `principles.md` on the ticket branch (create
    the branch first — see Delivery). Decomposition is YOURS alone; subagents
    never spawn subagents. Typically a single executor — one file.
@@ -165,9 +185,10 @@ Phases:
    (`Principles; Rationale`, declared in the Plan task example above) and
    `audience_style_profile` (`engineers (concise normative rules)`).
 
-Zero verifier findings = pass — proceed to Delivery. On findings, feed them
-verbatim into the next iteration's plan task and re-run
-plan -> execute -> verify. After iteration 3 with findings remaining: stop,
+Zero verifier findings = pass — proceed to Delivery. On
+findings, they go verbatim into the next iteration's executor `<task>`
+`<context>`, with no planner spawn in between — the executor authors the
+remediation — and the run continues execute -> verify. After iteration 3 with findings remaining: stop,
 final status `failed`, findings recorded in the result document; commit
 whatever was written to the local ticket branch so nothing is lost, but do
 NOT push or open the PR.
