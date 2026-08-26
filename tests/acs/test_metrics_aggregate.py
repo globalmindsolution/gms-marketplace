@@ -120,7 +120,7 @@ _TEST_PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifie
 
 
 def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
-                     reorder=False, no_metrics=False, archived=False):
+                     reorder=False, no_metrics=False, archived=False, model_usage=None):
     """Write phases/<skill_dir>/iter-<it>-<phase>.xml -- a result XML with no <metrics> element,
     the only shape a result XML can carry now that element is retired.
 
@@ -128,7 +128,9 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
     acs_lib.finalize_run/usage_reader.py produce) to <skill_dir>-state.json's runs list, since
     panel 6 sources token burn from there rather than from the XML file. `reorder` is now a
     no-op, kept only for call-site compatibility with test_metrics_render.py (which imports and
-    reuses this fixture; that suite is outside this unit's file map)."""
+    reuses this fixture; that suite is outside this unit's file map). `model_usage`, when given,
+    is a list of model_usage item dicts (the real acs_lib.finalize_run persisted shape, MAR-3) --
+    omitted entirely by default, matching a pre-MAR-3 legacy run entry with no `model_usage` key."""
     tdir = _ticket_dir(ws, tid, archived)
     body = _RESULT_XML.format(phase=phase, tid=tid, it=it)
     _write_text(os.path.join(tdir, "phases", skill_dir, "iter-%d-%s.xml" % (it, phase)), body)
@@ -139,13 +141,16 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
     if not isinstance(state, dict):
         state = {"skill": skill_dir, "ticket_id": tid, "states": {}, "runs": []}
     role = _TEST_PHASE_ROLE.get(phase, phase)
-    state.setdefault("runs", []).append({
+    run_entry = {
         "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
         "status": "completed",
         "role_usage": [{"role": role, "input": ti, "output": to,
                          "cache_creation": 0, "cache_read": 0,
                          "cost_usd": cost, "cost_basis": "measured"}],
-    })
+    }
+    if model_usage is not None:
+        run_entry["model_usage"] = model_usage
+    state.setdefault("runs", []).append(run_entry)
     _write_json(state_path, state)
 
 
@@ -352,6 +357,162 @@ class Panel6TokenBurn(unittest.TestCase):
             # the malformed/roleless entries contributed to no bucket
             self.assertEqual(p6["planner"], {"input": 0, "output": 0, "cost": 0.0})
             self.assertEqual(p6["verifier"], {"input": 0, "output": 0, "cost": 0.0})
+
+
+class UsageByModelPanel(unittest.TestCase):
+    """MAR-3 spec 04: panels.usage_by_model, built from persisted model_usage (AC-2, data half)."""
+
+    def test_usage_by_model_repo_scope_sums_across_tickets_and_skills(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 10, "cache_read": 5,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1,
+                             model_usage=[{"model": "opus", "input": 500, "output": 100,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.05, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                             model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            by_model = {row["model"]: row for row in repo}
+            self.assertEqual(by_model["opus"], {"model": "opus", "input": 1500, "output": 300,
+                                                 "cache_creation": 10, "cache_read": 5,
+                                                 "cost_usd": 0.15, "cost_basis": "apportioned"})
+            self.assertEqual(by_model["sonnet"], {"model": "sonnet", "input": 2000, "output": 400,
+                                                   "cache_creation": 0, "cache_read": 0,
+                                                   "cost_usd": 0.2, "cost_basis": "apportioned"})
+
+    def test_usage_by_model_per_ticket_scope(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                             model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            tickets = {row["ticket_id"]: row["models"]
+                       for row in out["panels"]["usage_by_model"]["tickets"]}
+            self.assertEqual(tickets["MAR-6"], [{"model": "opus", "input": 1000, "output": 200,
+                                                  "cache_creation": 0, "cache_read": 0,
+                                                  "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            self.assertEqual(tickets["MAR-7"], [{"model": "sonnet", "input": 2000, "output": 400,
+                                                  "cache_creation": 0, "cache_read": 0,
+                                                  "cost_usd": 0.2, "cost_basis": "apportioned"}])
+
+    def test_usage_by_model_models_sorted_by_name(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1,
+                             model_usage=[
+                                 {"model": "sonnet", "input": 1, "output": 1,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.01, "cost_basis": "apportioned"},
+                                 {"model": "opus", "input": 1, "output": 1,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.02, "cost_basis": "apportioned"},
+                             ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            self.assertEqual([row["model"] for row in repo], ["opus", "sonnet"])
+
+    def test_model_cost_null_and_unavailable_when_no_entry_carries_cost(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1,
+                             model_usage=[{"model": "opus", "input": 500, "output": 100,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": None, "cost_basis": "unavailable"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo_row = out["panels"]["usage_by_model"]["repo"][0]
+            self.assertIsNone(repo_row["cost_usd"])
+            self.assertEqual(repo_row["cost_basis"], "unavailable")
+            self.assertEqual(repo_row["input"], 500)
+
+    def test_legacy_run_entry_without_model_usage_yields_no_data_row(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-1": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-1", "code", "execute", 1, ti=500, to=100, cost=0.05)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            panel = out["panels"]["usage_by_model"]
+            self.assertEqual(panel["repo"], "no data")
+            row = next(r for r in panel["tickets"] if r["ticket_id"] == "MAR-1")
+            self.assertEqual(row["models"], "no data")
+
+    def test_empty_workspace_usage_by_model_is_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["usage_by_model"], "no data")
+
+    def test_usage_by_model_adds_no_additional_file_reads(self):
+        """G7 guard: usage_by_model reads only the same per-ticket state files _accumulate_burn
+        already opens for panel 6 -- no new file path is introduced for this panel."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            seen_paths = []
+            orig_read = acs_lib.read_json
+
+            def _tracking_read(path):
+                seen_paths.append(path)
+                return orig_read(path)
+
+            acs_lib.read_json = _tracking_read
+            try:
+                metrics_aggregate.aggregate(ws, REPO_ID)
+            finally:
+                acs_lib.read_json = orig_read
+            self.assertTrue(seen_paths)
+            for p in seen_paths:
+                self.assertNotIn("model", os.path.basename(p).lower())
+
+    def test_panel6_bucket_shape_unchanged_by_this_ticket(self):
+        """Seam guard: panel 6 buckets stay {input, output, cost} even when the same run entry
+        also carries model_usage (widening panel 6's bucket shape is MAR-4's)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["6"]["executor"],
+                             {"input": 1000, "output": 200, "cost": 0.1})
+
+    def test_non_dict_model_usage_items_and_missing_model_skipped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "model_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
+                                 {"model": "opus", "input": 7, "output": 2,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.02, "cost_basis": "apportioned"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            self.assertEqual(repo, [{"model": "opus", "input": 7, "output": 2,
+                                      "cache_creation": 0, "cache_read": 0,
+                                      "cost_usd": 0.02, "cost_basis": "apportioned"}])
 
 
 # ---------------------------------------------------------------------------
@@ -1809,7 +1970,7 @@ class TestTestRunsRead(unittest.TestCase):
             # No test-runs/ directory at all.
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             for k in ("1", "2", "3", "4", "5", "6", "7", "delivery_summary", "issues",
-                      "progress", "deadline", "usage_summary"):
+                      "progress", "deadline", "usage_summary", "usage_by_model"):
                 self.assertIn(k, out["panels"])
             # Absence is itself a "no data" marker for the new source, not a raise.
             self.assertEqual(out["test_runs"], "no data")
@@ -1863,19 +2024,22 @@ class TestTestRunsRead(unittest.TestCase):
                 acs_lib.write_json = orig_write
             self.assertEqual(calls, [], "test-runs/ read must never write")
 
-    def test_panel_keys_constants_untouched(self):
-        """PANEL_KEYS / _NEW_PANEL_KEYS are unchanged by this spec (no new panel key)."""
+    def test_new_panel_keys_includes_usage_by_model(self):
+        """PANEL_KEYS is unchanged (no new "1".."7" key); _NEW_PANEL_KEYS gains "usage_by_model"
+        (MAR-3 spec 04)."""
         self.assertEqual(metrics_aggregate.PANEL_KEYS, ("1", "2", "3", "4", "5", "6", "7"))
         self.assertEqual(
             metrics_aggregate._NEW_PANEL_KEYS,
-            ("delivery_summary", "issues", "progress", "deadline", "usage_summary"),
+            ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+             "usage_by_model"),
         )
 
 
 class TestNewPanelKeyPresence(unittest.TestCase):
     """MAR-14 spec 01 §Test plan: key-presence (AC-1 / B1)."""
 
-    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                 "usage_by_model")
     _OLD_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
     def test_all_five_new_keys_present_happy_path(self):
@@ -1915,7 +2079,8 @@ class TestNewPanelKeyPresence(unittest.TestCase):
 class TestAggregatorDeterminism(unittest.TestCase):
     """MAR-14 spec 01: new panels identical across two calls (extends existing determinism coverage)."""
 
-    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                 "usage_by_model")
 
     def test_new_panels_identical_across_two_calls(self):
         """Run aggregate() twice on the same workspace; new panel values are equal."""

@@ -33,6 +33,13 @@ New panel keys (MAR-14 spec 01):
   "deadline"         — always degraded "not set" frame (Child 3 / MAR-15 wires real data).
   "usage_summary"    — totals + four averages from panel3; mirrors usage view data needs.
 
+New panel key (MAR-3 spec 04):
+  "usage_by_model"   — per-model token/cost breakdown, at repo AND per-ticket scope, folded
+                        from each run entry's model_usage field (acs_lib._measure_run_usage)
+                        in the same single pass _accumulate_burn already makes for panel 6
+                        (zero additional file reads). "no data" repo/ticket-row when no
+                        contributing run entry anywhere carries model_usage (legacy history).
+
 Existing panel keys "1".."7" and their shapes are UNCHANGED (A1 contract). New keys are additive.
 meta.degraded entries for new panels use string panel names; entries for "1".."7" use integers.
 
@@ -55,8 +62,10 @@ import acs_lib  # noqa: E402
 
 PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
-# New additive panel keys (MAR-14 spec 01). Not added to PANEL_KEYS (A1 contract preserved).
-_NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+# New additive panel keys (MAR-14 spec 01, plus usage_by_model from MAR-3 spec 04). Not added
+# to PANEL_KEYS (A1 contract preserved).
+_NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                    "usage_by_model")
 
 # iteration="N" on a verify result XML (panel 5 fallback)
 _ITER_RE = re.compile(r'\biteration\s*=\s*"(\d+)"')
@@ -183,6 +192,8 @@ def aggregate(workspace, repo_id, now=None):
     p7_rows = []
     burn = {role: {"input": 0, "output": 0, "cost": 0.0}
             for role in ("planner", "executor", "verifier", "coordinator")}
+    repo_models = {}  # model -> raw accumulator (MAR-3: usage_by_model repo scope)
+    _ticket_model_rows = []  # [(ticket_id, {model -> raw accumulator}), ...] (ticket scope)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
     # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
@@ -228,7 +239,11 @@ def aggregate(workspace, repo_id, now=None):
 
         p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
 
-        _accumulate_burn(burn, tdir)
+        ticket_models = _accumulate_burn(burn, tdir)
+        for model, bucket in ticket_models.items():
+            repo_bucket = repo_models.setdefault(model, _empty_model_bucket())
+            _fold_model_bucket(repo_bucket, bucket)
+        _ticket_model_rows.append((ticket_id, ticket_models))
 
         # Collect ticket.json.updated_at for burn_up fallback (spec 01:198-202).
         # ticket.json is already opened in _panel7_row (read-only, no extra I/O cost).
@@ -292,6 +307,9 @@ def aggregate(workspace, repo_id, now=None):
     # usage_summary: totals + four averages (spec 01:251-269)
     usage_summary = _usage_summary_panel(totals, prs, panel3["averages"])
 
+    # usage_by_model: per-model token/cost breakdown, repo + per-ticket (MAR-3 spec 04)
+    usage_by_model = _usage_by_model_panel(repo_models, _ticket_model_rows)
+
     panels = {
         "1": panel1, "2": panel2, "3": panel3, "4": panel4, "5": panel5,
         "6": panel6, "7": panel7,
@@ -300,6 +318,7 @@ def aggregate(workspace, repo_id, now=None):
         "progress": progress,
         "deadline": deadline,
         "usage_summary": usage_summary,
+        "usage_by_model": usage_by_model,
     }
     return {
         "panels": panels,
@@ -643,6 +662,64 @@ def _usage_summary_panel(totals, prs, panel3_averages):
     }
 
 
+def _empty_model_bucket():
+    """Raw (pre-finalization) per-model accumulator for usage_by_model (MAR-3 spec 04)."""
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0,
+            "cost_sum": 0.0, "cost_seen": False}
+
+
+def _fold_model_bucket(dest, src):
+    """Add one raw model accumulator's counts into another, in place."""
+    dest["input"] += src["input"]
+    dest["output"] += src["output"]
+    dest["cache_creation"] += src["cache_creation"]
+    dest["cache_read"] += src["cache_read"]
+    dest["cost_sum"] += src["cost_sum"]
+    dest["cost_seen"] = dest["cost_seen"] or src["cost_seen"]
+
+
+def _finalize_model_bucket(model, bucket):
+    """Raw accumulator -> the panel's public item shape (cost roll-up rule, spec 04).
+
+    cost_usd is the sum of non-null contributing costs, never a fabricated 0: None with
+    cost_basis "unavailable" when no contributing model_usage item carried a numeric cost,
+    else "apportioned" with cost_usd rounded to 6 places (mirrors _accumulate_burn's rounding).
+    """
+    return {
+        "model": model,
+        "input": bucket["input"],
+        "output": bucket["output"],
+        "cache_creation": bucket["cache_creation"],
+        "cache_read": bucket["cache_read"],
+        "cost_usd": round(bucket["cost_sum"], 6) if bucket["cost_seen"] else None,
+        "cost_basis": "apportioned" if bucket["cost_seen"] else "unavailable",
+    }
+
+
+def _usage_by_model_panel(repo_models, ticket_model_rows):
+    """Build panels.usage_by_model: repo scope + per-ticket scope (MAR-3 spec 04, AC-2).
+
+    repo_models: {model -> raw accumulator} folded across every ticket/skill.
+    ticket_model_rows: [(ticket_id, {model -> raw accumulator}), ...] in ticket iteration order.
+    "no data" (repo, or a ticket's own "models") when nothing contributed at that scope --
+    e.g. a legacy pre-MAR-3 run entry with no model_usage (AC-6 forward-only gap, disclosed).
+    """
+    if repo_models:
+        repo = [_finalize_model_bucket(m, repo_models[m]) for m in sorted(repo_models)]
+    else:
+        repo = "no data"
+
+    tickets = []
+    for ticket_id, models in ticket_model_rows:
+        if models:
+            models_list = [_finalize_model_bucket(m, models[m]) for m in sorted(models)]
+        else:
+            models_list = "no data"
+        tickets.append({"ticket_id": ticket_id, "models": models_list})
+
+    return {"repo": repo, "tickets": tickets}
+
+
 def _test_runs_source(workspace, repo_id, degrade):
     """Read-only test-runs/*/results.json source (MAR-114 spec 03).
 
@@ -891,11 +968,16 @@ def _max_verify_iteration(tdir):
 
 
 def _accumulate_burn(burn, tdir):
-    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6).
+    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6),
+    and this ticket's `model_usage` into per-model buckets (usage_by_model, MAR-3 spec 04).
 
     Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
     <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
-    `coordinator` now surfaces like any other role instead of being silently excluded."""
+    `coordinator` now surfaces like any other role instead of being silently excluded.
+    `burn`'s shape and behavior are unchanged; the model buckets are this function's new
+    return value only -- existing callers ignoring it keep working unmodified.
+    """
+    ticket_models = {}
     for skill in acs_lib.HOOKED_SKILLS:
         state = acs_lib.read_json(acs_lib.state_path(tdir, skill))
         if not isinstance(state, dict):
@@ -915,6 +997,22 @@ def _accumulate_burn(burn, tdir):
                 cost = item.get("cost_usd")
                 if _is_number(cost):
                     bucket["cost"] = round(bucket["cost"] + cost, 6)
+            for item in entry.get("model_usage") or []:
+                if not isinstance(item, dict):
+                    continue
+                model = item.get("model")
+                if not model:
+                    continue
+                model_bucket = ticket_models.setdefault(model, _empty_model_bucket())
+                model_bucket["input"] += _to_int(item.get("input"))
+                model_bucket["output"] += _to_int(item.get("output"))
+                model_bucket["cache_creation"] += _to_int(item.get("cache_creation"))
+                model_bucket["cache_read"] += _to_int(item.get("cache_read"))
+                cost = item.get("cost_usd")
+                if _is_number(cost):
+                    model_bucket["cost_sum"] += cost
+                    model_bucket["cost_seen"] = True
+    return ticket_models
 
 
 def _read_text(path):
