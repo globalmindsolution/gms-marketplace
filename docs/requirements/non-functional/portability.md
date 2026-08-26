@@ -14,7 +14,7 @@ Core-principle row during the MAR-145 functional/non-functional reorg
 |----------------|-------------|
 | Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`, outside the consumer repo, enabling worktrees and parallel tickets across any number of consumer repos. |
 
-**Read-outside-the-workspace exception (MAR-1, ADR 0080).** Cost/time
+**Read-outside-the-workspace exception (MAR-1, ADR 0082).** Cost/time
 measurement is the one place acs reads outside both the consumer repo and
 its own workspace store: the Claude Code transcript directory
 (`~/.claude/projects/`). The read is scoped strictly to the exact

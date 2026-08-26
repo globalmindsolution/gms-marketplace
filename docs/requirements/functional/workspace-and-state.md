@@ -238,7 +238,7 @@ all of it:
   and runs for the ticket.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
   counts (created, merged), and total working time, tokens, and cost.
-- **Measured, not self-reported (MAR-1, ADR 0080).** The coordinator's XML
+- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's XML
   result carries no token/cost figures at all — the standing `[ASSUMPTION]`
   this bullet used to record is resolved, not merely reworded. A run's
   `session_id`/`transcript_path` are captured from the genuine

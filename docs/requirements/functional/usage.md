@@ -193,4 +193,4 @@ no network call:
   `no_unconsumed_sample_in_window` or `cost_total_reset` to carry the
   degraded reason when `cost_usd` is `null`. There is no
   `pricing_snapshot_date`: acs owns no price table, so no derived-from-a-price-list
-  framing applies (MAR-1, ADR 0080).
+  framing applies (MAR-1, ADR 0082).

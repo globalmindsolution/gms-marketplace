@@ -172,7 +172,7 @@ pure-workspace-state reading. Declining the `statusLine` opt-in at
 `/acs:initialize` leaves per-run cost figures rendering as `unavailable`;
 token counts stay `measured` regardless, since they come from the Claude
 Code transcript, not the statusLine payload
-([ADR 0080](../../adr/0080-session-anchored-transcript-measurement-statusline-cost-apportionment.md)).
+([ADR 0082](../../adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md)).
 
 ## Validation rules
 

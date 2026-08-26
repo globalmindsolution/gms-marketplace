@@ -284,7 +284,7 @@ convention, e.g. `Explore`) and **unattributed** (a main-session record with
 no attribution, or one attributed to a different acs skill than the run's
 own — see below). For each ticket, the spend is summed from each `runs[]`
 entry's measured `role_usage` field (`metrics_aggregate._accumulate_burn`),
-persisted by `finalize_run` at measurement time (MAR-1, ADR 0080) — **not**
+persisted by `finalize_run` at measurement time (MAR-1, ADR 0082) — **not**
 from the retired `<metrics>` XML element, which no longer exists on any
 phase artifact.
 

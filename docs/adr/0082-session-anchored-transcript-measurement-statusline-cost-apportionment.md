@@ -1,4 +1,4 @@
-# 0080 — Session-anchored transcript measurement with statusLine-sourced real-cost apportionment, superseding an acs-owned price table
+# 0082 — Session-anchored transcript measurement with statusLine-sourced real-cost apportionment, superseding an acs-owned price table
 
 **Status**: Accepted · **Date**: 2026-08-25
 

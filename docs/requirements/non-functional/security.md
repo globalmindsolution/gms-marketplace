@@ -22,7 +22,7 @@ the full behavioral definition lives in
 (the Grounding paragraph) — cross-referenced here rather than duplicated,
 per the functional/non-functional tie-break rule.
 
-## Transcript privacy boundary (MAR-1, ADR 0080)
+## Transcript privacy boundary (MAR-1, ADR 0082)
 
 Cost/time measurement reads the Claude Code transcript for a run's own
 recorded `transcript_path` plus its `subagents/` subtree. The boundary is

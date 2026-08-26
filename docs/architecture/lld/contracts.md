@@ -19,7 +19,7 @@ spawned per message. `xmllint` is invoked only opt-in when
 absence never blocks a verdict. A `validate_batch()` Python API validates a list
 of messages in one in-process loop (MAR-61).
 
-**`<metrics>` removed (MAR-1, ADR 0080).** The self-estimated
+**`<metrics>` removed (MAR-1, ADR 0082).** The self-estimated
 `<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
 gone from `<result>`'s content model — both `acs-messages.xsd` and, the
 actual in-process enforcement path, `validate_xml.py`'s
@@ -29,7 +29,7 @@ subagent-to-coordinator message contract at all; they are measured from the
 run's own transcript and the statusLine cost sample at `finalize_run` time
 (see the Run-entry / totals contract below).
 
-## Run-entry / totals contract (MAR-1, ADR 0080)
+## Run-entry / totals contract (MAR-1, ADR 0082)
 
 `finalize_run` no longer trusts a coordinator-supplied `tokens`/`cost_usd`
 self-estimate. A `<skill>-state.json` `runs[]` item now carries, additive to
@@ -65,21 +65,23 @@ becomes invalid.
 | Helper | Contract |
 |--------|----------|
 | `skill-start.py --skill S [--ticket\|--args\|--allocate]` | stdout: context JSON (settings, partition, ticket, models, reconcile/handoff, post_hook path); registers `in_progress` run, lock, pointer |
-| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens, cost_usd[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0080**: `tokens`/`cost_usd` on this input are vestigial — `finalize_run` measures both from the run's transcript/statusLine sample instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection |
+| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens, cost_usd[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0082**: `tokens`/`cost_usd` on this input are vestigial — `finalize_run` measures both from the run's transcript/statusLine sample instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection |
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes …]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes `handed_off`, releases lock, prints `continue_with` |
 | `codeowners.py resolve --repo-root --changed-files [--codeowners-path]` | stdout: `{source, owners[], reason}`; exit 0 on all data outcomes, exit 2 on malformed invocation |
 | `mermaid_lint.py FILE.md [FILE.md ...]` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; also importable — `lint_text(text, source="<text>")`, `lint_file(path)`, `Finding(source, line, rule, message)` |
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
+| `citation_check.py --plan <plan.md> --root <name>=<path> [--root …]` | stdout: one JSON line per resolved citation — `{claim, path, line, excerpt}`, where `line` is the citation's line in the **plan** file, never a locus in the cited file; stderr: `source:line: [rule] message` per finding (`citation-unresolved`, `citation-excerpt-not-found`, `citation-inventory-empty`); exit 1 on any finding, exit 0 clean (≥ 1 citation, all resolved and excerpt-matched), exit 2 on usage error or an unreadable plan file; also importable — `extract_citations(text, heading=…)`, `resolve_and_check(citations, roots, plan_path)`, `Finding(source, line, rule, message)` (same 4-field shape as `structure_lint.Finding`) |
+| `prd_conformance_check.py --plan <iter-n-plan.md> --mode {greenfield\|brownfield\|amend} --repo-root <repo-root> --clarifications <partition>/clarifications.json --prd <prd_path>/prd.md --roadmap <prd_path>/roadmap.md [--added-heading "<verbatim milestone heading>" ...]` | stdout: one JSON line per manifest entry, each carrying a `"family"` key (`code-evidence`\|`answer-fidelity`\|`roadmap-outline`) alongside the `citation_check`-shaped fields for its family; stderr: `source:line: [rule] message` per finding (`code-citation-unresolved`, `code-citation-excerpt-not-found`, `code-evidence-empty`, `answer-not-dispositioned`, `answer-anchor-not-found`, `answer-anchor-file-unknown`, `roadmap-milestone-not-found`, `roadmap-milestone-unplanned`); exit 1 on any finding, exit 0 clean, exit 2 on usage error or an unreadable `--plan`/`--clarifications`/`--prd`/`--roadmap` file; also importable — `check_code_evidence(text, repo_root, plan_path)`, `check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_path)`, `check_roadmap_milestones(text, roadmap_text, mode, added_headings, plan_path)`, each returning `(findings, manifest_entries)` in `citation_check`'s `Finding`/dict shapes; imports `citation_check.extract_citations`/`resolve_and_check` unchanged — zero re-implementation of path containment |
 | `release_notes.py status\|draft\|bump --version X.Y.Z --repo-root P [--workspace W] [--dry-run] --release-config <json>` | stdout JSON per subcommand — `status`: four idempotency signals (manifests/changelog/branch-PR/tag), now resolved against the block's `version_locations`/`changelog_path`/`tag_format`/`release_branch_format`; `draft`: authoritative `draft_section` + `{merged,covered,missing}` coverage report; `bump`: `files_changed[]` per the block's `version_locations`+`extra_refs`+`changelog_path`, atomic per-file write (temp-file + rename); exit 0 on all data outcomes (incl. nothing-to-release), exit 2 on malformed invocation, unreadable/missing CHANGELOG/manifest, or a malformed/absent `--release-config` block |
 | `plan-approval.py --ticket T [--plan P]` | stdout JSON — `{ok, eligible, plan_approved, lane, failures[]}`, or `{ok, skipped:"lane", …}` on TRIVIAL/SMALL, or `{ok, skipped:"already-approved", …}` on an unchanged approved digest; writes `<partition>/phases/code/plan-approval.json` (sole writer; consumers are `plan-approval.py`'s own idempotency check and, since MAR-74, `code-verifier`'s dimension 15 activation, which reads the file itself and never accepts a relayed value — the record is still not a gate input) and mirrors `code-state.json` `states.plan_approved`; **exit 0 on every data outcome including ineligible**; **exit 2** on an unresolvable ticket/partition, an unreadable `ticket.json`, or a `--plan` whose realpath escapes `<partition>/phases/code/` (MAR-73, slice 3 of MAR-69) |
 
 Exit codes: 0 ok; **2 blocked/invalid** — a failed gate, an unresolvable
 ticket/partition, an archived ticket, a held lock, or a malformed invocation —
 **unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
-failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py` exit 1
-on findings). Always with actionable stderr.
+failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_check.py`/
+`prd_conformance_check.py` exit 1 on findings). Always with actionable stderr.
 
 ## Hook events (Claude Code)
 

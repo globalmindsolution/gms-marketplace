@@ -155,15 +155,16 @@ Phases:
    - the tailored content **conforms to the architecture set** (stack/technology
      claims match `architecture/hld/tech-stack.md` and the rest of the set);
    - required sections are present in each file;
-   - the plan was followed exactly;
+   - the plan was followed exactly, including independent corroboration of
+     every upstream-fact citation in its Upstream inventory;
    - the changeset is docs-only;
    - **consistency**: any `consistency_findings` the planner surfaced (the
      shared ADR-0012 design-time doc-consistency step, see Plan above) were
      resolved or explicitly user-deferred in the clarification ledger.
 
-   The verify task's `<constraints>` also carry each of the two files'
-   `required_sections:<file>` and the `audience_style_profile` declared in
-   the Plan task example above.
+   The verify task's `<constraints>` also carry `prd_path`, each of the two
+   files' `required_sections:<file>` and the `audience_style_profile`
+   declared in the Plan task example above.
 
 Zero verifier findings = pass — proceed to Delivery. On findings, feed them
 verbatim into the next iteration's plan task and re-run

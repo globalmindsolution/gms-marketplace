@@ -125,7 +125,7 @@ TRIVIAL/SMALL no `<task phase="plan">` message is ever sent and no
 `iter-<n>-plan.xml` snapshot to persist — the execute/verify XML persistence
 in the `loop reflection` block above is unaffected in every lane.
 
-**Cost/time metering (MAR-1, ADR 0080).** Two of the diagram's steps carry
+**Cost/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
 additional, undrawn responsibility, detailed in full in the dedicated
 `acs-cost-metering.md` flow: the `PRE` participant's gate check now also
 writes a ticket-independent session-correlation marker (`session_id`/

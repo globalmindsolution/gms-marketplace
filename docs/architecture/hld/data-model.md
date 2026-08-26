@@ -75,7 +75,7 @@ erDiagram
         string checkout_id "needed at finalize time to locate this checkout's cost-sample/cursor files (MAR-1)"
         json tokens "input/output/cache_creation/cache_read -- raw measured counts, MAR-1 widened the allow-list"
         number cost_usd "null means cost_basis=unavailable, never a fabricated 0 (MAR-1)"
-        enum cost_basis "measured|apportioned|unavailable (MAR-1, ADR 0080)"
+        enum cost_basis "measured|apportioned|unavailable (MAR-1, ADR 0082)"
         enum cost_scope "session_total|main_session_only on a charge; reused as the degraded reason (no_unconsumed_sample_in_window|cost_total_reset) when cost_usd is null (MAR-1)"
         number excluded_cost_usd "the unattributed same-window slice dropped per C-8, never redistributed (MAR-1)"
         number excluded_token_share "0..1 (MAR-1)"
@@ -214,7 +214,7 @@ semantics — no new entity block is added for it; the cardinality change is
 captured entirely by the narrowed `PHASE_ARTIFACT` relationship label above.
 Zero migration: no new state key, no new schema field, no new artifact path.
 
-**Amendment (MAR-1, ADR 0080) — closes doc-graph gap E2.** Cost/time
+**Amendment (MAR-1, ADR 0082) — closes doc-graph gap E2.** Cost/time
 measurement replaced two self-estimated paths with real measurement: the
 `RUN_ENTRY` entity above gains `session_id`/`transcript_path`/`checkout_id`
 (session correlation), the widened `tokens` object, `cost_basis`/

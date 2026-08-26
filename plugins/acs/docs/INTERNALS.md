@@ -15,7 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 24 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{skill-start,new-ticket,handoff,validate_xml,pr-conventions}.py` | 5 |
+| Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,codex_adapter,handoff,mermaid_lint,metrics_aggregate,metrics_render,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 17 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /initialize Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
@@ -43,7 +43,7 @@ onto the plugin hooks API like this:
    skill's mandatory final step (each SKILL.md ends with it). It must be a
    script the coordinator calls because its inputs — final status, stop
    reason, and findings — exist only in the coordinator's context. Token/cost
-   usage is the one exception since MAR-1 (ADR 0080): `finalize_run` measures
+   usage is the one exception since MAR-1 (ADR 0082): `finalize_run` measures
    both itself, from the run's own Claude Code transcript and a sampled
    statusLine cost figure, rather than trusting a coordinator-supplied value —
    a `tokens`/`cost_usd` pair on the result document is accepted for backward

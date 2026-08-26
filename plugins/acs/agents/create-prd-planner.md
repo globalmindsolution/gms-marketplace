@@ -57,6 +57,50 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    executor writes (`<prd_path>/prd.md`, `<prd_path>/roadmap.md`), known risks
    (e.g. amendment collides with unrelated edits, code evidence contradicts user
    notes), and the concrete checks the verifier must run against the result.
+8. **Record the three corroboration sections the deterministic floor parses.**
+   In addition to the outline above, the plan carries three further sections
+   whose one-line grammars `prd_conformance_check.py` parses at verify time —
+   never invent or omit them:
+   - **`## Code evidence`** — brownfield/amend only; N/A in greenfield. One
+     line per citation, the existing house grammar, unchanged:
+
+     ```
+     - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
+     ```
+
+     Path is backtick-quoted, relative to the repo root (never absolute,
+     never `..`-escaping); line/range is advisory only; excerpt is a
+     straight-double-quoted verbatim substring of the cited file. In
+     greenfield mode the plan states `Code evidence: N/A — greenfield, no
+     code to cite` instead of the section body.
+   - **`## Answer fidelity`** — one line per `answered`/`assumed`
+     `clarifications.json` entry:
+
+     ```
+     - C-<n> — <prd.md|roadmap.md> — "<verbatim anchor text>"
+     ```
+
+     or, for an answer that yields no verbatim text:
+
+     ```
+     - C-<n> N/A: <why this answer produces no anchor>
+     ```
+
+     The anchor is a straight-double-quoted verbatim substring of the named
+     produced file (whitespace-normalized). Every ledger id must appear
+     exactly once; an id absent from this section is
+     `answer-not-dispositioned`.
+   - **`## Roadmap milestones`** — one line per milestone the plan's roadmap
+     outline declares, carrying the milestone's verbatim heading text as it
+     will appear in `roadmap.md`:
+
+     ```
+     - Milestone: "### M2.6 — v0.3.5–v0.3.7 fast-follows — complete tracker & PR metadata sync; dynamic lane correctness"
+     ```
+
+     (This mirrors `roadmap.md:273`'s actual milestone-title shape, including
+     the `;` — the grammar quotes the whole heading text so the `;` is inert,
+     never a delimiter.)
 
 On iteration 2+, open the plan with a findings table: every verifier finding from
 `<context>`, verbatim, next to the specific plan change that resolves it.
@@ -109,6 +153,7 @@ the task's `iteration`). Write it with the Write tool.
 
 
 Required headings: `## Mode & evidence`, `## PRD outline`, `## Roadmap outline`,
+`## Code evidence`, `## Answer fidelity`, `## Roadmap milestones`,
 `## Open questions`, `## Executor tasks`, `## Risks`, `## Verifier checklist`.
 The XML result references this file; it never inlines the plan body.
 

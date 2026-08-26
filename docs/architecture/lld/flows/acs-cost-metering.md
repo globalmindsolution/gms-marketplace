@@ -5,7 +5,7 @@ real (never self-estimated) dollar figure for every hooked skill run, and how
 `/acs:usage`/`/acs:metrics` render those figures back out. Two coupled paths:
 **measure/persist** (every hooked skill run, at its pre-hook and post-hook)
 and **read/render** (`/acs:usage`, `/acs:metrics`), both read-only on the
-render side. ADR 0080 records the decision this flow implements.
+render side. ADR 0082 records the decision this flow implements.
 
 ## Sequence diagram — measure/persist path
 
