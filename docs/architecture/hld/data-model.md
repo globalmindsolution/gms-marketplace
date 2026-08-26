@@ -84,7 +84,7 @@ erDiagram
         string handoff_summary "when handed_off"
     }
     ROLE_USAGE {
-        string role "coordinator|planner|executor|verifier|other|unknown-skill|unattributed (MAR-1)"
+        string role "coordinator|planner|executor|verifier|other|unattributed (MAR-1)"
         int input
         int output
         int cache_creation
@@ -116,7 +116,7 @@ erDiagram
         string ticket_id PK
         enum flow "ticket|product"
         json steps "per-skill status/timestamps/summary"
-        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens, cost (four counters additive since MAR-1)"
+        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
     CLARIFICATIONS {

@@ -166,7 +166,9 @@ nothing but still advances the cursor.
 `metrics_aggregate.py` reads only already-finalized run entries; it performs
 no transcript or statusLine I/O of its own and writes nothing. Panel 6 sums
 each run entry's `role_usage` list directly — the `coordinator` bucket
-(main-session attributed work) surfaces exactly like `planner`/`executor`/
-`verifier`/`other`, and an `unattributed` bucket (present when
-`excluded_token_share` is nonzero) is visible rather than silently absorbed
-into an attributed role's total.
+(main-session work attributed to **the run's own skill**) surfaces exactly
+like `planner`/`executor`/`verifier`/`other`, and an `unattributed` bucket
+(present when `excluded_token_share` is nonzero) is visible rather than
+silently absorbed into an attributed role's total; it also absorbs
+main-session records attributed to a different acs skill than the run's own,
+not just records with no attribution at all.

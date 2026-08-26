@@ -123,13 +123,20 @@ figure at all.
 3. **Token measurement.** At finalize time, `usage_reader.py` reads the
    run's exact recorded `transcript_path` plus its `subagents/` subtree,
    counting all four `message.usage` integer fields and bucketing them by
-   role (`coordinator` for main-session attributed work, `planner`/
-   `executor`/`verifier`/`other` for subagent `attributionAgent` values, an
-   `unattributed` bucket — never redistributed onto attributed roles — for
-   same-window tokens with no attribution). It never raises: any I/O
-   failure, missing marker, empty window, or cap breach (32 MiB / 64 files)
-   degrades to `degraded=true` with a reason, and a run that resolves zero
-   real tokens is treated as degraded, never a misleadingly valid `0`.
+   role (`coordinator` for main-session records whose `attributionSkill`
+   normalizes to **the run's own skill** — `_skill_role(attribution_skill,
+   own_skill)` — and `planner`/`executor`/`verifier`/`other` for subagent
+   `attributionAgent` values). Every other main-session record — no
+   attribution at all, *or* attribution to a different acs skill than the
+   run's own — folds into a single `unattributed` bucket, never redistributed
+   onto attributed roles. This own-skill-only filter supersedes the design's
+   `"unknown-skill"` degradation clause (`design.md:1203`), which conflicted
+   with the same section's mandatory own-skill sentence
+   (`design.md:1199-1203`); the mandatory clause is the one shipped. It never
+   raises: any I/O failure, missing marker, empty window, or cap breach
+   (32 MiB / 64 files) degrades to `degraded=true` with a reason, and a run
+   that resolves zero real tokens is treated as degraded, never a
+   misleadingly valid `0`.
 4. **Cost.** `cost_sampler.py` samples a shape-agnostic `total_cost_usd`
    figure off the `statusLine` hook's stdin payload on every invocation
    (`record_cost_sample`, called from `statusline.py`'s `main()`, before
@@ -184,10 +191,20 @@ to contain the literal string `<metrics` by design.
   run's window. A repo that never opts in still gets accurate `measured`
   token counts and an honest `unavailable` cost — a strict improvement over
   the prior uncorrelated self-estimate, never a regression.
-- `cost_basis="measured"` is precisely delta-since-last-charge, not
-  delta-during-this-run's-own-window: the allocation cursor may sit before
-  the run's own `started_at`, so a charged delta can include spend from
-  before the run began (idle chat, a previous unrelated run). This is a
+- The own-skill-only attribution filter (Decision §3) has its own coverage
+  cost: under a long `/acs:ship` session where a same-window record is
+  attributed to a different acs skill than the run currently finalizing,
+  that record's tokens/cost are dropped into `unattributed` and excluded
+  from this run's totals rather than misattributed to it
+  (`tests/acs/test_usage_reader.py::test_registered_but_foreign_skill_attribution_is_dropped`) —
+  the same class of disclosed, deliberate under-coverage as the `statusLine`
+  opt-in bullet above, not a bug.
+- `cost_basis="measured"` is the **attributed-token share** of the delta
+  since the last charge, not delta-during-this-run's-own-window: the
+  allocation cursor may sit before the run's own `started_at`, so a charged
+  delta can include spend from before the run began (idle chat, a previous
+  unrelated run), and the same-window unattributed/foreign-skill share of
+  that delta is excluded before apportioning (Decision §3/§4). This is a
   disclosed limitation of the cursor mechanism, not a bug, and does not
   change the direction of the invariant — the cursor rule bounds the sum of
   all charged deltas to at most the total spend observed, so sparse

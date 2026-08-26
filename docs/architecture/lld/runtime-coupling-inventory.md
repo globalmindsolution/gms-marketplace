@@ -58,7 +58,7 @@ companion `runtime-coupling-inventory.evidence.md` sidecar (Decision B / ADR
 | 2 | Session termination | `SessionEnd` → `dispatch.py session-end` → `interrupted` + lock release | `hooks.json` (SessionEnd hook, command `dispatch.py session-end`, timeout 30); `dispatch.py` (session-end branch → `acs_lib.session_end`); `acs_lib.py` (`def session_end`) | **Corrected:** Codex has **no `SessionEnd` event**. `Stop` is per-turn (fires at every turn end, requires JSON on stdout, `decision:block` means *continue*) — so it must **not** be mapped to `dispatch.py session-end` (that would release the lock mid-session). Session finalization / lock release on Codex is **lease / next-run-reconcile** based. | MAR-5 |
 | 3 | Reflection-subagent dispatch | `Agent` tool spawns planner/executor/verifier in separate contexts; XML `<task>`/`<result>` validated against `acs-messages.xsd` | `acs-messages.xsd` (`contracts.md:6-14`); validated by `validate_xml.py`; coordinator/agent invocation is prompt-layer; file-anchored via partition (`overview.md:30,41`) | **Corrected:** Codex spawns subagents **only on explicit request** and manages orchestration itself; custom agents are `.codex/agents/*.toml` (fields `name`/`description`/`developer_instructions`) — a different format/location, **not plugin-bundled** — with `max_depth` default 1. The coordinator-driven planner/executor/verifier fan-out does **not** port 1:1. Native Codex custom-agents vs a single-agent fallback is an **open epic design decision**; the XML `<task>`/`<result>` artifact contract (`acs-messages.xsd`) stays unchanged whichever is chosen. | MAR-6 |
 | 4 | Per-role model/effort | `settings.models.<role>` + `overrides` → `acs_lib.resolve_role_model` | `acs_lib.py` (`def resolve_role_model(settings, skill, role)`); config surface `settings.schema.json` `models` block (`contracts.md:51-58`) | `settings.models.codex.<role>` → `resolve_role_model` with `runtime=codex` parameter (MAR-6 adds `runtime` param); FAIL on rejected model/effort unchanged | MAR-6 |
-| 5 | Cost/token sourcing | Coordinator fills `tokens`/`cost_usd` in result doc; ADR-0026 hybrid precedent | `data-model.md:46-54` (RUN_ENTRY `tokens`/`cost_usd` fields); `contracts.md:21` (result doc contract); `docs/adr/0026-tabp-hybrid-cost-sourcing.md` | `~/.codex/sessions/` token actuals if available; OpenAI pricing snapshot added; `cost_basis` label preserves auditability; `cost_basis=estimate` fallback when session token source unavailable | MAR-6/MAR-7 |
+| 5 | Cost/token sourcing | `usage_reader.py` reads token actuals from the Claude Code transcript tree (session-anchored via the `PreToolUse(Skill)` marker); `cost_sampler.py` samples/apportions a real cost figure off the `statusLine` hook's stdin payload; ADR 0080 supersedes the ADR-0026 hybrid precedent for acs metrics (MAR-1) | `data-model.md:70-85` (RUN_ENTRY `tokens`/`cost_usd`/`cost_basis`/`cost_scope` fields); `contracts.md:32-59` (run-entry/totals contract); `docs/adr/0080-session-anchored-transcript-measurement-statusline-cost-apportionment.md` | `~/.codex/sessions/` token actuals if available; OpenAI pricing snapshot added; `cost_basis` label preserves auditability; shipped enum is `measured\|apportioned\|unavailable` (`skill-state.schema.json:45-47`) — a Codex adapter's estimate-based fallback would need its own basis value, not the retired `estimate` label | MAR-6/MAR-7 |
 
 ### Entry-point anchor verification record
 
@@ -79,7 +79,7 @@ sidecar (Decision B / ADR 0064); the Anchor column here names the bare source fi
 | `acs_lib.py` | `def session_end(payload)` | Line 1621: `def session_end(payload):` — confirmed |
 | `contracts.md:6-14` | XML coordinator ↔ subagent contract, `acs-messages.xsd` reference | Line 6: `## Coordinator ↔ subagent (XML, ...acs-messages.xsd...)`; lines 8-12 table; line 14: `Validation:...` — confirmed |
 | `contracts.md:51-58` | Settings `models` block | Line 51: `## Settings (consumer repo)`; lines 52-58: `.acs/settings.json...models...` — confirmed |
-| `data-model.md:46-54` | RUN_ENTRY `tokens`/`cost_usd` fields | Line 46: `RUN_ENTRY {`; line 49: `json tokens "input/output"`; line 50: `number cost_usd`; line 54: `}` — confirmed |
+| `data-model.md:70-85` | RUN_ENTRY `tokens`/`cost_usd`/`cost_basis`/`cost_scope` fields (MAR-1) | Line 70: `RUN_ENTRY {`; line 76: `json tokens "input/output/cache_creation/cache_read ..."`; line 77: `number cost_usd`; line 78: `enum cost_basis`; line 79: `enum cost_scope`; line 85: `}` — confirmed |
 
 ---
 
@@ -131,12 +131,20 @@ construction (Bash-invoked, read/write workspace JSON or partition state). The d
   context JSON; reads/writes workspace JSON via Bash invocation.
 - `handoff.py` — finalizes `handed_off` status, releases lock, prints `continue_with`;
   reads/writes workspace JSON via Bash invocation.
-- `statusline.py` — renders the pipeline statusline for coordinator context; reads workspace
-  JSON via Bash invocation.
+- `statusline.py` — **split since MAR-1.** Its rendering half is agnostic: it reads
+  workspace JSON via Bash invocation like the others here. Its cost-sampling half is
+  coupled: on every invocation it also parses and persists the `total_cost_usd` figure
+  from the Claude-Code-shaped `statusLine` stdin payload (`cost_sampler.record_cost_sample`,
+  `statusline.py:16,131-138`) — a genuine Claude Code primitive, in the same family as
+  surface #5's cost/token sourcing above, not a workspace-JSON read. A Codex adapter for
+  this surface needs whatever cost-payload shape (if any) Codex's own status-line
+  equivalent provides; it cannot reuse this script's stdin-parsing logic unmodified.
 - `subagent-statusline.py` — renders the subagent statusline; reads workspace JSON via Bash
   invocation.
 
-All four exist in `plugins/acs/hooks/scripts/` (confirmed by `ls plugins/acs/hooks/scripts/`).
+All four scripts exist in `plugins/acs/hooks/scripts/` (confirmed by
+`ls plugins/acs/hooks/scripts/`); `statusline.py`'s cost-sampling half is coupled per the
+note above, not purely agnostic.
 
 ---
 
@@ -152,10 +160,12 @@ Correction note, **not all have a Codex equivalent**: Codex has no `Skill` match
 (non-bypassable only via managed `requirements.toml`), and its subagent model diverges from the
 `Agent`-tool reflection cycle.
 
-**Runtime-agnostic side:** the entire deterministic stdlib layer — all components invoked via
-Bash and reading/writing workspace JSON — is identical on both runtimes. No adapter is needed
-for these; they are called by the same `python3 <script>` Bash invocations on both Claude Code
-and Codex CLI.
+**Runtime-agnostic side:** the deterministic stdlib layer — components invoked via Bash and
+reading/writing workspace JSON — is identical on both runtimes. No adapter is needed for
+these; they are called by the same `python3 <script>` Bash invocations on both Claude Code
+and Codex CLI. `statusline.py` is the one partial exception (§2 above): its rendering half
+is agnostic, but its cost-sampling half consumes a Claude-Code-shaped stdin payload and
+belongs with the coupled cost/token-sourcing surface.
 
 **The adapter:** `codex_adapter.py` (delivered by Spec 02, MAR-4) is the thin stdlib glue
 that sits at this seam. It reads `--runtime {claude-code,codex}` and routes to the appropriate

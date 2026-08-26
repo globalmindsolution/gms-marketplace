@@ -53,8 +53,11 @@ shape:
 `working_seconds`/`cost_usd` sums; a run with a `None`-elapsed interval or a
 non-measured/apportioned `cost_basis` (including a legacy run with no
 `cost_basis` field at all) is excluded from those sums but still counted, so
-averages never divide by the wrong denominator. All of this is
-schema-additive — no previously valid state/pipeline/metrics document
+averages never divide by the wrong denominator. `totals.tokens` also widens
+the same way as the run-entry `tokens` field above — from `{input, output}`
+to `{input, output, cache_creation, cache_read}` — summed by
+`compute_ticket_totals`/`update_metrics` across all four classes. All of this
+is schema-additive — no previously valid state/pipeline/metrics document
 becomes invalid.
 
 ## Coordinator ↔ deterministic layer (CLI)
