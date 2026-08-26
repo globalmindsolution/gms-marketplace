@@ -57,7 +57,8 @@ PANEL_HEADERS = (
 
 def _full_workspace_data():
     """A populated MAR-6-shaped aggregate: panel-1 primary, full funnel, cost/time, numeric
-    coverage, authoritative review iterations, all three role buckets (coordinate excluded)."""
+    coverage, authoritative review iterations, all four role buckets (planner/executor/verifier/
+    coordinator)."""
     with TemporaryDirectory() as ws:
         fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
         fx.write_metrics(ws, {
@@ -735,6 +736,85 @@ class Panel7LeadCycle(unittest.TestCase):
         self.assertIn("Panel 7", html)
         self.assertIn("no data", term)
         self.assertIn("no data", html)
+
+
+class Panel6RoleCoverage(unittest.TestCase):
+    """MAR-1: panel 6 must render the coordinator bucket (always seeded by the aggregate) and
+    any extra other/unattributed buckets it sets on top, not just the original three roles."""
+
+    def test_coordinator_bucket_renders_both_surfaces(self):
+        value = {
+            "planner": {"input": 100, "output": 20, "cost": 0.1},
+            "executor": {"input": 200, "output": 40, "cost": 0.2},
+            "verifier": {"input": 50, "output": 10, "cost": 0.05},
+            "coordinator": {"input": 777, "output": 88, "cost": 12.34},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("coordinator", out)
+            self.assertIn("777", out)
+            self.assertIn("88", out)
+            self.assertIn("12.34", out)
+
+    def test_other_and_unattributed_extra_rows_sorted(self):
+        value = {
+            "planner": {"input": 100, "output": 20, "cost": 0.1},
+            "executor": {"input": 200, "output": 40, "cost": 0.2},
+            "verifier": {"input": 50, "output": 10, "cost": 0.05},
+            "coordinator": {"input": 10, "output": 5, "cost": 0.01},
+            "unattributed": {"input": 300, "output": 60, "cost": 0.3},
+            "other": {"input": 15, "output": 3, "cost": 0.02},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("other", out)
+            self.assertIn("unattributed", out)
+            self.assertIn("300", out)
+            self.assertIn("15", out)
+        # sorted alphabetically -> "other" row before "unattributed" row, on both surfaces
+        self.assertLess(term.index("other"), term.index("unattributed"))
+        self.assertLess(html.index("other"), html.index("unattributed"))
+
+    def test_no_extra_rows_when_only_core_roles_present(self):
+        value = {
+            "planner": {"input": 100, "output": 20, "cost": 0.1},
+            "executor": {"input": 200, "output": 40, "cost": 0.2},
+            "verifier": {"input": 50, "output": 10, "cost": 0.05},
+            "coordinator": {"input": 10, "output": 5, "cost": 0.01},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertNotIn("other", out)
+            self.assertNotIn("unattributed", out)
+
+    def test_four_core_roles_fixed_order_with_zero_data(self):
+        # Regression guard: the four core roles still render in ROLE_ORDER even when some are
+        # all-zero, and even when the value dict omits them entirely (existing behavior).
+        value = {"executor": {"input": 500, "output": 50, "cost": 1.0}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            idx_planner = out.index("planner")
+            idx_executor = out.index("executor")
+            idx_verifier = out.index("verifier")
+            idx_coordinator = out.index("coordinator")
+            self.assertLess(idx_planner, idx_executor)
+            self.assertLess(idx_executor, idx_verifier)
+            self.assertLess(idx_verifier, idx_coordinator)
+
+    def test_no_data_path_unaffected(self):
+        # _is_no_data short-circuits before ROLE_ORDER is touched at all — unchanged by this fix.
+        term = metrics_render._term_panel6("no data")
+        html = metrics_render._html_panel6("no data")
+        self.assertEqual(term, ["  no data"])
+        self.assertEqual(html, '<div class="nodata">no data</div>')
+        term2 = metrics_render._term_panel6([1, 2, 3])
+        html2 = metrics_render._html_panel6([1, 2, 3])
+        self.assertEqual(term2, ["  no data"])
+        self.assertEqual(html2, '<div class="nodata">no data</div>')
 
 
 class FlowMetricsDeterminism(unittest.TestCase):
