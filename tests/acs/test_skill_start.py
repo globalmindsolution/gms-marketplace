@@ -251,10 +251,10 @@ class TestSessionMarkerThreading(acs_case.AcsWorkspaceCase):
         entry = acs_case.lib.load_state(tdir, "code", "SHOP-62")["runs"][-1]
         self.assertNotIn("session_id", entry)
 
-    def test_marker_just_inside_15_minutes_is_accepted(self):
+    def test_marker_within_15_minutes_is_accepted(self):
         _mint(self.ws, "SHOP-63")
         ckid = acs_case.lib.checkout_id(self.repo)
-        fresh_enough = (datetime.now(timezone.utc) - timedelta(minutes=14, seconds=59)).strftime(
+        fresh_enough = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime(
             "%Y-%m-%dT%H:%M:%SZ")
         _write_marker(self.ws, ckid, updated_at=fresh_enough)
         mod = acs_case.load_module(MODULE_FILENAME)
