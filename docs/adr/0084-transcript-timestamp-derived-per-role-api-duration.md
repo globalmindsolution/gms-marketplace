@@ -25,7 +25,7 @@ not picked arbitrarily.
 
 **No per-call latency field exists anywhere in the transcript.** The only
 usable signal is each record's own `timestamp`, already read by
-`usage_reader` at every in-window record (`usage_reader.py:163`) and
+`usage_reader` at every in-window record (`usage_reader.py:203`) and
 already named in the module's privacy-boundary statement — deriving
 duration from it widens no boundary.
 

@@ -181,6 +181,7 @@ Each state file MUST capture:
       "excluded_token_share": 0.0,
       "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
       "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
+      "role_duration": [ { "role": "executor", "api_duration_ms": 612000, "duration_basis": "derived" } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }

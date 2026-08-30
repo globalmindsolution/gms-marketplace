@@ -201,12 +201,16 @@ existing workspace state — no network, no new config key, nothing written.
   token burn routes here.
 - Runs the same stdlib helper `metrics_aggregate.py` that `/metrics` uses (one
   shared superset aggregator), then passes the JSON to `metrics_render.py
-  --view usage`, which renders the **three usage-view panels**: usage summary
+  --view usage`, which renders the **five usage-view panels**: usage summary
   (headline spend KPIs — total cost, total working time, total runs, plus four
   averages: avg working time per ticket and per merged PR, avg cost per ticket
-  and per merged PR), cost + time per ticket by step with the four averages, and
+  and per merged PR), cost + time per ticket by step with the four averages,
   token burn by role (coordinator/planner/executor/verifier/other, plus
-  `unattributed` whenever the ticket has any such spend).
+  `unattributed` whenever the ticket has any such spend, plus a derived
+  per-role API-duration column), usage by model (`usage_by_model` — token/cost
+  breakdown per model, repo-wide and per ticket), and usage by ticket
+  (`usage_by_ticket` — per-ticket role-share table of tokens, cost, and
+  token/cost-share percentages).
 - The coordinator **routes** the aggregate JSON through `metrics_render.py
   --view usage`: **terminal** (Claude Code CLI default) or `--html`
   (self-contained HTML → `show_widget`). Rendering is deterministic and
