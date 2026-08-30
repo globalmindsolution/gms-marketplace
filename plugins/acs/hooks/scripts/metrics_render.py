@@ -13,7 +13,7 @@ MAR-14 spec 02 extends this module with two-view entrypoints:
 
     render_pm_terminal(data) -> str   PM view: delivery_summary,1,2,issues,progress,deadline,4,5,7
     render_pm_html(data)     -> str   PM view HTML (self-contained)
-    render_usage_terminal(data) -> str   usage view: usage_summary,3,6,usage_by_model
+    render_usage_terminal(data) -> str   usage view: usage_summary,3,6,usage_by_model,usage_by_ticket
     render_usage_html(data)    -> str   usage view HTML (self-contained)
 
 A --view {pm,usage,all} CLI flag selects the view. Default is pm (clarification C-2 — see note
@@ -75,12 +75,13 @@ _PM_PANELS = (
 )
 
 # Usage view panels — in display order (design pinned allocation MAR-8/design.md:376-378;
-# usage_by_model appended per MAR-3 spec 05).
+# usage_by_model appended per MAR-3 spec 05; usage_by_ticket appended per MAR-4 spec 02).
 _USAGE_PANELS = (
     "usage_summary",
     "3",
     "6",
     "usage_by_model",
+    "usage_by_ticket",
 )
 
 # Canonical, fixed iteration orders (determinism — never rely on dict insertion order).
@@ -108,6 +109,7 @@ _NEW_PANEL_TITLES = {
     "deadline": "Deadline",
     "usage_summary": "Usage Summary",
     "usage_by_model": "Usage by model",
+    "usage_by_ticket": "Usage by ticket",
 }
 
 # Fixed-key order for the Panel 3 averages summary rows (determinism — read by name, not by
@@ -120,6 +122,11 @@ AVERAGE_ROWS = (
 )
 
 NO_DATA = "no data"
+
+# Cost-share-only null marker (MAR-4 spec 02, D6): distinct from NO_DATA. Used ONLY by a
+# cost-share cell whose value is None (an unavailable cost basis) -- a token-share cell's
+# None still renders NO_DATA, its own separate convention.
+UNAVAILABLE = "unavailable"
 
 # Unicode block glyphs for the deterministic block-bar (statusline.py's deterministic-glyph style).
 _BAR_FULL = "█"   # █
@@ -186,6 +193,20 @@ def _fmt_money(value, empty=NO_DATA):
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return empty
     return "%.2f" % value
+
+
+def _fmt_pct(value, empty):
+    """Format a percentage cell to EXACTLY 1 decimal + '%', or `empty` for any non-number.
+
+    Mirrors _fmt_money's house style: a numeric, non-bool `value` renders "%.1f%%" (e.g.
+    12.5 -> "12.5%"). bool (an int subclass) and any non-numeric value (None, the literal
+    NO_DATA string) return `empty` -- the caller's own marker (NO_DATA for token_share_pct,
+    UNAVAILABLE for cost_share_pct). No division here (D2 placement) -- the value arrives
+    pre-computed from metrics_aggregate.py; this only formats.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return empty
+    return "%.1f%%" % value
 
 
 def _meta_lines(meta):
@@ -371,7 +392,8 @@ def _panel6_extra_roles(value):
 def _term_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
-    out = ["  %-10s %12s %12s %10s" % ("role", "input", "output", "cost_usd")]
+    out = ["  %-10s %12s %12s %10s %10s %10s" % ("role", "input", "output", "cost_usd",
+                                                   "token %", "cost %")]
     roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
     for role in roles:
@@ -382,9 +404,12 @@ def _term_panel6(value):
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        out.append("  %-10s %12s %12s %10s   %s"
+        out.append("  %-10s %12s %12s %10s %10s %10s   %s"
                    % (role, inp, bucket.get("output", 0),
-                      _fmt_money(bucket.get("cost", 0), empty="-"), _bar(inp, peak)))
+                      _fmt_money(bucket.get("cost", 0), empty="-"),
+                      _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
+                      _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE),
+                      _bar(inp, peak)))
     return out
 
 
@@ -652,13 +677,16 @@ def _html_panel6(value):
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inputs.append(bucket.get("input", 0))
     panel_max = _panel_max(inputs)
-    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th><th>bar</th></tr>"]
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th>"
+            "<th>token %</th><th>cost %</th><th>bar</th></tr>"]
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
                     % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
                        _esc(_fmt_money(bucket.get("cost", 0), empty="-")),
+                       _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
+                       _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)),
                        _html_bar_cell(inp, panel_max)))
     return "<table>" + "".join(rows) + "</table>"
 
@@ -1197,6 +1225,90 @@ def _html_render_usage_by_model(value):
 
 
 # ---------------------------------------------------------------------------
+# MAR-4 spec 02 — "Usage by ticket" table: one role-share table per ticket, from
+# panels.usage_by_ticket's {"tickets": [{"ticket_id", "roles"}, ...]} shape (design.md:750-758).
+# No division is performed here — the percentages arrive pre-computed from
+# metrics_aggregate.py (D2 placement); roles are rendered in the dict's OWN key order
+# (already sorted by the aggregator) — never re-sorted here.
+# ---------------------------------------------------------------------------
+
+_ROLE_ROW_FMT = "%s%-14s %10s %10s %12s %12s %10s %10s %10s"
+
+
+def _term_role_table(roles):
+    """Rendered lines for one ticket's roles dict (a 'no data' string/non-dict/empty dict ->
+    one nodata row), following _term_model_table's exact house style."""
+    out = [_ROLE_ROW_FMT % ("", "role", "input", "output", "cache write", "cache read",
+                            "cost_usd", "token %", "cost %")]
+    if _is_no_data(roles) or not isinstance(roles, dict) or not roles:
+        out.append(NO_DATA)
+        return out
+    for role, bucket in roles.items():
+        if not isinstance(bucket, dict):
+            continue
+        out.append(_ROLE_ROW_FMT % (
+            "", str(role), bucket.get("input", 0), bucket.get("output", 0),
+            bucket.get("cache_creation", 0), bucket.get("cache_read", 0),
+            _fmt_money(bucket.get("cost_usd"), empty=NO_DATA),
+            _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
+            _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)))
+    return out
+
+
+def _html_role_table(roles):
+    """Rendered <table> for one ticket's roles dict (a 'no data' string/non-dict/empty dict ->
+    one nodata row), following _html_model_table's exact house style."""
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cache write</th>"
+            "<th>cache read</th><th>cost_usd</th><th>token %</th><th>cost %</th></tr>"]
+    if _is_no_data(roles) or not isinstance(roles, dict) or not roles:
+        rows.append('<tr><td colspan="8" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for role, bucket in roles.items():
+        if not isinstance(bucket, dict):
+            continue
+        cost = _fmt_money(bucket.get("cost_usd"), empty=NO_DATA)
+        cls = ' class="nodata"' if cost == NO_DATA else ""
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+                    "<td%s>%s</td><td>%s</td><td>%s</td></tr>"
+                    % (_esc(role), _esc(bucket.get("input", 0)), _esc(bucket.get("output", 0)),
+                       _esc(bucket.get("cache_creation", 0)), _esc(bucket.get("cache_read", 0)),
+                       cls, _esc(cost),
+                       _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
+                       _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE))))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _term_render_usage_by_ticket(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _term_no_data_block()
+    out = []
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        out.append("  " + NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        out.append("  ticket %s:" % row.get("ticket_id", "?"))
+        out.extend("    " + line for line in _term_role_table(row.get("roles")))
+    return out
+
+
+def _html_render_usage_by_ticket(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _html_no_data()
+    parts = []
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        parts.append('<div class="nodata">%s</div>' % NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        parts.append("<h4>ticket %s</h4>" % _esc(row.get("ticket_id", "?")))
+        parts.append(_html_role_table(row.get("roles")))
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # MAR-14 spec 02 — Per-view terminal/HTML dispatch tables
 # ---------------------------------------------------------------------------
 
@@ -1232,6 +1344,7 @@ _USAGE_TERMINAL_PANELS = {
     "3": _term_panel3,
     "6": _term_panel6,
     "usage_by_model": _term_render_usage_by_model,
+    "usage_by_ticket": _term_render_usage_by_ticket,
 }
 
 _USAGE_HTML_PANELS = {
@@ -1239,6 +1352,7 @@ _USAGE_HTML_PANELS = {
     "3": _html_panel3,
     "6": _html_panel6,
     "usage_by_model": _html_render_usage_by_model,
+    "usage_by_ticket": _html_render_usage_by_ticket,
 }
 
 

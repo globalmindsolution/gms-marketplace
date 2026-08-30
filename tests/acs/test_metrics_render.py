@@ -986,7 +986,8 @@ class TestViewPartition(unittest.TestCase):
         """PM ∪ usage covers the full rendered panel set (AC-5)."""
         expected = frozenset({
             "delivery_summary", "1", "2", "issues", "progress",
-            "deadline", "4", "5", "7", "usage_summary", "3", "6", "usage_by_model"
+            "deadline", "4", "5", "7", "usage_summary", "3", "6", "usage_by_model",
+            "usage_by_ticket"
         })
         self.assertEqual(
             set(metrics_render._PM_PANELS) | set(metrics_render._USAGE_PANELS),
@@ -1949,3 +1950,255 @@ class TestUsageSummaryPanelRendering(unittest.TestCase):
         html = metrics_render.render_usage_html(data)
         self.assertIn("no data", term)
         self.assertIn("no data", html)
+
+
+# ===========================================================================
+# MAR-4 spec 02 tests — panel-6 percent columns + the "Usage by ticket" table
+# ===========================================================================
+
+class TestPanel6PercentColumns(unittest.TestCase):
+    """AC-1 render half: panel 6 gains token %/cost % columns (D5, D6)."""
+
+    def test_panel6_percent_columns_render_both_surfaces(self):
+        value = {
+            "planner": {"input": 100, "output": 20, "cost": 0.1,
+                        "token_share_pct": 12.5, "cost_share_pct": 8.25},
+            "executor": {"input": 200, "output": 40, "cost": 0.2,
+                         "token_share_pct": 45.6, "cost_share_pct": 60.0},
+            "verifier": {"input": 50, "output": 10, "cost": 0.05,
+                         "token_share_pct": 20.0, "cost_share_pct": 15.75},
+            "coordinator": {"input": 10, "output": 5, "cost": 0.01,
+                            "token_share_pct": 21.9, "cost_share_pct": 16.0},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertRegex(out, r"12\.5%")
+            self.assertRegex(out, r"45\.6%")
+            self.assertRegex(out, r"8\.2%|8\.3%")  # 8.25 -> "%.1f%%" rounds to 8.2 (banker's) or 8.3
+        # column headers present
+        self.assertIn("token %", term)
+        self.assertIn("cost %", term)
+        self.assertIn("token %", html)
+        self.assertIn("cost %", html)
+
+    def test_panel6_cost_share_pct_none_renders_literal_unavailable(self):
+        value = {
+            "planner": {"input": 100, "output": 20, "cost": 0.0,
+                        "token_share_pct": 50.0, "cost_share_pct": None},
+            "executor": {"input": 100, "output": 20, "cost": 0.5,
+                         "token_share_pct": 50.0, "cost_share_pct": 100.0},
+            "verifier": {"input": 0, "output": 0, "cost": 0.0,
+                         "token_share_pct": None, "cost_share_pct": None},
+            "coordinator": {"input": 0, "output": 0, "cost": 0.0,
+                            "token_share_pct": None, "cost_share_pct": None},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+            self.assertIn("unavailable", out)
+
+    def test_panel6_token_share_pct_none_renders_no_data(self):
+        value = {
+            "planner": {"input": 0, "output": 0, "cost": 0.0,
+                        "token_share_pct": None, "cost_share_pct": 12.3},
+            "executor": {"input": 100, "output": 20, "cost": 0.5,
+                         "token_share_pct": 87.7, "cost_share_pct": 0.0},
+            "verifier": {"input": 0, "output": 0, "cost": 0.0,
+                         "token_share_pct": None, "cost_share_pct": None},
+            "coordinator": {"input": 0, "output": 0, "cost": 0.0,
+                            "token_share_pct": None, "cost_share_pct": None},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.NO_DATA, out)
+
+    def test_unavailable_constant_distinct_from_no_data(self):
+        self.assertEqual(metrics_render.UNAVAILABLE, "unavailable")
+        self.assertNotEqual(metrics_render.UNAVAILABLE, metrics_render.NO_DATA)
+
+    def test_existing_panel6_role_coverage_tests_unmodified_pass(self):
+        """Inverse obligation guard (plan §Existing-test churn): the hand-authored value dicts
+        used by Panel6RoleCoverage/test_panel6_three_role_buckets lack the new pct keys and must
+        still degrade gracefully via .get() -> None -> NO_DATA/UNAVAILABLE, never raising."""
+        value = {"executor": {"input": 500, "output": 50, "cost": 1.0}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.NO_DATA, out)      # token % degrades to NO_DATA
+            self.assertIn(metrics_render.UNAVAILABLE, out)  # cost % degrades to UNAVAILABLE
+
+
+class FmtPct(unittest.TestCase):
+    """_fmt_pct mirrors _fmt_money's house style (numeric non-bool -> "%.1f%%", else empty)."""
+
+    def test_numeric_formats_one_decimal_percent(self):
+        self.assertEqual(metrics_render._fmt_pct(12.5, "empty"), "12.5%")
+        self.assertEqual(metrics_render._fmt_pct(0, "empty"), "0.0%")
+        self.assertEqual(metrics_render._fmt_pct(100.0, "empty"), "100.0%")
+
+    def test_none_returns_empty_marker(self):
+        self.assertEqual(metrics_render._fmt_pct(None, "MARK"), "MARK")
+
+    def test_no_data_string_returns_empty_marker(self):
+        self.assertEqual(metrics_render._fmt_pct(metrics_render.NO_DATA, "MARK"), "MARK")
+
+    def test_bool_returns_empty_marker(self):
+        self.assertEqual(metrics_render._fmt_pct(True, "MARK"), "MARK")
+        self.assertEqual(metrics_render._fmt_pct(False, "MARK"), "MARK")
+
+    def test_non_numeric_returns_empty_marker(self):
+        self.assertEqual(metrics_render._fmt_pct("not-a-number", "MARK"), "MARK")
+
+    def test_pure_repeatable_no_clock(self):
+        self.assertEqual(metrics_render._fmt_pct(33.333, "e"), metrics_render._fmt_pct(33.333, "e"))
+
+
+class TestUsageByTicketPanel(unittest.TestCase):
+    """AC-1 render half: the new 'Usage by ticket' panel — one role table per ticket."""
+
+    _ROLES = {
+        "executor": {"input": 100, "output": 20, "cache_creation": 5, "cache_read": 3,
+                     "cost_usd": 1.23, "cost_basis": "apportioned",
+                     "token_share_pct": 80.0, "cost_share_pct": 100.0},
+        "planner": {"input": 25, "output": 5, "cache_creation": 0, "cache_read": 0,
+                    "cost_usd": None, "cost_basis": "unavailable",
+                    "token_share_pct": 20.0, "cost_share_pct": None},
+    }
+
+    def test_usage_by_ticket_terminal_renders_role_shares_per_ticket(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": self._ROLES}]}
+        out = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        self.assertIn("MAR-9", out)
+        self.assertIn("executor", out)
+        self.assertIn("planner", out)
+        self.assertIn("80.0%", out)
+        self.assertIn("20.0%", out)
+        self.assertIn(metrics_render.UNAVAILABLE, out)  # planner's null cost_share_pct
+
+    def test_usage_by_ticket_html_renders_role_shares_per_ticket(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": self._ROLES}]}
+        out = metrics_render._html_render_usage_by_ticket(value)
+        self.assertIn("MAR-9", out)
+        self.assertIn("<h4>ticket MAR-9</h4>", out)
+        self.assertIn("executor", out)
+        self.assertIn("80.0%", out)
+        self.assertIn(metrics_render.UNAVAILABLE, out)
+
+    def test_usage_by_ticket_no_data_frame_both_surfaces(self):
+        # Whole-panel "no data" -> nodata block/frame on both surfaces (B1).
+        term = metrics_render._term_render_usage_by_ticket("no data")
+        html = metrics_render._html_render_usage_by_ticket("no data")
+        self.assertEqual(term, ["  no data"])
+        self.assertEqual(html, '<div class="nodata">no data</div>')
+        # A populated panel with one ticket's own "roles" == "no data" (B1 — never omitted).
+        value = {"tickets": [{"ticket_id": "MAR-1", "roles": "no data"},
+                             {"ticket_id": "MAR-9", "roles": self._ROLES}]}
+        term2 = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        html2 = metrics_render._html_render_usage_by_ticket(value)
+        for out in (term2, html2):
+            self.assertIn("MAR-1", out)
+            self.assertIn(metrics_render.NO_DATA, out)
+            self.assertIn("MAR-9", out)
+            self.assertIn("80.0%", out)
+
+    def test_usage_by_ticket_registered_usage_view_only(self):
+        self.assertIn("usage_by_ticket", metrics_render._USAGE_PANELS)
+        self.assertNotIn("usage_by_ticket", metrics_render._PM_PANELS)
+        self.assertIn("usage_by_ticket", metrics_render._USAGE_TERMINAL_PANELS)
+        self.assertIn("usage_by_ticket", metrics_render._USAGE_HTML_PANELS)
+        # display order: after usage_by_model
+        self.assertLess(metrics_render._USAGE_PANELS.index("usage_by_model"),
+                        metrics_render._USAGE_PANELS.index("usage_by_ticket"))
+        self.assertEqual(metrics_render._NEW_PANEL_TITLES.get("usage_by_ticket"),
+                         "Usage by ticket")
+
+    def test_pm_view_unaffected_by_usage_by_ticket(self):
+        """_PM_PANELS is untouched — the PM view never renders usage_by_ticket."""
+        data = _full_workspace_data_with_new_panels()
+        out_term = metrics_render.render_pm_terminal(data)
+        out_html = metrics_render.render_pm_html(data)
+        self.assertNotIn("Usage by ticket", out_term)
+        self.assertNotIn("Usage by ticket", out_html)
+        self.assertNotIn("usage_by_ticket", metrics_render._PM_PANELS)
+
+    def test_usage_by_ticket_end_to_end_via_usage_view(self):
+        """Full-stack: aggregate() (T1) -> render_usage_terminal/html (T2) on real fixture data."""
+        data = _full_workspace_data_with_new_panels()
+        term = metrics_render.render_usage_terminal(data)
+        html = metrics_render.render_usage_html(data)
+        for out in (term, html):
+            self.assertIn("Usage by ticket", out)
+            self.assertIn("MAR-2", out)
+            self.assertIn("%", out)
+
+    def test_usage_by_ticket_no_role_table_re_sort(self):
+        """D2 placement: the renderer iterates roles in the dict's OWN key order, never re-sorting.
+        A deliberately UN-sorted roles dict (zebra before alpha) must render in that given order."""
+        roles = {
+            "zebra_role": {"input": 1, "output": 0, "cache_creation": 0, "cache_read": 0,
+                           "cost_usd": None, "cost_basis": "unavailable",
+                           "token_share_pct": 50.0, "cost_share_pct": None},
+            "alpha_role": {"input": 1, "output": 0, "cache_creation": 0, "cache_read": 0,
+                          "cost_usd": None, "cost_basis": "unavailable",
+                          "token_share_pct": 50.0, "cost_share_pct": None},
+        }
+        term = "\n".join(metrics_render._term_role_table(roles))
+        html = metrics_render._html_role_table(roles)
+        for out in (term, html):
+            self.assertLess(out.index("zebra_role"), out.index("alpha_role"))
+
+
+class TestRoleTable(unittest.TestCase):
+    """_term_role_table/_html_role_table follow the _term_model_table/_html_model_table house
+    style (a "no data" string / non-dict / empty dict degrades to one nodata row/frame)."""
+
+    def test_no_data_string_degrades_to_one_row(self):
+        term = metrics_render._term_role_table("no data")
+        html = metrics_render._html_role_table("no data")
+        self.assertEqual(len(term), 2)  # header row + nodata row (mirrors _term_model_table)
+        self.assertIn(metrics_render.NO_DATA, term[-1])
+        self.assertIn(metrics_render.NO_DATA, html)
+
+    def test_non_dict_degrades_to_one_row(self):
+        term = metrics_render._term_role_table([1, 2, 3])
+        html = metrics_render._html_role_table([1, 2, 3])
+        self.assertIn(metrics_render.NO_DATA, term[-1])
+        self.assertIn(metrics_render.NO_DATA, html)
+
+    def test_empty_dict_degrades_to_one_row(self):
+        term = metrics_render._term_role_table({})
+        html = metrics_render._html_role_table({})
+        self.assertIn(metrics_render.NO_DATA, term[-1])
+        self.assertIn(metrics_render.NO_DATA, html)
+
+    def test_columns_cover_role_four_token_classes_cost_and_two_pcts(self):
+        roles = {"executor": {"input": 10, "output": 5, "cache_creation": 2, "cache_read": 1,
+                              "cost_usd": 0.5, "cost_basis": "apportioned",
+                              "token_share_pct": 100.0, "cost_share_pct": 100.0}}
+        term = "\n".join(metrics_render._term_role_table(roles))
+        html = metrics_render._html_role_table(roles)
+        for out in (term, html):
+            self.assertIn("role", out)
+            self.assertIn("input", out)
+            self.assertIn("output", out)
+            self.assertIn("cache write", out)
+            self.assertIn("cache read", out)
+            self.assertIn("cost_usd", out)
+            self.assertIn("token %", out)
+            self.assertIn("cost %", out)
+            self.assertIn("executor", out)
+            self.assertIn("100.0%", out)
+            self.assertIn("0.50", out)
+
+    def test_null_cost_usd_renders_no_data_not_zero(self):
+        roles = {"planner": {"input": 5, "output": 0, "cache_creation": 0, "cache_read": 0,
+                             "cost_usd": None, "cost_basis": "unavailable",
+                             "token_share_pct": 100.0, "cost_share_pct": None}}
+        term = "\n".join(metrics_render._term_role_table(roles))
+        html = metrics_render._html_role_table(roles)
+        for out in (term, html):
+            self.assertIn(metrics_render.NO_DATA, out)   # cost_usd empty=NO_DATA
+            self.assertNotIn("0.00", out)
