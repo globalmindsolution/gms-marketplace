@@ -33,6 +33,17 @@ same-window record attributed to a different acs skill (e.g. a concurrent
 or adjacent step of a long-running /acs:ship session) is dropped exactly
 like a genuinely unattributed record, never absorbed into this run's
 coordinator share.
+
+Per-role API-duration derivation (ADR 0084, MAR-5): a separate, parallel
+`role_duration` list estimates per-role API wait time from inter-record
+transcript timestamp gaps -- each token-bearing record is credited the gap
+since its immediate predecessor record in the same file (capped at
+MAX_RECORD_GAP_SECONDS, never negative), attributed to THAT record's own
+role. This is always a DERIVED approximation (`duration_basis` is always
+"derived" or "unavailable", never "measured"): it can include local tool or
+idle time and is only ever an upper bound on real API wait. It does not
+widen the privacy boundary above -- `timestamp` is already read on every
+record for the window filter.
 """
 
 import json
@@ -44,6 +55,10 @@ import acs_lib  # noqa: E402
 
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILES = 64
+
+#: Ceiling on a single attributed inter-record gap, in seconds (ADR 0084). A gap longer than
+#: this is local tool time or idle time, not API wait; see the ADR for the measured basis.
+MAX_RECORD_GAP_SECONDS = 60
 
 _USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 _BUCKET_KEYS = ("input", "output", "cache_creation", "cache_read")
@@ -58,7 +73,7 @@ class _CapExceeded(Exception):
 
 
 def _degraded(reason):
-    return {"degraded": True, "reason": reason, "model_usage": [], "role_usage": []}
+    return {"degraded": True, "reason": reason, "model_usage": [], "role_usage": [], "role_duration": []}
 
 
 def _empty_bucket():
@@ -105,6 +120,21 @@ def _agent_role(attribution_agent):
     return "other"
 
 
+def _capped_gap_ms(prev_ts, ts):
+    """Milliseconds of DERIVED API latency attributable to the record at `ts` (ADR 0084).
+
+    Returns 0 for the first in-window record of a file (no predecessor) and for a
+    non-monotonic gap -- transcript records are not guaranteed to be written in timestamp
+    order -- and clamps any gap to MAX_RECORD_GAP_SECONDS. Pure function of its arguments.
+    """
+    if prev_ts is None:
+        return 0
+    gap = (ts - prev_ts).total_seconds()
+    if gap <= 0:
+        return 0
+    return int(min(gap, MAX_RECORD_GAP_SECONDS) * 1000)
+
+
 def _usage_total(usage):
     total = 0
     for field in _USAGE_FIELDS:
@@ -138,9 +168,10 @@ def _iter_capped_lines(path, cap_state):
             yield line
 
 
-def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, role_totals, acc, own_skill):
+def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, role_totals, acc, own_skill,
+                duration_totals):
     """Fold one transcript JSONL file's in-window usage into
-    model_totals/role_totals/acc.
+    model_totals/role_totals/acc, and its inter-record gaps into duration_totals.
 
     Skips (never raises on) a corrupt line, a non-dict record, an
     out-of-window timestamp, or a record with no usable message.usage.
@@ -149,7 +180,16 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, rol
     Every in-window record that survives the total==0 guard is folded into
     BOTH model_totals and role_totals (unconditionally, including records
     that land in UNATTRIBUTED_ROLE) -- what makes the cross-list token-sum
-    invariant true by construction (D1.1 Option B)."""
+    invariant true by construction (D1.1 Option B).
+
+    `prev_ts` is a PER-FILE local (ADR 0084): it advances for every in-window
+    timestamped record, including ones the usage/model/role filters below go
+    on to drop -- that is what makes a tool-execution leg (assistant invokes
+    a tool -> non-usage tool-result record) vanish from the attributed total
+    rather than being folded into the next real record's gap. An
+    out-of-window record is skipped before this point, so it never
+    contributes to duration_totals nor advances prev_ts."""
+    prev_ts = None
     for line in _iter_capped_lines(path, cap_state):
         line = line.strip()
         if not line:
@@ -163,6 +203,8 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, rol
         ts = acs_lib.parse_iso(record.get("timestamp"))
         if ts is None or ts < start_dt or (end_dt is not None and ts > end_dt):
             continue
+        gap_ms = _capped_gap_ms(prev_ts, ts)
+        prev_ts = ts
         message = record.get("message")
         if not isinstance(message, dict):
             continue
@@ -182,6 +224,7 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, rol
             role = UNATTRIBUTED_ROLE
             acc["excluded"] += total
         _add_usage(role_totals.setdefault(role, _empty_bucket()), usage)
+        duration_totals[role] = duration_totals.get(role, 0) + gap_ms
 
 
 def _walk_jsonl(root):
@@ -231,9 +274,11 @@ def _read(transcript_path, started_at, ended_at, skill):
     model_totals = {}
     role_totals = {}
     acc = {"total": 0, "excluded": 0}
+    duration_totals = {}
 
     try:
-        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_totals, role_totals, acc, skill)
+        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_totals, role_totals, acc, skill,
+                   duration_totals)
     except _CapExceeded:
         return _degraded("cap_exceeded")
     except OSError:
@@ -243,7 +288,8 @@ def _read(transcript_path, started_at, ended_at, skill):
     subagents_dir = os.path.join(os.path.dirname(transcript_path), session_id, "subagents")
     for file_path in _walk_jsonl(subagents_dir):
         try:
-            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_totals, role_totals, acc, skill)
+            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_totals, role_totals, acc, skill,
+                       duration_totals)
         except _CapExceeded:
             return _degraded("cap_exceeded")
         except OSError:
@@ -254,10 +300,21 @@ def _read(transcript_path, started_at, ended_at, skill):
 
     role_usage = [dict(role=role, **bucket) for role, bucket in sorted(role_totals.items())]
     model_usage = [dict(model=model, **bucket) for model, bucket in sorted(model_totals.items())]
+    role_duration = []
+    for role in sorted(role_totals):
+        ms = duration_totals.get(role, 0)
+        role_duration.append({
+            "role": role,
+            # 0 means "no attributable gap", never "zero API time" (ADR 0082 honesty rule) --
+            # published as None/"unavailable", never a fabricated literal 0.
+            "api_duration_ms": ms if ms > 0 else None,
+            "duration_basis": "derived" if ms > 0 else "unavailable",
+        })
     return {
         "degraded": False,
         "reason": None,
         "model_usage": model_usage,
         "role_usage": role_usage,
+        "role_duration": role_duration,
         "excluded_token_share": acc["excluded"] / acc["total"],
     }
