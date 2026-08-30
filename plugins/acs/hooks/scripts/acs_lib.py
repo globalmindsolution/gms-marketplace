@@ -711,7 +711,12 @@ def default_state_root(cwd):
     deliberately does not call main_repo_root(), which cannot tell a bare/submodule
     layout apart from a normal one."""
     is_bare = _git(["rev-parse", "--is-bare-repository"], cwd)
-    if not is_bare or is_bare == "true":
+    if not is_bare:
+        raise GateError(
+            "%s is not a git repository (or git is unavailable); acs cannot derive an "
+            "in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    if is_bare == "true":
         raise GateError(
             "%s is a bare git repository; acs cannot derive an in-repo state root here. "
             "Set an explicit workspace_path override." % cwd

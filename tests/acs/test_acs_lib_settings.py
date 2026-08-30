@@ -125,14 +125,20 @@ class TestDefaultStateRoot(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
         with self.assertRaises(lib.GateError) as ctx:
             lib.default_state_root(bare)
-        self.assertIn("workspace_path", str(ctx.exception))
+        msg = str(ctx.exception).replace(bare, "<cwd>")
+        self.assertIn("workspace_path", msg)
+        self.assertIn("bare git repository", msg)
+        self.assertNotIn("not a git repository", msg)
 
     def test_non_git_directory_raises_gate_error(self):
         nongit = os.path.join(self.tmp, "not-a-repo")
         os.makedirs(nongit)
         with self.assertRaises(lib.GateError) as ctx:
             lib.default_state_root(nongit)
-        self.assertIn("workspace_path", str(ctx.exception))
+        msg = str(ctx.exception).replace(nongit, "<cwd>")
+        self.assertIn("workspace_path", msg)
+        self.assertIn("not a git repository", msg)
+        self.assertNotIn("bare", msg)
 
     def test_empty_git_common_dir_raises_gate_error(self):
         with mock.patch.object(lib, "_git", side_effect=["false", ""]):
