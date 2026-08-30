@@ -38,9 +38,10 @@ sequenceDiagram
         CC->>SL: statusLine payload on stdin (model, workspace, session, cost)
         SL->>CS: record_cost_sample(payload), before render(), own try/except
         CS->>CS: _extract_total_cost -- cost.total_cost_usd, cost.total_cost, total_cost_usd, or a depth<=3 scan for /total_cost(_usd)$/
-        alt a candidate matched
-            CS->>WS: append {ts, total_cost_usd, src} to sessions/<checkout_id>-cost-samples.jsonl (rotated past 64 KiB)
-        else no candidate matched
+        CS->>CS: _extract_api_duration -- cost.total_api_duration_ms, cost.total_api_duration, total_api_duration_ms, or a depth<=3 scan for /total_api_duration(_ms)$/ (MAR-6)
+        alt either candidate matched
+            CS->>WS: append {ts, total_cost_usd, src, total_api_duration_ms, duration_src} to sessions/<checkout_id>-cost-samples.jsonl (rotated past 64 KiB — MAR-6, a sample is written when EITHER quantity is found)
+        else neither candidate matched
             CS->>CS: no sample written -- not an error
         end
     end
@@ -63,24 +64,30 @@ sequenceDiagram
                 Post->>WS: persist measured tokens/role_usage/model_usage, cost_usd=null, cost_basis="unavailable" (no checkout_id to locate the cost-sample/cursor files)
             else checkout_id present
                 Post->>CS: allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage, model_usage)
-                CS->>WS: read cost-cursor.json (default {ts: null, total_cost_usd: 0.0} if absent) and cost-samples.jsonl
+                CS->>WS: read cost-cursor.json (default {ts: null, total_cost_usd: 0.0, total_api_duration_ms: null} if absent — MAR-6 widens the cursor to 3 fields, one shared file) and cost-samples.jsonl
                 CS->>CS: after = newest sample with ts <= ended_at
                 alt no sample, or after.ts <= cursor.ts
-                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="no_unconsumed_sample_in_window")
+                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="no_unconsumed_sample_in_window", api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="no_unconsumed_sample_in_window")
                 else delta = after.total_cost_usd - cursor.total_cost_usd is negative
-                    CS->>WS: advance cursor to after (charge nothing)
-                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="cost_total_reset")
+                    CS->>WS: advance cursor to after (charge nothing — total_api_duration_ms carried onto the cursor regardless)
+                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="cost_total_reset", api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="cost_total_reset" -- MAR-6, a cost reset marks BOTH quantities unavailable for this charge)
                 else delta >= 0
                     CS->>CS: apportion delta across role_usage by token share (denominator = ALL in-window tokens, incl. unattributed) — unattributed entries receive no dollar share
                     CS->>CS: _apportion_models applies the SAME delta to model_usage by token share across ALL in-window tokens, no unattributed exclusion (D1.2 Option A)
-                    CS->>WS: advance cursor to after
+                    CS->>WS: advance cursor to after (total_cost_usd and total_api_duration_ms together, one write)
                     CS-->>Post: (role_usage apportioned, model_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
+                    alt cursor_duration and after_duration both numeric, and duration_delta = after_duration - cursor_duration >= 0 (MAR-6)
+                        CS->>CS: _apportion_duration applies duration_delta to role_usage by the identical token-share mechanism as cost (same denominator, same UNATTRIBUTED_ROLE exclusion)
+                        CS-->>Post: (api_duration_ms=attributed-token share of duration_delta, api_duration_basis="apportioned", api_duration_scope="session_total")
+                    else either edge missing/non-numeric, or duration_delta negative
+                        CS-->>Post: (role_usage's api_duration_ms/api_duration_basis degraded to null/"unavailable" — api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="duration_unavailable_on_cursor" -- no cost-side analogue, cost proceeds unaffected)
+                    end
                 end
-                Post->>WS: persist tokens, role_usage, model_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
+                Post->>WS: persist tokens, role_usage, model_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share, api_duration_ms, api_duration_basis, api_duration_scope (MAR-6)
             end
         end
     end
-    Post->>WS: compute_ticket_totals / update_metrics -- exclude None-elapsed and non-measured/apportioned cost contributions from sums, increment runs_timed/runs_untimed and runs_cost_measured/runs_cost_unavailable for every run regardless
+    Post->>WS: compute_ticket_totals / update_metrics -- exclude None-elapsed and non-measured/apportioned cost contributions from sums, increment runs_timed/runs_untimed and runs_cost_measured/runs_cost_unavailable for every run regardless -- MAR-6 additionally sums api_duration_ms and increments runs_api_duration_measured/runs_api_duration_unavailable by the identical rule
 ```
 
 ## Sequence diagram — read/render path
