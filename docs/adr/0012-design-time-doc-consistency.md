@@ -150,3 +150,53 @@ canonical `### Design-time doc-consistency step (ADR 0012)` block:
 `create-requirements-planner`. `code-planner.md` is **not** one of the 8 —
 it carries the extended Boy-scout bullet above, not the canonical block, and
 this amendment does not add it to that carrier list.
+
+## Amendment — MAR-167
+
+**Date**: 2026-08-30 · **Status**: Accepted (drift normalized)
+
+**Finding**: `create-requirements-planner.md`'s `### Design-time
+doc-consistency step (ADR 0012)` block was not byte-identical to the other
+7 producer planners' block. A byte-for-byte comparison (md5 over each
+planner's extracted section) showed the other 7 —
+`create-prd-planner`, `create-architecture-planner`, `create-design-planner`,
+`create-quality-planner`, `create-operations-planner`,
+`create-principles-planner`, `create-standards-planner` — sharing one
+digest, with `create-requirements-planner.md` alone diverging. The variance
+was a genuine content loss, not a harmless rewording: the step-4 JSON
+example dropped the `"staleness"`-kind example entirely (keeping only
+`"gap"`), and the closing `` `/acs:test` is explicitly unaffected by this
+step`` sentence — the one standing clarification this ADR itself calls out
+(`:72-73`) — was missing outright. No commit message, CHANGELOG entry, or
+in-file note anywhere in the repo recorded this as a deliberate, sanctioned
+per-skill tailoring; the block first appears, unexplained, in the squash
+commit that cut v0.4.5. MAR-115's own founding intent (`plugins/acs/
+CHANGELOG.md:336-349`) was a single canonical step "transcribed
+byte-identically" across every producer planner, not per-skill variance.
+
+**Decision**: the divergence is **unintended drift**, not sanctioned
+tailoring. `create-requirements-planner.md`'s block is normalized to the
+byte-identical canonical text carried by the other 7 planners.
+`tests/acs/test_doc_consistency_step.py`'s `PLANNERS` list — previously an
+arbitrary 5-of-8 subset that made the variant invisible to the existing
+md5-identity test rather than explicitly blessing it — is widened to all 8
+producer planners, so the test now expresses the chosen rule directly: a
+future divergence by any of the 8 fails `AC-2`
+(`test_ac2_canonical_block_is_md5_identical_across_all_planners`). The
+ADR-0012 doc-consistency *behavior* itself is unchanged by this
+normalization: no planner gains or loses the step, and the finding-`kind`
+vocabulary stays exactly `{"gap", "staleness"}` — only
+`create-requirements-planner.md`'s prose is brought back into line with the
+shared contract it was always meant to carry.
+
+**Correcting `## Amendment — MAR-164`'s "Reconciling DR-2"**: that
+amendment (`:144-153`) already asserted, as settled fact, that "today, 8
+planner agents actually carry the canonical ... block," naming
+`create-requirements-planner` among them. At the time it was written, that
+statement was not yet accurate — `create-requirements-planner.md` was the
+one outlier described above. This amendment records that gap and closes
+it: as of this ticket's normalization, the MAR-164 statement is now
+correct — all 8 named planners do carry the byte-identical canonical
+block. `## Amendment — MAR-164`'s own text is left as originally written
+(this ADR's amendments are append-only); this section is the record of the
+interim inaccuracy and its resolution.
