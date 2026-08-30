@@ -498,12 +498,17 @@ class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
     into cost_sampler.allocate_cost, is consumed exactly per cost_sampler's
     own documented convention (its module docstring / UNATTRIBUTED_ROLE) --
     the "unattributed" bucket counts toward the apportionment denominator but
-    never receives a dollar share itself."""
+    never receives a dollar share itself. Also feeds model_usage straight
+    into allocate_cost -- the end-to-end AC-1 -> AC-2 cost-column contract
+    (D1.2 Option A: model_usage's cost is the full delta, unlike role_usage's
+    attributed-only cost)."""
 
     def test_unattributed_bucket_excluded_from_cost_apportionment(self):
         self.write_main([
-            _record("2026-01-01T00:00:05Z", usage=_usage(100, 0, 0, 0), attribution_skill="acs:code"),
-            _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0)),  # no attributionSkill
+            _record("2026-01-01T00:00:05Z", usage=_usage(100, 0, 0, 0),
+                     attribution_skill="acs:code", model="claude-opus-4"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0),
+                     model="claude-sonnet-5"),  # no attributionSkill
         ])
         usage = usage_reader.read_transcript_usage(
             self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
@@ -515,24 +520,141 @@ class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
             cost_sampler.cost_samples_path(workspace, "acme-shop", "ck1"),
             {"ts": "2026-01-01T00:00:30Z", "total_cost_usd": 1.0, "src": "cost.total_cost_usd"})
 
-        role_usage_with_cost, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share = (
-            cost_sampler.allocate_cost(workspace, "acme-shop", "ck1",
-                                        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-                                        usage["role_usage"]))
-        self.assertEqual(cost_basis, "measured")
-        # C-8 "drop, don't redistribute": the returned cost_usd is the
+        result = cost_sampler.allocate_cost(
+            workspace, "acme-shop", "ck1",
+            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
+            usage["role_usage"], model_usage=usage["model_usage"])
+        self.assertEqual(result["cost_basis"], "measured")
+        # C-8 "drop, don't redistribute": the role-scoped cost_usd is the
         # attributed-only share of the charge (100 of 400 tokens), not the
         # raw full delta.
-        self.assertAlmostEqual(cost_usd, 0.25)
-        coordinator = next(r for r in role_usage_with_cost if r["role"] == "coordinator")
-        unattributed = next(r for r in role_usage_with_cost if r["role"] == "unattributed")
+        self.assertAlmostEqual(result["cost_usd"], 0.25)
+        coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
+        unattributed = next(r for r in result["role_usage"] if r["role"] == "unattributed")
         self.assertAlmostEqual(coordinator["cost_usd"], 0.25)  # 100 of 400 tokens
         self.assertIsNone(unattributed["cost_usd"])
-        self.assertAlmostEqual(excluded_token_share, 300 / 400)
-        self.assertAlmostEqual(excluded_cost_usd, 0.75)
+        self.assertAlmostEqual(result["excluded_token_share"], 300 / 400)
+        self.assertAlmostEqual(result["excluded_cost_usd"], 0.75)
         # Matches usage_reader's own reported share exactly -- the two
         # modules' independent accountings agree.
-        self.assertAlmostEqual(excluded_token_share, usage["excluded_token_share"])
+        self.assertAlmostEqual(result["excluded_token_share"], usage["excluded_token_share"])
+
+        # D1.2 Option A: model_usage's cost is the FULL delta apportioned by
+        # token share -- no unattributed exclusion, unlike role_usage above.
+        by_model = {m["model"]: m for m in result["model_usage"]}
+        self.assertAlmostEqual(by_model["claude-opus-4"]["cost_usd"], 0.25)  # 100/400 * 1.0
+        self.assertAlmostEqual(by_model["claude-sonnet-5"]["cost_usd"], 0.75)  # 300/400 * 1.0
+        for entry in result["model_usage"]:
+            self.assertEqual(entry["cost_basis"], "apportioned")
+
+
+class TestModelUsageBucketing(UsageReaderCase):
+    """D1.1 Option B: usage_reader buckets tokens by model as a new,
+    PARALLEL model_usage list -- role_usage's shape stays untouched."""
+
+    def test_mixed_model_run_buckets_tokens_per_model(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(10, 5, 0, 0),
+                     attribution_skill="acs:code", model="claude-opus-4"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(20, 10, 0, 0),
+                     attribution_skill="acs:code", model="claude-sonnet-5"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        by_model = {m["model"]: m for m in result["model_usage"]}
+        self.assertEqual(set(by_model), {"claude-opus-4", "claude-sonnet-5"})
+        self.assertEqual(by_model["claude-opus-4"]["input"], 10)
+        self.assertEqual(by_model["claude-opus-4"]["output"], 5)
+        self.assertEqual(by_model["claude-sonnet-5"]["input"], 20)
+        self.assertEqual(by_model["claude-sonnet-5"]["output"], 10)
+
+    def test_model_usage_sorted_by_model_name(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(1, 0, 0, 0),
+                     attribution_skill="acs:code", model="zeta-model"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(1, 0, 0, 0),
+                     attribution_skill="acs:code", model="alpha-model"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        self.assertEqual([m["model"] for m in result["model_usage"]], ["alpha-model", "zeta-model"])
+
+    def test_missing_or_non_string_model_buckets_as_unknown(self):
+        # No "model" key on the message at all -- not even null.
+        rec_no_model_key = {
+            "type": "assistant", "timestamp": "2026-01-01T00:00:05Z",
+            "message": {"usage": _usage(7, 0, 0, 0)}, "attributionSkill": "acs:code",
+        }
+        self.write_main([rec_no_model_key])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        self.assertEqual([m["model"] for m in result["model_usage"]], ["unknown"])
+        self.assertEqual(result["model_usage"][0]["input"], 7)
+
+    def test_model_usage_token_sum_equals_role_usage_token_sum(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(10, 0, 0, 0),
+                     attribution_skill="acs:code", model="claude-opus-4"),
+            _record("2026-01-01T00:00:06Z", usage=_usage(30, 0, 0, 0),
+                     model="claude-sonnet-5"),  # unattributed -- must still be model-bucketed
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+
+        def _tokens(entry):
+            return entry["input"] + entry["output"] + entry["cache_creation"] + entry["cache_read"]
+
+        model_sum = sum(_tokens(m) for m in result["model_usage"])
+        role_sum = sum(_tokens(r) for r in result["role_usage"])
+        self.assertEqual(model_sum, role_sum)
+        self.assertEqual(model_sum, 40)
+
+    def test_degraded_result_has_empty_model_usage_and_no_model_key(self):
+        result = usage_reader.read_transcript_usage(None, "2026-01-01T00:00:00Z", None, "code")
+        self.assertTrue(result["degraded"])
+        self.assertEqual(result["model_usage"], [])
+        self.assertNotIn("model", result)
+
+    def test_happy_path_result_has_no_model_scalar_key(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(1, 0, 0, 0),
+                     attribution_skill="acs:code", model="claude-opus-4"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        self.assertNotIn("model", result)
+
+    def test_subagent_and_main_session_models_both_bucketed(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(5, 0, 0, 0),
+                     attribution_skill="acs:code", model="main-model"),
+        ])
+        self.write_subagent("agent-1.jsonl", [
+            _record("2026-01-01T00:00:06Z", usage=_usage(9, 0, 0, 0),
+                     attribution_agent="acs:code-executor", model="sub-model"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        by_model = {m["model"]: m for m in result["model_usage"]}
+        self.assertEqual(by_model["main-model"]["input"], 5)
+        self.assertEqual(by_model["sub-model"]["input"], 9)
+
+    def test_role_usage_item_keys_unchanged_by_model_bucketing(self):
+        self.write_main([
+            _record("2026-01-01T00:00:05Z", usage=_usage(1, 0, 0, 0),
+                     attribution_skill="acs:code", model="m1"),
+        ])
+        result = usage_reader.read_transcript_usage(
+            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
+        self.assertFalse(result["degraded"])
+        self.assertEqual(set(result["role_usage"][0].keys()),
+                          {"role", "input", "output", "cache_creation", "cache_read"})
 
 
 if __name__ == "__main__":

@@ -273,25 +273,55 @@ def _apportion(role_usage, delta):
     return out, excluded_cost_usd, excluded_token_share
 
 
-def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage):
+def _apportion_models(model_usage, delta):
+    """Split `delta` across model_usage by token share -- D1.2 Option A
+    (design.md:173-200): the FULL delta, no unattributed exclusion, unlike
+    _apportion's role-scoped split above. Denominator = all model_usage
+    tokens; total_tokens <= 0 degrades every entry to unavailable, mirroring
+    _apportion's own guard."""
+    total_tokens = sum(_tokens(entry) for entry in model_usage)
+    if total_tokens <= 0:
+        return _unavailable_role_usage(model_usage)
+
+    out = []
+    for entry in model_usage:
+        item = dict(entry)
+        tokens = _tokens(entry)
+        item["cost_usd"] = delta * (tokens / total_tokens)
+        item["cost_basis"] = "apportioned"
+        out.append(item)
+    return out
+
+
+def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage, model_usage=None):
     """Implements SS1.3's cursor-consumption rule. `started_at` is accepted for
     the caller's own informational/logging use only -- the "before" edge for
     the delta is always the persisted cursor, never started_at.
 
-    Returns (role_usage_with_cost, cost_usd, cost_basis, cost_scope,
-    excluded_cost_usd, excluded_token_share). `cost_scope` carries
+    Returns a dict: {role_usage, model_usage, cost_usd, cost_basis,
+    cost_scope, excluded_cost_usd, excluded_token_share}. `cost_scope` carries
     "session_total" on a measured charge, and doubles as the degraded reason
     ("no_unconsumed_sample_in_window" / "cost_total_reset") when cost_usd is
     None -- design.md's cost_scope enum has no dedicated reason field, and
     this reuse is this module's own documented choice.
 
-    `cost_usd` is the ATTRIBUTED-ONLY share of the session-window charge --
-    the full delta minus `excluded_cost_usd` -- never the raw full delta.
-    C-8's "drop, don't redistribute" policy means the unattributed slice is
-    dropped from the run's (and therefore the ticket's/repo's) cost, not
-    merely reported alongside a charge that still includes it.
+    `role_usage`'s `cost_usd` is the ATTRIBUTED-ONLY share of the
+    session-window charge -- the full delta minus `excluded_cost_usd` --
+    never the raw full delta. C-8's "drop, don't redistribute" policy means
+    the unattributed slice is dropped from the run's (and therefore the
+    ticket's/repo's) cost, not merely reported alongside a charge that still
+    includes it.
+
+    `model_usage` is None when the `model_usage` argument was None; otherwise
+    each entry's `cost_usd` is priced from the SAME delta charged to
+    `role_usage`, apportioned by token share across ALL model_usage tokens --
+    D1.2 Option A, no unattributed exclusion (deliberate, documented gap, not
+    a bug): sum(model_usage.cost_usd) - sum(role_usage.cost_usd, attributed
+    roles only) == excluded_cost_usd, whenever any tokens in the window are
+    unattributed.
     """
     role_usage = [dict(entry) for entry in (role_usage or [])]
+    model_usage = [dict(entry) for entry in model_usage] if model_usage is not None else None
     end_dt = lib.parse_iso(ended_at)
 
     cursor = lib.read_json(cost_cursor_path(workspace, repo_id, checkout_id))
@@ -315,19 +345,35 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
                 after, after_ts = sample, sample_ts
 
     if after is None or (cursor_ts is not None and after_ts <= cursor_ts):
-        return (_unavailable_role_usage(role_usage), None, "unavailable",
-                "no_unconsumed_sample_in_window", None, None)
+        return {
+            "role_usage": _unavailable_role_usage(role_usage),
+            "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
+            "cost_usd": None, "cost_basis": "unavailable",
+            "cost_scope": "no_unconsumed_sample_in_window",
+            "excluded_cost_usd": None, "excluded_token_share": None,
+        }
 
     delta = float(after["total_cost_usd"]) - float(cursor_total)
     if delta < 0:
         lib.write_json(cost_cursor_path(workspace, repo_id, checkout_id),
                         {"ts": after["ts"], "total_cost_usd": after["total_cost_usd"]})
-        return (_unavailable_role_usage(role_usage), None, "unavailable",
-                "cost_total_reset", None, None)
+        return {
+            "role_usage": _unavailable_role_usage(role_usage),
+            "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
+            "cost_usd": None, "cost_basis": "unavailable",
+            "cost_scope": "cost_total_reset",
+            "excluded_cost_usd": None, "excluded_token_share": None,
+        }
 
     role_usage_with_cost, excluded_cost_usd, excluded_token_share = _apportion(role_usage, delta)
+    model_usage_with_cost = _apportion_models(model_usage, delta) if model_usage is not None else None
     lib.write_json(cost_cursor_path(workspace, repo_id, checkout_id),
                     {"ts": after["ts"], "total_cost_usd": after["total_cost_usd"]})
     attributed_cost_usd = max(0.0, delta - excluded_cost_usd)
-    return (role_usage_with_cost, attributed_cost_usd, "measured", "session_total",
-            excluded_cost_usd, excluded_token_share)
+    return {
+        "role_usage": role_usage_with_cost,
+        "model_usage": model_usage_with_cost,
+        "cost_usd": attributed_cost_usd, "cost_basis": "measured",
+        "cost_scope": "session_total",
+        "excluded_cost_usd": excluded_cost_usd, "excluded_token_share": excluded_token_share,
+    }

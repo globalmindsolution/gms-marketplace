@@ -58,7 +58,7 @@ class _CapExceeded(Exception):
 
 
 def _degraded(reason):
-    return {"degraded": True, "reason": reason, "model": None, "role_usage": []}
+    return {"degraded": True, "reason": reason, "model_usage": [], "role_usage": []}
 
 
 def _empty_bucket():
@@ -138,13 +138,18 @@ def _iter_capped_lines(path, cap_state):
             yield line
 
 
-def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, role_totals, acc, own_skill):
-    """Fold one transcript JSONL file's in-window usage into role_totals/acc.
+def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, role_totals, acc, own_skill):
+    """Fold one transcript JSONL file's in-window usage into
+    model_totals/role_totals/acc.
 
     Skips (never raises on) a corrupt line, a non-dict record, an
     out-of-window timestamp, or a record with no usable message.usage.
     `own_skill` is the run's own skill name, used to filter main-session
-    attributionSkill records (see _skill_role); ignored for subagent files."""
+    attributionSkill records (see _skill_role); ignored for subagent files.
+    Every in-window record that survives the total==0 guard is folded into
+    BOTH model_totals and role_totals (unconditionally, including records
+    that land in UNATTRIBUTED_ROLE) -- what makes the cross-list token-sum
+    invariant true by construction (D1.1 Option B)."""
     for line in _iter_capped_lines(path, cap_state):
         line = line.strip()
         if not line:
@@ -167,10 +172,9 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_holder, rol
         total = _usage_total(usage)
         if total == 0:
             continue
-        if model_holder[0] is None:
-            model = message.get("model")
-            if isinstance(model, str) and model:
-                model_holder[0] = model
+        model = message.get("model")
+        model_key = model if isinstance(model, str) and model else "unknown"
+        _add_usage(model_totals.setdefault(model_key, _empty_bucket()), usage)
         role = (_agent_role(record.get("attributionAgent")) if is_subagent
                 else _skill_role(record.get("attributionSkill"), own_skill))
         acc["total"] += total
@@ -224,12 +228,12 @@ def _read(transcript_path, started_at, ended_at, skill):
             return _degraded("empty_window")
 
     cap_state = {"bytes": 0, "files": 0}
-    model_holder = [None]
+    model_totals = {}
     role_totals = {}
     acc = {"total": 0, "excluded": 0}
 
     try:
-        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_holder, role_totals, acc, skill)
+        _scan_file(transcript_path, start_dt, end_dt, cap_state, False, model_totals, role_totals, acc, skill)
     except _CapExceeded:
         return _degraded("cap_exceeded")
     except OSError:
@@ -239,7 +243,7 @@ def _read(transcript_path, started_at, ended_at, skill):
     subagents_dir = os.path.join(os.path.dirname(transcript_path), session_id, "subagents")
     for file_path in _walk_jsonl(subagents_dir):
         try:
-            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_holder, role_totals, acc, skill)
+            _scan_file(file_path, start_dt, end_dt, cap_state, True, model_totals, role_totals, acc, skill)
         except _CapExceeded:
             return _degraded("cap_exceeded")
         except OSError:
@@ -249,10 +253,11 @@ def _read(transcript_path, started_at, ended_at, skill):
         return _degraded("no_tokens_in_window")
 
     role_usage = [dict(role=role, **bucket) for role, bucket in sorted(role_totals.items())]
+    model_usage = [dict(model=model, **bucket) for model, bucket in sorted(model_totals.items())]
     return {
         "degraded": False,
         "reason": None,
-        "model": model_holder[0],
+        "model_usage": model_usage,
         "role_usage": role_usage,
         "excluded_token_share": acc["excluded"] / acc["total"],
     }

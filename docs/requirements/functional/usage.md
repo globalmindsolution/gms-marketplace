@@ -179,7 +179,13 @@ no network call:
   role (coordinator/planner/executor/verifier/other, plus an `unattributed`
   bucket for same-window tokens with no attribution or attributed to a
   different acs skill than the run's own — `coordinator` is always rendered,
-  `other`/`unattributed` appear whenever the ticket has any such spend).
+  `other`/`unattributed` appear whenever the ticket has any such spend),
+  and usage by model — input/output/cache-write/cache-read tokens and cost
+  per model, at both repo and per-ticket scope. Its cost figure apportions
+  the run's full charged delta by token share with no unattributed
+  exclusion, unlike the role-scoped figure above, so the by-model total can
+  exceed the role-scoped attributed-only total by the excluded/unattributed
+  share — a named reconciliation identity, not a discrepancy.
   Every cost figure carries a `cost_basis` — `measured` (the
   attributed-token share of the real session-window dollar delta sampled
   from Claude Code's own statusLine cost payload — that delta net of the

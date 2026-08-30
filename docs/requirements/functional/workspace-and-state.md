@@ -170,8 +170,17 @@ Each state file MUST capture:
     {
       "started_at": "2026-06-12T09:00:00Z",
       "ended_at": "2026-06-12T10:00:00Z",
-      "tokens": { "input": 152000, "output": 38000 },
+      "session_id": "...",
+      "transcript_path": "...",
+      "checkout_id": "...",
+      "tokens": { "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 },
       "cost_usd": 4.21,
+      "cost_basis": "measured",
+      "cost_scope": "session_total",
+      "excluded_cost_usd": 0.0,
+      "excluded_token_share": 0.0,
+      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
+      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }

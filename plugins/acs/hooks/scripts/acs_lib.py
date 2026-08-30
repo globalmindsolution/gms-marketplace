@@ -1344,6 +1344,7 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_usd"] = None
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
+        entry["model_usage"] = []
         return
 
     import usage_reader
@@ -1357,8 +1358,10 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_usd"] = None
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
+        entry["model_usage"] = []
         return
     role_usage = usage.get("role_usage") or []
+    model_usage = usage.get("model_usage") or []
     entry["tokens"] = _sum_role_tokens(role_usage)
 
     checkout_id = entry.get("checkout_id")
@@ -1366,6 +1369,7 @@ def _measure_run_usage(entry, tdir, skill):
         # Tokens are measured (transcript-only); cost needs the checkout-scoped
         # sample/cursor files this entry has no checkout_id to locate.
         entry["role_usage"] = role_usage
+        entry["model_usage"] = model_usage
         entry["cost_usd"] = None
         entry["cost_basis"] = "unavailable"
         return
@@ -1373,16 +1377,16 @@ def _measure_run_usage(entry, tdir, skill):
     import cost_sampler
     workspace = os.path.dirname(os.path.dirname(tdir))
     repo_id = os.path.basename(os.path.dirname(tdir))
-    (role_usage_with_cost, cost_usd, cost_basis, cost_scope,
-     excluded_cost_usd, excluded_token_share) = cost_sampler.allocate_cost(
+    result = cost_sampler.allocate_cost(
         workspace, repo_id, checkout_id,
-        entry.get("started_at"), entry.get("ended_at"), role_usage)
-    entry["role_usage"] = role_usage_with_cost
-    entry["cost_usd"] = cost_usd
-    entry["cost_basis"] = cost_basis
-    entry["cost_scope"] = cost_scope
-    entry["excluded_cost_usd"] = excluded_cost_usd
-    entry["excluded_token_share"] = excluded_token_share
+        entry.get("started_at"), entry.get("ended_at"), role_usage, model_usage)
+    entry["role_usage"] = result["role_usage"]
+    entry["model_usage"] = result["model_usage"]
+    entry["cost_usd"] = result["cost_usd"]
+    entry["cost_basis"] = result["cost_basis"]
+    entry["cost_scope"] = result["cost_scope"]
+    entry["excluded_cost_usd"] = result["excluded_cost_usd"]
+    entry["excluded_token_share"] = result["excluded_token_share"]
 
 
 def finalize_run(tdir, skill, ticket_id, result):

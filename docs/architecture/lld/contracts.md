@@ -46,6 +46,7 @@ shape:
 | `cost_scope` | enum | `session_total` / `main_session_only` on a charge; `no_unconsumed_sample_in_window` / `cost_total_reset` reused as the degraded reason when `cost_usd` is `null` |
 | `excluded_cost_usd`, `excluded_token_share` | number or `null` | The unattributed same-window slice dropped from the ticket's cost, per C-8 — never redistributed onto attributed roles |
 | `role_usage` | array | Per-role `{role, input, output, cache_creation, cache_read, cost_usd, cost_basis}` buckets, including a first-class `coordinator` bucket and an `unattributed` bucket that never receives a dollar share |
+| `model_usage` | array | Per-model `{model, input, output, cache_creation, cache_read, cost_usd, cost_basis}` buckets — parallel to `role_usage`, unattributed-inclusive (D1.1 Option B). `cost_usd` apportions the run's FULL charged delta by token share with no unattributed exclusion (D1.2 Option A), so `sum(model_usage.cost_usd)` can exceed `sum(role_usage.cost_usd)`'s attributed-only total by `excluded_cost_usd` — a named, testable reconciliation identity, not a bug. |
 
 `pipeline-state.json`/`metrics.json` `totals` gain four additive counters —
 `runs_timed`/`runs_untimed` and `runs_cost_measured`/`runs_cost_unavailable`

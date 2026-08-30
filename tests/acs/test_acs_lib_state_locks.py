@@ -131,12 +131,24 @@ class TestFinalizeRun(unittest.TestCase):
             {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0,
              "cost_usd": 0.05, "cost_basis": "apportioned"},
         ]
+        measured_model_usage = [
+            {"model": "claude-opus", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
+        ]
+        priced_model_usage = [
+            {"model": "claude-opus", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": 0.05, "cost_basis": "apportioned"},
+        ]
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
                 mock.patch("cost_sampler.allocate_cost") as allocate:
             read_usage.return_value = {
-                "degraded": False, "reason": None, "model": "claude", "role_usage": measured_role_usage,
+                "degraded": False, "reason": None, "role_usage": measured_role_usage,
+                "model_usage": measured_model_usage,
             }
-            allocate.return_value = (priced_role_usage, 0.05, "measured", "session_total", 0.0, 0.0)
+            allocate.return_value = {
+                "role_usage": priced_role_usage, "model_usage": priced_model_usage,
+                "cost_usd": 0.05, "cost_basis": "measured", "cost_scope": "session_total",
+                "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+            }
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
                 "status": "completed",
                 "tokens": {"input": 999999, "output": 999999},
@@ -146,9 +158,10 @@ class TestFinalizeRun(unittest.TestCase):
             "/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"], "code")
         allocate.assert_called_once_with(
             os.path.dirname(os.path.dirname(self.tdir)), os.path.basename(os.path.dirname(self.tdir)),
-            "ck-1", entry["started_at"], entry["ended_at"], measured_role_usage)
+            "ck-1", entry["started_at"], entry["ended_at"], measured_role_usage, measured_model_usage)
         self.assertEqual(entry["tokens"], {"input": 10, "output": 20, "cache_creation": 0, "cache_read": 0})
         self.assertEqual(entry["role_usage"], priced_role_usage)
+        self.assertEqual(entry["model_usage"], priced_model_usage)
         self.assertEqual(entry["cost_usd"], 0.05)
         self.assertEqual(entry["cost_basis"], "measured")
 
@@ -162,9 +175,13 @@ class TestFinalizeRun(unittest.TestCase):
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
                 mock.patch("cost_sampler.allocate_cost") as allocate:
             read_usage.return_value = {
-                "degraded": False, "reason": None, "model": "claude", "role_usage": [],
+                "degraded": False, "reason": None, "role_usage": [], "model_usage": [],
             }
-            allocate.return_value = ([], None, "unavailable", "session_total", 0.0, 0.0)
+            allocate.return_value = {
+                "role_usage": [], "model_usage": [],
+                "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
+                "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+            }
             state, entry = lib.finalize_run(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
         read_usage.assert_called_once_with(
             "/fake/sess-2.jsonl", entry["started_at"], entry["ended_at"], "create-design")
@@ -181,6 +198,7 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertIsNone(entry["cost_usd"])
         self.assertEqual(entry["cost_basis"], "unavailable")
         self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+        self.assertEqual(entry["model_usage"], [])
 
     def test_degraded_transcript_read_never_charges_or_calls_allocate_cost(self):
         """FIX 2: a degraded usage_reader result (unreadable file, cap
@@ -195,7 +213,7 @@ class TestFinalizeRun(unittest.TestCase):
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
                 mock.patch("cost_sampler.allocate_cost") as allocate:
             read_usage.return_value = {
-                "degraded": True, "reason": "cap_exceeded", "model": None, "role_usage": [],
+                "degraded": True, "reason": "cap_exceeded", "role_usage": [], "model_usage": [],
             }
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
         allocate.assert_not_called()
@@ -203,6 +221,7 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(entry["cost_basis"], "unavailable")
         self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
         self.assertEqual(entry["role_usage"], [])
+        self.assertEqual(entry["model_usage"], [])
 
     def test_ticket_rollup_reflects_only_attributed_spend_not_full_delta(self):
         """FIX 1 composition test: finalize_run persists cost_sampler's
@@ -228,14 +247,116 @@ class TestFinalizeRun(unittest.TestCase):
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
                 mock.patch("cost_sampler.allocate_cost") as allocate:
             read_usage.return_value = {
-                "degraded": False, "reason": None, "model": "claude", "role_usage": measured_role_usage,
+                "degraded": False, "reason": None, "role_usage": measured_role_usage, "model_usage": [],
             }
-            allocate.return_value = (priced_role_usage, 2.5, "measured", "session_total", 7.5, 0.75)
+            allocate.return_value = {
+                "role_usage": priced_role_usage, "model_usage": [],
+                "cost_usd": 2.5, "cost_basis": "measured", "cost_scope": "session_total",
+                "excluded_cost_usd": 7.5, "excluded_token_share": 0.75,
+            }
             lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
 
         totals = lib.compute_ticket_totals(self.tdir)
         self.assertEqual(totals["cost_usd"], 2.5)
         self.assertEqual(totals["runs_cost_measured"], 1)
+
+    def test_no_checkout_id_branch_keeps_model_usage_tokens_only(self):
+        """design.md:718 -- the no-checkout_id branch persists model_usage
+        tokens-only (no cost keys), mirroring role_usage's own behavior at
+        this branch (acs_lib.py:1368): measured token data is never
+        discarded just because cost can't be located."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
+        })
+        measured_model_usage = [
+            {"model": "claude-opus", "input": 5, "output": 5, "cache_creation": 0, "cache_read": 0},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "role_usage": [], "model_usage": measured_model_usage,
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        allocate.assert_not_called()
+        self.assertEqual(entry["model_usage"], measured_model_usage)
+        for item in entry["model_usage"]:
+            self.assertNotIn("cost_usd", item)
+            self.assertNotIn("cost_basis", item)
+
+    def test_no_session_marker_and_degraded_branches_emit_empty_model_usage(self):
+        """No session_id/transcript_path, and a degraded transcript read,
+        both persist model_usage=[] -- same rule as role_usage's own
+        empty-list branches (acs_lib.py:1342-1347, :1352-1360)."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        read_usage.assert_not_called()
+        self.assertEqual(entry["model_usage"], [])
+
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
+        })
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            read_usage.return_value = {
+                "degraded": True, "reason": "unreadable_transcript", "role_usage": [], "model_usage": [],
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        self.assertEqual(entry["model_usage"], [])
+
+    def test_model_usage_is_a_sibling_of_tokens_never_inside_it(self):
+        """F10 guard at the persistence layer: model_usage must be a
+        top-level key on the run entry, never nested inside entry['tokens']
+        (skill-state.schema.json's tokens object is additionalProperties:
+        false and must stay that way)."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_model_usage = [
+            {"model": "claude-opus", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "role_usage": [], "model_usage": measured_model_usage,
+            }
+            allocate.return_value = {
+                "role_usage": [], "model_usage": measured_model_usage,
+                "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
+                "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        self.assertIn("model_usage", entry)
+        self.assertNotIn("model_usage", entry["tokens"])
+        self.assertEqual(set(entry["tokens"]), {"input", "output", "cache_creation", "cache_read"})
+
+    def test_sum_role_tokens_unchanged_by_model_usage(self):
+        """Inverse obligation: entry['tokens'] still equals the role-sum
+        result (acs_lib._sum_role_tokens) on a mixed-model fixture --
+        model_usage introduces no new total."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_role_usage = [
+            {"role": "executor", "input": 10, "output": 5, "cache_creation": 0, "cache_read": 0},
+        ]
+        measured_model_usage = [
+            {"model": "claude-opus", "input": 6, "output": 3, "cache_creation": 0, "cache_read": 0},
+            {"model": "claude-sonnet", "input": 4, "output": 2, "cache_creation": 0, "cache_read": 0},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "role_usage": measured_role_usage,
+                "model_usage": measured_model_usage,
+            }
+            allocate.return_value = {
+                "role_usage": measured_role_usage, "model_usage": measured_model_usage,
+                "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
+                "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        self.assertEqual(entry["tokens"], lib._sum_role_tokens(measured_role_usage))
+        self.assertEqual(entry["tokens"], {"input": 10, "output": 5, "cache_creation": 0, "cache_read": 0})
 
 
 class TestRecordEscalationEventRequiresRun(unittest.TestCase):
