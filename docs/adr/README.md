@@ -38,6 +38,11 @@ context and consequences.
 | [0027](0027-tabp-dual-runtime-detection.md) | tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback (cwd-as-project-dir on Claude Code) | Accepted |
 | [0028](0028-merge-pr-agent-invocable.md) | merge-pr is agent/model-invocable; readiness gate + m6 require-APPROVED-for-all | Accepted |
 | [0029](0029-merge-pr-auto-update-behind-branch.md) | merge-pr auto-updates a BEHIND branch then merges in the same run | Accepted |
+| [0030](0030-four-lane-hybrid-routing-from-size-stakes-axes.md) | Adopt four-lane hybrid routing (TRIVIAL/SMALL/STANDARD/COMPLEX) from size x stakes axes | Accepted |
+| [0031](0031-axes-authoritative-lane-derived-cache.md) | Store size + stakes as authoritative axes; lane is a derived cache, recomputable by the routing function | Accepted |
+| [0032](0032-lane-field-in-pipeline-state-and-index-writers.md) | Measure G14/G15/G16 by adding one lane field to the existing pipeline-state.json and tickets-index.json writers | Accepted |
+| [0033](0033-stakes-first-class-with-path-glob-detection.md) | Treat stakes as a first-class independent axis with configurable path-glob detection | Accepted |
+| [0034](0034-light-verify-one-iteration-cap.md) | Light verify = single verifier pass with one-iteration cap; full verify unchanged; TDD/coverage gate immutable in every lane | Accepted |
 | [0035](0035-pr-title-ticket-ref-token.md) | Introduce a `pr_title`-only `{ticket_ref}` alternation token instead of overloading `{ticket_id}` | Accepted |
 | [0036](0036-compute-ticket-ref-in-build-title.md) | Compute `ticket_ref` inside `build_title` via a `provider` parameter and a `--provider` CLI flag, one uniform template for every caller | Accepted |
 | [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md) | Add a spec-time simplicity-evaluation step to the `create-spec-planner` charter, surfaced by the coordinator | Accepted |
@@ -45,6 +50,9 @@ context and consequences.
 | [0039](0039-spec-simplicity-gate-planner-only-scope.md) | The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added | Accepted |
 | [0040](0040-codeowners-derived-pr-reviewers.md) | CODEOWNERS-derived PR reviewers (not a settings key) | Accepted |
 | [0041](0041-fixed-field-name-table-group-b-sync.md) | Fixed case-insensitive field-name table for Priority/Story Points/Parent, with type-driven value mapping and tracker-key-valued Parent field | Accepted |
+| [0042](0042-dynamic-mid-flight-lane-correctness.md) | Dynamic mid-flight lane correctness | Accepted |
+| [0043](0043-suites-map-generalization.md) | `suites` map generalization with soft-deprecated `e2e` alias | Accepted |
+| [0044](0044-acs-test-closed-loop-ticketing.md) | `/acs:test` closed-loop ticketing semantics | Accepted |
 | [0045](0045-dedicated-acs-e2e-workflow-runner-pair.md) | Dedicated `acs-e2e.yml` + `run-e2e.py` CI workflow pair, independent of the tests gate | Accepted |
 | [0046](0046-no-new-settings-key-for-e2e-ci-enforcement.md) | No new settings key for e2e CI enforcement — `settings.e2e`/`suites.e2e` remains the single opt-in signal | Accepted |
 | [0047](0047-init-auto-wires-e2e-required-check-report-once.md) | `/acs:init` auto-wires the e2e required check when admin, with a report-once manual-step fallback | Accepted |
@@ -55,6 +63,15 @@ context and consequences.
 | [0052](0052-release-exempt-pr-human-merge.md) | Release cuts land via an exempt `release/*` PR that stops for a mandatory human merge | Accepted |
 | [0053](0053-release-versions-roadmap-mapping-table.md) | Release versions are modeled as an additive `roadmap.md` mapping table, decoupled from the cut skill | Accepted |
 | [0054](0054-settings-driven-release-block.md) | Settings-driven `release` block (JSON-manifest-focused schema, Option A); marketplace = profile #1 | Accepted |
+| [0055](0055-promote-mermaid-lint-shared-plugin-helper-blocking-diagram-gate.md) | Promote `mermaid_lint.py` to a shared plugin helper + blocking diagram-lint gate | Accepted |
+| [0056](0056-skill-md-required-sections-source-of-truth-structure-helper.md) | SKILL.md-declared `required_sections` as the single source of truth + deterministic structure-conformance helper | Accepted |
+| [0057](0057-audience-aware-style-hybrid-advisory-severity.md) | Audience-aware-style HYBRID mechanism, ADVISORY severity | Accepted |
+| [0060](0060-functional-non-functional-requirements-model.md) | Functional/non-functional settings-aware requirements MODEL | Accepted |
+| [0061](0061-create-requirements-brownfield-reverse-engineer-producer.md) | `/acs:create-requirements` brownfield reverse-engineer producer | Accepted |
+| [0062](0062-create-requirements-greenfield-elicitation-draft-discipline.md) | `/acs:create-requirements` greenfield elicitation + uniform DRAFT discipline | Accepted |
+| [0063](0063-audience-style-verifier-dimension-advisory-to-blocking-create-spec.md) | Audience-style verifier dimension: ADVISORY → BLOCKING, extended to create-spec | Accepted |
+| [0064](0064-evidence-sidecar-code-citation-relocation.md) | Relocate code-evidence citations into per-doc `.evidence.md` sidecars | Accepted |
+| [0065](0065-configurable-design-spec-templates-byte-identical-defaults.md) | Configurable design/spec templates with byte-identical built-in defaults | Accepted |
 | [0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) | Supersedes ADR 0006: fold spec-authoring into `/code`'s plan phase for every lane; `ticket.json`'s `acceptance_criteria`/DoD becomes the review loop's fixed point | Accepted |
 | [0067](0067-code-verifier-multi-lens-adversarial-rigor-upgrade.md) | code-verifier multi-lens adversarial rigor upgrade (`verify_depth=="full"` only): 4 parallel lenses plus a coordinator adversarial merge pass | Accepted |
 | [0068](0068-acs-test-ticket-scoped-fix-and-retest-mode.md) | `/acs:test` ticket-scoped `--for-ticket` mode + `/acs:ship`'s post-code fix-and-re-test loop, gated by e2e presence | Accepted |
@@ -72,6 +89,7 @@ context and consequences.
 | [0080](0080-plan-conformance-citation-corroboration-hybrid-mechanism.md) | The shared `plan-conformance` verifier dimension across create-quality/-standards/-operations/-principles gains independent, always-blocking citation corroboration — a deterministic `citation_check.py` floor plus a mandatory verifier substantiation ceiling (append-only; ADR-0004 itself unedited) | Accepted |
 | [0081](0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md) | `/acs:create-prd`'s dimension 7 "Plan conformance" gains independent, always-blocking three-family corroboration (code-evidence, answer-fidelity, roadmap-outline) via a new `prd_conformance_check.py` script that imports `citation_check.py`'s helpers unchanged, plus a mandatory verifier substantiation ceiling (append-only; ADR-0004 itself unedited) | Accepted |
 | [0082](0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md) | Session-anchored transcript measurement with statusLine-sourced real-cost apportionment, superseding an acs-owned price table | Accepted |
+| [0083](0083-bootstrap-doc-skills-remediation-loop-execute-verify-only.md) | The 5 bootstrap-doc skills' (`create-prd`/`-quality`/`-standards`/`-operations`/`-principles`) remediation loops become execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name all 5, and superseding ADR-0080's/ADR-0081's loop-topology-unchanged statements (their corroboration-mechanism statements stand) (append-only; ADR-0004/ADR-0080/ADR-0081 themselves unedited) | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

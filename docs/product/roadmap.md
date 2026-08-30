@@ -60,9 +60,11 @@ Epic-level scope (retrofit; built before dogfooding began):
   active on the twelve triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
   coordinator-authored with zero `code-planner` spawns (MAR-72);
-  `/acs:docs-sync`, `/acs:create-project`, and `/acs:standardize-project`
-  likewise now plan once per run (MAR-300, MAR-301, MAR-302); the other eight
-  keep the per-iteration shape), while
+  `/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
+  `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`,
+  `/acs:create-operations`, and `/acs:create-principles` likewise now plan
+  once per run (MAR-300, MAR-301, MAR-302, MAR-305); the other three keep
+  the per-iteration shape), while
   the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
@@ -506,7 +508,14 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   G29 + G36; + the Solo-developer, Tech-lead, and AI Quality & Evals Engineer
   personas). The MECHANISM (which skills go blocking, the sidecar shape, the
   `formats` schema keys, reconciliation with the skills' existing
-  `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)**
+  `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)** Of thread (i)/(iii) above,
+  the `create-spec` extension target and `formats.spec_template` were
+  retired outright in v0.4.6 when MAR-156/ADR 0066 deleted `/acs:create-spec`
+  (`plugins/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
+  bullet records what shipped in v0.4.5, not current capability. The
+  advisory→blocking promotion for the other 8 producer verifiers and
+  `formats.design_template` remain live (the former now lives in
+  `code-verifier`'s audience-style dimension).
 - **Epic: onboarding polish** — `/acs:initialize` guided flows, repo-detection
   heuristics, template gallery for descriptions. **Includes discoverability:** a
   read-only skill index / next-step advisor (e.g. `/acs:help`) listing available

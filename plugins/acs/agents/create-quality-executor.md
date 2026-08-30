@@ -17,8 +17,10 @@ Your prompt contains an XML `<task skill="create-quality" phase="execute"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the plan
 `iter-<n>-plan.md`, the PRD, the architecture set, the `quality/` template files, any
 existing `quality_path` files to regenerate), `<constraints>` (at minimum `partition` —
-the absolute ticket-partition path — plus `quality_path` and format strings), and
-optionally `<context>` with prior-iteration verifier findings. The coordinator may run
+the absolute ticket-partition path — plus `quality_path` and format strings), and, on
+iteration >= 2, a `<context>` carrying the prior iteration's verifier findings verbatim
+(no planner spawn happens in between — the plan you read is the same one authored once
+before iteration 1). The coordinator may run
 several executors in parallel; when it does, your task names your slice and an executor
 index `k`. You share no memory with the coordinator: read the plan and every input file
 yourself before writing anything.
@@ -40,6 +42,8 @@ yourself before writing anything.
    verification passing): create the branch per `formats.branch_name` (embeds the ticket
    id), commit per `formats.commit_message`, push, and open the docs-only PR against the
    default branch with the `ACS` label via `gh pr create`.
+5. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
+   the plan covers; leaving a listed finding unaddressed fails the next verify.
 
 ## The execute artifact
 

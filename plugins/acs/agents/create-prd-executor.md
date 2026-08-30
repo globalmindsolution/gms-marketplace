@@ -23,7 +23,8 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
   mode, and any repo docs the plan cites. READ EVERY ONE before writing a word;
 - `<constraints>` — at least `prd_path`, `required_sections`, `amend_rule`;
 - `<context>` — the mode (greenfield/brownfield/amend), the user's answers to the
-  planner's open questions, and on iteration 2+ the verifier findings to fix.
+  planner's open questions, and on iteration 2+ the verifier findings to fix, routed
+  straight from the verifier with no intervening planner spawn.
 
 ## Charter — produce the PRD doc set
 

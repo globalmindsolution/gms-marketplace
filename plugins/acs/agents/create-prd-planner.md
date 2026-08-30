@@ -12,6 +12,10 @@ know comes from the `<task>` XML in your prompt and the files it points at.
 
 ## Input contract
 
+You are spawned exactly once per run, before the loop — there is no iteration>1
+invocation of this agent, so your `<task>` never carries a `<context>` of verifier
+findings.
+
 Your prompt contains one `<task skill="create-prd" phase="plan" ticket-id="SHOP-1"
 iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 
@@ -20,8 +24,8 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   `prd.md`/`roadmap.md` when present, README and other repo docs. READ EVERY ONE.
   Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `prd_path`, `required_sections`, `amend_rule`;
-- `<context>` — the user's free-text product notes from `$ARGUMENTS`, and on
-  iteration 2+ the verifier findings your new plan MUST individually resolve.
+- `<context>` — the user's free-text product notes from `$ARGUMENTS` and the user's
+  recorded clarification answers only.
 
 ## Charter — what a create-prd plan contains
 
@@ -101,9 +105,6 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
      (This mirrors `roadmap.md:273`'s actual milestone-title shape, including
      the `;` — the grammar quotes the whole heading text so the `;` is inert,
      never a delimiter.)
-
-On iteration 2+, open the plan with a findings table: every verifier finding from
-`<context>`, verbatim, next to the specific plan change that resolves it.
 
 ### Design-time doc-consistency step (ADR 0012)
 

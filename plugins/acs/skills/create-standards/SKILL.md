@@ -70,6 +70,9 @@ BEFORE continuing:
 - Distrust the record where it is cheap to re-check (a doc "written" but
   missing or truncated counts as not done).
 - Continue from the first unfinished phase of the recorded iteration.
+- A resumed run reuses the existing `<partition>/phases/create-standards/iter-1-plan.md`
+  and never spawns a second planner; the plan phase runs (once) only when
+  that artifact is absent.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/create-standards/handoff-context.md` (if present),
@@ -124,7 +127,15 @@ document durable standards and conventions, not a running log. Exactly 3 files, 
 
 ## Reflection loop
 
-Run plan -> execute -> verify, max 3 iterations.
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:create-standards-planner` across the whole run, however many iterations the loop below
+uses. The loop itself is execute -> verify, max 3 iterations.
+
+**What an iteration counts.** One iteration is one execute -> verify round;
+the plan phase runs once, before the loop, and is not part of any iteration,
+so the cap counts execute+verify rounds, not a plan+execute+verify triad.
+`/acs:create-standards` has no lane-driven verify-depth selection: the cap is a fixed 3 in
+every lane, and this ticket introduces none.
 
 Spawn subagents with the Agent tool: subagent_type
 `acs:create-standards-planner` / `acs:create-standards-executor` /
@@ -168,16 +179,21 @@ with the validation error recorded in `errors`.
 
 Persist every phase output to
 `<partition>/phases/create-standards/iter-<n>-<phase>.xml` at the phase
-boundary, BEFORE starting the next phase.
+boundary, BEFORE starting the next phase. The plan phase runs once, so its
+message pair persists once as `iter-1-plan.xml` and its artifact is
+`<partition>/phases/create-standards/iter-1-plan.md`; execute and verify keep
+persisting per iteration, and every iteration's executor and verifier `<inputs>` name
+that same `iter-1-plan.md`.
 
 Phases:
 
-1. **Plan** — the planner reads the upstream doc-graph slice (PRD + architecture set +
+1. **Plan** (once, before the loop) — the planner reads the upstream doc-graph slice (PRD + architecture set +
    principles set when present), notes any gaps as `<questions>`, classifies bootstrap vs
    re-run, and produces the per-file outline for the 3 `standards/` files. The planner
    also runs the shared ADR-0012 design-time doc-consistency step; any findings surface
    through the "Clarification ledger first" mechanism below (User interaction). Persist
-   the plan.
+   the plan. On iterations 2-3 the verifier's findings go verbatim into the executor's
+   `<task>` `<context>`, with no planner spawn in between (see Verify below).
 2. **Execute** — executor(s) write the 3 files on the ticket branch (create
    the branch first — see Delivery). Decomposition is YOURS alone; subagents
    never spawn subagents. Typically a single executor — three small, tightly coupled
@@ -209,9 +225,10 @@ Phases:
    files' `required_sections:<file>` and the `audience_style_profile`
    declared in the Plan task example above.
 
-Zero verifier findings = pass — proceed to Delivery. On findings, feed them
-verbatim into the next iteration's plan task and re-run
-plan -> execute -> verify. After iteration 3 with findings remaining: stop,
+Zero verifier findings = pass — proceed to Delivery. On findings, they go
+verbatim into the next iteration's executor `<task>` `<context>`, with no
+planner spawn in between — the executor authors the remediation — and the
+run continues execute -> verify. After iteration 3 with findings remaining: stop,
 final status `failed`, findings recorded in the result document; commit
 whatever was written to the local ticket branch so nothing is lost, but do
 NOT push or open the PR.
