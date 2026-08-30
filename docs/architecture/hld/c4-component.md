@@ -72,12 +72,10 @@ create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, create-design, code, docs-sync,
 standardize-project, create-requirements) run the full plan→execute→verify
 reflection loop, spawning a separate planner, executor, and verifier subagent
-per phase — so **12 active triads (36 agents in triads)**. Within that
-twelve, `/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
-`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, and
-`/acs:create-principles` (MAR-71/300/301/302/305) spawn the planner once per
-run instead of per iteration — timing only; counts above hold.
+per phase — so **12 active triads (36 agents in triads)**. All twelve now
+spawn the planner once per run instead of per iteration — timing only;
+counts above hold (MAR-71/300/301/302/305, completed for
+`/acs:create-architecture`/`/acs:create-design`/`/acs:create-requirements`).
 The **three apply-work skills** (create-ticket, create-pr, merge-pr) run
 **inline** (MAR-60): the coordinator does the work directly, or delegates
 to **at most one** executor — never a planner or verifier, any lane.

@@ -18,7 +18,7 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan per iteration for the three non-/code non-/docs-sync non-/create-project non-/standardize-project non-/create-prd non-/create-quality non-/create-standards non-/create-operations non-/create-principles triad skills"
+    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan authored exactly once per run, before the loop, for every triad skill"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
@@ -167,11 +167,11 @@ erDiagram
 ```
 
 **PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
-MAR-74 slice 4, by MAR-300, by MAR-301, by MAR-302, and by MAR-305).** The `"execute/verify
-per iteration; plan per iteration for the three non-/code non-/docs-sync
-non-/create-project non-/standardize-project non-/create-prd non-/create-quality
-non-/create-standards non-/create-operations non-/create-principles triad skills"` cardinality above already carves out
-`/acs:code`'s plan leg. `/acs:code`'s plan artifact is
+MAR-74 slice 4, by MAR-300, by MAR-301, by MAR-302, by MAR-305, and by the
+create-architecture/create-design/create-requirements plan-once migration
+below).** The `"execute/verify per iteration; plan authored exactly once
+per run, before the loop, for every triad skill"` cardinality above already
+carves out `/acs:code`'s plan leg. `/acs:code`'s plan artifact is
 a single per-ticket `phases/code/plan.md`, written **exactly once per run**,
 before the loop, so `/acs:code` has one plan artifact per ticket regardless of
 iteration count (never rewritten in place on a later iteration — MAR-71,
@@ -285,6 +285,20 @@ since the plan phase runs exactly once) and carries **no** `PLAN_APPROVAL` /
 `PLAN_SUPERSEDED` semantics — no new entity block is added for any of them;
 the cardinality change is captured entirely by the narrowed `PHASE_ARTIFACT`
 relationship label above. Zero migration: no new state key, no new schema
+field, no new artifact path.
+
+**Amendment (completes the plan-once migration).** `/acs:create-architecture`'s,
+`/acs:create-design`'s, and `/acs:create-requirements`'s plan artifacts
+(`phases/<skill>/iter-1-plan.md` each) now have the same "exactly one per
+run, authored before the loop, never rewritten in place on a later
+iteration" cardinality as the nine other triad skills above. Like those
+nine, each of these three keeps the `iter-<n>-plan.md` **name** (`n` is
+always 1, since the plan phase runs exactly once) and carries **no**
+`PLAN_APPROVAL` / `PLAN_SUPERSEDED` semantics — no new entity block is
+added for any of them; the cardinality change is captured entirely by the
+narrowed `PHASE_ARTIFACT` relationship label above, which no longer names
+any per-iteration-plan exception — all twelve triad skills now plan
+exactly once per run. Zero migration: no new state key, no new schema
 field, no new artifact path.
 
 Invariants (enforced by `acs_lib` + schemas + tests):

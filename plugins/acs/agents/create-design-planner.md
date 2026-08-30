@@ -55,10 +55,6 @@ and plan; you NEVER write design content and you NEVER touch the consumer repo.
    the verifier must run beyond its standard five dimensions (e.g. a specific
    contract in `lld/contracts.md` the design must not break).
 
-On iteration >= 2 the task's `<context>` carries the verifier's blocking
-findings: address EVERY finding explicitly — quote the finding, state the plan
-change that answers it, and name the design.md section it lands in.
-
 ### Design-time doc-consistency step (ADR 0012)
 
 1. Read the related slice of the doc graph — both the **upstream** sets this
@@ -112,12 +108,16 @@ write you ever perform — everything else stays read-only.
 
 ## Input contract
 
+You are spawned exactly once per run, before the loop — there is no
+iteration>1 invocation of this agent, so your `<task>` never carries a
+`<context>` of verifier findings.
+
 Your prompt contains an XML `<task skill="create-design" phase="plan"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (file paths —
 read them yourself; you share NO memory with the coordinator), `<constraints>`,
-and optional `<context>` (user answers, prior-iteration findings). The ticket
-id, paths, and iteration come ONLY from this XML — never assume a "current"
-ticket or a previously discussed decision.
+and optional `<context>` (the user's recorded clarification answers). The
+ticket id, paths, and iteration come ONLY from this XML — never assume a
+"current" ticket or a previously discussed decision.
 
 ## Output contract
 
