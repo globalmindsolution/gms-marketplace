@@ -22,6 +22,7 @@ erDiagram
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
+    RUN_ENTRY ||--o{ MODEL_USAGE : "measured token/cost breakdown by model (MAR-3)"
     SESSION_MARKER ||--o| RUN_ENTRY : "read at skill-start, threaded onto the new entry (MAR-1)"
     RUN_ENTRY }o--o{ COST_SAMPLE : "cost consumed from the log via the cursor (MAR-1)"
     COST_CURSOR ||--|| COST_SAMPLE : "advances to the newest consumed sample (MAR-1)"
@@ -91,6 +92,15 @@ erDiagram
         int cache_read
         number cost_usd "null on an unattributed entry, which never receives a dollar share (MAR-1)"
         enum cost_basis "measured|apportioned|unavailable (MAR-1)"
+    }
+    MODEL_USAGE {
+        string model "message.model, or the literal string unknown (MAR-3)"
+        int input
+        int output
+        int cache_creation
+        int cache_read
+        number cost_usd "full-delta apportioned share, no unattributed exclusion, D1.2 Option A; null when unavailable (MAR-3)"
+        enum cost_basis "measured|apportioned|unavailable (MAR-3)"
     }
     SESSION_MARKER {
         string checkout_id PK "sessions/<checkout_id>-session.json, sibling of SESSION_POINTER (MAR-1)"
@@ -226,6 +236,17 @@ and a `ROLE_USAGE` breakdown; three new sibling entities —
 additive: no previously valid `RUN_ENTRY`/`PIPELINE_STATE` document becomes
 invalid, and `role_usage`/`cost_basis`/etc. are simply absent on any run
 entry finalized before this shipped (D7, forward-only — no backfill).
+
+**Amendment (MAR-3).** Per-model token/cost breakdown: the `RUN_ENTRY`
+entity gains a `MODEL_USAGE` breakdown, parallel to and independent of
+`ROLE_USAGE` (D1.1 Option B — `role_usage`'s shape is unchanged).
+`model_usage.cost_usd` apportions the run's full charged delta by token
+share with no unattributed exclusion (D1.2 Option A), so
+`sum(model_usage.cost_usd)` can exceed `sum(role_usage.cost_usd)`'s
+attributed-only total by `excluded_cost_usd` — a named, testable
+reconciliation identity, not a bug. Additive: `model_usage` is simply
+absent on any run entry finalized before this shipped (forward-only, no
+backfill, same pattern as `role_usage`'s MAR-1 rollout).
 
 **Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
 `/acs:create-standards`'s, `/acs:create-operations`'s, and

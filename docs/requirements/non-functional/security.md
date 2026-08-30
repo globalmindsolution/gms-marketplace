@@ -34,7 +34,10 @@ Within each `*.jsonl` record, only the four integer `message.usage` token
 fields, `message.model`, `timestamp`, and the attribution fields
 (`attributionSkill`/`attributionAgent`) are ever read. `message.content`,
 prompt text, and tool results are never read, and no transcript text of any
-kind is ever persisted into the workspace store — `usage_reader.py`
-persists only integer counts and a role/model string; `cost_sampler.py`
-persists only a float, a key-path string, and an ISO timestamp. No network
-calls occur anywhere in the measurement path.
+kind is ever persisted into the workspace store — `usage_reader.py` itself
+persists nothing; it returns a dict of integer counts bucketed by role
+(`role_usage`) and by model (`model_usage`, MAR-3) to its caller.
+`acs_lib.py`'s `_measure_run_usage`/`finalize_run` are what persist that
+returned data into the run entry; `cost_sampler.py` persists only a float,
+a key-path string, and an ISO timestamp. No network calls occur anywhere
+in the measurement path.

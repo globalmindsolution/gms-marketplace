@@ -70,6 +70,24 @@
               "additionalProperties": true
             }
           },
+          "model_usage": {
+            "description": "Per-model measured token/cost buckets (usage_reader/cost_sampler), parallel to role_usage; cost_usd is the FULL charged delta apportioned by token share with no unattributed exclusion (D1.2 Option A), so its sum can exceed role_usage's attributed-only cost sum by excluded_cost_usd.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["model"],
+              "properties": {
+                "model": {"type": "string"},
+                "input": {"type": "integer", "minimum": 0},
+                "output": {"type": "integer", "minimum": 0},
+                "cache_creation": {"type": "integer", "minimum": 0},
+                "cache_read": {"type": "integer", "minimum": 0},
+                "cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+                "cost_basis": {"enum": ["measured", "apportioned", "unavailable"]}
+              },
+              "additionalProperties": true
+            }
+          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {

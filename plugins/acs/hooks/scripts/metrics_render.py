@@ -13,7 +13,7 @@ MAR-14 spec 02 extends this module with two-view entrypoints:
 
     render_pm_terminal(data) -> str   PM view: delivery_summary,1,2,issues,progress,deadline,4,5,7
     render_pm_html(data)     -> str   PM view HTML (self-contained)
-    render_usage_terminal(data) -> str   usage view: usage_summary,3,6
+    render_usage_terminal(data) -> str   usage view: usage_summary,3,6,usage_by_model
     render_usage_html(data)    -> str   usage view HTML (self-contained)
 
 A --view {pm,usage,all} CLI flag selects the view. Default is pm (clarification C-2 — see note
@@ -74,11 +74,13 @@ _PM_PANELS = (
     "7",
 )
 
-# Usage view panels — in display order (design pinned allocation MAR-8/design.md:376-378)
+# Usage view panels — in display order (design pinned allocation MAR-8/design.md:376-378;
+# usage_by_model appended per MAR-3 spec 05).
 _USAGE_PANELS = (
     "usage_summary",
     "3",
     "6",
+    "usage_by_model",
 )
 
 # Canonical, fixed iteration orders (determinism — never rely on dict insertion order).
@@ -105,6 +107,7 @@ _NEW_PANEL_TITLES = {
     "progress": "Progress",
     "deadline": "Deadline",
     "usage_summary": "Usage Summary",
+    "usage_by_model": "Usage by model",
 }
 
 # Fixed-key order for the Panel 3 averages summary rows (determinism — read by name, not by
@@ -1119,6 +1122,81 @@ def _html_render_usage_summary(panel):
 
 
 # ---------------------------------------------------------------------------
+# MAR-3 spec 05 — "Usage by model" table (AC-2, render half): repo scope then one
+# section per ticket, from panels.usage_by_model's {repo, tickets} shape (design.md:733-744).
+# No division is performed here — cost_usd is formatted as given.
+# ---------------------------------------------------------------------------
+
+_MODEL_ROW_FMT = "%s%-28s %10s %10s %12s %12s %10s"
+
+
+def _term_model_table(models, indent):
+    """Rendered lines for one models list (a 'no data' string/missing key/empty list -> one cell)."""
+    out = [_MODEL_ROW_FMT % (indent, "model", "input", "output", "cache write", "cache read", "cost_usd")]
+    if _is_no_data(models) or not isinstance(models, list) or not models:
+        out.append(indent + NO_DATA)
+        return out
+    for row in models:
+        if not isinstance(row, dict):
+            continue
+        out.append(_MODEL_ROW_FMT % (
+            indent, str(row.get("model", "?")), row.get("input", 0), row.get("output", 0),
+            row.get("cache_creation", 0), row.get("cache_read", 0),
+            _fmt_money(row.get("cost_usd"), empty=NO_DATA)))
+    return out
+
+
+def _term_render_usage_by_model(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _term_no_data_block()
+    out = ["  repo:"]
+    out.extend(_term_model_table(value.get("repo"), indent="    "))
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        out.append("  " + NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        out.append("  ticket %s:" % row.get("ticket_id", "?"))
+        out.extend(_term_model_table(row.get("models"), indent="    "))
+    return out
+
+
+def _html_model_table(models):
+    """Rendered <table> for one models list (a 'no data' string/missing key/empty list -> nodata row)."""
+    rows = ["<tr><th>model</th><th>input</th><th>output</th><th>cache write</th>"
+            "<th>cache read</th><th>cost_usd</th></tr>"]
+    if _is_no_data(models) or not isinstance(models, list) or not models:
+        rows.append('<tr><td colspan="6" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for row in models:
+        if not isinstance(row, dict):
+            continue
+        cost = _fmt_money(row.get("cost_usd"), empty=NO_DATA)
+        cls = ' class="nodata"' if cost == NO_DATA else ""
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td%s>%s</td></tr>"
+                    % (_esc(row.get("model", "?")), _esc(row.get("input", 0)),
+                       _esc(row.get("output", 0)), _esc(row.get("cache_creation", 0)),
+                       _esc(row.get("cache_read", 0)), cls, _esc(cost)))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _html_render_usage_by_model(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _html_no_data()
+    parts = ["<h4>repo</h4>", _html_model_table(value.get("repo"))]
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        parts.append('<div class="nodata">%s</div>' % NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        parts.append("<h4>ticket %s</h4>" % _esc(row.get("ticket_id", "?")))
+        parts.append(_html_model_table(row.get("models")))
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # MAR-14 spec 02 — Per-view terminal/HTML dispatch tables
 # ---------------------------------------------------------------------------
 
@@ -1153,12 +1231,14 @@ _USAGE_TERMINAL_PANELS = {
     "usage_summary": _term_render_usage_summary,
     "3": _term_panel3,
     "6": _term_panel6,
+    "usage_by_model": _term_render_usage_by_model,
 }
 
 _USAGE_HTML_PANELS = {
     "usage_summary": _html_render_usage_summary,
     "3": _html_panel3,
     "6": _html_panel6,
+    "usage_by_model": _html_render_usage_by_model,
 }
 
 

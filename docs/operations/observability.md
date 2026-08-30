@@ -303,6 +303,25 @@ any such spend (`metrics_render.ROLE_ORDER` plus its dynamic extra-role
 rows). Tickets with no measured `role_usage` on any run (e.g. every run
 predates this cutover, or every run degraded) contribute `0`.
 
+### usage_by_model — Usage by model
+
+Input, output, cache-write, and cache-read tokens and cost per model, at
+both repo scope and per ticket — the `metrics_aggregate._usage_by_model_panel`
+output, rendered by `metrics_render._term_render_usage_by_model`/
+`_html_render_usage_by_model`. Built from each run entry's `model_usage`
+list (parallel to `role_usage`, D1.1 Option B), folded in the same
+per-ticket walk `_accumulate_burn` already makes for panel 6 — zero
+additional file reads.
+
+Unlike panel 6, this panel's `cost_usd` apportions the run's FULL charged
+delta by token share, with no unattributed-token exclusion (D1.2 Option
+A) — so `sum(usage_by_model.cost_usd)` can exceed panel 6's
+attributed-only total by `excluded_cost_usd` whenever any tokens in the
+window are unattributed. This is a named, testable reconciliation
+identity, not a bug. A ticket or repo scope with no contributing
+`model_usage` entry anywhere (e.g. every run predates MAR-3) renders "no
+data".
+
 ## Degradation and the `meta` block
 
 Alongside the view panels the dashboard carries a `meta` block:
