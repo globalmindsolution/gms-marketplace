@@ -48,34 +48,35 @@ sequenceDiagram
     Post->>WS: finalize_run reads runs[-1] (session_id, transcript_path, checkout_id, started_at)
     alt run entry has no session_id or transcript_path
         Post->>Post: short-circuit -- no transcript I/O (new-ticket.py's synthetic create-ticket runs land here)
-        Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[]
+        Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
     else session_id and transcript_path present
         Post->>UR: read_transcript_usage(transcript_path, started_at, ended_at, skill)
         UR->>TR: stream the exact transcript_path, then a recursive walk of dirname(transcript_path)/<session_id>/subagents/*.jsonl (never a constructed slug, never *.meta.json)
         TR-->>UR: message.usage (4 integer fields) + model + timestamp + attributionSkill/attributionAgent, in-window records only
         alt transcript unreadable, cap breached (32 MiB / 64 files), empty window, or zero real tokens resolved
-            UR-->>Post: {degraded: true, reason, role_usage: []}
-            Post->>WS: tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[]
+            UR-->>Post: {degraded: true, reason, role_usage: [], model_usage: []}
+            Post->>WS: tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
         else at least one in-window usage record
-            UR-->>Post: {degraded: false, model, role_usage: [{role, input, output, cache_creation, cache_read}, ...], excluded_token_share}
+            UR-->>Post: {degraded: false, role_usage: [{role, input, output, cache_creation, cache_read}, ...], model_usage: [{model, input, output, cache_creation, cache_read}, ...], excluded_token_share}
             Post->>Post: sum role_usage into raw tokens.{input,output,cache_creation,cache_read}
             alt run entry has no checkout_id
-                Post->>WS: persist measured tokens/role_usage, cost_usd=null, cost_basis="unavailable" (no checkout_id to locate the cost-sample/cursor files)
+                Post->>WS: persist measured tokens/role_usage/model_usage, cost_usd=null, cost_basis="unavailable" (no checkout_id to locate the cost-sample/cursor files)
             else checkout_id present
-                Post->>CS: allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage)
+                Post->>CS: allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage, model_usage)
                 CS->>WS: read cost-cursor.json (default {ts: null, total_cost_usd: 0.0} if absent) and cost-samples.jsonl
                 CS->>CS: after = newest sample with ts <= ended_at
                 alt no sample, or after.ts <= cursor.ts
-                    CS-->>Post: (role_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="no_unconsumed_sample_in_window")
+                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="no_unconsumed_sample_in_window")
                 else delta = after.total_cost_usd - cursor.total_cost_usd is negative
                     CS->>WS: advance cursor to after (charge nothing)
-                    CS-->>Post: (role_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="cost_total_reset")
+                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="cost_total_reset")
                 else delta >= 0
                     CS->>CS: apportion delta across role_usage by token share (denominator = ALL in-window tokens, incl. unattributed) — unattributed entries receive no dollar share
+                    CS->>CS: _apportion_models applies the SAME delta to model_usage by token share across ALL in-window tokens, no unattributed exclusion (D1.2 Option A)
                     CS->>WS: advance cursor to after
-                    CS-->>Post: (role_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
+                    CS-->>Post: (role_usage apportioned, model_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
                 end
-                Post->>WS: persist tokens, role_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
+                Post->>WS: persist tokens, role_usage, model_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
             end
         end
     end
@@ -97,11 +98,11 @@ sequenceDiagram
     CC->>Usage: expand skill, run coordinator
     Usage->>Agg: python3 metrics_aggregate.py
     Agg->>WS: read pipeline-state.json + <skill>-state.json runs, per ticket
-    WS-->>Agg: run entries -- tokens, role_usage, cost_usd or null, cost_basis, cost_scope
+    WS-->>Agg: run entries -- tokens, role_usage, model_usage, cost_usd or null, cost_basis, cost_scope
     Agg->>Agg: elapsed_seconds via acs_lib -- None renders "no data", never 0
     Agg->>Agg: sum totals excluding cost_basis != measured/apportioned and None-elapsed runs, divide by runs_timed / runs_cost_measured, never by runs
-    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket
-    Agg-->>Usage: aggregate JSON -- panels 1-7 plus meta.degraded entries
+    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3)
+    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus meta.degraded entries
     Usage->>Render: pipe JSON, render the requested view
     Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data"
     Render-->>Usage: self-contained HTML
@@ -154,8 +155,13 @@ with no session, and an unguarded scan would run once per child. When a
 session is present, `usage_reader.read_transcript_usage` reads the exact
 recorded file plus a recursive walk of its `subagents/` subtree — never a
 `*.meta.json` sidecar, since only `*.jsonl` paths are ever enumerated — and
-returns per-role token buckets or a degraded reason. `cost_sampler.allocate_cost`
-then consumes at most the unconsumed portion of the sample log since the
+returns per-role token buckets or a degraded reason. `usage_reader` now
+buckets by model as well as by role (`model_usage`, parallel to
+`role_usage`, MAR-3); `cost_sampler.allocate_cost` apportions the same
+session-window delta across both dimensions independently — the
+role-scoped figure stays attributed-only, while the model-scoped figure is
+full-delta with no unattributed exclusion (D1.2 Option A). It also
+consumes at most the unconsumed portion of the sample log since the
 persisted cursor: the cursor is always the "before" edge, so a sample once
 consumed can never again serve as another run's charge (the structural
 no-double-charge invariant). A negative delta (a session cost reset) charges
@@ -171,4 +177,7 @@ like `planner`/`executor`/`verifier`/`other`, and an `unattributed` bucket
 (present when `excluded_token_share` is nonzero) is visible rather than
 silently absorbed into an attributed role's total; it also absorbs
 main-session records attributed to a different acs skill than the run's own,
-not just records with no attribution at all.
+not just records with no attribution at all. `usage_by_model` (MAR-3) sums
+each run entry's `model_usage` list similarly, at both repo and per-ticket
+scope, with no exclusion applied — its `cost_usd` total is therefore the
+full-delta figure, not the attributed-only one panel 6 reports.
