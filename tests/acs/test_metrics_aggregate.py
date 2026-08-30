@@ -323,12 +323,27 @@ class Panel6TokenBurn(unittest.TestCase):
             write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1, no_metrics=True, archived=True)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
-            self.assertEqual(p6["planner"], {"input": 42000, "output": 7500, "cost": 0.17})
-            self.assertEqual(p6["executor"], {"input": 480000, "output": 90000, "cost": 3.5})
-            self.assertEqual(p6["verifier"], {"input": 100000, "output": 20000, "cost": 1.0})
+            # (input, output, cost) per role -- MAR-4 widens each bucket to 7 keys (cache classes
+            # are 0 for every role here) plus repo-scope token_share_pct/cost_share_pct.
+            raw = {
+                "planner": (42000, 7500, 0.17),
+                "executor": (480000, 90000, 3.5),
+                "verifier": (100000, 20000, 1.0),
+                "coordinator": (15000, 3000, 0.4),
+            }
+            token_total = sum(i + o for i, o, c in raw.values())
+            cost_total = sum(c for i, o, c in raw.values())
+            for role, (i, o, c) in raw.items():
+                bucket = p6[role]
+                self.assertEqual(bucket["input"], i)
+                self.assertEqual(bucket["output"], o)
+                self.assertEqual(bucket["cache_creation"], 0)
+                self.assertEqual(bucket["cache_read"], 0)
+                self.assertAlmostEqual(bucket["cost"], c)
+                self.assertEqual(bucket["token_share_pct"], round((i + o) / token_total * 100, 4))
+                self.assertAlmostEqual(bucket["cost_share_pct"], round(c / cost_total * 100, 4))
             # AC-4/AC-5: coordinator bucket is present and non-empty (inverted from the old exclusion)
             self.assertIn("coordinator", p6)
-            self.assertEqual(p6["coordinator"], {"input": 15000, "output": 3000, "cost": 0.4})
 
     def test_missing_role_usage_fields_default_to_zero(self):
         with TemporaryDirectory() as ws:
@@ -340,7 +355,13 @@ class Panel6TokenBurn(unittest.TestCase):
                  "status": "completed", "role_usage": [{"role": "planner", "input": 500}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            self.assertEqual(out["panels"]["6"]["planner"], {"input": 500, "output": 0, "cost": 0.0})
+            self.assertEqual(out["panels"]["6"]["planner"], {
+                "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
+                "token_share_pct": 100.0, "cost_share_pct": None,
+            })
+            # sibling seeded roles stay all-zero but share the same repo-scope denominator
+            self.assertEqual(out["panels"]["6"]["executor"]["token_share_pct"], 0.0)
+            self.assertIsNone(out["panels"]["6"]["executor"]["cost_share_pct"])
 
     def test_non_dict_role_usage_items_and_missing_role_skipped(self):
         with TemporaryDirectory() as ws:
@@ -353,10 +374,17 @@ class Panel6TokenBurn(unittest.TestCase):
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
-            self.assertEqual(p6["executor"], {"input": 7, "output": 2, "cost": 0.02})
+            self.assertEqual(p6["executor"], {
+                "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0, "cost": 0.02,
+                "token_share_pct": 100.0, "cost_share_pct": 100.0,
+            })
             # the malformed/roleless entries contributed to no bucket
-            self.assertEqual(p6["planner"], {"input": 0, "output": 0, "cost": 0.0})
-            self.assertEqual(p6["verifier"], {"input": 0, "output": 0, "cost": 0.0})
+            self.assertEqual(p6["planner"]["input"], 0)
+            self.assertEqual(p6["planner"]["output"], 0)
+            self.assertEqual(p6["planner"]["cost"], 0.0)
+            self.assertEqual(p6["verifier"]["input"], 0)
+            self.assertEqual(p6["verifier"]["output"], 0)
+            self.assertEqual(p6["verifier"]["cost"], 0.0)
 
 
 class UsageByModelPanel(unittest.TestCase):
@@ -496,9 +524,9 @@ class UsageByModelPanel(unittest.TestCase):
         self.assertEqual(sorted(os.path.basename(p) for p in with_model),
                          sorted(os.path.basename(p) for p in without_model))
 
-    def test_panel6_bucket_shape_unchanged_by_this_ticket(self):
-        """Seam guard: panel 6 buckets stay {input, output, cost} even when the same run entry
-        also carries model_usage (widening panel 6's bucket shape is MAR-4's)."""
+    def test_panel6_bucket_shape_widened_by_this_ticket(self):
+        """Seam guard: panel 6 buckets widen to the 7-key shape (MAR-4), and this widening stays
+        independent of usage_by_model even when the same run entry also carries model_usage."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
@@ -506,8 +534,22 @@ class UsageByModelPanel(unittest.TestCase):
                                            "cache_creation": 0, "cache_read": 0,
                                            "cost_usd": 0.1, "cost_basis": "apportioned"}])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            self.assertEqual(out["panels"]["6"]["executor"],
-                             {"input": 1000, "output": 200, "cost": 0.1})
+            bucket = out["panels"]["6"]["executor"]
+            self.assertEqual(set(bucket.keys()),
+                             {"input", "output", "cache_creation", "cache_read", "cost",
+                              "token_share_pct", "cost_share_pct"})
+            self.assertEqual(bucket["input"], 1000)
+            self.assertEqual(bucket["output"], 200)
+            self.assertEqual(bucket["cache_creation"], 0)
+            self.assertEqual(bucket["cache_read"], 0)
+            self.assertEqual(bucket["cost"], 0.1)
+            self.assertEqual(bucket["token_share_pct"], 100.0)
+            self.assertEqual(bucket["cost_share_pct"], 100.0)
+            # usage_by_model's own item shape is untouched by this widening (no cost_basis key
+            # leaked into panel 6, no percentage key leaked into usage_by_model).
+            model_row = out["panels"]["usage_by_model"]["repo"][0]
+            self.assertNotIn("token_share_pct", model_row)
+            self.assertNotIn("cost_share_pct", model_row)
 
     def test_non_dict_model_usage_items_and_missing_model_skipped(self):
         with TemporaryDirectory() as ws:
@@ -525,6 +567,201 @@ class UsageByModelPanel(unittest.TestCase):
             self.assertEqual(repo, [{"model": "opus", "input": 7, "output": 2,
                                       "cache_creation": 0, "cache_read": 0,
                                       "cost_usd": 0.02, "cost_basis": "apportioned"}])
+
+
+class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
+    """MAR-4 spec 01: panel-6 four-class widening + repo-scope shares (AC-1), and the new
+    panels.usage_by_ticket panel with ticket-scoped role shares (AC-1)."""
+
+    def test_panel6_bucket_widens_to_four_token_classes(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 30, "cache_read": 20, "cost_usd": 0.5}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["planner"]
+            # previously silently dropped -- now folded into the panel-6 bucket
+            self.assertEqual(bucket["cache_creation"], 30)
+            self.assertEqual(bucket["cache_read"], 20)
+
+    def test_panel6_token_share_pct_and_cost_share_pct_repo_scope(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                     {"role": "executor", "input": 300, "output": 150,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 3.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p6 = out["panels"]["6"]
+            token_total = sum(b["input"] + b["output"] + b["cache_creation"] + b["cache_read"]
+                              for b in p6.values())
+            cost_total = sum(b["cost"] for b in p6.values())
+            total_token_pct = 0.0
+            for bucket in p6.values():
+                token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+                self.assertEqual(bucket["token_share_pct"], round(token_sum / token_total * 100, 4))
+                total_token_pct += bucket["token_share_pct"]
+            self.assertAlmostEqual(total_token_pct, 100.0, places=4)
+            planner = p6["planner"]
+            self.assertEqual(planner["cost_share_pct"], round(1.0 / cost_total * 100, 4))
+
+    def test_panel6_cost_share_pct_null_when_no_cost_measured_repo_wide(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            for bucket in out["panels"]["6"].values():
+                self.assertIsNone(bucket["cost_share_pct"])
+
+    def test_panel6_token_share_pct_null_on_all_zero_tokens(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            for bucket in out["panels"]["6"].values():
+                self.assertIsNone(bucket["token_share_pct"])
+                self.assertIsNone(bucket["cost_share_pct"])
+
+    def test_usage_by_ticket_role_shares_are_ticket_scoped_not_repo_scoped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                     {"role": "executor", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                 ]},
+            ])
+            write_code_state(ws, "MAR-7", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 900, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 9.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo_planner_pct = out["panels"]["6"]["planner"]["token_share_pct"]
+            tickets = {row["ticket_id"]: row["roles"]
+                       for row in out["panels"]["usage_by_ticket"]["tickets"]}
+            mar6_planner_pct = tickets["MAR-6"]["planner"]["token_share_pct"]
+            mar7_planner_pct = tickets["MAR-7"]["planner"]["token_share_pct"]
+            # MAR-6: planner 100 / (100 + 100) = 50%; MAR-7: planner 900 / 900 = 100%.
+            self.assertEqual(mar6_planner_pct, 50.0)
+            self.assertEqual(mar7_planner_pct, 100.0)
+            # neither ticket's own share equals the repo-scope share -- proves the scopes are
+            # computed independently, not one derived from the other.
+            self.assertNotEqual(mar6_planner_pct, repo_planner_pct)
+            self.assertNotEqual(mar7_planner_pct, repo_planner_pct)
+
+    def test_usage_by_ticket_cost_basis_unavailable_per_role_independent_of_siblings(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 2.0},
+                     {"role": "executor", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertEqual(roles["planner"]["cost_usd"], 2.0)
+            self.assertEqual(roles["planner"]["cost_basis"], "apportioned")
+            self.assertIsNotNone(roles["planner"]["cost_share_pct"])
+            # sibling role with no measured cost: unaffected by planner's costed contribution.
+            self.assertIsNone(roles["executor"]["cost_usd"])
+            self.assertEqual(roles["executor"]["cost_basis"], "unavailable")
+            self.assertIsNone(roles["executor"]["cost_share_pct"])
+
+    def test_usage_by_ticket_roles_no_data_when_ticket_has_no_role_usage(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertEqual(roles, "no data")
+
+    def test_usage_by_ticket_roles_sorted_by_role_name(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "verifier", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "planner", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "executor", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "coordinator", "input": 10, "output": 0, "cost_usd": 0.1},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertEqual(list(roles.keys()),
+                             ["coordinator", "executor", "planner", "verifier"])
+
+    def test_empty_workspace_usage_by_ticket_is_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["usage_by_ticket"], "no data")
+
+    def test_usage_by_ticket_adds_no_additional_file_reads(self):
+        """G7 guard: usage_by_ticket reads only the same per-ticket state files _accumulate_burn
+        already opens for panel 6 -- no new file path is introduced for this panel. Proven by
+        comparing acs_lib.read_json call counts and basename sets between two matched runs of
+        aggregate() on the same fixture shape -- one with role_usage populated, one without."""
+
+        def _tracked_run(with_role_usage):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                runs = [{"started_at": "2026-01-01T00:00:00Z",
+                        "ended_at": "2026-01-01T00:00:01Z", "status": "completed",
+                        "role_usage": [{"role": "planner", "input": 10, "output": 0,
+                                        "cost_usd": 0.1}]}] if with_role_usage else []
+                write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=runs)
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_usage = _tracked_run(True)
+        without_usage = _tracked_run(False)
+
+        self.assertTrue(with_usage)
+        self.assertTrue(without_usage)
+        self.assertEqual(len(with_usage), len(without_usage))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_usage),
+                         sorted(os.path.basename(p) for p in without_usage))
 
 
 # ---------------------------------------------------------------------------
@@ -1982,7 +2219,8 @@ class TestTestRunsRead(unittest.TestCase):
             # No test-runs/ directory at all.
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             for k in ("1", "2", "3", "4", "5", "6", "7", "delivery_summary", "issues",
-                      "progress", "deadline", "usage_summary", "usage_by_model"):
+                      "progress", "deadline", "usage_summary", "usage_by_model",
+                      "usage_by_ticket"):
                 self.assertIn(k, out["panels"])
             # Absence is itself a "no data" marker for the new source, not a raise.
             self.assertEqual(out["test_runs"], "no data")
@@ -2038,12 +2276,12 @@ class TestTestRunsRead(unittest.TestCase):
 
     def test_new_panel_keys_includes_usage_by_model(self):
         """PANEL_KEYS is unchanged (no new "1".."7" key); _NEW_PANEL_KEYS gains "usage_by_model"
-        (MAR-3 spec 04)."""
+        (MAR-3 spec 04) and "usage_by_ticket" (MAR-4 spec 01)."""
         self.assertEqual(metrics_aggregate.PANEL_KEYS, ("1", "2", "3", "4", "5", "6", "7"))
         self.assertEqual(
             metrics_aggregate._NEW_PANEL_KEYS,
             ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
-             "usage_by_model"),
+             "usage_by_model", "usage_by_ticket"),
         )
 
 
@@ -2051,7 +2289,7 @@ class TestNewPanelKeyPresence(unittest.TestCase):
     """MAR-14 spec 01 §Test plan: key-presence (AC-1 / B1)."""
 
     _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
-                 "usage_by_model")
+                 "usage_by_model", "usage_by_ticket")
     _OLD_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
     def test_all_five_new_keys_present_happy_path(self):
@@ -2092,7 +2330,7 @@ class TestAggregatorDeterminism(unittest.TestCase):
     """MAR-14 spec 01: new panels identical across two calls (extends existing determinism coverage)."""
 
     _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
-                 "usage_by_model")
+                 "usage_by_model", "usage_by_ticket")
 
     def test_new_panels_identical_across_two_calls(self):
         """Run aggregate() twice on the same workspace; new panel values are equal."""

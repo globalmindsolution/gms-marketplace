@@ -40,6 +40,13 @@ New panel key (MAR-3 spec 04):
                         (zero additional file reads). "no data" repo/ticket-row when no
                         contributing run entry anywhere carries model_usage (legacy history).
 
+New panel key (MAR-4 spec 01):
+  "usage_by_ticket"  — per-ticket role-share percentages: panel 6's bucket widens to the four
+                        token classes plus repo-scope token_share_pct/cost_share_pct; this panel
+                        adds the SAME shares at ticket scope, keyed by role, in the same
+                        _accumulate_burn pass (zero additional file reads). "no data" ticket row
+                        when the ticket contributed no role_usage anywhere.
+
 Existing panel keys "1".."7" and their shapes are UNCHANGED (A1 contract). New keys are additive.
 meta.degraded entries for new panels use string panel names; entries for "1".."7" use integers.
 
@@ -62,10 +69,10 @@ import acs_lib  # noqa: E402
 
 PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
-# New additive panel keys (MAR-14 spec 01, plus usage_by_model from MAR-3 spec 04). Not added
-# to PANEL_KEYS (A1 contract preserved).
+# New additive panel keys (MAR-14 spec 01, plus usage_by_model from MAR-3 spec 04 and
+# usage_by_ticket from MAR-4 spec 01). Not added to PANEL_KEYS (A1 contract preserved).
 _NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
-                    "usage_by_model")
+                    "usage_by_model", "usage_by_ticket")
 
 # iteration="N" on a verify result XML (panel 5 fallback)
 _ITER_RE = re.compile(r'\biteration\s*=\s*"(\d+)"')
@@ -92,6 +99,17 @@ def _safe_avg(numerator, denominator):
     if not _is_number(numerator) or not _is_number(denominator) or denominator <= 0:
         return "no data"
     return numerator / denominator
+
+
+def _share_pct(value, total):
+    """Guarded percentage (MAR-4 spec 01): round(value / total * 100, 4), 0-100 scale.
+
+    None on a zero/absent/negative total or a non-numeric value — never a division by zero,
+    never a fabricated share. Mirrors _safe_avg's guard-before-divide style.
+    """
+    if not _is_number(total) or total <= 0 or not _is_number(value):
+        return None
+    return round(value / total * 100, 4)
 
 
 def _elapsed_seconds(start_iso, end_iso):
@@ -190,10 +208,11 @@ def aggregate(workspace, repo_id, now=None):
     p4_rows = []
     p5_rows = []
     p7_rows = []
-    burn = {role: {"input": 0, "output": 0, "cost": 0.0}
+    burn = {role: _empty_panel6_bucket()
             for role in ("planner", "executor", "verifier", "coordinator")}
     repo_models = {}  # model -> raw accumulator (MAR-3: usage_by_model repo scope)
     _ticket_model_rows = []  # [(ticket_id, {model -> raw accumulator}), ...] (ticket scope)
+    _ticket_role_rows = []  # [(ticket_id, {role -> raw accumulator}), ...] (MAR-4: usage_by_ticket)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
     # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
@@ -239,11 +258,12 @@ def aggregate(workspace, repo_id, now=None):
 
         p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
 
-        ticket_models = _accumulate_burn(burn, tdir)
+        ticket_models, ticket_roles = _accumulate_burn(burn, tdir)
         for model, bucket in ticket_models.items():
             repo_bucket = repo_models.setdefault(model, _empty_model_bucket())
             _fold_model_bucket(repo_bucket, bucket)
         _ticket_model_rows.append((ticket_id, ticket_models))
+        _ticket_role_rows.append((ticket_id, ticket_roles))
 
         # Collect ticket.json.updated_at for burn_up fallback (spec 01:198-202).
         # ticket.json is already opened in _panel7_row (read-only, no extra I/O cost).
@@ -282,6 +302,7 @@ def aggregate(workspace, repo_id, now=None):
     }
     panel4 = {"tickets": p4_rows}
     panel5 = {"tickets": p5_rows}
+    _apply_panel6_shares(burn)  # repo-scope token_share_pct/cost_share_pct, once (MAR-4 spec 01)
     panel6 = burn
     panel7 = _panel7(p7_rows)
 
@@ -310,6 +331,9 @@ def aggregate(workspace, repo_id, now=None):
     # usage_by_model: per-model token/cost breakdown, repo + per-ticket (MAR-3 spec 04)
     usage_by_model = _usage_by_model_panel(repo_models, _ticket_model_rows)
 
+    # usage_by_ticket: per-ticket role-share percentages (MAR-4 spec 01)
+    usage_by_ticket = _usage_by_ticket_panel(_ticket_role_rows)
+
     panels = {
         "1": panel1, "2": panel2, "3": panel3, "4": panel4, "5": panel5,
         "6": panel6, "7": panel7,
@@ -319,6 +343,7 @@ def aggregate(workspace, repo_id, now=None):
         "deadline": deadline,
         "usage_summary": usage_summary,
         "usage_by_model": usage_by_model,
+        "usage_by_ticket": usage_by_ticket,
     }
     return {
         "panels": panels,
@@ -662,6 +687,29 @@ def _usage_summary_panel(totals, prs, panel3_averages):
     }
 
 
+def _empty_panel6_bucket():
+    """Shared panel-6 bucket shape (MAR-4 spec 01): the four token classes plus a running cost.
+
+    Replaces the two independent 3-key literals (the `burn` seed and _accumulate_burn's
+    setdefault) that previously had to be kept in lockstep by hand.
+    """
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0}
+
+
+def _apply_panel6_shares(burn):
+    """Repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, computed once,
+    post-loop (D2 placement; MAR-4 spec 01). Percentage scale is 0-100. Mutates `burn` in place.
+    """
+    token_total = sum(
+        b["input"] + b["output"] + b["cache_creation"] + b["cache_read"] for b in burn.values()
+    )
+    cost_total = sum(b["cost"] for b in burn.values())
+    for bucket in burn.values():
+        token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+        bucket["token_share_pct"] = _share_pct(token_sum, token_total)
+        bucket["cost_share_pct"] = _share_pct(bucket["cost"], cost_total)
+
+
 def _empty_model_bucket():
     """Raw (pre-finalization) per-model accumulator for usage_by_model (MAR-3 spec 04)."""
     return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0,
@@ -718,6 +766,55 @@ def _usage_by_model_panel(repo_models, ticket_model_rows):
         tickets.append({"ticket_id": ticket_id, "models": models_list})
 
     return {"repo": repo, "tickets": tickets}
+
+
+def _finalize_role_ticket_bucket(bucket, token_total, cost_total):
+    """Raw per-role accumulator -> usage_by_ticket's public role-item shape (MAR-4 spec 01).
+
+    cost_usd/cost_basis follow the model roll-up rule (None/"unavailable" when this role had no
+    measured cost in this ticket, independent of sibling roles in the same ticket). Both
+    percentages are ticket-scoped (token_total/cost_total are this ticket's own sums, never the
+    repo total). cost_share_pct is None whenever cost_usd is None OR the ticket-scope cost total
+    is zero/absent (a role with no measured cost cannot express a share of an unknown quantity).
+    """
+    token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+    cost_usd = round(bucket["cost_sum"], 6) if bucket["cost_seen"] else None
+    return {
+        "input": bucket["input"],
+        "output": bucket["output"],
+        "cache_creation": bucket["cache_creation"],
+        "cache_read": bucket["cache_read"],
+        "cost_usd": cost_usd,
+        "cost_basis": "apportioned" if bucket["cost_seen"] else "unavailable",
+        "token_share_pct": _share_pct(token_sum, token_total),
+        "cost_share_pct": _share_pct(cost_usd, cost_total) if cost_usd is not None else None,
+    }
+
+
+def _usage_by_ticket_panel(ticket_role_rows):
+    """Build panels.usage_by_ticket: ticket-scoped role-share percentages (MAR-4 spec 01, AC-1).
+
+    ticket_role_rows: [(ticket_id, {role -> raw accumulator}), ...] in ticket iteration order.
+    A ticket's "roles" is the literal "no data" when it contributed no role_usage anywhere;
+    otherwise a dict keyed by role name (no repeated "role" key inside each bucket), inserted in
+    sorted() role-name order for determinism -- the renderer never re-sorts (D2 placement).
+    """
+    tickets = []
+    for ticket_id, roles_raw in ticket_role_rows:
+        if not roles_raw:
+            tickets.append({"ticket_id": ticket_id, "roles": "no data"})
+            continue
+        token_total = sum(
+            b["input"] + b["output"] + b["cache_creation"] + b["cache_read"]
+            for b in roles_raw.values()
+        )
+        cost_total = sum(b["cost_sum"] for b in roles_raw.values())
+        roles = {
+            role: _finalize_role_ticket_bucket(roles_raw[role], token_total, cost_total)
+            for role in sorted(roles_raw)
+        }
+        tickets.append({"ticket_id": ticket_id, "roles": roles})
+    return {"tickets": tickets}
 
 
 def _test_runs_source(workspace, repo_id, degrade):
@@ -968,16 +1065,19 @@ def _max_verify_iteration(tdir):
 
 
 def _accumulate_burn(burn, tdir):
-    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6),
-    and this ticket's `model_usage` into per-model buckets (usage_by_model, MAR-3 spec 04).
+    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6, now
+    widened to the four token classes, MAR-4 spec 01), this ticket's OWN role_usage into a raw
+    per-role accumulator (usage_by_ticket, MAR-4 spec 01), and this ticket's `model_usage` into
+    per-model buckets (usage_by_model, MAR-3 spec 04).
 
     Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
     <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
     `coordinator` now surfaces like any other role instead of being silently excluded.
-    `burn`'s shape and behavior are unchanged; the model buckets are this function's new
-    return value only -- existing callers ignoring it keep working unmodified.
+    `burn`'s shape and behavior are unchanged (widened, not reshaped); the model/role
+    accumulators are this function's return value -- (ticket_models, ticket_roles).
     """
     ticket_models = {}
+    ticket_roles = {}
     for skill in acs_lib.HOOKED_SKILLS:
         state = acs_lib.read_json(acs_lib.state_path(tdir, skill))
         if not isinstance(state, dict):
@@ -991,12 +1091,26 @@ def _accumulate_burn(burn, tdir):
                 role = item.get("role")
                 if not role:
                     continue
-                bucket = burn.setdefault(role, {"input": 0, "output": 0, "cost": 0.0})
+                cache_creation = _to_int(item.get("cache_creation"))
+                cache_read = _to_int(item.get("cache_read"))
+                cost = item.get("cost_usd")
+
+                bucket = burn.setdefault(role, _empty_panel6_bucket())
                 bucket["input"] += _to_int(item.get("input"))
                 bucket["output"] += _to_int(item.get("output"))
-                cost = item.get("cost_usd")
+                bucket["cache_creation"] += cache_creation
+                bucket["cache_read"] += cache_read
                 if _is_number(cost):
                     bucket["cost"] = round(bucket["cost"] + cost, 6)
+
+                role_bucket = ticket_roles.setdefault(role, _empty_model_bucket())
+                role_bucket["input"] += _to_int(item.get("input"))
+                role_bucket["output"] += _to_int(item.get("output"))
+                role_bucket["cache_creation"] += cache_creation
+                role_bucket["cache_read"] += cache_read
+                if _is_number(cost):
+                    role_bucket["cost_sum"] += cost
+                    role_bucket["cost_seen"] = True
             for item in entry.get("model_usage") or []:
                 if not isinstance(item, dict):
                     continue
@@ -1012,7 +1126,7 @@ def _accumulate_burn(burn, tdir):
                 if _is_number(cost):
                     model_bucket["cost_sum"] += cost
                     model_bucket["cost_seen"] = True
-    return ticket_models
+    return ticket_models, ticket_roles
 
 
 def _read_text(path):

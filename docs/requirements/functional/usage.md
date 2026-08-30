@@ -180,12 +180,29 @@ no network call:
   bucket for same-window tokens with no attribution or attributed to a
   different acs skill than the run's own — `coordinator` is always rendered,
   `other`/`unattributed` appear whenever the ticket has any such spend),
+  each bucket additionally showing its repo-scope **token-share** and
+  **cost-share** percentage of panel 6's own totals (`token_share_pct`/
+  `cost_share_pct`, computed once after all runs are summed),
   and usage by model — input/output/cache-write/cache-read tokens and cost
   per model, at both repo and per-ticket scope. Its cost figure apportions
   the run's full charged delta by token share with no unattributed
   exclusion, unlike the role-scoped figure above, so the by-model total can
   exceed the role-scoped attributed-only total by the excluded/unattributed
   share — a named reconciliation identity, not a discrepancy.
+  Plus usage by ticket — input/output/cache-write/cache-read tokens and cost
+  per role, per ticket, each role additionally showing its **token-share**
+  and **cost-share** percentage of that ticket's own totals (ticket-scoped,
+  distinct from panel 6's repo-scope shares above — a different denominator
+  over the same underlying data, not a conflicting figure); a role with no
+  measured cost in that ticket renders `no data` for its cost figure and
+  `unavailable` for its cost-share, independent of any sibling role in the
+  same ticket.
+  This render-layer `unavailable` marker (used only on a cost-share cell
+  with no measured cost, in either panel) is a distinct thing from the
+  `cost_basis` field's own pre-existing `unavailable` enum value described
+  below — the former is a share computation with no denominator to divide
+  by, the latter is a run-level fact about how that run's cost was priced;
+  they happen to share a string but never the same field.
   Every cost figure carries a `cost_basis` — `measured` (the
   attributed-token share of the real session-window dollar delta sampled
   from Claude Code's own statusLine cost payload — that delta net of the

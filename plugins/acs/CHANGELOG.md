@@ -16,6 +16,10 @@ the notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Percentage (token-share/cost-share) breakdown for `/acs:usage`** (MAR-4, epic MAR-2 Seam C, #389). `metrics_aggregate._apply_panel6_shares` computes each panel-6 role bucket's repo-scope `token_share_pct`/`cost_share_pct` once, post-loop, from the totals panel 6 already sums; `metrics_render` gains matching "token %"/"cost %" columns on both terminal and HTML views, plus a new `UNAVAILABLE` render-layer constant shown on a cost-share cell with no measured cost (distinct from the pre-existing `cost_basis` `"unavailable"` enum value — a different, run-level fact). `/acs:usage` also renders a new "Usage by ticket" panel (`_usage_by_ticket_panel`/`_finalize_role_ticket_bucket`) — input/output/cache-write/cache-read tokens, cost, and token-share/cost-share percentage per role, scoped to that ticket's own totals (a different denominator than panel 6's repo-scope shares, not a conflicting figure). **Migration:** none — percentages are computed fresh at aggregation time and never persisted to any state file; no settings key, schema, state-file shape, or artifact rename.
+
 ## [0.4.8] - 2026-08-26
 
 ### Added

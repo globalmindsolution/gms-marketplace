@@ -102,7 +102,8 @@ sequenceDiagram
     Agg->>Agg: elapsed_seconds via acs_lib -- None renders "no data", never 0
     Agg->>Agg: sum totals excluding cost_basis != measured/apportioned and None-elapsed runs, divide by runs_timed / runs_cost_measured, never by runs
     Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3)
-    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus meta.degraded entries
+    Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope role shares into the new usage_by_ticket panel (MAR-4)
+    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus usage_by_ticket plus meta.degraded entries
     Usage->>Render: pipe JSON, render the requested view
     Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data"
     Render-->>Usage: self-contained HTML
@@ -180,4 +181,10 @@ main-session records attributed to a different acs skill than the run's own,
 not just records with no attribution at all. `usage_by_model` (MAR-3) sums
 each run entry's `model_usage` list similarly, at both repo and per-ticket
 scope, with no exclusion applied — its `cost_usd` total is therefore the
-full-delta figure, not the attributed-only one panel 6 reports.
+full-delta figure, not the attributed-only one panel 6 reports. `_apply_panel6_shares`
+(MAR-4) computes each panel-6 bucket's `token_share_pct`/`cost_share_pct` as a
+repo-scope percentage of the already-summed totals, once, after the
+accumulation loop — never persisted, always recomputed on the next read;
+`usage_by_ticket` (MAR-4) similarly derives each role's ticket-scope share
+from the same per-ticket `role_usage` rows panel 6 already sums, so it
+reports a different (ticket-local) denominator, not a conflicting figure.
