@@ -199,10 +199,10 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
 
     def test_exactly_three_amendment_headings_third_is_mar164(self):
         self.assertEqual(
-            len(self.amendment_headings), 3,
-            "ADR 0012 must carry exactly three '## Amendment —' headings, "
+            len(self.amendment_headings), 4,
+            "ADR 0012 must carry exactly four '## Amendment —' headings, "
             "got: %r" % (self.amendment_headings,))
-        self.assertEqual(self.amendment_headings[-1], "## Amendment — MAR-164")
+        self.assertEqual(self.amendment_headings[-1], "## Amendment — MAR-167")
 
     def test_code_named_as_bounded_touched_area_post_plan_participant(self):
         self.assertRegex(self.amendment_norm, r"(?i)/acs:code")
