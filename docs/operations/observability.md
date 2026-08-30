@@ -303,6 +303,15 @@ any such spend (`metrics_render.ROLE_ORDER` plus its dynamic extra-role
 rows). Tickets with no measured `role_usage` on any run (e.g. every run
 predates this cutover, or every run degraded) contribute `0`.
 
+Each bucket additionally carries a **token %** and **cost %** column
+(`token_share_pct`/`cost_share_pct`, `metrics_aggregate._apply_panel6_shares`)
+— that bucket's repo-scope share of panel 6's own totals, computed once,
+after all runs are summed. A bucket with no measured cost renders
+**"unavailable"** for cost % — a render-layer marker distinct from the
+`cost_basis` field's own pre-existing `"unavailable"` enum value on each run
+entry (a different, run-level fact about how that run's cost was priced, not
+a share computation).
+
 ### usage_by_model — Usage by model
 
 Input, output, cache-write, and cache-read tokens and cost per model, at
@@ -321,6 +330,24 @@ window are unattributed. This is a named, testable reconciliation
 identity, not a bug. A ticket or repo scope with no contributing
 `model_usage` entry anywhere (e.g. every run predates MAR-3) renders "no
 data".
+
+### usage_by_ticket — Usage by ticket
+
+Input, output, cache-write, and cache-read tokens and cost per role, per
+ticket, plus each role's **token %** and **cost %** share of *that ticket's*
+own totals — the `metrics_aggregate._usage_by_ticket_panel` output (built
+from `_finalize_role_ticket_bucket`), rendered by
+`metrics_render._term_render_usage_by_ticket`/`_html_render_usage_by_ticket`.
+Built from the same per-ticket `role_usage` rows panel 6 already sums, in
+the same walk — zero additional file reads.
+
+A role with no measured cost in that ticket renders **"unavailable"** for
+cost and cost %, independent of any sibling role in the same ticket — one
+role's missing cost never blocks another role's percentage from computing.
+This panel's shares are ticket-scoped (share of *that ticket's* role
+totals), distinct from panel 6's repo-scope shares above — the two are not
+a conflicting figure, just two different denominators over the same
+underlying `role_usage` data.
 
 ## Degradation and the `meta` block
 
