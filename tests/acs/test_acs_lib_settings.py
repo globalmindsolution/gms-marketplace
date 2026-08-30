@@ -6,8 +6,14 @@ bare-repo best-effort branch, repo_partition_id's segment-count branches,
 validate_settings/validate_formats/validate_models's raise-GateError arms,
 resolve_role_model's inherit-sentinel and per-skill-override precedence, and
 resolve_template's four resolution branches were exercised by no test.
+
+MAR-2 adds: default_state_root's 4-step git-plumbing resolution rule, the
+inverted (in-repo-accepting) validate_settings workspace branch, and the
+settings.schema.json workspace_path description rewrite.
 """
 
+import inspect
+import json
 import os
 import re
 import shutil
@@ -15,8 +21,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
 sys.path.insert(0, TESTS_ACS)
 
 import acs_case  # noqa: E402
@@ -79,6 +87,193 @@ class TestMainRepoRoot(unittest.TestCase):
         self.assertEqual(lib.main_repo_root(bare), os.path.normpath(bare))
 
 
+class TestDefaultStateRoot(unittest.TestCase):
+    """default_state_root's 4-step git-plumbing resolution rule (D1-D3)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_checkout_root_resolves_to_dot_acs_state_machine(self):
+        repo = _mkrepo(self.tmp, "repo")
+        self.assertEqual(lib.default_state_root(repo), os.path.join(repo, ".acs", "state-machine"))
+
+    def test_subdirectory_resolves_to_the_repo_root_not_the_subdirectory(self):
+        repo = _mkrepo(self.tmp, "repo")
+        sub = os.path.join(repo, "sub", "dir")
+        os.makedirs(sub)
+        self.assertEqual(lib.default_state_root(sub), os.path.join(repo, ".acs", "state-machine"))
+
+    def test_linked_worktree_resolves_to_the_main_checkout(self):
+        repo = _mkrepo(self.tmp, "repo")
+        subprocess.run(["git", "-C", repo, "config", "user.email", "acs-test@example.com"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", repo, "config", "user.name", "acs-test"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", repo, "commit", "--allow-empty", "-q", "-m", "init"],
+                        check=True, capture_output=True)
+        worktree = os.path.join(self.tmp, "wt")
+        subprocess.run(["git", "-C", repo, "worktree", "add", "-q", "-b", "wt-branch", worktree],
+                        check=True, capture_output=True)
+        main_result = os.path.realpath(lib.default_state_root(repo))
+        wt_result = os.path.realpath(lib.default_state_root(worktree))
+        self.assertEqual(main_result, wt_result)
+        self.assertEqual(main_result, os.path.realpath(os.path.join(repo, ".acs", "state-machine")))
+
+    def test_bare_repo_raises_gate_error_naming_the_override(self):
+        bare = os.path.join(self.tmp, "bare.git")
+        subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.default_state_root(bare)
+        self.assertIn("workspace_path", str(ctx.exception))
+
+    def test_non_git_directory_raises_gate_error(self):
+        nongit = os.path.join(self.tmp, "not-a-repo")
+        os.makedirs(nongit)
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.default_state_root(nongit)
+        self.assertIn("workspace_path", str(ctx.exception))
+
+    def test_empty_git_common_dir_raises_gate_error(self):
+        with mock.patch.object(lib, "_git", side_effect=["false", ""]):
+            with self.assertRaises(lib.GateError) as ctx:
+                lib.default_state_root(self.tmp)
+        self.assertIn("workspace_path", str(ctx.exception))
+
+    def test_submodule_raises_gate_error_naming_git_submodule(self):
+        child = _mkrepo(self.tmp, "child")
+        subprocess.run(["git", "-C", child, "config", "user.email", "acs-test@example.com"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", child, "config", "user.name", "acs-test"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", child, "commit", "--allow-empty", "-q", "-m", "init"],
+                        check=True, capture_output=True)
+        parent = _mkrepo(self.tmp, "parent")
+        subprocess.run(["git", "-C", parent, "config", "user.email", "acs-test@example.com"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", parent, "config", "user.name", "acs-test"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", parent, "commit", "--allow-empty", "-q", "-m", "init"],
+                        check=True, capture_output=True)
+        result = subprocess.run(
+            ["git", "-c", "protocol.file.allow=always", "-C", parent, "submodule", "add", child, "sub-mod"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            self.skipTest("git submodule add unsupported in this environment: %s" % result.stderr)
+        sub_path = os.path.join(parent, "sub-mod")
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.default_state_root(sub_path)
+        msg = str(ctx.exception)
+        self.assertIn("git submodule", msg)
+        self.assertIn("workspace_path", msg)
+
+    def test_unusual_layout_without_a_superproject_raises_generic_gate_error(self):
+        sepgit = os.path.join(self.tmp, "sepgit")
+        worktree_dir = os.path.join(self.tmp, "separate-worktree")
+        subprocess.run(["git", "init", "-q", "--separate-git-dir=" + sepgit, worktree_dir],
+                        check=True, capture_output=True)
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.default_state_root(worktree_dir)
+        msg = str(ctx.exception)
+        self.assertIn("workspace_path", msg)
+        self.assertNotIn("submodule", msg)
+
+
+class TestPathHelpersByteUnchanged(unittest.TestCase):
+    """AC1: main_repo_root/checkout_root/repo_partition_id/checkout_id/settings_files
+    must stay byte-unchanged by this ticket (design D6) -- pins each helper's exact
+    source text as it read before MAR-2."""
+
+    def test_existing_path_helpers_are_byte_unchanged(self):
+        pinned = {
+            "checkout_root": r'''def checkout_root(cwd):
+    """Root of the current checkout/worktree."""
+    return _git(["rev-parse", "--show-toplevel"], cwd)
+''',
+            "main_repo_root": r'''def main_repo_root(cwd):
+    """Root of the *main* repository, even when cwd is inside a linked worktree."""
+    common = _git(["rev-parse", "--git-common-dir"], cwd)
+    if not common:
+        return None
+    if not os.path.isabs(common):
+        common = os.path.join(cwd, common)
+    common = os.path.normpath(common)
+    if os.path.basename(common) == ".git":
+        return os.path.dirname(common)
+    return common  # bare-ish layouts; best effort
+''',
+            "repo_partition_id": r'''def repo_partition_id(cwd):
+    """Stable per-repo identifier: derived from the git remote (owner-name), so every
+    worktree of a repo resolves to the same partition; falls back to the main repo
+    directory name when there is no remote."""
+    remote = _git(["config", "--get", "remote.origin.url"], cwd)
+    if remote:
+        path = remote
+        path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)   # scheme
+        path = re.sub(r"^[^/@]+@", "", path)                       # user@
+        path = path.replace(":", "/")
+        path = re.sub(r"\.git/?$", "", path)
+        segments = [s for s in path.split("/") if s]
+        if len(segments) >= 2:
+            raw = "%s-%s" % (segments[-2], segments[-1])
+        elif segments:
+            raw = segments[-1]
+        else:
+            raw = None
+        if raw:
+            return re.sub(r"[^A-Za-z0-9._-]+", "-", raw)
+    root = main_repo_root(cwd) or checkout_root(cwd)
+    if root:
+        return re.sub(r"[^A-Za-z0-9._-]+", "-", os.path.basename(root))
+    return None
+''',
+            "checkout_id": r'''def checkout_id(cwd):
+    """Stable per-checkout/worktree identifier (one pointer file per parallel session)."""
+    root = checkout_root(cwd) or os.path.abspath(cwd)
+    digest = hashlib.sha1(os.path.abspath(root).encode("utf-8")).hexdigest()[:8]
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", os.path.basename(root))
+    return "%s-%s" % (base, digest)
+''',
+            "settings_files": r'''def settings_files(cwd):
+    """Candidate settings files, least -> most specific. settings.local.json is
+    machine-specific and gitignored; a linked worktree may not have its own copy,
+    so the main checkout's local settings are also consulted."""
+    candidates = []
+    user = os.path.join(os.path.expanduser("~"), ".acs", "settings.json")
+    candidates.append(user)
+    main_root = main_repo_root(cwd)
+    top = checkout_root(cwd)
+    roots = []
+    for root in (main_root, top):
+        if root and root not in roots:
+            roots.append(root)
+    for root in roots:
+        candidates.append(os.path.join(root, ".acs", "settings.json"))
+    for root in roots:
+        candidates.append(os.path.join(root, ".acs", "settings.local.json"))
+    return candidates
+''',
+        }
+        for name, expected_source in pinned.items():
+            actual = inspect.getsource(getattr(lib, name))
+            self.assertEqual(actual, expected_source, "helper %s changed" % name)
+
+
+class TestSettingsSchemaWorkspacePathDoc(unittest.TestCase):
+    """AC3: workspace_path's schema description documents the optional,
+    in-repo-derived default and no longer claims an outside-repo requirement."""
+
+    def test_settings_schema_workspace_path_is_documented_as_optional_and_in_repo(self):
+        schema_path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+        with open(schema_path, "r", encoding="utf-8") as fh:
+            schema = json.load(fh)
+        description = schema["properties"]["workspace_path"]["description"]
+        self.assertNotIn("outside the consumer repo", description)
+        self.assertIn("state-machine", description)
+        self.assertNotIn("workspace_path", schema.get("required", []))
+
+
 class TestRepoPartitionId(unittest.TestCase):
     """492-495, 498-501: single-segment remote, zero-segment remote, no remote, non-git dir."""
 
@@ -118,11 +313,33 @@ class TestValidateSettings(unittest.TestCase):
         self.repo = _mkrepo(self.tmp, "repo")
         self.ws = os.path.join(self.tmp, "outside-ws")
 
-    def test_rejects_workspace_path_inside_the_repo(self):
+    def test_accepts_an_explicit_workspace_path_inside_the_repo(self):
         inside = os.path.join(self.repo, "ws")
-        with self.assertRaises(lib.GateError) as ctx:
-            lib.validate_settings({"workspace_path": inside, "ticket_prefix": "SHOP"}, self.repo)
-        self.assertIn("is inside the repository", str(ctx.exception))
+        result = lib.validate_settings({"workspace_path": inside, "ticket_prefix": "SHOP"}, self.repo)
+        self.assertEqual(result, os.path.abspath(inside))
+
+    def test_expands_user_home_in_an_explicit_override(self):
+        fake_home = os.path.join(self.tmp, "home")
+        os.makedirs(fake_home)
+        with mock.patch.dict(os.environ, {"HOME": fake_home}):
+            result = lib.validate_settings({"workspace_path": "~/ws", "ticket_prefix": "SHOP"}, self.repo)
+            expected = os.path.abspath(os.path.expanduser("~/ws"))
+        self.assertEqual(result, expected)
+
+    def test_derives_the_in_repo_default_when_workspace_path_is_absent(self):
+        result = lib.validate_settings({"ticket_prefix": "SHOP"}, self.repo)
+        self.assertEqual(result, os.path.join(self.repo, ".acs", "state-machine"))
+
+    def test_absent_workspace_path_in_a_bare_repo_raises_gate_error(self):
+        bare = os.path.join(self.tmp, "bare.git")
+        subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
+        with self.assertRaises(lib.GateError):
+            lib.validate_settings({"ticket_prefix": "SHOP"}, bare)
+
+    def test_require_workspace_false_returns_none_and_never_derives(self):
+        with mock.patch.object(lib, "default_state_root", side_effect=AssertionError("must not derive")):
+            result = lib.validate_settings({"ticket_prefix": "SHOP"}, self.repo, require_workspace=False)
+        self.assertIsNone(result)
 
     def test_rejects_missing_and_lowercase_ticket_prefix(self):
         for prefix in (None, "", "shop"):
