@@ -179,6 +179,14 @@ def _humanize_seconds(value):
     return sign + " ".join(parts[:2])
 
 
+def _humanize_ms(value):
+    """Format a millisecond duration (MAR-7 spec 02): converts to seconds, then delegates to
+    _humanize_seconds for the actual formatting. NO_DATA for any non-number, same guard."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return NO_DATA
+    return _humanize_seconds(value / 1000.0)
+
+
 def _fmt_money(value, empty=NO_DATA):
     """Format a USD cost cell to EXACTLY 2 decimals, or the cell's empty marker for any non-number.
 
@@ -322,6 +330,29 @@ def _average_cells(value):
     return out
 
 
+def _term_panel3_sub_rows(row):
+    """Per-skill sub-rows (MAR-7 spec 02, D5.4/S-C): "step span" (from `steps`, unchanged
+    mechanism) + API duration/basis (from `step_api_duration`), one line per `step_order` entry.
+    A missing/non-list `step_order` (legacy pre-MAR-7 aggregate JSON) yields no sub-rows at all."""
+    step_order = row.get("step_order")
+    if not isinstance(step_order, list):
+        return []
+    steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
+    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
+    out = []
+    for skill in step_order:
+        step_span = _humanize_seconds(steps.get(skill))
+        entry = step_api_duration.get(skill)
+        if not isinstance(entry, dict):
+            api_str = NO_DATA
+        elif entry.get("basis") == "unavailable":
+            api_str = UNAVAILABLE
+        else:
+            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
+        out.append("    %-14s step span %10s   api duration %s" % (skill, step_span, api_str))
+    return out
+
+
 def _term_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
@@ -338,6 +369,7 @@ def _term_panel3(value):
         working_time = _humanize_seconds(totals.get("working_seconds", "-"))
         cost = _fmt_money(totals.get("cost_usd", "-"), empty="-")
         out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), working_time, cost))
+        out.extend(_term_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         out.append("  %-12s %12s %12s"
@@ -602,6 +634,29 @@ def _html_panel2(value):
     return "<table>" + "".join(rows) + "</table>"
 
 
+def _html_panel3_sub_rows(row):
+    """HTML equivalent of _term_panel3_sub_rows (MAR-7 spec 02) — one extra <tr> per skill,
+    reusing the main row's 3-column shape (skill / step span / API duration + basis)."""
+    step_order = row.get("step_order")
+    if not isinstance(step_order, list):
+        return []
+    steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
+    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
+    out = []
+    for skill in step_order:
+        step_span = _humanize_seconds(steps.get(skill))
+        entry = step_api_duration.get(skill)
+        if not isinstance(entry, dict):
+            api_str = NO_DATA
+        elif entry.get("basis") == "unavailable":
+            api_str = UNAVAILABLE
+        else:
+            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
+        out.append("<tr><td>&nbsp;&nbsp;%s</td><td>step span %s</td><td>api duration %s</td></tr>"
+                   % (_esc(skill), _esc(step_span), _esc(api_str)))
+    return out
+
+
 def _html_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
@@ -619,6 +674,7 @@ def _html_panel3(value):
                     % (_esc(row.get("ticket_id", "?")),
                        _esc(_humanize_seconds(totals.get("working_seconds", "-"))),
                        _esc(_fmt_money(totals.get("cost_usd", "-"), empty="-"))))
+        rows.extend(_html_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         rows.append("<tr><td>REPO TOTAL</td><td>%s</td><td>%s</td></tr>"
@@ -1103,6 +1159,17 @@ def _term_render_usage_summary(panel):
     avg_cp = panel.get("avg_cost_per_pr", NO_DATA)
     out.append("  avg cost / merged PR (USD):         %s" % (
         _fmt_money(avg_cp) if not _is_no_data(avg_cp) else NO_DATA))
+    # 3 API-duration rows (MAR-7 spec 02) — total row guarded is-not-None like
+    # total_working_seconds; the two averages follow the existing NO_DATA-guarded pattern.
+    tad = panel.get("total_api_duration_ms")
+    out.append("  total API duration:                 %s" % (
+        _humanize_ms(tad) if tad is not None else NO_DATA))
+    avg_at = panel.get("avg_api_duration_ms_per_ticket", NO_DATA)
+    out.append("  avg API duration / ticket:          %s" % (
+        _humanize_ms(avg_at) if not _is_no_data(avg_at) else NO_DATA))
+    avg_ap = panel.get("avg_api_duration_ms_per_pr", NO_DATA)
+    out.append("  avg API duration / merged PR:       %s" % (
+        _humanize_ms(avg_ap) if not _is_no_data(avg_ap) else NO_DATA))
     return out
 
 
@@ -1146,6 +1213,17 @@ def _html_render_usage_summary(panel):
     rows.append(_avg_row("avg cost / merged PR (USD)",
                          panel.get("avg_cost_per_pr", NO_DATA),
                          _fmt_money))
+    # 3 API-duration rows (MAR-7 spec 02) — mirrors the same guard pattern as above.
+    tad = panel.get("total_api_duration_ms")
+    tad_str = _humanize_ms(tad) if tad is not None else NO_DATA
+    cls = ' class="nodata"' if tad_str == NO_DATA else ""
+    rows.append("<tr><td>total API duration</td><td%s>%s</td></tr>" % (cls, _esc(tad_str)))
+    rows.append(_avg_row("avg API duration / ticket",
+                         panel.get("avg_api_duration_ms_per_ticket", NO_DATA),
+                         _humanize_ms))
+    rows.append(_avg_row("avg API duration / merged PR",
+                         panel.get("avg_api_duration_ms_per_pr", NO_DATA),
+                         _humanize_ms))
     return "<table>" + "".join(rows) + "</table>"
 
 
@@ -1278,6 +1356,78 @@ def _html_role_table(roles):
     return "<table>" + "".join(rows) + "</table>"
 
 
+_SKILL_ROW_FMT = "%s%-16s %22s %14s %12s"
+
+
+def _term_skill_table(skills, indent):
+    """Rendered lines for one ticket's skills[] list (MAR-7 spec 02), structural mirror of
+    _term_model_table: a "no data" string/missing key/empty list -> one nodata cell. Each row's
+    per-run detail (skills[].runs[]) nests as further-indented lines directly under it."""
+    out = [_SKILL_ROW_FMT % (indent, "skill", "run time (sum of runs)", "api duration", "basis")]
+    if _is_no_data(skills) or not isinstance(skills, list) or not skills:
+        out.append(indent + NO_DATA)
+        return out
+    for row in skills:
+        if not isinstance(row, dict):
+            continue
+        basis = row.get("api_duration_basis")
+        api_str = UNAVAILABLE if basis == "unavailable" else _humanize_ms(row.get("api_duration_ms"))
+        out.append(_SKILL_ROW_FMT % (
+            indent, str(row.get("skill", "?")), _humanize_seconds(row.get("run_seconds_sum")),
+            api_str, basis or UNAVAILABLE))
+        for run in (row.get("runs") or []):
+            if not isinstance(run, dict):
+                continue
+            run_basis = run.get("api_duration_basis")
+            run_api_str = UNAVAILABLE if run_basis == "unavailable" else _humanize_ms(run.get("api_duration_ms"))
+            out.append("%s  run %s: wall %s, api %s (%s)" % (
+                indent, run.get("started_at", "?"), _humanize_seconds(run.get("wall_clock_seconds")),
+                run_api_str, run_basis or UNAVAILABLE))
+    return out
+
+
+def _html_skill_table(skills):
+    """Rendered <table> for one ticket's skills[] list (MAR-7 spec 02), structural mirror of
+    _html_model_table. A "no data" string/missing key/empty list -> one nodata row. Each row's
+    per-run detail nests as a second, smaller <table> in an extra <tr> beneath it."""
+    rows = ["<tr><th>skill</th><th>run time (sum of runs)</th><th>api duration</th><th>basis</th></tr>"]
+    if _is_no_data(skills) or not isinstance(skills, list) or not skills:
+        rows.append('<tr><td colspan="4" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for row in skills:
+        if not isinstance(row, dict):
+            continue
+        basis = row.get("api_duration_basis")
+        api_str = UNAVAILABLE if basis == "unavailable" else _humanize_ms(row.get("api_duration_ms"))
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+                    % (_esc(row.get("skill", "?")), _esc(_humanize_seconds(row.get("run_seconds_sum"))),
+                       _esc(api_str), _esc(basis or UNAVAILABLE)))
+        runs = row.get("runs") if isinstance(row.get("runs"), list) else []
+        if runs:
+            run_rows = ["<tr><th>started_at</th><th>wall clock</th><th>api duration</th></tr>"]
+            for run in runs:
+                if not isinstance(run, dict):
+                    continue
+                run_basis = run.get("api_duration_basis")
+                run_api_str = (UNAVAILABLE if run_basis == "unavailable"
+                               else _humanize_ms(run.get("api_duration_ms")))
+                run_rows.append("<tr><td>%s</td><td>%s</td><td>%s (%s)</td></tr>"
+                                % (_esc(run.get("started_at", "?")),
+                                   _esc(_humanize_seconds(run.get("wall_clock_seconds"))),
+                                   _esc(run_api_str), _esc(run_basis or UNAVAILABLE)))
+            rows.append('<tr><td></td><td colspan="3"><table>%s</table></td></tr>' % "".join(run_rows))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _ticket_api_duration_str(row):
+    """Ticket-scope api_duration_ms/api_duration_basis header value (MAR-7 spec 02) — shared by
+    both surfaces' usage_by_ticket renderers."""
+    basis = row.get("api_duration_basis")
+    if basis == "unavailable":
+        return UNAVAILABLE
+    return _humanize_ms(row.get("api_duration_ms"))
+
+
 def _term_render_usage_by_ticket(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
@@ -1289,7 +1439,10 @@ def _term_render_usage_by_ticket(value):
         if not isinstance(row, dict):
             continue
         out.append("  ticket %s:" % row.get("ticket_id", "?"))
+        out.append("    api duration: %s" % _ticket_api_duration_str(row))
         out.extend("    " + line for line in _term_role_table(row.get("roles")))
+        out.append("    skills:")
+        out.extend(_term_skill_table(row.get("skills"), indent="      "))
     return out
 
 
@@ -1304,7 +1457,9 @@ def _html_render_usage_by_ticket(value):
         if not isinstance(row, dict):
             continue
         parts.append("<h4>ticket %s</h4>" % _esc(row.get("ticket_id", "?")))
+        parts.append("<p>api duration: %s</p>" % _esc(_ticket_api_duration_str(row)))
         parts.append(_html_role_table(row.get("roles")))
+        parts.append(_html_skill_table(row.get("skills")))
     return "".join(parts)
 
 
