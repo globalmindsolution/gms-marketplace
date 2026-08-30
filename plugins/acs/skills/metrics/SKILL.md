@@ -37,9 +37,10 @@ in-band (`meta.degraded`), never an error code. Its stdout is one JSON object:
   "panels": {
     "1": …, "2": …, "3": …, "4": …, "5": …, "6": …, "7": …,
     "delivery_summary": …, "issues": …, "progress": …, "deadline": …,
-    "usage_summary": …
+    "usage_summary": …, "usage_by_model": …, "usage_by_ticket": …
   },
-  "meta": { "generated_at": …, "repo_id": …, "ticket_count": …, "degraded": [ … ] }
+  "meta": { "generated_at": …, "repo_id": …, "ticket_count": …, "degraded": [ … ] },
+  "test_runs": …
 }
 ```
 
@@ -47,7 +48,9 @@ in-band (`meta.degraded`), never an error code. Its stdout is one JSON object:
 `"no data"` marker inside a panel, never a missing key. ALL panel keys are
 always emitted — the PM view uses the subset relevant to delivery. If the helper
 exits non-zero (an unexpected internal error), report that the dashboard could
-not be generated and stop — do not fabricate panels.
+not be generated and stop — do not fabricate panels. `test_runs` is a top-level
+sibling of `panels`/`meta`, not a panel key — it is likewise always present,
+carrying `"no data"` when no test-run source exists.
 
 ## Step 2 — Render the PM delivery view via the deterministic renderer
 

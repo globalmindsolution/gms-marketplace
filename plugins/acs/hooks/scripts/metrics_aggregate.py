@@ -8,14 +8,15 @@ aggregate JSON object to stdout:
       "panels": {
         "1": {...}, "2": {...}, "3": {...}, "4": {...}, "5": {...}, "6": {...}, "7": {...},
         "delivery_summary": {...}, "issues": [...], "progress": {...},
-        "deadline": {...}, "usage_summary": {...}
+        "deadline": {...}, "usage_summary": {...}, "usage_by_model": {...}, "usage_by_ticket": {...}
       },
       "meta": {"generated_at": "<ISO8601>", "repo_id": "...", "ticket_count": <int>,
-               "degraded": [{"ticket_id": "...", "panel": <int|str>, "reason": "..."}, ...]}
+               "degraded": [{"ticket_id": "...", "panel": <int|str>, "reason": "..."}, ...]},
+      "test_runs": {...}
     }
 
 Design A1 (helper emits aggregate JSON; the SKILL renders show_widget — ZERO show_widget
-dependency here), B1 (every panel key "1".."7" PLUS the five new string keys is ALWAYS present;
+dependency here), B1 (every panel key "1".."7" PLUS the seven new string keys is ALWAYS present;
 degradation is a "no data" marker inside the panel plus a meta.degraded entry, never a missing
 key), C1 (panel 6 token-burn buckets sourced from each HOOKED_SKILLS run entry's measured
 `role_usage` field (acs_lib.finalize_run), bucketed by role string as-is — this now

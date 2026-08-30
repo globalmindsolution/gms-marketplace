@@ -1444,7 +1444,7 @@ def render_pm_html(data):
 
 
 def render_usage_terminal(data):
-    """Usage-view terminal dashboard (usage_summary,3,6). Never raises."""
+    """Usage-view terminal dashboard (usage_summary,3,6,usage_by_model,usage_by_ticket). Never raises."""
     data = data if isinstance(data, dict) else {}
     panels = data.get("panels") if isinstance(data.get("panels"), dict) else {}
     meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
