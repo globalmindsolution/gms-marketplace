@@ -1323,10 +1323,11 @@ def _sum_role_tokens(role_usage):
 
 
 def _measure_run_usage(entry, tdir, skill):
-    """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
-    own recorded transcript (usage_reader) and priced via
+    """Persist MEASURED tokens/role_usage/role_duration/cost onto `entry` --
+    read from its own recorded transcript (usage_reader) and priced via
     cost_sampler.allocate_cost -- rather than trusting a coordinator's
-    self-reported result["tokens"]/result["cost_usd"] (AC-3).
+    self-reported result["tokens"]/result["cost_usd"] (AC-3). role_duration
+    (ADR 0084) is transcript-only and untouched by allocate_cost.
 
     Required short-circuit (Risk R-N): a run entry with no session_id/
     transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
@@ -1345,6 +1346,7 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
+        entry["role_duration"] = []
         return
 
     import usage_reader
@@ -1359,17 +1361,21 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
+        entry["role_duration"] = []
         return
     role_usage = usage.get("role_usage") or []
     model_usage = usage.get("model_usage") or []
+    role_duration = usage.get("role_duration") or []
     entry["tokens"] = _sum_role_tokens(role_usage)
 
     checkout_id = entry.get("checkout_id")
     if not checkout_id:
-        # Tokens are measured (transcript-only); cost needs the checkout-scoped
-        # sample/cursor files this entry has no checkout_id to locate.
+        # Tokens and duration are measured (transcript-only); cost needs the
+        # checkout-scoped sample/cursor files this entry has no checkout_id
+        # to locate.
         entry["role_usage"] = role_usage
         entry["model_usage"] = model_usage
+        entry["role_duration"] = role_duration
         entry["cost_usd"] = None
         entry["cost_basis"] = "unavailable"
         return
@@ -1382,6 +1388,9 @@ def _measure_run_usage(entry, tdir, skill):
         entry.get("started_at"), entry.get("ended_at"), role_usage, model_usage)
     entry["role_usage"] = result["role_usage"]
     entry["model_usage"] = result["model_usage"]
+    # role_duration is transcript-only: allocate_cost has no duration input
+    # or output, so it is taken straight from `usage`, never from `result`.
+    entry["role_duration"] = role_duration
     entry["cost_usd"] = result["cost_usd"]
     entry["cost_basis"] = result["cost_basis"]
     entry["cost_scope"] = result["cost_scope"]

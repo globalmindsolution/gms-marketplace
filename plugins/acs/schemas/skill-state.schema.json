@@ -88,6 +88,20 @@
               "additionalProperties": true
             }
           },
+          "role_duration": {
+            "description": "Per-role DERIVED API-duration buckets (usage_reader, ADR 0084), parallel to and independent of role_usage, whose shape is unchanged. api_duration_ms is an approximation derived from transcript inter-record timestamp gaps, never a measured per-call latency; null means no gap was attributable, never zero API time.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["role"],
+              "properties": {
+                "role": {"type": "string"},
+                "api_duration_ms": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
+                "duration_basis": {"enum": ["measured", "apportioned", "derived", "unavailable"]}
+              },
+              "additionalProperties": true
+            }
+          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {
