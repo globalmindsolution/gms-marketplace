@@ -340,6 +340,65 @@ fields, plus the additive `reviewers{requested, skipped_reason, findings}`
 and `project_fields{priority, story_points, parent, findings}` keys).
 Validate any `<task>`/`<result>` XML with validate_xml.py.
 
+### GitHub MCP fallback (no gh CLI)
+
+When `gh` is unavailable and the GitHub MCP tools are used instead of the `gh`
+calls in steps 3–6a, PR creation and labeling can no longer happen in one
+atomic call: `mcp__github__create_pull_request` has no label parameter, so the
+`ACS` label (step 3) and the ticket-type label (step 6a) must be applied via a
+SEPARATE `mcp__github__issue_write` (or equivalent label-add) call immediately
+after `create_pull_request` returns the PR number. Use this create-then-label
+sequence:
+
+1. `mcp__github__create_pull_request` — creates the PR with title/body/base/
+   head only; no labels are set in this call.
+2. `mcp__github__issue_write` (or the label-add equivalent) — adds `ACS` and
+   `<ticket.type>` to the now-existing PR/issue number, right after step 1.
+
+Consequence: the very first `opened`-triggered convention-check run fires
+before step 2 has landed the label, so it evaluates a PR with no `ACS` label
+yet and reports a spurious "missing ACS label" failure. This self-heals once
+the `labeled` webhook's own run (triggered by step 2) completes and reports
+its own, correct conclusion. This is expected under the gh-unavailable path,
+not a defect — it does not by itself require action. Do not "fix" it by
+editing the PR again, and do not rerun the failing `opened` run (see the
+frozen-payload gotcha below for why a rerun cannot help); wait for the
+`labeled` run's conclusion instead.
+
+### CI convention-check troubleshooting (frozen-payload gotcha)
+
+`.github/workflows/acs-conventions.yml` reads `ACS_PR_TITLE`, `ACS_PR_BODY`,
+`ACS_PR_BRANCH`, `ACS_BASE_REF`, and `ACS_PR_LABELS` from
+`github.event.pull_request.*` in its `env:` block — the webhook payload as it
+was FROZEN at the moment that specific triggering event fired, never a live
+`gh pr view`/API call. A label, title, or body change applied via a separate
+call AFTER a given event fired is invisible to that event's own check run;
+only a later event (its own `edited`/`labeled`/`synchronize` run) observes it.
+
+Re-running a completed workflow run (e.g. `rerun_workflow_run`) replays that
+run's ORIGINAL frozen payload — it can never pick up a label, title, or body
+change made afterward. Rerunning an `opened`-triggered run that failed for
+missing-label reasons will fail again every time, no matter how many times
+it's rerun. Worse, if that rerun finishes AFTER a separate, correctly-passing
+run (e.g. the `labeled` run), its stale failing conclusion can become the
+"latest" one GitHub reports for the check, shadowing the real, already-green
+result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
+
+Before treating a failing "Branch / PR / commit conventions" check as real:
+
+1. List the workflow runs for the PR's head SHA
+   (`gh run list --branch <head-ref> --commit <head-sha>`, or the equivalent
+   `actions_list`/`actions_get` MCP calls when `gh` is unavailable), ordered
+   by recency.
+2. Read the NEWEST run's conclusion — that is the check's actual current
+   state, regardless of what any older run for the same SHA reported.
+3. If the newest run is already green, the check is fine; no action needed.
+4. If a genuine re-check is needed (e.g. the payload really was wrong and a
+   fix has since landed), trigger a FRESH webhook event rather than rerunning
+   an old one — toggle a label off and back on (the workflow's `labeled`/
+   `unlabeled` trigger types already listen for this), or push a new commit.
+   Never call `rerun_workflow_run` on a stale/superseded run as the fix.
+
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
@@ -471,3 +530,4 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
 ```
+</content>
