@@ -235,7 +235,7 @@ to contain the literal string `<metrics` by design.
   reporting zero — the same failure mode ADR 0026's cwd-slug defect proved
   was otherwise invisible.
 
-## Amendment - MAR-6
+## Amendment — MAR-6
 
 **Date**: 2026-08-30 · **Status**: Accepted (append-only — Context/Decision/
 Consequences above are unedited, following the same pattern as this ADR's
