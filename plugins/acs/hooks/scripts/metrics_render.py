@@ -1127,7 +1127,8 @@ def _html_render_usage_summary(panel):
 # No division is performed here — cost_usd is formatted as given.
 # ---------------------------------------------------------------------------
 
-_MODEL_ROW_FMT = "%s%-12s %10s %10s %12s %12s %10s"
+_MODEL_ROW_FMT = "%s%-28s %10s %10s %12s %12s %10s"
+
 
 def _term_model_table(models, indent):
     """Rendered lines for one models list (a 'no data' string/missing key/empty list -> one cell)."""

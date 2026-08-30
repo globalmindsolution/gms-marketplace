@@ -239,17 +239,6 @@ def _unavailable_role_usage(role_usage):
     return out
 
 
-def _unavailable_model_usage(model_usage):
-    """Sibling of _unavailable_role_usage, for model_usage entries."""
-    out = []
-    for entry in model_usage:
-        item = dict(entry)
-        item["cost_usd"] = None
-        item["cost_basis"] = "unavailable"
-        out.append(item)
-    return out
-
-
 def _apportion(role_usage, delta):
     """Split `delta` across role_usage by token share, denominator = ALL
     in-window tokens (attributed + unattributed). Entries whose role is
@@ -292,7 +281,7 @@ def _apportion_models(model_usage, delta):
     _apportion's own guard."""
     total_tokens = sum(_tokens(entry) for entry in model_usage)
     if total_tokens <= 0:
-        return _unavailable_model_usage(model_usage)
+        return _unavailable_role_usage(model_usage)
 
     out = []
     for entry in model_usage:
@@ -358,7 +347,7 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
     if after is None or (cursor_ts is not None and after_ts <= cursor_ts):
         return {
             "role_usage": _unavailable_role_usage(role_usage),
-            "model_usage": _unavailable_model_usage(model_usage) if model_usage is not None else None,
+            "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
             "cost_usd": None, "cost_basis": "unavailable",
             "cost_scope": "no_unconsumed_sample_in_window",
             "excluded_cost_usd": None, "excluded_token_share": None,
@@ -370,7 +359,7 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
                         {"ts": after["ts"], "total_cost_usd": after["total_cost_usd"]})
         return {
             "role_usage": _unavailable_role_usage(role_usage),
-            "model_usage": _unavailable_model_usage(model_usage) if model_usage is not None else None,
+            "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
             "cost_usd": None, "cost_basis": "unavailable",
             "cost_scope": "cost_total_reset",
             "excluded_cost_usd": None, "excluded_token_share": None,

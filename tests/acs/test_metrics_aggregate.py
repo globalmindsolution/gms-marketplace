@@ -461,28 +461,40 @@ class UsageByModelPanel(unittest.TestCase):
 
     def test_usage_by_model_adds_no_additional_file_reads(self):
         """G7 guard: usage_by_model reads only the same per-ticket state files _accumulate_burn
-        already opens for panel 6 -- no new file path is introduced for this panel."""
-        with TemporaryDirectory() as ws:
-            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
-                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
-            seen_paths = []
-            orig_read = acs_lib.read_json
+        already opens for panel 6 -- no new file path is introduced for this panel. Proven by
+        comparing acs_lib.read_json call counts and basename sets between two matched runs of
+        aggregate() on the same fixture shape -- one with model_usage populated, one without
+        (model_usage=None) -- rather than by inspecting basenames for the substring "model"."""
 
-            def _tracking_read(path):
-                seen_paths.append(path)
-                return orig_read(path)
+        def _tracked_run(model_usage):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                                 model_usage=model_usage)
+                seen_paths = []
+                orig_read = acs_lib.read_json
 
-            acs_lib.read_json = _tracking_read
-            try:
-                metrics_aggregate.aggregate(ws, REPO_ID)
-            finally:
-                acs_lib.read_json = orig_read
-            self.assertTrue(seen_paths)
-            for p in seen_paths:
-                self.assertNotIn("model", os.path.basename(p).lower())
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_model = _tracked_run([{"model": "opus", "input": 1000, "output": 200,
+                                     "cache_creation": 10, "cache_read": 5,
+                                     "cost_usd": 0.1, "cost_basis": "apportioned"}])
+        without_model = _tracked_run(None)
+
+        self.assertTrue(with_model)
+        self.assertTrue(without_model)
+        self.assertEqual(len(with_model), len(without_model))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_model),
+                         sorted(os.path.basename(p) for p in without_model))
 
     def test_panel6_bucket_shape_unchanged_by_this_ticket(self):
         """Seam guard: panel 6 buckets stay {input, output, cost} even when the same run entry

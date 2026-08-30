@@ -1614,6 +1614,35 @@ class TestUsageByModelPanel(unittest.TestCase):
         self.assertEqual(metrics_render.render_usage_html(data),
                          metrics_render.render_usage_html(data))
 
+    def test_usage_by_model_terminal_columns_align_with_realistic_model_id(self):
+        """MERGED-4: a realistic-length model id (26 chars) must not push later columns out of
+        alignment with the header or with a short-named row above it. %s never truncates, so a
+        naive "not cut off" check would pass even at the buggy width -- this asserts every
+        column's character-offset instead, which only holds when the model field is wide enough
+        to hold the longest real model identifier. Standalone payload; the shared
+        _full_workspace_data_with_new_panels() fixture and its "opus" model name are untouched.
+
+        Cell values are placeholder tokens whose LENGTH matches their column header's own
+        length ("input"=5, "output"=6, "cache write"=11, "cache read"=10, "cost_usd"=8) --
+        %10s/%12s right-justify, so a value's *text* starts at the header label's own offset
+        only when the field itself is aligned AND the two strings share a length; matching
+        lengths makes header.index(label) a valid stand-in for the field's start column."""
+        row = {"input": "AAAAA", "output": "BBBBBB",
+               "cache_creation": "CCCCCCCCCCC", "cache_read": "DDDDDDDDDD",
+               "cost_usd": 12345.60, "cost_basis": "apportioned"}
+        models = [dict(row, model="opus"), dict(row, model="claude-sonnet-4-5-20250929")]
+        lines = metrics_render._term_model_table(models, indent="    ")
+        header, opus_row, sonnet_row = lines
+
+        # Every column must start at the same character offset in the header and in both data
+        # rows -- including the long-named row -- or the table has misaligned.
+        for data_row in (opus_row, sonnet_row):
+            self.assertEqual(data_row.index("AAAAA"), header.index("input"))
+            self.assertEqual(data_row.index("BBBBBB"), header.index("output"))
+            self.assertEqual(data_row.index("CCCCCCCCCCC"), header.index("cache write"))
+            self.assertEqual(data_row.index("DDDDDDDDDD"), header.index("cache read"))
+            self.assertEqual(data_row.index("12345.60"), header.index("cost_usd"))
+
 
 # ---------------------------------------------------------------------------
 # _esc routing / XSS tests
