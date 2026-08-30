@@ -756,6 +756,10 @@ class Panel6RoleCoverage(unittest.TestCase):
             self.assertIn("777", out)
             self.assertIn("88", out)
             self.assertIn("12.34", out)
+            # MAR-5: the appended api-duration column still renders (bucket carries no
+            # duration keys here -> UNAVAILABLE, never a crash).
+            self.assertIn("api duration", out)
+            self.assertIn(metrics_render.UNAVAILABLE, out)
 
     def test_other_and_unattributed_extra_rows_sorted(self):
         value = {
@@ -773,6 +777,8 @@ class Panel6RoleCoverage(unittest.TestCase):
             self.assertIn("unattributed", out)
             self.assertIn("300", out)
             self.assertIn("15", out)
+            # MAR-5: appended column present regardless of the extra-role rows.
+            self.assertIn("api duration", out)
         # sorted alphabetically -> "other" row before "unattributed" row, on both surfaces
         self.assertLess(term.index("other"), term.index("unattributed"))
         self.assertLess(html.index("other"), html.index("unattributed"))
@@ -789,6 +795,8 @@ class Panel6RoleCoverage(unittest.TestCase):
         for out in (term, html):
             self.assertNotIn("other", out)
             self.assertNotIn("unattributed", out)
+            # MAR-5: appended column header present even with only the four core roles.
+            self.assertIn("api duration", out)
 
     def test_four_core_roles_fixed_order_with_zero_data(self):
         # Regression guard: the four core roles still render in ROLE_ORDER even when some are
@@ -804,6 +812,8 @@ class Panel6RoleCoverage(unittest.TestCase):
             self.assertLess(idx_planner, idx_executor)
             self.assertLess(idx_executor, idx_verifier)
             self.assertLess(idx_verifier, idx_coordinator)
+            # MAR-5: fixed role order is unaffected by the appended column.
+            self.assertIn("api duration", out)
 
     def test_no_data_path_unaffected(self):
         # _is_no_data short-circuits before ROLE_ORDER is touched at all — unchanged by this fix.
@@ -1981,6 +1991,9 @@ class TestPanel6PercentColumns(unittest.TestCase):
         self.assertIn("cost %", term)
         self.assertIn("token %", html)
         self.assertIn("cost %", html)
+        # MAR-5: the appended api-duration column header, alongside the pct columns.
+        self.assertIn("api duration", term)
+        self.assertIn("api duration", html)
 
     def test_panel6_cost_share_pct_none_renders_literal_unavailable(self):
         value = {
@@ -1998,6 +2011,8 @@ class TestPanel6PercentColumns(unittest.TestCase):
         for out in (term, html):
             self.assertIn(metrics_render.UNAVAILABLE, out)
             self.assertIn("unavailable", out)
+            # MAR-5: appended column present alongside the pre-existing UNAVAILABLE cost cells.
+            self.assertIn("api duration", out)
 
     def test_panel6_token_share_pct_none_renders_no_data(self):
         value = {
@@ -2014,6 +2029,8 @@ class TestPanel6PercentColumns(unittest.TestCase):
         html = metrics_render._html_panel6(value)
         for out in (term, html):
             self.assertIn(metrics_render.NO_DATA, out)
+            # MAR-5: appended column present alongside the pre-existing NO_DATA token cells.
+            self.assertIn("api duration", out)
 
     def test_unavailable_constant_distinct_from_no_data(self):
         self.assertEqual(metrics_render.UNAVAILABLE, "unavailable")
@@ -2029,6 +2046,108 @@ class TestPanel6PercentColumns(unittest.TestCase):
         for out in (term, html):
             self.assertIn(metrics_render.NO_DATA, out)      # token % degrades to NO_DATA
             self.assertIn(metrics_render.UNAVAILABLE, out)  # cost % degrades to UNAVAILABLE
+            # MAR-5: the hand-authored value dict also lacks duration keys and must still
+            # degrade gracefully -- the appended column renders UNAVAILABLE, never raising.
+            self.assertIn("api duration", out)
+
+
+# ---------------------------------------------------------------------------
+# MAR-5 T4 — panel-6 api-duration column + the derived-approximation caption (S6d)
+# ---------------------------------------------------------------------------
+
+class TestPanel6ApiDuration(unittest.TestCase):
+    """AC-2 render half + C-1's UI-labeling requirement: panel 6 gains one appended
+    `api duration` column (after `cost %`, before the bar) and a fixed caption disclosing
+    the figure is a derived approximation, on both surfaces."""
+
+    def test_panel6_api_duration_column_renders_on_both_surfaces(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 65000, "duration_basis": "derived"}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("api duration", out)
+            self.assertIn("~1m 5s", out)
+
+    def test_api_duration_unavailable_renders_the_unavailable_literal_on_both_surfaces(self):
+        value = {
+            # seeded-default shape (no fold ever happened): None/"unavailable"
+            "planner": {"input": 100, "output": 20, "cost": 0.1,
+                        "api_duration_ms": None, "duration_basis": "unavailable"},
+            # defensive: a numeric ms paired with an "unavailable" basis must ALSO degrade
+            # (basis is the authoritative signal, not merely non-numeric ms)
+            "executor": {"input": 200, "output": 40, "cost": 0.2,
+                         "api_duration_ms": 5000, "duration_basis": "unavailable"},
+        }
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+
+    def test_derived_api_duration_carries_the_tilde_approximation_marker(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 5000, "duration_basis": "derived"}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("~5s", out)
+
+    def test_non_derived_api_duration_has_no_marker(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 5000, "duration_basis": "measured"}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("5s", out)
+            self.assertNotIn("~5s", out)
+
+    def test_api_duration_of_none_never_renders_as_zero_seconds(self):
+        # scoped to the data row only -- the caption text legitimately contains "60s"
+        # ("capped at 60s"), which must not make this assertion a false positive.
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": None, "duration_basis": "unavailable"}}
+        term_row = metrics_render._term_panel6(value)[1]
+        html = metrics_render._html_panel6(value)
+        html_row = html[html.index("<tr>", html.index("</tr>")):html.index("</table>")]
+        for out in (term_row, html_row):
+            self.assertNotIn("0s", out)
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+
+    def test_panel6_bar_column_stays_last_after_the_new_column(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 5000, "duration_basis": "derived"}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        # terminal: input==peak -> a full (all-_BAR_FULL) bar glyph run after the duration cell
+        self.assertLess(term.index("~5s"), term.index(metrics_render._BAR_FULL))
+        # html: the <th>bar</th> header stays the rightmost column
+        self.assertLess(html.index("<th>api duration</th>"), html.index("<th>bar</th>"))
+
+    def test_panel6_derived_approximation_caption_present_on_both_surfaces(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 5000, "duration_basis": "derived"}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn("DERIVED approximation", out)
+            self.assertIn("ADR 0084", out)
+
+    def test_legacy_panel6_bucket_without_duration_keys_still_renders(self):
+        # a bucket shaped like a pre-MAR-5 published bucket (no api_duration_ms/duration_basis
+        # keys at all) must still render, degrading via .get() rather than raising.
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1}}
+        term = "\n".join(metrics_render._term_panel6(value))
+        html = metrics_render._html_panel6(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+            self.assertIn("planner", out)
+
+    def test_renderer_output_is_byte_identical_for_identical_input(self):
+        value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "api_duration_ms": 5000, "duration_basis": "derived"}}
+        self.assertEqual("\n".join(metrics_render._term_panel6(value)),
+                          "\n".join(metrics_render._term_panel6(value)))
+        self.assertEqual(metrics_render._html_panel6(value), metrics_render._html_panel6(value))
 
 
 class FmtPct(unittest.TestCase):

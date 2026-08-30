@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""metrics_render.py — deterministic cross-surface renderer for the /acs:metrics dashboard (MAR-5).
+"""metrics_render.py — deterministic cross-surface renderer for the /acs:metrics dashboard.
 
 Stdlib-only (Python 3.9+, no pip; NEVER imports show_widget). Consumes the spec-01 aggregate JSON
 ({panels:{"1".."7"}, meta:{generated_at, repo_id, ticket_count, degraded}}) emitted by
@@ -209,6 +209,32 @@ def _fmt_pct(value, empty):
     return "%.1f%%" % value
 
 
+def _fmt_api_duration(ms, basis):
+    """Panel-6 api-duration cell: a humanized duration carrying the "~" derived-approximation
+    marker, or the UNAVAILABLE literal when no duration was derived (ADR 0084).
+
+    Pure function of its arguments only -- NO clock, NO locale, NO random (determinism / R4).
+    A non-numeric ms (None on a bucket that folded nothing; absent entirely on a legacy
+    aggregate JSON) and an "unavailable" basis both render UNAVAILABLE -- never "0s"
+    (ADR 0082 honesty rule).
+    """
+    if not isinstance(ms, (int, float)) or isinstance(ms, bool) or basis == "unavailable":
+        return UNAVAILABLE
+    text = _humanize_seconds(ms / 1000.0)
+    return ("~" + text) if basis == "derived" else text
+
+
+# C-1's UI-labeling half: a fixed disclosure caption emitted after the panel-6 table on both
+# surfaces (no panel-6 caption existed before this ticket). Fixed string, no interpolation,
+# no clock -- determinism preserved.
+_PANEL6_DURATION_CAPTION = (
+    "api duration is a DERIVED approximation (marked ~), not a measurement: the transcript "
+    "records no per-call latency, so each token-bearing record is credited the gap since the "
+    "preceding record, capped at 60s. It can still include local tool or idle time, and is an "
+    "upper bound on real API wait. See ADR 0084."
+)
+
+
 def _meta_lines(meta):
     """The header lines drawn from meta (rendered as given — generated_at is data, no clock read)."""
     meta = meta if isinstance(meta, dict) else {}
@@ -392,8 +418,8 @@ def _panel6_extra_roles(value):
 def _term_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
-    out = ["  %-10s %12s %12s %10s %10s %10s" % ("role", "input", "output", "cost_usd",
-                                                   "token %", "cost %")]
+    out = ["  %-10s %12s %12s %10s %10s %10s %12s" % ("role", "input", "output", "cost_usd",
+                                                        "token %", "cost %", "api duration")]
     roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
     for role in roles:
@@ -404,12 +430,15 @@ def _term_panel6(value):
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        out.append("  %-10s %12s %12s %10s %10s %10s   %s"
+        out.append("  %-10s %12s %12s %10s %10s %10s %12s   %s"
                    % (role, inp, bucket.get("output", 0),
                       _fmt_money(bucket.get("cost", 0), empty="-"),
                       _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
                       _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE),
+                      _fmt_api_duration(bucket.get("api_duration_ms"), bucket.get("duration_basis")),
                       _bar(inp, peak)))
+    out.append("")
+    out.append("  " + _PANEL6_DURATION_CAPTION)
     return out
 
 
@@ -678,17 +707,18 @@ def _html_panel6(value):
         inputs.append(bucket.get("input", 0))
     panel_max = _panel_max(inputs)
     rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th>"
-            "<th>token %</th><th>cost %</th><th>bar</th></tr>"]
+            "<th>token %</th><th>cost %</th><th>api duration</th><th>bar</th></tr>"]
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
                     % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
                        _esc(_fmt_money(bucket.get("cost", 0), empty="-")),
                        _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
                        _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)),
+                       _esc(_fmt_api_duration(bucket.get("api_duration_ms"), bucket.get("duration_basis"))),
                        _html_bar_cell(inp, panel_max)))
-    return "<table>" + "".join(rows) + "</table>"
+    return "<table>" + "".join(rows) + "</table>" + "<p>%s</p>" % _esc(_PANEL6_DURATION_CAPTION)
 
 
 def _html_lead_cycle_cell(value):
