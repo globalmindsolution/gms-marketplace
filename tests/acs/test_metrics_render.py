@@ -2070,19 +2070,28 @@ class TestPanel6ApiDuration(unittest.TestCase):
             self.assertIn("~1m 5s", out)
 
     def test_api_duration_unavailable_renders_the_unavailable_literal_on_both_surfaces(self):
+        # every non-api-duration cell on each asserted row is forced numeric, so the row's
+        # single UNAVAILABLE occurrence can only come from the api-duration cell itself.
         value = {
             # seeded-default shape (no fold ever happened): None/"unavailable"
             "planner": {"input": 100, "output": 20, "cost": 0.1,
+                        "token_share_pct": 50.0, "cost_share_pct": 25.0,
                         "api_duration_ms": None, "duration_basis": "unavailable"},
             # defensive: a numeric ms paired with an "unavailable" basis must ALSO degrade
             # (basis is the authoritative signal, not merely non-numeric ms)
-            "executor": {"input": 200, "output": 40, "cost": 0.2,
+            "executor": {"input": 100, "output": 20, "cost": 0.1,
+                         "token_share_pct": 50.0, "cost_share_pct": 75.0,
                          "api_duration_ms": 5000, "duration_basis": "unavailable"},
         }
-        term = "\n".join(metrics_render._term_panel6(value))
+        rows = metrics_render._term_panel6(value)
         html = metrics_render._html_panel6(value)
-        for out in (term, html):
-            self.assertIn(metrics_render.UNAVAILABLE, out)
+        for idx, cost_pct in ((1, "25.0%"), (2, "75.0%")):
+            row = rows[idx]
+            self.assertEqual(row.count(metrics_render.UNAVAILABLE), 1)
+            self.assertLess(row.index(cost_pct), row.index(metrics_render.UNAVAILABLE))
+            self.assertLess(row.index(metrics_render.UNAVAILABLE), row.index(metrics_render._BAR_FULL))
+        self.assertIn("<td>25.0%</td><td>unavailable</td>", html)
+        self.assertIn("<td>75.0%</td><td>unavailable</td>", html)
 
     def test_derived_api_duration_carries_the_tilde_approximation_marker(self):
         value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
@@ -2104,14 +2113,18 @@ class TestPanel6ApiDuration(unittest.TestCase):
     def test_api_duration_of_none_never_renders_as_zero_seconds(self):
         # scoped to the data row only -- the caption text legitimately contains "60s"
         # ("capped at 60s"), which must not make this assertion a false positive.
+        # token_share_pct/cost_share_pct are forced numeric so the only possible source of
+        # the UNAVAILABLE literal on this row is the api-duration cell.
         value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
+                              "token_share_pct": 50.0, "cost_share_pct": 25.0,
                               "api_duration_ms": None, "duration_basis": "unavailable"}}
         term_row = metrics_render._term_panel6(value)[1]
         html = metrics_render._html_panel6(value)
         html_row = html[html.index("<tr>", html.index("</tr>")):html.index("</table>")]
-        for out in (term_row, html_row):
-            self.assertNotIn("0s", out)
-            self.assertIn(metrics_render.UNAVAILABLE, out)
+        self.assertNotIn("0s", term_row)
+        self.assertEqual(term_row.count(metrics_render.UNAVAILABLE), 1)
+        self.assertNotIn("0s", html_row)
+        self.assertIn("<td>25.0%</td><td>unavailable</td>", html_row)
 
     def test_panel6_bar_column_stays_last_after_the_new_column(self):
         value = {"planner": {"input": 100, "output": 20, "cost": 0.1,
@@ -2148,6 +2161,38 @@ class TestPanel6ApiDuration(unittest.TestCase):
         self.assertEqual("\n".join(metrics_render._term_panel6(value)),
                           "\n".join(metrics_render._term_panel6(value)))
         self.assertEqual(metrics_render._html_panel6(value), metrics_render._html_panel6(value))
+
+
+class FmtApiDuration(unittest.TestCase):
+    """_fmt_api_duration: a humanized duration carrying the "~" derived-approximation marker,
+    or the UNAVAILABLE literal for any non-numeric ms or an authoritative "unavailable" basis."""
+
+    def test_derived_basis_carries_the_tilde_marker(self):
+        self.assertEqual(metrics_render._fmt_api_duration(5000, "derived"), "~5s")
+
+    def test_non_derived_basis_has_no_marker(self):
+        self.assertEqual(metrics_render._fmt_api_duration(5000, "measured"), "5s")
+
+    def test_none_ms_returns_unavailable_regardless_of_basis(self):
+        self.assertEqual(metrics_render._fmt_api_duration(None, "derived"), metrics_render.UNAVAILABLE)
+        self.assertEqual(metrics_render._fmt_api_duration(None, "measured"), metrics_render.UNAVAILABLE)
+
+    def test_unavailable_basis_wins_over_numeric_ms(self):
+        self.assertEqual(metrics_render._fmt_api_duration(5000, "unavailable"), metrics_render.UNAVAILABLE)
+
+    def test_bool_ms_returns_unavailable(self):
+        self.assertEqual(metrics_render._fmt_api_duration(True, "measured"), metrics_render.UNAVAILABLE)
+        self.assertEqual(metrics_render._fmt_api_duration(False, "measured"), metrics_render.UNAVAILABLE)
+
+    def test_non_numeric_ms_returns_unavailable(self):
+        self.assertEqual(metrics_render._fmt_api_duration("not-a-number", "measured"), metrics_render.UNAVAILABLE)
+
+    def test_absent_key_simulation_returns_unavailable(self):
+        self.assertEqual(metrics_render._fmt_api_duration(None, None), metrics_render.UNAVAILABLE)
+
+    def test_pure_repeatable_no_clock(self):
+        self.assertEqual(metrics_render._fmt_api_duration(5000, "derived"),
+                          metrics_render._fmt_api_duration(5000, "derived"))
 
 
 class FmtPct(unittest.TestCase):
