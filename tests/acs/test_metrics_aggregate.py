@@ -358,6 +358,7 @@ class Panel6TokenBurn(unittest.TestCase):
             self.assertEqual(out["panels"]["6"]["planner"], {
                 "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
                 "token_share_pct": 100.0, "cost_share_pct": None,
+                "api_duration_ms": None, "duration_basis": "unavailable",
             })
             # sibling seeded roles stay all-zero but share the same repo-scope denominator
             self.assertEqual(out["panels"]["6"]["executor"]["token_share_pct"], 0.0)
@@ -377,6 +378,7 @@ class Panel6TokenBurn(unittest.TestCase):
             self.assertEqual(p6["executor"], {
                 "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0, "cost": 0.02,
                 "token_share_pct": 100.0, "cost_share_pct": 100.0,
+                "api_duration_ms": None, "duration_basis": "unavailable",
             })
             # the malformed/roleless entries contributed to no bucket
             self.assertEqual(p6["planner"]["input"], 0)
@@ -525,8 +527,9 @@ class UsageByModelPanel(unittest.TestCase):
                          sorted(os.path.basename(p) for p in without_model))
 
     def test_panel6_bucket_shape_widened_by_this_ticket(self):
-        """Seam guard: panel 6 buckets widen to the 7-key shape (MAR-4), and this widening stays
-        independent of usage_by_model even when the same run entry also carries model_usage."""
+        """Seam guard: panel 6 buckets widen to the 9-key shape (MAR-4's 7 keys plus
+        api_duration_ms/duration_basis), and this widening stays independent of usage_by_model
+        even when the same run entry also carries model_usage."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
@@ -537,7 +540,8 @@ class UsageByModelPanel(unittest.TestCase):
             bucket = out["panels"]["6"]["executor"]
             self.assertEqual(set(bucket.keys()),
                              {"input", "output", "cache_creation", "cache_read", "cost",
-                              "token_share_pct", "cost_share_pct"})
+                              "token_share_pct", "cost_share_pct",
+                              "api_duration_ms", "duration_basis"})
             self.assertEqual(bucket["input"], 1000)
             self.assertEqual(bucket["output"], 200)
             self.assertEqual(bucket["cache_creation"], 0)
@@ -545,6 +549,9 @@ class UsageByModelPanel(unittest.TestCase):
             self.assertEqual(bucket["cost"], 0.1)
             self.assertEqual(bucket["token_share_pct"], 100.0)
             self.assertEqual(bucket["cost_share_pct"], 100.0)
+            # this run entry carries no role_duration -- seeded honest, never a phantom 0
+            self.assertIsNone(bucket["api_duration_ms"])
+            self.assertEqual(bucket["duration_basis"], "unavailable")
             # usage_by_model's own item shape is untouched by this widening (no cost_basis key
             # leaked into panel 6, no percentage key leaked into usage_by_model).
             model_row = out["panels"]["usage_by_model"]["repo"][0]
@@ -762,6 +769,207 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
         self.assertEqual(len(with_usage), len(without_usage))
         self.assertEqual(sorted(os.path.basename(p) for p in with_usage),
                          sorted(os.path.basename(p) for p in without_usage))
+
+
+class Panel6ApiDuration(unittest.TestCase):
+    """panels["6"]'s api_duration_ms/duration_basis join from each run entry's
+    role_duration list (ADR 0084), repo scope only."""
+
+    def test_panel6_api_duration_joined_from_role_duration_by_role(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 4200,
+                                     "duration_basis": "derived"}]},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 10, "output": 5,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.1}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 800,
+                                     "duration_basis": "derived"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["planner"]
+            # summed across both run entries -- the same fold pattern role_usage already uses
+            self.assertEqual(bucket["api_duration_ms"], 5000)
+            self.assertEqual(bucket["duration_basis"], "derived")
+            # a sibling role with no role_duration item stays unfolded
+            self.assertIsNone(out["panels"]["6"]["executor"]["api_duration_ms"])
+            self.assertEqual(out["panels"]["6"]["executor"]["duration_basis"], "unavailable")
+
+    def test_panel6_api_duration_is_none_and_basis_unavailable_without_role_duration(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["planner"]
+            self.assertIsNone(bucket["api_duration_ms"])
+            self.assertEqual(bucket["duration_basis"], "unavailable")
+            # never a fabricated 0
+            self.assertNotEqual(bucket["api_duration_ms"], 0)
+
+    def test_panel6_duration_basis_demotes_to_the_least_precise_contributor(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 10, "output": 0}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 100,
+                                     "duration_basis": "measured"}]},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 10, "output": 0}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 100,
+                                     "duration_basis": "derived"}]},
+            ])
+            write_code_state(ws, "MAR-7", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "executor", "input": 10, "output": 0}],
+                 "role_duration": [{"role": "executor", "api_duration_ms": 100,
+                                     "duration_basis": "derived"}]},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "executor", "input": 10, "output": 0}],
+                 "role_duration": [{"role": "executor", "api_duration_ms": 100,
+                                     "duration_basis": "measured"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            # "measured" then "derived" demotes the bucket -- never advertises more precision
+            # than its weakest contributor...
+            self.assertEqual(out["panels"]["6"]["planner"]["duration_basis"], "derived")
+            # ...and the order is irrelevant: "derived" then "measured" demotes the same way.
+            self.assertEqual(out["panels"]["6"]["executor"]["duration_basis"], "derived")
+
+    def test_panel6_duration_join_adds_no_additional_file_read(self):
+        """G7 guard, extending the property proven at :464/:729: joining role_duration into
+        panel 6 reads only the same per-ticket state files _accumulate_burn already opens for
+        role_usage/model_usage -- no new file path is introduced for the duration join."""
+
+        def _tracked_run(with_role_duration):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                run_entry = {"started_at": "2026-01-01T00:00:00Z",
+                             "ended_at": "2026-01-01T00:00:01Z", "status": "completed",
+                             "role_usage": [{"role": "planner", "input": 10, "output": 0,
+                                             "cost_usd": 0.1}]}
+                if with_role_duration:
+                    run_entry["role_duration"] = [{"role": "planner", "api_duration_ms": 500,
+                                                    "duration_basis": "derived"}]
+                write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[run_entry])
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_duration = _tracked_run(True)
+        without_duration = _tracked_run(False)
+
+        self.assertTrue(with_duration)
+        self.assertTrue(without_duration)
+        self.assertEqual(len(with_duration), len(without_duration))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_duration),
+                         sorted(os.path.basename(p) for p in without_duration))
+
+    def test_non_dict_or_roleless_role_duration_items_are_skipped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "executor", "input": 7, "output": 2, "cost_usd": 0.02}],
+                 "role_duration": ["not-a-dict", {"api_duration_ms": 100}, None,
+                                    {"role": "executor", "api_duration_ms": 250,
+                                     "duration_basis": "derived"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            # the string, the roleless dict, and the None entry contributed nothing
+            self.assertEqual(bucket["api_duration_ms"], 250)
+            self.assertEqual(bucket["duration_basis"], "derived")
+
+    def test_non_numeric_api_duration_ms_is_skipped_not_coerced(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 5, "output": 0}],
+                 "role_duration": [
+                     {"role": "planner", "api_duration_ms": "500", "duration_basis": "derived"},
+                     {"role": "planner", "api_duration_ms": None, "duration_basis": "unavailable"},
+                     {"role": "planner", "api_duration_ms": True, "duration_basis": "derived"},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["planner"]
+            # every item's ms was non-numeric (a string, None, or bool) -- none folded, so the
+            # bucket stays seeded honest rather than coercing a string or treating bool as 0/1.
+            self.assertIsNone(bucket["api_duration_ms"])
+            self.assertEqual(bucket["duration_basis"], "unavailable")
+
+    def test_usage_by_ticket_role_items_carry_no_duration_keys(self):
+        """C-2's narrow scope, executable: widening _empty_panel6_bucket cannot leak a
+        duration key into usage_by_ticket's role items, which are built from the separate
+        _empty_model_bucket() literal (S6c)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 10, "output": 0, "cost_usd": 1.0}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 400,
+                                     "duration_basis": "derived"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertNotIn("api_duration_ms", roles["planner"])
+            self.assertNotIn("duration_basis", roles["planner"])
+            # panel 6 (repo scope) DID receive the join -- the exclusion is scoped to
+            # usage_by_ticket only, not a global failure to join.
+            self.assertEqual(out["panels"]["6"]["planner"]["api_duration_ms"], 400)
+
+    def test_accumulate_burn_return_arity_unchanged(self):
+        """The 2-tuple contract at :1129 is unchanged by the role_duration join (R10)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 10, "output": 0}],
+                 "role_duration": [{"role": "planner", "api_duration_ms": 100,
+                                     "duration_basis": "derived"}]},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6")
+            result = metrics_aggregate._accumulate_burn({}, tdir)
+            self.assertIsInstance(result, tuple)
+            self.assertEqual(len(result), 2)
+            ticket_models, ticket_roles = result
+            self.assertIsInstance(ticket_models, dict)
+            self.assertIsInstance(ticket_roles, dict)
 
 
 # ---------------------------------------------------------------------------

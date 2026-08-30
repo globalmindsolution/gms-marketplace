@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""metrics_aggregate.py — read-only seven-panel dashboard aggregator for /acs:metrics (MAR-5).
+"""metrics_aggregate.py — read-only seven-panel dashboard aggregator for /acs:metrics.
 
 Stdlib-only (Python 3.9+, no pip). Reads the current repo's workspace artifacts and prints ONE
 aggregate JSON object to stdout:
@@ -19,7 +19,10 @@ dependency here), B1 (every panel key "1".."7" PLUS the five new string keys is 
 degradation is a "no data" marker inside the panel plus a meta.degraded entry, never a missing
 key), C1 (panel 6 token-burn buckets sourced from each HOOKED_SKILLS run entry's measured
 `role_usage` field (acs_lib.finalize_run), bucketed by role string as-is — this now
-includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; panel 5 review
+includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; each bucket
+additionally folds the same run entry's `role_duration` field (ADR 0084) into
+`api_duration_ms`/`duration_basis`, a derived approximation joined by role only at repo scope
+— usage_by_ticket's own per-role accumulator never receives it; panel 5 review
 iterations from code-state states.review.iterations authoritative with the max
 verify-XML-iteration fallback), D1 (bounded single pass: enumerate tickets from
 tickets-index.json, resolve each partition active-then-archive, read the four state files once
@@ -688,12 +691,16 @@ def _usage_summary_panel(totals, prs, panel3_averages):
 
 
 def _empty_panel6_bucket():
-    """Shared panel-6 bucket shape (MAR-4 spec 01): the four token classes plus a running cost.
+    """Shared panel-6 bucket shape: the four token classes, a running cost, and a derived
+    per-role API-duration pair (ADR 0084).
 
-    Replaces the two independent 3-key literals (the `burn` seed and _accumulate_burn's
-    setdefault) that previously had to be kept in lockstep by hand.
+    Replaces the two independent literals (the `burn` seed and _accumulate_burn's setdefault)
+    that would otherwise have to be kept in lockstep by hand. api_duration_ms/duration_basis
+    are seeded None/"unavailable" -- honest until the first numeric role_duration item folds
+    (never a phantom 0).
     """
-    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0}
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
+            "api_duration_ms": None, "duration_basis": "unavailable"}
 
 
 def _apply_panel6_shares(burn):
@@ -1064,11 +1071,28 @@ def _max_verify_iteration(tdir):
     return best
 
 
+_DURATION_BASIS_ORDER = ("measured", "apportioned", "derived")  # most -> least precise
+
+
+def _demote_duration_basis(current, incoming):
+    """Least-precise-wins: a panel-6 bucket never advertises more precision than its weakest
+    contributor. `current` is the seeded "unavailable" until the first numeric fold; an
+    unrecognized `incoming` label is treated as the least-precise known basis ("derived").
+    """
+    if incoming not in _DURATION_BASIS_ORDER:
+        incoming = "derived"
+    if current == "unavailable":
+        return incoming
+    return incoming if _DURATION_BASIS_ORDER.index(incoming) > _DURATION_BASIS_ORDER.index(current) else current
+
+
 def _accumulate_burn(burn, tdir):
     """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6, now
     widened to the four token classes, MAR-4 spec 01), this ticket's OWN role_usage into a raw
-    per-role accumulator (usage_by_ticket, MAR-4 spec 01), and this ticket's `model_usage` into
-    per-model buckets (usage_by_model, MAR-3 spec 04).
+    per-role accumulator (usage_by_ticket, MAR-4 spec 01), this ticket's `model_usage` into
+    per-model buckets (usage_by_model, MAR-3 spec 04), and this ticket's `role_duration` into
+    the same panel-6 buckets' api_duration_ms/duration_basis (ADR 0084) -- never into the
+    usage_by_ticket role accumulator, which stays on its own `_empty_model_bucket()` shape.
 
     Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
     <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
@@ -1126,6 +1150,19 @@ def _accumulate_burn(burn, tdir):
                 if _is_number(cost):
                     model_bucket["cost_sum"] += cost
                     model_bucket["cost_seen"] = True
+            for item in entry.get("role_duration") or []:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get("role")
+                if not role:
+                    continue
+                ms = item.get("api_duration_ms")
+                if not _is_number(ms):
+                    continue
+                bucket = burn.setdefault(role, _empty_panel6_bucket())
+                bucket["api_duration_ms"] = (bucket["api_duration_ms"] or 0) + int(ms)
+                bucket["duration_basis"] = _demote_duration_basis(
+                    bucket["duration_basis"], item.get("duration_basis"))
     return ticket_models, ticket_roles
 
 
