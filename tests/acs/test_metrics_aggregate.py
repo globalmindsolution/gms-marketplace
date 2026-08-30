@@ -260,6 +260,92 @@ class Panel3CostTime(unittest.TestCase):
             self.assertEqual(p3["repo_totals"]["cost_usd"], 18.75)
 
 
+class Panel3ApiDuration(unittest.TestCase):
+    """MAR-7 spec 01 tests 1-3: panel 3 gains step_api_duration/step_order sibling keys;
+    `steps` itself stays byte-identical (F13's no-mutation invariant)."""
+
+    def test_panel3_gains_step_api_duration_and_step_order_steps_key_untouched(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {
+                "code": {"started_at": "2026-06-15T16:24:30Z", "status": "completed",
+                         "ended_at": "2026-06-15T17:03:15Z"},
+            }
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+                 "status": "completed", "api_duration_ms": 4200.0,
+                 "api_duration_basis": "measured"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            # F13 no-mutation invariant: byte-identical to the pre-MAR-7 value
+            # (Panel3CostTime.test_per_ticket_seconds_and_totals_rollup's own assertion, re-run).
+            self.assertEqual(row["steps"]["code"], 2325)
+            self.assertEqual(row["step_api_duration"]["code"], {"ms": 4200.0, "basis": "measured"})
+            self.assertEqual(row["step_order"], ["code"])
+
+    def test_step_order_orders_by_pipeline_step_order_then_sorted_tail_for_unknown_keys(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {
+                "test": {"started_at": "2026-06-15T10:00:00Z", "status": "completed",
+                         "ended_at": "2026-06-15T10:05:00Z"},
+                "code": {"started_at": "2026-06-15T10:05:00Z", "status": "completed",
+                         "ended_at": "2026-06-15T10:10:00Z"},
+            }
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+                 "status": "completed", "api_duration_ms": 1000.0,
+                 "api_duration_basis": "apportioned"},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-quality-state.json"), {
+                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
+                     "status": "completed", "api_duration_ms": 500.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            # union = {test, code, create-quality}; PIPELINE_STEP_ORDER lists code before test;
+            # create-quality is a hooked-only skill absent from PIPELINE_STEP_ORDER -> sorted tail.
+            self.assertEqual(row["step_order"], ["code", "test", "create-quality"])
+
+    def test_step_api_duration_present_without_steps_entry_hooked_only_skill(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_pipeline(ws, "MAR-6", steps={}, archived=True)
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-quality-state.json"), {
+                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
+                     "status": "completed", "api_duration_ms": 750.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            self.assertNotIn("create-quality", row["steps"])
+            self.assertEqual(row["step_api_duration"]["create-quality"],
+                             {"ms": 750.0, "basis": "apportioned"})
+            self.assertIn("create-quality", row["step_order"])
+
+    def test_steps_entry_present_without_step_api_duration_the_test_step_case(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {"test": {"started_at": "2026-06-15T10:00:00Z", "status": "completed",
+                              "ended_at": "2026-06-15T10:05:00Z"}}
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            self.assertIn("test", row["steps"])
+            self.assertNotIn("test", row["step_api_duration"])
+            self.assertEqual(row["step_order"], ["test"])
+
+
 class Panel4Coverage(unittest.TestCase):
     def test_numeric_cell(self):
         with TemporaryDirectory() as ws:
@@ -762,6 +848,178 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
         self.assertEqual(len(with_usage), len(without_usage))
         self.assertEqual(sorted(os.path.basename(p) for p in with_usage),
                          sorted(os.path.basename(p) for p in without_usage))
+
+
+class UsageByTicketSkillWidening(unittest.TestCase):
+    """MAR-7 spec 01 tests 4-8: usage_by_ticket gains ticket-scope api_duration_ms/basis
+    (siblings of the unchanged `roles` key) and a `skills[]` array."""
+
+    def test_api_duration_ms_null_or_unavailable_basis_excluded_from_skill_sum_never_fabricated_zero(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:02:00Z",
+                 "status": "completed", "api_duration_ms": 3000.0, "api_duration_basis": "measured"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            # never fabricated as if the null run contributed 0 -- equals only the measured run.
+            self.assertEqual(code_skill["api_duration_ms"], 3000.0)
+            # rolled-up basis collapses to "apportioned" (seen=True from >=1 contributing run),
+            # mirroring _finalize_model_bucket's own cost_basis rule.
+            self.assertEqual(code_skill["api_duration_basis"], "apportioned")
+
+    def test_usage_by_ticket_gains_ticket_scope_api_duration_ms_and_basis_siblings_of_roles(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 2500.0, "api_duration_basis": "apportioned",
+                 "role_usage": [{"role": "executor", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertEqual(ticket["api_duration_ms"], 2500.0)
+            self.assertEqual(ticket["api_duration_basis"], "apportioned")
+            # "roles" key unchanged in shape
+            self.assertIn("executor", ticket["roles"])
+            self.assertEqual(ticket["roles"]["executor"]["input"], 100)
+
+    def test_usage_by_ticket_skills_array_one_entry_per_hooked_skill_with_run_entries_in_hooked_skills_order(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-design-state.json"), {
+                "skill": "create-design", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
+                     "status": "completed", "api_duration_ms": 200.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            skill_names = [s["skill"] for s in ticket["skills"]]
+            # acs_lib.HOOKED_SKILLS order (code precedes create-design there), not insertion order.
+            self.assertEqual(skill_names, ["code", "create-design"])
+            self.assertNotIn("test", skill_names)  # test has no run entries (F13) -- never appears
+
+    def test_usage_by_ticket_skills_runs_array_preserves_persisted_run_order_and_per_run_fields(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            runs = [
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:03:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
+                {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:00:30Z",
+                 "status": "completed", "api_duration_ms": 50.0, "api_duration_basis": "apportioned"},
+            ]
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            self.assertEqual(len(code_skill["runs"]), 3)
+            self.assertEqual(code_skill["runs"][0]["started_at"], "2026-01-01T00:00:00Z")
+            self.assertEqual(code_skill["runs"][0]["wall_clock_seconds"], 60)
+            self.assertEqual(code_skill["runs"][0]["api_duration_ms"], 100.0)
+            self.assertEqual(code_skill["runs"][0]["api_duration_basis"], "apportioned")
+            self.assertEqual(code_skill["runs"][1]["api_duration_ms"], None)
+            self.assertEqual(code_skill["runs"][1]["api_duration_basis"], "unavailable")
+            self.assertEqual(code_skill["runs"][2]["wall_clock_seconds"], 30)
+            self.assertEqual(set(code_skill["runs"][0].keys()),
+                             {"started_at", "wall_clock_seconds", "api_duration_ms", "api_duration_basis"})
+
+    def test_usage_by_ticket_skills_empty_list_not_no_data_when_ticket_has_runs_but_no_duration(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable",
+                 "role_usage": [{"role": "executor", "input": 10, "output": 5,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.1}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertIsInstance(ticket["roles"], dict)  # populated -- not the "no data" case
+            self.assertEqual(ticket["skills"], [])
+            self.assertNotEqual(ticket["skills"], "no data")
+
+
+class AccumulateBurnThreeTuple(unittest.TestCase):
+    """MAR-7 spec 01 test 11: pinned-shape regression guard on _accumulate_burn's widened
+    3-tuple return (both aggregate() call sites must unpack it consistently)."""
+
+    def test_accumulate_burn_returns_three_tuple_ticket_skills_third(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 42.0, "api_duration_basis": "apportioned",
+                 "role_usage": [{"role": "executor", "input": 1, "output": 1,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.01}]},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            burn = {role: metrics_aggregate._empty_panel6_bucket()
+                    for role in ("planner", "executor", "verifier", "coordinator")}
+            result = metrics_aggregate._accumulate_burn(burn, tdir)
+            self.assertEqual(len(result), 3)
+            ticket_models, ticket_roles, ticket_skills = result
+            self.assertIn("code", ticket_skills)
+            self.assertIn("executor", ticket_roles)
+
+
+class NoAdditionalFileReadsForDuration(unittest.TestCase):
+    """MAR-7 spec 01 test 12: extends the G7 no-extra-file-reads guard to the new per-skill
+    duration collection."""
+
+    def test_panel3_and_usage_by_ticket_add_no_additional_file_reads(self):
+
+        def _tracked_run(with_duration):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                write_pipeline(ws, "MAR-6", steps={
+                    "code": {"started_at": "2026-01-01T00:00:00Z", "status": "completed",
+                             "ended_at": "2026-01-01T00:01:00Z"},
+                }, archived=True)
+                runs = [{"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                        "status": "completed", "api_duration_ms": 10.0,
+                        "api_duration_basis": "apportioned"}] if with_duration else []
+                write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_duration = _tracked_run(True)
+        without_duration = _tracked_run(False)
+
+        self.assertTrue(with_duration)
+        self.assertTrue(without_duration)
+        self.assertEqual(len(with_duration), len(without_duration))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_duration),
+                         sorted(os.path.basename(p) for p in without_duration))
 
 
 # ---------------------------------------------------------------------------
@@ -2162,6 +2420,38 @@ class TestUsageSummary(unittest.TestCase):
             write_index(ws, {})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["usage_summary"], "no data")
+
+    def test_usage_summary_gains_total_and_two_averages_api_duration_fields(self):
+        """MAR-7 spec 01 test 9: mirrors the existing total_cost_usd/avg_cost_per_ticket pair."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "T1": {"status": "done", "type": "story"},
+                "T2": {"status": "done", "type": "story"},
+            })
+            write_metrics(ws, {
+                "prs": {"created": 2, "merged": 2},
+                "totals": {"runs": 4, "working_seconds": 3600,
+                           "tokens": {"input": 1000, "output": 200}, "cost_usd": 5.0,
+                           "api_duration_ms": 9000.0},
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            us = out["panels"]["usage_summary"]
+            self.assertEqual(us["total_api_duration_ms"], 9000.0)
+            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 4500.0)
+            self.assertEqual(us["avg_api_duration_ms_per_pr"], 4500.0)
+
+    def test_usage_summary_api_duration_defaults_to_zero_and_no_data_averages_on_empty_workspace(self):
+        """MAR-7 spec 01 test 10: extends test_missing_metrics_json_zero_defaults's own pattern --
+        totals.api_duration_ms absent -> total_api_duration_ms defaults to 0.0 (mirrors
+        total_cost_usd's own default, never None); avg_..._per_pr is 'no data' (merged == 0,
+        no metrics.json means prs defaults to {"created": 0, "merged": 0})."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            us = out["panels"]["usage_summary"]
+            self.assertEqual(us["total_api_duration_ms"], 0.0)
+            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 0.0)
+            self.assertEqual(us["avg_api_duration_ms_per_pr"], "no data")
 
 
 class TestTestRunsRead(unittest.TestCase):
