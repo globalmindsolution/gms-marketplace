@@ -51,6 +51,9 @@ and `<id>` means `ticket_id` (e.g. `SHOP-123`).
 - If `context.handoff_summary` exists: read it plus
   `<partition>/phases/create-design/handoff-context.md` (when present), do a light
   reconcile (spot-check the named artifacts), and continue from where it points.
+- A resumed run reuses the existing `<partition>/phases/create-design/iter-1-plan.md`
+  and never spawns a second planner; the plan phase runs (once) only when that
+  artifact is absent.
 - Fresh run (`reconcile` false): start at iteration 1, plan phase.
 
 ## Inputs — gather before planning
@@ -74,8 +77,16 @@ Read (you and your planner; reference by path in XML, do not inline file bodies)
 
 ## Reflection loop
 
-Run plan → execute → verify, max 3 iterations. Decomposition is YOURS alone —
-subagents never spawn subagents.
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:create-design-planner` across the whole run, however many iterations
+the loop below uses. The loop itself is execute → verify, max 3 iterations.
+Decomposition is YOURS alone — subagents never spawn subagents.
+
+**What an iteration counts.** One iteration is one execute → verify round;
+the plan phase runs once, before the loop, and is not part of any
+iteration, so the cap counts execute+verify rounds, not a
+plan+execute+verify triad. `/acs:create-design` has no lane-driven
+verify-depth selection: the cap is a fixed 3 in every lane.
 
 For every phase:
 
@@ -114,9 +125,18 @@ For every phase:
 
 4. Persist the phase's `<task>` and `<result>` to
    `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
-   BEFORE starting the next phase.
+   BEFORE starting the next phase. The plan phase runs once, so its message
+   pair persists once as `iter-1-plan.xml` and its artifact is
+   `<partition>/phases/create-design/iter-1-plan.md`; execute and verify keep
+   persisting per iteration, and every iteration's executor and verifier
+   `<inputs>` name that same `iter-1-plan.md`.
 
-### Phase: plan — `acs:create-design-planner`
+### Phase: plan (once, before the loop) — `acs:create-design-planner`
+
+Spawned exactly once per run, before iteration 1 — the plan is authored
+once and there is no per-iteration re-plan; on iterations 2-3 the
+verifier's findings route straight to the executor's `<task>` `<context>`
+(see Phase: execute below), where the executor authors the remediation.
 
 Objective: from ticket + architecture docs + codebase, produce a design plan in
 its `<result>`: the decisions to make, >=2 candidate options per major decision
@@ -201,7 +221,9 @@ You MAY run multiple executors in parallel ONLY when their outputs cannot
 conflict (e.g. one drafting `design.md`, one writing a research note to
 `<partition>/phases/create-design/research-<topic>.md`). Two executors never
 touch `design.md` in the same iteration. The verifier runs after ALL executors
-finish and judges the combined result.
+finish and judges the combined result. On iterations 2-3 the verifier's
+findings go verbatim into the executor `<task>`'s `<context>`, with no
+planner spawn in between.
 
 ### Phase: verify — `acs:create-design-verifier`
 
@@ -234,9 +256,10 @@ When `settings.standards_path` is set, it is passed into the verify
 conditions `### Decision records` on `settings.adr_path` being set.
 
 ALL findings block — zero findings = pass. On findings: persist the verify XML,
-feed every finding into the next iteration's plan `<task>` (as `<constraints>`/
-`<context>`), and re-run plan → execute → verify. After iteration 3 with findings
-remaining: stop; final status `failed`, findings recorded in result.json.
+feed every finding verbatim into the next iteration's executor `<task>`
+`<context>` — not a new plan — with no planner spawn in between, and re-run
+execute → verify. After iteration 3 with findings remaining: stop; final
+status `failed`, findings recorded in result.json.
 
 ## User interaction
 

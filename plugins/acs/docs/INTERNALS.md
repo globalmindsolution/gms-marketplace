@@ -95,20 +95,18 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
-**`/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
-`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, and
-`/acs:create-principles` exception (MAR-71, slice 1b of MAR-69, for
+**All twelve triad-keeping skills exception (MAR-71, slice 1b of MAR-69, for
 `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`;
 MAR-302 for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
 `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, and
-`/acs:create-principles`):** for these nine skills, the plan step above runs
-exactly once, before this loop starts, and is not part of any iteration — it
-is never re-entered on iteration 2+. The loop body for all nine is execute →
-verify only: on iteration 2+, verifier findings feed straight into the next
-iteration's **executor** `<context>`, never back into a re-plan step, and the
-executor authors the remediation. The other three triad-keeping skills keep the
-generic plan → execute → verify shape drawn above unchanged.
+`/acs:create-principles`; completed for `/acs:create-architecture`,
+`/acs:create-design`, and `/acs:create-requirements`):** for every triad
+skill, the plan step above runs exactly once, before this loop starts, and
+is not part of any iteration — it is never re-entered on iteration 2+. The
+loop body for all twelve is execute → verify only: on iteration 2+, verifier
+findings feed straight into the next iteration's **executor** `<context>`,
+never back into a re-plan step, and the executor authors the remediation.
+There is no longer a triad-keeping skill that re-plans per iteration.
 
 ### Phase artifacts (written by the subagents themselves)
 
@@ -118,7 +116,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; the other three triad skills keep the per-iteration shape; `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), and `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, and `/acs:create-principles` (MAR-305) keep the `iter-<n>-plan.md` **name** but write it exactly once per run — before the loop, never rewritten on a later iteration, `n` always 1) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
