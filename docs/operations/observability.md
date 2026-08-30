@@ -341,9 +341,10 @@ from `_finalize_role_ticket_bucket`), rendered by
 Built from the same per-ticket `role_usage` rows panel 6 already sums, in
 the same walk — zero additional file reads.
 
-A role with no measured cost in that ticket renders **"unavailable"** for
-cost and cost %, independent of any sibling role in the same ticket — one
-role's missing cost never blocks another role's percentage from computing.
+A role with no measured cost in that ticket renders "no data" for its
+cost figure and **"unavailable"** for its cost %, independent of any
+sibling role in the same ticket — one role's missing cost never blocks
+another role's percentage from computing.
 This panel's shares are ticket-scoped (share of *that ticket's* role
 totals), distinct from panel 6's repo-scope shares above — the two are not
 a conflicting figure, just two different denominators over the same

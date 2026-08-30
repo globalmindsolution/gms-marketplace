@@ -194,8 +194,9 @@ no network call:
   and **cost-share** percentage of that ticket's own totals (ticket-scoped,
   distinct from panel 6's repo-scope shares above — a different denominator
   over the same underlying data, not a conflicting figure); a role with no
-  measured cost in that ticket renders `unavailable` for cost and cost-share
-  independent of any sibling role in the same ticket.
+  measured cost in that ticket renders `no data` for its cost figure and
+  `unavailable` for its cost-share, independent of any sibling role in the
+  same ticket.
   This render-layer `unavailable` marker (used only on a cost-share cell
   with no measured cost, in either panel) is a distinct thing from the
   `cost_basis` field's own pre-existing `unavailable` enum value described

@@ -99,8 +99,9 @@ The usage view renders exactly five panels:
    the workspace, plus each role's token-share and cost-share percentage of
    that ticket's own total. Mirrors panel 7's per-role breakdown style but
    scoped to one ticket rather than repo-wide; a role with no measured cost in
-   that ticket renders `unavailable` for its cost and cost-share cells,
-   independent of any sibling role's measured cost in the same ticket.
+   that ticket renders `no data` for its cost cell and `unavailable` for its
+   cost-share cell, independent of any sibling role's measured cost in the
+   same ticket.
 
 PM-only panels (delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS,
 DEADLINE, coverage achieved vs target, review iterations, lead/cycle time) are
