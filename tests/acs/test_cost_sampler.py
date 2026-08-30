@@ -467,9 +467,13 @@ class TestAllocateCostModelUsage(unittest.TestCase):
             self.workspace, self.repo_id, self.ckid,
             "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage, model_usage=model_usage)
         self.assertIsInstance(result, dict)
+        # MAR-6 widens this pinned key set with api_duration_ms/basis/scope --
+        # a mandatory, spec-required consequence of AC-1's return-dict widening,
+        # not an unrelated edit to this test's own cost/model_usage assertions.
         self.assertEqual(set(result.keys()), {
             "role_usage", "model_usage", "cost_usd", "cost_basis",
             "cost_scope", "excluded_cost_usd", "excluded_token_share",
+            "api_duration_ms", "api_duration_basis", "api_duration_scope",
         })
 
     def test_model_usage_none_argument_returns_none(self):
@@ -541,6 +545,329 @@ class TestAllocateCostModelUsage(unittest.TestCase):
         self.assertAlmostEqual(result["cost_usd"], 0.25)
         self.assertAlmostEqual(result["excluded_cost_usd"], 0.75)
         self.assertAlmostEqual(result["excluded_token_share"], 0.75)
+
+
+class TestRecordCostSampleApiDuration(AcsWorkspaceCase):
+    """MAR-6: record_cost_sample's F5 fix -- a duration-only or cost-only
+    payload now writes a sample; only a payload with neither quantity is a
+    silent no-op. Originating ticket: MAR-6."""
+
+    def _samples(self, ctx):
+        path = cost_sampler.cost_samples_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
+        if not os.path.exists(path):
+            return []
+        with open(path, "r", encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+
+    # -- test 1: F5 fix -----------------------------------------------------
+    def test_duration_only_payload_still_writes_a_sample(self):
+        # F5 fix: a payload carrying total_api_duration_ms but no
+        # total_cost_usd must still write a sample line (the early return
+        # widens to "return only when BOTH are None").
+        ctx = lib.build_context(self.repo)
+        payload = {"cwd": self.repo, "cost": {"total_api_duration_ms": 1500.0}}
+        cost_sampler.record_cost_sample(payload)
+        samples = self._samples(ctx)
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0]["total_api_duration_ms"], 1500.0)
+        self.assertEqual(samples[0]["duration_src"], "cost.total_api_duration_ms")
+        self.assertIsNone(samples[0]["total_cost_usd"])
+        self.assertIsNone(samples[0]["src"])
+
+    # -- test 2: cost-only writes null duration; neither writes nothing ----
+    def test_cost_only_payload_writes_sample_with_null_duration(self):
+        ctx = lib.build_context(self.repo)
+        payload = {"cwd": self.repo, "cost": {"total_cost_usd": 2.0}}
+        cost_sampler.record_cost_sample(payload)
+        samples = self._samples(ctx)
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0]["total_cost_usd"], 2.0)
+        self.assertIsNone(samples[0]["total_api_duration_ms"])
+        self.assertIsNone(samples[0]["duration_src"])
+
+    def test_neither_quantity_found_writes_nothing(self):
+        ctx = lib.build_context(self.repo)
+        payload = {"cwd": self.repo, "irrelevant": True}
+        cost_sampler.record_cost_sample(payload)
+        self.assertEqual(self._samples(ctx), [])
+
+
+class TestApiDurationSampling(unittest.TestCase):
+    """MAR-6: cost.total_api_duration_ms sampled as a sibling probe to
+    total_cost_usd, sharing one cursor file, apportioned per role by the
+    same mechanism as cost (design.md D3, C-6). Originating ticket: MAR-6."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-api-duration-")
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.workspace = self.tmp
+        self.repo_id = "acme-shop"
+        self.ckid = "shop-ab12cd34"
+
+    def _cursor(self):
+        return lib.read_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid))
+
+    # -- test 3: _extract_api_duration probe order ---------------------------
+    def test_extract_api_duration_probe_order_and_recursive_fallback(self):
+        value, src = cost_sampler._extract_api_duration({"cost": {"total_api_duration_ms": 5.0}})
+        self.assertEqual(value, 5.0)
+        self.assertEqual(src, "cost.total_api_duration_ms")
+
+        value, src = cost_sampler._extract_api_duration({"cost": {"total_api_duration": 6.0}})
+        self.assertEqual(value, 6.0)
+        self.assertEqual(src, "cost.total_api_duration")
+
+        value, src = cost_sampler._extract_api_duration({"total_api_duration_ms": 7.0})
+        self.assertEqual(value, 7.0)
+        self.assertEqual(src, "total_api_duration_ms")
+
+        value, src = cost_sampler._extract_api_duration(
+            {"session": {"stats": {"total_api_duration_ms": 8.0}}})
+        self.assertEqual(value, 8.0)
+        self.assertEqual(src, "session.stats.total_api_duration_ms")
+
+        # earliest wins, mirroring _extract_total_cost's own ordering
+        value, src = cost_sampler._extract_api_duration(
+            {"cost": {"total_api_duration_ms": 9.0}, "total_api_duration_ms": 1.0})
+        self.assertEqual(value, 9.0)
+        self.assertEqual(src, "cost.total_api_duration_ms")
+
+        self.assertEqual(cost_sampler._extract_api_duration({"unrelated": 1}), (None, None))
+        self.assertEqual(cost_sampler._extract_api_duration(None), (None, None))
+
+    # -- test 4: _recursive_scan's key_re is caller-supplied -----------------
+    def test_recursive_scan_key_re_is_caller_supplied(self):
+        # Default key_re still finds the cost key -- no regression on the
+        # existing cost path.
+        found = cost_sampler._recursive_scan({"a": {"total_cost_usd": 3.0}}, 1)
+        self.assertEqual(found, (3.0, "a.total_cost_usd"))
+
+        # A caller-supplied key_re finds the duration key instead, and does
+        # NOT match a cost key even when both are present.
+        found = cost_sampler._recursive_scan(
+            {"a": {"total_api_duration_ms": 4.0, "total_cost_usd": 3.0}}, 1,
+            key_re=cost_sampler._TOTAL_API_DURATION_KEY_RE)
+        self.assertEqual(found, (4.0, "a.total_api_duration_ms"))
+
+    # -- test 5: one cursor file, both fields, one write ----------------------
+    def test_cursor_carries_both_quantities_in_one_write(self):
+        # Seed a prior cursor so the duration edge is numeric on both sides
+        # of this call (a totally cursor-less first call is Test 6's own
+        # "legacy cursor" degrade-then-recover scenario, covered separately).
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 0.0,
+                         "total_api_duration_ms": 0.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 2.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0}]
+        import unittest.mock as mock
+        with mock.patch.object(lib, "write_json", wraps=lib.write_json) as spy:
+            result = cost_sampler.allocate_cost(
+                self.workspace, self.repo_id, self.ckid,
+                "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        self.assertEqual(spy.call_count, 1)
+        cursor = self._cursor()
+        self.assertEqual(set(cursor.keys()), {"ts", "total_cost_usd", "total_api_duration_ms"})
+        self.assertEqual(cursor["total_cost_usd"], 2.0)
+        self.assertEqual(cursor["total_api_duration_ms"], 1000.0)
+        self.assertEqual(result["api_duration_ms"], 1000.0)
+        self.assertEqual(result["api_duration_basis"], "apportioned")
+        self.assertEqual(result["api_duration_scope"], "session_total")
+
+    # -- test 6: legacy cursor without duration degrades once, then recovers -
+    def test_legacy_cursor_without_duration_degrades_duration_only_then_recovers(self):
+        # A pre-MAR-6 cursor file has no total_api_duration_ms at all.
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 1.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 2.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 10, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result_1 = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        self.assertEqual(result_1["cost_basis"], "measured")
+        self.assertEqual(result_1["cost_usd"], 1.0)
+        self.assertIsNone(result_1["api_duration_ms"])
+        self.assertEqual(result_1["api_duration_basis"], "unavailable")
+        self.assertEqual(result_1["api_duration_scope"], "duration_unavailable_on_cursor")
+        for r in result_1["role_usage"]:
+            self.assertIsNone(r["api_duration_ms"])
+            self.assertEqual(r["api_duration_basis"], "unavailable")
+
+        # Second charge: cursor now carries a numeric duration -> normal apportionment.
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 2.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+            {"ts": "2026-08-25T06:10:00Z", "total_cost_usd": 3.0,
+             "total_api_duration_ms": 1500.0, "src": "total_cost_usd"},
+        ])
+        result_2 = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T06:05:00Z", "2026-08-25T06:15:00Z", role_usage)
+        self.assertEqual(result_2["api_duration_basis"], "apportioned")
+        self.assertEqual(result_2["api_duration_scope"], "session_total")
+        self.assertAlmostEqual(result_2["api_duration_ms"], 500.0)
+
+    # -- test 7: cost reset marks both quantities unavailable -----------------
+    def test_cost_reset_marks_both_quantities_unavailable(self):
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 5.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0}]
+        cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 5.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+            {"ts": "2026-08-25T06:10:00Z", "total_cost_usd": 0.3,
+             "total_api_duration_ms": 200.0, "src": "total_cost_usd"},
+        ])
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T06:05:00Z", "2026-08-25T06:15:00Z", role_usage)
+        self.assertEqual(result["cost_scope"], "cost_total_reset")
+        self.assertIsNone(result["api_duration_ms"])
+        self.assertEqual(result["api_duration_basis"], "unavailable")
+        self.assertEqual(result["api_duration_scope"], "cost_total_reset")
+        # The cursor's duration field still advances to the post-reset sample's value.
+        self.assertEqual(self._cursor()["total_api_duration_ms"], 200.0)
+
+    # -- test 8: apportioned per role mirrors cost split -----------------------
+    def test_api_duration_apportioned_per_role_mirrors_cost_split(self):
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 0.0,
+                         "total_api_duration_ms": 0.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0,
+             "total_api_duration_ms": 1000.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [
+            {"role": "coordinator", "input": 100, "output": 100, "cache_creation": 0, "cache_read": 0},
+            {"role": "executor", "input": 100, "output": 100, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 300, "output": 300, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        by_role = {r["role"]: r for r in result["role_usage"]}
+        self.assertAlmostEqual(by_role["coordinator"]["api_duration_ms"], 200.0)
+        self.assertEqual(by_role["coordinator"]["api_duration_basis"], "apportioned")
+        self.assertAlmostEqual(by_role["executor"]["api_duration_ms"], 200.0)
+        self.assertIsNone(by_role["unattributed"]["api_duration_ms"])
+        self.assertEqual(by_role["unattributed"]["api_duration_basis"], "unavailable")
+        self.assertAlmostEqual(result["api_duration_ms"], 400.0)
+
+    # -- test 9: reuse, not recompute, the excluded_token_share ---------------
+    def test_api_duration_uses_the_same_excluded_token_share_as_cost(self):
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 0.0,
+                         "total_api_duration_ms": 0.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 4.0,
+             "total_api_duration_ms": 777.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [
+            {"role": "coordinator", "input": 72256, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "executor", "input": 38154, "output": 0, "cache_creation": 0, "cache_read": 0},
+            {"role": "unattributed", "input": 16360, "output": 0, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        duration_delta = 777.0
+        attributed_duration_ms = sum(
+            r["api_duration_ms"] for r in result["role_usage"] if r["role"] != "unattributed")
+        self.assertAlmostEqual(
+            attributed_duration_ms, duration_delta * (1 - result["excluded_token_share"]))
+        self.assertAlmostEqual(result["api_duration_ms"], attributed_duration_ms)
+
+    # -- test 10: zero-token denominator degrades duration, never zero --------
+    def test_zero_token_denominator_degrades_duration_to_unavailable_never_zero(self):
+        # Both cursor edges numeric (so the coupled-degradation guard does
+        # NOT short-circuit first) -- this isolates _apportion_duration's
+        # OWN zero-token-denominator guard, exercised via a role_usage whose
+        # only entry carries zero tokens (the "never zero" fixture: this
+        # must degrade to None, not silently apportion 0.0 to the role).
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 0.0,
+                         "total_api_duration_ms": 0.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0,
+             "total_api_duration_ms": 500.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        # Mirrors cost's own established rule (test_no_role_usage_data_excludes_
+        # entire_delta): the top-level basis stays "apportioned" (a valid delta
+        # WAS computed), with the whole delta excluded (api_duration_ms == 0.0,
+        # never a bare None at the top level) -- but each role item, having no
+        # tokens to apportion by, individually degrades to unavailable.
+        self.assertEqual(result["cost_basis"], "measured")  # cost side unaffected by this guard
+        self.assertEqual(result["api_duration_basis"], "apportioned")
+        self.assertEqual(result["api_duration_ms"], 0.0)
+        for r in result["role_usage"]:
+            self.assertIsNone(r["api_duration_ms"])
+            self.assertEqual(r["api_duration_basis"], "unavailable")
+
+    # -- test 11: no unconsumed sample -> duration unavailable, same scope ----
+    def test_no_unconsumed_sample_marks_duration_unavailable_same_scope_as_cost(self):
+        role_usage = [{"role": "executor", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T06:00:00Z", "2026-08-25T06:10:00Z", role_usage)
+        self.assertEqual(result["cost_scope"], "no_unconsumed_sample_in_window")
+        self.assertIsNone(result["api_duration_ms"])
+        self.assertEqual(result["api_duration_basis"], "unavailable")
+        self.assertEqual(result["api_duration_scope"], "no_unconsumed_sample_in_window")
+        for r in result["role_usage"]:
+            self.assertIsNone(r["api_duration_ms"])
+            self.assertEqual(r["api_duration_basis"], "unavailable")
+
+    # -- test 12: pinned-key regression guard ----------------------------------
+    def test_allocate_cost_return_dict_gains_api_duration_keys(self):
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 1.0,
+             "total_api_duration_ms": 500.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        self.assertEqual(set(result.keys()), {
+            "role_usage", "model_usage", "cost_usd", "cost_basis", "cost_scope",
+            "excluded_cost_usd", "excluded_token_share",
+            "api_duration_ms", "api_duration_basis", "api_duration_scope",
+        })
+        for r in result["role_usage"]:
+            self.assertIn("api_duration_ms", r)
+            self.assertIn("api_duration_basis", r)
+
+    # -- test 13: no edit obligation confirmed elsewhere; also confirm the
+    # duration-only sample never becomes the selected `after`.
+    def test_duration_only_sample_never_becomes_selected_after(self):
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": None,
+             "total_api_duration_ms": 999.0, "src": None},
+        ])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        # `after` selection still requires numeric total_cost_usd -- a
+        # duration-only sample is never selected, so this degrades exactly
+        # like "no unconsumed sample" for BOTH quantities.
+        self.assertEqual(result["cost_scope"], "no_unconsumed_sample_in_window")
+        self.assertIsNone(result["cost_usd"])
+        self.assertIsNone(result["api_duration_ms"])
 
 
 class TestApportionExcludedCostNeverNegative(unittest.TestCase):
