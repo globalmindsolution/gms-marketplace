@@ -1,6 +1,6 @@
 ---
 name: usage
-description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg cost, avg tokens, avg working time, avg duration per PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state. Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
+description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg working time per ticket, avg working time per merged PR, avg cost per ticket, avg cost per merged PR), and token burn plus a derived (never measured) api-duration figure by role (planner / executor / verifier / coordinator) — all derived from existing workspace state. Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
 ---
 
 You are the coordinator of `/acs:usage`, the acs tool-usage and spend dashboard.
@@ -38,7 +38,7 @@ in-band (`meta.degraded`), never an error code. Its stdout is one JSON object:
   "panels": {
     "1": …, "2": …, "3": …, "4": …, "5": …, "6": …, "7": …,
     "delivery_summary": …, "issues": …, "progress": …, "deadline": …,
-    "usage_summary": …
+    "usage_summary": …, "usage_by_model": …, "usage_by_ticket": …, "test_runs": …
   },
   "meta": { "generated_at": …, "repo_id": …, "ticket_count": …, "degraded": [ … ] }
 }
@@ -81,27 +81,40 @@ The usage view renders exactly five panels:
    working time across all tickets in the workspace.
 3. **Cost and time per ticket by pipeline step** — per-ticket rows broken down by
    pipeline step (working time and spend), with the four per-ticket / per-PR
-   averages: avg cost, avg tokens, avg working time, avg duration per PR.
+   averages: avg working time per ticket, avg working time per merged PR, avg
+   cost per ticket, avg cost per merged PR.
 6. **Token burn by role** — input/output tokens and cost bucketed into the four
    roles planner / executor / verifier / coordinator, plus any dynamic
    `other`/`unattributed` extras present in the data. Each role's bucket also
    carries a token-share and a cost-share percentage — of the repo-wide total
    here, and again at per-ticket scope in the "Usage by ticket" panel below —
    with the cost-share cell rendering the literal `unavailable` (never `no
-   data`) on a bucket with no measured cost.
-7. **Usage by model** — input, output, cache-write, and cache-read tokens and
-   cost per model, at both repo scope and per ticket. Its cost pool is the
-   run's full charged delta with no unattributed-token exclusion, so
-   `sum(model_usage.cost_usd)` can exceed panel 6's attributed-only total by
-   `excluded_cost_usd` — a documented reconciliation identity, not a bug.
-8. **Usage by ticket** — a per-ticket role-share table: input, output,
-   cache-write, and cache-read tokens and cost per role, for each ticket in
-   the workspace, plus each role's token-share and cost-share percentage of
-   that ticket's own total. Mirrors panel 7's per-role breakdown style but
-   scoped to one ticket rather than repo-wide; a role with no measured cost in
-   that ticket renders `no data` for its cost cell and `unavailable` for its
-   cost-share cell, independent of any sibling role's measured cost in the
-   same ticket.
+   data`) on a bucket with no measured cost. Each role's bucket also carries an
+   **api duration** figure, `~`-marked and captioned as a **derived
+   approximation** (transcript inter-record timestamp gaps, capped at 60s —
+   ADR 0084), rendering the literal `unavailable` (never `0s`) when no gap was
+   attributable. Repo scope only — the "Usage by ticket" panel below carries no
+   duration column.
+
+**`usage_by_model`** — **Usage by model** — input, output, cache-write, and
+cache-read tokens and cost per model, at both repo scope and per ticket. Its
+cost pool is the run's full charged delta with no unattributed-token
+exclusion, so `sum(model_usage.cost_usd)` can exceed panel 6's
+attributed-only total by `excluded_cost_usd` — a documented reconciliation
+identity, not a bug.
+
+**`usage_by_ticket`** — **Usage by ticket** — a per-ticket role-share table:
+input, output, cache-write, and cache-read tokens and cost per role, for each
+ticket in the workspace, plus each role's token-share and cost-share
+percentage of that ticket's own total. Distinguished from `usage_by_model`
+above by both scope (per-ticket rather than repo-wide) and dimension (a
+per-**role** breakdown, not per-model); a role with no measured cost in that
+ticket renders `no data` for its cost cell and `unavailable` for its
+cost-share cell, independent of any sibling role's measured cost in the same
+ticket. `usage_by_model` and `usage_by_ticket` are **string** panel keys, not
+numbered panel indices, so they are listed here without a number to avoid
+colliding with real numbered panels (e.g. panel `"7"` is "Lead + cycle time
+per ticket", a PM-only panel not shown in this view).
 
 PM-only panels (delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS,
 DEADLINE, coverage achieved vs target, review iterations, lead/cycle time) are

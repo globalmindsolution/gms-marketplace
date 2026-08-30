@@ -182,7 +182,11 @@ no network call:
   `other`/`unattributed` appear whenever the ticket has any such spend),
   each bucket additionally showing its repo-scope **token-share** and
   **cost-share** percentage of panel 6's own totals (`token_share_pct`/
-  `cost_share_pct`, computed once after all runs are summed),
+  `cost_share_pct`, computed once after all runs are summed), plus a
+  repo-scope **api duration** figure (`~`-marked, graceful "unavailable"
+  degradation when no gap was attributable) derived from transcript
+  inter-record timestamp gaps — a disclosed **derived approximation, not a
+  measurement**, of API wait per role (ADR 0084),
   and usage by model — input/output/cache-write/cache-read tokens and cost
   per model, at both repo and per-ticket scope. Its cost figure apportions
   the run's full charged delta by token share with no unattributed

@@ -48,19 +48,20 @@ sequenceDiagram
     Post->>WS: finalize_run reads runs[-1] (session_id, transcript_path, checkout_id, started_at)
     alt run entry has no session_id or transcript_path
         Post->>Post: short-circuit -- no transcript I/O (new-ticket.py's synthetic create-ticket runs land here)
-        Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
+        Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[], role_duration=[]
     else session_id and transcript_path present
         Post->>UR: read_transcript_usage(transcript_path, started_at, ended_at, skill)
         UR->>TR: stream the exact transcript_path, then a recursive walk of dirname(transcript_path)/<session_id>/subagents/*.jsonl (never a constructed slug, never *.meta.json)
         TR-->>UR: message.usage (4 integer fields) + model + timestamp + attributionSkill/attributionAgent, in-window records only
         alt transcript unreadable, cap breached (32 MiB / 64 files), empty window, or zero real tokens resolved
-            UR-->>Post: {degraded: true, reason, role_usage: [], model_usage: []}
-            Post->>WS: tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
+            UR-->>Post: {degraded: true, reason, role_usage: [], model_usage: [], role_duration: []}
+            Post->>WS: tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[], role_duration=[]
         else at least one in-window usage record
-            UR-->>Post: {degraded: false, role_usage: [{role, input, output, cache_creation, cache_read}, ...], model_usage: [{model, input, output, cache_creation, cache_read}, ...], excluded_token_share}
+            UR->>UR: fold each token-bearing record's capped gap since its immediate predecessor into duration_totals by role, in the same pass (MAR-5, ADR 0084)
+            UR-->>Post: {degraded: false, role_usage: [{role, input, output, cache_creation, cache_read}, ...], model_usage: [{model, input, output, cache_creation, cache_read}, ...], role_duration: [{role, api_duration_ms, duration_basis}, ...], excluded_token_share}
             Post->>Post: sum role_usage into raw tokens.{input,output,cache_creation,cache_read}
             alt run entry has no checkout_id
-                Post->>WS: persist measured tokens/role_usage/model_usage, cost_usd=null, cost_basis="unavailable" (no checkout_id to locate the cost-sample/cursor files)
+                Post->>WS: persist measured tokens/role_usage/model_usage, cost_usd=null, cost_basis="unavailable", role_duration=derived list (duration is transcript-only -- unlike cost_usd it needs no checkout_id, MAR-5)
             else checkout_id present
                 Post->>CS: allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage, model_usage)
                 CS->>WS: read cost-cursor.json (default {ts: null, total_cost_usd: 0.0} if absent) and cost-samples.jsonl
@@ -76,7 +77,7 @@ sequenceDiagram
                     CS->>WS: advance cursor to after
                     CS-->>Post: (role_usage apportioned, model_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
                 end
-                Post->>WS: persist tokens, role_usage, model_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
+                Post->>WS: persist tokens, role_usage, model_usage, role_duration, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share
             end
         end
     end
@@ -98,15 +99,15 @@ sequenceDiagram
     CC->>Usage: expand skill, run coordinator
     Usage->>Agg: python3 metrics_aggregate.py
     Agg->>WS: read pipeline-state.json + <skill>-state.json runs, per ticket
-    WS-->>Agg: run entries -- tokens, role_usage, model_usage, cost_usd or null, cost_basis, cost_scope
+    WS-->>Agg: run entries -- tokens, role_usage, model_usage, role_duration, cost_usd or null, cost_basis, cost_scope
     Agg->>Agg: elapsed_seconds via acs_lib -- None renders "no data", never 0
     Agg->>Agg: sum totals excluding cost_basis != measured/apportioned and None-elapsed runs, divide by runs_timed / runs_cost_measured, never by runs
-    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3)
-    Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope role shares into the new usage_by_ticket panel (MAR-4)
-    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus usage_by_ticket plus meta.degraded entries
+    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3), and every role_duration entry into panel 6's api_duration_ms by role, repo scope only -- least-precise-wins across duration_basis, zero extra file reads (MAR-5)
+    Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope role shares into the new usage_by_ticket panel (MAR-4) -- usage_by_ticket's role items gain no duration keys (repo scope only, MAR-5)
+    Agg-->>Usage: aggregate JSON -- panels 1-7 (panel 6 now 9 keys per bucket, incl. api_duration_ms/duration_basis) plus usage_by_model plus usage_by_ticket plus meta.degraded entries
     Usage->>Render: pipe JSON, render the requested view
-    Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data"
-    Render-->>Usage: self-contained HTML
+    Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data" -- _fmt_api_duration renders a ~-marked humanized duration when derived, else UNAVAILABLE -- never "0s" (MAR-5, ADR 0084)
+    Render-->>Usage: self-contained HTML, panel 6 carries the api duration column and a fixed derived-approximation caption
     Usage-->>PM: show_widget -- dashboard with basis-labeled figures and a degraded summary
 ```
 
@@ -158,7 +159,14 @@ recorded file plus a recursive walk of its `subagents/` subtree — never a
 `*.meta.json` sidecar, since only `*.jsonl` paths are ever enumerated — and
 returns per-role token buckets or a degraded reason. `usage_reader` now
 buckets by model as well as by role (`model_usage`, parallel to
-`role_usage`, MAR-3); `cost_sampler.allocate_cost` apportions the same
+`role_usage`, MAR-3), and additionally derives a per-role `role_duration`
+list in the same single pass (MAR-5, ADR 0084): each token-bearing record
+is credited the gap since its immediate predecessor, capped at
+`MAX_RECORD_GAP_SECONDS = 60`, so `api_duration_ms` is always a DERIVED
+upper bound on API wait, never a measurement -- a role with no attributable
+gap publishes `null`, never `0`. Unlike `cost_usd`, duration needs no
+`checkout_id`, so it is persisted on that exit path too.
+`cost_sampler.allocate_cost` apportions the same
 session-window delta across both dimensions independently — the
 role-scoped figure stays attributed-only, while the model-scoped figure is
 full-delta with no unattributed exclusion (D1.2 Option A). It also
@@ -188,3 +196,12 @@ accumulation loop — never persisted, always recomputed on the next read;
 `usage_by_ticket` (MAR-4) similarly derives each role's ticket-scope share
 from the same per-ticket `role_usage` rows panel 6 already sums, so it
 reports a different (ticket-local) denominator, not a conflicting figure.
+Panel 6 additionally folds each run entry's `role_duration` into
+`api_duration_ms` by role, repo scope only (MAR-5) -- `usage_by_ticket` and
+panel 3 gain no duration keys, since they build from a different bucket
+literal than the one MAR-5 widens. A bucket's `duration_basis` demotes to
+its least-precise contributor; a bucket that never folds a numeric value
+keeps `null`/`"unavailable"`, never a fabricated `0`. `metrics_render.py`
+renders this as one appended `api duration` column, `~`-marked when
+derived, plus a fixed caption on both surfaces disclosing the derivation
+and the 60s cap -- see ADR 0084.

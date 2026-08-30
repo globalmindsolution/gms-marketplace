@@ -23,6 +23,7 @@ erDiagram
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
     RUN_ENTRY ||--o{ MODEL_USAGE : "measured token/cost breakdown by model (MAR-3)"
+    RUN_ENTRY ||--o{ ROLE_DURATION : "derived per-role API-duration breakdown, parallel to ROLE_USAGE (MAR-5, ADR 0084)"
     SESSION_MARKER ||--o| RUN_ENTRY : "read at skill-start, threaded onto the new entry (MAR-1)"
     RUN_ENTRY }o--o{ COST_SAMPLE : "cost consumed from the log via the cursor (MAR-1)"
     COST_CURSOR ||--|| COST_SAMPLE : "advances to the newest consumed sample (MAR-1)"
@@ -101,6 +102,11 @@ erDiagram
         int cache_read
         number cost_usd "full-delta apportioned share, no unattributed exclusion, D1.2 Option A; null when unavailable (MAR-3)"
         enum cost_basis "measured|apportioned|unavailable (MAR-3)"
+    }
+    ROLE_DURATION {
+        string role
+        number api_duration_ms "DERIVED, never measured; null when no gap was attributable to this role (never 0) (MAR-5, ADR 0084)"
+        enum duration_basis "measured|apportioned|derived|unavailable -- only derived/unavailable are producible today (MAR-5, ADR 0084)"
     }
     SESSION_MARKER {
         string checkout_id PK "sessions/<checkout_id>-session.json, sibling of SESSION_POINTER (MAR-1)"
@@ -261,6 +267,17 @@ since the plan phase runs exactly once) and carries **no** `PLAN_APPROVAL` /
 the cardinality change is captured entirely by the narrowed `PHASE_ARTIFACT`
 relationship label above. Zero migration: no new state key, no new schema
 field, no new artifact path.
+
+**Amendment (MAR-5, ADR 0084).** Per-role API-duration breakdown: the
+`RUN_ENTRY` entity gains a `ROLE_DURATION` breakdown, parallel to and
+independent of `ROLE_USAGE` (`role_usage`'s shape is unchanged). Unlike
+`ROLE_USAGE`/`MODEL_USAGE`, `role_duration.api_duration_ms` is never a
+measurement: it is derived from transcript inter-record timestamp gaps,
+capped at `MAX_RECORD_GAP_SECONDS = 60` (ADR 0084), so `duration_basis` is
+always `"derived"` or `"unavailable"` — never `"measured"`. A role with no
+attributable gap publishes `null`, never `0`. Additive: `role_duration` is
+simply absent on any run entry finalized before this shipped (forward-only,
+no backfill, same pattern as `role_usage`'s MAR-1 rollout).
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 

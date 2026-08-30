@@ -312,6 +312,22 @@ after all runs are summed. A bucket with no measured cost renders
 entry (a different, run-level fact about how that run's cost was priced, not
 a share computation).
 
+Each bucket also carries an **api duration** column, folded from each run
+entry's `role_duration` list (`metrics_aggregate._accumulate_burn`,
+persisted by `finalize_run` via `usage_reader`, MAR-5, ADR 0084). Unlike
+`role_usage`'s token/cost figures, this figure is **never a measurement**:
+`usage_reader` derives it from transcript inter-record timestamp gaps,
+crediting each token-bearing record the gap since its immediate
+predecessor and capping any single gap at `MAX_RECORD_GAP_SECONDS = 60`
+seconds — it is an upper bound on real API wait that can still include
+local tool or idle time. The rendered cell is prefixed **`~`** to mark it a
+derived approximation, and a bucket with no attributable gap (`api_duration_ms`
+is `null`, `duration_basis` is `"unavailable"`) renders the same
+**"unavailable"** literal as an unmeasured cost % cell, never a fabricated
+`"0s"`. A fixed caption below the panel-6 table, on both the terminal and
+HTML surfaces, discloses the derivation and the 60s cap. See ADR 0084 for
+the full methodology and the empirical basis for the cap constant.
+
 ### usage_by_model — Usage by model
 
 Input, output, cache-write, and cache-read tokens and cost per model, at
