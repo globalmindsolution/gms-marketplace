@@ -253,7 +253,11 @@ growth path.
   split from `acs:metrics`: reads workspace artifacts and renders cost, token,
   and time usage (AI spend) per ticket/run/role/model — including a per-model
   token/cost breakdown, per ticket and repo-level, and each role's
-  token-share/cost-share percentage of the ticket's and repo's total — distinct
+  token-share/cost-share percentage of the ticket's and repo's total, and, per
+  run/ticket/skill, the API-duration figure alongside existing wall-clock time
+  (mirroring Claude Code's own `/usage` "Total duration (API)" vs "Total
+  duration (wall)" split), with graceful "unavailable" degradation when no
+  statusLine sample exists — distinct
   from `acs:metrics`'s delivery-KPI focus (throughput, funnel, coverage, review
   iterations). The two
   dashboards partition **delivery KPIs** (`acs:metrics`) from **AI-spend
