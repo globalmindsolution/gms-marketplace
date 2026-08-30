@@ -869,6 +869,55 @@ class TestApiDurationSampling(unittest.TestCase):
         self.assertIsNone(result["cost_usd"])
         self.assertIsNone(result["api_duration_ms"])
 
+    # -- test 14: negative duration_delta (regression without a cost reset)
+    # must degrade to unavailable, never a negative or silently-clamped value.
+    def test_duration_regression_without_cost_reset_marks_duration_unavailable_never_negative(self):
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 1.0,
+                         "total_api_duration_ms": 2000.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 2.0,
+             "total_api_duration_ms": 500.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [
+            {"role": "coordinator", "input": 100, "output": 100, "cache_creation": 0, "cache_read": 0},
+            {"role": "executor", "input": 100, "output": 100, "cache_creation": 0, "cache_read": 0},
+        ]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        # duration_delta = 500.0 - 2000.0 == -1500.0 (unpatched, this would
+        # apportion -750.0 to each role below) while cost is legitimately
+        # increasing (delta = 2.0 - 1.0 == 1.0), so cost_total_reset never fires.
+        self.assertEqual(result["cost_basis"], "measured")
+        self.assertAlmostEqual(result["cost_usd"], 1.0)
+        self.assertIsNone(result["api_duration_ms"])
+        self.assertEqual(result["api_duration_basis"], "unavailable")
+        self.assertEqual(result["api_duration_scope"], "duration_unavailable_on_cursor")
+        for r in result["role_usage"]:
+            self.assertIsNone(r["api_duration_ms"])
+            self.assertEqual(r["api_duration_basis"], "unavailable")
+        # The cursor's duration field still advances to the new sample's value.
+        self.assertEqual(self._cursor()["total_api_duration_ms"], 500.0)
+
+    # -- test 15: duration_delta == 0 is the guard's >= 0 boundary -- still a
+    # real measurement, never treated as a regression. --------------------------
+    def test_zero_duration_delta_still_apportions_normally_not_treated_as_regression(self):
+        lib.write_json(cost_sampler.cost_cursor_path(self.workspace, self.repo_id, self.ckid),
+                        {"ts": "2026-08-25T05:50:00Z", "total_cost_usd": 1.0,
+                         "total_api_duration_ms": 500.0})
+        _write_samples(self.workspace, self.repo_id, self.ckid, [
+            {"ts": "2026-08-25T06:00:00Z", "total_cost_usd": 2.0,
+             "total_api_duration_ms": 500.0, "src": "total_cost_usd"},
+        ])
+        role_usage = [{"role": "executor", "input": 1, "output": 0, "cache_creation": 0, "cache_read": 0}]
+        result = cost_sampler.allocate_cost(
+            self.workspace, self.repo_id, self.ckid,
+            "2026-08-25T05:55:00Z", "2026-08-25T06:05:00Z", role_usage)
+        self.assertEqual(result["api_duration_basis"], "apportioned")
+        self.assertEqual(result["api_duration_scope"], "session_total")
+        self.assertEqual(result["api_duration_ms"], 0.0)
+
 
 class TestApportionExcludedCostNeverNegative(unittest.TestCase):
     """_apportion's excluded_cost_usd must never go negative on an

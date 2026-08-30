@@ -324,7 +324,11 @@ def _apportion_duration(role_usage, duration_delta):
     item (design.md C-6, "identical mechanism" as cost). The caller
     (allocate_cost) derives the top-level attributed api_duration_ms from
     the excluded_token_share already computed by the cost-side _apportion
-    call, not from summing this function's own per-item output."""
+    call, not from summing this function's own per-item output. Callers must
+    guarantee duration_delta >= 0 -- mirroring _apportion's own delta >= 0
+    precondition, enforced by allocate_cost's guard before this function is
+    ever called; this function performs no internal clamp, exactly as
+    _apportion's own per-item cost_usd does not."""
     total_tokens = sum(_tokens(entry) for entry in role_usage)
     if total_tokens <= 0:
         return _unavailable_role_usage(role_usage, "api_duration_ms", "api_duration_basis")
@@ -466,6 +470,10 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
 
     if cursor_duration is not None and after_duration is not None:
         duration_delta = after_duration - cursor_duration
+    else:
+        duration_delta = None
+
+    if duration_delta is not None and duration_delta >= 0:
         role_usage_with_duration = _apportion_duration(role_usage_with_cost, duration_delta)
         api_duration_ms = max(0.0, duration_delta * (1 - excluded_token_share))
         api_duration_basis = "apportioned"
