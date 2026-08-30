@@ -2,9 +2,12 @@
 
 Prose-contract unit tests for the canonical "Design-time doc-consistency step
 (ADR 0012)" block, transcribed byte-identically into the planner phase of all
-six design-producing skills' planner agents, plus the C-1 verifier-dimension
-expansion (create-quality-verifier.md / create-operations-verifier.md) and the
-doc tail (ADR 0012 status flip, CHANGELOG bullet, skills.md notes).
+eight producer skills' planner agents (6 at MAR-115; +1 after MAR-156 deleted
+create-spec; +3 once create-principles/create-standards/create-requirements
+were built and MAR-167 widened this set to cover them, correcting a prior
+arbitrary 5-of-8 subset), plus the C-1 verifier-dimension expansion
+(create-quality-verifier.md / create-operations-verifier.md) and the doc tail
+(ADR 0012 status flip, CHANGELOG bullet, skills.md notes).
 
 Stdlib-only (hashlib, os, re, unittest), mirroring the bounded-window
 `section()` helper from tests/acs/test_initialize_quality_path.py and the
@@ -36,6 +39,9 @@ PLANNERS = [
     "create-design-planner.md",
     "create-quality-planner.md",
     "create-operations-planner.md",
+    "create-principles-planner.md",
+    "create-standards-planner.md",
+    "create-requirements-planner.md",
 ]
 
 NEW_VERIFIERS = ["create-quality-verifier.md", "create-operations-verifier.md"]
@@ -80,10 +86,13 @@ def verifier_path(name):
 
 
 class Mar115CanonicalBlockCase(unittest.TestCase):
-    """Fixture: read all five planners once, extract the canonical block.
+    """Fixture: read all 8 producer planners once, extract the canonical block.
 
-    create-spec-planner.md was one of the original six; MAR-156 deletes
-    create-spec outright, so it is no longer part of this set."""
+    History: 6 at MAR-115 -> 5 after MAR-156 deleted create-spec outright ->
+    8 now that create-principles/create-standards/create-requirements exist
+    and MAR-167 widened PLANNERS to cover them. Per ADR-0012's Reconciling-
+    DR-2 amendment, all 8 producer planners that carry the canonical block
+    are pinned byte-identical here — not an arbitrary subset."""
 
     @classmethod
     def setUpClass(cls):
@@ -92,8 +101,8 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
         for name, body in cls.bodies.items():
             cls.blocks[name] = section(body, CANONICAL_HEADING)
 
-    # AC-1: presence in all five planners
-    def test_ac1_canonical_block_present_in_all_six_planners(self):
+    # AC-1: presence in all 8 planners
+    def test_ac1_canonical_block_present_in_all_planners(self):
         for name in PLANNERS:
             with self.subTest(planner=name):
                 self.assertIn(
@@ -101,8 +110,8 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
                     "%s missing the canonical ADR-0012 doc-consistency block" % name,
                 )
 
-    # AC-2: cross-five md5 identity of the extracted block
-    def test_ac2_canonical_block_is_md5_identical_across_all_six(self):
+    # AC-2: cross-8 md5 identity of the extracted block
+    def test_ac2_canonical_block_is_md5_identical_across_all_planners(self):
         digests = {
             name: hashlib.md5(block.encode("utf-8")).hexdigest()
             for name, block in self.blocks.items()
