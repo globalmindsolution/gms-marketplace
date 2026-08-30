@@ -80,6 +80,9 @@ erDiagram
         enum cost_scope "session_total|main_session_only on a charge; reused as the degraded reason (no_unconsumed_sample_in_window|cost_total_reset) when cost_usd is null (MAR-1)"
         number excluded_cost_usd "the unattributed same-window slice dropped per C-8, never redistributed (MAR-1)"
         number excluded_token_share "0..1 (MAR-1)"
+        number api_duration_ms "null means api_duration_basis=unavailable, never a fabricated 0 (MAR-6)"
+        enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
+        enum api_duration_scope "session_total|main_session_only|no_unconsumed_sample_in_window|cost_total_reset|duration_unavailable_on_cursor -- the last value has no cost_scope analogue (MAR-6)"
         enum status "in_progress|completed|failed|interrupted|handed_off"
         string stop_reason
         string handoff_summary "when handed_off"
@@ -92,6 +95,8 @@ erDiagram
         int cache_read
         number cost_usd "null on an unattributed entry, which never receives a dollar share (MAR-1)"
         enum cost_basis "measured|apportioned|unavailable (MAR-1)"
+        number api_duration_ms "null on an unattributed entry, which never receives a duration share (MAR-6)"
+        enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
     }
     MODEL_USAGE {
         string model "message.model, or the literal string unknown (MAR-3)"
@@ -116,17 +121,20 @@ erDiagram
         datetime ts
         number total_cost_usd "session-cumulative, monotonic barring a session reset"
         string src "the matched probe key path, e.g. cost.total_cost_usd"
+        number total_api_duration_ms "session-cumulative, independently nullable from total_cost_usd -- a sample is written when EITHER quantity is found (MAR-6)"
+        string duration_src "the matched probe key path, e.g. cost.total_api_duration_ms (MAR-6)"
     }
     COST_CURSOR {
         string checkout_id PK "sessions/<checkout_id>-cost-cursor.json -- the 'before' edge for the next allocate_cost call (MAR-1)"
         datetime ts
         number total_cost_usd
+        number total_api_duration_ms "one shared cursor file tracks both quantities -- D3 Option A, not a second cursor file (MAR-6)"
     }
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
         json steps "per-skill status/timestamps/summary"
-        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1)"
+        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1); api_duration_ms, runs_api_duration_measured, runs_api_duration_unavailable (three counters additive since MAR-6, mirroring the cost counters' rule)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
     CLARIFICATIONS {
@@ -247,6 +255,23 @@ attributed-only total by `excluded_cost_usd` — a named, testable
 reconciliation identity, not a bug. Additive: `model_usage` is simply
 absent on any run entry finalized before this shipped (forward-only, no
 backfill, same pattern as `role_usage`'s MAR-1 rollout).
+
+**Amendment (MAR-6, ADR 0082 amendment).** API-duration sampling/persistence
+backend: the `RUN_ENTRY` entity gains `api_duration_ms`/`api_duration_basis`/
+`api_duration_scope`, apportioned across `ROLE_USAGE` by the identical
+token-share mechanism as `cost_usd` (D3/C-6); `COST_SAMPLE` and `COST_CURSOR`
+each widen to also carry `total_api_duration_ms` (plus `duration_src` on
+`COST_SAMPLE`) — one shared cursor file tracks both quantities (D3 Option A),
+not a second cursor file; `PIPELINE_STATE.totals` gains three counters,
+`api_duration_ms`/`runs_api_duration_measured`/`runs_api_duration_unavailable`,
+mirroring the existing cost counters' rule. Additive throughout: no
+previously valid `RUN_ENTRY`/`COST_SAMPLE`/`COST_CURSOR`/`PIPELINE_STATE`
+document becomes invalid, and the new fields are simply absent on any run
+finalized before this shipped (forward-only, no backfill, same pattern as
+MAR-1's/MAR-3's rollouts). This capability is not yet surfaced by
+`/acs:usage`'s rendered output — MAR-6 is Seam B1 of a 2-way split
+(MAR-5 → MAR-6 + MAR-7); MAR-7 is the sibling ticket that consumes these
+fields in the rendered view.
 
 **Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
 `/acs:create-standards`'s, `/acs:create-operations`'s, and

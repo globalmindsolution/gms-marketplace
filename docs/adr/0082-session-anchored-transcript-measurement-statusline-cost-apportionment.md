@@ -234,3 +234,71 @@ to contain the literal string `<metrics` by design.
   degrades loudly (`degraded=true` with a reason) rather than silently
   reporting zero — the same failure mode ADR 0026's cwd-slug defect proved
   was otherwise invisible.
+
+## Amendment - MAR-6
+
+**Date**: 2026-08-30 · **Status**: Accepted (append-only — Context/Decision/
+Consequences above are unedited, following the same pattern as this ADR's
+own `docs/adr/0012-design-time-doc-consistency.md:75-152` precedent)
+
+MAR-6 (Seam B1 of epic MAR-5's split, itself a split of the original epic
+this ADR's own MAR-1/MAR-3/MAR-4 lineage traces to; design: `MAR-2/design.md`
+D3) widens the cost-sampling/allocation mechanism this ADR's Decision §4
+establishes to a second, independently-tracked quantity:
+`total_api_duration_ms`.
+
+1. **Sampling widens to a second quantity via the same shape-agnostic probe
+   mechanism.** `record_cost_sample` (`cost_sampler.py:235-256`) now writes
+   `{ts, total_cost_usd, src, total_api_duration_ms, duration_src}` — the
+   `total_api_duration_ms` value is probed independently by
+   `_extract_api_duration` (`cost_sampler.py:128-149`), an exact structural
+   mirror of the existing `_extract_total_cost` (`cost.total_api_duration_ms`,
+   `cost.total_api_duration`, `total_api_duration_ms`, then the same
+   depth-≤3 recursive scan generalized to a caller-supplied key regex). The
+   one behavioral change to the sampling side: a sample is now written when
+   **either** quantity is found — only when both are absent does
+   `record_cost_sample` remain a no-op — so a duration-only payload no
+   longer silently produces zero samples forever.
+
+2. **The no-double-charge structural argument (Decision §4) now covers both
+   quantities via one shared cursor file**, not two. `<ckid>-cost-cursor.json`
+   widens to `{ts, total_cost_usd, total_api_duration_ms}`; `allocate_cost`
+   (`cost_sampler.py:370-497`) computes both deltas from the same selected
+   `after` sample and advances the cursor once, in one `write_json` call —
+   the identical atomicity argument this ADR's Decision §4 already makes for
+   cost extends unchanged to duration, with no new reasoning required
+   (design.md D3 Option A). This amendment's own explicit addition is the
+   **coupled-degradation rule**: a missing/non-numeric
+   `total_api_duration_ms` on either edge (the selected `after` sample, or
+   the persisted cursor) makes duration `"unavailable"` for that charge only
+   — cost is computed exactly as before, unaffected
+   (`api_duration_scope = "duration_unavailable_on_cursor"`,
+   `cost_sampler.py:471-486`, no cost-side analogue since cost's own cursor
+   always defaults to `0.0`, never `"unavailable"`). A cost-reset branch
+   (`delta < 0`) marks **both** quantities unavailable for that charge,
+   reusing the shared reason (`cost_scope`/`api_duration_scope =
+   "cost_total_reset"`, `cost_sampler.py:453-462`) — deliberately
+   conservative, since a session-cost counter reset is evidence the whole
+   statusLine counter set may have restarted. Per-role apportionment
+   (`api_duration_ms`/`api_duration_basis` on `role_usage`) reuses the
+   identical mechanism as cost — same `total_tokens` denominator, same
+   `UNATTRIBUTED_ROLE` exclusion, same proportional-share formula
+   (`_apportion_duration`, `cost_sampler.py:319-347`, a structural twin of
+   `_apportion`).
+
+3. **Residual assumption carried forward, not a fact.**
+   `cost.total_api_duration_ms`'s real statusLine payload shape could not be
+   live-captured from within MAR-2's design task (no control over the
+   process invoking the `statusLine` hook). Verification instead rests on
+   Claude Code's own official documentation
+   (`https://code.claude.com/docs/en/statusline`: *"cost.total_api_duration_ms
+   | Total time spent waiting for API responses in milliseconds"*,
+   documented as a sibling of `total_cost_usd`/`total_duration_ms` in the
+   same `cost` object) plus the fact that the identical shape-agnostic-probe
+   mechanism this amendment reuses is already proven live in this repo
+   against real `total_cost_usd` samples. If the field is ever absent or
+   differently shaped in a real payload, the mechanism degrades to
+   `"unavailable"` — the same discipline `_extract_total_cost` already
+   applies to cost — never a fabricated or zero-padded figure. See
+   `MAR-2/design.md`'s Context & constraints section (C-7) for the full
+   assumption record.
