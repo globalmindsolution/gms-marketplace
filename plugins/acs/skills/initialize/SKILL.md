@@ -556,10 +556,12 @@ merge. Skip the whole step on a plain "no".
 Be honest about what this is. The CI check is **necessary but not sufficient**:
 branch name and PR title are observable conventions, but the proof that work
 actually went through the pipeline (the ticket, specs, TDD) lives in the
-workspace OUTSIDE the repo, which CI cannot see. So this makes the conventions
-**mandatory to merge** (raising the floor), and the real gate is **a required
-status check on a protected default branch**. Explain that before configuring
-anything.
+gitignored `.acs/state-machine` state root — inside the repo by default now,
+but CI cannot see it because it is gitignored (an explicit `workspace_path`
+override can still point it outside the repo entirely). So this makes the
+conventions **mandatory to merge** (raising the floor), and the real gate is
+**a required status check on a protected default branch**. Explain that before
+configuring anything.
 
 ### Precondition — conventions must be committed
 
@@ -949,7 +951,7 @@ landed in (or "default — not written" for untouched defaults), e.g.:
 
 | Key | Value | Written to |
 |-----|-------|------------|
-| `workspace_path` | `/Users/jane/acs-workspace` | `<repo>/.acs/settings.local.json` |
+| `workspace_path` | `<repo>/.acs/state-machine` (in-repo default) | default — not written |
 | `ticket_prefix` | `SHOP` | `<repo>/.acs/settings.json` |
 | `test_coverage_percent` | `90` | default — not written |
 | `enforcement` (CI) | checks on; gate via required check | `<repo>/.acs/settings.json` + `.github/workflows/acs-conventions.yml` |

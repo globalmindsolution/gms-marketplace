@@ -75,6 +75,7 @@ class Mar4InitStateRootCase(unittest.TestCase):
         cls.step5 = section(cls.body, "## Step 5")
         cls.step6 = section(cls.body, "## Step 6")
         cls.step7c = section(cls.body, "## Step 7c")
+        cls.step8 = section(cls.body, "## Step 8")
 
     # --- 1: Step 3 drops the must-ask/outside-repo validator ---
 
@@ -214,6 +215,62 @@ class Mar4InitStateRootCase(unittest.TestCase):
             self.body.index("migrate_workspace.py"), step7_idx,
             msg="the migration sub-step must land after Step 6 and before "
                 "Step 7 (AC1)",
+        )
+
+    # --- iter-1 docs-sync finding 1: Step 7c rationale no longer claims the
+    # state lives "OUTSIDE the repo" (it now lives in the gitignored in-repo
+    # .acs/state-machine root by default; only an override points outside) ---
+
+    def test_step7c_rationale_no_longer_says_workspace_outside_the_repo(self):
+        self.assertNotIn(
+            "workspace OUTSIDE the repo", self.step7c,
+            msg="Step 7c's CI-enforcement rationale must no longer claim the "
+                "pipeline proof lives in a workspace OUTSIDE the repo — the "
+                "in-repo .acs/state-machine default replaced that model "
+                "(iter-1 docs-sync finding 1)",
+        )
+        self.assertNotIn(
+            "OUTSIDE the repo, which CI cannot see", self.step7c,
+            msg="the exact stale phrase pinned pre-MAR-4 must not remain in "
+                "Step 7c (iter-1 docs-sync finding 1)",
+        )
+        self.assertIn(
+            "gitignored", self.step7c,
+            msg="Step 7c must attribute CI-invisibility to the state root "
+                "being gitignored, not to it being outside the repo "
+                "(iter-1 docs-sync finding 1)",
+        )
+        self.assertIn(
+            "CI cannot see", self.step7c,
+            msg="the underlying functional point (CI cannot see the pipeline "
+                "proof) must still be made, only the location description "
+                "changes (iter-1 docs-sync finding 1)",
+        )
+
+    # --- iter-1 docs-sync finding 2: Step 8's worked-example table no longer
+    # implies workspace_path is always resolved to an outside-repo-style path
+    # and always written to settings.local.json ---
+
+    def test_step8_example_no_longer_implies_workspace_path_always_written(self):
+        m = re.search(r"(?m)^\| `workspace_path` \|.*\|\s*$", self.step8)
+        self.assertIsNotNone(
+            m, "Step 8's worked-example table must still carry a "
+               "`workspace_path` row"
+        )
+        row = m.group(0)
+        self.assertNotIn(
+            "/Users/jane/acs-workspace", row,
+            msg="the workspace_path example row must no longer show a "
+                "literal outside-repo-style path as if it were always "
+                "resolved (iter-1 docs-sync finding 2)",
+        )
+        self.assertIn(
+            "default", row.lower(),
+            msg="the workspace_path example row must reflect that the "
+                "in-repo default is the common case (either the "
+                "'default — not written' pattern used by "
+                "test_coverage_percent, or a one-line override-only note) "
+                "(iter-1 docs-sync finding 2)",
         )
 
     # --- 7: AC2 regression pin ---
