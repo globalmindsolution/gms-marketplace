@@ -388,5 +388,55 @@ class WorktreeLifecycleTest(unittest.TestCase):
             "the D3.2(ii) session-checkout paragraph must remain cited")
 
 
+class WorktreeTimingDocConsistencyTest(unittest.TestCase):
+    """finding 2 (iter-2-verify.md:11-18, :22-24): a repo-wide scan for the
+    worktree-entry-timing contradiction, not another scoped grep -- the
+    antidote to the failure mode where a 4-file grep missed the 5th site."""
+
+    ONLY_AT_DELIVERY_RE = re.compile(r"(?i)enter\w*[^.]{0,80}only at[^.]{0,60}Delivery")
+    BRANCH_TIMING_RE = re.compile(
+        r"(?i)enter\w*[^.]{0,120}worktree[^.]{0,120}Branch[^.]{0,120}"
+        r"|Branch[^.]{0,120}enter\w*[^.]{0,120}worktree[^.]{0,120}")
+
+    @staticmethod
+    def _md_files():
+        files = []
+        for base in (os.path.join(REPO_ROOT, "docs"), os.path.join(REPO_ROOT, "plugins")):
+            for root, _dirs, names in os.walk(base):
+                for name in names:
+                    if name.endswith(".md"):
+                        files.append(os.path.join(root, name))
+        return files
+
+    def test_no_doc_claims_the_worktree_is_entered_only_at_delivery(self):
+        offenders = []
+        for path in self._md_files():
+            body_norm = norm(read(path))
+            m = self.ONLY_AT_DELIVERY_RE.search(body_norm)
+            if m:
+                offenders.append((path, m.group(0)))
+        self.assertEqual(
+            offenders, [],
+            "doc(s) still claim the worktree is entered only at Delivery, "
+            "with no Branch-step qualifier: %r" % (offenders,))
+
+    def test_every_fanout_doc_states_the_branch_step_timing(self):
+        sites = [
+            os.path.join(PLUGIN, "skills", "create-docs", "SKILL.md"),
+            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"),
+            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workspace-and-state.md"),
+            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workflow.md"),
+            os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows", "doc-bootstrap-fanout.md"),
+        ]
+        for path in sites:
+            body_norm = norm(read(path))
+            self.assertIsNotNone(
+                self.BRANCH_TIMING_RE.search(body_norm),
+                "%s must state the worktree-entry timing names Branch" % path)
+            self.assertIsNotNone(
+                re.search(r"(?i)before[^.]{0,60}Execute phase", body_norm),
+                "%s must state this happens before the Execute phase" % path)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -291,7 +291,8 @@ shared or synced workspace — out of scope for now.
   eligible doc-bootstrap skill and runs each phase (plan, then execute,
   then verify) as a parallel batch across both tickets, rather than running
   the skills one after another — reusing the same worktree-per-ticket
-  primitive per leg, with each leg entered only at its own Delivery step.
+  primitive per leg, with each leg entering its own worktree at its own
+  Branch step, before that leg's Execute phase.
   See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 
 ## Product-level architecture

@@ -237,8 +237,9 @@ worktree per ticket**:
   unhooked coordinator mints **two independent delivery tickets** (one per
   eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
   session checkout, then runs each phase (plan → execute → verify) as a
-  parallel batch across both legs, entering each leg's own worktree only at
-  that leg's own Delivery step. Both tickets share the run's `checkout_id`
+  parallel batch across both legs; each leg enters its own worktree at its
+  own Delivery step's **Branch** sub-step, before that leg's Execute phase.
+  Both tickets share the run's `checkout_id`
   for the Start/plan/execute/verify portion of the run — the disposition for
   this shared-checkout case is: pointer/marker/cursor collisions are
   accepted, labeled degradations (statusline shows only one leg; the losing
