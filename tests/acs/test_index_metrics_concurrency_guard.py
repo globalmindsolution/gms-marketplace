@@ -1,0 +1,145 @@
+"""Tests for the O_EXCL guard on acs_lib's two repo-level read-modify-write
+writers, update_index and update_metrics (D5.1(a)). Mirrors the arms already
+proven for the identical spin-lock pattern in
+tests/acs/test_acs_lib_state_locks.py::TestAllocateTicketId.
+"""
+
+import os
+import shutil
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from unittest import mock
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+sys.path.insert(0, SCRIPTS)
+
+import acs_lib as lib  # noqa: E402
+
+
+def _ticket(tid):
+    return {"id": tid, "title": "t", "type": "task", "status": "open"}
+
+
+class _GuardedWriterCaseMixin:
+    """Shared arms for the O_EXCL guard around a repo-level read-modify-write.
+    Subclasses set guard_name and implement _call()."""
+
+    guard_name = None
+
+    def setUp(self):
+        self.workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.workspace, True)
+        self.rdir = lib.repo_dir(self.workspace, "acme-shop")
+
+    def _guard_path(self):
+        return os.path.join(self.rdir, self.guard_name)
+
+    def _call(self, n=1):
+        raise NotImplementedError
+
+    def test_guard_file_held_during_read_modify_write(self):
+        seen = {}
+        original_write_json = lib.write_json
+
+        def shim(path, data):
+            seen["guard_exists"] = os.path.exists(self._guard_path())
+            return original_write_json(path, data)
+
+        with mock.patch.object(lib, "write_json", side_effect=shim):
+            self._call()
+        self.assertTrue(seen.get("guard_exists"))
+        self.assertFalse(os.path.exists(self._guard_path()))
+
+    def test_stale_guard_removed_and_proceeds(self):
+        os.makedirs(self.rdir, exist_ok=True)
+        guard = self._guard_path()
+        open(guard, "w").close()
+        old = time.time() - 60
+        os.utime(guard, (old, old))
+        self._call()
+        self.assertFalse(os.path.exists(guard))
+
+    def test_waits_out_live_guard_until_released(self):
+        os.makedirs(self.rdir, exist_ok=True)
+        guard = self._guard_path()
+        open(guard, "w").close()  # fresh mtime -> not stale, must be waited out
+
+        def _release():
+            if os.path.exists(guard):
+                os.unlink(guard)
+
+        timer = threading.Timer(0.15, _release)
+        timer.start()
+        try:
+            self._call()
+        finally:
+            timer.cancel()
+        self.assertFalse(os.path.exists(guard))
+
+    def test_swallows_oserror_releasing_own_guard(self):
+        guard = self._guard_path()
+        original_write_json = lib.write_json
+
+        def shim(path, data):
+            try:
+                os.unlink(guard)
+            except OSError:
+                pass
+            return original_write_json(path, data)
+
+        with mock.patch.object(lib, "write_json", side_effect=shim):
+            self._call()  # must not raise
+
+
+class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
+    guard_name = "tickets-index.json.lock"
+
+    def _call(self, n=1):
+        return lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
+
+
+class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
+    guard_name = "metrics.json.lock"
+
+    def _call(self, n=1):
+        return lib.update_metrics(self.workspace, "acme-shop", pr_created=True, pr_number=n)
+
+
+class ConcurrentWritersTest(unittest.TestCase):
+    def setUp(self):
+        self.workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.workspace, True)
+
+    def test_no_index_entry_dropped_under_interleaved_writers(self):
+        """Two threads each add a distinct ticket; without the guard, thread
+        B's read (taken while thread A holds an unwritten in-memory copy)
+        would let thread A's later write clobber thread B's addition."""
+        index_path = lib.index_path(self.workspace, "acme-shop")
+        original_read_json = lib.read_json
+        first_reader_seen = threading.Event()
+
+        def slow_read(path):
+            data = original_read_json(path)
+            if path == index_path and not first_reader_seen.is_set():
+                first_reader_seen.set()
+                time.sleep(0.2)
+            return data
+
+        def _write(n):
+            lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
+
+        with mock.patch.object(lib, "read_json", side_effect=slow_read):
+            t1 = threading.Thread(target=_write, args=(1,))
+            t2 = threading.Thread(target=_write, args=(2,))
+            t1.start()
+            time.sleep(0.05)
+            t2.start()
+            t1.join(timeout=5)
+            t2.join(timeout=5)
+
+        data = original_read_json(index_path)
+        self.assertEqual(set(data["tickets"].keys()), {"SHOP-1", "SHOP-2"})
