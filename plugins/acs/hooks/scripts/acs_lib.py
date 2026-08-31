@@ -42,7 +42,7 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
-UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
+UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
