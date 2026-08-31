@@ -173,9 +173,19 @@ no network call:
   no ticket has a parseable `due_date` — B1),
   coverage achieved vs target, review iterations before the verifier passed,
   and lead + cycle time per ticket.
-- **`/usage`** (usage view) — usage summary (total cost, time, runs, and four
-  averages), cost + time per ticket by pipeline step with the four averages
-  (avg working time and cost per ticket and per merged PR), and token burn by
+- **`/usage`** (usage view) — usage summary (total cost, time, runs, API
+  duration, and six averages: avg working time and cost per ticket and per
+  merged PR, plus avg API duration per ticket and per merged PR), cost + time
+  per ticket by pipeline step with the four averages
+  (avg working time and cost per ticket and per merged PR). Each ticket row
+  also expands into a per-skill sub-row per pipeline step showing that
+  skill's own API-duration figure alongside its wall-clock **step span**
+  (`step_api_duration`/`step_order`) — mirroring Claude Code's own `/usage`
+  split between wall-clock and API time; the API-duration cell renders the
+  literal `unavailable` marker uniformly whether that skill's entry is
+  structurally absent (e.g. the unhooked `test` pipeline step) or present
+  with its own basis `unavailable`, never a bare "no data" at this per-skill
+  scope. Plus token burn by
   role (coordinator/planner/executor/verifier/other, plus an `unattributed`
   bucket for same-window tokens with no attribution or attributed to a
   different acs skill than the run's own — `coordinator` is always rendered,
@@ -193,7 +203,15 @@ no network call:
   per role, per ticket, each role additionally showing its **token-share**
   and **cost-share** percentage of that ticket's own totals (ticket-scoped,
   distinct from panel 6's repo-scope shares above — a different denominator
-  over the same underlying data, not a conflicting figure); a role with no
+  over the same underlying data, not a conflicting figure). Each ticket also
+  opens with a ticket-scope API-duration figure (`api_duration_ms`/
+  `api_duration_basis`, folded across that ticket's own skills) and a
+  `skills[]` breakdown — one row per hooked skill the ticket ever ran, its
+  own run time, API duration, and basis, plus per-run detail — that degrades
+  independently of the role table above: a skill with run entries but no
+  duration ever measured/apportioned still gets a row (null duration, basis
+  `unavailable`) rather than being dropped, and the list is empty only when
+  the ticket has zero run entries for every hooked skill; a role with no
   measured cost in that ticket renders `no data` for its cost figure and
   `unavailable` for its cost-share, independent of any sibling role in the
   same ticket.

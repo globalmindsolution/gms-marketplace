@@ -52,6 +52,15 @@
           },
           "excluded_cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
           "excluded_token_share": {"oneOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
+          "api_duration_ms": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+          "api_duration_basis": {
+            "description": "Never fabricated, never zero-padded: absent/unavailable means no duration figure is claimed.",
+            "enum": ["measured", "apportioned", "unavailable"]
+          },
+          "api_duration_scope": {
+            "description": "Distinct from cost_scope: cost_sampler.allocate_cost's api_duration_scope carries its own 5th value (\"duration_unavailable_on_cursor\") that cost_scope never emits, so the two fields are declared separately rather than sharing one enum.",
+            "enum": ["session_total", "main_session_only", "no_unconsumed_sample_in_window", "cost_total_reset", "duration_unavailable_on_cursor"]
+          },
           "role_usage": {
             "description": "Per-role measured token/cost buckets (usage_reader/cost_sampler); a 'role': 'unattributed' entry counts toward the apportionment denominator but never receives a dollar share.",
             "type": "array",
@@ -65,7 +74,9 @@
                 "cache_creation": {"type": "integer", "minimum": 0},
                 "cache_read": {"type": "integer", "minimum": 0},
                 "cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
-                "cost_basis": {"enum": ["measured", "apportioned", "unavailable"]}
+                "cost_basis": {"enum": ["measured", "apportioned", "unavailable"]},
+                "api_duration_ms": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+                "api_duration_basis": {"enum": ["measured", "apportioned", "unavailable"]}
               },
               "additionalProperties": true
             }

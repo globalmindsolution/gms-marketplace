@@ -2202,3 +2202,294 @@ class TestRoleTable(unittest.TestCase):
         for out in (term, html):
             self.assertIn(metrics_render.NO_DATA, out)   # cost_usd empty=NO_DATA
             self.assertNotIn("0.00", out)
+
+
+# ===========================================================================
+# MAR-7 spec 02 tests — panel-3 per-skill sub-rows, usage_by_ticket skill/run
+# detail, usage_summary API-duration rows (D5.4/S-C, D6). See iter-1-plan.md
+# "Spec 02" for the folded spec content this class implements against.
+# ===========================================================================
+
+class TestPanel3ApiDurationSubRows(unittest.TestCase):
+    """MAR-7 spec 02: panel-3 gains a per-skill sub-row (step span + API duration + basis)
+    per `step_order` entry, on both surfaces. `steps`/`totals` themselves are untouched."""
+
+    def test_panel3_terminal_renders_step_span_and_api_duration_sub_row_per_skill(self):
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-7", "steps": {"code": 2325},
+                "totals": {"working_seconds": 2325, "cost_usd": 1.0},
+                "step_api_duration": {"code": {"ms": 1800000, "basis": "measured"}},
+                "step_order": ["code"],
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        out = "\n".join(metrics_render._term_panel3(value))
+        self.assertIn("step span", out)
+        self.assertIn("code", out)
+        self.assertIn("measured", out)
+        self.assertIn("30m", out)  # 1800000ms -> 1800s -> "30m"
+
+    def test_panel3_html_renders_step_span_and_api_duration_sub_row_per_skill(self):
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-7", "steps": {"code": 2325},
+                "totals": {"working_seconds": 2325, "cost_usd": 1.0},
+                "step_api_duration": {"code": {"ms": 1800000, "basis": "measured"}},
+                "step_order": ["code"],
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        out = metrics_render._html_panel3(value)
+        self.assertIn("step span", out)
+        self.assertIn("code", out)
+        self.assertIn("measured", out)
+        self.assertIn("30m", out)
+
+    def test_panel3_step_order_absent_legacy_aggregate_json_degrades_to_steps_only_no_raise(self):
+        """A pre-MAR-7 aggregate JSON has no step_order/step_api_duration keys at all — the
+        sub-row block must be skipped entirely, never raising (design.md:815-816)."""
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-LEGACY", "steps": {"code": 100},
+                "totals": {"working_seconds": 100, "cost_usd": 1.0},
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        term = "\n".join(metrics_render._term_panel3(value))
+        html = metrics_render._html_panel3(value)
+        self.assertIn("MAR-LEGACY", term)
+        self.assertNotIn("step span", term)
+        self.assertNotIn("step span", html)
+
+    def test_panel3_hooked_only_skill_no_steps_entry_renders_no_data_for_step_span(self):
+        """F13 direction 1: a hooked-only skill (e.g. create-quality) with a step_api_duration
+        entry but no `steps` entry renders the step-span cell NO_DATA (never fabricated)."""
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-7", "steps": {}, "totals": {},
+                "step_api_duration": {"create-quality": {"ms": 60000, "basis": "measured"}},
+                "step_order": ["create-quality"],
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        term = "\n".join(metrics_render._term_panel3(value))
+        html = metrics_render._html_panel3(value)
+        for out in (term, html):
+            self.assertIn("create-quality", out)
+            self.assertIn(metrics_render.NO_DATA, out)
+            self.assertIn("measured", out)
+
+    def test_panel3_test_step_no_step_api_duration_entry_renders_unavailable_for_api_duration(self):
+        """F13 direction 2: "test" is present in `steps` only (never HOOKED_SKILLS, so it never
+        gets a step_api_duration entry). Per design.md's Population table (design.md:824-829),
+        the `test` row is the one structurally-absent-`step_api_duration` case, and its
+        API-duration cell renders the literal UNAVAILABLE marker (D6), not NO_DATA -- NO_DATA is
+        reserved for the step-span cell of a hooked-only skill absent from `steps` (the OTHER F13
+        direction, covered by test_panel3_hooked_only_skill_no_steps_entry_renders_no_data_for_step_span
+        above)."""
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-7", "steps": {"test": 42}, "totals": {},
+                "step_api_duration": {}, "step_order": ["test"],
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        term = "\n".join(metrics_render._term_panel3(value))
+        html = metrics_render._html_panel3(value)
+        for out in (term, html):
+            self.assertIn("test", out)
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+
+    def test_panel3_step_api_duration_unavailable_basis_renders_literal_unavailable_not_no_data(self):
+        """D6: a PRESENT step_api_duration entry whose basis == "unavailable" renders the
+        literal UNAVAILABLE marker, distinct from an absent entry's NO_DATA (test above)."""
+        value = {
+            "tickets": [{
+                "ticket_id": "MAR-7", "steps": {"code": 10}, "totals": {},
+                "step_api_duration": {"code": {"ms": None, "basis": "unavailable"}},
+                "step_order": ["code"],
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        term = "\n".join(metrics_render._term_panel3(value))
+        html = metrics_render._html_panel3(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.UNAVAILABLE, out)
+
+
+class TestUsageByTicketApiDurationAndSkills(unittest.TestCase):
+    """MAR-7 spec 02: usage_by_ticket gains a ticket-scope api-duration header line, a new
+    skill table (_term_skill_table/_html_skill_table, mirroring the model-table pair) and
+    nested per-run detail."""
+
+    _SKILLS = [
+        {"skill": "code", "run_seconds_sum": 120.0, "api_duration_ms": 90000.0,
+         "api_duration_basis": "apportioned",
+         "runs": [{"started_at": "2026-06-15T10:00:00Z", "wall_clock_seconds": 60.0,
+                   "api_duration_ms": 45000.0, "api_duration_basis": "measured"},
+                  {"started_at": "2026-06-15T11:00:00Z", "wall_clock_seconds": 60.0,
+                   "api_duration_ms": 45000.0, "api_duration_basis": "measured"}]},
+    ]
+
+    def test_usage_by_ticket_terminal_renders_ticket_scope_api_duration_header_row(self):
+        # A present, non-"unavailable" basis renders the humanized duration (money-style cell,
+        # D6) -- the literal UNAVAILABLE marker is reserved for basis == "unavailable" (below).
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
+                              "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
+                              "skills": []}]}
+        out = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        self.assertIn("MAR-9", out)
+        self.assertIn("1m 30s", out)  # 90000ms -> 90s -> "1m 30s"
+        self.assertIn("api duration", out.lower())
+
+    def test_usage_by_ticket_html_renders_ticket_scope_api_duration_header_row(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
+                              "api_duration_ms": None, "api_duration_basis": "unavailable",
+                              "skills": []}]}
+        out = metrics_render._html_render_usage_by_ticket(value)
+        self.assertIn("MAR-9", out)
+        self.assertIn(metrics_render.UNAVAILABLE, out)
+
+    def test_usage_by_ticket_skill_table_renders_run_time_sum_and_api_duration_per_skill(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
+                              "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
+                              "skills": self._SKILLS}]}
+        term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        html = metrics_render._html_render_usage_by_ticket(value)
+        for out in (term, html):
+            self.assertIn("run time (sum of runs)", out)
+            self.assertIn("code", out)
+            self.assertIn("2m", out)       # run_seconds_sum 120.0 -> "2m"
+            self.assertIn("1m 30s", out)   # skill api_duration_ms 90000 -> "1m 30s"
+            self.assertIn("apportioned", out)
+
+    def test_usage_by_ticket_skill_table_empty_list_renders_nodata_row_not_error(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
+                              "api_duration_ms": None, "api_duration_basis": "unavailable",
+                              "skills": []}]}
+        term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        html = metrics_render._html_render_usage_by_ticket(value)
+        for out in (term, html):
+            self.assertIn(metrics_render.NO_DATA, out)
+        term_rows = metrics_render._term_skill_table([], indent="    ")
+        html_rows = metrics_render._html_skill_table([])
+        self.assertIn(metrics_render.NO_DATA, term_rows[-1])
+        self.assertIn(metrics_render.NO_DATA, html_rows)
+
+    def test_usage_by_ticket_run_detail_renders_per_run_started_at_wall_clock_and_api_duration(self):
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
+                              "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
+                              "skills": self._SKILLS}]}
+        term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        html = metrics_render._html_render_usage_by_ticket(value)
+        for out in (term, html):
+            self.assertIn("2026-06-15T10:00:00Z", out)
+            self.assertIn("2026-06-15T11:00:00Z", out)
+            self.assertIn("measured", out)
+            self.assertIn("1m", out)   # per-run wall_clock_seconds 60.0 -> "1m"
+            self.assertIn("45s", out)  # per-run api_duration_ms 45000 -> "45s"
+
+
+class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
+    """MAR-7 spec 02: reconciliation regression guard (MERGED-3, render half) -- panel 3's
+    step span (whole-skill pipeline bracket) and usage_by_ticket's run time (sum of runs)
+    (per-run wall-clock sum, excluding inter-run idle) are two independently-sourced numbers
+    that must render under distinct labels, each humanized from its own fixture value, on
+    both surfaces. Synthetic value dicts (house style, no aggregate() call) -- mirrors the
+    aggregator-side test's own 300/90 identity without importing from it."""
+
+    def test_panel3_step_span_and_usage_by_ticket_run_time_sum_render_distinct_labels_both_surfaces(self):
+        panel3_value = {
+            "tickets": [{
+                "ticket_id": "MAR-9", "steps": {"code": 300}, "step_order": ["code"],
+                "step_api_duration": {"code": {"ms": None, "basis": "unavailable"}},
+                "totals": {},
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        panel3_term = "\n".join(metrics_render._term_panel3(panel3_value))
+        panel3_html = metrics_render._html_panel3(panel3_value)
+        for out in (panel3_term, panel3_html):
+            self.assertIn("step span", out)
+            self.assertIn("5m", out)  # steps["code"] 300s -> "5m"
+
+        usage_by_ticket_value = {
+            "tickets": [{
+                "ticket_id": "MAR-9", "roles": "no data",
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "skills": [{"skill": "code", "run_seconds_sum": 90,
+                            "api_duration_ms": None, "api_duration_basis": "unavailable",
+                            "runs": []}],
+            }],
+        }
+        ubt_term = "\n".join(metrics_render._term_render_usage_by_ticket(usage_by_ticket_value))
+        ubt_html = metrics_render._html_render_usage_by_ticket(usage_by_ticket_value)
+        for out in (ubt_term, ubt_html):
+            self.assertIn("run time (sum of runs)", out)
+            self.assertIn("1m 30s", out)  # skills[0].run_seconds_sum 90s -> "1m 30s"
+
+        # Distinct labels/values, both surfaces: neither renderer's output leaks the other's
+        # label or humanized value (300s "5m" vs 90s "1m 30s" -- the reconciliation identity's
+        # own strict step_span > run_seconds_sum, told twice, matching the aggregator-side test).
+        for out in (panel3_term, panel3_html):
+            self.assertNotIn("run time (sum of runs)", out)
+        for out in (ubt_term, ubt_html):
+            self.assertNotIn("step span", out)
+
+
+class TestUsageSummaryApiDurationRows(unittest.TestCase):
+    """MAR-7 spec 02: usage_summary gains total_api_duration_ms + its two averages."""
+
+    _PANEL = {
+        "total_cost_usd": 1.0, "total_tokens_input": 10, "total_tokens_output": 2,
+        "total_runs": 1, "total_working_seconds": 100, "prs_merged": 1,
+        "avg_working_seconds_per_ticket": 100.0, "avg_working_seconds_per_pr": 100.0,
+        "avg_cost_per_ticket": 1.0, "avg_cost_per_pr": 1.0,
+        "total_api_duration_ms": 5400000.0,            # 5400s -> "1h 30m"
+        "avg_api_duration_ms_per_ticket": 3600000.0,    # 3600s -> "1h"
+        "avg_api_duration_ms_per_pr": 1800000.0,        # 1800s -> "30m"
+    }
+
+    def test_usage_summary_terminal_renders_three_new_rows(self):
+        out = "\n".join(metrics_render._term_render_usage_summary(self._PANEL))
+        self.assertIn("1h 30m", out)
+        self.assertIn("api duration", out.lower())
+
+    def test_usage_summary_html_renders_three_new_rows(self):
+        out = metrics_render._html_render_usage_summary(self._PANEL)
+        self.assertIn("1h 30m", out)
+        self.assertIn("api duration", out.lower())
+
+
+class TestUsageViewDeterminismWithApiDuration(unittest.TestCase):
+    """Additive determinism coverage (plan Test-plan item 10) — same-input-same-bytes over the
+    new step_order/step_api_duration/skills content. Does NOT replace the existing
+    Determinism/TestViewDeterminism byte-identical tests on their own, unmodified fixtures."""
+
+    def test_usage_terminal_byte_identical_with_step_order_and_skills(self):
+        data = _full_workspace_data_with_new_panels()
+        self.assertEqual(metrics_render.render_usage_terminal(data),
+                         metrics_render.render_usage_terminal(data))
+
+    def test_usage_html_byte_identical_with_skills(self):
+        data = _full_workspace_data_with_new_panels()
+        self.assertEqual(metrics_render.render_usage_html(data),
+                         metrics_render.render_usage_html(data))
+
+
+class TestPMViewUnaffectedByApiDurationRendering(unittest.TestCase):
+    """_PM_TERMINAL_PANELS/_PM_HTML_PANELS are untouched — the PM view never renders panel 3's
+    sub-rows or usage_by_ticket's skill/run detail (mirrors test_pm_view_unaffected_by_usage_by_ticket)."""
+
+    def test_pm_view_unaffected_by_panel3_sub_rows_or_usage_by_ticket_skills(self):
+        data = _full_workspace_data_with_new_panels()
+        out_term = metrics_render.render_pm_terminal(data)
+        out_html = metrics_render.render_pm_html(data)
+        self.assertNotIn("step span", out_term)
+        self.assertNotIn("step span", out_html)
+        self.assertNotIn("run time (sum of runs)", out_term)
+        self.assertNotIn("run time (sum of runs)", out_html)
+        self.assertNotIn("usage_by_ticket", metrics_render._PM_PANELS)
+        self.assertNotIn("3", metrics_render._PM_TERMINAL_PANELS)
+        self.assertNotIn("3", metrics_render._PM_HTML_PANELS)
