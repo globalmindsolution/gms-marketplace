@@ -344,7 +344,7 @@ def _term_panel3_sub_rows(row):
         step_span = _humanize_seconds(steps.get(skill))
         entry = step_api_duration.get(skill)
         if not isinstance(entry, dict):
-            api_str = NO_DATA
+            api_str = UNAVAILABLE
         elif entry.get("basis") == "unavailable":
             api_str = UNAVAILABLE
         else:
@@ -647,7 +647,7 @@ def _html_panel3_sub_rows(row):
         step_span = _humanize_seconds(steps.get(skill))
         entry = step_api_duration.get(skill)
         if not isinstance(entry, dict):
-            api_str = NO_DATA
+            api_str = UNAVAILABLE
         elif entry.get("basis") == "unavailable":
             api_str = UNAVAILABLE
         else:

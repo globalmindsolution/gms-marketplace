@@ -2282,13 +2282,12 @@ class TestPanel3ApiDurationSubRows(unittest.TestCase):
 
     def test_panel3_test_step_no_step_api_duration_entry_renders_unavailable_for_api_duration(self):
         """F13 direction 2: "test" is present in `steps` only (never HOOKED_SKILLS, so it never
-        gets a step_api_duration entry). Named per the plan's Spec 02 test-plan wording, but
-        implemented per the more precise Approach text (iter-1-plan.md ~338-345): an ABSENT
-        step_api_duration entry renders NO_DATA, not the literal UNAVAILABLE marker -- UNAVAILABLE
-        is reserved for a PRESENT entry whose own basis == "unavailable" (D6). Flagged in this
-        task's execute-report problems field as an apparent test-name/Approach-text tension,
-        resolved in favor of the Approach text's explicit rule (mirrors T1's own resolution
-        style for its two judgment calls)."""
+        gets a step_api_duration entry). Per design.md's Population table (design.md:824-829),
+        the `test` row is the one structurally-absent-`step_api_duration` case, and its
+        API-duration cell renders the literal UNAVAILABLE marker (D6), not NO_DATA -- NO_DATA is
+        reserved for the step-span cell of a hooked-only skill absent from `steps` (the OTHER F13
+        direction, covered by test_panel3_hooked_only_skill_no_steps_entry_renders_no_data_for_step_span
+        above)."""
         value = {
             "tickets": [{
                 "ticket_id": "MAR-7", "steps": {"test": 42}, "totals": {},
@@ -2300,8 +2299,7 @@ class TestPanel3ApiDurationSubRows(unittest.TestCase):
         html = metrics_render._html_panel3(value)
         for out in (term, html):
             self.assertIn("test", out)
-            self.assertIn(metrics_render.NO_DATA, out)
-            self.assertNotIn(metrics_render.UNAVAILABLE, out)
+            self.assertIn(metrics_render.UNAVAILABLE, out)
 
     def test_panel3_step_api_duration_unavailable_basis_renders_literal_unavailable_not_no_data(self):
         """D6: a PRESENT step_api_duration entry whose basis == "unavailable" renders the
@@ -2391,6 +2389,53 @@ class TestUsageByTicketApiDurationAndSkills(unittest.TestCase):
             self.assertIn("measured", out)
             self.assertIn("1m", out)   # per-run wall_clock_seconds 60.0 -> "1m"
             self.assertIn("45s", out)  # per-run api_duration_ms 45000 -> "45s"
+
+
+class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
+    """MAR-7 spec 02: reconciliation regression guard (MERGED-3, render half) -- panel 3's
+    step span (whole-skill pipeline bracket) and usage_by_ticket's run time (sum of runs)
+    (per-run wall-clock sum, excluding inter-run idle) are two independently-sourced numbers
+    that must render under distinct labels, each humanized from its own fixture value, on
+    both surfaces. Synthetic value dicts (house style, no aggregate() call) -- mirrors the
+    aggregator-side test's own 300/90 identity without importing from it."""
+
+    def test_panel3_step_span_and_usage_by_ticket_run_time_sum_render_distinct_labels_both_surfaces(self):
+        panel3_value = {
+            "tickets": [{
+                "ticket_id": "MAR-9", "steps": {"code": 300}, "step_order": ["code"],
+                "step_api_duration": {"code": {"ms": None, "basis": "unavailable"}},
+                "totals": {},
+            }],
+            "repo_totals": {}, "averages": {},
+        }
+        panel3_term = "\n".join(metrics_render._term_panel3(panel3_value))
+        panel3_html = metrics_render._html_panel3(panel3_value)
+        for out in (panel3_term, panel3_html):
+            self.assertIn("step span", out)
+            self.assertIn("5m", out)  # steps["code"] 300s -> "5m"
+
+        usage_by_ticket_value = {
+            "tickets": [{
+                "ticket_id": "MAR-9", "roles": "no data",
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "skills": [{"skill": "code", "run_seconds_sum": 90,
+                            "api_duration_ms": None, "api_duration_basis": "unavailable",
+                            "runs": []}],
+            }],
+        }
+        ubt_term = "\n".join(metrics_render._term_render_usage_by_ticket(usage_by_ticket_value))
+        ubt_html = metrics_render._html_render_usage_by_ticket(usage_by_ticket_value)
+        for out in (ubt_term, ubt_html):
+            self.assertIn("run time (sum of runs)", out)
+            self.assertIn("1m 30s", out)  # skills[0].run_seconds_sum 90s -> "1m 30s"
+
+        # Distinct labels/values, both surfaces: neither renderer's output leaks the other's
+        # label or humanized value (300s "5m" vs 90s "1m 30s" -- the reconciliation identity's
+        # own strict step_span > run_seconds_sum, told twice, matching the aggregator-side test).
+        for out in (panel3_term, panel3_html):
+            self.assertNotIn("run time (sum of runs)", out)
+        for out in (ubt_term, ubt_html):
+            self.assertNotIn("step span", out)
 
 
 class TestUsageSummaryApiDurationRows(unittest.TestCase):
