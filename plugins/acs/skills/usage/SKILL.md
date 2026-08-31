@@ -81,7 +81,17 @@ The usage view renders exactly five panels:
    working time across all tickets in the workspace.
 3. **Cost and time per ticket by pipeline step** — per-ticket rows broken down by
    pipeline step (working time and spend), with the four per-ticket / per-PR
-   averages: avg cost, avg tokens, avg working time, avg duration per PR.
+   averages: avg cost, avg tokens, avg working time, avg duration per PR. Each
+   ticket row also expands into one per-skill sub-row per pipeline step
+   (`step_order`), showing that skill's own wall-clock step span alongside its
+   API duration and basis (`step_api_duration`, `metrics_aggregate._panel3_row`)
+   — mirroring Claude Code's own `/usage` split between wall-clock and API
+   time. The API-duration cell renders the literal `unavailable` marker
+   uniformly whether `step_api_duration` carries no entry at all for that
+   skill (e.g. the unhooked `test` pipeline step, never walked by
+   `_accumulate_burn`) or an entry whose own `basis` is `unavailable` — both
+   collapse to the same marker rather than a bare "no data" at this per-skill
+   scope.
 6. **Token burn by role** — input/output tokens and cost bucketed into the four
    roles planner / executor / verifier / coordinator, plus any dynamic
    `other`/`unattributed` extras present in the data. Each role's bucket also
@@ -101,7 +111,17 @@ The usage view renders exactly five panels:
    scoped to one ticket rather than repo-wide; a role with no measured cost in
    that ticket renders `no data` for its cost cell and `unavailable` for its
    cost-share cell, independent of any sibling role's measured cost in the
-   same ticket.
+   same ticket. Each ticket now opens with a ticket-scope API-duration header
+   line (`api_duration_ms`/`api_duration_basis`, folded across that ticket's
+   own skills) followed by a `skills[]` table — one row per hooked skill this
+   ticket ever ran, each showing its own summed run time (`run_seconds_sum`),
+   API duration, and basis, plus a further-indented per-run breakdown
+   (`runs[]`: `started_at`, wall-clock seconds, API duration, basis) —
+   `metrics_aggregate._usage_by_ticket_panel`/`_finalize_skill_bucket`. A
+   skill with run entries but no duration ever measured/apportioned still gets
+   its own row (`api_duration_ms` null, `basis` `unavailable`) rather than
+   being dropped; `skills` is the empty list only when the ticket has zero run
+   entries for every hooked skill.
 
 PM-only panels (delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS,
 DEADLINE, coverage achieved vs target, review iterations, lead/cycle time) are

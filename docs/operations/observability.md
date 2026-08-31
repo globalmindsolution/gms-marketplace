@@ -275,6 +275,19 @@ A **zero denominator** renders **"no data"** rather than dividing by zero. These
 working-time averages are the **working-seconds** the pipeline recorded — distinct
 from the wall-clock lead/cycle times in Panel 7 above.
 
+Each ticket row also expands into one **per-skill sub-row** per pipeline step
+(`step_order`, `metrics_aggregate._panel3_row`) — that skill's own wall-clock
+**step span** (from `steps`, unchanged) alongside its **API duration** and
+**basis** (from the new `step_api_duration` key), rendered by
+`metrics_render._term_panel3_sub_rows`/`_html_panel3_sub_rows`. This mirrors
+Claude Code's own `/usage` split between wall-clock and API time. The
+API-duration cell renders the literal **"unavailable"** marker uniformly in
+both of its degraded cases — a `step_api_duration` entry structurally absent
+for that skill (e.g. the unhooked `test` pipeline step, never walked by
+`_accumulate_burn`, which only iterates `HOOKED_SKILLS`) and an entry present
+whose own `basis` is `"unavailable"` — so a reader never has to distinguish
+"no data" from "measured but unavailable" at this per-skill scope (D6).
+
 ### 6 — Token burn by role
 
 Token and cost spend bucketed by role — **coordinator**, **planner**,
@@ -349,6 +362,21 @@ This panel's shares are ticket-scoped (share of *that ticket's* role
 totals), distinct from panel 6's repo-scope shares above — the two are not
 a conflicting figure, just two different denominators over the same
 underlying `role_usage` data.
+
+Each ticket now opens with a ticket-scope **API-duration header line**
+(`api_duration_ms`/`api_duration_basis`, folded across that ticket's own
+skills) followed by a **`skills[]` table** — one row per hooked skill this
+ticket ever ran, each showing its own summed run time (`run_seconds_sum`),
+API duration, and basis (`metrics_aggregate._usage_by_ticket_panel`/
+`_finalize_skill_bucket`), plus a further-indented **per-run detail** block
+(`runs[]`: `started_at`, wall-clock seconds, API duration, basis) —
+`metrics_render._term_skill_table`/`_html_skill_table`. A skill with run
+entries but no duration ever measured or apportioned still gets its own row
+(`api_duration_ms` null, `basis` `"unavailable"`) rather than being dropped
+from the list; `skills` is the empty list only when the ticket has zero run
+entries for every hooked skill — the two degraded states (a genuinely empty
+ticket vs. a ticket whose skills ran but never measured a duration) stay
+distinguishable rather than collapsing to the same "no data" shape.
 
 ## Degradation and the `meta` block
 
