@@ -6,6 +6,7 @@ fanout_batches eligibility/batching helper (D4/D4.1/D4.2/D4.3).
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -209,6 +210,114 @@ class V1FanoutGateTest(unittest.TestCase):
             PAIR_SETTINGS, {"tickets": {}}, self.root,
             candidates=["create-quality", "not-a-skill"])
         self.assertEqual(batches, [["create-quality"]])
+
+
+class ForFlagParsingTest(unittest.TestCase):
+    """Finding 1: parse_fanout_for_arg partitions /acs:create-docs's `--for`
+    argument against the declared v1 fan-out gate BEFORE fanout_batches ever
+    sees the request, so a name outside DOC_BOOTSTRAP_FANOUT_V1 -- unknown, or
+    a real but non-v1 doc-bootstrap skill -- is rejected, never silently
+    skipped."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def test_no_flag_returns_none_candidates(self):
+        for args_text in ("", None):
+            with self.subTest(args_text=args_text):
+                self.assertEqual(lib.parse_fanout_for_arg(args_text), (None, []))
+
+    def test_single_v1_name_is_accepted(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality"), (["create-quality"], []))
+
+    def test_comma_list_order_preserved(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality,create-operations"),
+            (["create-quality", "create-operations"], []))
+
+    def test_non_v1_doc_bootstrap_skill_is_rejected(self):
+        # The finding's core case: create-principles is a real doc-bootstrap
+        # skill, just not in v1's fan-out set -- it must be rejected, not
+        # silently skipped like an unknown name would be inside fanout_batches.
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-principles"), ([], ["create-principles"]))
+
+    def test_unknown_name_is_rejected(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for not-a-skill"), ([], ["not-a-skill"]))
+
+    def test_mixed_request_splits_candidates_and_rejected(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality,not-a-skill"),
+            (["create-quality"], ["not-a-skill"]))
+
+    def test_whitespace_around_commas_never_drops_a_name(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for  create-quality , create-operations "),
+            (["create-quality", "create-operations"], []))
+
+    def test_equals_form(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for=create-operations"), (["create-operations"], []))
+
+    def test_bare_flag_is_explicit_empty_selection(self):
+        self.assertEqual(lib.parse_fanout_for_arg("--for"), ([], []))
+
+    def test_unrelated_for_prefixed_flag_never_mistaken(self):
+        self.assertEqual(lib.parse_fanout_for_arg("--for-ticket MAR-9"), (None, []))
+
+    def test_name_list_stops_at_the_next_flag(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality --verbose"),
+            (["create-quality"], []))
+
+    def test_duplicate_names_are_deduplicated(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality,create-quality"),
+            (["create-quality"], []))
+
+    def test_rejected_names_never_reach_fanout_batches(self):
+        candidates, rejected = lib.parse_fanout_for_arg(
+            "--for create-quality,create-principles,not-a-skill")
+        self.assertEqual(rejected, ["create-principles", "not-a-skill"])
+        batches = lib.fanout_batches(
+            PAIR_SETTINGS, {"tickets": {}}, self.root, candidates=candidates)
+        flat = [skill for batch in batches for skill in batch]
+        self.assertIn("create-quality", flat)
+        self.assertNotIn("create-principles", flat)
+        self.assertNotIn("not-a-skill", flat)
+
+
+class CheckoutRootResolutionTest(unittest.TestCase):
+    """Finding 3: the Start snippet must resolve fanout_batches's
+    checkout_root via lib.checkout_root(cwd), never the raw cwd -- otherwise
+    a run started from a repo subdirectory reads an already-shipped doc set
+    as absent and wrongly re-offers it."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        subprocess.run(["git", "init", "-q", self.root], check=True, capture_output=True)
+
+    def test_shipped_doc_set_is_seen_from_a_subdirectory_only_via_checkout_root(self):
+        _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
+        sub = os.path.join(self.root, "sub", "dir")
+        os.makedirs(sub)
+
+        settings = {"quality_path": "docs/quality", "operations_path": "docs/operations"}
+
+        # Buggy form: raw cwd (a subdirectory) is passed straight to
+        # fanout_batches -- the sentinel file is looked up relative to the
+        # subdirectory, so it is never found, and create-quality is wrongly
+        # re-offered even though it already shipped.
+        buggy = lib.fanout_batches(settings, {"tickets": {}}, sub)
+        self.assertEqual(buggy, [["create-quality", "create-operations"]])
+
+        # Fixed form: the Start snippet must resolve checkout_root(cwd) first.
+        fixed = lib.fanout_batches(settings, {"tickets": {}}, lib.checkout_root(sub))
+        self.assertEqual(fixed, [["create-operations"]])
 
 
 class FanoutBatchesTest(unittest.TestCase):

@@ -38,17 +38,25 @@ Ground rules, non-negotiable:
 MANDATORY first action — resolve settings and the eligible batch:
 
 ```bash
-python3 - <<'PY'
+python3 - "$ARGUMENTS" <<'PY'
 import json, os, sys
 sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
 import acs_lib as lib
 cwd = os.getcwd()
+args_text = sys.argv[1] if len(sys.argv) > 1 else ""
 settings, _sources = lib.load_settings(cwd)
-workspace = lib.validate_settings(settings, cwd)
+try:
+    workspace = lib.validate_settings(settings, cwd)
+except lib.GateError as exc:
+    sys.stderr.write("acs create-docs: %s\n" % exc)
+    sys.exit(2)
+root = lib.checkout_root(cwd) or cwd
 repo_id = lib.repo_partition_id(cwd)
 tickets_index = lib.read_json(lib.index_path(workspace, repo_id)) or {}
-batches = lib.fanout_batches(settings, tickets_index, cwd)
-print(json.dumps({"workspace": workspace, "repo_id": repo_id, "batches": batches}, indent=2))
+requested, rejected = lib.parse_fanout_for_arg(args_text)
+batches = lib.fanout_batches(settings, tickets_index, root, candidates=requested)
+print(json.dumps({"workspace": workspace, "repo_id": repo_id, "checkout_root": root,
+                  "requested": requested, "rejected": rejected, "batches": batches}, indent=2))
 PY
 ```
 
@@ -78,6 +86,32 @@ an explicitly named but ineligible skill is reported (why: already shipped
 dependency), never silently dropped. A `--for` name that is not in v1's
 declared set at all is reported as ineligible — "not in v1's fan-out set" —
 and is likewise never fanned out.
+
+**Exit 2.** When `lib.validate_settings` raises `GateError`, the snippet
+catches it, writes the error to stderr, and exits 2: surface stderr verbatim
+and stop — settings are invalid or acs is not initialized here (the same
+contract `ship/SKILL.md`'s Start step uses).
+
+**Checkout root.** `fanout_batches` is given `lib.checkout_root(cwd)`, never
+the raw `cwd`: `doc_set_present_on_disk` resolves each skill's sentinel file
+relative to that root, so a run started from a repo subdirectory (or from a
+leg's own worktree on resume) would otherwise read an already-shipped doc set
+as absent. This is the same resolution every gate uses —
+`_require_architecture_doc_set` reads `ctx["checkout_root"]`
+(`acs_lib.py:2354`), which `build_context` fills with `checkout_root(cwd)`
+(`acs_lib.py:2139`).
+
+**`--for` mechanism.** `lib.parse_fanout_for_arg($ARGUMENTS)` splits the
+request into `requested` (names inside `DOC_BOOTSTRAP_FANOUT_V1`, which is
+what `fanout_batches` is called with) and `rejected` (every name outside it).
+Report EVERY rejected name explicitly, with the reason **not in v1's fan-out
+set**, and never fan it out — a rejected name is never silently dropped and
+never silently no-ops. With no `--for` flag, `requested` is `None` and
+`fanout_batches` applies the declared v1 default.
+
+**Bare `--for`.** `--for` given with no names at all selects nothing
+(`requested == []`, `rejected == []`): report that `--for` requires at least
+one skill name, and stop.
 
 If the eligible batch is empty: report why, per candidate, and stop —
 nothing to fan out.

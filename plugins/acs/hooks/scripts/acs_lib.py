@@ -186,6 +186,41 @@ def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
             batches.append([candidate])
     return batches
 
+
+# /acs:create-docs's only argument. Matched only as a whole flag ("--for",
+# "--for=", or a bare trailing "--for") so an unrelated --for-* flag never
+# triggers it.
+_FANOUT_FOR_RE = re.compile(r"--for(?:=|\s|$)")
+
+
+def parse_fanout_for_arg(args_text):
+    """Parse /acs:create-docs's `--for <skill>[,<skill>...]` argument against
+    the declared v1 fan-out gate (D7-A).
+
+    Returns (candidates, rejected):
+      candidates is None when no --for flag is present -- the caller hands that
+        straight to fanout_batches, which then applies its own
+        DOC_BOOTSTRAP_FANOUT_V1 default;
+      otherwise candidates is the requested names that ARE in
+        DOC_BOOTSTRAP_FANOUT_V1 (order-preserving, de-duplicated) and rejected
+        is every other requested name -- an unknown name and a real but non-v1
+        doc-bootstrap skill (e.g. create-principles) alike. A rejected name is
+        reported ("not in v1's fan-out set") and never fanned out; it is
+        deliberately kept OUT of fanout_batches's candidates, whose own
+        contract is to skip unknown names silently (see above)."""
+    text = args_text or ""
+    m = _FANOUT_FOR_RE.search(text)
+    if not m:
+        return (None, [])
+    candidates, rejected = [], []
+    for name in text[m.end():].replace(",", " ").split():
+        if name.startswith("-"):
+            break
+        bucket = candidates if name in DOC_BOOTSTRAP_FANOUT_V1 else rejected
+        if name not in bucket:
+            bucket.append(name)
+    return (candidates, rejected)
+
 # Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
 FORMAT_PLACEHOLDERS = {
     "branch_name": {"ticket_id", "type", "slug", "external_key"},

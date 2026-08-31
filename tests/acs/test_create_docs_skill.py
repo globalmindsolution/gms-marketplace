@@ -285,6 +285,67 @@ class LoopTopologyTest(unittest.TestCase):
             "the per-leg iteration cap (max 3 execute-verify rounds) must be pinned")
 
 
+def _start_section():
+    """Slice the '## Start' section (up to the next '\n## ' heading)."""
+    body = _body()
+    start_idx = body.index("## Start")
+    rest = body[start_idx:]
+    next_heading = rest.find("\n## ", 1)
+    return rest if next_heading == -1 else rest[:next_heading]
+
+
+def _start_bash_block():
+    """The first ```bash fenced block inside the '## Start' section."""
+    section = _start_section()
+    m = re.search(r"```bash\n(.*?)```", section, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+class StartSnippetContractTest(unittest.TestCase):
+    """Findings 1/3/4: the Start snippet must parse `--for` through the v1
+    gate, resolve fanout_batches's checkout_root properly, and guard
+    validate_settings the same way every other SKILL.md Start step does."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.block = _start_bash_block()
+        cls.section_norm = norm(_start_section())
+
+    def test_arguments_are_passed_into_the_snippet(self):
+        self.assertIn('python3 - "$ARGUMENTS" <<\'PY\'', self.block)
+        self.assertIn("sys.argv", self.block)
+
+    def test_for_argument_is_parsed_and_v1_gated(self):
+        self.assertIn("parse_fanout_for_arg", self.block)
+        self.assertIn("candidates=", self.block)
+        self.assertIsNotNone(
+            re.search(r"fanout_batches\([^)]*candidates=", self.block, re.DOTALL),
+            "fanout_batches call must pass candidates=")
+
+    def test_fanout_batches_receives_the_resolved_checkout_root(self):
+        self.assertIn("lib.checkout_root(cwd)", self.block)
+        self.assertNotRegex(self.block, r"fanout_batches\(settings,\s*tickets_index,\s*cwd\b")
+
+    def test_validate_settings_is_guarded_by_gate_error_exit_2(self):
+        self.assertIsNotNone(
+            re.search(
+                r"try:.*?lib\.validate_settings\(.*?except lib\.GateError as exc:.*?sys\.exit\(2\)",
+                self.block, re.DOTALL),
+            "validate_settings must be wrapped try/except lib.GateError -> sys.exit(2)")
+        self.assertIn("% exc", self.block)
+
+    def test_rejection_is_reported_never_silently_dropped(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)not in v1.s fan-out set", self.section_norm))
+        self.assertIsNotNone(
+            re.search(r"(?i)(never silently|never fanned out).{0,120}rejected"
+                      r"|rejected.{0,120}(never silently|never fanned out)", self.section_norm))
+
+    def test_exit_2_instruction_present(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)surface.{0,20}(stderr )?verbatim.{0,80}stop", self.section_norm))
+
+
 class WorktreeLifecycleTest(unittest.TestCase):
     """finding 6: the worktree is created before that leg's Execute phase
     and entered at that leg's own Branch step -- never claimed to be

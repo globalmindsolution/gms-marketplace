@@ -193,10 +193,10 @@ follow-up lands.
   no dedicated agent files; skill count 24 → 25.
 - `acs_lib.py` gains `DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
   `DOC_BOOTSTRAP_SENTINEL`, the declared v1 tuple `DOC_BOOTSTRAP_FANOUT_V1`,
-  pure `doc_set_present_on_disk`/`fanout_batches` helpers, and an `O_EXCL`
-  guard on `update_index`/`update_metrics` — a small, testable change to the
-  most-depended-on module, benefiting every future parallel path in acs, not
-  just this one.
+  pure `doc_set_present_on_disk`/`fanout_batches`/`parse_fanout_for_arg`
+  helpers, and an `O_EXCL` guard on `update_index`/`update_metrics` — a
+  small, testable change to the most-depended-on module, benefiting every
+  future parallel path in acs, not just this one.
 - Four skill-name mirrors (`acs-messages.xsd`, `skill-state.schema.json`,
   `clarifications.schema.json`, `validate_xml.py`) gain `create-docs` in the
   same change as the skill directory.

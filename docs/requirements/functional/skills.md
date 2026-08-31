@@ -306,7 +306,10 @@ docs-only PR on its own delivery ticket.
   reconcile path, never by re-invoking the umbrella. See
   `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 - **Argument contract**: `--for <skill>[,<skill>...]` narrows the batch to
-  the named skill(s); with no flag, every currently-eligible skill fans out.
+  the named skill(s); with no flag, every currently-eligible skill fans out;
+  a name outside `DOC_BOOTSTRAP_FANOUT_V1` is rejected as *not in v1's
+  fan-out set* (`parse_fanout_for_arg()`, `acs_lib.py`) — reported, never
+  silently fanned out or silently dropped.
 
 ## Product-level delivery (tickets)
 
