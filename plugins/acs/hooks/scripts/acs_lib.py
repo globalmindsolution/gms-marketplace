@@ -47,8 +47,10 @@ UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. Unused within this ticket -- a later ticket is its first consumer;
 # a schema-mirror equality test is what stops this list from drifting.
-PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-ticket",
-                        "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
+PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-quality",
+                        "create-operations", "create-principles", "create-standards",
+                        "create-requirements", "create-ticket", "create-design", "code", "test",
+                        "docs-sync", "create-pr", "merge-pr"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
