@@ -34,6 +34,9 @@ Run:  python3 -m unittest tests.acs.test_initialize_in_repo_state_root -v
 
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -222,6 +225,51 @@ class Mar4InitStateRootCase(unittest.TestCase):
             msg="this repo's own .gitignore must carry a tracked "
                 "`.acs/state-machine/` directory-form line (AC2)",
         )
+
+    # --- 8: iteration-3 fix -- info/exclude append guards a missing
+    # trailing newline exactly like the sibling .gitignore appends above
+    # (regression pin for iter-2's blocking finding) ---
+
+    def test_info_exclude_append_guards_missing_trailing_newline(self):
+        m = re.search(
+            r'```bash\n(common_dir="\$\(git rev-parse --git-common-dir\)".*?)\n```',
+            self.step5,
+            re.S,
+        )
+        self.assertIsNotNone(
+            m, "Step 5 must still have the <git-common-dir>/info/exclude "
+               "bash block (common_dir=... through the grep -qxF append)"
+        )
+        snippet = m.group(1)
+        tmp = tempfile.mkdtemp(prefix="mar4-info-exclude-")
+        try:
+            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+            exclude_path = os.path.join(tmp, ".git", "info", "exclude")
+            os.makedirs(os.path.dirname(exclude_path), exist_ok=True)
+            with open(exclude_path, "wb") as fh:
+                fh.write(b"existing-pattern")  # deliberately no trailing newline
+
+            subprocess.run(["bash", "-c", snippet], cwd=tmp, check=True)
+            with open(exclude_path, "rb") as fh:
+                after_first = fh.read()
+            self.assertEqual(
+                after_first, b"existing-pattern\n.acs/state-machine/\n",
+                msg="a no-trailing-newline info/exclude must gain a newline "
+                    "before the append, not glue '.acs/state-machine/' onto "
+                    "the pre-existing last line (iter-2 finding)",
+            )
+
+            subprocess.run(["bash", "-c", snippet], cwd=tmp, check=True)
+            with open(exclude_path, "rb") as fh:
+                after_second = fh.read()
+            self.assertEqual(
+                after_second, after_first,
+                msg="a second run must not duplicate the appended line "
+                    "(a glued line would break grep -qxF's exact-line "
+                    "match and re-append forever)",
+            )
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -388,6 +388,7 @@ common_dir="$(git rev-parse --git-common-dir)"
 exclude_file="$common_dir/info/exclude"
 mkdir -p "$(dirname "$exclude_file")"
 touch "$exclude_file"
+[ -f "$exclude_file" ] && [ -n "$(tail -c1 "$exclude_file" 2>/dev/null)" ] && printf '\n' >> "$exclude_file"
 grep -qxF '.acs/state-machine/' "$exclude_file" || printf '.acs/state-machine/\n' >> "$exclude_file"
 ```
 
