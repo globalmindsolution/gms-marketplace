@@ -17,8 +17,9 @@ every fallback is recorded, nothing is silently dropped.
 - **Single repo.** They aggregate only the current repo's workspace partition
   (active tickets plus `archive/`). Multi-repo aggregation is out of scope.
 - **No new config.** They consume the existing `.acs/settings.json` only (to
-  resolve `workspace_path`) and introduce **no new config keys**. Nothing about
-  the dashboards needs configuring.
+  resolve the state root — either an explicit `workspace_path` override or the
+  derived in-repo `.acs/state-machine` default) and introduce **no new config
+  keys**. Nothing about the dashboards needs configuring.
 - **Every panel of the requested view is always present.** Each skill presents
   every panel of its view. Missing or partial state renders as a **"no data"**
   marker for that panel — never a missing panel, never a crash (see

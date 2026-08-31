@@ -245,7 +245,7 @@ growth path.
 - Workspace partitioned by repo/ticket, outside the consumer repo; locks,
   worktree parallelism. **Historical v0.1 snapshot** — this bullet records
   the v0.1 shipped scope and is intentionally left as-is.
-  `default_state_root()` (MAR-2) now derives an in-repo default of
+  `default_state_root()` now derives an in-repo default of
   `<main-checkout>/.acs/state-machine`, anchored to the main checkout so
   linked worktrees share one state root; the `workspace_path` setting
   remains an optional override and may still point outside the consumer
