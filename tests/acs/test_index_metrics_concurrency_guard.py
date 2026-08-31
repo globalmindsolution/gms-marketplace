@@ -24,6 +24,16 @@ def _ticket(tid):
     return {"id": tid, "title": "t", "type": "task", "status": "open"}
 
 
+class GuardDocstringHonestyTest(unittest.TestCase):
+    """Finding 5: the docstring must name the bounded-spin fail-open fallback
+    rather than claim an absolute guarantee the mechanism does not provide."""
+
+    def test_docstring_names_the_bounded_spin_fallback(self):
+        doc = lib._guarded_repo_write.__doc__ or ""
+        self.assertIn("unguarded", doc)
+        self.assertNotRegex(doc, r"never (drop|lose)")
+
+
 class _GuardedWriterCaseMixin:
     """Shared arms for the O_EXCL guard around a repo-level read-modify-write.
     Subclasses set guard_name and implement _call()."""
@@ -39,6 +49,10 @@ class _GuardedWriterCaseMixin:
         return os.path.join(self.rdir, self.guard_name)
 
     def _call(self, n=1):
+        raise NotImplementedError
+
+    def _landed(self, n=1):
+        """Assert self._call(n)'s write actually reached its target file."""
         raise NotImplementedError
 
     def test_guard_file_held_during_read_modify_write(self):
@@ -94,6 +108,21 @@ class _GuardedWriterCaseMixin:
         with mock.patch.object(lib, "write_json", side_effect=shim):
             self._call()  # must not raise
 
+    def test_proceeds_unguarded_when_the_guard_cannot_be_acquired(self):
+        """Finding 5: mirrors allocate_ticket_id's pre-existing bounded-spin
+        fail-open fallback -- a live (never-stale) foreign guard held for the
+        whole call must not block the write forever, and the fallback must
+        not steal the foreign guard file out from under its owner."""
+        os.makedirs(self.rdir, exist_ok=True)
+        guard = self._guard_path()
+        open(guard, "w").close()  # fresh mtime -> never stale, held for the call
+
+        with mock.patch("time.sleep"):
+            self._call()
+
+        self._landed()
+        self.assertTrue(os.path.exists(guard), "fail-open must not unlink a foreign guard")
+
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     guard_name = "tickets-index.json.lock"
@@ -101,12 +130,20 @@ class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     def _call(self, n=1):
         return lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
 
+    def _landed(self, n=1):
+        data = lib.read_json(lib.index_path(self.workspace, "acme-shop")) or {}
+        self.assertIn("SHOP-%d" % n, data.get("tickets", {}))
+
 
 class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     guard_name = "metrics.json.lock"
 
     def _call(self, n=1):
         return lib.update_metrics(self.workspace, "acme-shop", pr_created=True, pr_number=n)
+
+    def _landed(self, n=1):
+        data = lib.read_json(lib.metrics_path(self.workspace, "acme-shop")) or {}
+        self.assertIn(n, data.get("prs", {}).get("created_pr_numbers", []))
 
 
 class ConcurrentWritersTest(unittest.TestCase):

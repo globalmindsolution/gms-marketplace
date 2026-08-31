@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
@@ -106,15 +107,108 @@ class DeclaredDependencyTest(unittest.TestCase):
                 self.assertFalse(lib.DOC_BOOTSTRAP_SETTINGS_KEY[skill].startswith(skill))
 
     def test_standards_and_principles_never_share_a_batch(self):
-        batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
+        # General-case semantics (AC-5): explicit candidates, since v1's
+        # default gate excludes both of these skills (finding 2).
+        batches = lib.fanout_batches(
+            ALL_SETTINGS, {"tickets": {}}, self.root,
+            candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
             self.assertFalse({"create-standards", "create-principles"} <= set(batch))
 
     def test_soft_edge_alone_never_makes_a_candidate_ineligible(self):
-        batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
+        batches = lib.fanout_batches(
+            ALL_SETTINGS, {"tickets": {}}, self.root,
+            candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("create-standards", flat)
         self.assertIn("create-principles", flat)
+
+
+class SoftEdgeSymmetryTest(unittest.TestCase):
+    """Finding 1: the soft-edge batching constraint must be UNDIRECTED -- it
+    holds regardless of which side declares it and regardless of table order,
+    not merely because of today's insertion order (AC-5)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def test_reversed_soft_declaration_still_never_shares_a_batch(self):
+        # Edge declared on create-principles instead of create-standards,
+        # with the declaring side processed first -- exposes a check that
+        # only ever consults the CURRENT candidate's own declared list.
+        reversed_deps = {
+            "create-principles": {"hard": [], "soft": ["create-standards"]},
+            "create-standards": {"hard": [], "soft": []},
+        }
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
+            batches = lib.fanout_batches(
+                ALL_SETTINGS, {"tickets": {}}, self.root,
+                candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
+        for batch in batches:
+            self.assertFalse({"create-standards", "create-principles"} <= set(batch))
+
+    def test_soft_edge_invariant_survives_table_reordering(self):
+        # Same declaration direction as production (standards -> principles),
+        # but the table's insertion order -- and hence candidates order -- is
+        # reversed relative to production (standards processed first).
+        reordered_deps = {
+            "create-standards": {"hard": [], "soft": ["create-principles"]},
+            "create-principles": {"hard": [], "soft": []},
+        }
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reordered_deps, clear=True):
+            batches = lib.fanout_batches(
+                ALL_SETTINGS, {"tickets": {}}, self.root,
+                candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
+        for batch in batches:
+            self.assertFalse({"create-standards", "create-principles"} <= set(batch))
+
+    def test_symmetric_check_never_makes_either_side_ineligible(self):
+        # Guard against over-correcting the symmetry fix into an eligibility
+        # filter: both sides must still land in SOME batch.
+        reversed_deps = {
+            "create-principles": {"hard": [], "soft": ["create-standards"]},
+            "create-standards": {"hard": [], "soft": []},
+        }
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
+            batches = lib.fanout_batches(
+                ALL_SETTINGS, {"tickets": {}}, self.root,
+                candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
+        flat = [skill for batch in batches for skill in batch]
+        self.assertIn("create-standards", flat)
+        self.assertIn("create-principles", flat)
+
+
+class V1FanoutGateTest(unittest.TestCase):
+    """Finding 2: fanout_batches defaults to the declared v1 fan-out set
+    (DOC_BOOTSTRAP_FANOUT_V1), not every configured doc-bootstrap skill; the
+    general case stays reachable via an explicit candidates argument, and an
+    unknown candidate name is skipped rather than raised."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def test_declared_v1_set_is_exactly_the_pair(self):
+        self.assertEqual(lib.DOC_BOOTSTRAP_FANOUT_V1, ("create-quality", "create-operations"))
+
+    def test_default_batch_excludes_non_v1_skills_even_when_configured_and_unshipped(self):
+        batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
+        flat = [skill for batch in batches for skill in batch]
+        self.assertEqual(sorted(flat), ["create-operations", "create-quality"])
+
+    def test_explicit_candidates_argument_covers_the_general_case(self):
+        batches = lib.fanout_batches(
+            ALL_SETTINGS, {"tickets": {}}, self.root,
+            candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
+        flat = [skill for batch in batches for skill in batch]
+        self.assertEqual(sorted(flat), sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
+
+    def test_unknown_candidate_name_is_skipped_not_raised(self):
+        batches = lib.fanout_batches(
+            PAIR_SETTINGS, {"tickets": {}}, self.root,
+            candidates=["create-quality", "not-a-skill"])
+        self.assertEqual(batches, [["create-quality"]])
 
 
 class FanoutBatchesTest(unittest.TestCase):

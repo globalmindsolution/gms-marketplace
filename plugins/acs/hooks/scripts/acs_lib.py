@@ -105,6 +105,11 @@ DOC_BOOTSTRAP_SENTINEL = {
     "create-standards": "coding-standards.md",
 }
 
+# D7-A: v1 fans out exactly this pair. A third doc-bootstrap skill becomes
+# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES --
+# both data changes, no code change.
+DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations")
+
 
 def doc_set_present_on_disk(checkout_root, settings, skill):
     """D4.2(a): a doc-bootstrap skill's doc set counts as shipped only when its
@@ -116,10 +121,26 @@ def doc_set_present_on_disk(checkout_root, settings, skill):
     return os.path.isfile(os.path.join(checkout_root, base, DOC_BOOTSTRAP_SENTINEL[skill]))
 
 
-def fanout_batches(settings, tickets_index, checkout_root):
+def _soft_peers(candidate, eligible):
+    """AC-5: the soft edge is an UNDIRECTED batching constraint -- an edge
+    counts whether the candidate declares it or the peer does, so the
+    invariant cannot be broken by re-ordering the table or by declaring the
+    edge on the other side."""
+    declared = set(DOC_BOOTSTRAP_DEPENDENCIES[candidate]["soft"])
+    reverse = {peer for peer in eligible
+               if candidate in DOC_BOOTSTRAP_DEPENDENCIES[peer]["soft"]}
+    return (declared | reverse) & set(eligible)
+
+
+def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
     """D4.1 eligibility (configured, not-shipped, no open delivery ticket, hard
     deps clear) plus D4.3 batching: group eligible candidates so a soft
-    dependency edge never shares a batch with its eligible peer."""
+    dependency edge never shares a batch with its eligible peer, in either
+    direction. candidates defaults to the declared v1 fan-out set
+    (DOC_BOOTSTRAP_FANOUT_V1); an explicit candidates argument exists so the
+    general-case (future N-way) semantics stay unit-testable even though only
+    the v1 pair is fanned out today. Names not present in
+    DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
     tickets = (tickets_index or {}).get("tickets") or {}
 
     def _open_ticket(skill):
@@ -131,7 +152,10 @@ def fanout_batches(settings, tickets_index, checkout_root):
         )
 
     eligible = []
-    for candidate, deps in DOC_BOOTSTRAP_DEPENDENCIES.items():
+    for candidate in (DOC_BOOTSTRAP_FANOUT_V1 if candidates is None else candidates):
+        if candidate not in DOC_BOOTSTRAP_DEPENDENCIES:
+            continue  # unknown/non-doc-bootstrap name: never eligible, never raises
+        deps = DOC_BOOTSTRAP_DEPENDENCIES[candidate]
         configured = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[candidate]) is not None
         not_shipped = not doc_set_present_on_disk(checkout_root, settings, candidate)
         not_open = not _open_ticket(candidate)
@@ -145,7 +169,7 @@ def fanout_batches(settings, tickets_index, checkout_root):
 
     batches = []
     for candidate in eligible:
-        soft_peers = set(DOC_BOOTSTRAP_DEPENDENCIES[candidate]["soft"]) & set(eligible)
+        soft_peers = _soft_peers(candidate, eligible)
         for batch in batches:
             if not soft_peers & set(batch):
                 batch.append(candidate)
@@ -1744,9 +1768,12 @@ def index_path(workspace, repo_id):
 
 def _guarded_repo_write(workspace, repo_id, guard_name, fn):
     """D5.1(a): run fn (a repo_id-keyed read-modify-write) under the same
-    O_EXCL spin-lock pattern as allocate_ticket_id's counters guard, so
-    concurrent writers -- even across separate worktrees of the same repo --
-    never drop each other's update."""
+    O_EXCL spin-lock pattern as allocate_ticket_id's counters guard (bounded
+    spin, same 200 x 0.05s budget). Mirrors that pre-existing pattern's
+    fail-open fallback: if a live foreign guard is never released within the
+    budget, the loop gives up (acquired stays False) and still runs fn()
+    unguarded, leaving the foreign guard file untouched -- a best-effort lock,
+    not an absolute guarantee against a dropped concurrent update."""
     rdir = repo_dir(workspace, repo_id)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, guard_name)
