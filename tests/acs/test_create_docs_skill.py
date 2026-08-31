@@ -216,6 +216,116 @@ class DocumentationTest(unittest.TestCase):
     def test_completion_report_section_present(self):
         self.assertIn("## Completion report (normative)", _body())
 
+    def test_prose_states_the_v1_gate_is_a_declared_constant(self):
+        # finding 2 (prose half): the v1 fan-out set is named as the
+        # declared acs_lib constant, not a bare "the pair" claim.
+        body_norm = norm(_body())
+        self.assertIn("DOC_BOOTSTRAP_FANOUT_V1", body_norm)
+        self.assertIsNotNone(
+            re.search(r"(?i)declared", body_norm),
+            "must state the v1 gate is declared (data), not inferred/hardcoded prose")
+
+    def test_for_flag_reports_a_non_v1_name_as_ineligible(self):
+        # finding 2 (prose half): a --for name outside v1's set is reported
+        # as ineligible, never silently fanned out.
+        body_norm = norm(_body())
+        self.assertIn("--for", body_norm)
+        self.assertIsNotNone(
+            re.search(r"(?i)not in v1.s fan-out set", body_norm),
+            "must report a non-v1 --for name as \"not in v1's fan-out set\"")
+
+
+class LoopTopologyTest(unittest.TestCase):
+    """finding 7: create-docs/SKILL.md's own Reflection-loop item 1 (Plan)
+    must not read as a per-iteration re-spawn -- mirrors
+    test_create_quality_loop_topology.py::SinglePlannerSpawnPerRunTest
+    check-for-check, adapted to the umbrella's two-planner batch."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = _body()
+        cls.norm = norm(cls.body)
+
+    def test_plan_list_item_is_not_per_iteration(self):
+        self.assertRegex(self.body, r"(?m)^1\. \*\*Plan\*\* \(once[^)]*\)")
+        self.assertNotRegex(self.body, r"(?m)^1\. \*\*Plan\*\* —")
+
+    def test_states_exactly_one_planner_per_leg_across_the_whole_run(self):
+        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
+            window = self.norm[max(0, m.start() - 80):m.end() + 80]
+            if "planner" in window.lower() and re.search(r"(?i)\bleg\b", window) and re.search(
+                    r"(?i)\bwhole run\b", window):
+                return
+        self.fail(
+            "create-docs/SKILL.md must co-locate an 'exactly one' clause "
+            "with 'planner', 'leg' and a whole-run qualifier within ~80 chars")
+
+    def test_findings_route_to_each_legs_own_executor_context_with_no_planner_between(self):
+        no_planner_re = re.compile(r"(?i)(no|never|without)\W{0,20}planner")
+        for m in re.finditer(r"(?i)findings", self.norm):
+            window = self.norm[max(0, m.start() - 300):m.end() + 300]
+            if ("executor" in window.lower() and "<context>" in window
+                    and no_planner_re.search(window)):
+                return
+        self.fail(
+            "create-docs/SKILL.md must co-locate 'findings', 'executor', "
+            "'<context>' and a no-planner clause within ~300 chars")
+
+    def test_no_unnegated_replan_instruction(self):
+        negating = re.compile(r"(?i)never|no |not|without|instead of")
+        for m in re.finditer(r"(?i)re-?plan\w*", self.body):
+            window = self.body[max(0, m.start() - 60):m.end() + 60]
+            self.assertRegex(
+                window, negating,
+                "un-negated 're-plan' instruction found: %r" % window)
+
+    def test_iteration_cap_is_still_three_execute_verify_rounds(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)max 3 execute.{0,4}(→|->)?.{0,4}verify rounds", self.norm),
+            "the per-leg iteration cap (max 3 execute-verify rounds) must be pinned")
+
+
+class WorktreeLifecycleTest(unittest.TestCase):
+    """finding 6: the worktree is created before that leg's Execute phase
+    and entered at that leg's own Branch step -- never claimed to be
+    entered only at Delivery. D3.2(ii) (skill-start.py in the session
+    checkout) stays intact."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = _body()
+        cls.norm = norm(cls.body)
+
+    def test_worktree_is_entered_at_the_legs_branch_step_before_execute(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)enters? that leg.s (own )?worktree", self.norm),
+            "must state the coordinator enters that leg's own worktree")
+        self.assertIsNotNone(
+            re.search(r"(?i)Branch.{0,10}\(?step 1\)?|step 1.{0,10}\(Branch\)", self.norm),
+            "must name Branch as the leg's own step 1")
+        self.assertIsNotNone(
+            re.search(r"(?i)before.{0,40}(the )?Execute phase", self.norm),
+            "must state this happens before the Execute phase")
+
+    def test_no_claim_that_the_worktree_is_entered_only_at_delivery(self):
+        self.assertNotRegex(
+            self.norm, r"(?i)entered\W+only\W+at.{0,40}Delivery")
+
+    def test_clean_tree_precondition_is_reconciled_with_a_fresh_worktree(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)git status --porcelain.{0,120}empty", self.norm),
+            "must state git status --porcelain is empty for the fresh worktree")
+        self.assertIsNotNone(
+            re.search(r"(?i)true by construction|freshly created", self.norm),
+            "must reconcile the clean-tree precondition with a freshly created worktree")
+
+    def test_skill_start_still_runs_in_the_session_checkout(self):
+        self.assertIn("skill-start.py", self.body)
+        self.assertIsNotNone(re.search(r"(?i)session checkout", self.norm))
+        self.assertIsNotNone(
+            re.search(r"(?i)D3\.2", self.norm),
+            "the D3.2(ii) session-checkout paragraph must remain cited")
+
 
 if __name__ == "__main__":
     unittest.main()

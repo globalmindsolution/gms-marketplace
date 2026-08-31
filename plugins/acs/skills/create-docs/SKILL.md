@@ -55,25 +55,29 @@ PY
 `acs_lib.fanout_batches(settings, tickets_index, checkout_root)` is the
 **declared, not inferred** eligibility predicate (AC-5): each doc-bootstrap
 skill's dependency edges live in `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES`
-(`{"hard": [...], "soft": [...]}` per skill) — never a prose guess. A
-candidate is eligible only when its settings path is configured, its doc
-set has not already shipped on disk (`doc_set_present_on_disk`, the D4.2(a)
-sentinel-file predicate — the skill's own first output file, e.g.
-`test-strategy.md` for `create-quality`), it has no open (non-`done`)
-delivery ticket already in flight, and every **hard** dependency is
-unconfigured or already shipped. A **soft** dependency (today, exactly
-`create-standards` → `create-principles`) never makes a candidate
-ineligible on its own — it only ever excludes that candidate from sharing
-the **same batch** as an eligible soft peer; `create-standards` and
-`create-principles` are never started in parallel with each other, even
-though neither is in the v1 pair.
+(`{"hard": [...], "soft": [...]}` per skill) — never a prose guess. With no
+`candidates` argument, `fanout_batches` defaults to the declared v1 gate,
+`acs_lib.DOC_BOOTSTRAP_FANOUT_V1` — the v1 fan-out set is that constant, a
+data declaration, not a hardcoded prose claim. A candidate is eligible only
+when its settings path is configured, its doc set has not already shipped
+on disk (`doc_set_present_on_disk`, the D4.2(a) sentinel-file predicate —
+the skill's own first output file, e.g. `test-strategy.md` for
+`create-quality`), it has no open (non-`done`) delivery ticket already in
+flight, and every **hard** dependency is unconfigured or already shipped. A
+**soft** dependency (today, exactly `create-standards` → `create-principles`)
+never makes a candidate ineligible on its own — it only ever excludes that
+candidate from sharing the **same batch** as an eligible soft peer;
+`create-standards` and `create-principles` are never started in parallel
+with each other, even though neither is in the v1 pair.
 
-No arguments: fan out whatever `fanout_batches` returns. `--for
-<skill>[,<skill>...]`: fan out exactly the named skills, still filtered
-through this same eligibility predicate — an explicitly named but
-ineligible skill is reported (why: already shipped / already in flight /
-unconfigured / blocked by an unshipped hard dependency), never silently
-dropped.
+No arguments: fan out whatever `fanout_batches` returns for the declared
+`DOC_BOOTSTRAP_FANOUT_V1` set. `--for <skill>[,<skill>...]`: fan out exactly
+the named skills, still filtered through this same eligibility predicate —
+an explicitly named but ineligible skill is reported (why: already shipped
+/ already in flight / unconfigured / blocked by an unshipped hard
+dependency), never silently dropped. A `--for` name that is not in v1's
+declared set at all is reported as ineligible — "not in v1's fan-out set" —
+and is likewise never fanned out.
 
 If the eligible batch is empty: report why, per candidate, and stop —
 nothing to fan out.
@@ -85,13 +89,27 @@ outside the consumer repo (`docs/requirements/functional/workspace-and-state.md`
 worktree-per-unit-of-work convention), with a **generic, skill-scoped**
 directory name — never ticket-id-named, because the delivery ticket id does
 not exist yet (`skill-start.py --allocate` mints it only once that leg's
-Start actually runs).
+Start actually runs):
+
+```bash
+git worktree add --detach <path> <default-branch>
+```
+
+The `--detach` form is required, not cosmetic: the session checkout already
+has `<default-branch>` checked out, so a plain (non-detached) `git worktree
+add <path> <default-branch>` fails outright — `fatal: '<default-branch>' is
+already used by worktree at …` — because git refuses to check the same
+branch out into two worktrees at once. `--detach` sidesteps that by leaving
+the new worktree in a detached-HEAD state at `<default-branch>`'s tip, which
+still leaves `git status --porcelain` empty (a clean tree, true by
+construction since the worktree was just freshly created) and still lets
+that leg's own Branch step (below) run `git checkout -b <rendered branch>`
+from it once that leg's ticket id exists.
 
 **D3.2(ii) — where `skill-start.py` runs.** Every step through this leg's
 own Start — including `skill-start.py --skill <skill> --allocate` — runs
 from the **session checkout** (`cwd` unchanged), never from the worktree.
-The worktree for a leg is entered **only** at that leg's own Delivery step
-below. Running `skill-start.py` from the worktree instead would resolve a
+Running `skill-start.py` from the worktree instead would resolve a
 different `checkout_id` than the one the pre-hook's `PreToolUse(Skill)`
 envelope already used for its session marker, rejecting that marker on
 mismatch and degrading the run to zeroed tokens / `cost_usd: None` /
@@ -100,6 +118,21 @@ avoids that by keeping `skill-start.py` in the session checkout, at the
 cost of the session pointer/marker/cost-cursor becoming genuinely shared
 between the two legs (display-level only — every downstream consumer is
 still given the ticket id explicitly).
+
+**When the worktree is actually entered.** Once that leg's own Start has
+minted its ticket id, the coordinator enters that leg's own worktree and
+runs that leg's own Delivery **step 1 (Branch)** there — the clean-tree
+precondition is already satisfied (`git status --porcelain` empty, true by
+construction from the freshly created worktree above), then `git checkout -b
+<rendered branch>` — **before the Execute phase**, exactly as
+`create-quality/SKILL.md`'s own Branch step requires ("before the first
+executor writes: require a clean working tree" — cited, never restated).
+The worktree is therefore entered at that leg's own Branch step, **not
+merely once Delivery begins**: every subsequent write for that leg — both
+executors' doc writes (`## Reflection loop` below) and Delivery steps 2-4
+(commit, push, `gh pr create`) — happens inside that leg's worktree on that
+branch; each executor's `<task>` carries that leg's worktree-absolute
+output paths, so its writes cannot land in the session checkout.
 
 ## Starts — sequential, real Skill-tool calls
 
@@ -153,20 +186,29 @@ parallel" when their file maps are disjoint, and to spawn "the same agent
 file, four times" for its multi-lens verify (`code/SKILL.md`) — this is
 reuse of an existing, proven mechanism, never a new one:
 
-1. **Plan** — spawn `acs:create-quality-planner` and
+1. **Plan** (once, before the loop) — spawn `acs:create-quality-planner` and
    `acs:create-operations-planner` in ONE message (both Agent-tool calls in
    the same coordinator turn). Each planner runs exactly the Plan step its
    own SKILL.md already documents — `create-quality/SKILL.md` `##
    Reflection loop` and `create-operations/SKILL.md` `## Reflection loop` —
    cited here, never restated, per the drift-mitigation requirement: a
    future change to either skill's own reflection-loop prose is a
-   documented place to re-check this umbrella.
+   documented place to re-check this umbrella. Exactly one planner per leg
+   across the whole run: however many execute→verify iterations a leg
+   needs, its planner is never re-spawned (the same topology
+   `create-quality/SKILL.md`'s own `## Reflection loop` already fixes for a
+   standalone run). On iterations 2 and 3, a leg's verifier findings go
+   straight into that same leg's own executor `<context>`, with no planner
+   spawn in between and never into the sibling leg's executor.
 2. **Execute** — after both planners return, spawn
    `acs:create-quality-executor` and `acs:create-operations-executor` in
-   one message. Both executors write to disjoint doc directories
-   (`docs/quality/**` vs `docs/operations/**`) in their own leg's worktree
-   — the disjoint-file-map precondition `/acs:code`'s own parallel-executor
-   rule requires is satisfied by construction.
+   one message. Both executors write in the leg's own worktree **on the
+   branch that leg's own Branch step already created** (`## Worktrees`
+   above) — never the session checkout — to disjoint doc directories
+   (`docs/quality/**` vs `docs/operations/**`); each executor's `<task>`
+   carries that leg's worktree-absolute output paths. The disjoint-file-map
+   precondition `/acs:code`'s own parallel-executor rule requires is
+   satisfied by construction.
 3. **Verify** — after both executors finish, spawn both verifiers,
    `acs:create-quality-verifier` and `acs:create-operations-verifier`, in
    one message.
@@ -192,12 +234,13 @@ the other leg's.
 
 ## Delivery — worktree per leg, two independent PRs
 
-Once a leg's verifier returns zero findings, enter **that leg's own
-worktree** (never the session checkout) for its Delivery step — branch,
-commit, push, `gh pr create` — exactly as `create-quality/SKILL.md` `##
-Delivery (branch, commit, PR)` / `create-operations/SKILL.md` `##
-Delivery (branch, commit, PR)` already specify, cited rather than
-restated. Each leg's own `post-create-quality.py` / `post-create-operations.py`
+Once a leg's verifier returns zero findings, **continue** in that leg's
+worktree (already entered at its own Branch step, `## Worktrees` above —
+never the session checkout) with Delivery steps 2-4 (commit, push, `gh pr
+create`) — exactly as `create-quality/SKILL.md` `## Delivery (branch,
+commit, PR)` / `create-operations/SKILL.md` `## Delivery (branch, commit,
+PR)` already specify, cited rather than restated. Each leg's own
+`post-create-quality.py` / `post-create-operations.py`
 finalizes it exactly as a standalone run would — its own
 `pipeline-state.json`, its own `tickets-index.json` entry, its own
 delivery ticket moved to `in_review`. The result is two independent
