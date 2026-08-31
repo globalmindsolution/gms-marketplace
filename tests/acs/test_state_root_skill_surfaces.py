@@ -253,12 +253,28 @@ class PluginJsonDescriptionCase(unittest.TestCase):
         )
 
 
+def _base_ref():
+    """`origin/main` is preferred over a local `main`: a CI checkout has no
+    local `main` branch at all (only `origin/main`), and a long-lived
+    worktree's local `main` can go stale, folding already-merged sibling
+    changes into the range and producing a false positive here."""
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", ref],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return ref
+    return None
+
+
 def git_blob_at_merge_base(rel_path):
     """Content of `rel_path` at the commit where this branch diverged from
     `main` — a fixed historical snapshot (unlike re-reading the working tree
     twice in one process, which would trivially always match itself)."""
+    base_ref = _base_ref()
     base = subprocess.check_output(
-        ["git", "merge-base", "main", "HEAD"], cwd=REPO_ROOT, text=True
+        ["git", "merge-base", base_ref, "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
     return subprocess.check_output(
         ["git", "show", "%s:%s" % (base, rel_path)], cwd=REPO_ROOT, text=True
@@ -270,6 +286,10 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
     plugins/acs/CHANGELOG.md must stay byte-identical to their content at the
     commit this branch diverged from `main` (byte-pinned / append-only, out
     of this ticket's scope — this task's own file map excludes both paths)."""
+
+    def setUp(self):
+        if _base_ref() is None:
+            self.skipTest("no base ref (origin/main or main) to diff against")
 
     def test_marketplace_json_untouched(self):
         self.assertEqual(
