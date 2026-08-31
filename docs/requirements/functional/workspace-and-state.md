@@ -250,8 +250,10 @@ worktree per ticket**:
   `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 - **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
   `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
-  critical section so two legs finishing concurrently never lose one
-  leg's update to a silent last-write-wins race.
+  critical section that serializes two legs finishing concurrently on the
+  normal path. This is best-effort, not absolute: on a bounded spin timeout
+  the guard fails open and the write proceeds unguarded rather than blocking
+  forever, so the last-write-wins race is narrowed, not eliminated.
 
 ## Metrics
 

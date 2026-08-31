@@ -10,7 +10,8 @@ planners, then both executors, then both verifiers) runs in parallel before
 the next batch starts. `fanout_batches()` (`acs_lib.py`) computes the eligible
 batch from `DOC_BOOTSTRAP_DEPENDENCIES` and `DOC_BOOTSTRAP_SETTINGS_KEY`
 against the consumer repo's settings and on-disk doc state
-(`doc_set_present_on_disk()`).
+(`doc_set_present_on_disk()`), gated on the declared v1 set
+`DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
 
 ## Sequence — happy path (both legs succeed)
 
@@ -38,7 +39,8 @@ sequenceDiagram
     CD->>CD: Skill acs:create-operations
     note over CD: PreToolUse(Skill) fires for real (ship/SKILL.md precedent) — cwd is the session checkout, gate_create_operations passes
     CD->>WS: skill-start.py --skill create-operations --allocate, mints MAR-102, lock, pointer, update_index — run in the session checkout (D3.2-ii)
-    note over CD: worktree-Q and worktree-O are entered only at the Delivery messages below (D3.2-ii)
+    CD->>WS: enter worktree-Q, git checkout -b MAR-101 (Branch step, before create-quality Execute)
+    CD->>WS: enter worktree-O, git checkout -b MAR-102 (Branch step, before create-operations Execute)
 
     par create-quality plan
         CD->>PLQ: task phase=plan, ticket-id=MAR-101
@@ -109,6 +111,10 @@ shared failure state across legs, so one leg's iteration-cap failure never
 blocks or rolls back a sibling leg's success. A crashed or failed leg resumes
 exactly the way a standalone run already does, via its own skill's Resume &
 reconcile path — `/acs:create-docs` is never re-invoked for a single-leg
-resume. Worktrees are entered only at each leg's own Delivery step
-(D3.2-ii); the shared session checkout is used for every Start and every
-plan/execute/verify subagent invocation up to that point.
+resume. Each leg's worktree is entered at that leg's own Delivery step's
+Branch sub-step, before that leg's Execute phase; that Branch entry point
+precedes the later Delivery commit/push/PR steps, which run in the same
+worktree once entered. The shared session checkout is used for both
+legs' Starts and `skill-start.py --allocate` calls (D3.2-ii); each leg's
+execute and verify phases, and Delivery steps 2-4, then run in that leg's
+own worktree on its own branch.

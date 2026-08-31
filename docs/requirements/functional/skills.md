@@ -293,11 +293,13 @@ docs-only PR on its own delivery ticket.
   `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
 - **Eligibility**: `fanout_batches()` (`acs_lib.py`) computes the eligible
   batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
-  the consumer repo's settings and on-disk doc state.
+  the consumer repo's settings and on-disk doc state, gated on the declared
+  v1 set `DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
 - **Mechanism**: mints one delivery ticket per eligible leg via real
   `Skill`-tool `Start`s in the session checkout, then runs each phase
   (plan → execute → verify) as a parallel batch across legs; each leg enters
-  its own worktree only at its own Delivery step.
+  its own worktree at its own Delivery step's Branch sub-step, before that
+  leg's Execute phase.
 - **Failure isolation**: legs share no failure state — one leg reaching its
   verifier iteration cap never blocks or rolls back a sibling leg's
   completed PR; a failed leg resumes via its own skill's standalone Resume &

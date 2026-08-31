@@ -68,12 +68,14 @@ inside a subagent); a worktree + headless session per leg (no existing acs
 precedent for a coordinator spawning and awaiting another session, and does
 not remove the two repo-level unguarded writers addressed by D5.1).
 
-**D3 — Git delivery: one worktree per leg, entered only at Delivery.** Each
-leg's clean-tree + `git checkout -b` precondition is satisfied by
-construction; neither skill's own SKILL.md changes. The worktree is given a
-generic, skill-scoped directory name (not ticket-id-named, since the
-delivery ticket id does not exist until `skill-start.py --allocate` runs
-inside it); only the git **branch** is named with the ticket id.
+**D3 — Git delivery: one worktree per leg, entered at each leg's Branch
+step (before Execute).** Each leg's clean-tree + `git checkout -b`
+precondition is satisfied by construction; neither skill's own SKILL.md
+changes. The worktree is given a generic, skill-scoped directory name (not
+ticket-id-named, since the delivery ticket id does not exist until
+`skill-start.py --allocate` runs, in the session checkout per D3.2; only
+after that does the umbrella enter the worktree and name the git branch
+with the minted ticket id).
 **Sub-decision D3.2 — `skill-start.py` runs in the session checkout, not
 the worktree.** This keeps the session marker's `checkout_id` matching the
 `PreToolUse(Skill)` envelope's, so each run stays fully threaded
@@ -166,7 +168,8 @@ other failure class falls straight through to per-leg isolation.
 **D7 — v1 eligible set: exactly the pair, `create-quality` +
 `create-operations`.** Matches the ticket's stated DoD and AC-1's literal
 scope. A third independent skill becomes eligible via a data change to
-`DOC_BOOTSTRAP_DEPENDENCIES`, not a code change. Generalizing to an N-way
+`DOC_BOOTSTRAP_DEPENDENCIES` and to the declared v1 tuple
+`DOC_BOOTSTRAP_FANOUT_V1`, not a code change. Generalizing to an N-way
 batch (`create-principles`, `create-standards` under its soft dependency,
 `create-requirements`'s interactive greenfield-elicit mode) before the
 2-way mechanism has run in production would multiply every concurrency
@@ -189,10 +192,11 @@ follow-up lands.
 - One new unhooked skill, `plugins/acs/skills/create-docs/SKILL.md`, with
   no dedicated agent files; skill count 24 → 25.
 - `acs_lib.py` gains `DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
-  `DOC_BOOTSTRAP_SENTINEL`, pure `doc_set_present_on_disk`/`fanout_batches`
-  helpers, and an `O_EXCL` guard on `update_index`/`update_metrics` — a
-  small, testable change to the most-depended-on module, benefiting every
-  future parallel path in acs, not just this one.
+  `DOC_BOOTSTRAP_SENTINEL`, the declared v1 tuple `DOC_BOOTSTRAP_FANOUT_V1`,
+  pure `doc_set_present_on_disk`/`fanout_batches` helpers, and an `O_EXCL`
+  guard on `update_index`/`update_metrics` — a small, testable change to the
+  most-depended-on module, benefiting every future parallel path in acs, not
+  just this one.
 - Four skill-name mirrors (`acs-messages.xsd`, `skill-state.schema.json`,
   `clarifications.schema.json`, `validate_xml.py`) gain `create-docs` in the
   same change as the skill directory.

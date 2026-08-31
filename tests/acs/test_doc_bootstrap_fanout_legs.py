@@ -159,6 +159,42 @@ class LedgerTest(AcsWorkspaceCase):
         self.assertEqual([s for s in flat if s in v1_pair], ["create-operations"])
         self.assertNotIn("create-quality", flat)
 
+    def test_both_legs_completed_retain_both_pipeline_states_index_and_metrics_entries(self):
+        """Finding 3: drive BOTH legs to completed and confirm every ledger
+        surface (both pipeline-state.json files, the shared tickets-index.json,
+        and metrics.json) retains both entries -- no last-write-wins loss."""
+        q = self._allocate("create-quality")
+        o = self._allocate("create-operations")
+
+        self.assertEqual(self.post("create-quality", q,
+                          {"status": "completed",
+                           "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}}
+                          ).returncode, 0)
+        self.assertEqual(self.post("create-operations", o,
+                          {"status": "completed",
+                           "states": {"pr": {"number": 2, "url": "https://example.invalid/pull/2"}}}
+                          ).returncode, 0)
+
+        q_pipeline = lib.load_pipeline(self.tdir(q), q)
+        o_pipeline = lib.load_pipeline(self.tdir(o), o)
+        self.assertEqual(q_pipeline["flow"], "product")
+        self.assertEqual(o_pipeline["flow"], "product")
+        self.assertEqual(q_pipeline["steps"]["create-quality"]["status"], "completed")
+        self.assertEqual(o_pipeline["steps"]["create-operations"]["status"], "completed")
+        self.assertNotIn("create-operations", q_pipeline["steps"])
+        self.assertNotIn("create-quality", o_pipeline["steps"])
+
+        tickets_index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
+        self.assertEqual(tickets_index["tickets"][q]["status"], "in_review")
+        self.assertEqual(tickets_index["tickets"][o]["status"], "in_review")
+
+        metrics = lib.read_json(lib.metrics_path(self.ws, "acme-shop"))
+        self.assertEqual(metrics["totals"]["runs"], 2)
+        self.assertEqual(metrics["prs"]["created"], 2)
+        self.assertEqual(metrics["prs"]["created_pr_numbers"], [1, 2])
+        self.assertEqual(metrics["tickets"]["total"], 2)
+        self.assertEqual(metrics["tickets"]["by_status"]["in_review"], 2)
+
 
 if __name__ == "__main__":
     import unittest
