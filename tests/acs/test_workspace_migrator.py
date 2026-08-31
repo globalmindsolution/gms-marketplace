@@ -205,6 +205,23 @@ class TestSuccessfulMigration(MigratorCase):
         self.assertIn("MAR-13", out)
 
 
+class TestVerification(MigratorCase):
+
+    def test_verify_raises_exit_2_via_fail_when_destination_file_is_missing(self):
+        self.mint_ticket("MAR-24")
+        mod = acs_case.load_module(MODULE_FILENAME)
+        old_root = self.old_repo_dir()
+        new_root = self.new_repo_dir()
+        mod.classify_and_copy(old_root, new_root, False)
+        dest_ticket_json = os.path.join(
+            acs_case.lib.ticket_dir(self.new_ws, REPO_ID, "MAR-24"), "ticket.json")
+        self.assertTrue(os.path.isfile(dest_ticket_json))
+        os.remove(dest_ticket_json)
+        with self.assertRaises(SystemExit) as ctx:
+            mod._verify(old_root, new_root)
+        self.assertEqual(ctx.exception.code, 2)
+
+
 class TestRepoLevelFileConflicts(MigratorCase):
 
     def test_repo_level_file_absent_at_destination_is_copied(self):
@@ -341,6 +358,20 @@ class TestCliContract(MigratorCase):
         cp.read(os.path.join(acs_case.REPO_ROOT, ".coveragerc"))
         entries = [line.strip() for line in cp.get("run", "omit").splitlines() if line.strip()]
         self.assertTrue(all(not entry.endswith("migrate_workspace.py") for entry in entries))
+
+    def test_from_and_to_resolving_to_the_same_path_aborts_exit_2_no_data_loss(self):
+        tdir = self.mint_ticket("MAR-27", ws=self.old_ws)
+        source_content = self.read(os.path.join(tdir, "ticket.json"))
+        mod = acs_case.load_module(MODULE_FILENAME)
+        argv = ["--from", self.old_ws, "--to", self.old_ws,
+                "--repo-root", self.repo_root]
+        with acs_case.pushd(self.tmp):
+            code, out, err = acs_case.run_main(mod, argv)
+        self.assertEqual(code, 2)
+        self.assertIn("overlapping", err)
+        self.assertTrue(os.path.isdir(self.old_repo_dir()))
+        self.assertEqual(self.read(os.path.join(tdir, "ticket.json")),
+                          source_content)
 
 
 if __name__ == "__main__":

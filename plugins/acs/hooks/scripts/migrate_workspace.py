@@ -109,8 +109,8 @@ def _verify(old_root, new_root):
     """Invariant check: every file under old_root also exists at the same relative
     path under new_root, before old_root is ever removed."""
     for rel in _iter_files(old_root):
-        assert os.path.exists(os.path.join(new_root, rel)), (
-            "verification failed -- missing at destination: %s" % rel)
+        if not os.path.exists(os.path.join(new_root, rel)):
+            _fail("verification failed -- missing at destination: %s" % rel)
 
 
 def main():
@@ -128,6 +128,14 @@ def main():
 
     old_root = lib.repo_dir(args.old_workspace, repo_id)
     new_root = lib.repo_dir(args.new_workspace, repo_id)
+
+    old_real = os.path.realpath(old_root)
+    new_real = os.path.realpath(new_root)
+    if old_real == new_real or old_real.startswith(new_real + os.sep) \
+            or new_real.startswith(old_real + os.sep):
+        _fail("--from and --to resolve to the same or an overlapping path "
+              "(%s vs %s) -- refusing to risk deleting migrated data"
+              % (old_root, new_root))
 
     if not os.path.isdir(old_root):
         print("acs migrate-workspace: already migrated (%s not present)" % old_root)
