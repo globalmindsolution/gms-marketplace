@@ -17,8 +17,9 @@ every fallback is recorded, nothing is silently dropped.
 - **Single repo.** They aggregate only the current repo's workspace partition
   (active tickets plus `archive/`). Multi-repo aggregation is out of scope.
 - **No new config.** They consume the existing `.acs/settings.json` only (to
-  resolve `workspace_path`) and introduce **no new config keys**. Nothing about
-  the dashboards needs configuring.
+  resolve the state root — either an explicit `workspace_path` override or the
+  derived in-repo `.acs/state-machine` default) and introduce **no new config
+  keys**. Nothing about the dashboards needs configuring.
 - **Every panel of the requested view is always present.** Each skill presents
   every panel of its view. Missing or partial state renders as a **"no data"**
   marker for that panel — never a missing panel, never a crash (see
@@ -258,6 +259,17 @@ two working-time averages are humanized durations (`d`/`h`/`m`/`s`); the two
 cost averages are plain USD to two decimal places. A **zero denominator** (no
 tickets, or no merged PR) renders **"no data"** for that average.
 
+The panel also carries **total API duration** (`total_api_duration_ms`,
+`metrics_aggregate.py:686-706` `_usage_summary_panel`) and its own two
+averages — **avg API duration per ticket** and **avg API duration per merged
+PR** (`avg_api_duration_ms_per_ticket`, `avg_api_duration_ms_per_pr`) — a third
+total+average pair alongside the cost and working-time ones above. All three
+values are humanized durations (`metrics_render.py:1162-1172`
+`_humanize_ms`, e.g. `2h 15m`). The total renders **"no data"** only when
+`total_api_duration_ms` is absent (`None`), mirroring `total_working_seconds`;
+each average renders **"no data"** under the same **zero denominator** guard
+as the other averages (no tickets, or no merged PR).
+
 ### 3 — Cost + time per ticket by step
 
 Per-ticket cost and elapsed time, broken down by pipeline step. Time comes from
@@ -274,6 +286,19 @@ durations; the two cost averages are plain USD. Each average is
 A **zero denominator** renders **"no data"** rather than dividing by zero. These
 working-time averages are the **working-seconds** the pipeline recorded — distinct
 from the wall-clock lead/cycle times in Panel 7 above.
+
+Each ticket row also expands into one **per-skill sub-row** per pipeline step
+(`step_order`, `metrics_aggregate._panel3_row`) — that skill's own wall-clock
+**step span** (from `steps`, unchanged) alongside its **API duration** and
+**basis** (from the new `step_api_duration` key), rendered by
+`metrics_render._term_panel3_sub_rows`/`_html_panel3_sub_rows`. This mirrors
+Claude Code's own `/usage` split between wall-clock and API time. The
+API-duration cell renders the literal **"unavailable"** marker uniformly in
+both of its degraded cases — a `step_api_duration` entry structurally absent
+for that skill (e.g. the unhooked `test` pipeline step, never walked by
+`_accumulate_burn`, which only iterates `HOOKED_SKILLS`) and an entry present
+whose own `basis` is `"unavailable"` — so a reader never has to distinguish
+"no data" from "measured but unavailable" at this per-skill scope (D6).
 
 ### 6 — Token burn by role
 
@@ -303,6 +328,15 @@ any such spend (`metrics_render.ROLE_ORDER` plus its dynamic extra-role
 rows). Tickets with no measured `role_usage` on any run (e.g. every run
 predates this cutover, or every run degraded) contribute `0`.
 
+Each bucket additionally carries a **token %** and **cost %** column
+(`token_share_pct`/`cost_share_pct`, `metrics_aggregate._apply_panel6_shares`)
+— that bucket's repo-scope share of panel 6's own totals, computed once,
+after all runs are summed. A bucket with no measured cost renders
+**"unavailable"** for cost % — a render-layer marker distinct from the
+`cost_basis` field's own pre-existing `"unavailable"` enum value on each run
+entry (a different, run-level fact about how that run's cost was priced, not
+a share computation).
+
 ### usage_by_model — Usage by model
 
 Input, output, cache-write, and cache-read tokens and cost per model, at
@@ -321,6 +355,40 @@ window are unattributed. This is a named, testable reconciliation
 identity, not a bug. A ticket or repo scope with no contributing
 `model_usage` entry anywhere (e.g. every run predates MAR-3) renders "no
 data".
+
+### usage_by_ticket — Usage by ticket
+
+Input, output, cache-write, and cache-read tokens and cost per role, per
+ticket, plus each role's **token %** and **cost %** share of *that ticket's*
+own totals — the `metrics_aggregate._usage_by_ticket_panel` output (built
+from `_finalize_role_ticket_bucket`), rendered by
+`metrics_render._term_render_usage_by_ticket`/`_html_render_usage_by_ticket`.
+Built from the same per-ticket `role_usage` rows panel 6 already sums, in
+the same walk — zero additional file reads.
+
+A role with no measured cost in that ticket renders "no data" for its
+cost figure and **"unavailable"** for its cost %, independent of any
+sibling role in the same ticket — one role's missing cost never blocks
+another role's percentage from computing.
+This panel's shares are ticket-scoped (share of *that ticket's* role
+totals), distinct from panel 6's repo-scope shares above — the two are not
+a conflicting figure, just two different denominators over the same
+underlying `role_usage` data.
+
+Each ticket now opens with a ticket-scope **API-duration header line**
+(`api_duration_ms`/`api_duration_basis`, folded across that ticket's own
+skills) followed by a **`skills[]` table** — one row per hooked skill this
+ticket ever ran, each showing its own summed run time (`run_seconds_sum`),
+API duration, and basis (`metrics_aggregate._usage_by_ticket_panel`/
+`_finalize_skill_bucket`), plus a further-indented **per-run detail** block
+(`runs[]`: `started_at`, wall-clock seconds, API duration, basis) —
+`metrics_render._term_skill_table`/`_html_skill_table`. A skill with run
+entries but no duration ever measured or apportioned still gets its own row
+(`api_duration_ms` null, `basis` `"unavailable"`) rather than being dropped
+from the list; `skills` is the empty list only when the ticket has zero run
+entries for every hooked skill — the two degraded states (a genuinely empty
+ticket vs. a ticket whose skills ran but never measured a duration) stay
+distinguishable rather than collapsing to the same "no data" shape.
 
 ## Degradation and the `meta` block
 

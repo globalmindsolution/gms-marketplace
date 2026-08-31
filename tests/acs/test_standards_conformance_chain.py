@@ -65,8 +65,16 @@ BASELINE_FLOWS = {
 # MAR-1 (ADR 0080) legitimately added acs-cost-metering.md — its own design
 # requires a new standing flow file for acs's own cost/time metering, which
 # no existing flow doc covered.
+# The MAR-1-epic-split's S1 child (workspace state-root resolution) legitimately
+# added state-root-resolution.md — the parent epic's design.md Flow 1 requires a
+# new standing flow file for default_state_root()'s git-plumbing derivation,
+# which no existing flow doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
+# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
+# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
-                          "acs-cost-metering.md", "doc-bootstrap-fanout.md"}
+                          "acs-cost-metering.md", "doc-bootstrap-fanout.md",
+                          "state-root-resolution.md"}
 
 
 def read(path):

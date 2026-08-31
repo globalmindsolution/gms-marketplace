@@ -10,6 +10,11 @@ own-guard-release OSError swallow, lock_is_stale's PermissionError and
 foreign-host-age arms, check_lock's re-entrant arm, release_lock's
 refuse-another-checkout arm, and build_context's two GateError arms were
 exercised by no test.
+
+MAR-2 adds: the worktree-sharing guarantee (design.md's "Concurrency &
+locking" NFR) -- default_state_root and repo_partition_id resolve identically
+from a linked worktree and its main checkout, checkout_id still differs, and
+a lock file written from one side is visible at the same path from the other.
 """
 
 import os
@@ -148,6 +153,8 @@ class TestFinalizeRun(unittest.TestCase):
                 "role_usage": priced_role_usage, "model_usage": priced_model_usage,
                 "cost_usd": 0.05, "cost_basis": "measured", "cost_scope": "session_total",
                 "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "api_duration_scope": "duration_unavailable_on_cursor",
             }
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
                 "status": "completed",
@@ -181,6 +188,8 @@ class TestFinalizeRun(unittest.TestCase):
                 "role_usage": [], "model_usage": [],
                 "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
                 "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "api_duration_scope": "duration_unavailable_on_cursor",
             }
             state, entry = lib.finalize_run(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
         read_usage.assert_called_once_with(
@@ -253,6 +262,8 @@ class TestFinalizeRun(unittest.TestCase):
                 "role_usage": priced_role_usage, "model_usage": [],
                 "cost_usd": 2.5, "cost_basis": "measured", "cost_scope": "session_total",
                 "excluded_cost_usd": 7.5, "excluded_token_share": 0.75,
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "api_duration_scope": "duration_unavailable_on_cursor",
             }
             lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
 
@@ -323,11 +334,98 @@ class TestFinalizeRun(unittest.TestCase):
                 "role_usage": [], "model_usage": measured_model_usage,
                 "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
                 "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "api_duration_scope": "duration_unavailable_on_cursor",
             }
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertIn("model_usage", entry)
         self.assertNotIn("model_usage", entry["tokens"])
         self.assertEqual(set(entry["tokens"]), {"input", "output", "cache_creation", "cache_read"})
+
+    def test_finalize_run_persists_api_duration_fields_on_checkout_success(self):
+        """AC-2: the checkout_id success branch unpacks
+        api_duration_ms/api_duration_basis/api_duration_scope from
+        allocate_cost's return dict onto entry, as siblings of
+        cost_usd/cost_basis/cost_scope (never inside entry['tokens'] -- F10)."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+        })
+        measured_role_usage = [
+            {"role": "executor", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
+        ]
+        priced_role_usage = [
+            {"role": "executor", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0,
+             "cost_usd": 0.05, "cost_basis": "apportioned",
+             "api_duration_ms": 500.0, "api_duration_basis": "apportioned"},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "role_usage": measured_role_usage, "model_usage": [],
+            }
+            allocate.return_value = {
+                "role_usage": priced_role_usage, "model_usage": [],
+                "cost_usd": 0.05, "cost_basis": "measured", "cost_scope": "session_total",
+                "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+                "api_duration_ms": 500.0, "api_duration_basis": "measured",
+                "api_duration_scope": "session_total",
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        self.assertEqual(entry["api_duration_ms"], 500.0)
+        self.assertEqual(entry["api_duration_basis"], "measured")
+        self.assertEqual(entry["api_duration_scope"], "session_total")
+        self.assertNotIn("api_duration_ms", entry["tokens"])
+        self.assertNotIn("api_duration_basis", entry["tokens"])
+        self.assertNotIn("api_duration_scope", entry["tokens"])
+
+    def test_no_checkout_id_branch_sets_duration_unavailable_tokens_still_measured(self):
+        """The no-checkout_id branch sets api_duration_ms=None,
+        api_duration_basis="unavailable" -- tokens/model_usage are still
+        measured; duration needs the checkout-scoped cursor it has no id to
+        locate, exact parity with cost_usd's own rule there."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
+        })
+        measured_role_usage = [
+            {"role": "executor", "input": 5, "output": 5, "cache_creation": 0, "cache_read": 0},
+        ]
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
+                mock.patch("cost_sampler.allocate_cost") as allocate:
+            read_usage.return_value = {
+                "degraded": False, "reason": None, "role_usage": measured_role_usage, "model_usage": [],
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        allocate.assert_not_called()
+        self.assertIsNone(entry["api_duration_ms"])
+        self.assertEqual(entry["api_duration_basis"], "unavailable")
+        self.assertNotIn("api_duration_scope", entry)
+        self.assertEqual(entry["tokens"], {"input": 5, "output": 5, "cache_creation": 0, "cache_read": 0})
+
+    def test_no_session_marker_and_degraded_branches_set_duration_unavailable_no_scope_key(self):
+        """The no-session-marker branch and the degraded-transcript branch
+        both set entry["api_duration_ms"]=None,
+        entry["api_duration_basis"]="unavailable" -- no api_duration_scope
+        key in either, mirroring how those branches set cost_usd/cost_basis
+        but never cost_scope."""
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        read_usage.assert_not_called()
+        self.assertIsNone(entry["api_duration_ms"])
+        self.assertEqual(entry["api_duration_basis"], "unavailable")
+        self.assertNotIn("api_duration_scope", entry)
+
+        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
+        })
+        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
+            read_usage.return_value = {
+                "degraded": True, "reason": "unreadable_transcript", "role_usage": [], "model_usage": [],
+            }
+            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        self.assertIsNone(entry["api_duration_ms"])
+        self.assertEqual(entry["api_duration_basis"], "unavailable")
+        self.assertNotIn("api_duration_scope", entry)
 
     def test_sum_role_tokens_unchanged_by_model_usage(self):
         """Inverse obligation: entry['tokens'] still equals the role-sum
@@ -353,6 +451,8 @@ class TestFinalizeRun(unittest.TestCase):
                 "role_usage": measured_role_usage, "model_usage": measured_model_usage,
                 "cost_usd": None, "cost_basis": "unavailable", "cost_scope": "session_total",
                 "excluded_cost_usd": 0.0, "excluded_token_share": 0.0,
+                "api_duration_ms": None, "api_duration_basis": "unavailable",
+                "api_duration_scope": "duration_unavailable_on_cursor",
             }
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["tokens"], lib._sum_role_tokens(measured_role_usage))
@@ -443,6 +543,49 @@ class TestComputeTicketTotals(unittest.TestCase):
         totals = lib.compute_ticket_totals(tdir)
         self.assertEqual(totals["tokens"], {"input": 15, "output": 27, "cache_creation": 1300, "cache_read": 2400})
 
+    def test_compute_ticket_totals_counts_api_duration_measured_vs_unavailable(self):
+        """AC-2: mirrors the cost_basis/cost_usd pattern verbatim for
+        api_duration_basis/api_duration_ms -- "measured"/"apportioned" with a
+        numeric api_duration_ms increments runs_api_duration_measured and
+        sums into totals["api_duration_ms"]; every other run increments
+        runs_api_duration_unavailable."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5, "cost_basis": "measured",
+             "api_duration_ms": 1500.0, "api_duration_basis": "measured"},
+            {"status": "completed", "started_at": "2026-01-01T01:00:00Z",
+             "ended_at": "2026-01-01T01:05:00Z",
+             "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "apportioned",
+             "api_duration_ms": 500.0, "api_duration_basis": "apportioned"},
+            {"status": "completed", "started_at": "2026-01-01T02:00:00Z",
+             "ended_at": "2026-01-01T02:05:00Z",
+             "tokens": {"input": 1, "output": 1}, "cost_usd": None, "cost_basis": "unavailable",
+             "api_duration_ms": None, "api_duration_basis": "unavailable"},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs_api_duration_measured"], 2)
+        self.assertEqual(totals["runs_api_duration_unavailable"], 1)
+        self.assertEqual(totals["api_duration_ms"], 2000.0)
+
+    def test_compute_ticket_totals_legacy_entry_without_api_duration_basis_counts_unavailable(self):
+        """A pre-cutover run entry with no api_duration_basis field at all is
+        treated the same as api_duration_basis="unavailable" -- excluded from
+        the api_duration_ms sum, counted in runs_api_duration_unavailable."""
+        tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tdir, True)
+        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
+             "ended_at": "2026-01-01T00:05:00Z",
+             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
+        ]})
+        totals = lib.compute_ticket_totals(tdir)
+        self.assertEqual(totals["runs_api_duration_unavailable"], 1)
+        self.assertEqual(totals["runs_api_duration_measured"], 0)
+        self.assertEqual(totals["api_duration_ms"], 0.0)
+
 
 class TestUpdateMetricsCostBasisExclusion(unittest.TestCase):
     """C-11: update_metrics excludes a run entry with absent (legacy) or
@@ -481,6 +624,31 @@ class TestUpdateMetricsCostBasisExclusion(unittest.TestCase):
         })
         self.assertEqual(data["totals"]["tokens"],
                           {"input": 4, "output": 6, "cache_creation": 150, "cache_read": 275})
+
+    def test_update_metrics_backfills_api_duration_counters_at_zero(self):
+        """A pre-existing metrics.json (written before this ticket) predates
+        the api_duration counters; update_metrics backfills them at 0 rather
+        than raising or silently omitting them, then accumulates a new run's
+        api_duration_ms/basis into the roll-up on the next call."""
+        workspace = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, workspace, True)
+        lib.write_json(lib.metrics_path(workspace, "acme-shop"), {
+            "tickets": {}, "prs": {"created": 0, "merged": 0, "created_pr_numbers": []},
+            "totals": {
+                "runs": 1, "working_seconds": 300,
+                "tokens": {"input": 1, "output": 2, "cache_creation": 0, "cache_read": 0},
+                "cost_usd": 0.5, "runs_timed": 1, "runs_untimed": 0,
+                "runs_cost_measured": 1, "runs_cost_unavailable": 0,
+            },
+        })
+        data = lib.update_metrics(workspace, "acme-shop", run_entry={
+            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
+            "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured",
+            "api_duration_ms": 250.0, "api_duration_basis": "measured",
+        })
+        self.assertEqual(data["totals"]["runs_api_duration_measured"], 1)
+        self.assertEqual(data["totals"]["runs_api_duration_unavailable"], 0)
+        self.assertEqual(data["totals"]["api_duration_ms"], 250.0)
 
 
 class TestAllocateTicketId(unittest.TestCase):
@@ -584,6 +752,50 @@ class TestReleaseLock(unittest.TestCase):
         result = lib.release_lock(tdir, cwd=repo)
         self.assertFalse(result)
         self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+
+
+class TestWorktreeSharedStateRoot(unittest.TestCase):
+    """default_state_root/repo_partition_id are shared across a linked worktree,
+    while checkout_id differs -- design.md's "Concurrency & locking" NFR."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.main = _mkrepo(self.tmp, "main")
+        subprocess.run(["git", "-C", self.main, "config", "user.email", "acs-test@example.com"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", self.main, "config", "user.name", "acs-test"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", self.main, "commit", "--allow-empty", "-q", "-m", "init"],
+                        check=True, capture_output=True)
+        self.worktree = os.path.join(self.tmp, "wt")
+        subprocess.run(
+            ["git", "-C", self.main, "worktree", "add", "-q", "-b", "wt-branch", self.worktree],
+            check=True, capture_output=True,
+        )
+
+    def test_state_root_and_repo_id_are_identical_from_main_checkout_and_worktree(self):
+        self.assertEqual(
+            os.path.realpath(lib.default_state_root(self.main)),
+            os.path.realpath(lib.default_state_root(self.worktree)),
+        )
+        self.assertEqual(lib.repo_partition_id(self.main), lib.repo_partition_id(self.worktree))
+
+    def test_checkout_id_differs_between_main_checkout_and_worktree(self):
+        self.assertNotEqual(lib.checkout_id(self.main), lib.checkout_id(self.worktree))
+
+    def test_lock_written_from_one_checkout_is_visible_at_the_same_path_from_the_other(self):
+        state_root_main = lib.default_state_root(self.main)
+        state_root_wt = lib.default_state_root(self.worktree)
+        repo_id = lib.repo_partition_id(self.main)
+        tdir_main = lib.ticket_dir(state_root_main, repo_id, "SHOP-1")
+        tdir_wt = lib.ticket_dir(state_root_wt, repo_id, "SHOP-1")
+        self.assertEqual(tdir_main, tdir_wt)
+        lib.write_json(lib.lock_path(tdir_main), {"checkout_id": lib.checkout_id(self.main)})
+        self.assertTrue(os.path.exists(lib.lock_path(tdir_wt)))
+        self.assertEqual(
+            lib.read_json(lib.lock_path(tdir_wt))["checkout_id"], lib.checkout_id(self.main)
+        )
 
 
 class TestBuildContext(unittest.TestCase):

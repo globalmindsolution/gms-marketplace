@@ -20,13 +20,15 @@ create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, standardize-project, create-requirements) MUST apply the
 Reflection pattern as a
 **plan–execute–verify cycle**, with a **different subagent for each phase**.
-(Nine of these twelve — `/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
+All twelve now run a plan-once shape of this cycle, where the plan phase
+runs exactly once per run before the loop rather than per iteration:
+`/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
 `/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, and
-`/acs:create-principles` — run a plan-once carve-out of this cycle,
-where the plan phase runs exactly once per run before the loop rather than
-per iteration; see the `code` conditional-triad note immediately below and
-the Exception bullet under Requirements for the full statement.)
+`/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles`,
+`/acs:create-architecture`, `/acs:create-design`, and
+`/acs:create-requirements` — see the `code` conditional-triad note
+immediately below and the Exception bullet under Requirements for the full
+statement.
 Each phase runs in a separate context window so the verify phase judges the work
 fresh rather than rubber-stamping its own output. **`code` is a conditional
 triad (MAR-72):** its plan phase spawns the `code-planner` subagent only on
@@ -60,29 +62,24 @@ Requirements:
   the verifier judges the work fresh rather than rubber-stamping its own
   output.
 - On verification failure, the cycle reflects: the coordinator feeds the
-  verifier's findings back into another plan/execute iteration. Exception:
-  for `/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
-  `/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-  `/acs:create-standards`, `/acs:create-operations`, and
-  `/acs:create-principles`, findings feed
-  the **executor's** `<context>` on the next iteration — execute → verify
-  only, with no re-plan and no second planner spawn (MAR-71, slice 1b of
-  MAR-69, for `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for
-  `/acs:create-project`; MAR-302 for `/acs:standardize-project`; MAR-305 for
-  `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`,
-  `/acs:create-operations`, and `/acs:create-principles`). For
-  `/acs:code` on TRIVIAL/SMALL specifically there
-  is no planner to feed back into in the first place — the plan was
+  verifier's findings back into another iteration. For every one of the
+  twelve triad-keeping skills, findings feed the **executor's** `<context>`
+  on the next iteration — execute → verify only, with no re-plan and no
+  second planner spawn (MAR-71, slice 1b of MAR-69, for `/acs:code`;
+  MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`; MAR-302
+  for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
+  `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`,
+  and `/acs:create-principles`; and completing the migration for
+  `/acs:create-architecture`, `/acs:create-design`, and
+  `/acs:create-requirements`). For `/acs:code` on TRIVIAL/SMALL specifically
+  there is no planner to feed back into in the first place — the plan was
   coordinator-authored with zero planner spawns, so the loop-back is
   executor-only on every lane; escalating mid-flight to STANDARD/COMPLEX
-  never retro-spawns a planner either (MAR-72, D-3). `/acs:docs-sync` has no
-  lane-conditional planner — its cap is a fixed 3 in every lane (MAR-300),
-  and the same holds for `/acs:create-project` (MAR-301), for
-  `/acs:standardize-project`, whose cap is likewise a fixed 3 in every lane
-  (MAR-302), and for `/acs:create-prd`, `/acs:create-quality`,
-  `/acs:create-standards`, `/acs:create-operations`, and
-  `/acs:create-principles`, each with the same fixed 3-in-every-lane cap
-  (MAR-305).
+  never retro-spawns a planner either (MAR-72, D-3). None of the other
+  eleven triad skills has a lane-conditional planner — each runs a fixed
+  iteration cap of 3 in every lane (MAR-300, MAR-301, MAR-302, MAR-305, and
+  the completion of this migration for `/acs:create-architecture`,
+  `/acs:create-design`, and `/acs:create-requirements`).
   - The cycle runs at most **lane-driven iterations**:
     - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **1 iteration** (light
       verify — single verifier pass that may iterate once on blocking findings;

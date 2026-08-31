@@ -55,7 +55,10 @@
         "runs_timed": {"type": "integer", "minimum": 0},
         "runs_untimed": {"type": "integer", "minimum": 0},
         "runs_cost_measured": {"type": "integer", "minimum": 0},
-        "runs_cost_unavailable": {"type": "integer", "minimum": 0}
+        "runs_cost_unavailable": {"type": "integer", "minimum": 0},
+        "api_duration_ms": {"type": "number", "minimum": 0},
+        "runs_api_duration_measured": {"type": "integer", "minimum": 0},
+        "runs_api_duration_unavailable": {"type": "integer", "minimum": 0}
       },
       "additionalProperties": true
     }

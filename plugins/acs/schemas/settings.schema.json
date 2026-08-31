@@ -21,7 +21,7 @@
   },
   "properties": {
     "workspace_path": {
-      "description": "Absolute path of the workspace folder. Required at initialize time; MUST be outside the consumer repo (worktrees and parallel tickets depend on it). Machine-specific: lives in settings.local.json.",
+      "description": "Absolute path of the workspace folder. Optional: when unset, derives to <main-checkout>/.acs/state-machine, anchored to the main checkout so every worktree shares one state store. An explicit override may point anywhere, including inside the repo. Machine-specific: lives in settings.local.json.",
       "type": "string",
       "minLength": 1
     },

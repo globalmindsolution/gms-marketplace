@@ -85,6 +85,9 @@ continuing:
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
 4. Continue from the first unfinished phase. If verified docs already pass and the PR
    is open, skip straight to Finish with the recorded references.
+5. A resumed run reuses the existing `<partition>/phases/create-requirements/iter-1-plan.md`
+   and never spawns a second planner; the plan phase runs (once) only when that
+   artifact is absent.
 
 If `context.handoff_summary` exists, read it (and
 `<partition>/phases/create-requirements/handoff-context.md` if present), do a light
@@ -92,12 +95,21 @@ reconcile of the same checks, and continue from where it points.
 
 ## Reflection loop
 
-Plan -> execute -> verify, max 3 iterations. Spawn subagents with the Agent tool:
-`subagent_type` `acs:create-requirements-planner` / `acs:create-requirements-executor` /
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:create-requirements-planner` across the whole run, however many
+iterations the loop below uses. The loop itself is execute -> verify, max 3
+iterations. Spawn subagents with the Agent tool: `subagent_type`
+`acs:create-requirements-planner` / `acs:create-requirements-executor` /
 `acs:create-requirements-verifier` (fall back to the un-namespaced name if the runtime
 rejects the namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn
 when not `"inherit"`; if the runtime rejects the model/effort, FAIL the run with that
 error — no silent fallback.
+
+**What an iteration counts.** One iteration is one execute -> verify round;
+the plan phase runs once, before the loop, and is not part of any
+iteration, so the cap counts execute+verify rounds, not a
+plan+execute+verify triad. `/acs:create-requirements` has no lane-driven
+verify-depth selection: the cap is a fixed 3 in every lane.
 
 All messages follow `schemas/acs-messages.xsd`. Validate EVERY message you send and
 receive:
@@ -109,10 +121,19 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `<partition>/phases/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
-BEFORE starting the next phase. Decomposition is YOURS alone — subagents never spawn
-subagents.
+BEFORE starting the next phase. The plan phase runs once, so its message pair
+persists once as `iter-1-plan.xml` and its artifact is
+`<partition>/phases/create-requirements/iter-1-plan.md`; execute and verify keep
+persisting per iteration, and every iteration's executor and verifier `<inputs>`
+name that same `iter-1-plan.md`. Decomposition is YOURS alone — subagents never
+spawn subagents.
 
-### Plan
+### Plan (once, before the loop)
+
+Spawned exactly once per run, before iteration 1 — the plan is authored once
+and there is no per-iteration re-plan; on iterations 2-3 the verifier's
+findings route straight to the executor's `<task>` `<context>` (see Execute
+below), where the executor authors the remediation.
 
 The planner's first job is mode classification, keyed on whether
 `<requirements_path>` already holds functional/non-functional content:
@@ -157,8 +178,8 @@ subsection documents that as the finalized per-file format rather than an
 implicit convention. No new template file is introduced — the
 functional/non-functional model itself is the format.
 
-Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iteration
-2+, the verifier findings to fix):
+Example task (fill real values; `<context>` carries `$ARGUMENTS` — this phase
+runs only once, so there is no later-iteration findings context to carry):
 
 ```xml
 <task skill="create-requirements" phase="plan" ticket-id="SHOP-1" iteration="1">
@@ -175,7 +196,7 @@ Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iterati
     <constraint name="required_sections">functional/checkout.md: MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]</constraint>
     <constraint name="audience_style_profile">engineers (behavioral-contract prose)</constraint>
   </constraints>
-  <context>User focus notes from $ARGUMENTS; prior findings on iteration 2+.</context>
+  <context>User focus notes from $ARGUMENTS.</context>
 </task>
 ```
 
@@ -235,7 +256,9 @@ per the mode:
 Typically ONE executor per run — the produced files are read once by a single
 verifier pass. You MAY run multiple executors in parallel only when their target
 area files cannot conflict (e.g. disjoint feature areas); the verifier always runs
-after all executors finish and judges the combined result.
+after all executors finish and judges the combined result. On iterations 2-3 the
+verifier's findings go verbatim into the executor `<task>`'s `<context>`, with no
+planner spawn in between.
 
 ### Verify
 
@@ -259,10 +282,11 @@ non-blocking):
   every existing area file is byte-identical;
 - iteration 2+: every prior finding from `<context>` is actually fixed.
 
-Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed the
-findings into the next plan/execute iteration. After iteration 3 with findings
-remaining: STOP — final status `failed`, findings recorded; go to Finish (no PR is
-opened).
+Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed them
+verbatim into the next iteration's executor `<task>` `<context>` — not a new
+plan — with no planner spawn in between, and re-run execute -> verify. After
+iteration 3 with findings remaining: STOP — final status `failed`, findings
+recorded; go to Finish (no PR is opened).
 
 ## Deliver the docs-only PR
 

@@ -44,6 +44,12 @@ PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 
+# Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
+# order. Unused within this ticket -- a later ticket is its first consumer;
+# a schema-mirror equality test is what stops this list from drifting.
+PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-ticket",
+                        "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
+
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
 # "acs:" prefix is stripped -- e.g. the initialize skill's own attribution
@@ -809,6 +815,45 @@ def current_branch(cwd):
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
 
 
+def default_state_root(cwd):
+    """Derive <main-checkout>/.acs/state-machine straight from git plumbing (D1-D3);
+    deliberately does not call main_repo_root(), which cannot tell a bare/submodule
+    layout apart from a normal one."""
+    is_bare = _git(["rev-parse", "--is-bare-repository"], cwd)
+    if not is_bare:
+        raise GateError(
+            "%s is not a git repository (or git is unavailable); acs cannot derive an "
+            "in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    if is_bare == "true":
+        raise GateError(
+            "%s is a bare git repository; acs cannot derive an in-repo state root here. "
+            "Set an explicit workspace_path override." % cwd
+        )
+    common = _git(["rev-parse", "--git-common-dir"], cwd)
+    if not common:
+        raise GateError(
+            "could not resolve %s's git-common-dir; acs cannot derive an in-repo state "
+            "root here. Set an explicit workspace_path override." % cwd
+        )
+    if not os.path.isabs(common):
+        common = os.path.join(cwd, common)
+    common = os.path.normpath(common)
+    if os.path.basename(common) != ".git":
+        superproject = _git(["rev-parse", "--show-superproject-working-tree"], cwd)
+        if superproject:
+            raise GateError(
+                "%s is a git submodule; acs cannot derive an in-repo state root anchored "
+                "to a stable main checkout here. Set an explicit workspace_path override." % cwd
+            )
+        raise GateError(
+            "%s has an unusual git layout (git-common-dir is not a .git directory); acs "
+            "cannot derive an in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    root = os.path.dirname(common)
+    return os.path.join(root, ".acs", "state-machine")
+
+
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
@@ -866,21 +911,10 @@ def validate_settings(settings, cwd, require_workspace=True):
     """Shared baseline validation used by every pre-hook. Raises GateError."""
     workspace = settings.get("workspace_path")
     if require_workspace:
-        if not workspace:
-            raise GateError(
-                "acs is not initialized for this repo: workspace_path is not configured. Run /acs:initialize first."
-            )
-        workspace = os.path.abspath(os.path.expanduser(str(workspace)))
-        for root in (main_repo_root(cwd), checkout_root(cwd)):
-            if root:
-                try:
-                    if os.path.commonpath([workspace, os.path.abspath(root)]) == os.path.abspath(root):
-                        raise GateError(
-                            "workspace_path (%s) is inside the repository (%s); it must live outside the "
-                            "consumer repo so worktrees and parallel tickets work. Re-run /acs:initialize." % (workspace, root)
-                        )
-                except ValueError:
-                    pass  # different drives (Windows) — necessarily outside
+        if workspace:
+            workspace = os.path.abspath(os.path.expanduser(str(workspace)))
+        else:
+            workspace = default_state_root(cwd)  # may raise GateError
     prefix = settings.get("ticket_prefix")
     if require_workspace:
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):
@@ -1448,6 +1482,8 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
         return
 
     import usage_reader
@@ -1462,6 +1498,8 @@ def _measure_run_usage(entry, tdir, skill):
         entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
         return
     role_usage = usage.get("role_usage") or []
     model_usage = usage.get("model_usage") or []
@@ -1475,6 +1513,8 @@ def _measure_run_usage(entry, tdir, skill):
         entry["model_usage"] = model_usage
         entry["cost_usd"] = None
         entry["cost_basis"] = "unavailable"
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
         return
 
     import cost_sampler
@@ -1490,6 +1530,9 @@ def _measure_run_usage(entry, tdir, skill):
     entry["cost_scope"] = result["cost_scope"]
     entry["excluded_cost_usd"] = result["excluded_cost_usd"]
     entry["excluded_token_share"] = result["excluded_token_share"]
+    entry["api_duration_ms"] = result["api_duration_ms"]
+    entry["api_duration_basis"] = result["api_duration_basis"]
+    entry["api_duration_scope"] = result["api_duration_scope"]
 
 
 def finalize_run(tdir, skill, ticket_id, result):
@@ -1653,6 +1696,7 @@ def compute_ticket_totals(tdir):
         "runs": 0, "working_seconds": 0,
         "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
     }
     for skill in HOOKED_SKILLS:
         state = read_json(state_path(tdir, skill))
@@ -1679,7 +1723,16 @@ def compute_ticket_totals(tdir):
                 totals["cost_usd"] += float(cost_usd)
             else:
                 totals["runs_cost_unavailable"] += 1
+            api_duration_basis = entry.get("api_duration_basis") or "unavailable"
+            api_duration_ms = entry.get("api_duration_ms")
+            if api_duration_basis in ("measured", "apportioned") and isinstance(api_duration_ms, (int, float)) \
+                    and not isinstance(api_duration_ms, bool):
+                totals["runs_api_duration_measured"] += 1
+                totals["api_duration_ms"] += float(api_duration_ms)
+            else:
+                totals["runs_api_duration_unavailable"] += 1
     totals["cost_usd"] = round(totals["cost_usd"], 4)
+    totals["api_duration_ms"] = round(totals["api_duration_ms"], 4)
     return totals
 
 
@@ -1853,10 +1906,13 @@ def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, p
         "runs": 0, "working_seconds": 0,
         "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
     })
     # A pre-existing metrics.json predates these counters; backfill them at 0.
-    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable"):
+    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable",
+                     "runs_api_duration_measured", "runs_api_duration_unavailable"):
         data["totals"].setdefault(counter, 0)
+    data["totals"].setdefault("api_duration_ms", 0.0)
     # A pre-existing metrics.json's tokens dict predates the cache fields; backfill at 0.
     data["totals"].setdefault("tokens", {})
     for field in _TOKEN_TOTAL_FIELDS:
@@ -1900,6 +1956,14 @@ def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, p
             totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(cost_usd), 4)
         else:
             totals["runs_cost_unavailable"] = int(totals.get("runs_cost_unavailable", 0)) + 1
+        api_duration_basis = run_entry.get("api_duration_basis") or "unavailable"
+        api_duration_ms = run_entry.get("api_duration_ms")
+        if api_duration_basis in ("measured", "apportioned") and isinstance(api_duration_ms, (int, float)) \
+                and not isinstance(api_duration_ms, bool):
+            totals["runs_api_duration_measured"] = int(totals.get("runs_api_duration_measured", 0)) + 1
+            totals["api_duration_ms"] = round(float(totals.get("api_duration_ms", 0.0)) + float(api_duration_ms), 4)
+        else:
+            totals["runs_api_duration_unavailable"] = int(totals.get("runs_api_duration_unavailable", 0)) + 1
     data["updated_at"] = now_iso()
     write_json(path, data)
     return data

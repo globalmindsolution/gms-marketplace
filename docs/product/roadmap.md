@@ -62,9 +62,10 @@ Epic-level scope (retrofit; built before dogfooding began):
   coordinator-authored with zero `code-planner` spawns (MAR-72);
   `/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
   `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`,
-  `/acs:create-operations`, and `/acs:create-principles` likewise now plan
-  once per run (MAR-300, MAR-301, MAR-302, MAR-305); the other three keep
-  the per-iteration shape), while
+  `/acs:create-operations`, `/acs:create-principles`, `/acs:create-architecture`,
+  `/acs:create-design`, and `/acs:create-requirements` likewise now plan
+  once per run (MAR-300, MAR-301, MAR-302, MAR-305, and the completion of
+  this migration); all twelve triad skills now share this shape), while
   the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.

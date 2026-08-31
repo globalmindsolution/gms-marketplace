@@ -14,23 +14,21 @@ per-ticket plan artifact (MAR-70) — the other eleven triad skills write
 `iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
 MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 / `PL->>WS` steps below happen **once, before** the `loop reflection` block for
-`/acs:code`; for the other three triad skills the plan step instead sits
-**inside** the `loop reflection` block, a shape this `/acs:code`-traced diagram
-no longer draws. `/acs:docs-sync` (MAR-300), `/acs:create-project`
-(MAR-301), `/acs:standardize-project` (MAR-302), and `/acs:create-prd`,
-`/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`,
-and `/acs:create-principles` (MAR-305) have joined `/acs:code`
-outside the loop: their plan phase likewise runs once, before the loop, with
-iteration-2+ findings routed straight to their executor's `<context>`. Those
-same two steps (`CO->>PL` / `PL->>WS`) are additionally **lane-conditional**
-for `/acs:code` specifically since MAR-72: they fire on STANDARD/COMPLEX
-only; on TRIVIAL/SMALL the coordinator writes `plan.md` itself and there is
-no `PL` participant leg at all for that run (ADR 0074) — see the `alt` branch
-below. None of `/acs:docs-sync`, `/acs:create-project`,
-`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, or
-`/acs:create-principles` has a lane-conditional planner — each runs a
-fixed iteration cap of 3 in every lane. The three **apply-work
+`/acs:code`; every other triad skill now shares that same shape — no triad
+skill draws the plan step **inside** the `loop reflection` block any longer.
+`/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301),
+`/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`,
+`/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles`
+(MAR-305), and finally `/acs:create-architecture`, `/acs:create-design`, and
+`/acs:create-requirements` have all joined `/acs:code` outside the loop:
+their plan phase likewise runs once, before the loop, with iteration-2+
+findings routed straight to their executor's `<context>`. Those same two
+steps (`CO->>PL` / `PL->>WS`) are additionally **lane-conditional** for
+`/acs:code` specifically since MAR-72: they fire on STANDARD/COMPLEX only;
+on TRIVIAL/SMALL the coordinator writes `plan.md` itself and there is no
+`PL` participant leg at all for that run (ADR 0074) — see the `alt` branch
+below. None of the other eleven triad skills has a lane-conditional planner
+— each runs a fixed iteration cap of 3 in every lane. The three **apply-work
 skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
 (MAR-60): the coordinator performs the steps directly or delegates to **at most
 one executor**, with **no planner and no verifier subagent** in any lane —
