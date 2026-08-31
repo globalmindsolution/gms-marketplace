@@ -712,6 +712,45 @@ def current_branch(cwd):
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
 
 
+def default_state_root(cwd):
+    """Derive <main-checkout>/.acs/state-machine straight from git plumbing (D1-D3);
+    deliberately does not call main_repo_root(), which cannot tell a bare/submodule
+    layout apart from a normal one."""
+    is_bare = _git(["rev-parse", "--is-bare-repository"], cwd)
+    if not is_bare:
+        raise GateError(
+            "%s is not a git repository (or git is unavailable); acs cannot derive an "
+            "in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    if is_bare == "true":
+        raise GateError(
+            "%s is a bare git repository; acs cannot derive an in-repo state root here. "
+            "Set an explicit workspace_path override." % cwd
+        )
+    common = _git(["rev-parse", "--git-common-dir"], cwd)
+    if not common:
+        raise GateError(
+            "could not resolve %s's git-common-dir; acs cannot derive an in-repo state "
+            "root here. Set an explicit workspace_path override." % cwd
+        )
+    if not os.path.isabs(common):
+        common = os.path.join(cwd, common)
+    common = os.path.normpath(common)
+    if os.path.basename(common) != ".git":
+        superproject = _git(["rev-parse", "--show-superproject-working-tree"], cwd)
+        if superproject:
+            raise GateError(
+                "%s is a git submodule; acs cannot derive an in-repo state root anchored "
+                "to a stable main checkout here. Set an explicit workspace_path override." % cwd
+            )
+        raise GateError(
+            "%s has an unusual git layout (git-common-dir is not a .git directory); acs "
+            "cannot derive an in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    root = os.path.dirname(common)
+    return os.path.join(root, ".acs", "state-machine")
+
+
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
@@ -769,21 +808,10 @@ def validate_settings(settings, cwd, require_workspace=True):
     """Shared baseline validation used by every pre-hook. Raises GateError."""
     workspace = settings.get("workspace_path")
     if require_workspace:
-        if not workspace:
-            raise GateError(
-                "acs is not initialized for this repo: workspace_path is not configured. Run /acs:initialize first."
-            )
-        workspace = os.path.abspath(os.path.expanduser(str(workspace)))
-        for root in (main_repo_root(cwd), checkout_root(cwd)):
-            if root:
-                try:
-                    if os.path.commonpath([workspace, os.path.abspath(root)]) == os.path.abspath(root):
-                        raise GateError(
-                            "workspace_path (%s) is inside the repository (%s); it must live outside the "
-                            "consumer repo so worktrees and parallel tickets work. Re-run /acs:initialize." % (workspace, root)
-                        )
-                except ValueError:
-                    pass  # different drives (Windows) — necessarily outside
+        if workspace:
+            workspace = os.path.abspath(os.path.expanduser(str(workspace)))
+        else:
+            workspace = default_state_root(cwd)  # may raise GateError
     prefix = settings.get("ticket_prefix")
     if require_workspace:
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):

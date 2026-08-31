@@ -10,6 +10,11 @@ own-guard-release OSError swallow, lock_is_stale's PermissionError and
 foreign-host-age arms, check_lock's re-entrant arm, release_lock's
 refuse-another-checkout arm, and build_context's two GateError arms were
 exercised by no test.
+
+MAR-2 adds: the worktree-sharing guarantee (design.md's "Concurrency &
+locking" NFR) -- default_state_root and repo_partition_id resolve identically
+from a linked worktree and its main checkout, checkout_id still differs, and
+a lock file written from one side is visible at the same path from the other.
 """
 
 import os
@@ -747,6 +752,50 @@ class TestReleaseLock(unittest.TestCase):
         result = lib.release_lock(tdir, cwd=repo)
         self.assertFalse(result)
         self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+
+
+class TestWorktreeSharedStateRoot(unittest.TestCase):
+    """default_state_root/repo_partition_id are shared across a linked worktree,
+    while checkout_id differs -- design.md's "Concurrency & locking" NFR."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.main = _mkrepo(self.tmp, "main")
+        subprocess.run(["git", "-C", self.main, "config", "user.email", "acs-test@example.com"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", self.main, "config", "user.name", "acs-test"],
+                        check=True, capture_output=True)
+        subprocess.run(["git", "-C", self.main, "commit", "--allow-empty", "-q", "-m", "init"],
+                        check=True, capture_output=True)
+        self.worktree = os.path.join(self.tmp, "wt")
+        subprocess.run(
+            ["git", "-C", self.main, "worktree", "add", "-q", "-b", "wt-branch", self.worktree],
+            check=True, capture_output=True,
+        )
+
+    def test_state_root_and_repo_id_are_identical_from_main_checkout_and_worktree(self):
+        self.assertEqual(
+            os.path.realpath(lib.default_state_root(self.main)),
+            os.path.realpath(lib.default_state_root(self.worktree)),
+        )
+        self.assertEqual(lib.repo_partition_id(self.main), lib.repo_partition_id(self.worktree))
+
+    def test_checkout_id_differs_between_main_checkout_and_worktree(self):
+        self.assertNotEqual(lib.checkout_id(self.main), lib.checkout_id(self.worktree))
+
+    def test_lock_written_from_one_checkout_is_visible_at_the_same_path_from_the_other(self):
+        state_root_main = lib.default_state_root(self.main)
+        state_root_wt = lib.default_state_root(self.worktree)
+        repo_id = lib.repo_partition_id(self.main)
+        tdir_main = lib.ticket_dir(state_root_main, repo_id, "SHOP-1")
+        tdir_wt = lib.ticket_dir(state_root_wt, repo_id, "SHOP-1")
+        self.assertEqual(tdir_main, tdir_wt)
+        lib.write_json(lib.lock_path(tdir_main), {"checkout_id": lib.checkout_id(self.main)})
+        self.assertTrue(os.path.exists(lib.lock_path(tdir_wt)))
+        self.assertEqual(
+            lib.read_json(lib.lock_path(tdir_wt))["checkout_id"], lib.checkout_id(self.main)
+        )
 
 
 class TestBuildContext(unittest.TestCase):
