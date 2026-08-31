@@ -173,8 +173,10 @@ no network call:
   no ticket has a parseable `due_date` — B1),
   coverage achieved vs target, review iterations before the verifier passed,
   and lead + cycle time per ticket.
-- **`/usage`** (usage view) — usage summary (total cost, time, runs, and four
-  averages), cost + time per ticket by pipeline step with the four averages
+- **`/usage`** (usage view) — usage summary (total cost, time, runs, API
+  duration, and six averages: avg working time and cost per ticket and per
+  merged PR, plus avg API duration per ticket and per merged PR), cost + time
+  per ticket by pipeline step with the four averages
   (avg working time and cost per ticket and per merged PR). Each ticket row
   also expands into a per-skill sub-row per pipeline step showing that
   skill's own API-duration figure alongside its wall-clock **step span**

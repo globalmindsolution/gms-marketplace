@@ -258,6 +258,17 @@ two working-time averages are humanized durations (`d`/`h`/`m`/`s`); the two
 cost averages are plain USD to two decimal places. A **zero denominator** (no
 tickets, or no merged PR) renders **"no data"** for that average.
 
+The panel also carries **total API duration** (`total_api_duration_ms`,
+`metrics_aggregate.py:686-706` `_usage_summary_panel`) and its own two
+averages — **avg API duration per ticket** and **avg API duration per merged
+PR** (`avg_api_duration_ms_per_ticket`, `avg_api_duration_ms_per_pr`) — a third
+total+average pair alongside the cost and working-time ones above. All three
+values are humanized durations (`metrics_render.py:1162-1172`
+`_humanize_ms`, e.g. `2h 15m`). The total renders **"no data"** only when
+`total_api_duration_ms` is absent (`None`), mirroring `total_working_seconds`;
+each average renders **"no data"** under the same **zero denominator** guard
+as the other averages (no tickets, or no merged PR).
+
 ### 3 — Cost + time per ticket by step
 
 Per-ticket cost and elapsed time, broken down by pipeline step. Time comes from

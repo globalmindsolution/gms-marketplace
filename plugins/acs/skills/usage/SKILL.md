@@ -1,6 +1,6 @@
 ---
 name: usage
-description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg cost, avg tokens, avg working time, avg duration per PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state. Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
+description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg working time / ticket, avg working time / merged PR, avg cost / ticket, avg cost / merged PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state. Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
 ---
 
 You are the coordinator of `/acs:usage`, the acs tool-usage and spend dashboard.
@@ -77,11 +77,15 @@ same input — and present what it emits. Both surfaces invoke the renderer with
 
 The usage view renders exactly five panels:
 
-1. **Usage summary** — total and average cost, token consumption, run count, and
-   working time across all tickets in the workspace.
+1. **Usage summary** — total and average cost, token consumption, run count,
+   working time, and API duration across all tickets in the workspace — a third
+   total+average pair (`total_api_duration_ms`, `avg_api_duration_ms_per_ticket`,
+   `avg_api_duration_ms_per_pr`) mirroring the existing cost/time totals and
+   averages.
 3. **Cost and time per ticket by pipeline step** — per-ticket rows broken down by
    pipeline step (working time and spend), with the four per-ticket / per-PR
-   averages: avg cost, avg tokens, avg working time, avg duration per PR. Each
+   averages: avg working time / ticket, avg working time / merged PR, avg cost /
+   ticket, avg cost / merged PR. Each
    ticket row also expands into one per-skill sub-row per pipeline step
    (`step_order`), showing that skill's own wall-clock step span alongside its
    API duration and basis (`step_api_duration`, `metrics_aggregate._panel3_row`)
