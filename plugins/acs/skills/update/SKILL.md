@@ -121,8 +121,11 @@ they do.
    script file exists. Missing → tell the user to re-run `/acs:initialize`
    (Step 7b) after reloading, which rewrites the paths.
 
-3. **Workspace reachable** — `workspace_path` exists and is writable; if
-   not, the next pre-hook will block anyway, but say it now.
+3. **Workspace reachable** — resolve the workspace the same way item 1 does
+   (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
+   in-repo `.acs/state-machine` default when no explicit `workspace_path` is
+   set), then check the resolved directory exists and is writable; if not,
+   the next pre-hook will block anyway, but say it now.
 
 ## Completion report (normative)
 

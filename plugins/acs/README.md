@@ -7,9 +7,10 @@ implementation specs, TDD implementation with an automatic review loop, pull
 request, and merge. Every workflow skill runs a plan → execute → verify
 reflection cycle with dedicated subagents, pre/post hooks gate each step on
 the recorded state of its predecessor, and all durable state lives in a
-workspace folder *outside* your repo — so runs are resumable, tickets can
-ship in parallel across git worktrees, and the coordinator never depends on
-conversation history between steps.
+gitignored `.acs/state-machine` folder inside your repo by default (an
+explicit `workspace_path` override can still point it elsewhere) — so runs
+are resumable, tickets can ship in parallel across git worktrees, and the
+coordinator never depends on conversation history between steps.
 
 ## Requirements
 
@@ -37,13 +38,14 @@ marketplace `globalmindsolution/gms-marketplace`, then install `acs` from it.
 
 ## Quick start
 
-One-time setup in any repo (the workspace path must be outside the repo):
+One-time setup in any repo (the workspace defaults to a gitignored in-repo
+folder — no path to pick unless you want one):
 
 ```text
 cd acme-shop
 /acs:initialize
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   ~/acs-workspace    (must be outside the repo)
+  → workspace_path?   <default>          (.acs/state-machine in this checkout; set an override only if you want state elsewhere)
   → ticket_prefix?    SHOP               (suggested from the repo name)
   → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
 ```
@@ -164,7 +166,7 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `workspace_path` | — (required at initialize time) | State folder, outside the repo; lives in gitignored `settings.local.json` |
+| `workspace_path` | unset (derives `.acs/state-machine` in the main checkout) | State folder; an explicit override lives in gitignored `settings.local.json` |
 | `ticket_prefix` | — (required at initialize time) | Per-repo ticket id prefix (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
@@ -179,6 +181,25 @@ Full reference: [docs/requirements/functional/configuration.md](../../docs/requi
 (all keys, placeholder vocabulary, description templates, tracker mapping)
 and the machine-readable
 [schemas/settings.schema.json](schemas/settings.schema.json).
+
+## Migrating an existing external workspace
+
+If this repo has an existing `workspace_path` pointing outside the repo (set
+before the in-repo default shipped), `/acs:initialize` detects it and offers
+to migrate on your next re-run. To migrate by hand instead:
+
+```text
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/migrate_workspace.py" \
+  --from <old-workspace-root> --to <repo>/.acs/state-machine \
+  --repo-root <repo-root>
+```
+
+The migrator preflights (refuses if a `.lock` is held or a run is
+`in_progress`), copies the repo's partition tree, verifies the copy, then
+removes the old tree; it is idempotent, so it is safe to re-run if
+interrupted. Add `--dry-run` to preview without writing. Once it succeeds,
+remove the `workspace_path` key from `.acs/settings.local.json` so future
+runs resolve the new in-repo default instead of the old override.
 
 ## Troubleshooting
 
