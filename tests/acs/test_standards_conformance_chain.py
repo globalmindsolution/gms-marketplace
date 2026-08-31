@@ -66,7 +66,7 @@ BASELINE_FLOWS = {
 # requires a new standing flow file for acs's own cost/time metering, which
 # no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
-                          "acs-cost-metering.md"}
+                          "acs-cost-metering.md", "doc-bootstrap-fanout.md"}
 
 
 def read(path):

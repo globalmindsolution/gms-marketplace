@@ -28,7 +28,7 @@ plugins distributed from this repository. Plugins differ in shape:
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
 | Verification independence | Separate planner/executor/verifier contexts on the twelve triad-keeping skills (create-prd, create-architecture, create-project, create-quality, create-operations, create-principles, create-standards, create-design, code, docs-sync, standardize-project, create-requirements) — for `code`, the planner context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the executor and verifier contexts stay separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
-| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket. |
+| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus cross-skill, phase-level fan-out from a single unhooked coordinator (e.g. `/acs:create-docs`) spawning independent delivery tickets in parallel worktrees. |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; per-run metrics. |
 

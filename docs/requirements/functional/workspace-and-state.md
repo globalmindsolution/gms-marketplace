@@ -232,6 +232,26 @@ worktree per ticket**:
   auto-stolen.
 - Product-level skills lock their **delivery ticket's** partition like any
   other skill — no separate locking scheme.
+- **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
+  narrower parallelism shape layered on top of worktree-per-ticket: one
+  unhooked coordinator mints **two independent delivery tickets** (one per
+  eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
+  session checkout, then runs each phase (plan → execute → verify) as a
+  parallel batch across both legs, entering each leg's own worktree only at
+  that leg's own Delivery step. Both tickets share the run's `checkout_id`
+  for the Start/plan/execute/verify portion of the run — the disposition for
+  this shared-checkout case is: pointer/marker/cursor collisions are
+  accepted, labeled degradations (statusline shows only one leg; the losing
+  leg's cost sampling degrades to `unavailable`) rather than a correctness
+  bug, because every consumer of ticket identity gets the ticket id
+  explicitly and `cost_basis` is never fabricated for the losing leg. Each
+  leg's own `.lock`/pointer/state files are otherwise unaffected — the
+  legs remain two ordinary, independently-resumable delivery tickets. See
+  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
+  `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
+  critical section so two legs finishing concurrently never lose one
+  leg's update to a silent last-write-wins race.
 
 ## Metrics
 

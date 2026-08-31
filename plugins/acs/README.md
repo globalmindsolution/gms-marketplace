@@ -89,7 +89,7 @@ the hooks enforce the order either way. The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 24 skills
+## The 25 skills
 
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
@@ -102,6 +102,7 @@ name.
 | `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, cost and time per ticket by step, the four per-ticket/per-PR averages, token burn by role — from workspace state. Writes nothing. |
 | `/acs:test` | — (utility) | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable workspace artifact, and on failure triages/drives a closed regression-ticket loop; `--for-ticket` mode runs as one step inside `/acs:ship`'s pipeline walk. |
 | `/acs:release` | — (utility) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
+| `/acs:create-docs` | — (utility) | Cross-skill doc-bootstrap fan-out: detects independent doc-bootstrap skills (currently `create-quality` and `create-operations`) whose upstream prerequisites are satisfied, and runs them in parallel instead of sequentially — each leg keeps its own hooks, reflection cycle, and gating, and delivers as its own docs-only PR on its own delivery ticket. |
 | `/acs:create-prd` | `/acs:initialize` done | Product-level: elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | PRD doc set exists | Product-level: HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
 | `/acs:create-project` | Architecture doc set exists | Product-level, greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |

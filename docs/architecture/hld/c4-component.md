@@ -29,7 +29,7 @@ C4Component
         Component(csampler, "cost_sampler.py", "cost sampling + allocation", "new (MAR-1), stdlib-only: record_cost_sample appends a shape-agnostic total_cost_usd sample to a per-checkout log; allocate_cost consumes the unconsumed portion since a persisted allocation cursor and apportions the delta across roles by measured token share — the cursor rule makes double-charging structurally impossible; MAR-3 additionally apportions the same delta across model_usage by token share, with no unattributed exclusion (a deliberate, documented gap from the role-scoped figure, not a bug)")
         Component(metrics, "metrics_aggregate.py", "observability", "read-only: aggregate all panels for /acs:metrics (PM view) and /acs:usage (usage view) from workspace artifacts; emits one superset JSON, never writes/gates/locks; panel 6 (_accumulate_burn) now reads each run entry's measured role_usage field instead of scraping <metrics> XML, including a first-class coordinator bucket (MAR-1); MAR-3 additionally folds each run entry's model_usage into the new usage_by_model panel, at both repo and per-ticket scope, in the same walk (zero extra file reads)")
         Component(mrender, "metrics_render.py", "observability", "read-only: deterministic cross-surface renderer of the aggregate JSON — serves two views via render_pm_terminal/html (/acs:metrics) and render_usage_terminal/html (/acs:usage), selected by --view {pm,usage}; bare default is PM view; self-contained HTML (--html → show_widget); pure, no clock, never writes")
-        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer; confirm_deescalation() sole user-confirmed lane-lowering writer; plan_approval_eligible() pure plan-conformance predicate; elapsed_seconds() single None-safe time primitive (run_seconds/metrics_aggregate._elapsed_seconds are adapters over it); record_session_marker()/session_marker_path(); finalize_run() invokes usage_reader/cost_sampler instead of trusting a coordinator-supplied tokens/cost_usd estimate (MAR-1, ADR 0082)")
+        Component(lib, "acs_lib.py", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, metrics, locks, gates; derive_lane() routing function; recommend_stakes() path-glob helper; verify_depth() verify-depth policy; record_escalation_event() durable escalation-audit writer; confirm_deescalation() sole user-confirmed lane-lowering writer; plan_approval_eligible() pure plan-conformance predicate; elapsed_seconds() single None-safe time primitive (run_seconds/metrics_aggregate._elapsed_seconds are adapters over it); record_session_marker()/session_marker_path(); finalize_run() invokes usage_reader/cost_sampler instead of trusting a coordinator-supplied tokens/cost_usd estimate (MAR-1, ADR 0082); DOC_BOOTSTRAP_DEPENDENCIES declared-dependency table + DOC_BOOTSTRAP_SETTINGS_KEY settings lookup + fanout_batches() pure eligibility helper + doc_set_present_on_disk() pure disk-presence helper for /acs:create-docs's cross-skill fan-out, and an O_EXCL-guarded critical section around update_index()/update_metrics() so two concurrently-running legs never lose an update (MAR-1)")
     }
     ContainerDb_Ext(ws, "Workspace store")
     System_Ext(transcript, "Claude Code transcript store")
@@ -91,6 +91,13 @@ coordinator authors the plan artifact itself, with zero planner spawns (ADR
 0074). The execute and verify legs stay unconditional in every lane — for
 `/code`, and for every other skill among the twelve triad-keeping ones — so
 the counts above are unaffected.
+
+`/acs:create-docs` is an unhooked coordinator, not a thirteenth triad-keeping
+skill: it has no triad of its own (like `/acs:ship`), and spawns the
+*existing* triads above (`create-quality`, `create-operations`) as ordinary
+plan→execute→verify runs on their own delivery tickets, one cross-skill
+batch fanned out in parallel. The twelve-skill list and the 12/36/39 counts
+above are unaffected (MAR-1).
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;

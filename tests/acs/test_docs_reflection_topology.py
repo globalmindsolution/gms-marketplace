@@ -328,7 +328,7 @@ class SkillsMdUnchangedTest(unittest.TestCase):
 
     def test_twenty_four_skills_present(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-four skills", body)
+        self.assertIn("Twenty-five skills", body)
         self.assertNotIn("Twenty-three skills", body)
 
     def test_twelve_triad_list_intact(self):

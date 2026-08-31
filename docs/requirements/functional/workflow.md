@@ -286,6 +286,13 @@ shared or synced workspace — out of scope for now.
 - Because the workspace lives **outside** the consumer repo, the same ticket
   pipeline can run inside a dedicated git worktree without state colliding
   with other worktrees.
+- A second, narrower mechanism layers cross-*skill*, phase-level fan-out on
+  top of the above: `/acs:create-docs` mints one delivery ticket per
+  eligible doc-bootstrap skill and runs each phase (plan, then execute,
+  then verify) as a parallel batch across both tickets, rather than running
+  the skills one after another — reusing the same worktree-per-ticket
+  primitive per leg, with each leg entered only at its own Delivery step.
+  See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 
 ## Product-level architecture
 

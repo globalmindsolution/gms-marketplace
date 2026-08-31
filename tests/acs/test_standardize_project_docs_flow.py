@@ -117,8 +117,8 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     def test_intro_reads_twentyfour_not_twentythree(self):
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-four skills", intro,
-                      "skills.md intro must read 'Twenty-four skills'")
+        self.assertIn("Twenty-five skills", intro,
+                      "skills.md intro must read 'Twenty-five skills'")
         self.assertNotIn("Twenty-three skills", intro,
                          "skills.md intro must NOT still read 'Twenty-three skills'")
 
@@ -179,7 +179,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("24 x SKILL.md", body)
+        self.assertIn("25 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
         self.assertIn("45 x agent .md (39 reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
@@ -215,7 +215,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (24)", body)
+        self.assertIn("acs Skills (25)", body)
         self.assertNotIn("acs Skills (21)", body)
         self.assertIn("45 files, 39 reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
