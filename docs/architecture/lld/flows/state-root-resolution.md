@@ -80,5 +80,6 @@ worktree by `tests/acs/test_acs_lib_state_locks.py`'s
 are identical from the main checkout and a linked worktree, while
 `checkout_id` still differs between them, so concurrent locks from either
 checkout land in the same partition). The `require_workspace=False` leg
-(used by hooks that do not need a workspace, e.g. read-only checks) never
-calls `default_state_root` at all and always returns `None`.
+(today exercised only by settings-shape validation callers in the test
+suite — no shipped hook passes it) never calls `default_state_root` at all
+and always returns `None`.
