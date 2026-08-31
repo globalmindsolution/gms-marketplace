@@ -1,4 +1,4 @@
-# 0084 — Doc-bootstrap parallel fan-out: new umbrella skill, phase-level interleave, worktree-per-leg delivery, declared dependency/eligibility, no new ledger, scoped fail-fast isolation, v1 pair, deferred trigger probe
+# 0085 — Doc-bootstrap parallel fan-out: new umbrella skill, phase-level interleave, worktree-per-leg delivery, declared dependency/eligibility, no new ledger, scoped fail-fast isolation, v1 pair, deferred trigger probe
 
 **Status**: Accepted · **Date**: 2026-08-31
 
