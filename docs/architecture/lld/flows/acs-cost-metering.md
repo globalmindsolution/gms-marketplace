@@ -108,11 +108,11 @@ sequenceDiagram
     WS-->>Agg: run entries -- tokens, role_usage, model_usage, cost_usd or null, cost_basis, cost_scope
     Agg->>Agg: elapsed_seconds via acs_lib -- None renders "no data", never 0
     Agg->>Agg: sum totals excluding cost_basis != measured/apportioned and None-elapsed runs, divide by runs_timed / runs_cost_measured, never by runs
-    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3)
+    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3), plus each entry's own api_duration_ms/api_duration_basis/wall-clock seconds into a per-skill raw duration accumulator feeding panel 3's step_api_duration and usage_by_ticket.skills[] (MAR-7, zero extra file reads)
     Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope role shares into the new usage_by_ticket panel (MAR-4)
-    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus usage_by_ticket plus meta.degraded entries
+    Agg-->>Usage: aggregate JSON -- panels 1-7 (panel 3 widened with step_api_duration/step_order per ticket, MAR-7) plus usage_by_model plus usage_by_ticket (widened with ticket-scope api_duration_ms/api_duration_basis and a skills[] array, MAR-7) plus meta.degraded entries
     Usage->>Render: pipe JSON, render the requested view
-    Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data"
+    Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data" — _humanize_ms (MAR-7) converts a millisecond duration to seconds and delegates to _humanize_seconds, and a step_api_duration cell renders the literal UNAVAILABLE marker uniformly whether that skill's entry is structurally absent or present with basis unavailable (D6), never a bare "no data" at this per-skill scope
     Render-->>Usage: self-contained HTML
     Usage-->>PM: show_widget -- dashboard with basis-labeled figures and a degraded summary
 ```
