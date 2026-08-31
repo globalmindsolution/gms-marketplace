@@ -784,9 +784,12 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
-                        if r["ticket_id"] == "MAR-6")
-            self.assertEqual(roles, "no data")
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertEqual(ticket["roles"], "no data")
+            # genuine zero-run-entries case: skills == [] too (never confused with the
+            # "has runs but no measured duration" case, which still gets a populated row).
+            self.assertEqual(ticket["skills"], [])
 
     def test_usage_by_ticket_roles_sorted_by_role_name(self):
         with TemporaryDirectory() as ws:
@@ -942,6 +945,10 @@ class UsageByTicketSkillWidening(unittest.TestCase):
                              {"started_at", "wall_clock_seconds", "api_duration_ms", "api_duration_basis"})
 
     def test_usage_by_ticket_skills_empty_list_not_no_data_when_ticket_has_runs_but_no_duration(self):
+        """MAR-7 iteration 2 MERGED-2 fix: a skill with a measurable run_seconds_sum but zero
+        measured/apportioned api_duration must still surface its row -- api_duration degrades to
+        null/"unavailable" independently, it does not suppress the whole row (design.md:760-769,
+        1201-1207)."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
@@ -954,8 +961,47 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
             self.assertIsInstance(ticket["roles"], dict)  # populated -- not the "no data" case
-            self.assertEqual(ticket["skills"], [])
-            self.assertNotEqual(ticket["skills"], "no data")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            self.assertEqual(code_skill["run_seconds_sum"], 60.0)
+            self.assertIsNone(code_skill["api_duration_ms"])
+            self.assertEqual(code_skill["api_duration_basis"], "unavailable")
+
+
+class StepSpanRunSecondsSumReconciliation(unittest.TestCase):
+    """MAR-7 iteration 2 MERGED-3 (aggregator half): regression guard for the already-correct
+    W-B reconciliation identity -- panel 3's step span (the pipeline step's own started_at/
+    ended_at bracket) strictly exceeds usage_by_ticket's run_seconds_sum (the sum of each run
+    entry's own, smaller bracket) whenever runs leave an idle gap between them. No production
+    change; both computations were already correct (design.md:530-531)."""
+
+    def test_panel3_and_usage_by_ticket_step_span_gt_run_seconds_sum_two_run_gap_reconciliation(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_pipeline(ws, "MAR-6", steps={
+                "code": {"started_at": "2026-01-01T00:00:00Z", "status": "completed",
+                         "ended_at": "2026-01-01T00:05:00Z"},
+            }, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 1000.0,
+                 "api_duration_basis": "apportioned"},
+                {"started_at": "2026-01-01T00:03:00Z", "ended_at": "2026-01-01T00:03:30Z",
+                 "status": "completed", "api_duration_ms": None,
+                 "api_duration_basis": "unavailable"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+
+            p3_row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            step_span = p3_row["steps"]["code"]
+            self.assertEqual(step_span, 300)
+
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            run_seconds_sum = code_skill["run_seconds_sum"]
+            self.assertEqual(run_seconds_sum, 90)
+
+            self.assertGreater(step_span, run_seconds_sum)
 
 
 class AccumulateBurnThreeTuple(unittest.TestCase):

@@ -849,9 +849,9 @@ def _usage_by_ticket_panel(ticket_role_rows, ticket_skill_rows):
     api_duration_ms/api_duration_basis are ticket-scope siblings of "roles", folded across this
     ticket's own ticket_skills raw buckets (identical roll-up discipline to the skill-level
     figure, never double-derived from skills[]'s own already-rounded sums). "skills" is an EMPTY
-    list -- never the string "no data" -- when the ticket has run entries but none carries a
-    measured/apportioned duration; that distinguishes "no data at all" from "measured, all
-    unavailable" (Risk 3 / test 8).
+    list -- never the string "no data" -- only when the ticket has NO run entries for any skill;
+    a skill with run entries but no measured/apportioned duration still gets a row, with
+    api_duration_ms/_basis degrading to null/"unavailable" independently (Risk 3 / test 8).
     """
     skill_map = dict(ticket_skill_rows)
     tickets = []
@@ -877,14 +877,16 @@ def _usage_by_ticket_panel(ticket_role_rows, ticket_skill_rows):
                 api_ms_sum += bucket["api_duration_ms_sum"]
                 api_seen = True
 
-        # A skill row is emitted only when at least one of its runs actually measured/apportioned
-        # a duration -- a skill with run entries but api_duration_seen==False everywhere is
-        # excluded (never a content-free row), which is what makes an all-"unavailable" ticket's
-        # skills == [] rather than a row of null-duration noise (Risk 3 / test 8).
+        # A skill row is emitted whenever the skill has any run entries at all -- either duration
+        # figure having ever been measured/apportioned is enough; api_duration_ms/_basis then
+        # degrade to null/"unavailable" independently via _finalize_skill_bucket. A skill with
+        # zero run entries never reaches this list (it is simply absent from ticket_skills), which
+        # is what keeps a genuinely-empty ticket's skills == [] (Risk 3 / test 8).
         skills = [
             _finalize_skill_bucket(skill, ticket_skills[skill])
             for skill in acs_lib.HOOKED_SKILLS
-            if skill in ticket_skills and ticket_skills[skill]["api_duration_seen"]
+            if skill in ticket_skills and (ticket_skills[skill]["api_duration_seen"]
+                                            or ticket_skills[skill]["run_seconds_seen"])
         ]
 
         tickets.append({
