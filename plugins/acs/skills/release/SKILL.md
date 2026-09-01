@@ -1,6 +1,6 @@
 ---
 name: release
-description: Assemble/verify the CHANGELOG section for a release version from the merged-ticket archive, bump the version-location files plus any extra refs configured in this repo's .acs/settings.json release block, date the section, and open an exempt release/* PR for a mandatory human merge — automating the manual release-cut steps for a repo already configured for release cuts. Fails fast if no release block is configured. Never runs git tag or gh release create itself — the privileged tag/publish step stays in the block's publish_driver. Not for opening a ticket's own PR (see /acs:create-pr) or landing/merging a PR (see /acs:merge-pr). Use when cutting a new version of a repo configured for release cuts.
+description: Assemble/verify the CHANGELOG section for a release version from the merged-ticket archive, plus a base_branch git-history fallback for tickets merged without an archive entry, bump the version-location files plus any extra refs configured in this repo's .acs/settings.json release block, date the section, and open an exempt release/* PR for a mandatory human merge — automating the manual release-cut steps for a repo already configured for release cuts. Fails fast if no release block is configured. Never runs git tag or gh release create itself — the privileged tag/publish step stays in the block's publish_driver. Not for opening a ticket's own PR (see /acs:create-pr) or landing/merging a PR (see /acs:merge-pr). Use when cutting a new version of a repo configured for release cuts.
 argument-hint: "<version>"
 ---
 
@@ -119,8 +119,8 @@ Only reached when Step 2 found no in-flight/done cut.
 
    `--workspace <workspace_path>` and `--ticket-prefix <settings.ticket_prefix>`
    here MUST be the same values passed to `draft` in step 1 above — `bump`
-   regenerates the archive-authoritative `draft_section` internally before
-   writing it, so this call needs the same archive input and fallback scope
+   regenerates the same `draft_section` internally before writing it, so
+   this call needs the same archive input and fallback scope
    `draft` used (a missing/different `--ticket-prefix` here would silently
    produce a different CHANGELOG than the `draft` the human reviewed). Parse
    `ok`, `files_changed[]`,
