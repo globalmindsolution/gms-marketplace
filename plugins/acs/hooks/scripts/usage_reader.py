@@ -67,7 +67,7 @@ def _empty_bucket():
 
 def _normalize_skill(name):
     """Strip the observed "acs:" prefix and apply
-    acs_lib.ATTRIBUTION_SKILL_MAP's override (e.g. "init" -> "initialize")."""
+    acs_lib.ATTRIBUTION_SKILL_MAP's override (e.g. "init" -> "setup")."""
     if not isinstance(name, str) or not name:
         return None
     name = name[len("acs:"):] if name.startswith("acs:") else name

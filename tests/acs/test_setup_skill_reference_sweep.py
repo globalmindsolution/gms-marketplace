@@ -8,8 +8,16 @@ historical carve-outs plus the m2-0 spike doc, ledger C-7, are preserved
 verbatim), and AC-8 (a full-repo grep for a live `/acs:init` or bare `/init`
 skill-name token returns zero hits outside that same historical allowlist).
 
+Renamed under MAR-1 (/acs:initialize renamed to /acs:setup): the task-local
+classes SkillDirectoryRenamedTest, FrontmatterNameTest, and SkillNameMirrorsTest
+now pin the initialize->setup rename instead of the init->initialize one.
+HistoryPreservedTest, NoLiveReferenceOutsideHistoryTest, and
+EvalTriggerCaseTest below keep guarding MAR-184's original /acs:init guarantee
+unchanged; the whole-tree MAR-1 sweep (new needle, positive-replacement,
+CHANGELOG, and skill-body assertions) is rebuilt in a later task.
+
 Run:
-  python3 -m unittest tests.acs.test_initialize_skill_reference_sweep -v
+  python3 -m unittest tests.acs.test_setup_skill_reference_sweep -v
 """
 
 import json
@@ -35,9 +43,9 @@ import acs_lib  # noqa: E402
 
 XS_NS = "{http://www.w3.org/2001/XMLSchema}"
 
-NEW_SKILL_DIR = os.path.join(SKILLS_DIR, "initialize")
-NEW_SKILL_MD = os.path.join(NEW_SKILL_DIR, "SKILL.md")
-OLD_SKILL_DIR = os.path.join(SKILLS_DIR, "init")
+SETUP_SKILL_DIR = os.path.join(SKILLS_DIR, "setup")
+SETUP_SKILL_MD = os.path.join(SETUP_SKILL_DIR, "SKILL.md")
+INITIALIZE_SKILL_DIR = os.path.join(SKILLS_DIR, "initialize")
 
 THIS_FILE = os.path.realpath(__file__)
 
@@ -114,27 +122,29 @@ CLARIFICATIONS_POINTER = [
 
 
 class SkillDirectoryRenamedTest(unittest.TestCase):
-    """AC-1: the skill directory itself moved -- new present, old gone."""
+    """AC-1: the skill directory itself moved -- setup present, initialize gone."""
 
     def test_skill_directory_renamed(self):
-        self.assertTrue(os.path.isfile(NEW_SKILL_MD), "%s must exist" % NEW_SKILL_MD)
-        self.assertFalse(os.path.isdir(OLD_SKILL_DIR), "%s must no longer exist" % OLD_SKILL_DIR)
+        self.assertTrue(os.path.isfile(SETUP_SKILL_MD), "%s must exist" % SETUP_SKILL_MD)
+        self.assertFalse(
+            os.path.isdir(INITIALIZE_SKILL_DIR),
+            "%s must no longer exist" % INITIALIZE_SKILL_DIR)
 
 
 class FrontmatterNameTest(unittest.TestCase):
     """AC-1: the renamed skill's frontmatter name: field matches its directory."""
 
-    def test_frontmatter_name_is_initialize(self):
-        body = read(NEW_SKILL_MD)
+    def test_frontmatter_name_is_setup(self):
+        body = read(SETUP_SKILL_MD)
         m = re.search(r"(?m)^name:\s*(\S+)\s*$", body)
-        self.assertIsNotNone(m, "no frontmatter name: field found in %s" % NEW_SKILL_MD)
-        self.assertEqual(m.group(1), "initialize")
+        self.assertIsNotNone(m, "no frontmatter name: field found in %s" % SETUP_SKILL_MD)
+        self.assertEqual(m.group(1), "setup")
 
 
 class SkillNameMirrorsTest(unittest.TestCase):
-    """AC-3 (+AC-2): every skill-name registry mirror says initialize, not init."""
+    """AC-3/AC-4: every skill-name registry mirror says setup, not initialize."""
 
-    def test_every_skill_name_mirror_says_initialize(self):
+    def test_every_skill_name_mirror_says_setup(self):
         sources = {
             "acs-messages.xsd skillName": xsd_skill_enum_values(),
             "skill-state.schema.json skill.enum": json_schema_skill_enum_values(
@@ -143,11 +153,12 @@ class SkillNameMirrorsTest(unittest.TestCase):
                 CLARIFICATIONS_SCHEMA, CLARIFICATIONS_POINTER),
             "validate_xml.SKILLS": list(validate_xml.SKILLS),
             "acs_lib.UNHOOKED_SKILLS": list(acs_lib.UNHOOKED_SKILLS),
+            "acs_lib.ATTRIBUTION_SKILL_MAP values": list(acs_lib.ATTRIBUTION_SKILL_MAP.values()),
         }
         for label, values in sources.items():
             with self.subTest(source=label):
-                self.assertIn("initialize", values, "%s must list 'initialize'" % label)
-                self.assertNotIn("init", values, "%s must not list stale 'init'" % label)
+                self.assertIn("setup", values, "%s must list 'setup'" % label)
+                self.assertNotIn("initialize", values, "%s must not list stale 'initialize'" % label)
 
 
 class HistoryPreservedTest(unittest.TestCase):
