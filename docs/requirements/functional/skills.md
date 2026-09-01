@@ -283,7 +283,10 @@ an exempt `release/*` PR for a mandatory human merge.
   read-only input (to enumerate the merged-ticket archive), never a write
   target. The git-history fallback source is the repo checkout, not the
   workspace — this is user-observable: the count is non-zero even with no
-  `archive/` present.
+  `archive/` present whenever `base_branch` history carries leading
+  ticket-ref commit subjects (a tracker-ref-only history, e.g. `[#399] …`,
+  still yields zero — the fallback recovers only subjects whose leading
+  token is a ticket ref).
 - **Never publishes itself** — it never runs `git tag` or `gh release create`;
   the privileged tag/publish step stays in the block's `publish_driver`.
 - **Scope**: cutting a new version of a repo already configured for release

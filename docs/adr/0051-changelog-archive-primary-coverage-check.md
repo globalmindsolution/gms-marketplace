@@ -60,9 +60,12 @@ all, not just an archive entry missing its PR ref.
 Archive-primary is preserved, not reversed: the archive is enumerated first
 and an archive-derived id is never overridden (`exclude_ids=archive_ids`),
 pinned by `test_archive_entry_takes_precedence_over_a_matching_commit_subject`;
-with no ticket-ref subjects in history the output is byte-identical to the
-pre-change archive-only path, pinned by
-`test_archive_only_enumeration_is_byte_identical_when_history_has_no_ticket_refs`.
+with no ticket-ref subjects in history the fallback contributes no entries,
+so the archive path's inputs/filters/ordering/output are unchanged apart
+from the added `source` field, pinned by
+`test_archive_only_enumeration_is_byte_identical_when_history_has_no_ticket_refs`
+(which compares the enumeration with and without the fallback enabled, both
+calls post-change — not a comparison against pre-MAR-306 behaviour).
 
 Consequence: Option C's known costs (no epic grouping / no `docs_only`,
 "Alternatives considered" above) now materialise on *fallback-sourced*
