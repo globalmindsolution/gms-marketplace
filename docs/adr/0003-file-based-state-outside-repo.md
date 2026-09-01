@@ -1,6 +1,6 @@
 # 0003 — File-based state in a workspace outside the repo
 
-**Status**: Accepted · **Date**: 2026-06-12
+**Status**: Superseded by [0085](0085-in-repo-anchored-state-machine.md) · **Date**: 2026-06-12
 
 ## Context
 
