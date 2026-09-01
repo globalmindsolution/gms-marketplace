@@ -11,7 +11,7 @@ context and consequences.
 |---|----------|--------|
 | [0001](0001-two-layer-architecture.md) | Deterministic scripts vs. judgment prose | Accepted |
 | [0002](0002-hook-event-binding.md) | Hook event binding on PreToolUse(Skill) | Accepted |
-| [0003](0003-file-based-state-outside-repo.md) | File-based state in a workspace outside the repo | Accepted |
+| [0003](0003-file-based-state-outside-repo.md) | File-based state in a workspace outside the repo | Superseded |
 | [0004](0004-reflection-with-independent-verifier.md) | Reflection trio; verifier anchors on gated contracts | Accepted |
 | [0005](0005-xml-messaging-with-xsd.md) | XML subagent messaging validated by XSD | Accepted |
 | [0006](0006-spec-plan-altitude-split.md) | Standing spec/plan altitude split (keep /create-spec) | Superseded |
@@ -92,6 +92,7 @@ context and consequences.
 | [0083](0083-bootstrap-doc-skills-remediation-loop-execute-verify-only.md) | The 5 bootstrap-doc skills' (`create-prd`/`-quality`/`-standards`/`-operations`/`-principles`) remediation loops become execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name all 5, and superseding ADR-0080's/ADR-0081's loop-topology-unchanged statements (their corroboration-mechanism statements stand) (append-only; ADR-0004/ADR-0080/ADR-0081 themselves unedited) | Accepted |
 | [0084](0084-create-architecture-design-requirements-remediation-loop-execute-verify-only.md) | `/acs:create-architecture`'s, `/acs:create-design`'s, and `/acs:create-requirements`'s remediation loops become execute → verify only, completing the plan-once migration across all twelve triad-keeping skills, amending ADR-0004's `/acs:code` carve-out to also name these three (append-only; ADR-0004 itself unedited) | Accepted |
 | [0085](0085-doc-bootstrap-parallel-fan-out.md) | Doc-bootstrap parallel fan-out: new unhooked umbrella skill `/acs:create-docs`, phase-level subagent-batch interleave, worktree-per-leg delivery, declared dependency table + eligibility helpers in `acs_lib.py`, v1 eligible set = `create-quality` + `create-operations` | Accepted |
+| [0086](0086-in-repo-anchored-state-machine.md) | In-repo, main-checkout-anchored state (`.acs/state-machine`), superseding ADR-0003 | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

@@ -12,7 +12,7 @@ Core-principle row during the MAR-145 functional/non-functional reorg
 
 | Core principle | Requirement |
 |----------------|-------------|
-| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`, outside the consumer repo, enabling worktrees and parallel tickets across any number of consumer repos. |
+| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`. By default `<workspace>` is in-repo, main-checkout-anchored (`.acs/state-machine/`, gitignored), resolving to the same location from every worktree; an explicit `workspace_path` override can still point outside the repo — either way, worktrees and parallel tickets across any number of consumer repos are supported (ADR-0086). |
 
 **Read-outside-the-workspace exception (MAR-1, ADR 0082).** Cost/time
 measurement is the one place acs reads outside both the consumer repo and

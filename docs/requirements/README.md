@@ -62,8 +62,11 @@ through ticketing, design (when needed), specification, TDD implementation,
 code review, and pull request creation, all the way to merge.
 
 acs works on **any consumer repository**. All durable state lives in a
-user-configured **workspace folder outside the consumer repo**, which also
-enables git-worktree-based parallel work.
+**workspace folder** that by default lives in-repo, anchored to the repo's
+main checkout (`.acs/state-machine/`, gitignored) so every linked worktree
+resolves to the same physical location — the mechanism that enables
+git-worktree-based parallel work; an explicit `workspace_path` override can
+still point anywhere (ADR-0086).
 
 ## Goals
 
@@ -265,7 +268,7 @@ Resolved questions, newest first. Details live in the linked docs.
 | **Marketplace** | The Claude Code plugin marketplace (`gms-marketplace`) this repo publishes, through which `acs` is distributed. |
 | **`acs` plugin** | The plugin implementing the delivery workflow these requirements describe. |
 | **Consumer repo** | Any user repository where the `acs` plugin is installed and used. |
-| **Workspace** | A folder *outside* the consumer repo where all skills and hooks read/write state, partitioned per repo and ticket. |
+| **Workspace** | A folder where all skills and hooks read/write state, partitioned per repo and ticket. By default it lives *inside* the consumer repo, gitignored and anchored to the repo's main checkout (`.acs/state-machine/`); an explicit `workspace_path` override can still point outside the repo (ADR-0086). |
 | **Coordinator** | The main agent that orchestrates a skill's subagents. |
 | **Subagent** | A planner, executor, or verifier agent spawned by the coordinator for one step of a skill. |
 | **Skill state file** | A JSON file (e.g. `code-state.json`) written into the workspace recording a skill's outcome, with an append-only `runs` history. |

@@ -10,7 +10,8 @@ in the sibling files; this doc adds no new rules, it shows them in action.
 cd acme-shop
 /initialize
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   ~/acs-workspace    (must be outside the repo)
+  → workspace_path?   (default: derives to <main-checkout>/.acs/state-machine — no answer needed;
+                        set it only to point somewhere else)
   → ticket_prefix?    SHOP               (suggested from the repo name)
   → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
 ```
@@ -127,8 +128,8 @@ git worktree add ../shop-SHOP-6 && cd ../shop-SHOP-6
 
 Each worktree gets its own `sessions/<checkout-id>.json` pointer; each
 ticket partition is locked by its session, so the two never collide. The
-workspace lives outside the repo precisely so both worktrees share one
-state store.
+workspace resolves to the same main-checkout-anchored location from every
+worktree, precisely so both worktrees share one state store (ADR-0086).
 
 ## Long session? Hand off
 

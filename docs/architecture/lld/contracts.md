@@ -163,6 +163,13 @@ and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
 (Step 7f) is the same shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
+`workspace_path` is optional: when unset it derives to
+`<main-checkout>/.acs/state-machine` (anchored via `git rev-parse
+--git-common-dir`, gitignored); an explicit value overrides that default and
+may point anywhere, in- or outside the repo (ADR-0086). `release_notes.py
+--workspace` (above) is unaffected in shape — still an absolute path
+argument — but its caller now passes this resolved value instead of a
+mandatory outside-repo one.
 `formats.design_template` (default `design-default`) resolves identically to
 `formats.pr_description_template` (built-in name → `.acs/templates/<name>.md`
 → absolute path); its section companion `enforcement.design_sections`

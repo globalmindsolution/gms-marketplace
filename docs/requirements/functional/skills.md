@@ -72,17 +72,27 @@ configuration.
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
   scope at initialize time.
-- MUST prompt the user for `workspace_path` — there is no default; this is
-  required input at initialize time.
+- `workspace_path` derives silently to `<main-checkout>/.acs/state-machine`
+  when the user does not set it — no prompt, no required input; an explicit
+  override is optional (ADR-0086).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix.
-- MUST require/validate that `workspace_path` is **outside the consumer
-  repo**, so git worktrees and parallel tasks are supported.
+  global default prefix. This prompt is unaffected by the `workspace_path`
+  default change.
 - MUST set `test_coverage_percent` with a default of **90** (user may
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
+- MUST ensure the derived in-repo state root is ignored by git through two
+  layers — a tracked `.gitignore` entry and an idempotent
+  `<git-common-dir>/info/exclude` append — MUST verify the combined result
+  with `git check-ignore -v`, and MUST warn (never silently proceed) when
+  the ignore is not actually in effect, or when a broad `.acs/` rule would
+  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
+- When an existing external workspace for the repo is detected, SHOULD offer
+  a user-confirmed, one-shot migration into the in-repo state root;
+  declining leaves the old workspace and `workspace_path` unchanged
+  (ADR-0086).
 - `/initialize` is not part of the gated pipeline (no planner/executor/verifier
   subagents); it is a simple setup skill.
 - All other skills' pre-hooks fail fast (exit 2) with a "run /initialize first"

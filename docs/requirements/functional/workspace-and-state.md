@@ -6,10 +6,13 @@
   hooks MUST read and write their files in the workspace folder**, located
   via `workspace_path` in `settings.json`
   ([configuration.md](configuration.md)).
-- The workspace MUST live **outside the consumer repo**. Rationale: state
-  must survive and be shared across git worktrees, enabling **parallel
-  tasks** — a worktree per ticket without state colliding or polluting the
-  repo.
+- The workspace MUST be resolvable to the **same physical location from
+  every worktree of a repo** — that is the actual invariant, enabling
+  **parallel tasks** (a worktree per ticket without state colliding or
+  polluting the repo). It is achieved by default via the in-repo,
+  main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
+  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
+  override for anyone who needs a different location (see ADR-0086).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be
@@ -19,6 +22,27 @@
   no remote. All worktrees of the same repo MUST resolve to the **same**
   `<repo>` partition — identity derives from the main repo / remote, never
   from the worktree path.
+
+## Migrating an existing external workspace
+
+- When an existing external `workspace_path` is detected for a repo,
+  `/acs:initialize` MUST detect it and SHOULD offer a user-confirmed
+  migration into the in-repo default on the next re-run (ADR-0086; the
+  MUST/SHOULD split for `/initialize` itself is specified in
+  [skills.md](skills.md) and not restated here).
+- A repo owner who migrates without re-running `/acs:initialize` MUST use
+  the documented manual path instead: `migrate_workspace.py --from
+  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
+  <repo-root> [--dry-run]` (contract in
+  [contracts.md](../../architecture/lld/contracts.md)). The migrator
+  preflights — refusing to run while a `.lock` is held or an `in_progress`
+  run exists anywhere under the old workspace's partition tree — then
+  copies the repo's partition tree, verifies the copy, and only then
+  removes the old tree; it is idempotent, so re-running after an
+  interruption is safe.
+- Once the migration succeeds, the repo owner MUST remove the
+  `workspace_path` key from `.acs/settings.local.json`, so that future runs
+  resolve the in-repo default instead of the old override.
 
 ## Layout
 

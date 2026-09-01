@@ -14,8 +14,10 @@ plugins distributed from this repository. Plugins differ in shape:
 
 - **acs** (full-shape: `.acs/`, schemas, hooks, agents, skills) — targets
   **Claude Code**; drives an agentic software-delivery workflow on any
-  **consumer repository**, persisting all pipeline state into a **workspace
-  folder outside that repo**.
+  **consumer repository**, persisting all pipeline state into a gitignored
+  **`.acs/state-machine/` folder inside that repo**, anchored to the repo's
+  main checkout so every linked worktree resolves to the same on-disk state
+  (an explicit `workspace_path` override may still point anywhere; ADR-0086).
 - **tabp** (fuller shape: `skills/` + `helpers/` + `schemas/` + `agents/` + `.tabp/` state) — targets
   **Cowork**; provides a screen-CVs recruiting workflow where a coordinator
   fans out Sonnet-per-CV subagents and an Opus synthesis subagent, persisting

@@ -25,7 +25,7 @@ folder.
 
 | Key | Type | Default | Required | Description |
 |-----|------|---------|----------|-------------|
-| `workspace_path` | string (absolute path) | — | **Yes — user input at initialize time** | Folder where all skills and hooks read/write ticket state. MUST be **outside the consumer repo** so git worktrees and parallel tasks work (a path inside the repo would be duplicated/dirtied per worktree). Lives in `settings.local.json` (machine-specific). |
+| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`) | No — optional override | Folder where all skills and hooks read/write ticket state. Unset derives the default: a gitignored `.acs/state-machine/` folder anchored to the repo's main checkout (`git rev-parse --git-common-dir`), so every worktree resolves to the same physical location without state being duplicated/dirtied per worktree (ADR-0086). Set it only to point somewhere else. Lives in `settings.local.json` (machine-specific). |
 | `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
 | `ticket_prefix` | string | — | **Yes — user input at initialize time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/initialize` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
@@ -176,13 +176,16 @@ Code transcript, not the statusLine payload
 
 ## Validation rules
 
-- `/initialize` MUST refuse a `workspace_path` that is inside the consumer repo
-  (including inside any of its worktrees).
+- `/initialize` no longer requires `workspace_path`: when unset, it derives
+  the default (`<main-checkout>/.acs/state-machine`) and MUST hard-fail with
+  a `GateError` only when the layout cannot resolve a normal main-checkout
+  root (bare repo, submodule) — an explicit `workspace_path` remains a valid
+  way to point elsewhere.
 - `/initialize` SHOULD create the workspace folder if missing and verify it is
   writable.
 - Every pre-hook MUST fail (exit 2) with a "run /initialize first" message if no
   `settings.json` can be resolved, and fail clearly if `workspace_path` is
-  missing or invalid.
+  set but invalid, or if the derived default cannot be resolved.
 - `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.
 - `ticket_prefix` is required at initialize time (suggested from the repo name)
   and MUST be a non-empty uppercase identifier — ticket ids are
@@ -195,7 +198,12 @@ Code transcript, not the statusLine payload
 
 ## Example
 
-`<repo>/.acs/settings.local.json` (gitignored, machine-specific):
+Default case — `workspace_path` unset, so the workspace derives to
+`<main-checkout>/.acs/state-machine` (ADR-0086): no `settings.local.json`
+entry is needed at all.
+
+Explicit-override case — `<repo>/.acs/settings.local.json` (gitignored,
+machine-specific), for anyone who wants the workspace somewhere else:
 
 ```json
 {
