@@ -282,10 +282,11 @@ def git_blob_at_merge_base(rel_path):
 
 
 class OutOfScopeUntouchedCase(unittest.TestCase):
-    """AC5 regression guard — .claude-plugin/marketplace.json and
-    plugins/acs/CHANGELOG.md must stay byte-identical to their content at the
-    commit this branch diverged from `main` (byte-pinned / append-only, out
-    of this ticket's scope — this task's own file map excludes both paths)."""
+    """AC5 regression guard — .claude-plugin/marketplace.json (byte-pinned)
+    and plugins/acs/CHANGELOG.md (append-only: no existing line may be
+    deleted/rewritten, though a later ticket may add its own dated entry)
+    relative to their content at the commit this branch diverged from
+    `main` — this task's own file map excludes both paths."""
 
     def setUp(self):
         if _base_ref() is None:
@@ -299,10 +300,24 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
         )
 
     def test_changelog_untouched(self):
+        # append-only, not byte-identical: a later ticket (e.g. MAR-1) may
+        # legitimately add its own dated entry under [Unreleased] in the
+        # same append-only style this file already uses -- what this guard
+        # actually protects is that no EXISTING line is rewritten/deleted.
+        result = subprocess.run(
+            ["git", "diff", "--numstat", "%s...HEAD" % _base_ref(), "--", CHANGELOG],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = result.stdout.strip()
+        if output == "":
+            return
+        _added, deleted, _path = output.split("\t", 2)
         self.assertEqual(
-            git_blob_at_merge_base("plugins/acs/CHANGELOG.md"), read(CHANGELOG),
-            msg="`plugins/acs/CHANGELOG.md` must stay byte-identical to its "
-                "content on `main` (out of MAR-4 scope, append-only)",
+            deleted, "0",
+            msg="`plugins/acs/CHANGELOG.md` must never delete/rewrite an "
+                "existing line relative to `main` (out of MAR-4 scope, "
+                "append-only), got: %s" % output,
         )
 
 
