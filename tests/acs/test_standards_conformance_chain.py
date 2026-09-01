@@ -69,8 +69,13 @@ BASELINE_FLOWS = {
 # added state-root-resolution.md — the parent epic's design.md Flow 1 requires a
 # new standing flow file for default_state_root()'s git-plumbing derivation,
 # which no existing flow doc covered.
+# The MAR-1-epic-split's S4 child (`/acs:docs-sync` pass) legitimately added
+# initialize-state-root-setup.md — the parent epic's design.md Flow 2 covers
+# `/acs:initialize`'s gitignore retrofit + optional migration, a distinct
+# runtime flow from Flow 1 above that no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
-                          "acs-cost-metering.md", "state-root-resolution.md"}
+                          "acs-cost-metering.md", "state-root-resolution.md",
+                          "initialize-state-root-setup.md"}
 
 
 def read(path):
