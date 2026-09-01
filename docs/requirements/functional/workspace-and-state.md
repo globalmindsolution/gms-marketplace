@@ -6,10 +6,13 @@
   hooks MUST read and write their files in the workspace folder**, located
   via `workspace_path` in `settings.json`
   ([configuration.md](configuration.md)).
-- The workspace MUST live **outside the consumer repo**. Rationale: state
-  must survive and be shared across git worktrees, enabling **parallel
-  tasks** — a worktree per ticket without state colliding or polluting the
-  repo.
+- The workspace MUST be resolvable to the **same physical location from
+  every worktree of a repo** — that is the actual invariant, enabling
+  **parallel tasks** (a worktree per ticket without state colliding or
+  polluting the repo). It is achieved by default via the in-repo,
+  main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
+  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
+  override for anyone who needs a different location (see ADR-0085).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be

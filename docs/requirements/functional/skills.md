@@ -71,13 +71,13 @@ configuration.
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
   scope at initialize time.
-- MUST prompt the user for `workspace_path` — there is no default; this is
-  required input at initialize time.
+- `workspace_path` derives silently to `<main-checkout>/.acs/state-machine`
+  when the user does not set it — no prompt, no required input; an explicit
+  override is optional (ADR-0085).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix.
-- MUST require/validate that `workspace_path` is **outside the consumer
-  repo**, so git worktrees and parallel tasks are supported.
+  global default prefix. This prompt is unaffected by the `workspace_path`
+  default change.
 - MUST set `test_coverage_percent` with a default of **90** (user may
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is

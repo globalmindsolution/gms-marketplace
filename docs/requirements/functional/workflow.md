@@ -274,18 +274,21 @@ every workflow skill's coordinator SHOULD perform the same flush proactively
 when it detects its context window running low — never burn the last of the
 context on work that would be lost with the session.
 
-Scope: handoff targets a new session on the **same machine/workspace**
-(`workspace_path` is machine-local). Cross-machine handoff would require a
-shared or synced workspace — out of scope for now.
+Scope: handoff targets a new session on the **same machine/checkout** — the
+state machine lives in the repo's main checkout at `.acs/state-machine/`, or
+at an explicit `workspace_path` override (ADR-0085). Cross-machine handoff
+would require a shared or synced workspace — out of scope for now.
 
 ## Parallel work
 
 - The workspace is partitioned by repo, then by `<ticket-id>`
   (`<workspace>/<repo>/<ticket-id>/`), so multiple tickets — across one or
   many consumer repos — can progress independently and in parallel.
-- Because the workspace lives **outside** the consumer repo, the same ticket
-  pipeline can run inside a dedicated git worktree without state colliding
-  with other worktrees.
+- Because the workspace is resolved from the repo's main checkout (`git
+  rev-parse --git-common-dir`), every linked worktree resolves to the same
+  `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
+  dedicated git worktree without state colliding with other worktrees
+  (ADR-0085).
 
 ## Product-level architecture
 
