@@ -111,39 +111,7 @@ settings live?
 Regardless of the chosen scope, the machine-specific key `workspace_path`
 ALWAYS goes to `<repo>/.acs/settings.local.json` (Step 5).
 
-## Step 3 — Required inputs
-
-### workspace_path (no default — must ask)
-
-Ask for the workspace folder where acs stores all ticket state. Requirements
-you must enforce before accepting an answer:
-
-- Expand `~` (`os.path.expanduser`) and require an absolute path.
-- It MUST be outside the consumer repo, including every worktree. Validate:
-
-```bash
-python3 - "<candidate-path>" <<'PY'
-import os, subprocess, sys
-ws = os.path.realpath(os.path.expanduser(sys.argv[1]))
-if not os.path.isabs(os.path.expanduser(sys.argv[1])):
-    sys.exit("REJECT: workspace_path must be an absolute path")
-out = subprocess.run(["git", "worktree", "list", "--porcelain"],
-                     capture_output=True, text=True).stdout
-roots = [l.split(" ", 1)[1] for l in out.splitlines() if l.startswith("worktree ")]
-for root in roots:
-    root = os.path.realpath(root)
-    try:
-        if os.path.commonpath([ws, root]) == root:
-            sys.exit("REJECT: %s is inside checkout %s" % (ws, root))
-    except ValueError:
-        pass  # different drive -> outside
-print("OK:", ws)
-PY
-```
-
-On `REJECT`, explain why (worktrees and parallel tickets need a shared store
-outside the repo) and ask again. Never write a rejected path. Store the
-expanded absolute path.
+## Step 3 — Required input (ticket_prefix)
 
 ### ticket_prefix (no default — must ask, with a suggestion)
 
@@ -165,6 +133,17 @@ list) — both are first-class setup decisions, so present each as its own choic
 even when the user takes the defaults for everything else. See the `### models`
 subsection and the `e2e` bullet for how each is offered.
 
+- `workspace_path` — default: the in-repo state root
+  `<main-checkout>/.acs/state-machine`, derived via `default_state_root()`
+  (git-plumbing based, anchored to the main checkout so every linked worktree
+  and parallel ticket shares one store). Write the key only when the user sets
+  an explicit override: an absolute path (expand `~`), anywhere — including
+  outside the repo for anyone who wants the pre-MAR-4 topology. Two reasons an
+  override matters: (a) `default_state_root()` raises `GateError` for a bare
+  repository or a git submodule (no stable main-checkout `.git` directory to
+  anchor to) — an explicit override is the escape hatch; (b) a deliberate
+  choice to keep state outside the repo. Validate like any absolute-path
+  setting: expand and require `os.path.isabs`.
 - `test_coverage_percent` — default `90`. Validate: a number in `(0, 100]`;
   reject and re-ask otherwise. Hard-fail target for the `/acs:code` TDD cycle.
 - `merge_strategy` — default `"squash"`. One of `squash` | `merge` | `rebase`.
@@ -382,18 +361,113 @@ fi
 Use `git check-ignore` (not a literal `grep`) so an existing broader rule like
 `.acs/` already counts as ignored and no duplicate line is appended.
 
-## Step 6 — Create and probe the workspace
+Then apply the same retro-fix, extended to a **two-layer** mechanism, for the
+in-repo state root `.acs/state-machine/` — this covers every repo, whether the
+resolved state root is the default or an explicit override under `.acs/`. Run
+this ALWAYS too — fresh init and every re-run.
+
+1. Tracked `.gitignore` entry (same pattern as the `settings.local.json`
+   retrofit above; a narrow directory entry, not a `.acs/` glob):
 
 ```bash
-mkdir -p "<workspace_path>" \
-  && touch "<workspace_path>/.acs-write-probe" \
-  && rm "<workspace_path>/.acs-write-probe" \
-  && echo "workspace OK: <workspace_path>"
+if ! git check-ignore -q .acs/state-machine 2>/dev/null; then
+  [ -f .gitignore ] && [ -n "$(tail -c1 .gitignore 2>/dev/null)" ] && printf '\n' >> .gitignore
+  printf '.acs/state-machine/\n' >> .gitignore
+  echo "gitignored .acs/state-machine/"
+else
+  echo ".acs/state-machine already ignored"
+fi
+```
+
+2. Idempotent `<git-common-dir>/info/exclude` entry (untracked layer, so a
+   linked worktree or a repo that prefers not to commit an ignore-line change
+   is still covered):
+
+```bash
+common_dir="$(git rev-parse --git-common-dir)"
+exclude_file="$common_dir/info/exclude"
+mkdir -p "$(dirname "$exclude_file")"
+touch "$exclude_file"
+[ -f "$exclude_file" ] && [ -n "$(tail -c1 "$exclude_file" 2>/dev/null)" ] && printf '\n' >> "$exclude_file"
+grep -qxF '.acs/state-machine/' "$exclude_file" || printf '.acs/state-machine/\n' >> "$exclude_file"
+```
+
+3. Combined assertion — confirm both layers actually take effect; WARN (do
+   not hard-fail) if they do not, since a conflicting `!.acs/` negation rule
+   is the user's own configuration to fix, not something to block init on:
+
+```bash
+if ! git check-ignore -v .acs/state-machine >/dev/null 2>&1; then
+  echo "WARNING: .acs/state-machine is not actually ignored by git — check for a conflicting !.acs/ negation rule"
+fi
+```
+
+4. Broad-`.acs/`-rule guard — promoted here from the old CI-enforcement-only
+   Step 7c precondition. This now runs unconditionally on every init (not
+   only when CI convention enforcement is enabled), since a broad ignore rule
+   can swallow `.acs/settings.json`/`.acs/ci/*` regardless of whether CI
+   enforcement is configured, and this is already checked in Step 5:
+
+```bash
+for p in .acs/settings.json .acs/ci/check-conventions.py; do
+  git check-ignore -q "$p" && echo "WARNING: $p is gitignored — add '!.acs/' or narrow the rule, or CI cannot read it"
+done || true
+```
+
+## Step 6 — Create and probe the workspace
+
+Resolve the state root the same way `validate_settings()` does — the explicit
+`workspace_path` override if Step 4 collected one, else the derived default
+from `default_state_root()` — and probe that *resolved* path, not a literal
+placeholder that assumes Step 3 always collected an explicit value:
+
+```bash
+python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <<'PY'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+import acs_lib
+cwd = os.getcwd()
+settings, _ = acs_lib.load_settings(cwd)
+try:
+    override = settings.get("workspace_path")
+    state_root = os.path.abspath(os.path.expanduser(str(override))) if override \
+        else acs_lib.default_state_root(cwd)
+except acs_lib.GateError as e:
+    sys.exit("INVALID: %s" % e)
+print(state_root)
+PY
+```
+
+```bash
+state_root="<resolved-state-root-from-above>"
+mkdir -p "$state_root" \
+  && touch "$state_root/.acs-write-probe" \
+  && rm "$state_root/.acs-write-probe" \
+  && echo "workspace OK: $state_root"
 ```
 
 If this fails, report the exact error (permissions, read-only volume, bad
-path) and ask for a different `workspace_path`, then redo Step 3's
-outside-the-repo check and rewrite `settings.local.json`.
+path) and ask for a `workspace_path` override, then rewrite
+`settings.local.json` and redo this probe.
+
+## Step 6b — Optional: migrate an existing external workspace
+
+Detect whether this repo already has an external `workspace_path` configured
+(from before MAR-4) that differs from the resolved default and points at a
+directory already containing a `<repo-id>/` partition tree. If so, offer to
+migrate it into the new in-repo state root now, using the shipped migrator
+(unchanged, from MAR-3):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/migrate_workspace.py" \
+  --from "<old-workspace-path>" --to "<resolved-state-root>" --repo-root "<repo>"
+```
+
+On confirmation, run it — it preflights (no live `.lock`, no in-progress
+run), then copies the old partition tree, verifies, and removes it; it is
+idempotent, safe to re-run if interrupted. On decline, leave the old
+workspace and the existing `workspace_path` override untouched: do not run
+the migrator, and do not remove `workspace_path` from settings.
 
 ## Step 7 — Final validation
 
@@ -482,10 +556,12 @@ merge. Skip the whole step on a plain "no".
 Be honest about what this is. The CI check is **necessary but not sufficient**:
 branch name and PR title are observable conventions, but the proof that work
 actually went through the pipeline (the ticket, specs, TDD) lives in the
-workspace OUTSIDE the repo, which CI cannot see. So this makes the conventions
-**mandatory to merge** (raising the floor), and the real gate is **a required
-status check on a protected default branch**. Explain that before configuring
-anything.
+gitignored `.acs/state-machine` state root — inside the repo by default now,
+but CI cannot see it because it is gitignored (an explicit `workspace_path`
+override can still point it outside the repo entirely). So this makes the
+conventions **mandatory to merge** (raising the floor), and the real gate is
+**a required status check on a protected default branch**. Explain that before
+configuring anything.
 
 ### Precondition — conventions must be committed
 
@@ -494,14 +570,10 @@ The check reads `ticket_prefix` + `formats` (+ `enforcement`) from the committed
 **user scope** in Step 2, those keys are in `~/.acs/settings.json` and CI will
 not see them. When enabling enforcement, write `ticket_prefix`, `formats`, and
 `enforcement` to the **project** file `<repo>/.acs/settings.json` regardless of
-the chosen shared scope, and tell the user. Then confirm the file and the
-checker dir are not gitignored (a broad `.acs/` ignore rule would hide them):
-
-```bash
-for p in .acs/settings.json .acs/ci/check-conventions.py; do
-  git check-ignore -q "$p" && echo "WARNING: $p is gitignored — add '!.acs/' or narrow the rule, or CI cannot read it"
-done || true
-```
+the chosen shared scope, and tell the user. The file and the checker dir not
+being gitignored (a broad `.acs/` ignore rule would hide them) is already
+checked in Step 5's broad-`.acs/`-rule guard, which now runs unconditionally
+on every init — no need to re-run that check here.
 
 ### Choose the checks and exemptions
 
@@ -879,7 +951,7 @@ landed in (or "default — not written" for untouched defaults), e.g.:
 
 | Key | Value | Written to |
 |-----|-------|------------|
-| `workspace_path` | `/Users/jane/acs-workspace` | `<repo>/.acs/settings.local.json` |
+| `workspace_path` | `<repo>/.acs/state-machine` (in-repo default) | default — not written |
 | `ticket_prefix` | `SHOP` | `<repo>/.acs/settings.json` |
 | `test_coverage_percent` | `90` | default — not written |
 | `enforcement` (CI) | checks on; gate via required check | `<repo>/.acs/settings.json` + `.github/workflows/acs-conventions.yml` |

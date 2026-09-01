@@ -41,9 +41,14 @@ You need the partition path before flushing. Resolve it like the hooks do:
   `<main-checkout>/.acs/settings.local.json`, then
   `<main-checkout>/.acs/settings.json`, then `~/.acs/settings.json`; take the
   first `workspace_path` (expand `~`) and `ticket_prefix` found. In a linked
-  worktree also check the worktree's own `.acs/` files. No `workspace_path`
-  anywhere means acs is not initialized — stop and tell the user to run
-  `/acs:initialize` first.
+  worktree also check the worktree's own `.acs/` files. **Workspace**: derive
+  the in-repo default first — `<main-checkout>/.acs/state-machine`, the same
+  derivation `acs_lib.default_state_root()` does — and only fall back to an
+  explicit `workspace_path` override when the settings actually set one. "acs
+  is not initialized" is reserved for the case where even the default cannot
+  be derived (a bare repo or a submodule, with no override set) — stop and
+  tell the user to run `/acs:initialize` first, or set an explicit
+  `workspace_path`.
 - **repo-id**: from `git config --get remote.origin.url` take the last two
   path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
   replace `:` with `/`; sanitize any character outside `[A-Za-z0-9._-]` to
@@ -150,7 +155,11 @@ On success it prints JSON:
 
 If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
-- `workspace_path is not configured` — tell the user to run `/acs:initialize`.
+- `no .acs/settings.json found (user or project scope)` — tell the user to
+  run `/acs:initialize`.
+- `... acs cannot derive an in-repo state root here` (bare repo or
+  submodule) — tell the user to set an explicit `workspace_path` override in
+  `.acs/settings.local.json`, or run `/acs:initialize` to do it interactively.
 - `no current ticket for this checkout (nothing to hand off)` — ask the user
   for the ticket id and re-run `/acs:handoff SHOP-123`.
 - `no active partition for <id>` — the ticket never started or is archived
@@ -172,8 +181,10 @@ Tell the user, compactly:
 3. **Lock released** — any session or worktree on this machine can now take
    the ticket over, not just this checkout.
 4. **Scope** — the handoff targets a new session on the **same machine and
-   workspace** (`workspace_path` is machine-local); cross-machine handoff is
-   out of scope.
+   checkout**: the state machine lives in the repo's main checkout at
+   `.acs/state-machine/` by default, or at an explicit `workspace_path`
+   override when one is set; either way it is local to this machine, so
+   cross-machine handoff is out of scope.
 
 If `handoff.py` reported `"skill": null`, say explicitly that **nothing was
 in progress — there is nothing to hand off**: every completed step is already
