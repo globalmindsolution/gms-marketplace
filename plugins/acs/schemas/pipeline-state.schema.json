@@ -14,7 +14,7 @@
     "steps": {
       "type": "object",
       "propertyNames": {
-        "enum": ["create-prd", "create-architecture", "create-project", "create-ticket", "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
+        "enum": ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements", "create-ticket", "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
       },
       "additionalProperties": {
         "type": "object",

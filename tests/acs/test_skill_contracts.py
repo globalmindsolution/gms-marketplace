@@ -22,7 +22,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-standards", "create-requirements", "create-ticket",
                  "create-design", "code", "docs-sync", "create-pr",
                  "merge-pr", "standardize-project"]
-ALL_SKILLS = HOOKED_SKILLS + ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
+ALL_SKILLS = HOOKED_SKILLS + ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 ROLES = ["planner", "executor", "verifier"]
 
 

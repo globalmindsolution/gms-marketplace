@@ -98,8 +98,8 @@ class PrdAiProductBuilderRowTest(unittest.TestCase):
         self.assertNotIn("/acs:create-spec", row)
 
     def test_skill_count_cross_pin(self):
-        self.assertEqual(len(os.listdir(SKILLS_DIR)), 24)
-        self.assertIn("**24**", read(PRD))
+        self.assertEqual(len(os.listdir(SKILLS_DIR)), 25)
+        self.assertIn("**25**", read(PRD))
 
 
 class PrdDeliveryLanesTest(unittest.TestCase):

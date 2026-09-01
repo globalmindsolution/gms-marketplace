@@ -69,8 +69,12 @@ BASELINE_FLOWS = {
 # added state-root-resolution.md — the parent epic's design.md Flow 1 requires a
 # new standing flow file for default_state_root()'s git-plumbing derivation,
 # which no existing flow doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
+# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
+# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
-                          "acs-cost-metering.md", "state-root-resolution.md"}
+                          "acs-cost-metering.md", "doc-bootstrap-fanout.md",
+                          "state-root-resolution.md"}
 
 
 def read(path):
