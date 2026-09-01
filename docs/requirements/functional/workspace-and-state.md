@@ -287,7 +287,14 @@ all of it:
   Every figure carries a basis label — `measured` / `apportioned` /
   `unavailable` — never fabricated, never zero-padded; coverage is
   contingent on `statusLine` opt-in and on an unconsumed sample existing in
-  a run's window, a disclosed limitation rather than a silent one.
+  a run's window, a disclosed limitation rather than a silent one. This
+  structural no-double-charge guarantee is scoped to topologies where each
+  ticket runs in its own session — true of worktree-per-ticket generally,
+  but not of the "Cross-skill, phase-level fan-out" shape two headings above,
+  where `/acs:create-docs`'s two legs share one session and their subagent
+  work is folded into shared role buckets by suffix alone, so subagent-role
+  token accounting is not immune to cross-contamination in that one specific
+  case. See ADR 0082's "Amendment — MAR-1" for the mechanism.
 
 ## Epic ↔ child linkage
 
