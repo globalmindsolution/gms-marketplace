@@ -17,8 +17,12 @@ Prose-contract unit test covering every shipped surface outside
     release/SKILL.md carries no outside-repo claim (verification-only,
     grounded finding from the plan — pinned here as a regression guard).
   AC5 — plugin.json's description is ASCII-only and describes the in-repo
-    default; .claude-plugin/marketplace.json and plugins/acs/CHANGELOG.md
-    stay byte-identical (out of scope, byte-pinned/append-only).
+    default; .claude-plugin/marketplace.json stays byte-identical (out of
+    MAR-4 scope, byte-pinned). plugins/acs/CHANGELOG.md is append-only
+    instead of byte-identical: MAR-5 (`/acs:docs-sync`) is the ticket
+    responsible for landing the epic's missing changelog entries, so this
+    guard only checks that the diff against `main` never removes or
+    rewords an existing line.
   AC6 — both README.md files (plugin + repo-root) describe the in-repo
     default; plugins/acs/README.md gains a "Migrating an existing external
     workspace" section naming the exact migrate_workspace.py CLI shape.
@@ -281,11 +285,31 @@ def git_blob_at_merge_base(rel_path):
     )
 
 
+def git_diff_against_merge_base(rel_path):
+    """Unified diff of `rel_path` between the commit where this branch
+    diverged from `main` and the current working tree."""
+    base_ref = _base_ref()
+    base = subprocess.check_output(
+        ["git", "merge-base", base_ref, "HEAD"], cwd=REPO_ROOT, text=True
+    ).strip()
+    return subprocess.check_output(
+        ["git", "diff", base, "--", rel_path], cwd=REPO_ROOT, text=True
+    )
+
+
 class OutOfScopeUntouchedCase(unittest.TestCase):
-    """AC5 regression guard — .claude-plugin/marketplace.json and
-    plugins/acs/CHANGELOG.md must stay byte-identical to their content at the
-    commit this branch diverged from `main` (byte-pinned / append-only, out
-    of this ticket's scope — this task's own file map excludes both paths)."""
+    """AC5 regression guard. `.claude-plugin/marketplace.json` must stay
+    byte-identical to its content at the commit this branch diverged from
+    `main` (byte-pinned, out of MAR-4's own scope).
+
+    `plugins/acs/CHANGELOG.md` is different: MAR-5 (`/acs:docs-sync`) is
+    explicitly responsible for landing the MAR-1 epic's missing changelog
+    entries here (see `plugins/acs/skills/code/SKILL.md`'s docs-sync
+    hand-off, and `docs-sync/SKILL.md`), so a byte-identical guard would
+    directly contradict this ticket's own required deliverable. The
+    invariant this file's own header actually promises — CHANGELOG.md is
+    append-only — is checked instead: the diff against the merge-base may
+    only ADD lines, never remove or reword an existing one."""
 
     def setUp(self):
         if _base_ref() is None:
@@ -298,11 +322,17 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
                 "to its content on `main` (out of MAR-4 scope, byte-pinned)",
         )
 
-    def test_changelog_untouched(self):
+    def test_changelog_append_only(self):
+        diff = git_diff_against_merge_base("plugins/acs/CHANGELOG.md")
+        removed = [
+            line for line in diff.splitlines()
+            if line.startswith("-") and not line.startswith("---")
+        ]
         self.assertEqual(
-            git_blob_at_merge_base("plugins/acs/CHANGELOG.md"), read(CHANGELOG),
-            msg="`plugins/acs/CHANGELOG.md` must stay byte-identical to its "
-                "content on `main` (out of MAR-4 scope, append-only)",
+            removed, [],
+            msg="`plugins/acs/CHANGELOG.md` must only gain new lines "
+                "relative to `main` (append-only) — no pre-existing line may "
+                "be edited or removed: %r" % (removed[:5],),
         )
 
 
