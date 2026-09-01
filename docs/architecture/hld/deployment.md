@@ -23,8 +23,8 @@ flowchart LR
         subgraph checkouts["Consumer repo checkouts"]
             CO1["main checkout"]
             CO2["worktree per ticket (parallel sessions)"]
+            WS["Workspace folder<br/>(.acs/state-machine, gitignored,<br/>anchored to main checkout)"]
         end
-        WS["Workspace folder<br/>(outside every checkout)"]
         PY["python3 (stdlib) · git · gh · acli? · xmllint?"]
     end
 
@@ -36,7 +36,8 @@ flowchart LR
     CW --> PI_TABP
     PI_TABP -- skills --> CW
     CC --> CO1 & CO2
-    CO1 & CO2 -- "all pipeline state" --> WS
+    CO1 -- "all pipeline state" --> WS
+    CO2 -. "resolves to the same WS via main-checkout anchor" .-> WS
     CC -- "gh pr create / merge" --> PRS
     G_CONV & G_TEST & G_E2E -- "required status check" --> BP
     BP -- "mergeStateStatus" --> PRS
@@ -55,10 +56,14 @@ Key facts:
   (`claude plugin install acs@gms-marketplace`); tabp installs into the Cowork
   environment (`claude plugin install tabp@gms-marketplace`). Each plugin
   targets a different runtime host.
-- **One workspace, many repos**: `workspace_path` is machine-local
-  (`settings.local.json`, gitignored) and may serve any number of consumer
-  repos — partitions are keyed by repo identity derived from the git remote,
-  so every worktree of a repo shares one partition.
+- **In-repo by default, one workspace store per repo checkout** (ADR-0085):
+  the workspace defaults to `<main-checkout>/.acs/state-machine/`,
+  gitignored, anchored to the repo's main checkout (`git rev-parse
+  --git-common-dir`) so every linked worktree resolves to the same physical
+  partition. An explicit `workspace_path` override (`settings.local.json`,
+  gitignored) may still point anywhere — including a single external
+  location shared across repos, for anyone who wants the old topology — with
+  partitions keyed by repo identity derived from the git remote either way.
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code / Cowork session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.

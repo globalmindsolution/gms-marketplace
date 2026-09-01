@@ -16,7 +16,7 @@ C4Container
     }
     System_Ext(cc, "Claude Code runtime")
     System_Ext(cowork, "Cowork runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "<workspace>/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0085); an explicit workspace_path override may point elsewhere")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
     ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")
