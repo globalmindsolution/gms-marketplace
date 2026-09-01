@@ -23,6 +23,27 @@
   `<repo>` partition — identity derives from the main repo / remote, never
   from the worktree path.
 
+## Migrating an existing external workspace
+
+- When an existing external `workspace_path` is detected for a repo,
+  `/acs:initialize` MUST detect it and SHOULD offer a user-confirmed
+  migration into the in-repo default on the next re-run (ADR-0085; the
+  MUST/SHOULD split for `/initialize` itself is specified in
+  [skills.md](skills.md) and not restated here).
+- A repo owner who migrates without re-running `/acs:initialize` MUST use
+  the documented manual path instead: `migrate_workspace.py --from
+  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
+  <repo-root> [--dry-run]` (contract in
+  [contracts.md](../../architecture/lld/contracts.md)). The migrator
+  preflights — refusing to run while a `.lock` is held or an `in_progress`
+  run exists anywhere under the old workspace's partition tree — then
+  copies the repo's partition tree, verifies the copy, and only then
+  removes the old tree; it is idempotent, so re-running after an
+  interruption is safe.
+- Once the migration succeeds, the repo owner MUST remove the
+  `workspace_path` key from `.acs/settings.local.json`, so that future runs
+  resolve the in-repo default instead of the old override.
+
 ## Layout
 
 ```
