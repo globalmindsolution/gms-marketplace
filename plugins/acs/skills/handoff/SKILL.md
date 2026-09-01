@@ -47,7 +47,7 @@ You need the partition path before flushing. Resolve it like the hooks do:
   explicit `workspace_path` override when the settings actually set one. "acs
   is not initialized" is reserved for the case where even the default cannot
   be derived (a bare repo or a submodule, with no override set) — stop and
-  tell the user to run `/acs:initialize` first, or set an explicit
+  tell the user to run `/acs:setup` first, or set an explicit
   `workspace_path`.
 - **repo-id**: from `git config --get remote.origin.url` take the last two
   path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
@@ -156,10 +156,10 @@ On success it prints JSON:
 If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
 - `no .acs/settings.json found (user or project scope)` — tell the user to
-  run `/acs:initialize`.
+  run `/acs:setup`.
 - `... acs cannot derive an in-repo state root here` (bare repo or
   submodule) — tell the user to set an explicit `workspace_path` override in
-  `.acs/settings.local.json`, or run `/acs:initialize` to do it interactively.
+  `.acs/settings.local.json`, or run `/acs:setup` to do it interactively.
 - `no current ticket for this checkout (nothing to hand off)` — ask the user
   for the ticket id and re-run `/acs:handoff SHOP-123`.
 - `no active partition for <id>` — the ticket never started or is archived

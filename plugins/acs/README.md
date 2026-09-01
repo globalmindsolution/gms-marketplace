@@ -43,7 +43,7 @@ folder — no path to pick unless you want one):
 
 ```text
 cd acme-shop
-/acs:initialize
+/acs:setup
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
   → workspace_path?   <default>          (.acs/state-machine in this checkout; set an override only if you want state elsewhere)
   → ticket_prefix?    SHOP               (suggested from the repo name)
@@ -95,7 +95,7 @@ name.
 
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
-| `/acs:initialize` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
+| `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
 | `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the ticket partition, marks the run `handed_off`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
@@ -104,14 +104,14 @@ name.
 | `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, cost and time per ticket by step, the four per-ticket/per-PR averages, token burn by role — from workspace state. Writes nothing. |
 | `/acs:test` | — (utility) | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable workspace artifact, and on failure triages/drives a closed regression-ticket loop; `--for-ticket` mode runs as one step inside `/acs:ship`'s pipeline walk. |
 | `/acs:release` | — (utility) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
-| `/acs:create-prd` | `/acs:initialize` done | Product-level: elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
+| `/acs:create-prd` | `/acs:setup` done | Product-level: elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | PRD doc set exists | Product-level: HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
 | `/acs:create-project` | Architecture doc set exists | Product-level, greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |
 | `/acs:create-quality` | Architecture doc set exists | Product-level: bootstraps or maintains the quality/ doc set (test strategy, coverage policy) at `quality_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
 | `/acs:create-operations` | Architecture doc set exists | Product-level: bootstraps or maintains the operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) at `operations_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
 | `/acs:create-principles` | Architecture doc set exists | Product-level: bootstraps or maintains the principles/ doc set (engineering principles + rationale) at `principles_path`, reading the PRD and the architecture set; docs PR via its own delivery ticket. |
 | `/acs:create-standards` | Architecture doc set exists | Product-level: bootstraps or maintains the standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) at `standards_path`, reading the PRD, the architecture set, and the principles set when present; docs PR via its own delivery ticket. |
-| `/acs:create-requirements` | `/acs:initialize` done | Product-level: bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
+| `/acs:create-requirements` | `/acs:setup` done | Product-level: bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. |
 | `/acs:create-design` | `/acs:create-ticket` completed; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) in the ticket partition; epics' children inherit it. |
 | `/acs:code` | `/acs:create-ticket` completed | TDD implementation on a ticket branch against the coverage target; reconciles factual product-doc claims; verifier review loop (max 3 iterations). |
@@ -161,7 +161,7 @@ tickets, `metrics.json` for per-repo totals, a ticket's
 
 ## Configuration
 
-Generated by `/acs:initialize`; resolved per key as `settings.local.json` →
+Generated by `/acs:setup`; resolved per key as `settings.local.json` →
 project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 
 | Key | Default | Purpose |
@@ -185,7 +185,7 @@ and the machine-readable
 ## Migrating an existing external workspace
 
 If this repo has an existing `workspace_path` pointing outside the repo (set
-before the in-repo default shipped), `/acs:initialize` detects it and offers
+before the in-repo default shipped), `/acs:setup` detects it and offers
 to migrate on your next re-run. To migrate by hand instead:
 
 ```text
@@ -207,8 +207,8 @@ runs resolve the new in-repo default instead of the old override.
   exited 2. The stderr message names the missing predecessor — run that
   skill for the same ticket (e.g. `/acs:code SHOP-123` before
   `/acs:create-pr SHOP-123` — `create-pr`'s gate additionally requires
-  `/acs:docs-sync` to have completed). A "run /initialize first" message means no
-  `settings.json` could be resolved: run `/acs:initialize`.
+  `/acs:docs-sync` to have completed). A "run /setup first" message means no
+  `settings.json` could be resolved: run `/acs:setup`.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
   worktree), finish or hand off there. If it crashed, ending that session

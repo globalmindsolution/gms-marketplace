@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """run-tests.py — acs CI tests + coverage gate.
 
-Installed by /acs:initialize into the consumer repo at .acs/ci/run-tests.py and run by
+Installed by /acs:setup into the consumer repo at .acs/ci/run-tests.py and run by
 .github/workflows/acs-tests.yml on every PR. The CI runner has no acs install,
 so this reads the suite command from the committed <repo>/.acs/settings.json,
 runs the optional setup then the command, and exits with the command's status.
@@ -27,7 +27,7 @@ def fail(msg):
 
 def main():
     if not os.path.isfile(SETTINGS):
-        fail("%s not found — commit project settings, or run /acs:initialize." % SETTINGS)
+        fail("%s not found — commit project settings, or run /acs:setup." % SETTINGS)
     try:
         with open(SETTINGS, encoding="utf-8") as fh:
             settings = json.load(fh)
@@ -36,7 +36,7 @@ def main():
 
     tests = settings.get("tests")
     if not isinstance(tests, dict) or not tests.get("command"):
-        fail("no `tests.command` in %s — re-run /acs:initialize and enable the tests "
+        fail("no `tests.command` in %s — re-run /acs:setup and enable the tests "
              "CI gate (the command must run the suite and fail on coverage "
              "shortfall)." % SETTINGS)
 

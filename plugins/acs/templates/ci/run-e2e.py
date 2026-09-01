@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """run-e2e.py — acs required e2e merge gate.
 
-Installed by /acs:initialize Step 7f into the consumer repo at .acs/ci/run-e2e.py and
+Installed by /acs:setup Step 7f into the consumer repo at .acs/ci/run-e2e.py and
 run by .github/workflows/acs-e2e.yml on every PR. The CI runner has no acs
 install, so this reads the raw committed <repo>/.acs/settings.json directly
 (no acs_lib import) and replicates its e2e/suites["e2e"] alias fallback,
@@ -39,7 +39,7 @@ def run_step(name, command, env):
 
 def main():
     if not os.path.isfile(SETTINGS):
-        fail("%s not found — commit project settings, or run /acs:initialize." % SETTINGS)
+        fail("%s not found — commit project settings, or run /acs:setup." % SETTINGS)
     try:
         with open(SETTINGS, encoding="utf-8") as fh:
             settings = json.load(fh)
@@ -48,7 +48,7 @@ def main():
 
     e2e = resolve_e2e(settings)
     if not isinstance(e2e, dict) or not e2e.get("command"):
-        fail("no e2e command in %s — re-run /acs:initialize and enable the e2e CI "
+        fail("no e2e command in %s — re-run /acs:setup and enable the e2e CI "
              "gate." % SETTINGS)
 
     env = dict(os.environ)

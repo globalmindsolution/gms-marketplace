@@ -21,7 +21,7 @@ component follows.
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
-Skills are invoked namespaced: `/acs:initialize`, `/acs:ship`, `/acs:create-ticket`, …
+Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/initialize`, `/ship`, … — same skills, plugin-namespaced
 by Claude Code.)
 
@@ -167,7 +167,7 @@ pipeline end.
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 
-Three sanctioned substitutions: `/acs:initialize` and `/acs:update` (no ticket)
+Three sanctioned substitutions: `/acs:setup` and `/acs:update` (no ticket)
 replace the Ticket line with **Scope**, and `/acs:handoff` puts the
 `continue_with` command in **Next**. Per-skill Results/Next content is fixed
 in each SKILL.md's "Completion report" section.
@@ -318,7 +318,7 @@ The chain of declarations keeps e2e honest: the spec's Test plan states the
 e2e impact (or "no e2e impact" with a reason) → the code plan maps it into
 executor tasks → the verifier demands matching e2e test diffs from any spec
 that declared impact. A repo without `settings.e2e` skips the layer entirely;
-adding it later is one /acs:initialize re-run.
+adding it later is one /acs:setup re-run.
 
 ## Requirement clarification — controlled, recorded, never repeated
 
@@ -462,7 +462,7 @@ sanctioned way to keep children shippable when a slice alone would break.
   partition/state, and skips tracker sync and archiving — `skill-start.py --pr`
   validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
   refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. `/acs:initialize` Step 7e injects the guidance **body** from
+  ticket-backed. `/acs:setup` Step 7e injects the guidance **body** from
   `templates/CLAUDE.acs.md` (the template's maintainer header and its own markers
   are dropped) into the repo's `CLAUDE.md`, wrapped by `upsert_managed_block` in
   exactly one acs-managed marker pair — idempotent (byte-identical re-runs) and
