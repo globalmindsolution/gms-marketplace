@@ -26,8 +26,9 @@ Ground rules, non-negotiable:
   directly with the Agent tool — you never do a leg's work yourself.
 - v1's eligible set is exactly `create-quality` + `create-operations`
   (D7-A) — a third doc-bootstrap skill becoming fan-out-eligible later is a
-  data change, not a code change: one new entry in
-  `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES`, never an edit to this skill.
+  data change, not a code change: it must be added to BOTH
+  `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES` and `acs_lib.DOC_BOOTSTRAP_FANOUT_V1`,
+  never an edit to this skill.
 - This is not epic-child fan-out (`ship/SKILL.md`'s "Epic fan-out" section,
   unchanged) — that mechanism parallelizes *tickets* sharing one design;
   this skill parallelizes independent *product-level doc-bootstrap skills*
@@ -192,16 +193,19 @@ for real, and each leg's own `post-create-quality.py` /
 ### Fail-fast carve-out (D6-B) — narrowly scoped to the one shared gate
 
 Both `gate_create_quality` and `gate_create_operations` check exactly one
-shared precondition, `_require_architecture_doc_set` (the architecture doc
-set — `hld/tech-stack.md` — must exist). Because the two Starts run
-sequentially, if leg A's Start fails on that **shared** gate, you already
-know leg B's identical gate would fail too — before spending a second
-Skill-tool call and a second delivery ticket on a guaranteed-identical
-failure. In that case: **fail fast** — stop immediately after the first
-gate failure, report ONE finding naming the shared cause (architecture doc
-set missing), mark **both** legs `not_attempted` (never `failed` — neither
-leg's Start actually ran), and do not invoke the second leg's Skill call at
-all.
+shared precondition, `_require_architecture_doc_set` (the architecture doc set
+— `hld/tech-stack.md` — must exist). Because the two Starts run sequentially,
+if leg A's Start fails on that **shared** gate, you already know leg B's
+identical gate would fail too — before spending a second Skill-tool call and a
+second delivery ticket on a guaranteed-identical failure. In that case: **fail
+fast** — stop immediately after the first gate failure, report ONE finding
+naming the shared cause (architecture doc set missing), mark **both** legs
+`not_attempted` (never `failed` — neither leg's Start actually ran), and do not
+invoke the second leg's Skill call at all. Remove both legs' worktrees (`git
+worktree remove <path>`) before reporting -- they were created before either
+Start ran, so leaving them in place would make the documented retry's `git
+worktree add --detach <path> <default-branch>` fail on an already-occupied
+path.
 
 This carve-out is **scoped exclusively** to `_require_architecture_doc_set`.
 Every other failure — a leg-specific hook block, a lock held by another

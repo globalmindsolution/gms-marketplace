@@ -114,7 +114,7 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
-    def test_intro_reads_twentyfour_not_twentythree(self):
+    def test_intro_reads_twentyfive_not_twentyfour(self):
         body = self._skills_req()
         intro = body[:600]
         self.assertIn("Twenty-five skills", intro,

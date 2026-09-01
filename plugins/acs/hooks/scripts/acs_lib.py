@@ -221,6 +221,7 @@ def parse_fanout_for_arg(args_text):
             bucket.append(name)
     return (candidates, rejected)
 
+
 # Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
 FORMAT_PLACEHOLDERS = {
     "branch_name": {"ticket_id", "type", "slug", "external_key"},

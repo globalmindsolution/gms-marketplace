@@ -30,10 +30,12 @@ fanned-out leg writes its own `pipeline-state.json` in its own partition.
 
 The design (`design.md`, MAR-1) resolved eight decision points (D1–D8) plus
 four sub-decisions (D3.2, D4.1, D4.2, D4.3) against these constraints. The
-design's own draft proposed recording them as seven separate ADRs
-(0084–0090), one per top-level decision. The user overrode that draft
-(clarification C-16): this ticket records all eight decisions' outcomes as
-**one** consolidated ADR, because no acceptance criterion or test
+design's own draft proposed recording its first seven decisions (D1–D7) as
+seven separate ADRs (0084–0090), one per decision — D8, the deferred
+trigger-eval decision, was decided later and was never itself drafted as an
+eighth ADR. The user overrode that draft (clarification C-16): this ticket
+records all eight decisions' outcomes as **one** consolidated ADR, because
+no acceptance criterion or test
 distinguishes "seven ADRs" from "one ADR" — `docs/adr/README.md`'s only
 enforced invariant is bidirectional index completeness
 (`tests/acs/test_doc_fact_pins.py::AdrIndexCompletenessTest`) — and one ADR
