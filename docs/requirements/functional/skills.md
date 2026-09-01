@@ -82,6 +82,16 @@ configuration.
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
+- MUST ensure the derived in-repo state root is ignored by git through two
+  layers — a tracked `.gitignore` entry and an idempotent
+  `<git-common-dir>/info/exclude` append — MUST verify the combined result
+  with `git check-ignore -v`, and MUST warn (never silently proceed) when
+  the ignore is not actually in effect, or when a broad `.acs/` rule would
+  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0085).
+- When an existing external workspace for the repo is detected, SHOULD offer
+  a user-confirmed, one-shot migration into the in-repo state root;
+  declining leaves the old workspace and `workspace_path` unchanged
+  (ADR-0085).
 - `/initialize` is not part of the gated pipeline (no planner/executor/verifier
   subagents); it is a simple setup skill.
 - All other skills' pre-hooks fail fast (exit 2) with a "run /initialize first"
