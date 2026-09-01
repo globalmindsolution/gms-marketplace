@@ -21,9 +21,9 @@ added in this task, over the same allowlist plus a line-scoped carve-out for
 the 2026-08-13 docs/requirements/README.md ledger row (the MAR-184 rename
 record). PositiveReplacementTest, TestFilesRenamedTest, and
 SkillBodyUnchangedExceptRenameTest are new whole-tree MAR-1 assertions added
-in this task. The CHANGELOG-specific assertions (ChangelogEntryTest,
-ChangelogAddOnlyTest) are a later task's job, added once the CHANGELOG entry
-itself exists.
+in this task. ChangelogEntryTest and ChangelogAddOnlyTest, plus a new
+HistoryPreservedTest method, are the CHANGELOG-specific assertions for the
+MAR-1 dated entry added in the final (T5) task.
 
 Run:
   python3 -m unittest tests.acs.test_setup_skill_reference_sweep -v
@@ -200,6 +200,14 @@ class HistoryPreservedTest(unittest.TestCase):
         self.assertIn("/acs:init", read(ADR_0047))
         self.assertIn("/acs:init", read(CHANGELOG))
         self.assertIn("/acs:init", read(SPIKE_DOC))
+
+    def test_mar184_entry_and_version_heading_preserved_verbatim(self):
+        """AC-7: the MAR-1 CHANGELOG edit is add-only -- the MAR-184 entry's
+        own BREAKING sentence and a pre-existing version heading must both
+        still be present verbatim after the new MAR-1 bullet is added."""
+        body = read(CHANGELOG)
+        self.assertIn("BREAKING: `/acs:init` no longer resolves", body)
+        self.assertIn("## [0.4.5] - 2026-07-23", body)
 
 
 class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
@@ -400,6 +408,64 @@ class SkillBodyUnchangedExceptRenameTest(unittest.TestCase):
         expected = result.stdout.replace("/acs:initialize", "/acs:setup")
         expected = re.sub(r"(?m)^name: initialize$", "name: setup", expected)
         self.assertEqual(expected, read(SETUP_SKILL_MD))
+
+
+def changelog_section_with_marker(body, marker):
+    """The '## [...]' section span carrying *marker*, durable across a
+    release cut and across later unrelated entries landing under
+    [Unreleased] -- mirrors test_create_spec_reference_sweep.py's
+    changelog_entry_section() helper (its docstring explains why resolving
+    by section-emptiness or by the [Unreleased] heading alone both break)."""
+    spans = [m.start() for m in re.finditer(r"(?m)^## \[[^\]]*\]", body)] + [len(body)]
+    for start, end in zip(spans, spans[1:]):
+        candidate = body[start:end]
+        if marker in candidate:
+            return candidate
+    raise AssertionError(
+        "plugins/acs/CHANGELOG.md must contain a %r marker inside a "
+        "'## [...]' section span" % (marker,))
+
+
+class ChangelogEntryTest(unittest.TestCase):
+    """AC-7: the new MAR-1 CHANGELOG entry names BREAKING, /acs:setup, and
+    the no-alias decision."""
+
+    def test_changelog_entry_present_and_complete(self):
+        section = changelog_section_with_marker(read(CHANGELOG), "(MAR-1)")
+        self.assertIn("BREAKING", section)
+        self.assertTrue(
+            "/acs:setup" in section or "acs:setup" in section,
+            "MAR-1 CHANGELOG entry must name /acs:setup")
+        self.assertTrue(
+            "no alias" in section.lower(),
+            "MAR-1 CHANGELOG entry must state the no-alias decision")
+
+
+class ChangelogAddOnlyTest(unittest.TestCase):
+    """AC-7: the CHANGELOG diff for this ticket is add-only -- zero deleted
+    lines against the merge-base ref. Self-skips with no base ref, mirroring
+    SkillBodyUnchangedExceptRenameTest's idiom above."""
+
+    def setUp(self):
+        self.base = _base_ref()
+        if self.base is None:
+            self.skipTest("no base ref (origin/main or main) to diff against")
+
+    def test_changelog_diff_has_zero_deletions(self):
+        result = subprocess.run(
+            ["git", "diff", "--numstat", "%s...HEAD" % self.base, "--", CHANGELOG],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = result.stdout.strip()
+        if output == "":
+            self.skipTest(
+                "no plugins/acs/CHANGELOG.md diff against %s yet" % self.base)
+        added, deleted, _ = output.split("\t", 2)
+        self.assertEqual(
+            deleted, "0",
+            "plugins/acs/CHANGELOG.md diff must have zero deleted lines, "
+            "got: %s" % output)
 
 
 class EvalTriggerCaseTest(unittest.TestCase):
