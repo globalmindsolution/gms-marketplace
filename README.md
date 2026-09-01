@@ -113,8 +113,10 @@ The marketplace currently ships two plugins:
   request, and merge. Twenty-five skills (`/acs:initialize`, `/acs:ship`, `/acs:code`, …)
   each run a plan → execute → verify reflection cycle with dedicated subagents;
   pre/post hooks gate every step on the recorded state of its predecessor; and
-  all durable state lives in a workspace folder outside the consumer repo, making
-  runs resumable and tickets shippable in parallel across git worktrees.
+  all durable state lives in a gitignored `.acs/state-machine` folder inside
+  the consumer repo by default (an explicit override can still point it
+  elsewhere), making runs resumable and tickets shippable in parallel across
+  git worktrees.
 
 - **`tabp` (Team AI Builder Pack)** — skills-only plugin targeting Claude Cowork.
   Starts with `screen-cvs`, a skill that screens CVs against a job description
