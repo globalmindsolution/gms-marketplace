@@ -30,7 +30,7 @@ Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
 
 ## Coverage today (per skill)
 
-24 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
+25 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
 The on-disk `skills/*/SKILL.md` set is test-pinned by
 `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
 sorted `SKILL.md` glob vs sorted `ALL_SKILLS`) to equal `ALL_SKILLS` — a
@@ -50,32 +50,32 @@ item 2). The registry at
 [`acs_lib.py:41-45`](../../plugins/acs/hooks/scripts/acs_lib.py) splits them
 into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
-**9 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of `7a3368e`**;
-re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `24`) and a Python one-liner
+**10 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of MAR-1** (the `/acs:create-docs` fan-out change);
+re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `25`) and a Python one-liner
 importing `acs_lib` and printing `len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)`
-(→ `15 9`).
+(→ `15 10`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
-  `test_skill_contracts.py` (`:46-47`) → 24 of 24.
+  `test_skill_contracts.py` (`:46-47`) → 25 of 25.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
   → 15 of 15 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 9 unhooked have none by
+  `assertIn(skill, acs_lib.GATES)` loop); the 10 unhooked have none by
   construction, closed by `tests/acs/test_release_skill_registry.py:87`
   (`assertEqual(len(acs_lib.GATES), 15)` — with the loop above proving
   `GATES` ⊇ the 15 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
-  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 22 of 24;
-  `create-requirements` and `docs-sync` have none (`grep -rn
-  "docs-sync\|create-requirements" evals/` returns no hits — neither skill
-  appears anywhere under `evals/`).
+  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 22 of 25;
+  `create-requirements`, `docs-sync` and `create-docs` have none (no `CASES`
+  entry in `evals/acs/scenarios/s04_skill_triggers.py` names any of the
+  three).
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
-  artifacts → 3 of 24: `create-ticket`
+  artifacts → 3 of 25: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),
   forge-tier
   [`s07_fanout_tracker_sync.py`](../../evals/acs/scenarios/s07_fanout_tracker_sync.py)),
@@ -111,7 +111,7 @@ never hand-picked:
 target, so this repo's own run of it is a skip, not live coverage (see
 "Artifact (6)" above).
 
-**Unhooked (9)**
+**Unhooked (10)**
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
@@ -124,6 +124,7 @@ target, so this repo's own run of it is a skip, not live coverage (see
 | `usage` | ✅ | n/a (unhooked) | ✅ | — |
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
+| `create-docs` | ✅ | n/a (unhooked) | — | — |
 
 The `create-pr` Artifact cell above is `✅*` and the remaining `merge-pr`
 Artifact `—` cell carries a specific reason rather than being open gap; both
@@ -134,18 +135,19 @@ on the same remaining thing. `create-pr`'s forge-tier eval itself shipped
 (`create_pr_forge`) — it is blocked only on an onboarded target repo before
 its real assertions run. `merge-pr` has no scenario at all yet, so it is
 blocked on both its scenario (`merge_pr_forge`, MAR-69) *and* the onboarded
-target repo — see "Roadmap to close the gap" item 3. The other 20 `—` cells
+target repo — see "Roadmap to close the gap" item 3. The other 21 `—` cells
 are the gap itself.
 
-**Structure is complete: 24 of 24** (`test_skill_contracts.py:44-47` pins the
+**Structure is complete: 25 of 25** (`test_skill_contracts.py:44-47` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:20-25`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 15 of 15 hooked skills**; the other
-9 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 22 of 24** — the two exceptions,
-`create-requirements` and `docs-sync`, both shipped with no trigger eval. **The
-gap is behavioral (artifact) coverage: only 3 of 24 skills** (`create-ticket`,
+10 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
+none should. **Routing covers 22 of 25** — the three exceptions,
+`create-requirements`, `docs-sync` and `create-docs`, all shipped with no
+trigger eval. **The gap is behavioral (artifact) coverage: only 3 of 25
+skills** (`create-ticket`,
 `code`, `create-pr`) are verified at the output level (`create-pr`'s eval
 skips without a configured forge target) — so the *common* skill bugs (a
 missing script reference, a malformed completion report, a broken gate, the
@@ -202,8 +204,9 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 2. **Coverage matrix + guardrail** *(cheap).* Keep the table above current and
    add a contract test that fails if a new skill ships without at least a
    trigger eval, so coverage cannot silently regress — the guardrail already
-   has two live instances to close: `create-requirements` and `docs-sync`
-   both shipped with no trigger eval (see the Trigger column above).
+   has three live instances to close: `create-requirements`, `docs-sync` and
+   `create-docs` all shipped with no trigger eval (see the Trigger column
+   above).
 3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
    `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
    (throwaway GitHub repo — foundation delivered by MAR-67: harness + config +

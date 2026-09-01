@@ -31,8 +31,9 @@ A pre-hook runs before its skill and checks **readiness**:
   `/create-ticket` has completed and that the ticket is not an `epic` —
   `gate_code` in `acs_lib.py`).
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /setup"), `workspace_path` is valid and outside the repo, and the
-  `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
+  "run /setup"), `workspace_path` is resolvable (explicit override or
+  derived default) and consistent across worktrees, and the `<ticket-id>`
+  partition can be resolved. Pre-hooks also check the ticket's
   `.lock` file and exit 2 if another session holds it
   ([workspace-and-state.md](workspace-and-state.md)).
 - A pre-hook is not purely a gate: it also **records** the

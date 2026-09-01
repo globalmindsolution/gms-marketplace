@@ -12,7 +12,7 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 24 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
 | Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,codex_adapter,handoff,mermaid_lint,metrics_aggregate,metrics_render,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 17 |

@@ -73,7 +73,7 @@ XSD_PATH = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), "schemas",
 # Mirrors acs-messages.xsd's skillName enum (and the identical copies in
 # skill-state.schema.json / clarifications.schema.json) exactly -- kept in
 # sync by tests/acs/test_message_schema_skill_enum.py.
-SKILLS = {"code", "create-architecture", "create-design", "create-operations",
+SKILLS = {"code", "create-architecture", "create-design", "create-docs", "create-operations",
           "create-pr", "create-prd", "create-principles", "create-project",
           "create-quality", "create-requirements", "create-standards",
           "create-ticket", "docs-sync", "handoff", "install-hooks",

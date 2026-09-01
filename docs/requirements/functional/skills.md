@@ -1,11 +1,12 @@
 # Skill Requirements
 
-Twenty-four skills in total: the bootstrap skill (`/setup`), the umbrella
+Twenty-five skills in total: the bootstrap skill (`/setup`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
-read-only usage dashboard (`/usage`), and the standing suite runner
-(`/acs:test`) — the product-level `/create-prd`, `/create-architecture`,
+read-only usage dashboard (`/usage`), the standing suite runner
+(`/acs:test`), `/acs:release`, and `/acs:create-docs` — the product-level
+`/create-prd`, `/create-architecture`,
 `/create-project`, `/create-quality`, `/create-operations`,
 `/create-principles`, `/create-standards`, and `/create-requirements`, `/acs:standardize-project`
 (its own triad-keeping workflow skill with its own delivery ticket — **not**
@@ -71,17 +72,27 @@ configuration.
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
   scope at setup time.
-- MUST prompt the user for `workspace_path` — there is no default; this is
-  required input at setup time.
+- `workspace_path` derives silently to `<main-checkout>/.acs/state-machine`
+  when the user does not set it — no prompt, no required input; an explicit
+  override is optional (ADR-0086).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix.
-- MUST require/validate that `workspace_path` is **outside the consumer
-  repo**, so git worktrees and parallel tasks are supported.
+  global default prefix. This prompt is unaffected by the `workspace_path`
+  default change.
 - MUST set `test_coverage_percent` with a default of **90** (user may
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
+- MUST ensure the derived in-repo state root is ignored by git through two
+  layers — a tracked `.gitignore` entry and an idempotent
+  `<git-common-dir>/info/exclude` append — MUST verify the combined result
+  with `git check-ignore -v`, and MUST warn (never silently proceed) when
+  the ignore is not actually in effect, or when a broad `.acs/` rule would
+  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
+- When an existing external workspace for the repo is detected, SHOULD offer
+  a user-confirmed, one-shot migration into the in-repo state root;
+  declining leaves the old workspace and `workspace_path` unchanged
+  (ADR-0086).
 - `/setup` is not part of the gated pipeline (no planner/executor/verifier
   subagents); it is a simple setup skill.
 - All other skills' pre-hooks fail fast (exit 2) with a "run /setup first"
@@ -251,6 +262,64 @@ closing the loop on failures with a regression ticket.
   triage/mint-or-bump loop entirely and instead returns a `{status,
   failure_output}` verdict — invoked as one step inside `/acs:ship`'s
   pipeline walk. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+
+## /acs:release (utility)
+
+Purpose: the one-command **release-cut** utility — assembles/verifies the
+CHANGELOG section for a release version from the merged-ticket archive,
+bumps the version-location files plus any extra refs configured in the
+repo's `.acs/settings.json` `release` block, dates the section, and opens an
+exempt `release/*` PR for a mandatory human merge.
+
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
+  `/acs:release` has no planner/executor/verifier triad, no `release-state.json`
+  skill-start ticket allocation, no `.lock`, no pointer file, no partition.
+  It is not part of the gated pipeline.
+- **Fails fast** when no `release` block is configured in `.acs/settings.json`
+  — before shelling out to `release_notes.py` at all.
+- **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
+  durable record of a release cut is the release PR itself; `workspace` is
+  read-only input (to enumerate the merged-ticket archive), never a write
+  target.
+- **Never publishes itself** — it never runs `git tag` or `gh release create`;
+  the privileged tag/publish step stays in the block's `publish_driver`.
+- **Scope**: cutting a new version of a repo already configured for release
+  cuts — not for opening a ticket's own PR (`/acs:create-pr`) or
+  landing/merging a PR (`/acs:merge-pr`).
+
+## /acs:create-docs (utility)
+
+Purpose: the cross-skill, phase-level **doc-bootstrap fan-out** umbrella —
+detects independent doc-bootstrap skills (currently `create-quality` and
+`create-operations`) whose upstream prerequisites are already satisfied, and
+runs them in parallel instead of one after another; each leg keeps its own
+hooks, reflection cycle, and gating unchanged, and delivers as its own
+docs-only PR on its own delivery ticket.
+
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`/`/acs:release`,
+  `/acs:create-docs` has no planner/executor/verifier triad of its own and no
+  `create-docs-state.json` skill-start ticket allocation; it is not one of
+  the twelve triad-keeping skills. Like `/acs:ship`, it adopts
+  `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
+- **Eligibility**: `fanout_batches()` (`acs_lib.py`) computes the eligible
+  batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
+  the consumer repo's settings and on-disk doc state, gated on the declared
+  v1 set `DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
+- **Mechanism**: mints one delivery ticket per eligible leg via real
+  `Skill`-tool `Start`s in the session checkout, then runs each phase
+  (plan → execute → verify) as a parallel batch across legs; each leg enters
+  its own worktree at its own Delivery step's Branch sub-step, before that
+  leg's Execute phase.
+- **Failure isolation**: legs share no failure state — one leg reaching its
+  verifier iteration cap never blocks or rolls back a sibling leg's
+  completed PR; a failed leg resumes via its own skill's standalone Resume &
+  reconcile path, never by re-invoking the umbrella. See
+  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- **Argument contract**: `--for <skill>[,<skill>...]` narrows the batch to
+  the named skill(s); with no flag, every currently-eligible skill fans out;
+  a name outside `DOC_BOOTSTRAP_FANOUT_V1` is rejected as *not in v1's
+  fan-out set* (`parse_fanout_for_arg()`, `acs_lib.py`) — reported, never
+  silently fanned out or silently dropped.
 
 ## Product-level delivery (tickets)
 

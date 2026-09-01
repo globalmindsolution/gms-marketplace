@@ -6,10 +6,13 @@
   hooks MUST read and write their files in the workspace folder**, located
   via `workspace_path` in `settings.json`
   ([configuration.md](configuration.md)).
-- The workspace MUST live **outside the consumer repo**. Rationale: state
-  must survive and be shared across git worktrees, enabling **parallel
-  tasks** — a worktree per ticket without state colliding or polluting the
-  repo.
+- The workspace MUST be resolvable to the **same physical location from
+  every worktree of a repo** — that is the actual invariant, enabling
+  **parallel tasks** (a worktree per ticket without state colliding or
+  polluting the repo). It is achieved by default via the in-repo,
+  main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
+  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
+  override for anyone who needs a different location (see ADR-0086).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be
@@ -19,6 +22,27 @@
   no remote. All worktrees of the same repo MUST resolve to the **same**
   `<repo>` partition — identity derives from the main repo / remote, never
   from the worktree path.
+
+## Migrating an existing external workspace
+
+- When an existing external `workspace_path` is detected for a repo,
+  `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
+  migration into the in-repo default on the next re-run (ADR-0086; the
+  MUST/SHOULD split for `/setup` itself is specified in
+  [skills.md](skills.md) and not restated here).
+- A repo owner who migrates without re-running `/acs:setup` MUST use
+  the documented manual path instead: `migrate_workspace.py --from
+  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
+  <repo-root> [--dry-run]` (contract in
+  [contracts.md](../../architecture/lld/contracts.md)). The migrator
+  preflights — refusing to run while a `.lock` is held or an `in_progress`
+  run exists anywhere under the old workspace's partition tree — then
+  copies the repo's partition tree, verifies the copy, and only then
+  removes the old tree; it is idempotent, so re-running after an
+  interruption is safe.
+- Once the migration succeeds, the repo owner MUST remove the
+  `workspace_path` key from `.acs/settings.local.json`, so that future runs
+  resolve the in-repo default instead of the old override.
 
 ## Layout
 
@@ -232,6 +256,29 @@ worktree per ticket**:
   auto-stolen.
 - Product-level skills lock their **delivery ticket's** partition like any
   other skill — no separate locking scheme.
+- **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
+  narrower parallelism shape layered on top of worktree-per-ticket: one
+  unhooked coordinator mints **two independent delivery tickets** (one per
+  eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
+  session checkout, then runs each phase (plan → execute → verify) as a
+  parallel batch across both legs; each leg enters its own worktree at its
+  own Delivery step's **Branch** sub-step, before that leg's Execute phase.
+  Both tickets share the run's `checkout_id`
+  for the Start/plan/execute/verify portion of the run — the disposition for
+  this shared-checkout case is: pointer/marker/cursor collisions are
+  accepted, labeled degradations (statusline shows only one leg; the losing
+  leg's cost sampling degrades to `unavailable`) rather than a correctness
+  bug, because every consumer of ticket identity gets the ticket id
+  explicitly and `cost_basis` is never fabricated for the losing leg. Each
+  leg's own `.lock`/pointer/state files are otherwise unaffected — the
+  legs remain two ordinary, independently-resumable delivery tickets. See
+  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
+  `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
+  critical section that serializes two legs finishing concurrently on the
+  normal path. This is best-effort, not absolute: on a bounded spin timeout
+  the guard fails open and the write proceeds unguarded rather than blocking
+  forever, so the last-write-wins race is narrowed, not eliminated.
 
 ## Metrics
 
@@ -264,7 +311,18 @@ all of it:
   Every figure carries a basis label — `measured` / `apportioned` /
   `unavailable` — never fabricated, never zero-padded; coverage is
   contingent on `statusLine` opt-in and on an unconsumed sample existing in
-  a run's window, a disclosed limitation rather than a silent one.
+  a run's window, a disclosed limitation rather than a silent one. The
+  dollar-cost double-charging guarantee above (`cost_sampler.py`'s
+  checkout-scoped cursor) is unaffected by fan-out and holds unconditionally,
+  in every topology including the one below. A separate, narrower guarantee —
+  subagent-role token attribution (`usage_reader.py`) being immune to
+  cross-session contamination — is scoped to topologies where each ticket
+  runs in its own session — true of worktree-per-ticket generally, but not of
+  the "Cross-skill, phase-level fan-out" shape two headings above, where
+  `/acs:create-docs`'s two legs share one session and their subagent work is
+  folded into shared role buckets by suffix alone, so subagent-role token
+  accounting is not immune to cross-contamination in that one specific case.
+  See ADR 0082's "Amendment — MAR-1" for the mechanism.
 
 ## Epic ↔ child linkage
 

@@ -42,13 +42,15 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. Unused within this ticket -- a later ticket is its first consumer;
 # a schema-mirror equality test is what stops this list from drifting.
-PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-ticket",
-                        "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
+PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-quality",
+                        "create-operations", "create-principles", "create-standards",
+                        "create-requirements", "create-ticket", "create-design", "code", "test",
+                        "docs-sync", "create-pr", "merge-pr"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
@@ -81,6 +83,146 @@ PRODUCT_TICKET_TITLES = {
 DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
 DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
                                **{"standardize-project": "Brownfield project standardization"})
+
+# Declared (never inferred) doc-bootstrap dependency edges for the fan-out
+# eligibility predicate below. "hard" gates eligibility outright; "soft" only
+# excludes a candidate from sharing a fan-out BATCH with an eligible peer it
+# is tagged against -- it never makes the candidate ineligible on its own.
+# No hard edge exists today: every list below is empty, stated explicitly.
+DOC_BOOTSTRAP_DEPENDENCIES = {
+    "create-quality": {"hard": [], "soft": []},
+    "create-operations": {"hard": [], "soft": []},
+    "create-principles": {"hard": [], "soft": []},
+    "create-standards": {"hard": [], "soft": ["create-principles"]},
+}
+
+# Explicit skill -> settings-key map for the doc-bootstrap skills, resolved
+# by lookup rather than string-built from the skill name.
+DOC_BOOTSTRAP_SETTINGS_KEY = {
+    "create-quality": "quality_path",
+    "create-operations": "operations_path",
+    "create-principles": "principles_path",
+    "create-standards": "standards_path",
+}
+
+# Each doc-bootstrap skill's own first output file (its output contract),
+# used as the D4.2(a) sentinel for "has this doc set actually shipped."
+DOC_BOOTSTRAP_SENTINEL = {
+    "create-quality": "test-strategy.md",
+    "create-operations": "release-process.md",
+    "create-principles": "principles.md",
+    "create-standards": "coding-standards.md",
+}
+
+# D7-A: v1 fans out exactly this pair. A third doc-bootstrap skill becomes
+# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES AND
+# DOC_BOOTSTRAP_SETTINGS_KEY AND DOC_BOOTSTRAP_SENTINEL (fanout_batches also
+# indexes those two, unguarded) -- all four are data changes, no code change.
+DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations")
+
+
+def doc_set_present_on_disk(checkout_root, settings, skill):
+    """D4.2(a): a doc-bootstrap skill's doc set counts as shipped only when its
+    own first output file exists at its configured path -- a populated but
+    otherwise-produced directory does not count (fails toward re-bootstrapping)."""
+    base = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[skill])
+    if not base:
+        return False
+    return os.path.isfile(os.path.join(checkout_root, base, DOC_BOOTSTRAP_SENTINEL[skill]))
+
+
+def _soft_peers(candidate, eligible):
+    """AC-5: the soft edge is an UNDIRECTED batching constraint -- an edge
+    counts whether the candidate declares it or the peer does, so the
+    invariant cannot be broken by re-ordering the table or by declaring the
+    edge on the other side."""
+    declared = set(DOC_BOOTSTRAP_DEPENDENCIES[candidate]["soft"])
+    reverse = {peer for peer in eligible
+               if candidate in DOC_BOOTSTRAP_DEPENDENCIES[peer]["soft"]}
+    return (declared | reverse) & set(eligible)
+
+
+def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
+    """D4.1 eligibility (configured, not-shipped, no open delivery ticket, hard
+    deps clear) plus D4.3 batching: group eligible candidates so a soft
+    dependency edge never shares a batch with its eligible peer, in either
+    direction. candidates defaults to the declared v1 fan-out set
+    (DOC_BOOTSTRAP_FANOUT_V1); an explicit candidates argument exists so the
+    general-case (future N-way) semantics stay unit-testable even though only
+    the v1 pair is fanned out today. Names not present in
+    DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
+    tickets = (tickets_index or {}).get("tickets") or {}
+
+    def _open_ticket(skill):
+        title = DELIVERY_TICKET_TITLES.get(skill)
+        return any(
+            isinstance(t, dict) and t.get("title") == title
+            and t.get("type") == "task" and t.get("status") != "done"
+            for t in tickets.values()
+        )
+
+    eligible = []
+    for candidate in (DOC_BOOTSTRAP_FANOUT_V1 if candidates is None else candidates):
+        if candidate not in DOC_BOOTSTRAP_DEPENDENCIES:
+            continue  # unknown/non-doc-bootstrap name: never eligible, never raises
+        deps = DOC_BOOTSTRAP_DEPENDENCIES[candidate]
+        configured = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[candidate]) is not None
+        not_shipped = not doc_set_present_on_disk(checkout_root, settings, candidate)
+        not_open = not _open_ticket(candidate)
+        hard_deps_clear = all(
+            settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[dep]) is None
+            or doc_set_present_on_disk(checkout_root, settings, dep)
+            for dep in deps["hard"]
+        )
+        if configured and not_shipped and not_open and hard_deps_clear:
+            eligible.append(candidate)
+
+    batches = []
+    for candidate in eligible:
+        soft_peers = _soft_peers(candidate, eligible)
+        for batch in batches:
+            if not soft_peers & set(batch):
+                batch.append(candidate)
+                break
+        else:
+            batches.append([candidate])
+    return batches
+
+
+# /acs:create-docs's only argument. Matched only as a whole flag ("--for",
+# "--for=", or a bare trailing "--for") so an unrelated --for-* flag never
+# triggers it.
+_FANOUT_FOR_RE = re.compile(r"--for(?:=|\s|$)")
+
+
+def parse_fanout_for_arg(args_text):
+    """Parse /acs:create-docs's `--for <skill>[,<skill>...]` argument against
+    the declared v1 fan-out gate (D7-A).
+
+    Returns (candidates, rejected):
+      candidates is None when no --for flag is present -- the caller hands that
+        straight to fanout_batches, which then applies its own
+        DOC_BOOTSTRAP_FANOUT_V1 default;
+      otherwise candidates is the requested names that ARE in
+        DOC_BOOTSTRAP_FANOUT_V1 (order-preserving, de-duplicated) and rejected
+        is every other requested name -- an unknown name and a real but non-v1
+        doc-bootstrap skill (e.g. create-principles) alike. A rejected name is
+        reported ("not in v1's fan-out set") and never fanned out; it is
+        deliberately kept OUT of fanout_batches's candidates, whose own
+        contract is to skip unknown names silently (see above)."""
+    text = args_text or ""
+    m = _FANOUT_FOR_RE.search(text)
+    if not m:
+        return (None, [])
+    candidates, rejected = [], []
+    for name in text[m.end():].replace(",", " ").split():
+        if name.startswith("-"):
+            break
+        bucket = candidates if name in DOC_BOOTSTRAP_FANOUT_V1 else rejected
+        if name not in bucket:
+            bucket.append(name)
+    return (candidates, rejected)
+
 
 # Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
 FORMAT_PLACEHOLDERS = {
@@ -1717,28 +1859,69 @@ def index_path(workspace, repo_id):
     return os.path.join(repo_dir(workspace, repo_id), "tickets-index.json")
 
 
+def _guarded_repo_write(workspace, repo_id, guard_name, fn):
+    """D5.1(a): run fn (a repo_id-keyed read-modify-write) under the same
+    O_EXCL spin-lock pattern as allocate_ticket_id's counters guard (bounded
+    spin, same 200 x 0.05s budget). Mirrors that pre-existing pattern's
+    fail-open fallback: if a live foreign guard is never released within the
+    budget, the loop gives up (acquired stays False) and still runs fn()
+    unguarded, leaving the foreign guard file untouched -- a best-effort lock,
+    not an absolute guarantee against a dropped concurrent update."""
+    rdir = repo_dir(workspace, repo_id)
+    os.makedirs(rdir, exist_ok=True)
+    guard = os.path.join(rdir, guard_name)
+    acquired = False
+    for _ in range(200):
+        try:
+            fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            acquired = True
+            break
+        except FileExistsError:
+            try:
+                if os.path.getmtime(guard) < datetime.now(timezone.utc).timestamp() - 30:
+                    os.unlink(guard)  # stale guard from a crashed writer
+                    continue
+            except OSError:
+                pass
+            import time
+            time.sleep(0.05)
+    try:
+        return fn()
+    finally:
+        if acquired:
+            try:
+                os.unlink(guard)
+            except OSError:
+                pass
+
+
 def update_index(workspace, repo_id, ticket, archived=None):
     path = index_path(workspace, repo_id)
-    data = read_json(path) or {"tickets": {}}
-    data.setdefault("tickets", {})
-    entry = data["tickets"].setdefault(ticket["id"], {})
-    entry.update({
-        "id": ticket["id"],
-        "title": ticket.get("title"),
-        "type": ticket.get("type"),
-        "status": ticket.get("status"),
-        "parent": ticket.get("parent"),
-        "children": ticket.get("children", []),
-        "needs_design": ticket.get("needs_design"),
-        "lane": ticket.get("lane"),
-        "external": ticket.get("external"),
-        "due_date": ticket.get("due_date"),
-        "updated_at": now_iso(),
-    })
-    if archived is not None:
-        entry["archived"] = archived
-    write_json(path, data)
-    return data
+
+    def _write():
+        data = read_json(path) or {"tickets": {}}
+        data.setdefault("tickets", {})
+        entry = data["tickets"].setdefault(ticket["id"], {})
+        entry.update({
+            "id": ticket["id"],
+            "title": ticket.get("title"),
+            "type": ticket.get("type"),
+            "status": ticket.get("status"),
+            "parent": ticket.get("parent"),
+            "children": ticket.get("children", []),
+            "needs_design": ticket.get("needs_design"),
+            "lane": ticket.get("lane"),
+            "external": ticket.get("external"),
+            "due_date": ticket.get("due_date"),
+            "updated_at": now_iso(),
+        })
+        if archived is not None:
+            entry["archived"] = archived
+        write_json(path, data)
+        return data
+
+    return _guarded_repo_write(workspace, repo_id, "tickets-index.json.lock", _write)
 
 
 def metrics_path(workspace, repo_id):
@@ -1748,6 +1931,13 @@ def metrics_path(workspace, repo_id):
 def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merged=False, pr_number=None):
     """Repo-level aggregates: ticket counts recomputed from the index (idempotent),
     PR counts and run totals accumulated incrementally."""
+    def _write():
+        return _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, pr_number)
+
+    return _guarded_repo_write(workspace, repo_id, "metrics.json.lock", _write)
+
+
+def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, pr_number):
     path = metrics_path(workspace, repo_id)
     data = read_json(path) or {}
     data.setdefault("tickets", {})

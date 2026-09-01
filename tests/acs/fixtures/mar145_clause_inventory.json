@@ -26,10 +26,10 @@
       "- MUST persist the ticket (and its `<ticket-id>`) into the workspace; the",
       "- MUST produce **one or more** implementation specs (\"different",
       "- MUST prompt for **`ticket_prefix`**, suggesting one derived from the",
-      "- MUST prompt the user for `workspace_path` — there is no default; this is",
+      "workspace_path` derives silently to `<main-checkout>/.acs/state-machine`",
       "- MUST record progress, findings, errors, and stop reasons so an interrupted",
       "- MUST record the PR reference (number/URL) in the workspace state.",
-      "- MUST require/validate that `workspace_path` is **outside the consumer",
+      "no prompt, no required input; an explicit",
       "- MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review",
       "- MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,",
       "- MUST set **`needs_design`**, epic-only: always `true` for epics",
@@ -165,7 +165,7 @@
       "- Skills MUST handle a partially-written/corrupt state file gracefully",
       "- State files MUST be valid JSON and SHOULD be human-readable",
       "- The workspace MUST be partitioned **by consumer repo, then by",
-      "- The workspace MUST live **outside the consumer repo**. Rationale: state",
+      "The workspace MUST be resolvable to the **same physical location from",
       "Each state file MUST capture:",
       "MUST NOT modify another skill's state file.",
       "hooks MUST read and write their files in the workspace folder**, located",
@@ -233,7 +233,7 @@
     "configuration.md": [
       "- Every pre-hook MUST fail (exit 2) with a \"run /setup first\" message if no",
       "- `/setup` MUST let the user choose the scope (user or project) at setup time.",
-      "- `/setup` MUST refuse a `workspace_path` that is inside the consumer repo",
+      "`/setup` no longer requires `workspace_path`: when unset, it derives",
       "- `/setup` SHOULD create the workspace folder if missing and verify it is",
       "- `formats.branch_name` MUST include the `{ticket_id}` placeholder — ticket",
       "- `models` entries MUST be non-empty strings or `{ \"model\", \"effort\" }`",
@@ -269,7 +269,7 @@
       "| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 7d, opt-in): `{ \"command\", \"setup\"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |",
       "| `ticket_prefix` | string | — | **Yes — user input at setup time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/setup` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |",
       "| `tracker` | object | `{ \"provider\": \"local\" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |",
-      "| `workspace_path` | string (absolute path) | — | **Yes — user input at setup time** | Folder where all skills and hooks read/write ticket state. MUST be **outside the consumer repo** so git worktrees and parallel tasks work (a path inside the repo would be duplicated/dirtied per worktree). Lives in `settings.local.json` (machine-specific). |",
+      "| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`)",
       "| `{external_key}` | Remote tracker key (empty when not synced) | all |",
       "| `{slug}` | Kebab-case slug of the title (lowercase `a–z0–9-`, ≤ 40 chars) | `branch_name` |",
       "| `{summary}` | Short generated summary of the change | `commit_message`, `pr_title` |",
@@ -292,7 +292,7 @@
       "| Principle | Requirement |",
       "runs plan → execute → verify with dedicated subagents",
       "| TDD | `/code` implements via test-driven development against a configurable coverage target (default 90%). |",
-      "| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`, outside the consumer repo, enabling worktrees and parallel tickets across any number of consumer repos. |",
+      "| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`.",
       "| XML messaging | Coordinator ↔ subagent communication uses a defined XML format. |"
     ]
   }

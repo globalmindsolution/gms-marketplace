@@ -6,7 +6,7 @@ C4Container
 
     Person(dev, "Developer")
     System_Boundary(mkt, "GMS Marketplace (plugin catalog)") {
-        Container(skills, "acs Skills", "24 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
+        Container(skills, "acs Skills", "25 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
         Container(agents, "acs Subagents", "45 x agent .md (39 reachable)", "Planner/executor/verifier triad for the twelve triad-keeping skills (create-prd/-architecture/-project/-quality/-operations/-principles/-standards/-design/code/docs-sync/standardize-project/create-requirements); the three apply-work skills (create-ticket/-pr/merge-pr) run inline with at most one executor, no planner/verifier — their 6 plan/verify agent files are orphaned; grounding rules; XML I/O")
         Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 15 pre + 15 post hooks; skill-start, new-ticket, handoff, clarify, validate_xml, mermaid_lint, structure_lint, citation_check, prd_conformance_check, status lines; acs_lib")
         Container(schemas, "acs Schemas & templates", "JSON Schema / XSD / md", "9 state schemas, acs-messages.xsd, 6 description templates; templates/ci/ now includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
@@ -16,7 +16,7 @@ C4Container
     }
     System_Ext(cc, "Claude Code runtime")
     System_Ext(cowork, "Cowork runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "<workspace>/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); an explicit workspace_path override may point elsewhere")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
     ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")

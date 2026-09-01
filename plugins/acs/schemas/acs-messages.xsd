@@ -19,6 +19,7 @@
       <xs:enumeration value="code"/>
       <xs:enumeration value="create-architecture"/>
       <xs:enumeration value="create-design"/>
+      <xs:enumeration value="create-docs"/>
       <xs:enumeration value="create-operations"/>
       <xs:enumeration value="create-pr"/>
       <xs:enumeration value="create-prd"/>

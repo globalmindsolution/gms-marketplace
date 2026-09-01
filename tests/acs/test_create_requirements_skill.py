@@ -138,7 +138,7 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
-        self.assertIn("24 x SKILL.md", body)
+        self.assertIn("25 x SKILL.md", body)
         self.assertIn("45 x agent .md (39 reachable)", body)
         self.assertIn("twelve triad-keeping skills", body)
         self.assertIn("create-requirements", body)

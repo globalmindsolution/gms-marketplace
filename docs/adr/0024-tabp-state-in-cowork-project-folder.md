@@ -108,3 +108,26 @@ Runtime selection itself (the explicit `--runtime` flag and auto-detect
 fallback) is recorded in ADR-0027 (dual-runtime detection); the dual-runtime
 scope of the hybrid mechanism is recorded in ADR-0023's MAR-40 amendment. This
 amendment extends the state-location decision; it does not rewrite it.
+
+## Amendment (ADR-0086 supersession, 2026-09-01)
+
+**ADR-0003 is superseded; this amendment corrects the stale cross-reference
+in the Consequences section above and confirms this ADR's own decision is
+otherwise unaffected.** The Consequences section above states: "This decision
+does not affect acs plugin state, which continues to follow ADR 0003
+(outside-repo workspace)." ADR-0003 is now **Superseded by ADR-0086**
+(`docs/adr/0086-in-repo-anchored-state-machine.md`): the acs plugin workspace
+root is no longer a required, always-outside-the-repo `workspace_path` — it
+now defaults to a gitignored, in-repo `.acs/state-machine` directory anchored
+to the repo's main checkout, with an optional explicit `workspace_path`
+override for anyone who still wants a different location.
+
+This amendment does not revisit tabp's own decision above, which is
+**preserved unchanged**. tabp's `.tabp/` state root is derived from
+`--project-dir` with no git call and no worktree-collision problem — that
+rationale never depended on ADR-0003 remaining live, only on tabp's
+Cowork/Claude-Code project-folder model being distinct from acs's
+git-worktree model (see Context above). So the original decision stands on
+its own footing regardless of which ADR now governs acs's own workspace
+root: store all tabp `.tabp/` run state and `tabp settings.json` in the
+project folder, exactly as decided above.
