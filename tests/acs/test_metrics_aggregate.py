@@ -310,9 +310,10 @@ class Panel3ApiDuration(unittest.TestCase):
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
-            # union = {test, code, create-quality}; PIPELINE_STEP_ORDER lists code before test;
-            # create-quality is a hooked-only skill absent from PIPELINE_STEP_ORDER -> sorted tail.
-            self.assertEqual(row["step_order"], ["code", "test", "create-quality"])
+            # union = {test, code, create-quality}; create-quality is a product-level skill now
+            # listed in PIPELINE_STEP_ORDER (before create-ticket/code/test), so it orders first;
+            # code before test follows PIPELINE_STEP_ORDER's own relative position for both.
+            self.assertEqual(row["step_order"], ["create-quality", "code", "test"])
 
     def test_step_api_duration_present_without_steps_entry_hooked_only_skill(self):
         with TemporaryDirectory() as ws:

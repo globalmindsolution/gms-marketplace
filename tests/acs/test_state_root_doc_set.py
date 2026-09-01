@@ -1,9 +1,9 @@
-"""MAR-5 -- doc-set consistency for the ADR-0085 in-repo state-root rewrite.
+"""MAR-5 -- doc-set consistency for the ADR-0086 in-repo state-root rewrite.
 
 Locks the ADR + architecture + requirements doc set's internal consistency
-after the ADR-0003 -> ADR-0085 supersession (S4 of the MAR-1 epic split):
+after the ADR-0003 -> ADR-0086 supersession (S4 of the MAR-1 epic split):
 no touched file still makes the superseded "workspace lives outside the
-repo" claim, ADR-0085 is cited consistently (never as the ticket's own
+repo" claim, ADR-0086 is cited consistently (never as the ticket's own
 literal "0084" typo, and never as "(MAR-1)"/"(MAR-5)" -- MAR-1 already
 denotes an unrelated, already-shipped cost-metering ticket in several of
 these same files).
@@ -24,7 +24,7 @@ def _p(*parts):
 
 
 ADR_0003 = _p("docs", "adr", "0003-file-based-state-outside-repo.md")
-ADR_0085 = _p("docs", "adr", "0085-in-repo-anchored-state-machine.md")
+ADR_0086 = _p("docs", "adr", "0086-in-repo-anchored-state-machine.md")
 ADR_README = _p("docs", "adr", "README.md")
 
 OVERVIEW = _p("docs", "architecture", "hld", "overview.md")
@@ -46,19 +46,19 @@ PORTABILITY = _p("docs", "requirements", "non-functional", "portability.md")
 # The 17 files this ticket's file map touches (3 ADR, 6 architecture, 8
 # requirements).
 TOUCHED_FILES = (
-    ADR_0003, ADR_0085, ADR_README,
+    ADR_0003, ADR_0086, ADR_README,
     OVERVIEW, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, DATA_MODEL, CONTRACTS,
     WORKSPACE_AND_STATE, CONFIGURATION, SKILLS, HOOKS, WORKFLOW, USAGE,
     REQUIREMENTS_README, PORTABILITY,
 )
 
-# Files design.md's conformance list requires to cite ADR-0085 explicitly.
+# Files design.md's conformance list requires to cite ADR-0086 explicitly.
 CITING_REQUIRED = (
     OVERVIEW, DATA_MODEL, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, CONTRACTS,
     WORKSPACE_AND_STATE, CONFIGURATION,
 )
 
-ADR_0085_RE = re.compile(r"ADR-0085|\[0085\]|0085-in-repo-anchored-state-machine")
+ADR_0086_RE = re.compile(r"ADR-0086|\[0086\]|0086-in-repo-anchored-state-machine")
 MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 
 # Confirmed-live baseline MAR-1 citation counts (unrelated, already-shipped
@@ -67,8 +67,15 @@ MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 MAR1_BASELINE = {
     C4_CONTAINER: 5,
     DATA_MODEL: 27,
-    CONTRACTS: 3,
-    WORKSPACE_AND_STATE: 5,
+    # CONTRACTS: 3 ADR-0082 citations + 1 from a separately-numbered MAR-1
+    # (doc-bootstrap parallel fan-out, merged to main after this ticket
+    # branched) -- both are pre-existing, unrelated MAR-1 tokens this
+    # ticket's own edits must not shift.
+    CONTRACTS: 4,
+    # WORKSPACE_AND_STATE: 5 pre-existing ADR-0082 citations + 1 more
+    # ADR-0082 citation added by a sibling PR (#410, merged to main after
+    # this ticket branched) -- still unrelated to this ticket's own edits.
+    WORKSPACE_AND_STATE: 6,
     CONFIGURATION: 1,
     HOOKS: 2,
     USAGE: 1,
@@ -141,36 +148,36 @@ class NoOutsideRepoClaimTest(unittest.TestCase):
 
 
 class AdrCitationTest(unittest.TestCase):
-    """AC1: ADR-0085 supersedes ADR-0003, is indexed and Accepted, and is
+    """AC1: ADR-0086 supersedes ADR-0003, is indexed and Accepted, and is
     cited consistently by every file that describes the workspace default."""
 
-    def test_adr_0003_status_line_supersedes_0085(self):
-        self.assertIn("Superseded by [0085]", _status_line(read(ADR_0003)))
+    def test_adr_0003_status_line_supersedes_0086(self):
+        self.assertIn("Superseded by [0086]", _status_line(read(ADR_0003)))
 
-    def test_adr_0085_exists_and_is_accepted(self):
-        self.assertTrue(os.path.exists(ADR_0085), "%s not found" % ADR_0085)
-        self.assertIn("Accepted", _status_line(read(ADR_0085)))
+    def test_adr_0086_exists_and_is_accepted(self):
+        self.assertTrue(os.path.exists(ADR_0086), "%s not found" % ADR_0086)
+        self.assertIn("Accepted", _status_line(read(ADR_0086)))
 
-    def test_readme_indexes_0085_and_flips_0003_status(self):
+    def test_readme_indexes_0086_and_flips_0003_status(self):
         body = read(ADR_README)
         self.assertRegex(
             body,
-            r"\|\s*\[0085\]\(0085-in-repo-anchored-state-machine\.md\)\s*\|",
-            "docs/adr/README.md is missing the 0085 index row",
+            r"\|\s*\[0086\]\(0086-in-repo-anchored-state-machine\.md\)\s*\|",
+            "docs/adr/README.md is missing the 0086 index row",
         )
         row_0003 = next((line for line in body.splitlines() if "[0003]" in line), "")
         self.assertIn("Superseded", row_0003, "0003's README row must flip to Superseded")
 
-    def test_citing_required_files_reference_0085(self):
+    def test_citing_required_files_reference_0086(self):
         for path in CITING_REQUIRED:
             self.assertRegex(
-                read(path), ADR_0085_RE, "%s does not cite ADR-0085" % path,
+                read(path), ADR_0086_RE, "%s does not cite ADR-0086" % path,
             )
 
 
 class No0084MisattributionTest(unittest.TestCase):
-    """Guards the ticket-text 0084/0085 numbering confusion: every touched
-    file must say '0085', never the ticket's own literal '0084' typo --
+    """Guards the ticket-text 0084/0086 numbering confusion: every touched
+    file must say '0086', never the ticket's own literal '0084' typo --
     except docs/adr/README.md, which keeps its one pre-existing, unrelated,
     real ADR-0084 row (baseline count 2: link text + display text)."""
 

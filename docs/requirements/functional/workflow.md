@@ -276,7 +276,7 @@ context on work that would be lost with the session.
 
 Scope: handoff targets a new session on the **same machine/checkout** — the
 state machine lives in the repo's main checkout at `.acs/state-machine/`, or
-at an explicit `workspace_path` override (ADR-0085). Cross-machine handoff
+at an explicit `workspace_path` override (ADR-0086). Cross-machine handoff
 would require a shared or synced workspace — out of scope for now.
 
 ## Parallel work
@@ -288,7 +288,15 @@ would require a shared or synced workspace — out of scope for now.
   rev-parse --git-common-dir`), every linked worktree resolves to the same
   `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
   dedicated git worktree without state colliding with other worktrees
-  (ADR-0085).
+  (ADR-0086).
+- A second, narrower mechanism layers cross-*skill*, phase-level fan-out on
+  top of the above: `/acs:create-docs` mints one delivery ticket per
+  eligible doc-bootstrap skill and runs each phase (plan, then execute,
+  then verify) as a parallel batch across both tickets, rather than running
+  the skills one after another — reusing the same worktree-per-ticket
+  primitive per leg, with each leg entering its own worktree at its own
+  Branch step, before that leg's Execute phase.
+  See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 
 ## Product-level architecture
 

@@ -301,7 +301,7 @@ any per-iteration-plan exception — all twelve triad skills now plan
 exactly once per run. Zero migration: no new state key, no new schema
 field, no new artifact path.
 
-**Amendment (ADR-0085).** The physical root each `REPO_PARTITION` resolves
+**Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` by default —
 gitignored, anchored to the repo's main checkout (`git rev-parse
 --git-common-dir`) so every linked worktree resolves to the same on-disk

@@ -109,14 +109,14 @@ fallback) is recorded in ADR-0027 (dual-runtime detection); the dual-runtime
 scope of the hybrid mechanism is recorded in ADR-0023's MAR-40 amendment. This
 amendment extends the state-location decision; it does not rewrite it.
 
-## Amendment (ADR-0085 supersession, 2026-09-01)
+## Amendment (ADR-0086 supersession, 2026-09-01)
 
 **ADR-0003 is superseded; this amendment corrects the stale cross-reference
 in the Consequences section above and confirms this ADR's own decision is
 otherwise unaffected.** The Consequences section above states: "This decision
 does not affect acs plugin state, which continues to follow ADR 0003
-(outside-repo workspace)." ADR-0003 is now **Superseded by ADR-0085**
-(`docs/adr/0085-in-repo-anchored-state-machine.md`): the acs plugin workspace
+(outside-repo workspace)." ADR-0003 is now **Superseded by ADR-0086**
+(`docs/adr/0086-in-repo-anchored-state-machine.md`): the acs plugin workspace
 root is no longer a required, always-outside-the-repo `workspace_path` — it
 now defaults to a gitignored, in-repo `.acs/state-machine` directory anchored
 to the repo's main checkout, with an optional explicit `workspace_path`

@@ -1,4 +1,4 @@
-# 0085 — In-repo, main-checkout-anchored state (`.acs/state-machine`)
+# 0086 — In-repo, main-checkout-anchored state (`.acs/state-machine`)
 
 **Status**: Accepted · **Date**: 2026-09-01
 

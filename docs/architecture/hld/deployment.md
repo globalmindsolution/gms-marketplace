@@ -56,7 +56,7 @@ Key facts:
   (`claude plugin install acs@gms-marketplace`); tabp installs into the Cowork
   environment (`claude plugin install tabp@gms-marketplace`). Each plugin
   targets a different runtime host.
-- **In-repo by default, one workspace store per repo checkout** (ADR-0085):
+- **In-repo by default, one workspace store per repo checkout** (ADR-0086):
   the workspace defaults to `<main-checkout>/.acs/state-machine/`,
   gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical

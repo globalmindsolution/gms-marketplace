@@ -25,7 +25,7 @@ folder.
 
 | Key | Type | Default | Required | Description |
 |-----|------|---------|----------|-------------|
-| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`) | No — optional override | Folder where all skills and hooks read/write ticket state. Unset derives the default: a gitignored `.acs/state-machine/` folder anchored to the repo's main checkout (`git rev-parse --git-common-dir`), so every worktree resolves to the same physical location without state being duplicated/dirtied per worktree (ADR-0085). Set it only to point somewhere else. Lives in `settings.local.json` (machine-specific). |
+| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`) | No — optional override | Folder where all skills and hooks read/write ticket state. Unset derives the default: a gitignored `.acs/state-machine/` folder anchored to the repo's main checkout (`git rev-parse --git-common-dir`), so every worktree resolves to the same physical location without state being duplicated/dirtied per worktree (ADR-0086). Set it only to point somewhere else. Lives in `settings.local.json` (machine-specific). |
 | `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
 | `ticket_prefix` | string | — | **Yes — user input at initialize time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/initialize` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
@@ -199,7 +199,7 @@ Code transcript, not the statusLine payload
 ## Example
 
 Default case — `workspace_path` unset, so the workspace derives to
-`<main-checkout>/.acs/state-machine` (ADR-0085): no `settings.local.json`
+`<main-checkout>/.acs/state-machine` (ADR-0086): no `settings.local.json`
 entry is needed at all.
 
 Explicit-override case — `<repo>/.acs/settings.local.json` (gitignored,

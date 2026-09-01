@@ -27,6 +27,6 @@ C4Context
 Trust boundaries: the marketplace plugins never store credentials — `gh` and
 `acli` own authentication. The workspace defaults to an in-repo, gitignored
 folder anchored to the repo's main checkout, so every linked worktree
-resolves to the same physical state (ADR-0085) — worktree-sharing survives
+resolves to the same physical state (ADR-0086) — worktree-sharing survives
 via that anchoring, not via a fully separate machine-local folder;
 cross-machine handoff is still out of scope (see PRD).

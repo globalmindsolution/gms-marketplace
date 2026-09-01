@@ -302,3 +302,75 @@ establishes to a second, independently-tracked quantity:
    applies to cost — never a fabricated or zero-padded figure. See
    `MAR-2/design.md`'s Context & constraints section (C-7) for the full
    assumption record.
+
+## Amendment — MAR-1
+
+**Date**: 2026-09-01 · **Status**: Accepted (append-only — Context/Decision/
+Consequences above are unedited, following the same pattern as MAR-6's
+amendment above and this ADR's own `docs/adr/0012-design-time-doc-consistency.md:75-152`
+precedent)
+
+MAR-1 (parallel fan-out for independent doc-bootstrap skills; shipped as
+`docs/adr/0085-doc-bootstrap-parallel-fan-out.md`) introduces one topology
+this ADR's Context did not evaluate — two legs' phase subagents running
+**concurrently inside one session** — under which one, and only one, of
+this ADR's two non-contamination claims holds only with a scope qualifier;
+the other is unaffected (see item 1's breakdown below). This is a scoped
+exception, not a retraction: for every topology this ADR was written to
+cover (two tickets worked in overlapping windows, each in its own session),
+both claims below continue to hold exactly as stated, and the lines 81-83
+claim continues to hold exactly as stated under MAR-1's topology too.
+
+1. **The claim at lines 72-73** and **the claim at lines 81-83** rest on two
+   distinct mechanisms, and only one of them is affected by MAR-1's topology.
+   - **Lines 72-73** ("two tickets worked in overlapping windows in the same
+     project directory cannot cross-contaminate each other's figures") rests
+     on correlation by the runtime's own per-session `transcript_path` and a
+     recursive walk of that session's own `subagents/` subtree
+     (`usage_reader.py`). That correlation is sound whenever each ticket runs
+     in its own session, which is true of every topology this ADR was
+     written to cover — but not of MAR-1's same-session fan-out; see item 2
+     below.
+   - **Lines 81-83** (`cost_sampler.allocate_cost`'s cursor-based
+     apportionment rule "makes double-charging structurally impossible") is
+     unaffected by MAR-1 and needs no scope qualifier. It rests on a
+     completely different, orthogonal mechanism: a per-`checkout_id` cursor
+     file (`cost_sampler.py:370-491`, keyed by `checkout_id` via
+     `cost_cursor_path(workspace, repo_id, checkout_id)`), with no
+     `transcript_path`/`session_id` argument and no dependency on session
+     boundaries at all. Under MAR-1's fan-out, the cost-cursor race
+     (`MAR-1/design.md`'s hazard table, Risks item 3, `C-11` user-confirmed)
+     degrades the losing leg to `cost_scope: "no_unconsumed_sample_in_window"`,
+     `cost_basis: "unavailable"`, `cost_usd: None` — never a double charge,
+     never a fabricated or zero-padded figure. The "double-charging
+     structurally impossible" guarantee therefore holds exactly as stated,
+     under MAR-1's fan-out or not.
+2. **MAR-1's D2-B mechanism breaks the one-session assumption, not the
+   correlation mechanism itself.** `/acs:create-docs`'s two-leg fan-out
+   (`design.md:388-414`) runs both legs' phase subagents inside **one**
+   coordinator session, so both legs' subagent transcript files live under
+   that single session's `subagents/` subtree. `usage_reader.py`'s
+   `own_skill` filtering — which exists to keep a main-session
+   `attributionSkill` record from being silently absorbed into a foreign
+   run's coordinator share (`usage_reader.py:84-90`) — is documented as
+   "ignored for subagent files" (`usage_reader.py:141,147-148`); subagent
+   records are instead role-attributed purely by agent-name suffix
+   (`_agent_role`, `usage_reader.py:93-105`), with no per-leg ticket
+   discriminant at all. Under this one topology, each leg's subagent token
+   counts are therefore folded into shared `planner`/`executor`/`verifier`
+   role buckets without regard to which leg produced them: each leg's
+   subagent-role buckets over-report roughly 2x (they pick up the other
+   leg's subagent usage too), while each leg's `coordinator` bucket
+   under-reports (it does not gain the other leg's share). No other
+   topology in this repo triggers this — every other multi-session case
+   this ADR covers keeps each session's `subagents/` subtree disjoint from
+   every other session's.
+3. **No mechanism change follows from this amendment.** The fix would
+   require per-leg discriminants inside a shared session's subagent
+   transcripts (e.g. a ticket-id-bearing agent-name suffix), which is out of
+   scope for this record — this amendment documents the limitation for the
+   cost/observability contract, per `MAR-1/design.md`'s ADR-0012
+   consistency-finding #3, rather than changing `usage_reader.py`'s
+   behavior. See `docs/requirements/functional/workspace-and-state.md`'s
+   "Measured, not self-reported (MAR-1, ADR 0082)" bullet for the
+   requirements-level cross-reference to this same scoped exception.

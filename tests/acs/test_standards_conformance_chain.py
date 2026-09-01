@@ -73,9 +73,12 @@ BASELINE_FLOWS = {
 # initialize-state-root-setup.md — the parent epic's design.md Flow 2 covers
 # `/acs:initialize`'s gitignore retrofit + optional migration, a distinct
 # runtime flow from Flow 1 above that no existing flow doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
+# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
+# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
-                          "initialize-state-root-setup.md"}
+                          "initialize-state-root-setup.md", "doc-bootstrap-fanout.md"}
 
 
 def read(path):

@@ -326,9 +326,9 @@ class SkillsMdUnchangedTest(unittest.TestCase):
     'Unchanged' name is historical (MAR-123 itself did not touch skills.md);
     these pins track the current epic state, not a frozen MAR-123 snapshot."""
 
-    def test_twenty_four_skills_present(self):
+    def test_twenty_five_skills_present(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-four skills", body)
+        self.assertIn("Twenty-five skills", body)
         self.assertNotIn("Twenty-three skills", body)
 
     def test_twelve_triad_list_intact(self):
