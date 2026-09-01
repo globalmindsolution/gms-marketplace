@@ -182,7 +182,7 @@ from the deterministic layer at adapter import).
 
 The ticket description names `check-conventions.py` among runtime-agnostic components. There
 is NO `check-conventions.py` in `plugins/acs/hooks/scripts/`. What exists is a CI template at
-`plugins/acs/templates/ci/check-conventions.py` that `/acs:initialize` copies into the consumer repo
+`plugins/acs/templates/ci/check-conventions.py` that `/acs:setup` copies into the consumer repo
 at `.acs/ci/check-conventions.py` (confirmed by `ls plugins/acs/templates/ci/`). It is a
 consumer-repo commit-convention checker, NOT a plugin runtime component. The design's
 runtime-agnostic list (`design.md:244-245`) correctly omits it.

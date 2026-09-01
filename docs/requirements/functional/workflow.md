@@ -349,7 +349,7 @@ markdown file per feature area):
 For a greenfield product, the product-level skills run before the first
 ticket:
 
-1. Create the empty git repo (user) and run **`/initialize`** (workspace +
+1. Create the empty git repo (user) and run **`/setup`** (workspace +
    settings).
 2. **`/create-prd`** — elicit the product definition from the user: vision,
    problem, personas, goals with success metrics, prioritized features,

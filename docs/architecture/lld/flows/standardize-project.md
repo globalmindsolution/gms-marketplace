@@ -56,4 +56,4 @@ docs/config/CI files" step (above) additionally scaffolds `acs-e2e.yml` +
 ("New CI workflow file(s)") + 2 ("…e2e runner scaffold config") this diagram
 already governs. No new diagram, no new participant: the existing sequence
 above already models this exact step. `/acs:standardize-project` never wires
-branch protection itself; that stays with `/acs:initialize`.
+branch protection itself; that stays with `/acs:setup`.

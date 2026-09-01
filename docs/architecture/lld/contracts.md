@@ -157,7 +157,7 @@ per-key merge local → project → user; validated by every pre-hook
 `["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
 `e2e?` is a deprecated compatibility alias, normalized at load time into
 `suites["e2e"]` — new configuration should prefer `suites.e2e` directly.
-`tests?` and `enforcement?` back the opt-in CI gates `/acs:initialize` can scaffold
+`tests?` and `enforcement?` back the opt-in CI gates `/acs:setup` can scaffold
 (Steps 7c/7d): `acs-conventions.yml`+`check-conventions.py` (`enforcement`)
 and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
 (Step 7f) is the same shape: `acs-e2e.yml` + `run-e2e.py` (the committed

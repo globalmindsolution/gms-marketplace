@@ -31,7 +31,7 @@ A pre-hook runs before its skill and checks **readiness**:
   `/create-ticket` has completed and that the ticket is not an `epic` —
   `gate_code` in `acs_lib.py`).
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /initialize"), `workspace_path` is valid and outside the repo, and the
+  "run /setup"), `workspace_path` is valid and outside the repo, and the
   `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
   `.lock` file and exit 2 if another session holds it
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -99,20 +99,20 @@ examples given in the requirements; exact names to confirm.
 
 | Skill | Pre-hook gate (predecessor must be completed) |
 |-------|-----------------------------------------------|
-| `/create-prd` | `/initialize` done; product-level — no ticket required. |
-| `/create-architecture` | `/initialize` done; PRD doc set exists (`prd_path`). |
-| `/create-project` | `/initialize` done; architecture doc set exists (greenfield only). |
-| `/create-quality` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-operations` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-principles` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-standards` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-ticket` | `/initialize` done (settings exist); no pipeline predecessor. |
+| `/create-prd` | `/setup` done; product-level — no ticket required. |
+| `/create-architecture` | `/setup` done; PRD doc set exists (`prd_path`). |
+| `/create-project` | `/setup` done; architecture doc set exists (greenfield only). |
+| `/create-quality` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-operations` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-principles` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-standards` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-ticket` | `/setup` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
 | `/code` | `/create-ticket` completed and the ticket is not an `epic` — an epic is refused with an actionable breakdown message (`gate_code` in `acs_lib.py`). (Since MAR-72, the fold's authorship is the plan's author — the `code-planner` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL.) (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
 | `/docs-sync` | `/code` completed (and `/test`, when the post-code test gate was active for this ticket). |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |
-| `/standardize-project` | `/initialize` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/standardize-project` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
 
 > **NOTE (MAR-160):** `/create-pr`'s gate ADDITIONALLY requires `/docs-sync`
 > completed, alongside the `/code` + verifier-passed check in its row above
