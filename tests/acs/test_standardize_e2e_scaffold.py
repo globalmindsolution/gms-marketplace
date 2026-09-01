@@ -6,7 +6,7 @@ wire-branch-protection rule (D1), and a direct regression over the pre-existing
 `classify_additive_diff` helper with the two e2e scaffold paths. Mirrors the
 bounded-window `section()` technique from
 tests/acs/test_standardize_project_skill.py and
-tests/acs/test_initialize_e2e_gate.py — never a bare file-wide `assertIn`.
+tests/acs/test_setup_e2e_gate.py — never a bare file-wide `assertIn`.
 
 Run:  python3 -m unittest tests.acs.test_mar126_standardize_e2e_scaffold -v
 """
@@ -141,7 +141,7 @@ class Mar126SkillE2eBulletCase(unittest.TestCase):
         self.assertNotIn("overwrite", trigger.group(0).lower())
         self.assertNotIn("replace the existing file", trigger.group(0).lower())
 
-    # AC-4 — never wires branch protection + recommended_follow_ups -> /acs:initialize.
+    # AC-4 — never wires branch protection + recommended_follow_ups -> /acs:setup.
     def test_ac4_never_wires_branch_protection(self):
         self.assertIsNotNone(
             re.search(r"(?i)never wires? branch protection", self.window)
@@ -149,8 +149,8 @@ class Mar126SkillE2eBulletCase(unittest.TestCase):
 
     def test_ac4_follow_up_points_at_init(self):
         self.assertTrue(
-            re.search(r"(?is)recommended_follow_ups.{0,200}/acs:initialize", self.window)
-            or re.search(r"(?is)/acs:initialize.{0,200}recommended_follow_ups", self.window)
+            re.search(r"(?is)recommended_follow_ups.{0,200}/acs:setup", self.window)
+            or re.search(r"(?is)/acs:setup.{0,200}recommended_follow_ups", self.window)
         )
 
 
@@ -203,7 +203,7 @@ class Mar126ExecutorE2eScaffoldCase(unittest.TestCase):
         self.assertIn("chmod +x .acs/ci/run-e2e.py", self.doing)
 
     def test_cites_init_step7f_precedent(self):
-        self.assertIn("initialize/SKILL.md", self.doing)
+        self.assertIn("setup/SKILL.md", self.doing)
         self.assertIn("Step 7f", self.doing)
 
     def test_never_mutates_branch_protection(self):
@@ -291,14 +291,14 @@ class Mar126NoSettingsSchemaChangeCase(unittest.TestCase):
 class Mar126UntouchedSurfacesCase(unittest.TestCase):
     """Risks R3/R4/R6/scope guard: this spec never re-authors E2E-1's
     templates, never edits classify_additive_diff, and never touches
-    initialize/SKILL.md or merge-pr/SKILL.md."""
+    setup/SKILL.md or merge-pr/SKILL.md."""
 
     def test_untouched_paths_have_empty_diff(self):
         untouched = [
             os.path.join(PLUGIN, "templates", "ci", "acs-e2e.yml"),
             os.path.join(PLUGIN, "templates", "ci", "run-e2e.py"),
             os.path.join(HOOKS_DIR, "acs_lib.py"),
-            os.path.join(SKILLS, "initialize", "SKILL.md"),
+            os.path.join(SKILLS, "setup", "SKILL.md"),
             os.path.join(SKILLS, "merge-pr", "SKILL.md"),
         ]
         for path in untouched:

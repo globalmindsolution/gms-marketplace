@@ -1,6 +1,6 @@
-"""MAR-125 (E2E-1) — /acs:initialize Step 7f: e2e required merge gate wiring.
+"""MAR-125 (E2E-1) — /acs:setup Step 7f: e2e required merge gate wiring.
 
-Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`'s new opt-in
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`'s new opt-in
 Step 7f, which:
   1. is gated ENTIRELY on settings.e2e/suites.e2e being configured (opt-in
      invariant — the offer-gating half; the runner's own no-command guard is
@@ -16,8 +16,12 @@ Step 7f, which:
   6. records the outcome in Step 8's summary table and the completion report.
 
 Stdlib-only (os, re, unittest, json), mirroring
-tests/acs/test_initialize_offers.py's `section()` helper + bounded-window
+tests/acs/test_setup_offers.py's `section()` helper + bounded-window
 co-occurrence style — never a bare file-wide assertIn.
+
+Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
+acs:setup): module name and internal skill-path/token references updated;
+behavior and originating ticket reference unchanged.
 
 Run:  python3 -m unittest tests.acs.test_mar125_init_e2e_gate -v
 """
@@ -29,7 +33,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 
@@ -42,7 +46,7 @@ def section(body, heading):
     """Return the text of a markdown section: from the line whose start is
     `heading` (a real heading, matched at line-start) up to the next
     same-or-higher-level heading (or end of file). Mirrors
-    test_initialize_offers.py's helper exactly."""
+    test_setup_offers.py's helper exactly."""
     m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
     if m is None:
         raise AssertionError("heading %r not found in SKILL.md" % heading)
@@ -127,7 +131,7 @@ class Mar125InitE2eGateCase(unittest.TestCase):
             re.search(r"(?is)once.{0,300}never.{0,60}hard.?fail", self.step7f)
             or re.search(r"(?is)never.{0,60}hard.?fail.{0,300}once", self.step7f),
             "Step 7f must state the manual gh api command is printed ONCE "
-            "and /acs:initialize NEVER hard-fails (AC-4)",
+            "and /acs:setup NEVER hard-fails (AC-4)",
         )
 
     # 10. AC-6 — gh-only auth, no secrets
@@ -157,7 +161,7 @@ class Mar125InitE2eGateCase(unittest.TestCase):
     # 13. recording parity — completion report Results line.
     # Anchored directly on cls.body (not a section() extraction): the
     # completion report's fenced markdown EXAMPLE itself contains a
-    # `## /acs:initialize · <ticket-id> · <status>` line that section()'s
+    # `## /acs:setup · <ticket-id> · <status>` line that section()'s
     # next-heading scan would mistake for a real heading boundary, cutting
     # the section off before the Results line it's meant to capture. A
     # bounded-window search anchored on the pre-existing "CI convention

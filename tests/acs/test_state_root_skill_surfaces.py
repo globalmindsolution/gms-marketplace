@@ -2,7 +2,7 @@
 default state root (AC3, AC4, AC5, AC6).
 
 Prose-contract unit test covering every shipped surface outside
-`initialize/SKILL.md` (Task 1's file) that still referenced the retired
+`setup/SKILL.md` (Task 1's file) that still referenced the retired
 "workspace_path lives outside the repo, machine-local, always set" model:
 
   AC3 — handoff/SKILL.md derives the same default
@@ -24,7 +24,7 @@ Prose-contract unit test covering every shipped surface outside
     workspace" section naming the exact migrate_workspace.py CLI shape.
 
 Stdlib-only (json, os, re, unittest), mirroring
-tests/acs/test_initialize_offers.py (REPO_ROOT/PLUGIN + read helper +
+tests/acs/test_setup_offers.py (REPO_ROOT/PLUGIN + read helper +
 bounded-window section-scoped assertions) so a too-loose match cannot pass
 vacuously.
 
@@ -59,7 +59,7 @@ def section(body, heading):
     """Return the text of a markdown section: from the line whose start is
     `heading` (a real heading, matched at line-start) up to the next
     same-or-higher-level heading (or end of file). Mirrors
-    test_initialize_offers.py's `section()` so bounded-window assertions
+    test_setup_offers.py's `section()` so bounded-window assertions
     are anchored to a single section instead of the whole file."""
     m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
     if m is None:

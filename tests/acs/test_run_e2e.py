@@ -1,4 +1,4 @@
-"""Unit tests for the e2e CI runner /acs:initialize Step 7f ships into consumer repos.
+"""Unit tests for the e2e CI runner /acs:setup Step 7f ships into consumer repos.
 
 run-e2e.py (plugins/acs/templates/ci/run-e2e.py) runs in the consumer's CI
 with ZERO acs dependencies — stdlib only. It reads the e2e command from the

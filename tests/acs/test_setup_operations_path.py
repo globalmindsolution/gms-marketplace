@@ -1,14 +1,18 @@
-"""MAR-113 — /acs:initialize Step 4 documents and defaults operations_path (AC-3).
+"""MAR-113 — /acs:setup Step 4 documents and defaults operations_path (AC-3).
 
-Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`.
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`.
 `operations_path` must be defaulted like `architecture_path`/`quality_path` in
 the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
 
 Stdlib-only (os, re, unittest), mirroring
-tests/acs/test_initialize_quality_path.py's `section()` bounded-window
+tests/acs/test_setup_quality_path.py's `section()` bounded-window
 technique so a stray mention elsewhere in the file cannot satisfy either
 assertion.
+
+Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
+acs:setup): module name and internal skill-path/token references updated;
+behavior and originating ticket reference unchanged.
 
 Run:  python3 -m unittest tests.acs.test_mar113_operations_path_init -v
 """
@@ -19,7 +23,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 
 
 def read(path):
@@ -42,7 +46,7 @@ def section(body, heading):
 
 
 class Mar113OperationsPathInitCase(unittest.TestCase):
-    """Fixture: read the initialize SKILL.md once and isolate its Step 4 section."""
+    """Fixture: read the setup SKILL.md once and isolate its Step 4 section."""
 
     @classmethod
     def setUpClass(cls):

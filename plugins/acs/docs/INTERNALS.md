@@ -16,13 +16,13 @@ component follows.
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
 | Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,codex_adapter,handoff,mermaid_lint,metrics_aggregate,metrics_render,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 17 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /initialize Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
-(The requirements docs write `/initialize`, `/ship`, … — same skills, plugin-namespaced
+(The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
 by Claude Code.)
 
 ## Hook event binding (resolves the open question in docs/requirements/functional/hooks.md)
@@ -311,7 +311,7 @@ which the code-verifier owns. Three layers:
 | Layer | Authored | Executed & gated |
 |-------|----------|------------------|
 | Unit + coverage | /code executors, tests-first (TDD) per the spec's Test plan | Executors iterate to green; the verifier RE-RUNS the suite and RE-MEASURES coverage vs `test_coverage_percent` — hard fail below target (`docs_only` relaxes only this layer's authoring, never the suite-must-stay-green rule) |
-| E2E (`settings.e2e`: command + optional setup/teardown) | /code executors, when the spec's Test plan declares e2e impact — same changeset, never a follow-up; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /initialize detects and offers the config | Executors run the AFFECTED e2e tests; the verifier runs the FULL suite (setup → command → teardown always) — a red suite blocks, and with `per_iteration: false` (default, e2e is slow) the run may be skipped only on iterations that already have other blocking findings: **no zero-findings verdict without a green e2e run** |
+| E2E (`settings.e2e`: command + optional setup/teardown) | /code executors, when the spec's Test plan declares e2e impact — same changeset, never a follow-up; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | Executors run the AFFECTED e2e tests; the verifier runs the FULL suite (setup → command → teardown always) — a red suite blocks, and with `per_iteration: false` (default, e2e is slow) the run may be skipped only on iterations that already have other blocking findings: **no zero-findings verdict without a green e2e run** |
 | CI (scaffolded by /create-project; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
 
 The chain of declarations keeps e2e honest: the spec's Test plan states the
@@ -443,8 +443,8 @@ sanctioned way to keep children shippable when a slice alone would break.
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
-- `enforcement` (opt-in, /initialize Step 7c): repo-side CI that holds *every* PR to
-  the same conventions, so the pipeline can't be silently bypassed. /initialize copies
+- `enforcement` (opt-in, /setup Step 7c): repo-side CI that holds *every* PR to
+  the same conventions, so the pipeline can't be silently bypassed. /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
   is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
@@ -495,6 +495,6 @@ authoritative XSD validation via `ACS_XML_AUTHORITATIVE=1`; the default fast
 path is the in-process stdlib validator which is XSD-equivalent and requires no
 external tool). `acs_lib.check_toolchain()` is
 the single source of truth for this list (kind = required | recommended |
-optional, with per-platform install commands); `/initialize` Step 0b reports it and
+optional, with per-platform install commands); `/setup` Step 0b reports it and
 offers to install the missing required/recommended tools before configuring
 anything, so the full workflow is ready rather than failing mid-pipeline.

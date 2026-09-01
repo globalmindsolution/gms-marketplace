@@ -40,7 +40,7 @@ class TestDispatcher(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_unhooked_acs_skills_pass_through(self):
-        for skill in ("initialize", "ship", "handoff", "metrics", "usage"):
+        for skill in ("setup", "ship", "handoff", "metrics", "usage"):
             self.assertEqual(self.pre(skill).returncode, 0, skill)
 
     def test_garbage_stdin_does_not_crash(self):
@@ -49,13 +49,13 @@ class TestDispatcher(AcsWorkspaceCase):
 
 
 class TestGates(AcsWorkspaceCase):
-    def test_uninitialized_repo_blocks_with_initialize_message(self):
+    def test_uninitialized_repo_blocks_with_setup_message(self):
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(plain)
         subprocess.run(["git", "init", "-q", plain], check=True)
         result = self.pre("create-ticket", cwd=plain)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("initialize", result.stderr)
+        self.assertIn("setup", result.stderr)
 
     def test_create_architecture_requires_prd(self):
         result = self.pre("create-architecture")
@@ -1350,7 +1350,7 @@ class TestStatusLines(AcsWorkspaceCase):
 
 
 class ToolchainTests(unittest.TestCase):
-    """check_toolchain backs /initialize Step 0b — the full-workflow dependency preflight."""
+    """check_toolchain backs /setup Step 0b — the full-workflow dependency preflight."""
 
     def test_reports_every_known_tool(self):
         names = [r["name"] for r in lib.check_toolchain()]
@@ -1461,7 +1461,7 @@ class TestManagedBlock(unittest.TestCase):
         self.assertIn("/acs:ship", text)
         self.assertIn("/acs:merge-pr --pr", text)
 
-    # -- MAR-70 regression: doubling / non-idempotency of the /acs:initialize writer ----
+    # -- MAR-70 regression: doubling / non-idempotency of the /acs:setup writer ----
     # The template ships a COMPLETE block (maintainer header + its own BEGIN/END);
     # the writer must inject only the inner body wrapped in exactly ONE marker pair.
 
@@ -1561,7 +1561,7 @@ class TestManagedBlock(unittest.TestCase):
     # (rfind span + _strip_stray_markers) is the repair; both are idempotent. ----
 
     def _real_corrupted_file(self, prefix_user, suffix_user, n_orphan_end=1):
-        """Reconstruct the artifact a buggy /acs:initialize actually produced and then
+        """Reconstruct the artifact a buggy /acs:setup actually produced and then
         degraded: the WHOLE substituted template (maintainer header + its own
         inner BEGIN/END) wrapped in an OUTER marker pair, followed by N orphaned
         trailing END markers that accumulated on subsequent re-runs (the old
@@ -1647,7 +1647,7 @@ class TestManagedBlock(unittest.TestCase):
                 self.assertEqual(lib.upsert_managed_block(out, body), out, name)
 
     # -- MAR-104: every upsert_managed_block return path ends with exactly one
-    # trailing newline, so /acs:initialize Step 7e never writes a CLAUDE.md missing an
+    # trailing newline, so /acs:setup Step 7e never writes a CLAUDE.md missing an
     # EOF newline (which trips pre-commit's end-of-file-fixer in consumer CI). --
 
     def _assert_single_trailing_newline(self, out):

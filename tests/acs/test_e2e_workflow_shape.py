@@ -1,10 +1,10 @@
-"""Shape/security assertions for the e2e CI workflow template /acs:initialize Step 7f
+"""Shape/security assertions for the e2e CI workflow template /acs:setup Step 7f
 ships into consumer repos (plugins/acs/templates/ci/acs-e2e.yml).
 
 acs-e2e.yml is cloned from acs-tests.yml (NOT acs-conventions.yml): safe
 trigger events only, minimal permissions, cancel-in-progress enabled (unlike
 the conventions gate — see design.md:129-141), no secrets interpolated, and a
-pinned job name (`E2E suite`) that /acs:initialize's Step 7f wires into branch
+pinned job name (`E2E suite`) that /acs:setup's Step 7f wires into branch
 protection as the required-check context. Plain-text/YAML-shape assertions,
 mirroring test_acs_conventions_concurrency.py's style.
 
