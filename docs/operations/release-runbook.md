@@ -19,17 +19,25 @@ the step-by-step the maintainer follows.
    Treat a clean run as the gate. Investigate any failing scenario before
    continuing — do not tag on red. (The free smoke already ran on every commit
    via pre-commit; this adds the agentic G1–G4 + cleanup coverage.)
-2. **Bump the version** — set the same `version` in both
-   `.claude-plugin/marketplace.json` and
-   `plugins/acs/.claude-plugin/plugin.json` (by convention both are kept in
-   sync), and point the acs `git-subdir` `source.ref` at the new tag.
-3. **Update the changelog** — add the matching section to
-   [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
-   format); this becomes the release notes.
-4. **Open the release PR**, get CI green, and merge (squash). On merge the
-   Release workflow cuts the immutable `v<version>` tag and publishes the
-   release from the changelog section.
-5. **Verify the tag** resolves and the plugin installs from it:
+2. **Cut the release — recommended: `/acs:release <version>`.** This
+   one-command skill runs `release_notes.py status` → `draft` → `bump`
+   (drafting and dating the CHANGELOG section from the merged-ticket archive
+   plus the `base_branch` git-history fallback), bumps both manifests +
+   `source.ref`, and opens the exempt `release/*` PR, then stops for a
+   mandatory human merge (ADRs 0050-0052). The manual steps below are the
+   underlying mechanism it automates, and remain the documented fallback if
+   the skill is unavailable:
+   1. **Bump the version** — set the same `version` in both
+      `.claude-plugin/marketplace.json` and
+      `plugins/acs/.claude-plugin/plugin.json` (by convention both are kept in
+      sync), and point the acs `git-subdir` `source.ref` at the new tag.
+   2. **Update the changelog** — add the matching section to
+      [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
+      format); this becomes the release notes.
+   3. **Open the release PR**, get CI green, and merge (squash). On merge the
+      Release workflow cuts the immutable `v<version>` tag and publishes the
+      release from the changelog section.
+3. **Verify the tag** resolves and the plugin installs from it:
    ```bash
    claude plugin marketplace add globalmindsolution/gms-marketplace@v<version>
    claude plugin install acs@gms-marketplace
@@ -39,8 +47,9 @@ the step-by-step the maintainer follows.
 
 Discovered cutting v0.4.8: `release_notes.py draft`'s merged-ticket coverage
 report (`{"merged": 0, "covered": 0, "missing": 0}`) can read as empty even
-when real merged tickets exist, because its enumeration reads exclusively
-from `archive/<ticket-id>/`, and that directory is written by exactly one
+when real merged tickets exist, because its enumeration read exclusively
+from `archive/<ticket-id>/` until MAR-306, and that directory is written by
+exactly one
 place — `/acs:merge-pr`'s cleanup step (`_archive_partition()`, reached only
 from `run_post_skill()`'s `skill == "merge-pr" and status == "completed"`
 branch). A ticket merged any other way never gets an archive entry, so it is
@@ -51,15 +60,17 @@ exists and what the fallback does and does not fix.
 
 ### Why `/acs:merge-pr` was not invoked for MAR-71..MAR-305 and PR #391
 
-Four causes, each independently evidenced — together they explain the gap
+Evidence gathered 2026-09-01 on the maintainer host that cut v0.4.8. Four
+causes, each independently evidenced — together they explain the gap
 without any single cause being sufficient on its own:
 
 1. **State-locality gap (dominant).** `archive/` lives inside the acs
    pipeline workspace, which by default is now anchored in-repo
    (ADR-0086), but this host's `.acs/settings.local.json` (gitignored)
    overrides it to an external, machine-local path
-   (`workspace_path: /home/user/acs-workspace`, directory created
-   2026-09-01). That workspace holds exactly one ticket (`MAR-306`) and no
+   (`workspace_path: /home/user/acs-workspace`; as observed then, that
+   directory was created 2026-09-01). That workspace holds exactly one
+   ticket (`MAR-306`) and no
    `archive/` directory at all — so even a history of perfectly-executed
    `/acs:merge-pr` runs elsewhere would still read as zero merged tickets on
    this host. State that is machine-local by design (or by override) cannot
@@ -126,9 +137,9 @@ open bugs to fix under this ticket:
   under-count regardless of the fallback.
 - **A shallow clone bounds recall to whatever history was actually
   fetched.** This checkout is shallow (`git rev-parse
-  --is-shallow-repository` → `true`, 49 commits on `main`); a CI checkout
-  configured with a shallower `fetch-depth` would recover fewer tickets
-  still.
+  --is-shallow-repository` → `true`; as observed then, 49 commits on
+  `main`); a CI checkout configured with a shallower `fetch-depth` would
+  recover fewer tickets still.
 - **Git-log-derived entries carry no `parent` and no `docs_only`.** Unlike
   an archived ticket's partition, a commit subject alone cannot recover
   epic grouping or the docs-only flag, so such entries render as flat
