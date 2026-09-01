@@ -313,20 +313,38 @@ precedent)
 MAR-1 (parallel fan-out for independent doc-bootstrap skills; shipped as
 `docs/adr/0085-doc-bootstrap-parallel-fan-out.md`) introduces one topology
 this ADR's Context did not evaluate — two legs' phase subagents running
-**concurrently inside one session** — under which this ADR's own
-non-contamination claims hold only with a scope qualifier. This is a scoped
+**concurrently inside one session** — under which one, and only one, of
+this ADR's two non-contamination claims holds only with a scope qualifier;
+the other is unaffected (see item 1's breakdown below). This is a scoped
 exception, not a retraction: for every topology this ADR was written to
 cover (two tickets worked in overlapping windows, each in its own session),
-both claims below continue to hold exactly as stated.
+both claims below continue to hold exactly as stated, and the lines 81-83
+claim continues to hold exactly as stated under MAR-1's topology too.
 
-1. **The claim at lines 72-73** — "two tickets worked in overlapping windows
-   in the same project directory cannot cross-contaminate each other's
-   figures" — and **the claim at lines 81-83** — the cursor-based
-   apportionment rule "makes double-charging structurally impossible" — both
-   rest on correlation by the runtime's own per-session `transcript_path`
-   and a recursive walk of that session's own `subagents/` subtree. That
-   correlation is sound whenever each ticket runs in its own session, which
-   is true of every topology this ADR was written to cover.
+1. **The claim at lines 72-73** and **the claim at lines 81-83** rest on two
+   distinct mechanisms, and only one of them is affected by MAR-1's topology.
+   - **Lines 72-73** ("two tickets worked in overlapping windows in the same
+     project directory cannot cross-contaminate each other's figures") rests
+     on correlation by the runtime's own per-session `transcript_path` and a
+     recursive walk of that session's own `subagents/` subtree
+     (`usage_reader.py`). That correlation is sound whenever each ticket runs
+     in its own session, which is true of every topology this ADR was
+     written to cover — but not of MAR-1's same-session fan-out; see item 2
+     below.
+   - **Lines 81-83** (`cost_sampler.allocate_cost`'s cursor-based
+     apportionment rule "makes double-charging structurally impossible") is
+     unaffected by MAR-1 and needs no scope qualifier. It rests on a
+     completely different, orthogonal mechanism: a per-`checkout_id` cursor
+     file (`cost_sampler.py:370-491`, keyed by `checkout_id` via
+     `cost_cursor_path(workspace, repo_id, checkout_id)`), with no
+     `transcript_path`/`session_id` argument and no dependency on session
+     boundaries at all. Under MAR-1's fan-out, the cost-cursor race
+     (`MAR-1/design.md`'s hazard table, Risks item 3, `C-11` user-confirmed)
+     degrades the losing leg to `cost_scope: "no_unconsumed_sample_in_window"`,
+     `cost_basis: "unavailable"`, `cost_usd: None` — never a double charge,
+     never a fabricated or zero-padded figure. The "double-charging
+     structurally impossible" guarantee therefore holds exactly as stated,
+     under MAR-1's fan-out or not.
 2. **MAR-1's D2-B mechanism breaks the one-session assumption, not the
    correlation mechanism itself.** `/acs:create-docs`'s two-leg fan-out
    (`design.md:388-414`) runs both legs' phase subagents inside **one**

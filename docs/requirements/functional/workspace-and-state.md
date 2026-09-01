@@ -287,14 +287,18 @@ all of it:
   Every figure carries a basis label — `measured` / `apportioned` /
   `unavailable` — never fabricated, never zero-padded; coverage is
   contingent on `statusLine` opt-in and on an unconsumed sample existing in
-  a run's window, a disclosed limitation rather than a silent one. This
-  structural no-double-charge guarantee is scoped to topologies where each
-  ticket runs in its own session — true of worktree-per-ticket generally,
-  but not of the "Cross-skill, phase-level fan-out" shape two headings above,
-  where `/acs:create-docs`'s two legs share one session and their subagent
-  work is folded into shared role buckets by suffix alone, so subagent-role
-  token accounting is not immune to cross-contamination in that one specific
-  case. See ADR 0082's "Amendment — MAR-1" for the mechanism.
+  a run's window, a disclosed limitation rather than a silent one. The
+  dollar-cost double-charging guarantee above (`cost_sampler.py`'s
+  checkout-scoped cursor) is unaffected by fan-out and holds unconditionally,
+  in every topology including the one below. A separate, narrower guarantee —
+  subagent-role token attribution (`usage_reader.py`) being immune to
+  cross-session contamination — is scoped to topologies where each ticket
+  runs in its own session — true of worktree-per-ticket generally, but not of
+  the "Cross-skill, phase-level fan-out" shape two headings above, where
+  `/acs:create-docs`'s two legs share one session and their subagent work is
+  folded into shared role buckets by suffix alone, so subagent-role token
+  accounting is not immune to cross-contamination in that one specific case.
+  See ADR 0082's "Amendment — MAR-1" for the mechanism.
 
 ## Epic ↔ child linkage
 
