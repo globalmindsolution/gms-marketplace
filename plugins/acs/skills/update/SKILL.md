@@ -70,7 +70,7 @@ Present the delta to the user. Call out explicitly:
 
 - any **MAJOR** bump — breaking changes to skills, hooks, settings keys, or
   state-file contracts; quote the migration notes from the changelog;
-- changes to `settings.json` keys (the user may want an `/acs:setup` re-run);
+- changes to `settings.json` keys (the user may want a `/acs:setup` re-run);
 - changes to workspace state shapes (existing partitions keep working —
   schemas are additive by policy — but flag anything the changelog marks
   otherwise).

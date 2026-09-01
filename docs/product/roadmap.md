@@ -638,7 +638,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      tracker-first (**G11**) recorded as the sanctioned interim team protocol
      until **G23** (Team-shared delivery state, post-GA — M8) / **G24** (Wave 4, v0.4.6+, above) ship. Maps to PRD's
      workflow-gap-promotions Should-have. **Traces G23, G24, G11.**
-  2. **Team-mode init option (CODEOWNERS scaffolding)** — an `/acs:setup`
+  2. **Team-mode init option (CODEOWNERS scaffolding)** — a `/acs:setup`
      option scaffolding CODEOWNERS mirroring `high_stakes_paths` + docs-path
      ownership; role gates live at the forge (**C-19**), not in acs. Maps to
      PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner

@@ -78,7 +78,7 @@ actually enforce it.
 2. **End-to-end delivery workflow**: acs MUST provide five
    workflow skills that run in a fixed order, plus one planning skill
    (`/create-design`, conditional on the ticket), a `/ship` umbrella command
-   that drives them end-to-end up to the PR, and an `/setup` bootstrap
+   that drives them end-to-end up to the PR, and a `/setup` bootstrap
    skill — normative clause in [functional/workflow.md](functional/workflow.md).
 3. **Quality through reflection**: every workflow skill, the planning skill
    (`/create-design`), and every product-level skill MUST apply the

@@ -167,7 +167,7 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `workspace_path` | unset (derives `.acs/state-machine` in the main checkout) | State folder; an explicit override lives in gitignored `settings.local.json` |
-| `ticket_prefix` | — (required at initialize time) | Per-repo ticket id prefix (`SHOP` → `SHOP-123`) |
+| `ticket_prefix` | — (required at setup time) | Per-repo ticket id prefix (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
 | `prd_path` | `"docs/product"` | PRD doc set location in the repo |

@@ -413,7 +413,7 @@ growth path.
      cross-machine id collisions in branch names; lock visibility gaps across
      engineers). Extends the existing G23/G24 features (above) without
      restating them. Traces **G23, G24, G11**.
-  2. **Team-mode init option** — an `/acs:setup` option that scaffolds
+  2. **Team-mode init option** — a `/acs:setup` option that scaffolds
      **CODEOWNERS** mirroring `high_stakes_paths` plus docs-path ownership.
      **Role gates live at the forge, not in acs** (the **C-19** discipline) —
      acs scaffolds the CODEOWNERS file; GitHub enforces it. **MECHANISM**

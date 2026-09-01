@@ -25,6 +25,11 @@ in this task. ChangelogEntryTest and ChangelogAddOnlyTest, plus a new
 HistoryPreservedTest method, are the CHANGELOG-specific assertions for the
 MAR-1 dated entry added in the final (T5) task.
 
+Iteration 2 (findings remediation) adds five more guards: IndefiniteArticleTest,
+StaleInitializeLiteralTest (two methods), a new TestFilesRenamedTest method for
+dangling `test_initialize_*.py` docstring references, and a new
+ChangelogEntryTest method asserting the MAR-1/MAR-184 cross-reference direction.
+
 Run:
   python3 -m unittest tests.acs.test_setup_skill_reference_sweep -v
 """
@@ -104,6 +109,15 @@ LIVE_INITIALIZE_RE = re.compile(
 REQUIREMENTS_README = os.path.realpath(
     os.path.join(REPO_ROOT, "docs", "requirements", "README.md"))
 MAR_184_LEDGER_ROW_RE = re.compile(r"^\| 2026-08-13 \|")
+
+# Iteration-2 (findings remediation) needles -- assembled from parts, same
+# self-match-immunity discipline as the needles above, so this module's own
+# prose describing the fixed phrases can never trip its own guards.
+_BROKEN_ARTICLE_RE = re.compile(r"\ban\s+[`\"']?/(?:acs:)?setup\b")
+_INITIALIZE_TIME_NEEDLE = "initialize" + " time"
+_INITIALIZE_TURNS_IT_ON_NEEDLE = "initialize" + " turns it on"
+_SETUP_TURNS_IT_ON_NEEDLE = "setup" + " turns it on"
+_DANGLING_TEST_INITIALIZE_RE = re.compile(r"test_" + r"initialize_[a-z_]+\.py")
 
 
 def read(path):
@@ -263,6 +277,69 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
             "2026-08-13 docs/requirements/README.md ledger row):\n" + "\n".join(hits))
 
 
+class IndefiniteArticleTest(unittest.TestCase):
+    """F1: no broken "an /acs:setup" / "an /setup" article remains live --
+    vowel-initial "initialize" made "an" correct, but consonant-initial
+    "setup" needs "a"."""
+
+    def test_no_broken_article_before_setup_token(self):
+        hits = []
+        for path in iter_repo_files():
+            if os.path.realpath(path) == THIS_FILE:
+                continue
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    lines = fh.readlines()
+            except (UnicodeDecodeError, OSError):
+                continue
+            for lineno, line in enumerate(lines, start=1):
+                if _BROKEN_ARTICLE_RE.search(line):
+                    hits.append("%s:%d: %s" % (
+                        os.path.relpath(path, REPO_ROOT), lineno, line.strip()))
+        self.assertEqual(
+            hits, [],
+            "broken 'an /(acs:)?setup' article found (must be 'a'):\n" + "\n".join(hits))
+
+
+class StaleInitializeLiteralTest(unittest.TestCase):
+    """F2/F3: phrase-scoped stale-"initialize" checks -- scoped to the exact
+    phrase so ordinary class-4 English (uninitialized, not initialized,
+    __init__, git init) can never false-positive."""
+
+    def test_no_initialize_time_phrase_anywhere(self):
+        hits = []
+        for path in iter_repo_files():
+            if os.path.realpath(path) == THIS_FILE or is_historical(path):
+                continue
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    lines = fh.readlines()
+            except (UnicodeDecodeError, OSError):
+                continue
+            for lineno, line in enumerate(lines, start=1):
+                if _INITIALIZE_TIME_NEEDLE in line:
+                    hits.append("%s:%d: %s" % (
+                        os.path.relpath(path, REPO_ROOT), lineno, line.strip()))
+        self.assertEqual(
+            hits, [],
+            "stale 'initialize time' phrase found (must be 'setup time'):\n" + "\n".join(hits))
+
+    def test_ci_convention_comment_names_setup(self):
+        for rel in (
+            "plugins/acs/templates/ci/check-conventions.py",
+            ".acs/ci/check-conventions.py",
+        ):
+            path = os.path.join(REPO_ROOT, rel)
+            with self.subTest(path=rel):
+                body = read(path)
+                self.assertIn(
+                    _SETUP_TURNS_IT_ON_NEEDLE, body,
+                    "%s must say 'setup turns it on'" % rel)
+                self.assertNotIn(
+                    _INITIALIZE_TURNS_IT_ON_NEEDLE, body,
+                    "%s must not say 'initialize turns it on'" % rel)
+
+
 # Every T2/T3 file that gained a live /acs:setup or bare `setup` skill-name
 # literal -- absence of the old token is not enough on its own (a file that
 # named neither the old nor the new skill would pass a negative-only check
@@ -370,6 +447,27 @@ class TestFilesRenamedTest(unittest.TestCase):
             path = os.path.join(REPO_ROOT, "tests", "acs", name)
             self.assertTrue(os.path.isfile(path), "%s must exist" % path)
 
+    def test_no_dangling_test_initialize_filename_reference(self):
+        """F5: no docstring or comment still points at a deleted
+        test_initialize_*.py filename. This regex requires the literal
+        `.py` suffix, so it does not match test_session_marker.py's
+        legitimate method name test_initialize_overrides_to_setup (no .py
+        suffix) nor this module's own test_initialize_*.py glob literal
+        (`*`, not `[a-z_]+`)."""
+        hits = []
+        for path in glob.glob(os.path.join(REPO_ROOT, "tests", "acs", "*.py")):
+            if os.path.realpath(path) == THIS_FILE:
+                continue
+            with open(path, encoding="utf-8") as fh:
+                lines = fh.readlines()
+            for lineno, line in enumerate(lines, start=1):
+                if _DANGLING_TEST_INITIALIZE_RE.search(line):
+                    hits.append("%s:%d: %s" % (
+                        os.path.relpath(path, REPO_ROOT), lineno, line.strip()))
+        self.assertEqual(
+            hits, [],
+            "dangling test_initialize_*.py filename reference(s):\n" + "\n".join(hits))
+
 
 def _base_ref():
     """`origin/main` is preferred over a local `main` for the same staleness
@@ -440,6 +538,28 @@ class ChangelogEntryTest(unittest.TestCase):
             "no alias" in section.lower(),
             "MAR-1 CHANGELOG entry must state the no-alias decision")
 
+    def test_mar1_cross_reference_direction_matches_file_order(self):
+        """F6: the MAR-1 bullet's cross-reference to MAR-184 must name the
+        correct direction for MAR-184's actual position in this
+        reverse-chronological file -- asserts the index relation, not just
+        the literal word, so it stays correct even if a future release cut
+        reorders the entries."""
+        body = read(CHANGELOG)
+        lines = body.splitlines()
+        # Match each bullet's OWN tag "(MAR-1)." / "(MAR-184)." (trailing
+        # period) rather than a bare substring: line 27 also contains the
+        # mid-sentence cross-reference "(MAR-184):" (trailing colon), which
+        # must not be mistaken for MAR-184's own entry line.
+        mar1_idx = next(i for i, line in enumerate(lines) if "(MAR-1)." in line)
+        mar184_idx = next(i for i, line in enumerate(lines) if "(MAR-184)." in line)
+        self.assertLess(
+            mar1_idx, mar184_idx,
+            "MAR-1 entry must appear earlier in the file than MAR-184's entry")
+        self.assertNotIn(
+            "above (MAR-184)", lines[mar1_idx],
+            "MAR-1 bullet references a later-in-file entry (MAR-184) and "
+            "must not say 'above'")
+
 
 class ChangelogAddOnlyTest(unittest.TestCase):
     """AC-7: the CHANGELOG diff for this ticket is add-only -- zero deleted
@@ -471,7 +591,7 @@ class ChangelogAddOnlyTest(unittest.TestCase):
 class EvalTriggerCaseTest(unittest.TestCase):
     """AC-5: s04_skill_triggers.py's CASES list names no "init" expected skill."""
 
-    def test_eval_trigger_case_expects_initialize(self):
+    def test_eval_trigger_case_expects_setup(self):
         s04_path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
         body = read(s04_path)
         m = re.search(r"CASES\s*=\s*\[(.*?)\n\]\n", body, re.S)
@@ -480,4 +600,4 @@ class EvalTriggerCaseTest(unittest.TestCase):
         self.assertNotIn(
             "init", expected_skills,
             "CASES must not expect the stale skill literal \"init\" -- expected "
-            "\"initialize\" (got expected-skill values: %s)" % expected_skills)
+            "\"setup\" (got expected-skill values: %s)" % expected_skills)

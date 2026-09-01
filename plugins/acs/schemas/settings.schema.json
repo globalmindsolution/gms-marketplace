@@ -26,7 +26,7 @@
       "minLength": 1
     },
     "ticket_prefix": {
-      "description": "Per-repo prefix for ticket ids (<prefix>-<n>). Required at initialize time; no global default.",
+      "description": "Per-repo prefix for ticket ids (<prefix>-<n>). Required at setup time; no global default.",
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9]*$"
     },
