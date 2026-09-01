@@ -114,8 +114,9 @@ DOC_BOOTSTRAP_SENTINEL = {
 }
 
 # D7-A: v1 fans out exactly this pair. A third doc-bootstrap skill becomes
-# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES --
-# both data changes, no code change.
+# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES AND
+# DOC_BOOTSTRAP_SETTINGS_KEY AND DOC_BOOTSTRAP_SENTINEL (fanout_batches also
+# indexes those two, unguarded) -- all four are data changes, no code change.
 DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations")
 
 
