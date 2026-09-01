@@ -16,7 +16,8 @@ Unlike `/acs:test`, which still writes a workspace artifact
 artifact at all — the durable record is the release PR itself.
 `build_context()`'s `workspace` is used only as a **read** input to
 `release_notes.py draft --workspace <workspace_path>` (so it can enumerate
-the merged-ticket archive) — never as a write target.
+the merged-ticket archive, plus a `base_branch` git-history fallback for
+tickets merged without an archive entry) — never as a write target.
 
 ## Step 1 — Resolve context, the `release` block, and the version argument
 
@@ -92,10 +93,17 @@ Only reached when Step 2 found no in-flight/done cut.
 1. **Draft:**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" draft --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" draft --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix>
    ```
 
-   Parse `tickets[]`, `unreleased_covered[]`, `unreleased_missing[]`,
+   `--ticket-prefix <settings.ticket_prefix>` is `ctx["settings"]["ticket_prefix"]`
+   (this marketplace: `MAR`) — it anchors the git-history fallback's
+   commit-subject match to this repo's own ticket ids, so a merge subject
+   naming an unrelated `XXX-N`-shaped token elsewhere is never mistaken for
+   a merged ticket here.
+
+   Parse `tickets[]` (each entry's `source` is `"archive"` or `"git-log"`),
+   `unreleased_covered[]`, `unreleased_missing[]`,
    `coverage{merged,covered,missing}`, `draft_section`. **Surface the full
    coverage report in-session** — "N merged tickets since `<since_tag>`; M
    covered by `[Unreleased]`; K missing" plus the `unreleased_missing`
@@ -106,13 +114,16 @@ Only reached when Step 2 found no in-flight/done cut.
 2. **Bump:**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix>
    ```
 
-   `--workspace <workspace_path>` here MUST be the same value passed to
-   `draft` in step 1 above — `bump` regenerates the archive-authoritative
-   `draft_section` internally before writing it, so this call needs the same
-   archive input `draft` used. Parse `ok`, `files_changed[]`,
+   `--workspace <workspace_path>` and `--ticket-prefix <settings.ticket_prefix>`
+   here MUST be the same values passed to `draft` in step 1 above — `bump`
+   regenerates the archive-authoritative `draft_section` internally before
+   writing it, so this call needs the same archive input and fallback scope
+   `draft` used (a missing/different `--ticket-prefix` here would silently
+   produce a different CHANGELOG than the `draft` the human reviewed). Parse
+   `ok`, `files_changed[]`,
    `already_at_target`. If `already_at_target: true` (a defensive
    race-guard — the manifests moved between Step 2's probe and this call),
    treat this exactly like Step 2's no-op branch: report and **STOP** rather
