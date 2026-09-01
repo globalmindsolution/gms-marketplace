@@ -10,7 +10,7 @@ Credentials for remote trackers MUST NOT be stored in `settings.json`.
 Tracker access goes through the official CLIs — `gh` for GitHub and `acli`
 for Jira — which manage their own authentication (`gh auth login`,
 `acli auth`). `settings.json` holds only non-secret configuration (URLs,
-project keys, formats). `/initialize` and the pre-hooks SHOULD check that the
+project keys, formats). `/setup` and the pre-hooks SHOULD check that the
 configured tracker's CLI is installed and authenticated.
 
 ## Subagent tool restrictions

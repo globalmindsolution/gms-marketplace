@@ -11,7 +11,7 @@ deterministic logic that the free tier can certify offline:
   * Step 6 — post-update migration checks: settings still validate against the
     schema (`acs_lib.validate_settings`), and workspace resolution is
     exercised (explicit override honored; absent -> in-repo default). On
-    INVALID the skill recommends `/acs:initialize`.
+    INVALID the skill recommends `/acs:setup`.
 
 This scenario drives the *installed build's* `acs_lib` directly (the same module
 the skill's Step-6 snippet imports) so it certifies the shipped behavior, and
@@ -91,15 +91,15 @@ def run():
                      "unexpected GateError: %s" % exc)
 
         # Broken settings: a bad merge_strategy must be caught -> skill says
-        # "settings: INVALID" and recommends /acs:initialize.
+        # "settings: INVALID" and recommends /acs:setup.
         bad = dict(settings)
         bad["merge_strategy"] = "fast-forward"  # not squash|merge|rebase
         try:
             lib.validate_settings(bad, sb.repo)
-            check.ok("migration: invalid settings flagged (recommend /acs:initialize)",
+            check.ok("migration: invalid settings flagged (recommend /acs:setup)",
                      False, "validate_settings accepted a bad merge_strategy")
         except lib.GateError as exc:
-            check.ok("migration: invalid settings flagged (recommend /acs:initialize)",
+            check.ok("migration: invalid settings flagged (recommend /acs:setup)",
                      "merge_strategy" in str(exc), str(exc))
 
         # Workspace resolution: an absent workspace_path derives the in-repo

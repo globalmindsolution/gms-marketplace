@@ -31,12 +31,17 @@ class TestAttributionSkillMap(unittest.TestCase):
     """design.md's Module map (SS "Module map and attribution mapping"):
     ATTRIBUTION_SKILL_MAP is the explicit override table for observed
     attributionSkill values that don't literally match a skill name once the
-    "acs:" prefix is stripped -- e.g. the initialize skill is observed on the
-    wire as "acs:init", not "acs:initialize". "ship" needs no override since
-    stripping "acs:" from "acs:ship" already yields the literal skill name."""
+    "acs:" prefix is stripped -- e.g. the setup skill (renamed under MAR-1
+    from initialize, itself renamed under MAR-184 from init) is observed on
+    the wire as either historical name, "acs:init" or "acs:initialize", never
+    "acs:setup". "ship" needs no override since stripping "acs:" from
+    "acs:ship" already yields the literal skill name."""
 
-    def test_init_overrides_to_initialize(self):
-        self.assertEqual(lib.ATTRIBUTION_SKILL_MAP["init"], "initialize")
+    def test_init_overrides_to_setup(self):
+        self.assertEqual(lib.ATTRIBUTION_SKILL_MAP["init"], "setup")
+
+    def test_initialize_overrides_to_setup(self):
+        self.assertEqual(lib.ATTRIBUTION_SKILL_MAP["initialize"], "setup")
 
     def test_covers_both_hooked_and_unhooked_skill_universes(self):
         # The map's target values must all be real skill names -- either

@@ -2,7 +2,7 @@
 """
 acs convention checker — self-contained (Python stdlib only).
 
-/acs:initialize copies this file into the consumer repo at `.acs/ci/check-conventions.py`
+/acs:setup copies this file into the consumer repo at `.acs/ci/check-conventions.py`
 and wires it into a GitHub Actions workflow (and, optionally, a local pre-push
 hook). It enforces that branch names, PR titles, PR descriptions, labels, and
 commit messages match the *same* format strings the acs pipeline renders from
@@ -12,7 +12,7 @@ commit messages match the *same* format strings the acs pipeline renders from
 No acs plugin install is required on the runner: the formats and ticket prefix
 are read from the committed `.acs/settings.json`. The check is FAIL-CLOSED — if
 no settings with `ticket_prefix` + `formats` are found, it errors and tells the
-user to run `/acs:initialize`.
+user to run `/acs:setup`.
 
 Modes:
   --mode pr        CI: validate a pull request (branch, title, body, labels,
@@ -49,7 +49,7 @@ CHECK_DEFAULTS = {
     "pr_title": True,
     "pr_description": True,
     "acs_label": True,
-    "commit_message": False,  # noisy under squash-merge; initialize turns it on per repo
+    "commit_message": False,  # noisy under squash-merge; setup turns it on per repo
 }
 
 ENFORCEMENT_DEFAULTS = {
@@ -249,7 +249,7 @@ def evaluate(settings, ctx, mode):
 
     The checks that run are MODE_CHECKS[mode] intersected with the
     enforcement.checks.* toggles. Every check reads the user-configured
-    formats.* / enforcement.* from .acs/settings.json (set at /acs:initialize) — there
+    formats.* / enforcement.* from .acs/settings.json (set at /acs:setup) — there
     are no hardcoded conventions, so local hooks and CI stay in lockstep.
     """
     res = Result()
@@ -258,7 +258,7 @@ def evaluate(settings, ctx, mode):
         res.errors.append((
             "settings",
             "no committed acs conventions found (ticket_prefix + formats). "
-            "Run /acs:initialize and commit .acs/settings.json.",
+            "Run /acs:setup and commit .acs/settings.json.",
         ))
         return res
 
@@ -384,7 +384,7 @@ def _emit(res, mode):
     if not in_actions:
         sys.stderr.write(
             "\nFix the above, or add the exempt label for a legitimate non-ticket PR.\n"
-            "These conventions come from .acs/settings.json — run /acs:initialize to change them.\n")
+            "These conventions come from .acs/settings.json — run /acs:setup to change them.\n")
     return 1
 
 

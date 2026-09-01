@@ -314,7 +314,7 @@ created the repo, onboarding it is:
 3. **Seed a minimal buildable baseline**: a `README.md`, one trivial source
    file, and one trivial passing test — small enough that a full clone is
    instant and a `/acs:code` run against it is cheap.
-4. **Run `/acs:initialize`** in a clone of the new repo to produce its
+4. **Run `/acs:setup`** in a clone of the new repo to produce its
    `.acs/settings.json` (`ticket_prefix`, `test_coverage_percent`,
    `tests.command` running that one trivial test).
 5. **Wire it up**: set `evals.forge_repo` in this repo's `.acs/settings.json`

@@ -10,7 +10,7 @@ arbitrary 5-of-8 subset), plus the C-1 verifier-dimension expansion
 (ADR 0012 status flip, CHANGELOG bullet, skills.md notes).
 
 Stdlib-only (hashlib, os, re, unittest), mirroring the bounded-window
-`section()` helper from tests/acs/test_initialize_quality_path.py and the
+`section()` helper from tests/acs/test_setup_quality_path.py and the
 presence-in-all-six loop style of
 tests/acs/test_skill_contracts.py::test_grounding_section_everywhere, so a
 stray mention elsewhere in a file can never satisfy an assertion meant for the

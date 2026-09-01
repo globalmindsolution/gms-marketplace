@@ -42,7 +42,7 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
-UNHOOKED_SKILLS = ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. Unused within this ticket -- a later ticket is its first consumer;
@@ -54,11 +54,12 @@ PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "c
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
-# "acs:" prefix is stripped -- e.g. the initialize skill's own attribution
-# value is observed as "acs:init", not "acs:initialize". Covers both
-# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, initialize)
+# "acs:" prefix is stripped -- e.g. the setup skill's own attribution value
+# is observed as "acs:init" or "acs:initialize", not "acs:setup" (its two
+# historical names, from before MAR-184 and MAR-1 respectively). Covers both
+# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, setup)
 # are observed as attributionSkill values even though they write no run entry.
-ATTRIBUTION_SKILL_MAP = {"init": "initialize"}
+ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
@@ -959,7 +960,7 @@ def validate_settings(settings, cwd, require_workspace=True):
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):
             raise GateError(
                 "ticket_prefix is missing or invalid (must be a non-empty uppercase identifier, e.g. SHOP). "
-                "Run /acs:initialize."
+                "Run /acs:setup."
             )
     coverage = settings.get("test_coverage_percent", 90)
     if not isinstance(coverage, (int, float)) or not (0 < coverage <= 100):
@@ -1171,7 +1172,7 @@ def ticket_id_from_text(text, prefix=None):
 
 
 # ---------------------------------------------------------------------------
-# CLAUDE.md managed-block helpers (written/refreshed by /acs:initialize). Pure string
+# CLAUDE.md managed-block helpers (written/refreshed by /acs:setup). Pure string
 # functions so the splice and the placeholder substitution are unit-testable.
 # The markers MUST match templates/CLAUDE.acs.md exactly.
 # ---------------------------------------------------------------------------
@@ -1277,7 +1278,7 @@ def upsert_managed_block(existing_text, block_body):
 def managed_block_is_malformed(text):
     """True when *text* does NOT contain exactly one acs-managed marker pair.
 
-    Pure detector used by /acs:initialize Step 7e to decide whether the consumer
+    Pure detector used by /acs:setup Step 7e to decide whether the consumer
     CLAUDE.md needs REPAIR before the refresh: a doubled block (2+ BEGIN and/or
     END) or an orphaned marker (unequal counts, a lone BEGIN or END) all read as
     malformed. Note a file with NO markers is likewise "not exactly one pair" and
@@ -2126,7 +2127,7 @@ def build_context(cwd, require_workspace=True):
         raise GateError("acs requires a git repository; %s is not inside one." % cwd)
     settings, sources = load_settings(cwd)
     if require_workspace and not sources:
-        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:initialize first.")
+        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:setup first.")
     workspace = validate_settings(settings, cwd, require_workspace=require_workspace)
     repo_id = repo_partition_id(cwd)
     if not repo_id:
@@ -2416,7 +2417,7 @@ def tracker_cli_warning(settings):
 
 # Every external tool the full acs workflow touches. kind: required (no pipeline
 # without it), recommended (a major capability needs it), optional (graceful
-# fallback). gh/acli are bumped to required by tracker provider. /initialize's Step 0b
+# fallback). gh/acli are bumped to required by tracker provider. /setup's Step 0b
 # preflight reports these and offers to install the missing ones.
 TOOLCHAIN = [
     {"name": "git", "kind": "required",
@@ -2453,7 +2454,7 @@ def _tool_version(name):
 
 
 def check_toolchain(settings=None):
-    """Status of every tool the full acs workflow uses (for /initialize's preflight).
+    """Status of every tool the full acs workflow uses (for /setup's preflight).
 
     Returns a list of dicts: name, kind (required|recommended|optional), present
     (bool), version (str|None), why, install (platform -> command). A tool's kind
@@ -2477,7 +2478,7 @@ def check_toolchain(settings=None):
 
 
 def missing_tools(settings=None, kinds=("required", "recommended")):
-    """Names of not-present tools in the given kinds — what /initialize should offer to install."""
+    """Names of not-present tools in the given kinds — what /setup should offer to install."""
     return [r["name"] for r in check_toolchain(settings)
             if r["kind"] in kinds and not r["present"]]
 

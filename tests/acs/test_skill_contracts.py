@@ -22,7 +22,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-standards", "create-requirements", "create-ticket",
                  "create-design", "code", "docs-sync", "create-pr",
                  "merge-pr", "standardize-project"]
-ALL_SKILLS = HOOKED_SKILLS + ["initialize", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
 ROLES = ["planner", "executor", "verifier"]
 
 
@@ -76,7 +76,7 @@ class TestSkillContracts(unittest.TestCase):
         for name in HOOKED_SKILLS + ["ship"]:
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$", name)
-        for name in ("initialize", "handoff", "update", "install-hooks"):
+        for name in ("setup", "handoff", "update", "install-hooks"):
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disallowed-tools", fm, name)
 
@@ -234,7 +234,7 @@ class TestCrossReferences(unittest.TestCase):
 
 
 class TestExemptPrDocs(unittest.TestCase):
-    """MAR-9 (spec 04): the exempt --pr merge path and the /acs:initialize CLAUDE.md
+    """MAR-9 (spec 04): the exempt --pr merge path and the /acs:setup CLAUDE.md
     managed block must stay surfaced in the merge-pr skill prose and the docs.
     Additive existence/section assertions only — they pin the new prose so a
     later edit that drops it fails CI. No existing assertion is modified."""
@@ -254,8 +254,8 @@ class TestExemptPrDocs(unittest.TestCase):
         body = read(self.skill_path("merge-pr"))
         self.assertIn("Exempt non-ticket PR mode", body)
 
-    def test_initialize_documents_claude_md_managed_block(self):
-        body = read(self.skill_path("initialize"))
+    def test_setup_documents_claude_md_managed_block(self):
+        body = read(self.skill_path("setup"))
         self.assertIn("CLAUDE.acs.md", body)
         self.assertIn("upsert_managed_block", body)
 
@@ -2501,7 +2501,7 @@ class TestSpecSimplicityGate(unittest.TestCase):
 class TestReconcileTicketIssueLinkage(unittest.TestCase):
     """MAR-75 spec 02: pin the reconciliation prose contract (acs ticket id <->
     GitHub issue/PR) that spec 01 introduces across create-ticket, create-pr,
-    merge-pr, and initialize, plus the three description templates and pr-default.md.
+    merge-pr, and setup, plus the three description templates and pr-default.md.
     Written TDD-first (RED before spec 01's SKILL.md/template edits land);
     turns GREEN once spec 01 is implemented. Additive only — no existing
     assertion in this file is modified."""
@@ -2601,22 +2601,22 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "(MAR-75 AC-4)")
 
     def test_init_documents_reconciliation_convention(self):
-        """AC-5 (prose proof + R-1 guard): initialize/SKILL.md's formats section
+        """AC-5 (prose proof + R-1 guard): setup/SKILL.md's formats section
         notes the reconciliation convention. Since MAR-80 (which makes
         pr_title provider-aware), the block must instead state that pr_title
         renders the tracker's native reference when synced and the local id
         when unsynced, while branch_name/commit_message stay id-based and
         unconditional."""
-        body = read(self.skill_path("initialize"))
+        body = read(self.skill_path("setup"))
         self.assertIsNotNone(
             re.search(r"(?s)acs-ticket:.{0,800}Closes #|Closes #.{0,800}acs-ticket:", body),
-            "initialize/SKILL.md must document both the acs-ticket: issue-body "
+            "setup/SKILL.md must document both the acs-ticket: issue-body "
             "convention and the Closes # PR-body convention within a bounded "
             "window (MAR-75 AC-5)")
         self.assertIsNotNone(
             re.search(r"(?is)pr_title.{0,200}(tracker|synced)|"
                       r"(tracker|synced).{0,200}pr_title", body),
-            "initialize/SKILL.md must explicitly state that pr_title renders the "
+            "setup/SKILL.md must explicitly state that pr_title renders the "
             "tracker's native reference when synced (MAR-80 AC-1/AC-2/AC-3, "
             "AC-6)")
         self.assertIsNotNone(
@@ -2624,7 +2624,7 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
                       r"(id-based|unconditional)|"
                       r"(id-based|unconditional).{0,200}branch_name.{0,120}"
                       r"commit_message", body),
-            "initialize/SKILL.md must explicitly state that branch_name and "
+            "setup/SKILL.md must explicitly state that branch_name and "
             "commit_message remain id-based and unconditional in every case "
             "(MAR-80 AC-4 scope-fence)")
 

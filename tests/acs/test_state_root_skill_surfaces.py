@@ -2,7 +2,7 @@
 default state root (AC3, AC4, AC5, AC6).
 
 Prose-contract unit test covering every shipped surface outside
-`initialize/SKILL.md` (Task 1's file) that still referenced the retired
+`setup/SKILL.md` (Task 1's file) that still referenced the retired
 "workspace_path lives outside the repo, machine-local, always set" model:
 
   AC3 — handoff/SKILL.md derives the same default
@@ -28,7 +28,7 @@ Prose-contract unit test covering every shipped surface outside
     workspace" section naming the exact migrate_workspace.py CLI shape.
 
 Stdlib-only (json, os, re, unittest), mirroring
-tests/acs/test_initialize_offers.py (REPO_ROOT/PLUGIN + read helper +
+tests/acs/test_setup_offers.py (REPO_ROOT/PLUGIN + read helper +
 bounded-window section-scoped assertions) so a too-loose match cannot pass
 vacuously.
 
@@ -63,7 +63,7 @@ def section(body, heading):
     """Return the text of a markdown section: from the line whose start is
     `heading` (a real heading, matched at line-start) up to the next
     same-or-higher-level heading (or end of file). Mirrors
-    test_initialize_offers.py's `section()` so bounded-window assertions
+    test_setup_offers.py's `section()` so bounded-window assertions
     are anchored to a single section instead of the whole file."""
     m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
     if m is None:
@@ -302,14 +302,14 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
     byte-identical to its content at the commit this branch diverged from
     `main` (byte-pinned, out of MAR-4's own scope).
 
-    `plugins/acs/CHANGELOG.md` is different: MAR-5 (`/acs:docs-sync`) is
-    explicitly responsible for landing the MAR-1 epic's missing changelog
-    entries here (see `plugins/acs/skills/code/SKILL.md`'s docs-sync
+    `plugins/acs/CHANGELOG.md` is different: any ticket adding its own
+    dated entry under `[Unreleased]` is expected and must not be blocked by
+    this guard (see `plugins/acs/skills/code/SKILL.md`'s docs-sync
     hand-off, and `docs-sync/SKILL.md`), so a byte-identical guard would
-    directly contradict this ticket's own required deliverable. The
-    invariant this file's own header actually promises — CHANGELOG.md is
-    append-only — is checked instead: the diff against the merge-base may
-    only ADD lines, never remove or reword an existing one."""
+    directly contradict that required deliverable. The invariant this
+    file's own header actually promises — CHANGELOG.md is append-only — is
+    checked instead: the diff against the merge-base may only ADD lines,
+    never remove or reword an existing one."""
 
     def setUp(self):
         if _base_ref() is None:

@@ -7,7 +7,7 @@ flowchart LR
         ACT["GitHub Actions<br/>CI: tests/acs/ + tests/tabp/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
         EVALS["evals/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
-        subgraph gates["Consumer-repo required-check gates (opt-in, /acs:initialize-installed)"]
+        subgraph gates["Consumer-repo required-check gates (opt-in, /acs:setup-installed)"]
             G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
             G_TEST["acs-tests.yml<br/>Tests & coverage"]
             G_E2E["acs-e2e.yml<br/>E2E suite"]
@@ -76,7 +76,7 @@ Key facts:
   graded repo-wide against the 90% floor. Behavioral evals
   (`evals/<plugin>/`) run **locally only** — they make LLM calls and are not
   coupled to CI.
-- **Consumer-repo required-check gates**: `/acs:initialize` can opt-in scaffold up
+- **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
   (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e
   (`acs-e2e.yml`, this ticket) — each backed by a stdlib-only runner reading
@@ -89,4 +89,4 @@ Key facts:
   `/acs:standardize-project`'s additive brownfield scaffold path for a repo
   that already exists — it adds the workflow+runner files only and never
   wires branch protection itself, so an admin still completes the gate via
-  `/acs:initialize` (or the manual `gh api` command) afterward.
+  `/acs:setup` (or the manual `gh api` command) afterward.

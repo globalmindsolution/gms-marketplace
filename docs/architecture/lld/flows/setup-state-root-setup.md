@@ -1,13 +1,13 @@
-# Flow — `/acs:initialize` state-root setup
+# Flow — `/acs:setup` state-root setup
 
-`/acs:initialize` sets up the acs workspace root on every fresh run and every
+`/acs:setup` sets up the acs workspace root on every fresh run and every
 re-run. After the default-vs-override choice is collected, the skill retrofits
 the in-repo state root's gitignore coverage through two independent layers,
 verifies the combined result, guards against a broad ignore rule swallowing
 committed CI-readable files, creates and write-probes the resolved state root,
 and — only when an existing external workspace is detected for this repo —
 offers a user-confirmed, one-shot migration into the new in-repo location. See
-the companion `initialize-state-root-setup.evidence.md` sidecar for the code
+the companion `setup-state-root-setup.evidence.md` sidecar for the code
 anchors this doc would otherwise cite inline.
 
 ## Sequence diagram
@@ -15,12 +15,12 @@ anchors this doc would otherwise cite inline.
 ```mermaid
 sequenceDiagram
     participant User
-    participant Init as /acs:initialize
+    participant Init as /acs:setup
     participant Git as git plumbing - subprocess
     participant FS as Filesystem
     participant Mig as migrate_workspace.py
 
-    User->>Init: run /acs:initialize
+    User->>Init: run /acs:setup
     Init->>Init: default = main-checkout root + .acs/state-machine
     Init->>User: accept the default, or set an explicit workspace_path override
     alt user accepts the default
@@ -66,7 +66,7 @@ sequenceDiagram
     end
 ```
 
-Both gitignore-coverage warnings above are non-fatal: `/acs:initialize` warns
+Both gitignore-coverage warnings above are non-fatal: `/acs:setup` warns
 and continues rather than hard-failing, since a conflicting negation rule or a
 pre-existing broad `.acs/` ignore is the user's own configuration to fix, not
 something init itself can safely resolve. The migration offer only ever

@@ -93,7 +93,7 @@ _SIBLING_FIXTURE = json.loads(r"""
     "default": {}
   },
   "tests": {
-    "description": "Unit/integration test suite for the CI tests+coverage gate scaffolded by /acs:initialize (.github/workflows/acs-tests.yml + .acs/ci/run-tests.py, opt-in). The command MUST run the suite and FAIL on coverage shortfall — delegate to the tool (e.g. 'pytest --cov --cov-fail-under=$ACS_COVERAGE', or a jest coverageThreshold); acs exports ACS_COVERAGE (= test_coverage_percent) into the env. Read from the committed project settings.json; the CI runner has no acs install.",
+    "description": "Unit/integration test suite for the CI tests+coverage gate scaffolded by /acs:setup (.github/workflows/acs-tests.yml + .acs/ci/run-tests.py, opt-in). The command MUST run the suite and FAIL on coverage shortfall — delegate to the tool (e.g. 'pytest --cov --cov-fail-under=$ACS_COVERAGE', or a jest coverageThreshold); acs exports ACS_COVERAGE (= test_coverage_percent) into the env. Read from the committed project settings.json; the CI runner has no acs install.",
     "type": "object",
     "required": [
       "command"
@@ -253,7 +253,7 @@ class OnboardingRunbookDocTest(unittest.TestCase):
             readme = fh.read()
         self.assertIn("Forge tier", readme)
         self.assertIn(".acs-eval-target", readme)
-        self.assertIn("/acs:initialize", readme)
+        self.assertIn("/acs:setup", readme)
         self.assertIn("minimal buildable baseline", readme)
         self.assertIn("visibility", readme.lower())
         self.assertIn("human-confirmed", readme.lower())

@@ -42,7 +42,7 @@ CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 # --- This spec's sweep-set files ---
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
-INIT_SKILL = os.path.join(SKILLS_DIR, "initialize", "SKILL.md")
+SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
 CREATE_QUALITY_SKILL = os.path.join(SKILLS_DIR, "create-quality", "SKILL.md")
@@ -58,7 +58,7 @@ RULE2_IDENTICAL_FILES = [
 ]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
-RULE2_AFFECTED_FILES = [INIT_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
+RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
 
 # --- Untouched backward-compat / out-of-scope surface (negative guards) ---
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
@@ -309,8 +309,8 @@ class Rule2OutcomeTextTest(unittest.TestCase):
                     "/acs:create-design and /acs:code are not involved):",
                     read(path))
 
-    def test_initialize_pipeline_recital_adjacency(self):
-        body = read(INIT_SKILL)
+    def test_setup_pipeline_recital_adjacency(self):
+        body = read(SETUP_SKILL)
         self.assertRegex(
             norm(body), phrase_re("`/acs:create-design` → `/acs:code`"))
         self.assertNotIn("create-spec", body)

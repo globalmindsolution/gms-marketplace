@@ -19,7 +19,7 @@ Tasks we do not recognize get NO line — they keep Claude Code's default
 rendering. We never crash and never write garbage: on any problem we emit
 nothing and the panel falls back to defaults.
 
-Wire-up (offered by /acs:initialize Step 7b; statusLine rules apply — user-owned,
+Wire-up (offered by /acs:setup Step 7b; statusLine rules apply — user-owned,
 absolute path, never forced):
 
     {"subagentStatusLine": {"type": "command",

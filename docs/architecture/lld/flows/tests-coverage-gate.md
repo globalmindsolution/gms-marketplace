@@ -48,6 +48,6 @@ of an empty or parent-process-only data file. `coverage report
 repo-wide — not just the PR's own changed lines.
 
 This doc covers this repo's own gate instance. The generic mechanism
-(`acs-tests.yml` plus `.acs/ci/run-tests.py`, scaffolded by `/acs:initialize` for
+(`acs-tests.yml` plus `.acs/ci/run-tests.py`, scaffolded by `/acs:setup` for
 any consumer repo) is unchanged by this measurement fix — no `plugins/`
 file is touched.

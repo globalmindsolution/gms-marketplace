@@ -1,6 +1,6 @@
 ---
 name: install-hooks
-description: Install this clone's local acs convention hooks (commit-msg + pre-push) that enforce the branch and commit formats you configured at /acs:initialize, before anything is pushed — the `pre-commit install` equivalent for acs. Use after cloning a repo that has acs enforcement set up, or whenever you want local enforcement of the configured conventions before pushing a PR.
+description: Install this clone's local acs convention hooks (commit-msg + pre-push) that enforce the branch and commit formats you configured at /acs:setup, before anything is pushed — the `pre-commit install` equivalent for acs. Use after cloning a repo that has acs enforcement set up, or whenever you want local enforcement of the configured conventions before pushing a PR.
 disable-model-invocation: true
 ---
 
@@ -9,7 +9,7 @@ skill: no `skill-start.py`, no pre/post hooks, no subagents, no reflection loop.
 You do everything yourself in this session with Bash, Read, Edit, and Write.
 
 The job: install this clone's local git hooks so the conventions the user
-configured at `/acs:initialize` (`formats.branch_name`, `formats.commit_message`) are
+configured at `/acs:setup` (`formats.branch_name`, `formats.commit_message`) are
 enforced **before push** — `commit-msg` validates the commit subject as it is
 written, `pre-push` validates the branch name and the push range's commit
 subjects. Both run the same `.acs/ci/check-conventions.py` against the same
@@ -55,14 +55,14 @@ print("CONVENTIONS_OK" if ok else "MISSING")
 PY
 ```
 
-On `MISSING`, stop and tell the user to run `/acs:initialize` first (it writes the
+On `MISSING`, stop and tell the user to run `/acs:setup` first (it writes the
 committed conventions the hooks read). Do not install hooks that would only
-block every commit with "run /acs:initialize".
+block every commit with "run /acs:setup".
 
 ## Step 2 — Ensure the local-enforcement files are present
 
 The hooks and installer live in `<repo>/.acs/ci/`. Copy any that are missing
-from the plugin templates (this bootstraps a repo where `/acs:initialize`'s CI step
+from the plugin templates (this bootstraps a repo where `/acs:setup`'s CI step
 was never run), and make the scripts executable. Run from `<repo>`:
 
 ```bash
@@ -144,7 +144,7 @@ Tell the user, concisely:
 
 - Each teammate runs `/acs:install-hooks` (or `sh .acs/ci/install-hooks.sh`)
   once per clone — hooks are per-clone, like `pre-commit install`.
-- The hooks enforce the configured `formats.*`; change them with `/acs:initialize`.
+- The hooks enforce the configured `formats.*`; change them with `/acs:setup`.
 - They are `--no-verify`-bypassable, so the required CI check (if configured) is
   the real gate.
 - Commit any newly created `.acs/ci/*` (and `.pre-commit-config.yaml` if edited).
@@ -165,5 +165,5 @@ Ticket line with **Scope** (no ticket):
 - **Findings**: <missing conventions / pre-existing non-acs hooks / clarifications, or "none">
 - **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`
 - **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:initialize` for a true gate
+- **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` for a true gate
 ```

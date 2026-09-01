@@ -7,7 +7,7 @@
   "required": ["skill", "ticket_id", "states", "findings", "errors", "runs"],
   "properties": {
     "skill": {
-      "enum": ["code", "create-architecture", "create-design", "create-docs", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "handoff", "initialize", "install-hooks", "merge-pr", "metrics", "release", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
+      "enum": ["code", "create-architecture", "create-design", "create-docs", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "handoff", "install-hooks", "merge-pr", "metrics", "release", "setup", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
     },
     "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "states": {

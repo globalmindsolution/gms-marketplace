@@ -8,7 +8,7 @@ Registered in hooks/hooks.json:
     checkout as `interrupted` and releases the ticket lock.
 
 The dispatcher itself never gates: skills that are not part of the acs pipeline
-(or acs skills without hooks: initialize, ship, handoff) pass through with exit 0.
+(or acs skills without hooks: setup, ship, handoff) pass through with exit 0.
 """
 
 import json

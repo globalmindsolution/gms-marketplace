@@ -79,6 +79,11 @@ MAR1_BASELINE = {
     CONFIGURATION: 1,
     HOOKS: 2,
     USAGE: 1,
+    # REQUIREMENTS_README: 1 legitimate citation from a separately-numbered
+    # MAR-1 (the acs:initialize -> acs:setup bootstrap-skill rename,
+    # merged to main after this ticket branched) -- its own dated ledger
+    # row cites itself as "(MAR-1)"; unrelated to this ticket's own edits.
+    REQUIREMENTS_README: 1,
     PORTABILITY: 1,
 }
 

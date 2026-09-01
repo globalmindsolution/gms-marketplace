@@ -12,7 +12,7 @@ canonical block.
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()`
 technique from test_doc_consistency_step.py and
-test_initialize_quality_path.py.
+test_setup_quality_path.py.
 
 Run:  python3 -m unittest tests.acs.test_mar117_create_principles_skill -v
 """

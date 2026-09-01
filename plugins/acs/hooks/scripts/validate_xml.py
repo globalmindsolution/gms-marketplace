@@ -76,8 +76,8 @@ XSD_PATH = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), "schemas",
 SKILLS = {"code", "create-architecture", "create-design", "create-docs", "create-operations",
           "create-pr", "create-prd", "create-principles", "create-project",
           "create-quality", "create-requirements", "create-standards",
-          "create-ticket", "docs-sync", "handoff", "initialize", "install-hooks",
-          "merge-pr", "metrics", "release", "ship", "standardize-project",
+          "create-ticket", "docs-sync", "handoff", "install-hooks",
+          "merge-pr", "metrics", "release", "setup", "ship", "standardize-project",
           "test", "update", "usage", "create-spec"}
 PHASES = {"plan", "execute", "verify", "coordinate"}
 RESULT_STATUSES = {"completed", "failed", "needs_input"}

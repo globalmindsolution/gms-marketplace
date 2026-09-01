@@ -115,7 +115,7 @@ target, so this repo's own run of it is a skip, not live coverage (see
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
-| `initialize` | ✅ | n/a (unhooked) | ✅ | — |
+| `setup` | ✅ | n/a (unhooked) | ✅ | — |
 | `ship` | ✅ | n/a (unhooked) | ✅ | — |
 | `handoff` | ✅ | n/a (unhooked) | ✅ | — |
 | `update` | ✅ | n/a (unhooked) | ✅ | — |

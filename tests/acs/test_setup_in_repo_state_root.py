@@ -1,6 +1,6 @@
-"""MAR-4 — /acs:initialize sets up the in-repo state root (AC1, AC2).
+"""MAR-4 — /acs:setup sets up the in-repo state root (AC1, AC2).
 
-Prose-contract unit test for `plugins/acs/skills/initialize/SKILL.md`. S3 of
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. S3 of
 the MAR-1 epic split (ADR 0069): the state root moves from a machine-local,
 outside-the-repo `workspace_path` (always asked, validated to reject any path
 inside a worktree) to an in-repo default `<main-checkout>/.acs/state-machine`,
@@ -24,12 +24,16 @@ This module pins:
      `.acs/state-machine/` line (AC2 — regression pin, already satisfied by
      MAR-2's own merge).
 
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_initialize_offers.py
+Stdlib-only (os, re, unittest), mirroring tests/acs/test_setup_offers.py
 (REPO_ROOT/PLUGIN + read + bounded-window `section()` helper). Assertions are
 bounded-window / co-occurrence anchored on real `## `/`### ` headings — never
 bare file-wide assertIn — so a too-loose match cannot pass vacuously.
 
-Run:  python3 -m unittest tests.acs.test_initialize_in_repo_state_root -v
+Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
+acs:setup): module name and internal skill-path/token references updated;
+behavior and originating ticket reference unchanged.
+
+Run:  python3 -m unittest tests.acs.test_setup_in_repo_state_root -v
 """
 
 import os
@@ -41,7 +45,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "initialize", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 GITIGNORE_PATH = os.path.join(REPO_ROOT, ".gitignore")
 
 
@@ -65,7 +69,7 @@ def section(body, heading):
 
 
 class Mar4InitStateRootCase(unittest.TestCase):
-    """Fixture: read the initialize SKILL.md once."""
+    """Fixture: read the setup SKILL.md once."""
 
     @classmethod
     def setUpClass(cls):

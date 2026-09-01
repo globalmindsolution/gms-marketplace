@@ -26,11 +26,11 @@
 ## Migrating an existing external workspace
 
 - When an existing external `workspace_path` is detected for a repo,
-  `/acs:initialize` MUST detect it and SHOULD offer a user-confirmed
+  `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
   migration into the in-repo default on the next re-run (ADR-0086; the
-  MUST/SHOULD split for `/initialize` itself is specified in
+  MUST/SHOULD split for `/setup` itself is specified in
   [skills.md](skills.md) and not restated here).
-- A repo owner who migrates without re-running `/acs:initialize` MUST use
+- A repo owner who migrates without re-running `/acs:setup` MUST use
   the documented manual path instead: `migrate_workspace.py --from
   <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
   <repo-root> [--dry-run]` (contract in
