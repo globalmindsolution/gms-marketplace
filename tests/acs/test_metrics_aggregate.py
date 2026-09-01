@@ -27,6 +27,7 @@ if _SCRIPTS_DIR not in sys.path:
 
 import acs_lib  # noqa: E402  (after sys.path mutation)
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
+metrics_render = importlib.import_module("metrics_render")  # noqa: E402
 
 REPO_ID = "globalmindsolution-gms-marketplace"
 HOOKED = acs_lib.HOOKED_SKILLS
@@ -444,7 +445,7 @@ class Panel6TokenBurn(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["6"]["planner"], {
                 "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
-                "token_share_pct": 100.0, "cost_share_pct": None,
+                "cost_seen": False, "token_share_pct": 100.0, "cost_share_pct": None,
             })
             # sibling seeded roles stay all-zero but share the same repo-scope denominator
             self.assertEqual(out["panels"]["6"]["executor"]["token_share_pct"], 0.0)
@@ -463,7 +464,7 @@ class Panel6TokenBurn(unittest.TestCase):
             p6 = out["panels"]["6"]
             self.assertEqual(p6["executor"], {
                 "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0, "cost": 0.02,
-                "token_share_pct": 100.0, "cost_share_pct": 100.0,
+                "cost_seen": True, "token_share_pct": 100.0, "cost_share_pct": 100.0,
             })
             # the malformed/roleless entries contributed to no bucket
             self.assertEqual(p6["planner"]["input"], 0)
@@ -612,8 +613,9 @@ class UsageByModelPanel(unittest.TestCase):
                          sorted(os.path.basename(p) for p in without_model))
 
     def test_panel6_bucket_shape_widened_by_this_ticket(self):
-        """Seam guard: panel 6 buckets widen to the 7-key shape (MAR-4), and this widening stays
-        independent of usage_by_model even when the same run entry also carries model_usage."""
+        """Seam guard: panel 6 buckets widen to the 8-key shape (MAR-4 + cost_seen), and this
+        widening stays independent of usage_by_model even when the same run entry also carries
+        model_usage."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
@@ -624,7 +626,7 @@ class UsageByModelPanel(unittest.TestCase):
             bucket = out["panels"]["6"]["executor"]
             self.assertEqual(set(bucket.keys()),
                              {"input", "output", "cache_creation", "cache_read", "cost",
-                              "token_share_pct", "cost_share_pct"})
+                              "cost_seen", "token_share_pct", "cost_share_pct"})
             self.assertEqual(bucket["input"], 1000)
             self.assertEqual(bucket["output"], 200)
             self.assertEqual(bucket["cache_creation"], 0)
@@ -721,6 +723,67 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             for bucket in out["panels"]["6"].values():
                 self.assertIsNone(bucket["token_share_pct"])
                 self.assertIsNone(bucket["cost_share_pct"])
+
+    def test_apply_panel6_shares_cost_share_pct_none_when_bucket_never_charged_but_sibling_costed(self):
+        burn = {
+            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                        "cost": 0.0, "cost_seen": False},
+            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                         "cost": 5.0, "cost_seen": True},
+        }
+        metrics_aggregate._apply_panel6_shares(burn)
+        self.assertIsNone(burn["planner"]["cost_share_pct"])
+        self.assertEqual(burn["executor"]["cost_share_pct"], 100.0)
+
+    def test_apply_panel6_shares_cost_share_pct_zero_when_bucket_genuinely_charged_zero(self):
+        burn = {
+            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                        "cost": 0.0, "cost_seen": True},
+            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                         "cost": 5.0, "cost_seen": True},
+        }
+        metrics_aggregate._apply_panel6_shares(burn)
+        self.assertEqual(burn["planner"]["cost_share_pct"], 0.0)
+
+    def test_panel6_render_unavailable_not_zero_pct_when_role_never_charged_but_repo_has_cost(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
+                     {"role": "executor", "input": 200, "output": 100,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": None},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            self.assertIsNone(bucket["cost_share_pct"])
+            rows = metrics_render._term_panel6(out["panels"]["6"])
+            executor_row = next(r for r in rows if r.strip().startswith("executor"))
+            self.assertIn(metrics_render.UNAVAILABLE, executor_row)
+            self.assertNotIn("0.0%", executor_row)
+
+    def test_panel6_render_zero_pct_when_role_genuinely_charged_exactly_zero(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
+                     {"role": "executor", "input": 200, "output": 100,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 0.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            self.assertEqual(bucket["cost_share_pct"], 0.0)
+            rows = metrics_render._term_panel6(out["panels"]["6"])
+            executor_row = next(r for r in rows if r.strip().startswith("executor"))
+            self.assertIn("0.0%", executor_row)
+            self.assertNotIn(metrics_render.UNAVAILABLE, executor_row)
 
     def test_usage_by_ticket_role_shares_are_ticket_scoped_not_repo_scoped(self):
         with TemporaryDirectory() as ws:
