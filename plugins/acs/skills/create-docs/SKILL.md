@@ -1,6 +1,6 @@
 ---
 name: create-docs
-description: Detect independent doc-bootstrap skills (currently create-quality and create-operations) whose upstream prerequisites are already satisfied, and fan them out in parallel instead of running them one after another -- each leg keeps its own hooks, reflection cycle, and gating unchanged, and delivers as its own docs-only PR on its own delivery ticket. Use instead of running /acs:create-quality and /acs:create-operations sequentially.
+description: Detect independent doc-bootstrap skills (currently create-quality and create-operations) whose upstream prerequisites are already satisfied, and fan them out in parallel instead of running them one after another — each leg keeps its own hooks, reflection cycle, and gating unchanged, and delivers as its own docs-only PR on its own delivery ticket. Use instead of running /acs:create-quality and /acs:create-operations sequentially.
 argument-hint: "[--for <skill>[,<skill>...]]"
 disallowed-tools: Edit, NotebookEdit
 ---
