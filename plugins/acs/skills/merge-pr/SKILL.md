@@ -244,6 +244,11 @@ Judge the four readiness dimensions, each as `"pass"` or
   an approving review (mitigation m6); because the coordinator cannot reliably
   distinguish an agent invocation from a direct human one, the requirement
   applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
+  This is stricter than the branch protection `/acs:setup` offers, which makes a
+  PR mandatory with `required_approving_review_count: 0`; the two are separate
+  brakes, not a contradiction. On a repo with no reviewer available, the PR is
+  merged by a human outside this skill — the rule is never relaxed to let an
+  unreviewed merge through.
 - **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
   `mergeStateStatus == DIRTY`) is a fail.
 - **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch

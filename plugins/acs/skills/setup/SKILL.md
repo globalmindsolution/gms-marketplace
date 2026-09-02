@@ -719,7 +719,13 @@ echo "repo=$slug default=$branch admin=$admin"
 
   (`required_pull_request_reviews` present = a PR is mandatory, so direct pushes
   to `$branch` are blocked; `restrictions: null` keeps all collaborators able to
-  open PRs.) The check first appears in the contexts list only after one workflow run, so
+  open PRs. `required_approving_review_count: 0` forces a PR without forcing a
+  review — the repo's own brake. It is deliberately *not* the same rule as
+  `/acs:merge-pr`'s approvals readiness dimension, which requires an APPROVED
+  review for every merge it performs (ADR 0027 mitigation m6). A repo with 0
+  required approvals can still be merged by a human in the GitHub UI; merging
+  *through the skill* always needs a review. Raise this count to 1 if you want
+  the repo to enforce the same rule the skill does.) The check first appears in the contexts list only after one workflow run, so
   if the API rejects an unknown context, tell the user to open a PR first (to
   register the check), then re-run the command. Mention GitHub **rulesets** as
   the modern alternative (repo or org level, same effect) if they prefer the UI.
