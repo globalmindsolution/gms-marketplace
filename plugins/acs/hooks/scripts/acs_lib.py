@@ -1024,6 +1024,23 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
+MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
+#: The three reflection roles a model/effort pair can be configured for.
+MODEL_ROLES = ("planner", "executor", "verifier")
+
+
+def _model_override_skills():
+    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
+
+    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
+    subagents of its own and every hooked skill can."""
+    return frozenset(HOOKED_SKILLS)
+
+
+MODEL_OVERRIDE_SKILLS = _model_override_skills()
+
+
 def validate_models(models):
     if not isinstance(models, dict):
         raise GateError("models must be an object.")
@@ -1037,16 +1054,29 @@ def validate_models(models):
             extra = set(value) - {"model", "effort"}
             if extra:
                 raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
+            effort = value.get("effort")
+            if effort is not None and effort not in MODEL_EFFORTS:
+                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
+                                % (path, effort, ", ".join(MODEL_EFFORTS)))
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier"):
+    for role in MODEL_ROLES:
         if role in models:
             check_role(role, models[role])
-    for skill, roles in models.get("overrides", {}).items():
+    overrides = models.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise GateError("models.overrides must be an object of skill -> role -> model.")
+    for skill, roles in overrides.items():
+        if skill not in MODEL_OVERRIDE_SKILLS:
+            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
+                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
         if not isinstance(roles, dict):
             raise GateError("models.overrides.%s must be an object of role -> model." % skill)
         for role, value in roles.items():
+            if role not in MODEL_ROLES:
+                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
+                                % (skill, role, ", ".join(MODEL_ROLES)))
             check_role("overrides.%s.%s" % (skill, role), value)
 
 
