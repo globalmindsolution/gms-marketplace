@@ -1878,7 +1878,14 @@ def load_pipeline(tdir, ticket_id, flow="ticket"):
     return data
 
 
-def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None):
+def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None,
+                    extra=None):
+    """Record a pipeline step transition.
+
+    `extra` merges caller-supplied fields into the step dict (e.g. /ship's
+    `fix_loops` counter on the `test` step). Keys the step owns -- status,
+    started_at, ended_at, summary -- are never overridden from `extra`; a
+    None value deletes the key so a counter can be reset rather than frozen."""
     data = load_pipeline(tdir, ticket_id, flow or ("product" if skill in PRODUCT_SKILLS else "ticket"))
     if flow:
         data["flow"] = flow
@@ -1890,6 +1897,15 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
     step["status"] = status
     if summary is not None:
         step["summary"] = summary
+    if extra:
+        reserved = {"status", "started_at", "ended_at", "summary"}
+        for key, value in extra.items():
+            if key in reserved:
+                continue
+            if value is None:
+                step.pop(key, None)
+            else:
+                step[key] = value
     if lane is not None:
         data["lane"] = lane
     data["totals"] = compute_ticket_totals(tdir)
