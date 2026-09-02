@@ -47,6 +47,9 @@ def main():
                         choices=["low", "normal", "high"],
                         default="normal",
                         help="Stakes axis (default: normal).")
+    parser.add_argument("--seed-next", dest="seed_next", type=int,
+                        help="Confirm or repair the ticket-id reconciliation floor: "
+                             "mint <PREFIX>-<n> and record it as the confirmed floor.")
     args = parser.parse_args()
 
     if args.due_date is not None:
@@ -55,6 +58,12 @@ def main():
                 "acs new-ticket: --due-date must be YYYY-MM-DD, got: %r\n" % args.due_date
             )
             sys.exit(2)
+
+    if args.seed_next is not None and args.seed_next < 1:
+        sys.stderr.write(
+            "acs new-ticket: --seed-next must be >= 1, got: %d\n" % args.seed_next
+        )
+        sys.exit(2)
 
     cwd = os.getcwd()
     try:
@@ -84,7 +93,14 @@ def main():
             sys.stderr.write("acs new-ticket: parent %s is a %s, not an epic\n" % (args.parent, parent_ticket.get("type")))
             sys.exit(2)
 
-    ticket_id = lib.allocate_ticket_id(workspace, repo_id, ctx["settings"]["ticket_prefix"])
+    repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
+    try:
+        ticket_id = lib.allocate_ticket_id(
+            workspace, repo_id, ctx["settings"]["ticket_prefix"],
+            repo_root=repo_root, seed_next=args.seed_next)
+    except lib.ReconciliationRequired as exc:
+        sys.stderr.write(exc.render("new-ticket.py --seed-next <n>") + "\n")
+        sys.exit(2)
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)
 
