@@ -135,6 +135,32 @@ ticket mint/comment/link).
 
 ## Ticket-scoped mode (`--for-ticket`)
 
+**Recording the run in the pipeline ledger.** After the run-set completes,
+record the outcome on the ticket's `steps.test` entry so
+`/acs:docs-sync`'s gate — which blocks while `steps.test` exists and is not
+`completed` — can be satisfied by the command its own error message names:
+
+Every suite in the run-set green:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status completed --summary "<suites> green"
+```
+
+A suite failed — update an active gate, never open a new one:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status failed --only-if-present \
+  --summary "<suite> failed"
+```
+
+`--only-if-present` on the failure path is what keeps a standing test run from
+newly blocking a pipeline: a red suite records a failure only where `/acs:ship`
+had already activated the step. `/acs:ship` still owns the `fix_loops` counter
+and its cap; this records the outcome of the run this skill actually performed.
+
+
 This section applies only when `--for-ticket <id>` was given on this
 invocation. Standing invocations (no `--for-ticket`) never consult it, and
 Steps 4a-4b below are completely unaffected by anything in this section.
