@@ -572,6 +572,7 @@ class ForgeSandbox:
             os.makedirs(self.ws, exist_ok=True)
             self._wipe_partition()
             self._seed_settings()
+            self._seed_counters()
         except ForgeConfigError:
             shutil.rmtree(self.tmp, ignore_errors=True)
             raise
@@ -706,6 +707,23 @@ class ForgeSandbox:
         env["XDG_CONFIG_HOME"] = self._isolated_home_path
         env["GIT_ATTR_NOSYSTEM"] = "1"
         return env
+
+    def _seed_counters(self):
+        """Seed a reconciled counters.json (MAR-402's fixture seam) so the
+        first allocation in a fresh forge partition mints <prefix>-1 instead
+        of hitting the reconciliation gate's refusal; mirrors
+        acs_case.AcsWorkspaceCase.seed_counters."""
+        if not self.partition_id:
+            return
+        partition = os.path.join(self.ws, self.partition_id)
+        os.makedirs(partition, exist_ok=True)
+        with open(os.path.join(partition, "counters.json"), "w", encoding="utf-8") as fh:
+            json.dump({
+                "next": 1,
+                "reconciled": True,
+                "seed_source": "explicit-user",
+                "seeded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }, fh)
 
     def _seed_settings(self):
         """AC-5: seed the throwaway prefix; mirrors Sandbox._seed_settings."""
