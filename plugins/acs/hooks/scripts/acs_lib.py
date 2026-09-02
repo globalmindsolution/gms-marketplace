@@ -2711,6 +2711,15 @@ def run_pre(skill):
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         payload = {}
+    sys.exit(run_pre_payload(skill, payload))
+
+
+def run_pre_payload(skill, payload):
+    """Gate one skill from an already-parsed hook payload; return the exit code.
+
+    Separate from run_pre so the dispatcher can gate in-process rather than
+    spawning a forwarder: a subprocess that hangs or dies takes its exit code
+    with it, and anything other than 2 lets the skill run."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
@@ -2724,11 +2733,14 @@ def run_pre(skill):
         GATES[skill](ctx, payload)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
-        sys.exit(2)
+        return 2
+    except TimeoutError as exc:  # a gate that never returns must not let the skill run
+        sys.stderr.write("acs pre-%s: blocked — gate timed out: %s\n" % (skill, exc))
+        return 2
     except Exception as exc:  # fail closed: a gating system must not fail open
         sys.stderr.write("acs pre-%s: blocked — unexpected error in gate: %r\n" % (skill, exc))
-        sys.exit(2)
-    sys.exit(0)
+        return 2
+    return 0
 
 
 # ---------------------------------------------------------------------------
