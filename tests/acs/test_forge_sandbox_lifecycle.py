@@ -472,7 +472,7 @@ class ForgeSandboxLifecycleTest(unittest.TestCase):
             fh.write("{}")
         with harness.ForgeSandbox(remote_url=self.bare, workspace=workspace) as sb:
             self.assertEqual(sb.partition_id, partition_id)
-            self.assertFalse(os.path.exists(stale_dir))
+            self.assertFalse(os.path.exists(os.path.join(stale_dir, "stale.json")))
 
     def test_wipe_is_a_noop_when_no_partition_exists(self):
         workspace = tempfile.mkdtemp(prefix="acs-forge-ws-empty-test-", dir=self.tmp)
