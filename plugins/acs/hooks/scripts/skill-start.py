@@ -167,28 +167,49 @@ def main():
     workspace, repo_id = ctx["workspace"], ctx["repo_id"]
     flow = "product" if args.skill in lib.PRODUCT_SKILLS else "ticket"
 
+    allocated = False
     if args.allocate:
         if args.skill not in lib.DELIVERY_TICKET_SKILLS and args.skill != "create-ticket":
             sys.stderr.write("acs skill-start: --allocate is only valid for /create-ticket and product-level skills\n")
             sys.exit(2)
-        prefix = ctx["settings"]["ticket_prefix"]
-        repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
-        try:
-            ticket_id = lib.allocate_ticket_id(
-                workspace, repo_id, prefix,
-                repo_root=repo_root, seed_next=args.seed_next)
-        except lib.ReconciliationRequired as exc:
-            sys.stderr.write("acs skill-start: " + exc.render(
-                "skill-start.py --skill %s --allocate --seed-next <n>" % args.skill
-            ) + "\n")
-            sys.exit(2)
-        tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
-        os.makedirs(tdir, exist_ok=True)
-        title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
-        ttype = "task" if args.skill in lib.DELIVERY_TICKET_SKILLS else args.ttype
-        ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
-        lib.save_ticket(tdir, ticket)
-        lib.update_index(workspace, repo_id, ticket, archived=False)
+        # Resume reuses the existing partition: /acs:ship re-invokes an interrupted
+        # create-ticket with the ticket id as its args, and allocating again there
+        # would mint a second ticket for the same work.
+        #
+        # Only an EXPLICITLY supplied id counts here -- --ticket, or one written in
+        # --args. The session-pointer and branch fallbacks that resolve_ticket_id
+        # would also try must not apply: a product-level leg (a doc-bootstrap
+        # fan-out runs two at once) passes neither, and adopting whatever ticket
+        # the pointer happens to name would collapse two independent delivery
+        # tickets into one.
+        existing_id = (args.ticket or "").strip() or lib.ticket_id_from_text(
+            args.args, ctx["settings"].get("ticket_prefix"))
+        if existing_id:
+            existing_dir, existing_archived = lib.find_ticket_partition(workspace, repo_id, existing_id)
+            if not existing_archived and os.path.isdir(existing_dir):
+                existing_ticket = lib.load_ticket(existing_dir)
+                if existing_ticket:
+                    ticket_id, tdir, ticket = existing_id, existing_dir, existing_ticket
+                    allocated = True
+        if not allocated:
+            prefix = ctx["settings"]["ticket_prefix"]
+            repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
+            try:
+                ticket_id = lib.allocate_ticket_id(
+                    workspace, repo_id, prefix,
+                    repo_root=repo_root, seed_next=args.seed_next)
+            except lib.ReconciliationRequired as exc:
+                sys.stderr.write("acs skill-start: " + exc.render(
+                    "skill-start.py --skill %s --allocate --seed-next <n>" % args.skill
+                ) + "\n")
+                sys.exit(2)
+            tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
+            os.makedirs(tdir, exist_ok=True)
+            title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
+            ttype = "task" if args.skill in lib.DELIVERY_TICKET_SKILLS else args.ttype
+            ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
+            lib.save_ticket(tdir, ticket)
+            lib.update_index(workspace, repo_id, ticket, archived=False)
     else:
         ticket_id, source = lib.resolve_ticket_id(cwd, ctx["settings"], workspace, repo_id,
                                                   explicit=args.ticket, args_text=args.args)
