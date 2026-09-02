@@ -2,10 +2,13 @@
 
 A developer runs `/acs:release <version>`; the coordinator probes idempotency
 first, then drafts and dates the CHANGELOG section from the merged-ticket
-archive, bumps both manifests + `source.ref`, and opens an exempt `release/*`
-PR — stopping for a mandatory human merge before the existing `release.yml`
-workflow tags and publishes. Transcribed verbatim from the binding design
-(`MAR-128/design.md` "Sequence diagrams" → "Flow — cut-release").
+archive, falling back to `base_branch` commit history for tickets no archive
+entry recorded, bumps both manifests + `source.ref`, and opens an exempt
+`release/*` PR — stopping for a mandatory human merge before the existing
+`release.yml` workflow tags and publishes. Transcribed verbatim from the
+binding design (`MAR-128/design.md` "Sequence diagrams" → "Flow —
+cut-release"); the enumeration step additionally reflects MAR-306's
+git-history fallback, added after that design.
 
 ```mermaid
 sequenceDiagram
@@ -14,6 +17,7 @@ sequenceDiagram
     participant Lib as "acs_lib.build_context"
     participant RN as "release_notes.py"
     participant Arc as "workspace archive"
+    participant Git as "base_branch git history"
     participant Chg as "CHANGELOG.md"
     participant Man as "marketplace.json + plugin.json, profile #1 version_locations + extra_refs"
     participant Gh as "gh CLI"
@@ -36,6 +40,7 @@ sequenceDiagram
     else fresh cut
         Rel->>RN: release_notes.py draft --version 0.4.2 --release-config block
         RN->>Arc: enumerate archive tickets merged since v0.4.1
+        RN->>Git: fallback — commit subjects since v0.4.1 for tickets with no archive entry
         RN->>Chg: read [Unreleased]
         RN->>RN: draft section, cross-check coverage
         RN-->>Rel: draft_section, coverage report
@@ -62,4 +67,5 @@ sequenceDiagram
 
 Composes with [`ticket-lifecycle.md`](ticket-lifecycle.md) for the PR that
 precedes a release (every ticket merged since the last tag is the population
-`release_notes.py draft` enumerates from the archive).
+`release_notes.py draft` enumerates from the archive, plus the `base_branch`
+history fallback for tickets merged outside `/acs:merge-pr`).
