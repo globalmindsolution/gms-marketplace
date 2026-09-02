@@ -2,8 +2,10 @@
 """dispatch.py — single hook entry point for the acs plugin.
 
 Registered in hooks/hooks.json:
-  * `dispatch.py pre`         on PreToolUse (matcher: Skill) — routes to pre-<skill>.py.
-    Exit 2 from the routed script blocks the skill; its stderr explains what to run first.
+  * `dispatch.py pre`         on PreToolUse (matcher: Skill) — runs the skill's gate
+    in-process. Exit 2 blocks the skill; its stderr explains what to run first. The
+    gate is bounded by GATE_TIMEOUT_SECONDS and fails closed on timeout or error,
+    because any exit code other than 2 lets the skill run.
   * `dispatch.py session-end` on SessionEnd — finalizes runs left in_progress by this
     checkout as `interrupted` and releases the ticket lock.
 
@@ -13,7 +15,7 @@ The dispatcher itself never gates: skills that are not part of the acs pipeline
 
 import json
 import os
-import subprocess
+import signal
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +40,30 @@ def skill_name_from_payload(payload):
     return None
 
 
+#: A gate is a few git calls and some JSON reads; anything longer is stuck.
+GATE_TIMEOUT_SECONDS = 25
+
+
+def run_gate(skill, payload):
+    """Run the skill's gate in-process, bounded, and fail closed.
+
+    The bound matters because the hook's own timeout kills this process without
+    an exit code of 2, which reads as "not blocked"."""
+    if not hasattr(signal, "SIGALRM"):  # no POSIX alarms (Windows): run unbounded
+        return acs_lib.run_pre_payload(skill, payload)
+
+    def _on_timeout(_signum, _frame):
+        raise TimeoutError("gate for %s exceeded %ds" % (skill, GATE_TIMEOUT_SECONDS))
+
+    previous = signal.signal(signal.SIGALRM, _on_timeout)
+    signal.alarm(GATE_TIMEOUT_SECONDS)
+    try:
+        return acs_lib.run_pre_payload(skill, payload)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "pre"
     raw = sys.stdin.read()
@@ -57,22 +83,7 @@ def main():
     if skill not in acs_lib.HOOKED_SKILLS:
         sys.exit(0)
 
-    script = os.path.join(SCRIPT_DIR, "pre-%s.py" % skill)
-    if not os.path.isfile(script):
-        sys.stderr.write("acs: missing hook script %s\n" % script)
-        sys.exit(2)
-    proc = subprocess.run(
-        [sys.executable or "python3", script],
-        input=raw.encode("utf-8"),
-        capture_output=True,
-        cwd=payload.get("cwd") or os.getcwd(),
-        timeout=25,
-    )
-    if proc.stdout:
-        sys.stdout.buffer.write(proc.stdout)
-    if proc.stderr:
-        sys.stderr.buffer.write(proc.stderr)
-    sys.exit(proc.returncode)
+    sys.exit(run_gate(skill, payload))
 
 
 if __name__ == "__main__":

@@ -156,7 +156,7 @@
         "overrides": {
           "type": "object",
           "propertyNames": {
-            "enum": ["create-prd", "create-architecture", "create-project", "create-ticket", "create-design", "code", "create-pr", "merge-pr", "ship"]
+            "enum": ["code", "create-architecture", "create-design", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
           },
           "additionalProperties": {
             "type": "object",

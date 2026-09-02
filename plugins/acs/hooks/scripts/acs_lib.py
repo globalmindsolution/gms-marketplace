@@ -735,10 +735,26 @@ def now_iso():
 
 
 def parse_iso(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except (TypeError, ValueError):
+    """Parse an ISO-8601 instant, tolerantly, as UTC.
+
+    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
+    timestamps produced elsewhere -- Claude Code transcript records above all,
+    where fractional seconds and explicit offsets both occur. Rejecting those
+    would silently drop every usage record rather than fail loudly."""
+    if not isinstance(value, str) or not value.strip():
         return None
+    text = value.strip()
+    try:
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def slugify(text, max_len=40):
@@ -1024,6 +1040,32 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: The per-role models /acs:setup recommends. Single source: the setup prose and
+#: this repo's own .acs/settings.json are checked against it, so moving to a newer
+#: model generation is a change here, not a test edit.
+RECOMMENDED_MODELS = {
+    "planner":  {"model": "claude-opus-5",   "effort": "high"},
+    "executor": {"model": "claude-sonnet-5", "effort": "high"},
+    "verifier": {"model": "claude-opus-5",   "effort": "high"},
+}
+
+#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
+MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
+#: The three reflection roles a model/effort pair can be configured for.
+MODEL_ROLES = ("planner", "executor", "verifier")
+
+
+def _model_override_skills():
+    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
+
+    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
+    subagents of its own and every hooked skill can."""
+    return frozenset(HOOKED_SKILLS)
+
+
+MODEL_OVERRIDE_SKILLS = _model_override_skills()
+
+
 def validate_models(models):
     if not isinstance(models, dict):
         raise GateError("models must be an object.")
@@ -1037,16 +1079,29 @@ def validate_models(models):
             extra = set(value) - {"model", "effort"}
             if extra:
                 raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
+            effort = value.get("effort")
+            if effort is not None and effort not in MODEL_EFFORTS:
+                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
+                                % (path, effort, ", ".join(MODEL_EFFORTS)))
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier"):
+    for role in MODEL_ROLES:
         if role in models:
             check_role(role, models[role])
-    for skill, roles in models.get("overrides", {}).items():
+    overrides = models.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise GateError("models.overrides must be an object of skill -> role -> model.")
+    for skill, roles in overrides.items():
+        if skill not in MODEL_OVERRIDE_SKILLS:
+            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
+                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
         if not isinstance(roles, dict):
             raise GateError("models.overrides.%s must be an object of role -> model." % skill)
         for role, value in roles.items():
+            if role not in MODEL_ROLES:
+                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
+                                % (skill, role, ", ".join(MODEL_ROLES)))
             check_role("overrides.%s.%s" % (skill, role), value)
 
 
@@ -1703,7 +1758,14 @@ def load_pipeline(tdir, ticket_id, flow="ticket"):
     return data
 
 
-def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None):
+def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None,
+                    extra=None):
+    """Record a pipeline step transition.
+
+    `extra` merges caller-supplied fields into the step dict (e.g. /ship's
+    `fix_loops` counter on the `test` step). Keys the step owns -- status,
+    started_at, ended_at, summary -- are never overridden from `extra`; a
+    None value deletes the key so a counter can be reset rather than frozen."""
     data = load_pipeline(tdir, ticket_id, flow or ("product" if skill in PRODUCT_SKILLS else "ticket"))
     if flow:
         data["flow"] = flow
@@ -1715,6 +1777,15 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
     step["status"] = status
     if summary is not None:
         step["summary"] = summary
+    if extra:
+        reserved = {"status", "started_at", "ended_at", "summary"}
+        for key, value in extra.items():
+            if key in reserved:
+                continue
+            if value is None:
+                step.pop(key, None)
+            else:
+                step[key] = value
     if lane is not None:
         data["lane"] = lane
     data["totals"] = compute_ticket_totals(tdir)
@@ -2264,7 +2335,8 @@ def gate_docs_sync(ctx, payload):
     if test_step is not None and test_step.get("status") != "completed":
         raise GateError(
             "/test is recorded as %r for %s (the post-code test gate was active but has not "
-            "completed) — run /acs:test --for-ticket %s first." % (
+            "completed) — run /acs:test --for-ticket %s and get it green; the run records "
+            "the step itself." % (
                 test_step.get("status"), ticket_id, ticket_id)
         )
     return ticket_id
@@ -2489,6 +2561,15 @@ def run_pre(skill):
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         payload = {}
+    sys.exit(run_pre_payload(skill, payload))
+
+
+def run_pre_payload(skill, payload):
+    """Gate one skill from an already-parsed hook payload; return the exit code.
+
+    Separate from run_pre so the dispatcher can gate in-process rather than
+    spawning a forwarder: a subprocess that hangs or dies takes its exit code
+    with it, and anything other than 2 lets the skill run."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
@@ -2502,11 +2583,14 @@ def run_pre(skill):
         GATES[skill](ctx, payload)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
-        sys.exit(2)
+        return 2
+    except TimeoutError as exc:  # a gate that never returns must not let the skill run
+        sys.stderr.write("acs pre-%s: blocked — gate timed out: %s\n" % (skill, exc))
+        return 2
     except Exception as exc:  # fail closed: a gating system must not fail open
         sys.stderr.write("acs pre-%s: blocked — unexpected error in gate: %r\n" % (skill, exc))
-        sys.exit(2)
-    sys.exit(0)
+        return 2
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -2541,7 +2625,18 @@ def _read_result_from_argv():
         result["status"] = args.status
     if args.stop_reason:
         result["stop_reason"] = args.stop_reason
-    result.setdefault("status", "completed")
+    if not result:
+        # Defaulting an absent result to "completed" would finalize the run and
+        # open the next gate on nothing at all. The status must be stated.
+        sys.stderr.write(
+            "acs: no result document — pass --result-file <path>, JSON on stdin, "
+            "or --status explicitly\n")
+        sys.exit(1)
+    if not result.get("status"):
+        sys.stderr.write(
+            "acs: result document has no 'status' — one of %s is required\n"
+            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+        sys.exit(1)
     return result, args.ticket
 
 

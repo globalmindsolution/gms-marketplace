@@ -152,11 +152,15 @@ code change — it already writes an arbitrary-shape step dict):
    reached; STOP, mirroring the existing failed-handling shape (see
    "Handling the handoff").
 
-**Orchestration, not step-work.** `/acs:test` has and keeps no post-hook
-of its own (it is not in `WORKFLOW_SKILLS`), so this ledger bookkeeping —
-reading/writing the `steps.test` entry via `acs_lib`'s existing generic
-functions — is `/acs:ship`'s own responsibility to fill a gap only it can
-fill. This is orchestration bookkeeping, consistent with "You orchestrate;
+**Orchestration, not step-work.** `/acs:test` has no post-hook of its own
+(it is not in `WORKFLOW_SKILLS`), so the `fix_loops` counter and its cap are
+`/acs:ship`'s to keep. Write the step entry with the
+`pipeline-step.py` CLI rather than embedded Python — e.g.
+`pipeline-step.py --ticket <id> --skill test --status in_progress --set fix_loops=<n>`
+to bump the counter, `--status completed --unset fix_loops` on a pass, and
+`--status failed --summary "fix_loops cap reached"` at the cap. `/acs:test`
+records the outcome of its own run through the same CLI; the counter stays
+here. This is orchestration bookkeeping, consistent with "You orchestrate;
 you never implement" above — the step's actual work (suite execution,
 verdict computation) remains entirely inside `/acs:test`'s own Steps 1-3,
 invoked the same way any other step skill is invoked. Note also that
