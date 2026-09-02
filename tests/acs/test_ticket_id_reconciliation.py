@@ -6,6 +6,8 @@ counters schema's additive shape.
 Originating ticket: MAR-402 (Seam B of the split of epic MAR-401, C-12).
 """
 
+import contextlib
+import io
 import json
 import os
 import re
@@ -361,6 +363,18 @@ class TestSeedNext(unittest.TestCase):
         counters = lib.read_json(self.counters_path)
         self.assertEqual(counters["seed_source"], "explicit-user")
         self.assertNotIn("observed_max", counters)
+
+    def test_seed_next_lowering_an_existing_next_warns_on_stderr(self):
+        os.makedirs(lib.repo_dir(self.workspace, "acme-shop"), exist_ok=True)
+        lib.write_json(self.counters_path, {"next": 10})
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP", seed_next=3)
+        self.assertEqual(result, "SHOP-3")
+        self.assertIn("--seed-next", stderr.getvalue())
+        self.assertIn("10", stderr.getvalue())
+        counters = lib.read_json(self.counters_path)
+        self.assertEqual(counters["next"], 4)
 
 
 class TestCountersSchema(unittest.TestCase):
