@@ -772,10 +772,26 @@ def now_iso():
 
 
 def parse_iso(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except (TypeError, ValueError):
+    """Parse an ISO-8601 instant, tolerantly, as UTC.
+
+    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
+    timestamps produced elsewhere -- Claude Code transcript records above all,
+    where fractional seconds and explicit offsets both occur. Rejecting those
+    would silently drop every usage record rather than fail loudly."""
+    if not isinstance(value, str) or not value.strip():
         return None
+    text = value.strip()
+    try:
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def slugify(text, max_len=40):
