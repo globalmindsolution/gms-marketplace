@@ -15,7 +15,8 @@ bypass it.
   pipeline-produced PR passes by construction; a hand-made PR bypasses the
   rendering and fails the gate.
 - **Ship a brand-new change through `/acs:ship`.** It runs the full pipeline
-  (create-ticket → create-spec → code → create-pr) and ends by opening the PR.
+  (create-ticket → create-design when needed → code → docs-sync → create-pr)
+  and ends by opening the PR.
 - **Ticketed work uses the `MAR-N` prefix.** Reference the ticket id
   in branch names and commits so the gate and tracker can trace the change.
 - **For a legitimate one-off NON-ticket PR** (a hotfix, a chore, a doc tweak
