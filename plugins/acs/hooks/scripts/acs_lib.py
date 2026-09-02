@@ -2743,7 +2743,18 @@ def _read_result_from_argv():
         result["status"] = args.status
     if args.stop_reason:
         result["stop_reason"] = args.stop_reason
-    result.setdefault("status", "completed")
+    if not result:
+        # Defaulting an absent result to "completed" would finalize the run and
+        # open the next gate on nothing at all. The status must be stated.
+        sys.stderr.write(
+            "acs: no result document — pass --result-file <path>, JSON on stdin, "
+            "or --status explicitly\n")
+        sys.exit(1)
+    if not result.get("status"):
+        sys.stderr.write(
+            "acs: result document has no 'status' — one of %s is required\n"
+            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+        sys.exit(1)
     return result, args.ticket
 
 
