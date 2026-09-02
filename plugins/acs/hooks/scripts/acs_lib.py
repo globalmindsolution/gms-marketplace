@@ -1102,6 +1102,15 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: The per-role models /acs:setup recommends. Single source: the setup prose and
+#: this repo's own .acs/settings.json are checked against it, so moving to a newer
+#: model generation is a change here, not a test edit.
+RECOMMENDED_MODELS = {
+    "planner":  {"model": "claude-opus-5",   "effort": "high"},
+    "executor": {"model": "claude-sonnet-5", "effort": "high"},
+    "verifier": {"model": "claude-opus-5",   "effort": "high"},
+}
+
 #: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
 MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
 #: The three reflection roles a model/effort pair can be configured for.

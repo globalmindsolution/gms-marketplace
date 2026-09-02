@@ -42,6 +42,7 @@ Run:  python3 -m unittest tests.acs.test_setup_offers -v
 import json
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,9 +51,14 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 ROLES = ("planner", "executor", "verifier")
-# Version-pinned ids the offer must name (aligned with .acs/settings.json:18-23
-# and tests/acs/test_settings_models_pinned.py).
-PINNED_IDS = ("claude-opus-5", "claude-sonnet-5")
+# The ids the offer must name, read from the single source in acs_lib rather than
+# duplicated here: moving to a newer model generation is a change to
+# RECOMMENDED_MODELS plus the setup prose, never a test edit.
+SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
+sys.path.insert(0, SCRIPTS)
+import acs_lib as lib  # noqa: E402
+
+PINNED_IDS = tuple(sorted({entry["model"] for entry in lib.RECOMMENDED_MODELS.values()}))
 
 
 def read(path):
