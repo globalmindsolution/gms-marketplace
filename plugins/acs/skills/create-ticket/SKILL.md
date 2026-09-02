@@ -34,6 +34,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
   executor rewrites `ticket.json` with the real content later. Sequence gaps from
   abandoned runs are fine — never reuse or hand-pick ids.
 - If skill-start exits non-zero: STOP and surface its stderr verbatim to the user.
+  One specific case of this rule: on a fresh/unreconciled workspace partition,
+  `--allocate` refuses with exit 2 and a local-evidence reconciliation proposal
+  (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting an id.
+  Relay that stderr verbatim, obtain the confirmed start number from the user
+  — never invent it — and re-run `skill-start.py` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
