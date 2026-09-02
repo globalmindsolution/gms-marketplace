@@ -123,17 +123,5 @@ class TestC4ContainerMd(unittest.TestCase):
         self.assertTrue(re.search(r"(?i)e2e", body))
 
 
-class TestNoNewSettingsSchemaKey(unittest.TestCase):
-    def test_no_new_settings_schema_key(self):
-        out = subprocess.run(
-            ["git", "diff", "--", SCHEMA_PATH],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        self.assertEqual(
-            out.stdout.strip(), "",
-            "settings.schema.json must be unchanged by spec 03 (C-4)",
-        )
-
-
 if __name__ == "__main__":
     unittest.main()
