@@ -78,8 +78,8 @@ per-skill charters; scale the topology by lane instead of applying the triad
 everywhere; replace XML-in-chat with JSON-on-disk captured by a `SubagentStop`
 hook (the input `<task>` envelope keeps its XML tags; it is the return ritual
 that goes); and make `Stop` enforce the post-hook so the pipeline stops
-depending on coordinator goodwill. The execution plan is in
-[REARCHITECTURE-CLAUDE5-PLAN.md](REARCHITECTURE-CLAUDE5-PLAN.md).
+depending on coordinator goodwill. The work is tracked as acs tickets
+(epics E0-E8 with their children); this document is their rationale.
 
 ## 1. Method and scope
 
