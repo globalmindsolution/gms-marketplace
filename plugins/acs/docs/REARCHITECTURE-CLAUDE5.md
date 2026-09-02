@@ -76,8 +76,10 @@ workspace state, clarify ledger, convention CI) and the verifier-independence
 principle; collapse the prompt layer to a shared coordinator protocol plus
 per-skill charters; scale the topology by lane instead of applying the triad
 everywhere; replace XML-in-chat with JSON-on-disk captured by a `SubagentStop`
-hook; and make `Stop` enforce the post-hook so the pipeline stops depending on
-coordinator goodwill.
+hook (the input `<task>` envelope keeps its XML tags; it is the return ritual
+that goes); and make `Stop` enforce the post-hook so the pipeline stops
+depending on coordinator goodwill. The execution plan is in
+[REARCHITECTURE-CLAUDE5-PLAN.md](REARCHITECTURE-CLAUDE5-PLAN.md).
 
 ## 1. Method and scope
 
@@ -580,7 +582,16 @@ full-depth reviews.
 
 ### 5.7 Messages
 
-Replace XML-in-chat with JSON-on-disk: each phase writes
+The cost is the ritual and the return channel, not the tag syntax. Three
+separable pieces: (1) the `<task>` input envelope — keep it, XML tags are
+the recommended way to delimit prompt sections, and render it from a script
+so attributes come from context; (2) the model-side validation ritual and
+the four enum mirrors — remove unconditionally, validation moves to a
+`SubagentStop` hook; (3) the `<result>` return format — default to a JSON
+pointer, but keeping the XML element as the return *format* is acceptable if
+a structured verdict in the transcript is valued, provided (2) still goes.
+
+Default shape: each phase writes
 `iter-<n>-<phase>.json` (one JSON schema, stamped with skill/phase/ticket/
 iteration by the `SubagentStop` hook from context, not by the model) and
 returns a one-line pointer. Delete `validate_xml.py`, the XSD, the three enum
