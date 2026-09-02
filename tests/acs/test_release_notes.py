@@ -1,4 +1,5 @@
-"""Tests for plugins/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment).
+"""Tests for plugins/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment;
+MAR-306 adds the git-history fallback for tickets merged without an archive entry).
 
 Pure stdlib (unittest, tempfile, json, os, subprocess, contextlib, unittest.mock). Drives the
 status/draft/bump subcommands both as pure functions and through the CLI (main()), always via a
@@ -879,6 +880,155 @@ class DraftAuthorityTest(unittest.TestCase):
 
             self.assertIn("MAR-1", result["unreleased_missing"])
             self.assertIn("MAR-12", result["unreleased_covered"])
+
+
+# ---------------------------------------------------------------------------
+# AC-2/AC-3/AC-4/AC-5 — git-history fallback for tickets merged without an
+# archive entry (MAR-306)
+# ---------------------------------------------------------------------------
+
+class MergedWithoutArchiveEntryTest(unittest.TestCase):
+    def test_ticket_with_no_archive_entry_is_enumerated_from_branch_history(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[MAR-9] Add a widget (#42)")
+            workspace = os.path.join(tmp, "ws")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            self.assertEqual(result["coverage"]["merged"], 1)
+            by_id = {t["id"]: t for t in result["tickets"]}
+            self.assertIn("MAR-9", by_id)
+            self.assertEqual(by_id["MAR-9"]["source"], "git-log")
+            self.assertEqual(by_id["MAR-9"]["title"], "Add a widget")
+
+    def test_bare_ticket_id_subject_form_is_enumerated(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "MAR-307 Fix docs sync (#397)")
+            workspace = os.path.join(tmp, "ws")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            by_id = {t["id"]: t for t in result["tickets"]}
+            self.assertIn("MAR-307", by_id)
+            self.assertEqual(by_id["MAR-307"]["title"], "Fix docs sync")
+            self.assertEqual(by_id["MAR-307"]["source"], "git-log")
+
+    def test_pr_number_resolves_for_a_history_only_ticket(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[MAR-9] Add a widget (#42)")
+            workspace = os.path.join(tmp, "ws")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            by_id = {t["id"]: t for t in result["tickets"]}
+            self.assertEqual(by_id["MAR-9"]["pr_number"], 42)
+
+    def test_archive_entry_takes_precedence_over_a_matching_commit_subject(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[MAR-1] Some other title (#7)")
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Archive title")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            matches = [t for t in result["tickets"] if t["id"] == "MAR-1"]
+            self.assertEqual(len(matches), 1)
+            self.assertEqual(matches[0]["title"], "Archive title")
+            self.assertEqual(matches[0]["source"], "archive")
+
+    def test_archive_only_enumeration_is_byte_identical_when_history_has_no_ticket_refs(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            archive_only = release_notes.enumerate_merged_tickets(workspace, None)
+            with_fallback = release_notes.enumerate_merged_tickets(
+                workspace, None, repo_root=root, base_branch="main")
+
+            self.assertEqual(archive_only, with_fallback)
+            self.assertEqual(archive_only[0]["source"], "archive")
+
+    def test_subjects_without_a_ticket_ref_are_ignored(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[#399] Fix panel-6 cost share (#413)")
+            commit_with_message(root, "Merge pull request #5 from branch")
+            workspace = os.path.join(tmp, "ws")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            self.assertEqual(result["coverage"]["merged"], 0)
+
+    def test_since_tag_boundary_excludes_pre_tag_commits(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[MAR-1] Before tag (#1)")
+            tag_repo(root, "0.4.1")
+            commit_with_message(root, "[MAR-2] After tag (#2)")
+            workspace = os.path.join(tmp, "ws")
+
+            result = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+
+            ids = {t["id"] for t in result["tickets"]}
+            self.assertNotIn("MAR-1", ids)
+            self.assertIn("MAR-2", ids)
+
+    def test_explicit_ticket_prefix_rejects_a_foreign_prefix_id(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "OTHER-3 Some unrelated change (#8)")
+            workspace = os.path.join(tmp, "ws")
+
+            with_prefix = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19",
+                ticket_prefix="MAR")
+            self.assertEqual(with_prefix["coverage"]["merged"], 0)
+
+            without_prefix = release_notes.build_draft(
+                "0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+            ids = {t["id"] for t in without_prefix["tickets"]}
+            self.assertIn("OTHER-3", ids)
+
+    def test_enumeration_returns_empty_when_the_repo_has_no_git_history(self):
+        with TemporaryDirectory() as tmp:
+            no_git_root = os.path.join(tmp, "not-a-repo")
+            os.makedirs(no_git_root)
+
+            result = release_notes.enumerate_git_log_tickets(no_git_root, "main", None)
+            self.assertEqual(result, [])
+
+            merged = release_notes.enumerate_merged_tickets(
+                os.path.join(tmp, "ws"), None, repo_root=no_git_root, base_branch="main")
+            self.assertEqual(merged, [])
+
+    def test_draft_cli_accepts_ticket_prefix_flag(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            commit_with_message(root, "[MAR-9] Add a widget (#42)")
+            workspace = os.path.join(tmp, "ws")
+
+            code, out, err = run_cli([
+                "draft", "--version", "0.4.2", "--repo-root", root, "--workspace", workspace,
+                "--ticket-prefix", "MAR",
+            ] + rc_args())
+
+            self.assertEqual(code, 0)
+            self.assertEqual(err, "")
+            data = json.loads(out)
+            by_id = {t["id"]: t for t in data["tickets"]}
+            self.assertIn("MAR-9", by_id)
+            self.assertEqual(by_id["MAR-9"]["source"], "git-log")
 
 
 # ---------------------------------------------------------------------------

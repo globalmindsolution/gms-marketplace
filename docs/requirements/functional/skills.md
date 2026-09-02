@@ -266,10 +266,11 @@ closing the loop on failures with a regression ticket.
 ## /acs:release (utility)
 
 Purpose: the one-command **release-cut** utility — assembles/verifies the
-CHANGELOG section for a release version from the merged-ticket archive,
-bumps the version-location files plus any extra refs configured in the
-repo's `.acs/settings.json` `release` block, dates the section, and opens an
-exempt `release/*` PR for a mandatory human merge.
+CHANGELOG section for a release version from the merged-ticket archive, and,
+for tickets merged without an archive entry, from `base_branch` commit
+history, bumps the version-location files plus any extra refs configured in
+the repo's `.acs/settings.json` `release` block, dates the section, and opens
+an exempt `release/*` PR for a mandatory human merge.
 
 - **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
   `/acs:release` has no planner/executor/verifier triad, no `release-state.json`
@@ -280,12 +281,22 @@ exempt `release/*` PR for a mandatory human merge.
 - **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
   durable record of a release cut is the release PR itself; `workspace` is
   read-only input (to enumerate the merged-ticket archive), never a write
-  target.
+  target. The git-history fallback source is the repo checkout, not the
+  workspace — this is user-observable: the count is non-zero even with no
+  `archive/` present whenever `base_branch` history carries leading
+  ticket-ref commit subjects (a tracker-ref-only history, e.g. `[#399] …`,
+  still yields zero — the fallback recovers only subjects whose leading
+  token is a ticket ref).
 - **Never publishes itself** — it never runs `git tag` or `gh release create`;
   the privileged tag/publish step stays in the block's `publish_driver`.
 - **Scope**: cutting a new version of a repo already configured for release
   cuts — not for opening a ticket's own PR (`/acs:create-pr`) or
   landing/merging a PR (`/acs:merge-pr`).
+- **Enumeration provenance and prefix anchoring**: each ticket the coverage
+  report and draft enumerate is stamped `source: archive|git-log`, and
+  `/acs:release` passes `--ticket-prefix <settings.ticket_prefix>` to both
+  `draft` and `bump` to anchor the git-history fallback to this repo's own
+  ticket ids.
 
 ## /acs:create-docs (utility)
 
