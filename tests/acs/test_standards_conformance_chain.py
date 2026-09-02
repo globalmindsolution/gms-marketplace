@@ -78,9 +78,14 @@ BASELINE_FLOWS = {
 # A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
 # doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
 # for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
+# MAR-402 (inheriting design.md from parent epic MAR-401, Option J/D5) legitimately
+# added ticket-id-reconciliation.md — the fail-closed first-allocate reconciliation
+# gate's own sequence (refusal, evidence scan, confirm, steady state) is a distinct
+# runtime flow that no existing flow doc covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
-                          "setup-state-root-setup.md", "doc-bootstrap-fanout.md"}
+                          "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
+                          "ticket-id-reconciliation.md"}
 
 
 def read(path):
