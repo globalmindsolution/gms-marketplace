@@ -167,12 +167,13 @@ and Codex CLI. `statusline.py` is the one partial exception (§2 above): its ren
 is agnostic, but its cost-sampling half consumes a Claude-Code-shaped stdin payload and
 belongs with the coupled cost/token-sourcing surface.
 
-**The adapter:** `codex_adapter.py` (delivered by Spec 02, MAR-4) is the thin stdlib glue
-that sits at this seam. It reads `--runtime {claude-code,codex}` and routes to the appropriate
-mechanism on each coupled surface. The agnostic stdlib side requires NO adapter — it is invoked
-identically on both runtimes. The `codex_adapter.py` module uses only `argparse`/`sys` at
-module level; it does NOT import `acs_lib` at load time (ADR-0001 invariant: no side effects
-from the deterministic layer at adapter import).
+**The adapter:** none ships. `codex_adapter.py` (MAR-4) was the thin stdlib glue intended
+for this seam — `--runtime {claude-code,codex}` routing to the mechanism each coupled surface
+needs. Its consumer never arrived: the MAR-5 wiring PR was rejected because Codex CLI has no
+`Skill` hook matcher and no `SessionEnd` event (see the correction in §4), so the adapter
+stayed an argparse stub with no caller for six releases and was deleted in MAR-518. The
+analysis above stands and is what a future adapter would be built from; the seam is
+documented here rather than half-implemented in code.
 
 ---
 
