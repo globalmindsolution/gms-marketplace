@@ -479,9 +479,7 @@ MANDATORY final step — never skipped, also on failure:
        }
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 52000, "output": 9000},
-     "cost_usd": 0.34
+     "errors": []
    }
    ```
 
@@ -527,7 +525,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
 ```
 </content>

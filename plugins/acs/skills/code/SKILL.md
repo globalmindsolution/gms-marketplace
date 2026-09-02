@@ -837,9 +837,7 @@ MANDATORY final step — never skipped, also on failure:
        "review": {"iterations": 2, "findings_open": 0}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 410000, "output": 96000},
-     "cost_usd": 3.20
+     "errors": []
    }
    ```
 
@@ -907,7 +905,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: branch; specs implemented; tests passed/failed; coverage achieved vs target; docs updated; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-pr <ticket-id>` on success; on a coverage hard-fail or iteration cap, re-run `/acs:code <ticket-id>` after addressing the recorded findings
 ```
 

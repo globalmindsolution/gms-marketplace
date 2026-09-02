@@ -163,7 +163,13 @@ pipeline end.
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+
+`<cap>` is the lane's iteration cap (`VERIFY_ITERATION_CAP`: 1 on
+light, 3 on full), not a constant 3. Skills that run no reflection loop —
+the inline apply-work skills `create-ticket`, `create-pr` and `merge-pr` —
+omit the `iterations` element entirely rather than reporting a fraction of
+a loop they never ran.
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 

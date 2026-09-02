@@ -51,7 +51,7 @@ print(json.dumps({
     "workspace": workspace,
     "repo_id": lib.repo_partition_id(cwd),
     "ticket_prefix": settings["ticket_prefix"],
-    "settings_sources": sources,
+    "settings_sources": sources
 }, indent=2))
 PY
 ```
@@ -423,6 +423,6 @@ succeeded. Same labels, same order, `none` where empty:
 - **Results**: per-step status table from `pipeline-state.json` (one line per step); PR reference for each ticket that reached create-pr
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: review each PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<step> <ticket-id>`)
 ```

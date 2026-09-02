@@ -207,6 +207,6 @@ succeeded. Same labels, same order, `none` where empty:
 - **Results**: what was flushed to the partition (soft context, decisions, partial findings); run entry finalized `handed_off`; lock released
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: the exact `continue_with` command printed by `handoff.py`, e.g. `/acs:code SHOP-123` in a fresh session
 ```
