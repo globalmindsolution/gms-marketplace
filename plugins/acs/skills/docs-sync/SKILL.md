@@ -216,9 +216,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
        "review": {"iterations": 1, "findings_open": 0}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 60000, "output": 12000},
-     "cost_usd": 0.35
+     "errors": []
    }
    ```
 
@@ -264,6 +262,6 @@ invocations:
 - **Results**: doc files committed; commits made; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-pr <ticket-id>`
 ```

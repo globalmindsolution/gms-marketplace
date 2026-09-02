@@ -325,9 +325,7 @@ MANDATORY final step — never skipped, also on failure:
     "pr": {"number": 9, "url": "https://github.com/owner/repo/pull/9", "branch": "task/SHOP-2-product-operations-doc-set"}
   },
   "findings": [],
-  "errors": [],
-  "tokens": {"input": 0, "output": 0},
-  "cost_usd": 0.0
+  "errors": []
 }
 ```
 
@@ -363,6 +361,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: operations/ files written at `operations_path`; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR
 ```
