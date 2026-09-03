@@ -56,6 +56,13 @@ architecture doc set, each delivered as a reviewable docs PR:
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
                            # → delivery ticket SHOP-1, docs PR
+                           # if this is the first allocation for this
+                           #   workspace partition since /acs:setup, it
+                           #   refuses with exit 2 and proposes a start
+                           #   number from local evidence — confirm or
+                           #   correct it with --seed-next <n> (see
+                           #   Troubleshooting below), then re-run; every
+                           #   later allocation is normal
 /acs:merge-pr SHOP-1       # after you review the PR yourself
 
 /acs:create-architecture   # reverse-engineers HLD (C4 1–3, data model,
@@ -210,6 +217,15 @@ runs resolve the new in-repo default instead of the old override.
   `/acs:create-pr SHOP-123` — `create-pr`'s gate additionally requires
   `/acs:docs-sync` to have completed). A "run /setup first" message means no
   `settings.json` could be resolved: run `/acs:setup`.
+- **"blocked — … has never allocated a ticket id" (first ticket in a new
+  repo or a fresh clone).** The first allocation for a `(repo_id, prefix)`
+  partition refuses with exit 2 instead of restarting the sequence at 1. The
+  message proposes a start number from local evidence (a *floor*, not the
+  truth — your tracker may hold higher ids) — confirm or correct it by
+  re-running the same command with `--seed-next <n>` added (e.g.
+  `/acs:create-ticket`'s Start, or `new-ticket.py --seed-next <n>`
+  directly). An already-populated workspace (every existing repo) is
+  already treated as reconciled and never sees this.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
   worktree), finish or hand off there. If it crashed, ending that session

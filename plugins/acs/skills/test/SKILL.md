@@ -250,7 +250,14 @@ apply this **three-way policy** exactly:
    link to the results artifact
    (`<workspace>/<repo>/test-runs/<run-id>/results.json`). Record the
    printed `{"ticket_id", "partition"}` and mark this regression's action as
-   `"minted"`.
+   `"minted"`. If `new-ticket.py` exits non-zero, STOP and surface its stderr
+   verbatim — never invent a `ticket_id` for the `regressions[]` entry. In
+   particular, on a workspace partition that has never allocated an id it
+   refuses with exit 2 and a local-evidence reconciliation proposal
+   (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting the
+   regression ticket: relay that stderr, obtain the confirmed start number
+   from the user, and re-run `new-ticket.py` with `--seed-next <n>` added
+   (only `new-ticket.py` mints ids — never hand-pick one).
 
 2. **Found, ticket status is `open`, `in_progress`, or `in_review` →
    comment-bump the existing ticket — never mint a duplicate, never silently skip.**
@@ -262,7 +269,8 @@ apply this **three-way policy** exactly:
 
 3. **Found, ticket status is `done` → the regression recurred after being
    marked fixed: mint a NEW ticket linked to the old one — never silently reopen
-   the closed ticket.** Call `new-ticket.py` exactly as in case 1, but
+   the closed ticket.** Call `new-ticket.py` exactly as in case 1, including
+   its non-zero-exit / reconciliation-refusal handling above, but
    the `--description` additionally states explicitly that this is a
    recurrence and names the old (closed) ticket id it links back to. Mark
    this regression's action as `"minted_linked"` with `linked_ticket_id` set

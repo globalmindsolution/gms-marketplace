@@ -213,6 +213,25 @@ Every other failure — a leg-specific hook block, a lock held by another
 session, or a verifier cap reached at iteration 3 — falls straight through
 to ordinary per-leg isolation, never this carve-out.
 
+If a leg's own Start (`skill-start.py --skill <skill> --allocate`) exits
+non-zero for any other reason, STOP and surface its stderr verbatim to the
+user — never improvise a substitute; this is ordinary per-leg isolation, not
+a variant of the carve-out above. One specific case: on a fresh/unreconciled
+workspace partition, `--allocate` refuses with exit 2 and a ranked
+local-evidence reconciliation proposal (`allocate_ticket_id`'s fail-closed
+gate, MAR-402) instead of minting that leg's delivery ticket id. Relay that
+stderr verbatim, obtain the confirmed start number from the user — never
+invent it — and re-run that leg's Start with `--seed-next <n>` added.
+Because both legs allocate from the same `(repo_id, prefix)` partition, leg
+B's Start would hit the identical refusal — but Starts run sequentially
+(`:175-178`, `:198-201`), and you stopped at leg A's refusal, so leg B's
+Start has not run yet. Once leg A's `--seed-next <n>` succeeds, it
+reconciles the partition, so leg B's Start then proceeds normally on its own
+first invocation — there is nothing to retry, since it never ran. See
+ADR-0087 for the reconciliation gate itself; its "simultaneously" framing
+describes a fan-out that starts several `--allocate` legs at once, which
+this skill does not do.
+
 ## Reflection loop — parallel phase batches, one coordinator
 
 Once both legs have minted their own delivery ticket via their own Start

@@ -90,7 +90,19 @@ Repo-level files (all maintained by hooks):
   parent/children, updated_at); lets skills and the user list work without
   scanning partitions.
 - **`counters.json`** — the ticket id sequence counter
-  (`<ticket_prefix>-<n>`).
+  (`<ticket_prefix>-<n>`). First allocation for a given `(repo_id, prefix)`
+  partition is fail-closed (MAR-402): absent both `next` and
+  `reconciled: true`, `allocate_ticket_id` refuses with exit 2 and a ranked,
+  bounded, network-free local-evidence proposal rather than silently
+  restarting the sequence at 1; a human confirms (or repairs a wrong/stuck
+  reconciliation) via `--seed-next <n>` on either `new-ticket.py` or
+  `skill-start.py --allocate`. Confirmed reconciliation is recorded via three
+  additive optional fields: `reconciled` (boolean), `seed_source`
+  (`committed-files`\|`git-history`\|`branch-names`\|`explicit-user`), and
+  `seeded_at` (ISO-8601 UTC). The evidence scan's `observed_max` is surfaced
+  only in the refusal message, for a human to read — it is never persisted.
+  An already-populated `next` is treated as already reconciled — no prompt,
+  no regression for existing repos.
 - **`sessions/<checkout-id>.json`** — the per-checkout *current ticket*
   pointer written by the coordinator at skill start; `<checkout-id>` is
   derived from the absolute path of the repo checkout/worktree, so multiple

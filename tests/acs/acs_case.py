@@ -41,6 +41,31 @@ class AcsWorkspaceCase(unittest.TestCase):
         self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
         with open(os.path.join(self.repo, ".acs", "settings.local.json"), "w") as fh:
             json.dump({"workspace_path": self.ws}, fh)
+        self.seed_counters(next_n=1)
+
+    def _counters_path(self, repo_id="acme-shop"):
+        return os.path.join(lib.repo_dir(self.ws, repo_id), "counters.json")
+
+    def seed_counters(self, next_n=1, repo_id="acme-shop"):
+        """Seed a reconciled counters.json (MAR-402's fixture seam) so a fresh
+        fixture workspace models the design's "existing repo" population
+        instead of the unreconciled partition the reconciliation gate refuses."""
+        path = self._counters_path(repo_id)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "next": next_n,
+                "reconciled": True,
+                "seed_source": "explicit-user",
+                "seeded_at": lib.now_iso(),
+            }, fh)
+
+    def unreconcile(self, repo_id="acme-shop"):
+        """Delete the seeded counters.json, restoring the unreconciled partition
+        state a test needs to exercise the reconciliation refusal."""
+        path = self._counters_path(repo_id)
+        if os.path.exists(path):
+            os.unlink(path)
 
     def write_settings(self, data):
         with open(os.path.join(self.repo, ".acs", "settings.json"), "w") as fh:

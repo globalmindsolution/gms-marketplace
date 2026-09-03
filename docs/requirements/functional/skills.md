@@ -916,7 +916,12 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   schema validation and the user-confirmation gate (size/stakes/lane),
   not an in-skill verifier.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
-  per-repo counter lives in `<workspace>/<repo>/counters.json`.
+  per-repo counter lives in `<workspace>/<repo>/counters.json`. The
+  **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
+  it refuses with exit 2 and a confirmable local-evidence proposal rather
+  than restarting the sequence at 1, and a human confirms with
+  `--seed-next <n>`; an already-populated counter is treated as already
+  reconciled. See `workspace-and-state.md` for the recorded fields.
 - MAY **import an existing remote ticket**: `/create-ticket <remote-key>`
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs

@@ -46,6 +46,12 @@ def _mint_archived(ws, tid, ttype="task", status="done"):
     return tdir
 
 
+def _partition_entries(ws):
+    """Snapshot of this repo's workspace partition dir -- proves "nothing minted"."""
+    rdir = acs_case.lib.repo_dir(ws, REPO_ID)
+    return set(os.listdir(rdir)) if os.path.isdir(rdir) else set()
+
+
 def _foreign_lock(tdir):
     """Write a live (this pid), non-stale lock held by a different checkout."""
     acs_case.lib.write_json(acs_case.lib.lock_path(tdir), {
@@ -137,6 +143,106 @@ class TestTicketResolutionRefusals(acs_case.AcsWorkspaceCase):
         self.assertIn("locked by another session", err)
         lock = acs_case.lib.read_lock(tdir)
         self.assertEqual(lock["checkout_id"], "elsewhere-checkout")
+
+
+class TestReconciliationRefusal(acs_case.AcsWorkspaceCase):
+    """AC-1, AC-6 (CLI half): allocate_ticket_id's fail-closed reconciliation
+    gate surfaces as an exit-2 refusal with actionable stderr on
+    --allocate, and mints nothing -- including on the product-level-skill
+    path (MAR-402)."""
+
+    def test_first_allocation_in_an_unreconciled_workspace_exits_2(self):
+        self.unreconcile()
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--title", "X"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(err.startswith("acs skill-start: "))
+        self.assertIn("blocked", err)
+        self.assertIn("SHOP", err)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+    def test_product_level_skill_allocate_also_refuses(self):
+        self.unreconcile()
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-prd", "--allocate"])
+        self.assertEqual(code, 2)
+        self.assertIn("blocked", err)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+
+class TestSeedNext(acs_case.AcsWorkspaceCase):
+    """AC-5: --seed-next <n> confirms/repairs the reconciliation floor on
+    skill-start.py --allocate, and is refused without --allocate (MAR-402)."""
+
+    def test_seed_next_confirms_the_floor_and_mints_that_id(self):
+        self.unreconcile()
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--seed-next", "5"])
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["ticket_id"], "SHOP-5")
+
+    def test_seed_next_records_explicit_user_provenance(self):
+        self.unreconcile()
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--seed-next", "5"])
+        self.assertEqual(code, 0, err)
+        counters = acs_case.lib.read_json(self._counters_path())
+        self.assertEqual(counters["seed_source"], "explicit-user")
+        self.assertTrue(counters["reconciled"])
+
+    def test_seed_next_repairs_a_wrong_existing_reconciliation(self):
+        self.seed_counters(next_n=100)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--seed-next", "3"])
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["ticket_id"], "SHOP-3")
+        self.assertIn("--seed-next", err)
+        self.assertIn("100", err)
+        self.assertTrue(os.path.exists(self._counters_path()))
+
+    def test_seed_next_below_one_exits_2(self):
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--seed-next", "0"])
+        self.assertEqual(code, 2)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+    def test_seed_next_non_integer_exits_2(self):
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "create-ticket", "--allocate", "--seed-next", "abc"])
+        self.assertEqual(code, 2)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+    def test_seed_next_without_allocate_exits_2(self):
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--skill", "code", "--seed-next", "5"])
+        self.assertEqual(code, 2)
+        self.assertIn("--seed-next", err)
+        self.assertIn("--allocate", err)
+        self.assertEqual(_partition_entries(self.ws), before)
 
 
 class TestEpicFlipOnFirstChildRun(acs_case.AcsWorkspaceCase):

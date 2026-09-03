@@ -1853,7 +1853,7 @@ class TestExemptPrMerge(AcsWorkspaceCase):
         if os.path.isdir(repo_root):
             for name in os.listdir(repo_root):
                 # only metrics.json may appear (post-merge-pr --pr bumps it)
-                self.assertIn(name, {"metrics.json"}, name)
+                self.assertIn(name, {"metrics.json", "counters.json"}, name)
 
     # ---- spec 03: post-merge-pr --pr metrics-only ----------------------
 

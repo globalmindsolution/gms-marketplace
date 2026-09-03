@@ -80,7 +80,9 @@ reach the repo root correctly.
 ### `Sandbox`
 
 `Sandbox` is a throwaway consumer repo + outside-the-repo workspace seeded with
-valid `.acs/settings.json`. Use it as a context manager:
+valid `.acs/settings.json` and a reconciled `counters.json` (MAR-402's fixture
+seam), so the first allocation in a fresh sandbox mints `<prefix>-1` instead of
+hitting MAR-402's reconciliation refusal. Use it as a context manager:
 
 ```python
 from harness import Sandbox, Check  # resolves via runner sys.path
@@ -181,7 +183,10 @@ temp checkout; verifies the post-clone marker file; captures the default
 branch and its baseline SHA; creates an ephemeral run branch
 (`acs-eval/<run_id>`) off the default branch (the default branch itself is
 never checked out for writes); wipes this target's workspace-partition
-state; and seeds `.acs/settings.json` with the throwaway prefix.
+state; seeds `.acs/settings.json` with the throwaway prefix; and seeds a
+reconciled `counters.json` into the run's workspace partition (MAR-402's
+fixture seam), so the first allocation mints `<prefix>-1` instead of hitting
+MAR-402's reconciliation refusal.
 
 The seeding `add`/`commit` calls are isolated from the operator's
 global/system git config, HOME/XDG-derived config paths, clone-time
