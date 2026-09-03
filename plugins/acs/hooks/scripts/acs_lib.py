@@ -2740,6 +2740,12 @@ def run_pre_payload(skill, payload):
     except Exception as exc:  # fail closed: a gating system must not fail open
         sys.stderr.write("acs pre-%s: blocked — unexpected error in gate: %r\n" % (skill, exc))
         return 2
+    except (SystemExit, KeyboardInterrupt) as exc:
+        # Neither is an Exception. A gate calling sys.exit(), or a SIGINT
+        # arriving mid-gate, would otherwise leave this frame with an exit code
+        # that is not 2 -- which Claude Code reads as "not blocked".
+        sys.stderr.write("acs pre-%s: blocked — gate exited early: %r\n" % (skill, exc))
+        return 2
     return 0
 
 
