@@ -14,11 +14,11 @@ distinct anchors.
 ## Runtime-coupled surfaces — "Verified entry points" column
 
 - Surface #1 — Hook gating — Verified entry points: `hooks.json:3-14`
-- Surface #1 — Hook gating — Verified entry points: `dispatch.py:25-38`
-- Surface #1 — Hook gating — Verified entry points: `dispatch.py:41-75`
+- Surface #1 — Hook gating — Verified entry points: `dispatch.py:27-40`
+- Surface #1 — Hook gating — Verified entry points: `dispatch.py:106-125`
 - Surface #1 — Hook gating — Verified entry points: `acs_lib.py:44`
 - Surface #2 — Session termination — Verified entry points: `hooks.json:16-26`
-- Surface #2 — Session termination — Verified entry points: `dispatch.py:49-54`
+- Surface #2 — Session termination — Verified entry points: `dispatch.py:114-119`
 - Surface #2 — Session termination — Verified entry points: `acs_lib.py:1621`
 - Surface #4 — Per-role model/effort — Verified entry points: `acs_lib.py:485-500`
 
@@ -26,9 +26,9 @@ distinct anchors.
 
 - Entry-point anchor verification record — PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30: `hooks.json:3-14`
 - Entry-point anchor verification record — SessionEnd hook, command `dispatch.py session-end`, timeout 30: `hooks.json:16-26`
-- Entry-point anchor verification record — `def skill_name_from_payload(payload)`: `dispatch.py:25-38`
-- Entry-point anchor verification record — `def main()` — routes by skill, exit 2 on missing/blocked: `dispatch.py:41-75`
-- Entry-point anchor verification record — session-end branch → `acs_lib.session_end`: `dispatch.py:49-54`
+- Entry-point anchor verification record — `def skill_name_from_payload(payload)`: `dispatch.py:27-40`
+- Entry-point anchor verification record — `def main()` — routes by skill, exit 2 on missing/blocked: `dispatch.py:106-125`
+- Entry-point anchor verification record — session-end branch → `acs_lib.session_end`: `dispatch.py:114-119`
 - Entry-point anchor verification record — `HOOKED_SKILLS` allowlist: `acs_lib.py:44`
 - Entry-point anchor verification record — `def resolve_role_model(settings, skill, role)`: `acs_lib.py:485-500`
 - Entry-point anchor verification record — `def session_end(payload)`: `acs_lib.py:1621`

@@ -159,8 +159,10 @@ completed" event exists):
 
 - **Pre-hooks** bind to the **`PreToolUse`** event matching the **`Skill`**
   tool: a dispatcher (`dispatch.py pre`) extracts the skill name from the
-  tool input and routes to the named `pre-<skill>.py` with the same stdin
-  payload; exit 2 blocks the skill before it runs. This fires for user-typed
+  tool input and runs that skill's gate **in its own process**, under a
+  bounded alarm; exit 2 blocks the skill before it runs. The gate MUST fail
+  closed — a gate that raises, overruns its bound, or exits early still ends
+  as exit 2, because any other exit code reads as "not blocked". This fires for user-typed
   slash commands and model-initiated Skill calls alike (including the step skills
   `/ship` invokes directly).
 - **Post-hooks** are invoked by the skill's **coordinator as its mandatory
