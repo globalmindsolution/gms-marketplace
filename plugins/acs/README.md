@@ -2,9 +2,9 @@
 
 `acs` is a Claude Code plugin that turns a raw request into merged code
 through a complete, agentic software-delivery workflow: product definition
-(PRD), architecture, ticketing, design (when the change warrants it),
-implementation specs, TDD implementation with an automatic review loop, pull
-request, and merge. Every workflow skill runs a plan → execute → verify
+(PRD), architecture, ticketing, design (when the change warrants it), TDD
+implementation with an automatic review loop, a conditional post-code test
+gate, doc sync, pull request, and merge. Every workflow skill runs a plan → execute → verify
 reflection cycle with dedicated subagents, pre/post hooks gate each step on
 the recorded state of its predecessor, and all durable state lives in a
 gitignored `.acs/state-machine` folder inside your repo by default (an
@@ -83,7 +83,8 @@ Then ship features:
 ```
 
 `/acs:ship` runs `/acs:create-ticket` → `/acs:create-design` (when the
-ticket needs design) → `/acs:code` → `/acs:docs-sync` → `/acs:create-pr`,
+ticket needs design) → `/acs:code` → `/acs:test` (when e2e is configured)
+→ `/acs:docs-sync` → `/acs:create-pr`,
 asking clarifying questions along the way — and always stops before merge.
 After reviewing each PR yourself:
 
@@ -103,7 +104,7 @@ name.
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
 | `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
-| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
+| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → test (conditional) → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the ticket partition, marks the run `handed_off`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |

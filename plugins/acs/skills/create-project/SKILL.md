@@ -365,9 +365,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
     "pr": {"number": 7, "url": "https://github.com/acme/shop/pull/7", "branch": "task/SHOP-3-project-scaffold"}
   },
   "findings": [],
-  "errors": [],
-  "tokens": {"input": 184000, "output": 32000},
-  "cost_usd": 1.85
+  "errors": []
 }
 ```
 
@@ -414,6 +412,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: scaffold summary — layout, build, test framework + coverage tooling, lint, CI, green vertical slice (build/lint/tests verified passing); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the bootstrap PR (CI runs on it); then `/acs:create-ticket` for the MVP epic
 ```

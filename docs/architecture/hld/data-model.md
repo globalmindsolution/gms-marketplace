@@ -139,7 +139,7 @@ erDiagram
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
-        json steps "per-skill status/timestamps/summary"
+        json steps "per-skill status/timestamps/summary, plus any caller-merged fields (e.g. /acs:ship's `fix_loops`) written through `update_pipeline`'s `extra` channel"
         json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1); api_duration_ms, runs_api_duration_measured, runs_api_duration_unavailable (three counters additive since MAR-6, mirroring the cost counters' rule)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }

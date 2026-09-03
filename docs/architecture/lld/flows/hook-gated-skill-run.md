@@ -50,7 +50,7 @@ sequenceDiagram
     actor Dev as Developer
     participant CC as Claude Code
     participant D as dispatch.py (PreToolUse)
-    participant PRE as pre-<skill>.py
+    participant PRE as acs_lib.GATES[skill] (in-process)
     participant CO as Coordinator (SKILL.md)
     participant SS as skill-start.py
     participant PL as <skill>-planner
@@ -62,7 +62,7 @@ sequenceDiagram
 
     Dev->>CC: /acs:code SHOP-123
     CC->>D: PreToolUse(Skill) payload
-    D->>PRE: route by skill name (same stdin)
+    D->>PRE: route by skill name, bounded alarm (same payload)
     alt gate fails
         PRE-->>CC: exit 2 + stderr ("no workspace partition for SHOP-123 — run /acs:create-ticket first")
         CC-->>Dev: skill blocked, actionable message

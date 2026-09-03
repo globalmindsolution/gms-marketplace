@@ -157,7 +157,7 @@ Self-check it:
   <findings>
     <finding severity="blocking" dimension="structure" file="docs/requirements/functional/checkout.md">Missing the [OPEN] section the plan's required_sections declared.</finding>
   </findings>
-  <stop-reason>Verification complete: 4 of 5 dimensions pass, 1 blocking finding.</stop-reason>
+  <stop-reason>Verification complete: 12 of 13 dimensions pass, 1 blocking finding.</stop-reason>
 </result>
 ```
 

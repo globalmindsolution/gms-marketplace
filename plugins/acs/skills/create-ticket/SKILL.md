@@ -32,7 +32,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
 
 - The ticket id is minted up front (e.g. `SHOP-123`) with placeholder content; the
   executor rewrites `ticket.json` with the real content later. Sequence gaps from
-  abandoned runs are fine — never reuse or hand-pick ids.
+  abandoned runs are fine — never hand-pick ids.
+- **Except when resuming.** If `$ARGUMENTS` is exactly a ticket id, or
+  `--ticket` is passed, and that ticket still has a live partition, the run
+  resumes it instead of minting a second id for the same work (`/acs:ship`
+  re-invokes an interrupted create-ticket this way). A prompt that merely
+  MENTIONS an id — "follow-up to SHOP-1: …" — is not a resume and still mints
+  a new ticket.
 - If skill-start exits non-zero: STOP and surface its stderr verbatim to the user.
   One specific case of this rule: on a fresh/unreconciled workspace partition,
   `--allocate` refuses with exit 2 and a local-evidence reconciliation proposal
@@ -553,9 +559,7 @@ MANDATORY final step — never skipped, also on failure:
        "prd_trace": {"feature": "Wishlist (Must-have, roadmap M2)", "divergence": null}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 48000, "output": 9500},
-     "cost_usd": 0.41
+     "errors": []
    }
    ```
 
@@ -610,6 +614,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: ticket id, type, title; `needs_design`; children created (ids) (none on an epic's own creation run); PRD trace or flagged divergence; tracker key when synced
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
 ```

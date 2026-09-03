@@ -9,7 +9,7 @@ As a <persona>, I want <capability>, so that <benefit>.
 ## Acceptance criteria
 
 <!-- Given/When/Then or checklist form; these become the ticket's acceptance_criteria
-and the spec's test plan must cover them. -->
+and the /acs:code plan's test plan must cover them. -->
 
 - [ ] ...
 

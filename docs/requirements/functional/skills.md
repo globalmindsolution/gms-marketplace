@@ -108,7 +108,8 @@ Purpose: drive the whole pipeline from one command.
   lane and stop before `/merge-pr`, which a reviewer lands as a separate step
   ([workflow.md](workflow.md#umbrella-command-ship)):
   `/create-ticket` → `/create-design` (when the ticket needs design) →
-  `/code` → `/docs-sync` → `/create-pr`. No lane branches the walk — spec
+  `/code` → `/test` (when e2e is configured) → `/docs-sync` →
+  `/create-pr`. No lane branches the walk — spec
   authoring is folded into `/code`'s plan phase on every lane
   (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
   SAME order on every lane — the fold is universal now, so no lane branches
@@ -244,6 +245,13 @@ closing the loop on failures with a regression ticket.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
+- **Records its own pipeline step** in ticket-scoped mode: a
+  `--for-ticket` run writes the ticket's `steps.test` entry itself, since
+  the skill is unhooked and has no post-hook to do it. A green run
+  recording `completed` is what opens `/acs:docs-sync`'s gate — the remedy
+  that gate's own error message names. A failing run updates the entry only
+  when it already exists, so a direct user-initiated run cannot newly shut a
+  gate that was not blocking them.
 - **All-green determinism:** when every suite passes, the run makes zero
   model calls and mints no tickets — triage only runs on the failure path.
 - **Failure-path triage:** on a failing suite, the skill derives a stable

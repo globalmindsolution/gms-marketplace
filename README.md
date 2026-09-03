@@ -109,9 +109,9 @@ The marketplace currently ships two plugins:
 
 - **`acs` (Autonomous Coding Skills)** — full-shape plugin targeting Claude Code.
   Provides a complete agentic software-delivery workflow: from a raw request
-  through product definition (PRD), architecture, ticketing, design,
-  implementation specs, TDD implementation with an automatic review loop, pull
-  request, and merge. Twenty-five skills (`/acs:setup`, `/acs:ship`, `/acs:code`, …)
+  through product definition (PRD), architecture, ticketing, design, TDD
+  implementation with an automatic review loop, a conditional post-code test
+  gate, doc sync, pull request, and merge. Twenty-five skills (`/acs:setup`, `/acs:ship`, `/acs:code`, …)
   each run a plan → execute → verify reflection cycle with dedicated subagents;
   pre/post hooks gate every step on the recorded state of its predecessor; and
   all durable state lives in a gitignored `.acs/state-machine` folder inside

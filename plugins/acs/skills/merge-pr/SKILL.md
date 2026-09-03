@@ -313,6 +313,17 @@ Judge the four readiness dimensions, each as `"pass"` or
   an approving review (mitigation m6); because the coordinator cannot reliably
   distinguish an agent invocation from a direct human one, the requirement
   applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
+  This is stricter than the branch protection `/acs:setup` offers, which makes a
+  PR mandatory with `required_approving_review_count: 0`; the two are separate
+  brakes, not a contradiction. On a repo with no reviewer available — a solo
+  maintainer, since GitHub forbids self-approval — this skill cannot merge at
+  all, and the PR is merged by a human in the GitHub UI instead. That is a
+  known tooling gap, not the intended path: an out-of-band merge strands the
+  ticket at `in_review` (never archived, no tracker Status→Done transition,
+  metrics never bumped). Requiring APPROVED is unconditional **today**, with no
+  settings kill-switch (ADR-0028); the tracked resolution is PRD **G26**, which
+  narrows m6 to agent invocations so a human-invoked merge defers to the repo's
+  own branch protection. It is not relaxed by configuration in the meantime.
 - **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
   `mergeStateStatus == DIRTY`) is a fail.
 - **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch
@@ -476,16 +487,14 @@ resolves the workspace from cwd):
    ```json
    {
      "status": "completed",
-     "stop_reason": "PR #87 merged (squash) on iteration 1; remote+local branch deleted, worktree removed, tracker synced",
+     "stop_reason": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
      "states": {
        "merged": true,
        "merge_strategy": "squash",
        "readiness": {"ci": "pass", "approvals": "pass", "conflicts": "pass", "protections": "pass"}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 28000, "output": 5000},
-     "cost_usd": 0.19
+     "errors": []
    }
    ```
 
@@ -519,7 +528,7 @@ resolves the workspace from cwd):
 3. Report a compact summary to the user: merged or blocked (and exactly what
    blocks, per dimension), strategy used, cleanup performed (remote branch,
    local branch, worktree, tracker), the archive location and
-   `epic_marked_done` from the post-hook output, and iterations used. On a
+   `epic_marked_done` from the post-hook output. On a
    readiness failure remind the user: fixes are theirs to drive — re-invoke
    /acs:merge-pr <ticket-id> once the blockers are resolved.
 
@@ -538,6 +547,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: nothing on success (ticket archived); when readiness failed this is report-only — fix what is listed and re-run `/acs:merge-pr <ticket-id>`
 ```

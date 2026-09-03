@@ -141,7 +141,8 @@ class TestRunPostExits(AcsWorkspaceCase):
         fake_home = os.path.join(self.tmp, "fake-home")
         os.makedirs(fake_home)
         env = dict(os.environ, HOME=fake_home)
-        result = self.run_script("post-code.py", cwd=plain, env=env, stdin="")
+        result = self.run_script("post-code.py", cwd=plain, env=env,
+                                 stdin=json.dumps({"status": "completed"}))
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("no .acs/settings.json", result.stderr)
 
@@ -149,9 +150,34 @@ class TestRunPostExits(AcsWorkspaceCase):
         """1972-1973: run_post exits 1 when no ticket id can be resolved (no
         --ticket, no session pointer, and the fixture's branch is not a
         <PREFIX>-N form)."""
-        result = self.run_script("post-code.py", stdin="")
+        result = self.run_script("post-code.py", stdin=json.dumps({"status": "completed"}))
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("could not resolve the ticket id", result.stderr)
+
+    def test_exits_when_no_result_document_is_given(self):
+        """An absent result must not read as a completed run: without a result
+        document (or an explicit --status) the post hook refuses rather than
+        finalizing the run and opening the next gate on nothing."""
+        result = self.run_script("post-code.py", stdin="")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("no result document", result.stderr)
+
+    def test_exits_when_result_document_has_no_status(self):
+        """A result document that omits `status` is refused for the same reason."""
+        result = self.run_script("post-code.py", stdin=json.dumps({"stop_reason": "x"}))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("no 'status'", result.stderr)
+
+    def test_an_empty_result_file_is_named_in_the_error(self):
+        """Told only "no result document", an operator who DID pass --result-file
+        would reissue the identical command. The path has to be in the message."""
+        path = os.path.join(self.tmp, "empty.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        result = self.run_script("post-code.py", "--result-file", path, stdin="")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(path, result.stderr)
+        self.assertIn("is empty", result.stderr)
 
 
 class TestEpicAutoDone(unittest.TestCase):
