@@ -103,6 +103,22 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         self.assertNotEqual(json.loads(leg.stdout)["ticket_id"], delivery,
                             "a product-level leg adopted a delivery ticket")
 
+    def test_seed_next_on_a_resuming_run_is_refused(self):
+        """MAR-402's --seed-next repairs the counter for a newly minted id. A
+        resume mints nothing, so combining the two would silently ignore the
+        seed -- refuse instead of swallowing it."""
+        first = self.run_script("skill-start.py", "--skill", "create-ticket",
+                                "--allocate", "--args", "add a wishlist API")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        ticket_id = json.loads(first.stdout)["ticket_id"]
+        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], ticket_id))
+
+        again = self.run_script("skill-start.py", "--skill", "create-ticket",
+                                "--allocate", "--ticket", ticket_id, "--seed-next", "42")
+        self.assertEqual(again.returncode, 2, again.stdout)
+        self.assertIn("--seed-next", again.stderr)
+        self.assertIn(ticket_id, again.stderr)
+
     def test_an_explicit_ticket_flag_still_resumes_for_any_skill(self):
         """The narrowing is on --args only: --ticket is unambiguous by
         construction and stays the supported resume path everywhere."""

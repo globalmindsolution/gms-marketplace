@@ -222,6 +222,18 @@ def main():
                 if existing_ticket:
                     ticket_id, tdir, ticket = existing_id, existing_dir, existing_ticket
                     reused = True
+        if reused and args.seed_next is not None:
+            # --seed-next (MAR-402) repairs the counter for a NEWLY minted id. A
+            # resume mints nothing, so the seed would be silently ignored -- the
+            # same class of silent no-op both this ticket and MAR-402 exist to
+            # remove. Refuse rather than swallow it.
+            sys.stderr.write(
+                "acs skill-start: --seed-next repairs the id counter for a newly "
+                "minted ticket, but %s already has a live partition to resume, so "
+                "nothing would be minted and the seed would be ignored. Drop "
+                "--seed-next to resume it, or name an id that does not exist yet.\n"
+                % ticket_id)
+            sys.exit(2)
         if not reused:
             prefix = ctx["settings"]["ticket_prefix"]
             repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
