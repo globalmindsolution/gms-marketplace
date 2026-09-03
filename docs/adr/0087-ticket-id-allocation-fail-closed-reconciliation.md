@@ -113,9 +113,9 @@ change: byte-identical allocation, no prompt, no new keys.
 clone's *first* allocation for a given `(repo_id, prefix)` pairing — by
 design, since a gate always answered automatically is not a gate. A
 fan-out run that starts several `skill-start.py --allocate` legs at once
-against a fresh partition (e.g. `/acs:create-docs`) sees every leg refuse
-simultaneously; this is correct fail-closed behavior, and the first
-successful `--seed-next` reconciles the partition for every later leg.
+against a fresh partition sees every leg refuse simultaneously; this is
+correct fail-closed behavior, and the first successful `--seed-next`
+reconciles the partition for every later leg.
 
 **Known limitation, accepted**: the local-evidence proposal's quality is
 repo-dependent and unknowable to the scanner — a repo with a per-ticket
