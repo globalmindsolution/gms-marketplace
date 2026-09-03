@@ -440,6 +440,34 @@ class TestValidateModels(unittest.TestCase):
     def test_accepts_a_per_skill_override_role(self):
         lib.validate_models({"overrides": {"code": {"executor": "sonnet"}}})
 
+    def test_rejects_unknown_effort(self):
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.validate_models({"planner": {"model": "opus", "effort": "turbo"}})
+        message = str(ctx.exception)
+        self.assertIn("models.planner.effort", message)
+        self.assertIn("turbo", message)
+
+    def test_rejects_non_object_overrides(self):
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.validate_models({"overrides": "nope"})
+        self.assertIn("models.overrides must be an object", str(ctx.exception))
+
+    def test_rejects_unknown_override_skill(self):
+        """`ship` spawns no subagents of its own, so it is not overridable."""
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.validate_models({"overrides": {"ship": {"executor": "sonnet"}}})
+        self.assertIn("models.overrides.ship: unknown skill", str(ctx.exception))
+
+    def test_rejects_unknown_override_role(self):
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.validate_models({"overrides": {"code": {"reviewer": "sonnet"}}})
+        self.assertIn("models.overrides.code.reviewer: unknown role", str(ctx.exception))
+
+    def test_override_skills_are_derived_from_hooked_skills(self):
+        """The allowed-skill set is derived, never hand-listed: a skill added to
+        HOOKED_SKILLS is overridable the same day."""
+        self.assertEqual(sorted(lib.MODEL_OVERRIDE_SKILLS), sorted(lib.HOOKED_SKILLS))
+
 
 class TestResolveRoleModel(unittest.TestCase):
     """688-690, 695-697: as_obj's string/dict branches; inherit skipped; override wins."""
