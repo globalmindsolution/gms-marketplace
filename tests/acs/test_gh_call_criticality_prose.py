@@ -69,12 +69,21 @@ CRITICAL_TOKENS = {
     ],
 }
 
-# Rows 2, 6-12 (per this task's own create_ticket_skill_md_changes constraint,
-# the create-ticket gh-issue-create tracker-sync guard is non-critical: it
-# never aborts the batch -- see the module-level note in
-# CreateTicketRowTwoClassificationTest below).
+# Row 2 (create-ticket's `gh issue create` tracker-sync call) is a distinct
+# hybrid disposition -- critical per ticket, soft per batch -- and is
+# exercised separately by HybridClassificationTest /
+# CreateTicketRowTwoClassificationTest below, per the plan's own
+# classification table (plan.md row 2, design.md:464). It is deliberately
+# absent from both CRITICAL_TOKENS and NONCRITICAL_TOKENS here.
+HYBRID_LABEL = "Critical (per ticket, soft per batch)"
+HYBRID_TOKENS = {
+    "create-ticket": ["gh issue create"],
+}
+
+# Rows 8-9 (create-ticket) / 6-12 (create-pr): plain metadata/best-effort
+# reads and writes.
 NONCRITICAL_TOKENS = {
-    "create-ticket": ["gh issue create", "gh label list", "gh project item-add"],
+    "create-ticket": ["gh label list", "gh project item-add"],
     "create-pr": [
         "gh pr ready",
         "gh pr view",
@@ -209,18 +218,42 @@ class NonCriticalClassificationTest(unittest.TestCase):
                 )
 
 
+class HybridClassificationTest(unittest.TestCase):
+    """AC-1/row 2: the plan's own classification table (plan.md row 2,
+    matching design.md:464) classifies create-ticket's `gh issue create`
+    tracker-sync call as a distinct hybrid disposition -- critical per
+    ticket, soft per batch -- not plain non-critical: a failed create is an
+    error-severity finding naming that ticket's id + error + hint,
+    `replayable: false`, while the loop still continues to other tickets
+    (never a full-batch abort)."""
+
+    def test_gh_issue_create_is_classified_critical_per_ticket_soft_per_batch(self):
+        body = read(CREATE_TICKET_SKILL)
+        section = extract_section(body, HEADINGS["create-ticket"])
+        bullet = norm(extract_bullet(section, HYBRID_LABEL))
+        for tok in HYBRID_TOKENS["create-ticket"]:
+            self.assertIn(
+                tok, bullet,
+                "create-ticket: %r not classified %r" % (tok, HYBRID_LABEL),
+            )
+        self.assertRegex(bullet, r"(?i)error")
+        self.assertRegex(bullet, r"replayable:\s*false")
+        self.assertNotIn("info", bullet.lower())
+
+
 class CreateTicketRowTwoClassificationTest(unittest.TestCase):
-    """This task's own create_ticket_skill_md_changes constraint (ii)
-    explicitly labels the existing per-ticket/soft-per-batch `gh issue
-    create` tracker-sync guard non-critical (the guard already never aborts
-    the batch on one ticket's failure) -- resolved as a clarification against
-    the plan's own classification table, which lists this row as "critical
-    per ticket, soft per batch"; the task constraint is the more specific,
-    authoritative instruction and is followed literally here."""
+    """The plan's own classification table (plan.md row 2, matching
+    design.md:464) is the authoritative source for this row: critical per
+    ticket, soft per batch -- an error-severity finding naming that ticket's
+    id + error + hint, `replayable: false`, while the batch still continues
+    to other tickets. A prior draft mis-classified this row plain
+    non-critical/info; that was corrected (coordinator-authorized fix,
+    MAR-403 T2b) to match the plan's table."""
 
     def test_gh_issue_create_guard_is_preserved_verbatim_and_gains_the_hint(self):
         body = read(CREATE_TICKET_SKILL)
-        # The pre-existing guard text (byte-identical) must survive untouched.
+        # The pre-existing batch-continuation mechanics (byte-identical) must
+        # survive untouched -- only the severity/replayable/class label changed.
         self.assertIn(
             "does not abort the batch (the loop continues to other",
             body,
@@ -235,6 +268,15 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
             or re.search(r"(?i)gh_failure_hint.{0,400}gh issue create", norm_body),
             "the gh issue create guard must gain the canonical hint nearby",
         )
+
+    def test_gh_issue_create_call_site_states_error_severity_not_info(self):
+        body = read(CREATE_TICKET_SKILL)
+        idx = body.index("run the `gh issue create` sequence below once per ticket")
+        window_norm = norm(body[idx: idx + 500])
+        self.assertRegex(window_norm, r"(?i)error.{0,60}severity finding")
+        self.assertIn("replayable: false", window_norm)
+        self.assertNotIn("info` finding", window_norm)
+        self.assertNotIn("**non-critical**", window_norm)
 
 
 class CriticalRuleShapeTest(unittest.TestCase):

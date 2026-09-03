@@ -87,11 +87,15 @@ hint, replayable}` — `info` / `replayable: true` for non-critical, `error` /
 `replayable: false` for critical. Per-call classification:
 
 - **Critical**: the remote-import `gh issue view` above.
-- **Non-critical**: Step 5's `gh issue create` tracker-sync loop (per
-  ticket; the batch continues on any one ticket's failure — see Step 5's
-  existing guard, preserved verbatim) and its labels/assignee/milestone/
-  Projects v2 field-fill checklist (`gh label list`, `gh api …/milestones`,
-  `gh project item-add` / `field-list` / `item-edit`).
+- **Critical (per ticket, soft per batch)**: Step 5's `gh issue create`
+  tracker-sync call — a failed create for one ticket is an **error**-severity
+  finding for that ticket (naming that ticket's id + error + the canonical
+  hint), `replayable: false`, but does NOT abort the batch: the loop
+  continues to the next ticket, and that ticket's `external` stays null.
+- **Non-critical**: the labels/assignee/milestone/Projects v2 field-fill
+  checklist only (`gh label list`, `gh api …/milestones`, `gh project
+  item-add` / `field-list` / `item-edit`) — one `info` finding,
+  `replayable: true`, continue.
 
 ## Epic fan-out mode (`--fan-out`)
 
@@ -370,12 +374,13 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   same split MAR-69's own fan-out produced (issue kept, new issues created
   for the children only). **For each ticket to
   sync**, run the `gh issue create` sequence below once per ticket — this is
-  a **non-critical** gh call: a failed `gh`/`acli` call for any one ticket is
-  never silently swallowed: it produces an `info` finding naming that
-  ticket's id + error + the canonical hint from `acs_lib.gh_failure_hint`
-  plus a replayable command block, surfaced in `findings` and the
-  `<handoff>`, and does not abort the batch (the loop continues to other
-  tickets; that ticket's `external` stays null). The Finish report lists which
+  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`/`acli`
+  call for any one ticket is never silently swallowed: it produces an
+  **error**-severity finding naming that ticket's id + error + the canonical
+  hint from `acs_lib.gh_failure_hint`, `replayable: false`, surfaced in
+  `errors` and the `<handoff>`, and does not abort the batch (the loop continues to other
+  tickets; that ticket's `external` stays null). Other tickets are
+  unaffected. The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
   failed ones can be retried individually. This set covers children minted in
   Step 4 by either the `--fan-out` mode or the split/restructure mode; a
