@@ -137,9 +137,11 @@ configured under `models`:
 
 - A role value is either a **model string** (shorthand) or an object with
   optional `model` and `effort` keys.
-- `effort` sets the reasoning effort for that subagent (the levels supported
-  by the chosen model, e.g. `low`/`medium`/`high`/`max`), passed through at
-  spawn.
+- `effort` sets the reasoning effort for that subagent, passed through at
+  spawn. It MUST be one of `low`, `medium`, `high`, `xhigh`, `max`, or
+  `inherit` — a closed set validated fail-closed at config time, independent
+  of what the chosen model supports. Any other value is a settings error, not
+  a late spawn-time failure.
 - Resolution is **per field** — `model` and `effort` resolve independently:
   `models.overrides.<skill>.<role>` → `models.<role>` → **inherit** (the
   model/effort of the session/parent context). So a per-skill override can
@@ -147,6 +149,9 @@ configured under `models`:
 - Model values are Claude model aliases or full model ids, passed through to
   the subagent spawn. The literal `"inherit"` (or omitting a key) uses the
   parent's value.
+- `models.overrides.<skill>` accepts only a skill that spawns reflection
+  subagents — the hooked skills. An unknown skill name (`ship`, say, which
+  spawns none of its own) is a settings error.
 - Model choice is team-shareable (committed `settings.json`) and can be
   overridden per scope like any other key. Cost effects are visible in the
   per-run metrics ([workspace-and-state.md](workspace-and-state.md)).
