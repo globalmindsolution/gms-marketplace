@@ -403,16 +403,14 @@ resolves the workspace from cwd):
    ```json
    {
      "status": "completed",
-     "stop_reason": "PR #87 merged (squash) on iteration 1; remote+local branch deleted, worktree removed, tracker synced",
+     "stop_reason": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
      "states": {
        "merged": true,
        "merge_strategy": "squash",
        "readiness": {"ci": "pass", "approvals": "pass", "conflicts": "pass", "protections": "pass"}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 28000, "output": 5000},
-     "cost_usd": 0.19
+     "errors": []
    }
    ```
 
@@ -446,7 +444,7 @@ resolves the workspace from cwd):
 3. Report a compact summary to the user: merged or blocked (and exactly what
    blocks, per dimension), strategy used, cleanup performed (remote branch,
    local branch, worktree, tracker), the archive location and
-   `epic_marked_done` from the post-hook output, and iterations used. On a
+   `epic_marked_done` from the post-hook output. On a
    readiness failure remind the user: fixes are theirs to drive — re-invoke
    /acs:merge-pr <ticket-id> once the blockers are resolved.
 
@@ -465,6 +463,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: nothing on success (ticket archived); when readiness failed this is report-only — fix what is listed and re-run `/acs:merge-pr <ticket-id>`
 ```

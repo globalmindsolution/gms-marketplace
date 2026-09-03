@@ -1013,13 +1013,13 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; replace the Ticket line with **Scope** (no ticket at init time):
 
 ```markdown
-## /acs:setup · <ticket-id> · <status>
+## /acs:setup · <status>
 
-- **Ticket**: <id> — <title> (<type>)
+- **Scope**: <user|project> settings for <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <stop_reason>
 - **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined); e2e gate CI convention outcome (skipped — e2e not configured / files written / branch-protection: configured / printed-for-admin / declined); `CLAUDE.md` pipeline-default guidance block (written / refreshed / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus `/acs:create-project`; then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
 ```

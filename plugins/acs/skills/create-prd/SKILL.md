@@ -378,9 +378,7 @@ MANDATORY final step — never skipped, also on failure.
        "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-amend-prd-add-org-enforcement-policy"}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 84000, "output": 21000},
-     "cost_usd": 0.61
+     "errors": []
    }
    ```
 
@@ -420,6 +418,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PRD files written/amended at `prd_path` (`prd.md`, `roadmap.md`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-architecture`
 ```

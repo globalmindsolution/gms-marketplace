@@ -163,14 +163,31 @@ pipeline end.
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 
-Three sanctioned substitutions: `/acs:setup` and `/acs:update` (no ticket)
-replace the Ticket line with **Scope**, and `/acs:handoff` puts the
-`continue_with` command in **Next**. Per-skill Results/Next content is fixed
-in each SKILL.md's "Completion report" section.
+**The `iterations` element.** A skill that runs no reflection loop omits it
+entirely rather than reporting a fraction of a loop it never ran. That is a
+property, not a list: it covers the inline apply-work skills (`create-ticket`,
+`create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `metrics`,
+`usage`, `test`, `release`, `install-hooks`), and the orchestrators that drive
+other skills' loops without running one of their own (`ship`, `handoff`). The
+twelve triad-keeping skills report it.
+
+`<cap>` is a constant **3** for eleven of those twelve. Only `/acs:code`
+derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 1 on light depth
+and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
+
+**Sanctioned substitutions.** A skill that runs without a ticket drops
+`<ticket-id>` from the heading and replaces the **Ticket** line with a
+one-line label naming what the run covered — **Scope** for the
+configuration and reporting utilities (`setup`, `update`, `metrics`,
+`usage`, `install-hooks`), **Run** for the two run-oriented ones (`test`,
+`release`), whose subject is an execution rather than a scope. `/acs:handoff`
+additionally puts the `continue_with` command in **Next**. No other label
+substitution is sanctioned; per-skill Results/Next content is fixed in each
+SKILL.md's "Completion report" section.
 
 ### The result document (input to post-<skill>.py)
 

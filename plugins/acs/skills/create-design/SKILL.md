@@ -329,9 +329,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
        "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 145000, "output": 32000},
-     "cost_usd": 1.10
+     "errors": []
    }
    ```
 
@@ -378,7 +376,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: `design.md` (partition-relative path); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:code <ticket-id>` for a non-epic ticket; for an epic,
   `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
   child

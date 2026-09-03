@@ -416,9 +416,7 @@ MANDATORY final step — never skipped, also on failure:
     {"title": "Bootstrap the principles/ doc set", "rationale": "principles_path is set to docs/principles but no doc set exists there yet", "target_path": "/acs:create-principles"}
   ],
   "findings": [],
-  "errors": [],
-  "tokens": {"input": 0, "output": 0},
-  "cost_usd": 0.0
+  "errors": []
 }
 ```
 
@@ -455,6 +453,6 @@ same labels/order, `none` where empty; under `/acs:ship` the final message is th
 - **Findings**: <open findings / clarifications, or "none">
 - **Recommended follow-ups**: <recommended_follow_ups titles, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the scaffold PR; consider the recommended follow-ups
 ```
