@@ -82,10 +82,15 @@ BASELINE_FLOWS = {
 # added ticket-id-reconciliation.md — the fail-closed first-allocate reconciliation
 # gate's own sequence (refusal, evidence scan, confirm, steady state) is a distinct
 # runtime flow that no existing flow doc covered.
+# MAR-403 (sibling child of the same parent epic MAR-401, Option C/D2) legitimately
+# added github-call-failure-policy.md — the gh-only call-criticality classification's
+# own sequence (per-call success/critical/non-critical dispatch plus the post-merge
+# loud-but-non-reverting arm) is a distinct runtime flow that no existing flow doc
+# covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
                           "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
-                          "ticket-id-reconciliation.md"}
+                          "ticket-id-reconciliation.md", "github-call-failure-policy.md"}
 
 
 def read(path):

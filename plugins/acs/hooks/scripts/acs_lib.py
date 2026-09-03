@@ -885,6 +885,30 @@ def _git(args, cwd):
 
 
 # ---------------------------------------------------------------------------
+# GitHub CLI failure diagnostics (MAR-403 / ADR-0088)
+# ---------------------------------------------------------------------------
+
+GH_ACCESS_DENIED_MARKER = "GitHub access is not enabled for this session"
+
+GH_ACCESS_HINT = (
+    "This looks like a session-level access restriction — a Claude Code "
+    "cloud/managed session must have the Claude GitHub App connected for this "
+    "organization by an org admin. A local Claude Code session uses your own "
+    "`gh` authentication and should not see this."
+)
+
+GH_GENERIC_HINT = "check `gh auth status` and repo access"
+
+
+def gh_failure_hint(stderr_text):
+    """Classify a gh failure's stderr into one canonical, actionable hint."""
+    text = stderr_text if isinstance(stderr_text, str) else str(stderr_text or "")
+    if GH_ACCESS_DENIED_MARKER in text:
+        return GH_ACCESS_HINT
+    return GH_GENERIC_HINT
+
+
+# ---------------------------------------------------------------------------
 # Repo identity & checkout identity
 # ---------------------------------------------------------------------------
 

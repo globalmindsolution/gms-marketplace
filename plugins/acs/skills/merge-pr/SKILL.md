@@ -79,7 +79,10 @@ artifacts to):
 1. **Readiness review** — judge the SAME four dimensions as the ticket path
    (`ci`, `approvals`, `conflicts`, `protections`) against `pr.number`, using
    the same `gh pr view` / `gh pr checks --required` reads described under
-   "Plan — readiness review". A failing dimension is the same REPORT-ONLY stop:
+   "Plan — readiness review" — **critical** gate-input reads (see "GitHub
+   call failure policy" above): a failed read is gh's verbatim stderr plus
+   the canonical hint, then stop before any merge is attempted. A failing
+   dimension is the same REPORT-ONLY stop:
    do not merge, tell the user exactly what blocks, stop.
 2. **Merge (only when all four pass, or after the BEHIND carve-out succeeds)**
    — when `mergeStateStatus == BEHIND` and all other three dimensions pass,
@@ -102,7 +105,10 @@ artifacts to):
    gh pr merge <pr.number> --<settings.merge_strategy> --delete-branch
    ```
 
-   Never re-merge a PR `gh pr view` already reports `MERGED`.
+   **Critical**, identically to the ticket path's Step 1: a non-zero exit is
+   gh's verbatim stderr plus the canonical hint, then STOP — before the
+   Cleanup step (3, below) ever runs, no retry, no fallback to any other
+   transport. Never re-merge a PR `gh pr view` already reports `MERGED`.
 3. **Cleanup** — from the main checkout (resolve it via
    `git rev-parse --git-common-dir`), remove the worktree if one holds
    `pr.branch` (`git worktree remove <path>`) and delete the local branch if it
@@ -172,7 +178,9 @@ BEFORE continuing:
 1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
    `<partition>/phases/merge-pr/iter-*-*.xml` files to see how far the prior
    run got.
-2. Check reality first: `gh pr view <number> --json state,mergedAt`. If the PR
+2. Check reality first: `gh pr view <number> --json state,mergedAt` —
+   **critical** (a failed read is gh's verbatim stderr plus the canonical
+   hint, then STOP; never guess the PR's merge state). If the PR
    is already `MERGED`, do NOT re-run readiness — go straight to verifying and
    finishing the post-merge cleanup (remote/local branch, worktree, tracker),
    then Finish with `merged: true`.
@@ -183,6 +191,62 @@ If `context.handoff_summary` exists, read it plus
 `<partition>/phases/merge-pr/handoff-context.md` (if present), do a light
 reconcile (trust the summary, cheaply spot-check with `gh pr view`), and
 continue from where it points.
+
+## GitHub call failure policy
+
+`gh` is acs's only GitHub transport for this skill — no MCP-based transport,
+no second credential path (ADR-0088). Two classes apply throughout the flow
+below:
+
+- **Critical** (a gate input, or the merge call itself): verbatim gh stderr
+  plus ONE canonical hint from `acs_lib.gh_failure_hint(stderr)`
+  (`acs_lib.GH_ACCESS_HINT` when the stderr names a session-access
+  restriction, else `acs_lib.GH_GENERIC_HINT`), then STOP — no retry, no
+  fallback to any other transport, no merge. Canon hint text:
+
+  > This looks like a session-level access restriction — a Claude Code
+  > cloud/managed session must have the Claude GitHub App connected for this
+  > organization by an org admin. A local Claude Code session uses your own
+  > `gh` authentication and should not see this.
+
+- **Loud-but-non-reverting** (Step 2's post-merge tracker sync ONLY): the
+  merge has already landed and is never revisited because of this class. A
+  failed post-merge `gh` call never reverts the merge and is never
+  re-attempted automatically; it produces one **error-severity** finding
+  naming the outstanding sync plus a replayable command block — the run
+  still finishes with `merged: true`.
+
+Finding shape: `{severity, area, message, command, error, hint, replayable}`
+(`error` / `replayable: false` for critical; `error` / `replayable: true`
+for the loud-but-non-reverting Step 2 case).
+
+Per-call classification:
+
+- **Critical**: the resume/reconcile reality check `gh pr view
+  <number> --json state,mergedAt` (Resume & reconcile, above); the Step 0
+  readiness reads `gh pr view <number> --json state,isDraft,mergeable,…`
+  and `gh pr checks <number> --required` (both the ticketed path and the
+  `--pr` exempt path's identical reads); the BEHIND carve-out's
+  `gh pr update-branch <number>` and its `gh pr checks <number> --required`
+  poll (Step 1a, and the exempt path's identical carve-out); the merge
+  itself, `gh pr merge <number> --<strategy> --delete-branch` (Step 1, and
+  the exempt path's identical call) — verbatim stderr + hint, stop BEFORE
+  Step 2 cleanup ever runs, identically on both paths.
+- **Loud-but-non-reverting**: Step 2's post-merge `gh issue close` and
+  Projects Status→Done edit — see Step 2 below.
+
+**Not gh call sites (informational-only mentions, not covered by this
+policy):** the `ci` readiness dimension's descriptive mention of `gh pr
+checks --required exits 0` (explaining what "pass" means, not itself a
+call — the actual read is Step 0's own code block); the BEHIND carve-out's
+recorded status string naming `gh pr update-branch`
+(`"pass (was BEHIND; auto-updated via gh pr update-branch)"`, prose
+describing the outcome, not a second call site); and the safety-model prose
+that only describes or prohibits an action — the statement that /acs:ship
+never invokes /acs:merge-pr, and the rule that a raw `gh pr merge` outside
+this skill is never sanctioned — name `gh pr merge` without themselves
+calling it. Naming these keeps the classification above complete and
+falsifiable.
 
 ## Inline merge-pr apply flow
 
@@ -225,6 +289,11 @@ Run:
 gh pr view <number> --json state,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,headRefName,url
 gh pr checks <number> --required
 ```
+
+Both reads are **critical** gate inputs (see "GitHub call failure policy"
+above): a non-zero exit is gh's verbatim stderr plus the canonical hint,
+then STOP — readiness cannot be judged, so the run never proceeds to a merge
+decision.
 
 Judge the four readiness dimensions, each as `"pass"` or
 `"fail: <one-line reason>"`:
@@ -282,6 +351,11 @@ Run:
 gh pr update-branch <number>
 ```
 
+**Critical** (gate input, see "GitHub call failure policy" above): a
+non-zero exit here — including the conflict case below — is gh's verbatim
+stderr plus the canonical hint, then STOP; likewise for the required-checks
+poll's own `gh pr checks <number> --required` reads.
+
 (merge-update — no `--rebase`, no force-push). If exit non-zero (conflict
 detected): REPORT-ONLY stop with
 `stop_reason: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
@@ -309,7 +383,9 @@ never from inside the ticket worktree being removed:
 gh pr merge <number> --<settings.merge_strategy> --delete-branch
 ```
 
-Never re-merge a PR that `gh pr view` already reports `MERGED`.
+**Critical.** A non-zero exit is gh's verbatim stderr plus the canonical
+hint, then STOP — before Step 2 cleanup ever runs, no retry, no fallback to
+any other transport. Never re-merge a PR that `gh pr view` already reports `MERGED`.
 
 ### Step 2 — Cleanup
 
@@ -323,7 +399,15 @@ removed):
    (if it is checked out in the main checkout, first
    `git checkout <pr.base> && git pull`).
 3. Sync the remote tracker to Done when configured
-   (`settings.tracker.provider` != `local` and `ticket.external` is set):
+   (`settings.tracker.provider` != `local` and `ticket.external` is set).
+   **Loud-but-non-reverting**: the merge already landed at Step 1 and is
+   never revisited because of this step — a failed `gh issue close` or
+   `gh project item-edit` here never reverts the merge and is never
+   re-attempted automatically. Record one **error-severity finding** naming
+   the outstanding sync (which ticket, which call, the verbatim error) plus
+   a replayable command block — the exact `gh issue close …` or
+   `gh project item-edit …` call, ready to re-run by hand — and let the run
+   still finish with `merged: true` regardless:
    - `github`: `gh issue close <external.key> --comment "Merged {ticket_id} via
      PR #{pr.number} — {pr.url}"` — the comment carries both the acs ticket id
      and a PR back-reference so the closed issue's timeline still resolves

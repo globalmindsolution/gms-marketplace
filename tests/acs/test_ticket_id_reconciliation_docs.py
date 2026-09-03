@@ -138,15 +138,18 @@ class C4ComponentDocsTest(unittest.TestCase):
             re.search(r"(?i)reconciliation gate", self.norm),
         )
 
-    def test_lib_component_description_has_no_mar_403_scope_bleed(self):
-        # The lib component's own description line must not gain MAR-403's
-        # gh_failure_hint/release_notes.py material via this ticket's edit.
+    def test_lib_component_description_has_no_release_notes_scope_bleed(self):
+        # The lib component's own description line must not gain
+        # release_notes.py's gh-seam disclosure -- that lives in
+        # release_notes' own component description (MAR-403 D-3), not lib's.
+        # The gh_failure_hint fence retired here: MAR-403 adds it to this
+        # same line by design (Option F), so asserting its absence would
+        # expire the moment that ticket lands.
         lib_line_match = re.search(
             r'Component\(lib, "acs_lib\.py".*?\n', self.body, re.DOTALL
         )
         self.assertIsNotNone(lib_line_match, "the lib component entry must exist")
         lib_line = lib_line_match.group(0)
-        self.assertNotIn("gh_failure_hint", lib_line)
         self.assertNotIn("release_notes.py", lib_line)
 
 
