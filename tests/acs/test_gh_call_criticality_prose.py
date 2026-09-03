@@ -188,6 +188,36 @@ class ExecutorHintDriftTest(unittest.TestCase):
             )
 
 
+class ExecutorClassificationDriftTest(unittest.TestCase):
+    """F1/F4 (iter-2 remediation, MAR-403 iter-1 verify): a prior draft
+    quoted the canonical hint sentence (satisfying ExecutorHintDriftTest
+    above) while still classifying the Step 5 `gh issue create`
+    tracker-sync call as plain non-critical -- hint-sentence presence alone
+    does not prove the stated CLASS is right. This pins the actual
+    disposition for create-ticket-executor.md, the artifact where that
+    drift was found."""
+
+    def test_create_ticket_executor_gh_issue_create_is_hybrid_not_non_critical(self):
+        body = read(CREATE_TICKET_EXECUTOR)
+        norm_body = norm(body)
+        self.assertRegex(
+            norm_body, r"(?i)critical per ticket, soft per batch",
+            "create-ticket-executor.md must state gh issue create's hybrid "
+            "disposition (critical per ticket, soft per batch)",
+        )
+        self.assertNotIn(
+            "non-critical for the Step 5 tracker-sync loop", body,
+            "gh issue create must not be classified plain non-critical",
+        )
+        self.assertNotRegex(
+            norm_body, r"(?i)is\s+non-critical:\s+it produces a finding",
+            "the Step 5 gh issue create guard must not be classified plain "
+            "non-critical",
+        )
+        self.assertRegex(norm_body, r"(?i)replayable:\s*false")
+        self.assertIn("errors", body)
+
+
 class CriticalClassificationTest(unittest.TestCase):
     """AC-1/AC-2: every gate-input read/write is classified critical."""
 

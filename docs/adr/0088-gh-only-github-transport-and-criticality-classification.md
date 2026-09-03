@@ -44,13 +44,18 @@ only in both environments. No MCP-fallback mechanism in acs."*
 **`gh` is acs's only GitHub transport, in every environment.** No skill or
 agent offers or implies a second GitHub transport. Every in-scope `gh`
 operation across `create-ticket/SKILL.md`, `create-pr/SKILL.md`, and
-`merge-pr/SKILL.md` is classified into exactly one of two disposition
-classes, and a failed call is never silently routed around:
+`merge-pr/SKILL.md` is classified into exactly one of three disposition
+classes, and a failed call is never silently routed around: **critical**
+(gh's stderr verbatim plus one canonical hint, then the run stops),
+**non-critical** (one `info`-severity finding, the run continues), or
+**loud-but-non-reverting** (one `error`-severity finding, the run
+continues, and an already-completed action is never reverted or
+re-attempted):
 
 - **Critical** — the writes the run cannot proceed without (`gh pr create` /
-  `gh pr edit`, `gh issue create`, `gh issue view` on import, `gh pr merge`
-  at both the ticketed `### Step 1 — Merge` site and the exempt
-  non-ticket-PR-mode site) **and** the reads whose failure leaves a decision
+  `gh pr edit`, `gh issue view` on import, `gh pr merge` at both the
+  ticketed `### Step 1 — Merge` site and the exempt non-ticket-PR-mode
+  site) **and** the reads whose failure leaves a decision
   or a readiness gate unevaluable (`gh pr list`, `gh repo view --json
   defaultBranchRef`, merge-pr's resume-reconcile `gh pr view`, its Step 0
   readiness `gh pr view` / `gh pr checks --required`, and the BEHIND
@@ -62,11 +67,17 @@ classes, and a failed call is never silently routed around:
   plus one canonical, acs-authored hint sentence (`acs_lib.GH_ACCESS_HINT`,
   selected by the pure `acs_lib.gh_failure_hint(stderr_text)`), then the run
   **stops** — no fallback to any other transport.
+- **Critical per ticket, soft per batch** — `create-ticket/SKILL.md`'s Step
+  5 `gh issue create` tracker-sync call is a hybrid disposition, distinct
+  from plain critical: a failed create for one ticket is an
+  **error**-severity finding naming that ticket's id, gh's verbatim
+  stderr, and the canonical hint, `replayable: false`, but the batch is
+  never aborted — the loop continues to the next ticket, and only that one
+  ticket's `external` stays null.
 - **Non-critical** — metadata operations (labels, assignee, milestone,
   Projects v2 `item-add`/`field-list`/`item-edit`, CODEOWNERS reviewer
-  request, the PR back-reference issue comment, the `gh run list` CI
-  diagnostic read, and merge-pr's post-merge `gh issue close` / Projects
-  Status→Done sync) degrade to one `info`-severity finding (command +
+  request, the PR back-reference issue comment, and the `gh run list` CI
+  diagnostic read) degrade to one `info`-severity finding (command +
   verbatim error + the same hint + a replayable `gh` command block) and the
   run **continues**.
 

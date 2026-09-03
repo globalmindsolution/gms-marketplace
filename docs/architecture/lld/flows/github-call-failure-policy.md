@@ -28,12 +28,17 @@ sequenceDiagram
         SH-->>SK: success payload
         SK->>RES: record outcome, continue to the next step
     else non-zero and OP is CRITICAL
-        note over SK,RES: critical writes -- gh pr create/edit, gh issue create, gh issue view on import, gh pr merge (merge-pr/SKILL.md Step 1 Merge and the exempt-mode site)
+        note over SK,RES: critical writes -- gh pr create/edit, gh issue view on import, gh pr merge (merge-pr/SKILL.md Step 1 Merge and the exempt-mode site)
         note over SK,RES: critical gate-input reads -- gh pr list, gh repo view for base, merge-pr gh pr view / gh pr checks --required, gh pr update-branch
         SK->>SK: hint = acs_lib.gh_failure_hint(stderr)
         SK->>RES: error finding -- gh stderr verbatim plus the one hint sentence, replayable false
         note over SK,RES: for a gate-input read, the readiness gate becomes unevaluable -- never treated as passed (hld/overview.md:30)
         SK-->>SK: STOP the run, no later step executes -- for merge-pr this is before Step 1 Merge, never after
+    else non-zero and OP is gh issue create (create-ticket Step 5 tracker sync, one ticket)
+        note over SK,RES: hybrid disposition -- critical per ticket, soft per batch
+        SK->>SK: hint = acs_lib.gh_failure_hint(stderr)
+        SK->>RES: error finding -- that ticket's id plus gh stderr verbatim plus the one hint sentence, replayable false, surfaced in errors
+        SK-->>SK: the batch continues to the next ticket -- only this ticket's external stays null, no full-run stop
     else non-zero and OP is NON-CRITICAL
         note over SK,RES: metadata -- labels, assignee, milestone, Projects v2, CODEOWNERS reviewers, PR back-reference comment, gh run list CI diagnostic read
         SK->>SK: hint = acs_lib.gh_failure_hint(stderr)

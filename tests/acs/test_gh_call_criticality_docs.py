@@ -232,6 +232,36 @@ class Adr0088Test(unittest.TestCase):
         self.assertIsNotNone(re.search(r"(?i)C-6", self.norm))
         self.assertIsNotNone(re.search(r"(?i)removed", self.norm))
 
+    def test_adr_0088_states_gh_issue_create_hybrid_disposition_not_plain_critical(self):
+        """F3/F4 (iter-2 remediation): the plain-Critical bullet must not
+        list `gh issue create` alongside gh pr create/gh pr merge -- it
+        carries its own hybrid-disposition bullet instead."""
+        critical_bullet_match = re.search(
+            r"-\s+\*\*Critical\*\*\s+—.*?(?=\n-\s+\*\*)", self.body, re.DOTALL
+        )
+        self.assertIsNotNone(critical_bullet_match, "the plain Critical bullet must exist")
+        self.assertNotIn("gh issue create", critical_bullet_match.group(0))
+        self.assertIsNotNone(
+            re.search(r"(?i)critical per ticket, soft per batch", self.norm),
+            "ADR-0088 must state gh issue create's hybrid disposition",
+        )
+
+    def test_adr_0088_post_merge_sync_appears_only_in_loud_but_non_reverting_context(self):
+        """F2/F4 (iter-2 remediation): the post-merge tracker sync must not
+        also be listed in the plain Non-critical bullet -- its sole home is
+        the loud-but-non-reverting paragraph."""
+        non_critical_bullet_match = re.search(
+            r"-\s+\*\*Non-critical\*\*\s+—.*?(?=\n\n|\Z)", self.body, re.DOTALL
+        )
+        self.assertIsNotNone(non_critical_bullet_match, "the Non-critical bullet must exist")
+        self.assertNotIn("post-merge", non_critical_bullet_match.group(0))
+        self.assertNotIn("Status→Done", non_critical_bullet_match.group(0))
+        self.assertIsNotNone(
+            re.search(r"(?i)post-merge tracker sync is loud-but-non-reverting", self.norm),
+            "the post-merge sync's sole disposition statement must be the "
+            "loud-but-non-reverting paragraph",
+        )
+
     def test_adr_0088_does_not_claim_the_reconciliation_decision(self):
         # Inverse fence of ADR-0087's own scoping guard: ADR-0088 must not
         # restate ADR-0087's ticket-id-allocation subject.
