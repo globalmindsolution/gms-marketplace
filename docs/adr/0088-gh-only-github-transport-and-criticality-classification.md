@@ -44,12 +44,14 @@ only in both environments. No MCP-fallback mechanism in acs."*
 **`gh` is acs's only GitHub transport, in every environment.** No skill or
 agent offers or implies a second GitHub transport. Every in-scope `gh`
 operation across `create-ticket/SKILL.md`, `create-pr/SKILL.md`, and
-`merge-pr/SKILL.md` is classified into exactly one of three disposition
+`merge-pr/SKILL.md` is classified into exactly one of four disposition
 classes, and a failed call is never silently routed around: **critical**
 (gh's stderr verbatim plus one canonical hint, then the run stops),
-**non-critical** (one `info`-severity finding, the run continues), or
-**loud-but-non-reverting** (one `error`-severity finding, the run
-continues, and an already-completed action is never reverted or
+**critical (per ticket), soft (per batch)** (an error-severity finding
+naming that ticket, `replayable: false`, but the batch continues to the
+next ticket), **non-critical** (one `info`-severity finding, the run
+continues), or **loud-but-non-reverting** (one `error`-severity finding, the
+run continues, and an already-completed action is never reverted or
 re-attempted):
 
 - **Critical** — the writes the run cannot proceed without (`gh pr create` /

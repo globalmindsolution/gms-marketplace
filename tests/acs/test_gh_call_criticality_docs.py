@@ -163,6 +163,27 @@ class FailurePolicyFlowDocTest(unittest.TestCase):
         self.assertIsNotNone(re.search(r"(?i)Step 1.{0,15}Merge", norm_body))
         self.assertIsNotNone(re.search(r"(?i)Step 2.{0,15}Cleanup", norm_body))
         self.assertIsNotNone(re.search(r"(?i)acs_lib\.gh_failure_hint", norm_body))
+        # G2 (iter-3 remediation): pin gh issue create's placement, not just
+        # generic-token presence -- it must live in its own hybrid arm, never
+        # grouped with the plain CRITICAL branch's other operations.
+        critical_arm_match = re.search(
+            r"OP is CRITICAL(.*?)OP is gh issue create", body, re.DOTALL
+        )
+        self.assertIsNotNone(critical_arm_match, "the plain CRITICAL arm must exist")
+        self.assertNotIn(
+            "gh issue create",
+            critical_arm_match.group(1),
+            "gh issue create must not be grouped with the plain CRITICAL "
+            "arm's operations (gh pr create, gh pr merge, etc.)",
+        )
+        self.assertIsNotNone(
+            re.search(
+                r"OP is gh issue create.*?hybrid disposition -- critical per ticket, soft per batch",
+                body,
+                re.DOTALL,
+            ),
+            "gh issue create must be placed in its own hybrid-disposition arm",
+        )
 
 
 class TicketLifecycleDocsTest(unittest.TestCase):
@@ -307,6 +328,31 @@ class ChangelogDocsTest(unittest.TestCase):
         )
         self.assertIsNotNone(re.search(r"(?i)loud-but-non-reverting", section_norm))
         self.assertIn("**Migration:** none", section)
+        # G2 (iter-3 remediation): pin gh issue create's placement, not just
+        # generic-token presence -- it must sit in the hybrid disposition
+        # sentence, never as a bare member of the plain-critical operation list.
+        plain_critical_match = re.search(
+            r"A \*\*critical\*\* operation —(.*?)now surfaces gh's stderr verbatim",
+            section,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            plain_critical_match, "the plain-critical operation-list sentence must exist"
+        )
+        self.assertNotIn(
+            "gh issue create",
+            plain_critical_match.group(1),
+            "gh issue create must not be listed as a bare member of the "
+            "plain-critical operation list",
+        )
+        self.assertIsNotNone(
+            re.search(
+                r"(?i)gh issue create.{0,120}critical \(per ticket\), soft \(per batch\)",
+                section_norm,
+            ),
+            "gh issue create must be placed near the hybrid critical(per "
+            "ticket)/soft(per batch) disposition phrase",
+        )
 
 
 if __name__ == "__main__":

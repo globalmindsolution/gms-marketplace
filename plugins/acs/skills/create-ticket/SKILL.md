@@ -68,12 +68,15 @@ remote issue for an imported ticket: the mapping points at the existing one.
 ### GitHub call failure policy
 
 `gh` (and `acli` for Jira) are the only tracker transports this skill uses —
-no MCP-based transport, no second credential path (ADR-0088). Two classes apply to
+no MCP-based transport, no second credential path (ADR-0088). Three classes apply to
 every call below: **critical** (a gate input this step cannot proceed
 without — gh's verbatim stderr plus ONE canonical hint from
 `acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other
-transport) and **non-critical** (metadata/best-effort — one `info` finding
-plus a replayable command block, never abort). Canon hint text
+transport), **critical (per ticket), soft (per batch)** (Step 5's `gh issue
+create` only — an error finding naming that ticket, `replayable: false`,
+but the batch continues to the next ticket), and **non-critical**
+(metadata/best-effort — one `info` finding plus a replayable command block,
+never abort). Canon hint text
 (`acs_lib.GH_ACCESS_HINT`, selected when the stderr names a session-access
 restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
 
@@ -82,9 +85,11 @@ restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
 > organization by an org admin. A local Claude Code session uses your own
 > `gh` authentication and should not see this.
 
-Finding shape (both classes): `{severity, area, message, command, error,
+Finding shape (all three classes; the hybrid class shares critical's
+pair): `{severity, area, message, command, error,
 hint, replayable}` — `info` / `replayable: true` for non-critical, `error` /
-`replayable: false` for critical. Per-call classification:
+`replayable: false` for critical and for critical (per ticket), soft (per
+batch). Per-call classification:
 
 - **Critical**: the remote-import `gh issue view` above.
 - **Critical (per ticket, soft per batch)**: Step 5's `gh issue create`
