@@ -1126,6 +1126,18 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: The per-role models /acs:setup recommends. Single source of truth for the
+#: recommendation: the setup prose (skills/setup/SKILL.md) and this repo's own
+#: .acs/settings.json are both asserted against it, so a new model generation is
+#: a change to this constant, that prose, and those settings -- never a test
+#: edit. Nothing in the runtime reads it: the recommendation is a product fact
+#: the tests enforce, not an input to gate or spawn behaviour.
+RECOMMENDED_MODELS = {
+    "planner":  {"model": "claude-opus-5",   "effort": "high"},
+    "executor": {"model": "claude-sonnet-5", "effort": "high"},
+    "verifier": {"model": "claude-opus-5",   "effort": "high"},
+}
+
 #: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
 MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
 #: The three reflection roles a model/effort pair can be configured for.

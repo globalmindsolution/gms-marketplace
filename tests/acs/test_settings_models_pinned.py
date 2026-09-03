@@ -1,11 +1,14 @@
 """MAR-81 — Pin acs subagent models to explicit ids and effort levels.
 
 Asserts the repo-committed .acs/settings.json `models` block holds explicit,
-version-stable model ids (claude-opus-5 / claude-sonnet-5) plus an explicit
-reasoning-effort level per role (object form, mirroring the sibling `hirex`
-repo's configuration), instead of the generic runtime aliases ("opus" /
-"sonnet") with no effort, and that the file remains valid against
-plugins/acs/schemas/settings.schema.json.
+version-stable model ids plus an explicit reasoning-effort level per role
+(object form, mirroring the sibling `hirex` repo's configuration), instead of
+the generic runtime aliases ("opus" / "sonnet") with no effort, and that the
+file remains valid against plugins/acs/schemas/settings.schema.json.
+
+The ids themselves are NOT written here: they are read from
+acs_lib.RECOMMENDED_MODELS, so this module keeps asserting the property when
+the recommendation moves to a newer model generation.
 
 Uses the same stdlib-only approach as TestHighStakesPathsSettings /
 TestDueDateSchema in test_acs_plugin.py (no jsonschema import) -- the CI
@@ -15,7 +18,8 @@ around line 170).
 
 MAR-154 dropped the `coordinator` role from the `models` settings contract
 entirely (schema, committed settings.json, and acs_lib.py's validate_models
-role loop) and renamed the planner/verifier default tier to claude-opus-5.
+role loop) and moved the planner/verifier default to the then-current opus
+generation.
 
 Run:  python3 -m unittest tests.acs.test_settings_models_pinned -v
 """
@@ -33,11 +37,12 @@ sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 
-EXPECTED = {
-    "planner": {"model": "claude-opus-5", "effort": "high"},
-    "executor": {"model": "claude-sonnet-5", "effort": "high"},
-    "verifier": {"model": "claude-opus-5", "effort": "high"},
-}
+# Not a literal pin: the ids live in acs_lib.RECOMMENDED_MODELS. What is
+# asserted here is the shape (object form with a non-empty id and a schema-valid
+# effort) and that the committed settings agree with that single source, so a
+# new model generation changes the constant and the settings it is mirrored
+# into -- never this file.
+EXPECTED = lib.RECOMMENDED_MODELS
 
 
 class SettingsModelsPinnedCase(unittest.TestCase):
@@ -58,6 +63,20 @@ class SettingsModelsPinnedCase(unittest.TestCase):
 
     def test_executor_pinned(self):
         self.assertEqual(self.settings["models"]["executor"], EXPECTED["executor"])
+
+    def test_recommended_models_are_well_shaped(self):
+        """The recommendation is an object form with a real id and a valid effort
+        for every role — the property that must hold whatever the ids become."""
+        for role in lib.MODEL_ROLES:
+            entry = EXPECTED[role]
+            self.assertIsInstance(entry, dict, msg="%s must use the {model, effort} form" % role)
+            self.assertTrue(entry.get("model", "").strip(), msg="%s needs a model id" % role)
+            self.assertIn(entry.get("effort"), lib.MODEL_EFFORTS,
+                          msg="%s effort must be one of %s" % (role, ", ".join(lib.MODEL_EFFORTS)))
+
+    def test_committed_settings_validate(self):
+        """The committed models block passes the runtime validator, not just the schema."""
+        lib.validate_models(self.settings["models"])
 
     def test_no_coordinator_key(self):
         self.assertNotIn(
