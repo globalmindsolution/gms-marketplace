@@ -719,7 +719,25 @@ echo "repo=$slug default=$branch admin=$admin"
 
   (`required_pull_request_reviews` present = a PR is mandatory, so direct pushes
   to `$branch` are blocked; `restrictions: null` keeps all collaborators able to
-  open PRs.) The check first appears in the contexts list only after one workflow run, so
+  open PRs. `required_approving_review_count: 0` forces a PR without forcing a
+  review — the repo's own brake. It is deliberately *not* the same rule as
+  `/acs:merge-pr`'s approvals readiness dimension, which requires an APPROVED
+  review for every merge it performs (ADR-0028 mitigation m6). A repo with 0
+  required approvals can still be merged by a human in the GitHub UI; merging
+  *through the skill* always needs a review.
+
+  On a **solo-maintainer** repo the two rules do not meet: GitHub forbids
+  self-approval, so no review can be obtained and `/acs:merge-pr` can never
+  merge. Raising the count to 1 does not fix that — it removes the GitHub-UI
+  path as well, leaving no way to merge at all. Raise it only where a second
+  reviewer is actually available. Until PRD **G26** lands (narrowing m6 to
+  agent invocations, so a human-invoked merge defers to the repo's own branch
+  protection), a solo maintainer merges in the GitHub UI and accepts the
+  consequence: the ticket is stranded at `in_review` — never archived, no
+  tracker Status→Done transition, metrics never bumped. See
+  `docs/operations/release-runbook.md`'s phantom-gate section.)
+
+  The check first appears in the contexts list only after one workflow run, so
   if the API rejects an unknown context, tell the user to open a PR first (to
   register the check), then re-run the command. Mention GitHub **rulesets** as
   the modern alternative (repo or org level, same effect) if they prefer the UI.
@@ -965,7 +983,10 @@ brownfield; an empty or docs-only repo is greenfield):
 
 - **Brownfield**: run `/acs:create-prd` (reverse-engineers a baseline PRD,
   opens a docs PR), then `/acs:create-architecture` (HLD + LLD docs PR) —
-  merge each PR with `/acs:merge-pr <ticket-id>` after your own review.
+  merge each PR with `/acs:merge-pr <ticket-id>` after review. On a
+  solo-maintainer repo that skill cannot merge (it requires an APPROVED
+  review and GitHub forbids self-approval), so merge in the GitHub UI
+  instead — see the branch-protection step above for what that costs.
 - **Greenfield**: same two skills (they elicit instead of reverse-engineer),
   plus `/acs:create-project` to scaffold the repo.
 - After that, ship features with `/acs:ship <prompt>` or step-by-step starting

@@ -244,6 +244,17 @@ Judge the four readiness dimensions, each as `"pass"` or
   an approving review (mitigation m6); because the coordinator cannot reliably
   distinguish an agent invocation from a direct human one, the requirement
   applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
+  This is stricter than the branch protection `/acs:setup` offers, which makes a
+  PR mandatory with `required_approving_review_count: 0`; the two are separate
+  brakes, not a contradiction. On a repo with no reviewer available — a solo
+  maintainer, since GitHub forbids self-approval — this skill cannot merge at
+  all, and the PR is merged by a human in the GitHub UI instead. That is a
+  known tooling gap, not the intended path: an out-of-band merge strands the
+  ticket at `in_review` (never archived, no tracker Status→Done transition,
+  metrics never bumped). Requiring APPROVED is unconditional **today**, with no
+  settings kill-switch (ADR-0028); the tracked resolution is PRD **G26**, which
+  narrows m6 to agent invocations so a human-invoked merge defers to the repo's
+  own branch protection. It is not relaxed by configuration in the meantime.
 - **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
   `mergeStateStatus == DIRTY`) is a fail.
 - **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch
