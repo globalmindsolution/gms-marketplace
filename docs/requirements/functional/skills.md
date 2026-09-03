@@ -1501,14 +1501,13 @@ Purpose: land the change.
   both the acs ticket id and the PR. The `gh issue close` call and the
   Status→Done edit are otherwise unchanged.
 - **GitHub call failure policy (standing behavior, MAR-403, ADR-0088):** `gh`
-  is this skill's only GitHub transport — no MCP-based transport, no second
-  credential path. A readiness *dimension that evaluates to fail* stays
-  report-only, unchanged. A readiness *read that cannot be evaluated*
-  because the `gh` call itself failed is **critical**: verbatim `gh` stderr
-  plus one canonical `acs_lib.gh_failure_hint()` hint, and the run **stops
-  before any merge is attempted** — an unevaluable gate is never treated as
-  passed. This applies identically to the Step 0 readiness reads, the
-  resume/reconcile `gh pr view`, the BEHIND carve-out's
+  is this skill's only GitHub transport. A readiness *dimension that
+  evaluates to fail* stays report-only, unchanged. A readiness *read that
+  cannot be evaluated* because the `gh` call itself failed is **critical**:
+  verbatim `gh` stderr plus one canonical `acs_lib.gh_failure_hint()` hint,
+  and the run **stops before any merge is attempted** — an unevaluable gate
+  is never treated as passed. This applies identically to the Step 0
+  readiness reads, the resume/reconcile `gh pr view`, the BEHIND carve-out's
   `gh pr update-branch` call and its required-checks poll, and the exempt
   `--pr` path's identical reads. Separately, once the merge has landed, the
   post-merge tracker sync (`gh issue close`, Status→Done) is
