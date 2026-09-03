@@ -108,7 +108,8 @@ Purpose: drive the whole pipeline from one command.
   lane and stop before `/merge-pr`, which a reviewer lands as a separate step
   ([workflow.md](workflow.md#umbrella-command-ship)):
   `/create-ticket` → `/create-design` (when the ticket needs design) →
-  `/code` → `/docs-sync` → `/create-pr`. No lane branches the walk — spec
+  `/code` → `/test` (when e2e is configured) → `/docs-sync` →
+  `/create-pr`. No lane branches the walk — spec
   authoring is folded into `/code`'s plan phase on every lane
   (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
   SAME order on every lane — the fold is universal now, so no lane branches

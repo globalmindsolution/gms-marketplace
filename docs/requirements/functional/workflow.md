@@ -86,7 +86,8 @@ requirements.
 
 `/ship <prompt>` drives the pipeline end-to-end: it MUST run
 `/create-ticket` → `/create-design` (when the ticket needs design) →
-`/code` → `/docs-sync` → `/create-pr` in sequence, pausing for user
+`/code` → `/test` (when e2e is configured) → `/docs-sync` →
+`/create-pr` in sequence, pausing for user
 clarifications wherever a skill requires them, and MUST **stop before
 `/merge-pr`** — the PR is landed separately after review.
 
