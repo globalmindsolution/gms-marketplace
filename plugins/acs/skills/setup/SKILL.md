@@ -1013,9 +1013,9 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; replace the Ticket line with **Scope** (no ticket at init time):
 
 ```markdown
-## /acs:setup · <ticket-id> · <status>
+## /acs:setup · <status>
 
-- **Ticket**: <id> — <title> (<type>)
+- **Scope**: <user|project> settings for <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <stop_reason>
 - **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined); e2e gate CI convention outcome (skipped — e2e not configured / files written / branch-protection: configured / printed-for-admin / declined); `CLAUDE.md` pipeline-default guidance block (written / refreshed / declined)
 - **Findings**: <open findings / clarifications, or "none">
