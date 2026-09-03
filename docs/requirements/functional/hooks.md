@@ -76,6 +76,10 @@ file in the workspace partition:
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
   the previous state in place silently.
+- A post-hook MUST be given a result document that states a `status`
+  (via `--result-file`, JSON on stdin, or an explicit `--status`). An
+  invocation with no result document, or one omitting `status`, is
+  REFUSED with a non-zero exit — it is never recorded as a completed run.
 - See [workspace-and-state.md](workspace-and-state.md) for the state
   file inventory and schemas.
 

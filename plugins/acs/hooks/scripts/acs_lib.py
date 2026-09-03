@@ -1753,7 +1753,10 @@ def finalize_run(tdir, skill, ticket_id, result):
     tokens/role_usage/cost_usd/cost_basis are MEASURED (see
     _measure_run_usage), never taken from `result`."""
     state = load_state(tdir, skill, ticket_id)
-    status = result.get("status", "completed")
+    # No default: this writes the status the next pre-hook gates on, so a
+    # result document that never stated one must fail here rather than
+    # silently finalize the run as completed.
+    status = result.get("status")
     if status not in RUN_STATUSES or status == "in_progress":
         raise ValueError("invalid final run status: %r" % status)
     entry = last_run(state)
@@ -2743,7 +2746,25 @@ def _read_result_from_argv():
         result["status"] = args.status
     if args.stop_reason:
         result["stop_reason"] = args.stop_reason
-    result.setdefault("status", "completed")
+    if not result:
+        # Defaulting an absent result to "completed" would finalize the run and
+        # open the next gate on nothing at all. The status must be stated.
+        if args.result_file:
+            # Naming the path matters: told only "no result document", an
+            # operator who did pass one would reissue the same command.
+            sys.stderr.write(
+                "acs: result file %s is empty — it must carry at least a status\n"
+                % args.result_file)
+        else:
+            sys.stderr.write(
+                "acs: no result document — pass --result-file <path>, JSON on stdin, "
+                "or --status explicitly\n")
+        sys.exit(1)
+    if not result.get("status"):
+        sys.stderr.write(
+            "acs: result document has no 'status' — one of %s is required\n"
+            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+        sys.exit(1)
     return result, args.ticket
 
 
@@ -2815,7 +2836,7 @@ def run_post(skill):
         sys.stderr.write("acs post-%s: no active partition for %s.\n" % (skill, ticket_id))
         sys.exit(1)
 
-    status = result.get("status", "completed")
+    status = result["status"]  # guaranteed by _read_result_from_argv
     state, entry = finalize_run(tdir, skill, ticket_id, result)
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")

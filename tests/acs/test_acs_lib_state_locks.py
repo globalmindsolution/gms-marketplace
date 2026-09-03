@@ -106,6 +106,17 @@ class TestFinalizeRun(unittest.TestCase):
         with self.assertRaises(ValueError):
             lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "in_progress"})
 
+    def test_raises_when_the_result_states_no_status(self):
+        """finalize_run writes the status the next pre-hook gates on, so it is
+        the last place a missing one can still be caught. It used to default to
+        "completed" here -- refusing only at the CLI boundary left the silent
+        default intact at the point of persistence, reachable by any in-process
+        caller."""
+        with self.assertRaises(ValueError) as ctx:
+            lib.finalize_run(self.tdir, "code", "SHOP-1", {"stop_reason": "no status given"})
+        self.assertIn("None", str(ctx.exception))
+        self.assertEqual(lib.load_state(self.tdir, "code", "SHOP-1").get("runs", []), [])
+
     def test_synthesizes_run_entry_when_none_in_progress(self):
         state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["status"], "completed")
