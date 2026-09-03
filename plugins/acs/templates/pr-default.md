@@ -26,6 +26,6 @@
 
 - [ ] Tests written first (TDD) and passing
 - [ ] Coverage target met
-- [ ] Code-verifier review loop passed with zero findings
+- [ ] Changeset review passed with zero blocking findings
 - [ ] Affected docs updated (README / API docs / changelog / architecture doc set)
 - [ ] Commit messages follow the configured format
