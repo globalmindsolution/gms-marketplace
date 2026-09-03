@@ -376,16 +376,29 @@ class TestSeedNext(unittest.TestCase):
         counters = lib.read_json(self.counters_path)
         self.assertEqual(counters["next"], 4)
 
+    def test_seed_next_below_one_is_refused_before_any_write(self):
+        for bad in (0, -5):
+            with self.subTest(seed_next=bad):
+                with self.assertRaises(ValueError):
+                    lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP", seed_next=bad)
+                self.assertFalse(os.path.exists(self.counters_path))
+
 
 class TestCountersSchema(unittest.TestCase):
-    """AC-4: the additive shape of counters.schema.json."""
+    """AC-4: the additive shape of counters.schema.json. observed_max is never
+    persisted (it is surfaced only in ReconciliationRequired's refusal message
+    for the human to read) and so is deliberately absent from this schema."""
 
-    def test_schema_declares_the_four_fields_and_stays_additive(self):
+    def test_schema_declares_the_three_fields_and_stays_additive(self):
         schema = _load_schema()
         self.assertEqual(schema["required"], ["next"])
         self.assertIs(schema["additionalProperties"], True)
-        for field in ("reconciled", "seed_source", "observed_max", "seeded_at"):
+        for field in ("reconciled", "seed_source", "seeded_at"):
             self.assertIn(field, schema["properties"])
+
+    def test_schema_does_not_declare_observed_max(self):
+        schema = _load_schema()
+        self.assertNotIn("observed_max", schema["properties"])
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed in this env")
     def test_a_legacy_next_only_counters_file_still_validates(self):
@@ -395,7 +408,7 @@ class TestCountersSchema(unittest.TestCase):
     def test_counters_document_validates_against_counters_schema(self):
         document = {
             "next": 6, "reconciled": True, "seed_source": "explicit-user",
-            "observed_max": 5, "seeded_at": "2026-01-01T00:00:00Z",
+            "seeded_at": "2026-01-01T00:00:00Z",
         }
         jsonschema.validate(document, _load_schema())
 

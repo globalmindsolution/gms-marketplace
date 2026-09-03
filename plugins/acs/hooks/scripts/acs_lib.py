@@ -1926,6 +1926,11 @@ def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=Non
         counters = read_json(counters_path) or {}
 
         if seed_next is not None:
+            if seed_next < 1:
+                raise ValueError(
+                    "allocate_ticket_id requires seed_next >= 1 (defense-in-depth "
+                    "behind the CLIs' own >= 1 checks); got %r" % (seed_next,)
+                )
             previous_next = counters.get("next")
             if isinstance(previous_next, int) and seed_next < previous_next:
                 sys.stderr.write(
