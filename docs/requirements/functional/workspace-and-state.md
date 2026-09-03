@@ -352,3 +352,19 @@ When a ticket is merged/done, its partition is **archived** — moved to
 full audit trail without cluttering the active workspace. Archived tickets
 remain in `tickets-index.json` (status `done`) and in the metrics
 aggregates.
+
+### Ticket allocation on resume
+
+`skill-start.py --allocate` MUST NOT mint a second ticket for work that
+already has one, and MUST NOT let one run adopt another's partition. Reuse
+is therefore resolved from EXPLICIT inputs only:
+
+- `--ticket <id>`, for any skill; or
+- `--args` for `/acs:create-ticket` alone, and only when the argument IS the
+  id rather than prose citing one.
+
+The session pointer and the branch name — which `resolve_ticket_id` consults
+on the non-allocating path — MUST NOT be consulted here. Product-level legs
+run concurrently (a doc-bootstrap fan-out runs two at once) passing neither,
+and resolving through either would collapse two independent delivery tickets
+into one.
