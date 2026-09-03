@@ -128,15 +128,21 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
                          "exactly one relay/handoff-describing heading "
                          "('## Handling the handoff') must exist -- no new one added")
 
-    def test_fix_loops_is_written_through_the_extra_channel(self):
-        """AC-2: the counter goes through update_pipeline's `extra` parameter,
-        not a hand-edited step dict. The prose used to claim no acs_lib change
-        was needed because update_pipeline "already writes an arbitrary-shape
-        step dict" -- it did not, which is why MAR-510 exists."""
+    # The counter is written through a supported writer, never a hand-edited
+    # step dict. Two writers qualify -- update_pipeline's `extra=` parameter
+    # (MAR-510) and the pipeline-step.py CLI that wraps it (MAR-511) -- so
+    # these assert the property, not which of the two the prose currently uses.
+    SETS_COUNTER = r'(extra=\{"fix_loops"|--set fix_loops=)'
+    CLEARS_COUNTER = r'(extra=\{"fix_loops": None\}|--unset fix_loops)'
+
+    def test_fix_loops_is_written_through_a_supported_writer(self):
+        """AC-2: the prose used to claim no acs_lib change was needed because
+        update_pipeline "already writes an arbitrary-shape step dict" -- it did
+        not, which is why MAR-510 exists."""
         gate = section(self._body(), "## Post-code test gate")
         self.assertIsNotNone(
-            re.search(r'extra=\{"fix_loops"', gate),
-            "the test-gate steps must write fix_loops via update_pipeline's extra channel")
+            re.search(self.SETS_COUNTER, gate),
+            "the test-gate steps must write fix_loops through a named writer")
         self.assertNotIn(
             "no `acs_lib.py`\ncode change", self._body(),
             "the claim that update_pipeline already writes an arbitrary-shape "
@@ -145,9 +151,9 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
     def test_a_passing_step_clears_the_counter(self):
         """AC-3: a pass records completed AND removes fix_loops."""
         gate = section(self._body(), "## Post-code test gate")
-        window = re.search(r"(?s)Verdict is `pass`.{0,400}", gate)
+        window = re.search(r"(?s)Verdict is `pass`.{0,500}", gate)
         self.assertIsNotNone(window)
-        self.assertIn('extra={"fix_loops": None}', window.group(0))
+        self.assertIsNotNone(re.search(self.CLEARS_COUNTER, window.group(0)))
 
     def test_re_entry_after_a_capped_run_resets_the_counter(self):
         """AC-4: without a reset, a resumed run re-reads the capped value, falls
@@ -158,7 +164,7 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
             re.search(r"(?i)re-entry reset", gate),
             "the gate must define what happens when the step is re-entered after a cap")
         window = re.search(r"(?si)re-entry reset.{0,600}", gate).group(0)
-        self.assertIn('extra={"fix_loops": None}', window)
+        self.assertIsNotNone(re.search(self.CLEARS_COUNTER, window))
         self.assertIsNotNone(re.search(r"(?i)failed", window))
 
     def test_fix_loops_cap_independent_note(self):

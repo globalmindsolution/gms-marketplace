@@ -2485,7 +2485,8 @@ def gate_docs_sync(ctx, payload):
     if test_step is not None and test_step.get("status") != "completed":
         raise GateError(
             "/test is recorded as %r for %s (the post-code test gate was active but has not "
-            "completed) — run /acs:test --for-ticket %s first." % (
+            "completed) — run /acs:test --for-ticket %s and get it green; the run records "
+            "the step itself." % (
                 test_step.get("status"), ticket_id, ticket_id)
         )
     return ticket_id
