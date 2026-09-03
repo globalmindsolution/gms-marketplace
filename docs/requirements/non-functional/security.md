@@ -11,7 +11,7 @@ Tracker access goes through the official CLIs — `gh` for GitHub and `acli`
 for Jira — which manage their own authentication (`gh auth login`,
 `acli auth`). `settings.json` holds only non-secret configuration (URLs,
 project keys, formats). `/setup` and the pre-hooks SHOULD check that the
-configured tracker's CLI is installed and authenticated.
+configured tracker's CLI is installed.
 
 ## Subagent tool restrictions
 

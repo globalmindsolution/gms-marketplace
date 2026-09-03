@@ -35,6 +35,7 @@ sequenceDiagram
     else ready
         CO->>GH: merge (configured strategy, default squash), then delete branch
         CO->>CO: clean worktree if one was used, then tracker sync to Done
+        note over CO,POST: tracker-sync failure here is loud-but-non-reverting -- the merge already landed, never reverted or re-attempted (ADR-0088)
         CO->>POST: result document
         POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers, metrics (pr merged)
         POST->>WS: move partition -> archive/SHOP-123/
@@ -51,6 +52,7 @@ sequenceDiagram
                     alt all required checks pass
                         CO->>GH: merge (configured strategy, default squash), then delete branch
                         CO->>CO: clean worktree if one was used, then tracker sync to Done
+                        note over CO,POST: tracker-sync failure here is loud-but-non-reverting -- the merge already landed, never reverted or re-attempted (ADR-0088)
                         CO->>POST: result document (protections="pass, was BEHIND — auto-updated via gh pr update-branch")
                         POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers, metrics (pr merged)
                         POST->>WS: move partition -> archive/SHOP-123/
