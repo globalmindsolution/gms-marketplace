@@ -38,6 +38,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import unittest
@@ -76,10 +77,13 @@ ADR_0047 = os.path.join(ADR_DIR, "0047-init-auto-wires-e2e-required-check-report
 HISTORICAL_DIRS = (os.path.realpath(ADR_DIR),)
 HISTORICAL_FILES = (os.path.realpath(CHANGELOG), os.path.realpath(SPIKE_DOC))
 
-# A real .git directory is skipped by name; a linked worktree's top-level
-# ".git" is a FILE (a "gitdir: <path>" pointer) whose target path can itself
-# contain "/init..." as an unrelated directory-name substring, so it is
-# skipped explicitly too, not just as a directory.
+# Applied to every enumerated path, on both the git-listed and the fallback
+# walk. A real .git directory is skipped by name; a linked worktree's
+# top-level ".git" is a FILE (a "gitdir: <path>" pointer) whose target path
+# can itself contain "/init..." as an unrelated directory-name substring, so
+# it is skipped explicitly too, not just as a directory. `.claude` is tracked
+# but deliberately outside these guards, so it stays skipped by name even
+# though git lists it.
 SKIP_DIR_NAMES = {".git", "node_modules", "__pycache__", ".claude"}
 SKIP_FILE_NAMES = {".git"}
 
@@ -133,14 +137,67 @@ def is_historical(path):
     return any(real == d or real.startswith(d + os.sep) for d in HISTORICAL_DIRS)
 
 
-def iter_repo_files():
-    """Every non-skipped file under the repo root, depth-first."""
+def is_skipped(rel_path):
+    """True when any component of *rel_path* is on the skip lists."""
+    parts = rel_path.split(os.sep)
+    if any(part in SKIP_DIR_NAMES for part in parts[:-1]):
+        return True
+    return parts[-1] in SKIP_DIR_NAMES or parts[-1] in SKIP_FILE_NAMES
+
+
+def git_listed_files():
+    """Repo-relative paths git accounts for, or None when git cannot answer.
+
+    `--cached --others --exclude-standard` is tracked files plus untracked
+    ones git does not ignore: a brand-new, not-yet-added source file is still
+    swept, while everything .gitignore covers is not.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", REPO_ROOT, "ls-files", "-z",
+             "--cached", "--others", "--exclude-standard"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.decode("utf-8", "surrogateescape")
+    return [rel for rel in out.split("\0") if rel]
+
+
+def walk_repo_files():
+    """Fallback enumeration for a checkout git cannot enumerate."""
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIR_NAMES]
         for name in filenames:
             if name in SKIP_FILE_NAMES:
                 continue
             yield os.path.join(dirpath, name)
+
+
+def iter_repo_files():
+    """Every repo file these whole-tree guards cover.
+
+    Enumerated from git, not a raw walk. The guards are assertions about what
+    the repository *ships*, and a raw walk also drags in everything git
+    ignores -- above all `.acs/state-machine/`, which ADR-0086 made the
+    in-repo default workspace. Scanning that swept a consumer's own ticket
+    partitions as if they were repo source, so a note they wrote in their own
+    ticket could turn this suite red with nothing wrong in the repo (MAR-570).
+    """
+    rel_paths = git_listed_files()
+    if rel_paths is None:
+        for path in walk_repo_files():
+            yield path
+        return
+    for rel in rel_paths:
+        if is_skipped(rel):
+            continue
+        path = os.path.join(REPO_ROOT, rel)
+        # A path staged-then-deleted is still an index entry; skip what is
+        # no longer on disk rather than letting the readers raise.
+        if os.path.isfile(path):
+            yield path
 
 
 def xsd_skill_enum_values():
@@ -601,3 +658,69 @@ class EvalTriggerCaseTest(unittest.TestCase):
             "init", expected_skills,
             "CASES must not expect the stale skill literal \"init\" -- expected "
             "\"setup\" (got expected-skill values: %s)" % expected_skills)
+
+
+class GitignoredPathsNotSweptTest(unittest.TestCase):
+    """MAR-570: the whole-tree guards cover repo content, never ignored state.
+
+    ADR-0086 made `.acs/state-machine/` the in-repo default workspace, and
+    .gitignore covers it. Before this fix `iter_repo_files()` walked the tree
+    raw, so a consumer's own ticket notes were scanned as repo source and a
+    retired skill-name token written in one failed the sweep -- a red suite
+    with nothing wrong in the repository.
+    """
+
+    IGNORED_REL = os.path.join(".acs", "state-machine")
+
+    def _ignored_root(self):
+        """The ignored directory to plant in, or None when git disagrees."""
+        root = os.path.join(REPO_ROOT, self.IGNORED_REL)
+        try:
+            proc = subprocess.run(
+                ["git", "-C", REPO_ROOT, "check-ignore", "-q", self.IGNORED_REL],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            return None
+        return root if proc.returncode == 0 else None
+
+    def test_token_in_gitignored_path_is_not_swept(self):
+        root = self._ignored_root()
+        if root is None:
+            self.skipTest("%s is not git-ignored here" % self.IGNORED_REL)
+
+        planted = os.path.join(root, "MAR-570-probe", "notes.md")
+        os.makedirs(os.path.dirname(planted), exist_ok=True)
+        # Assembled from parts for the same self-match-immunity reason as the
+        # needles above: this module's own source must never carry the token.
+        token = "/acs:" + "initialize"
+        try:
+            with open(planted, "w", encoding="utf-8") as fh:
+                fh.write("User asked how %s differs from the new one.\n" % token)
+
+            self.assertNotIn(
+                os.path.realpath(planted),
+                {os.path.realpath(p) for p in iter_repo_files()},
+                "a git-ignored path must not be enumerated by the sweep")
+
+            # And the guard that used to fail on it now reports nothing.
+            hits = [
+                path for path in iter_repo_files()
+                if LIVE_INITIALIZE_RE.search(read(path)) and not is_historical(path)
+            ]
+            self.assertNotIn(
+                os.path.realpath(planted),
+                {os.path.realpath(h) for h in hits},
+                "the live-reference sweep must not report a git-ignored file")
+        finally:
+            shutil.rmtree(os.path.dirname(planted), ignore_errors=True)
+
+    def test_tracked_files_are_still_swept(self):
+        """The fix is subtractive: real repo content stays covered."""
+        swept = {os.path.realpath(p) for p in iter_repo_files()}
+        for rel in ("plugins/acs/hooks/scripts/acs_lib.py", "docs/adr"):
+            path = os.path.realpath(os.path.join(REPO_ROOT, rel))
+            if os.path.isfile(path):
+                self.assertIn(path, swept, "%s must still be swept" % rel)
+        self.assertGreater(
+            len(swept), 100,
+            "the sweep must still cover the repository, not collapse to nothing")
