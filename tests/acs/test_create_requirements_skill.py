@@ -7,7 +7,7 @@ proves the coordinator + triad + hooks exist on disk, and pins the
 count-bump doc-set (`c4-container.md`/`c4-component.md`) to the post-registration
 totals (15th HOOKED skill: 24 skills / 45 agent files (39 reachable) / 15 pre
 + 15 post hooks / twelve triad-keeping skills / 12 active triads (36 agents
-in triads)). Mirrors `test_init_principles_path.py`'s
+in triads)). Mirrors `test_setup_principles_path.py`'s
 `Mar117PrinciplesRegistryCase` registry-case pattern.
 
 Stdlib-only (os, re, sys, unittest). Run:
@@ -138,7 +138,7 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
-        self.assertIn("24 x SKILL.md", body)
+        self.assertIn("25 x SKILL.md", body)
         self.assertIn("45 x agent .md (39 reachable)", body)
         self.assertIn("twelve triad-keeping skills", body)
         self.assertIn("create-requirements", body)

@@ -13,17 +13,30 @@ improvise a scaffold target the plan does not name.
 ## Input contract
 
 Your prompt contains an XML `<task skill="standardize-project" phase="execute"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the plan
-`iter-<n>-plan.md`, the specific config/CI files being added or appended),
+ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the frozen
+plan `iter-1-plan.md`, the specific config/CI files being added or appended),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path — plus the
-allowlist entries this executor's slice owns). The coordinator may run several executors
-in parallel; when it does, your task names your slice and an executor index `k`. You
-share no memory with the coordinator: read the plan and every input file yourself before
-writing anything.
+allowlist entries this executor's slice owns), and, on iteration >= 2, a `<context>`
+carrying the prior iteration's verifier findings verbatim (no planner spawn happens in
+between — the plan you read is the same `iter-1-plan.md` every iteration). The
+coordinator may run several executors in parallel; when it does, your task names your
+slice and an executor index `k`. You share no memory with the coordinator: read the plan
+and every input file yourself before writing anything.
+
+A finding in `<context>` whose remediation would need a path or category outside the
+frozen iteration-1 Additive-surface allowlist is **NOT executable** — report it, never
+scaffold it. Scaffolding it would silently widen your writable surface past what the
+plan authorized; instead name it in the execute report's `problems` and, per the Output
+contract below, return a `failed` result with `<errors>` describing exactly why it is
+out of your frozen allowlist, so the coordinator can apply its own conversion rule
+(`SKILL.md` §Reflection loop) — routing it to `recommended_follow_ups` only when the
+underlying finding is of the degradable plan-conformance class, and treating the
+refusal as a genuine run failure otherwise — instead of it ever landing in a future
+context.
 
 ## Doing the work
 
-1. Read `iter-<n>-plan.md` first. Implement ONLY the executor task(s) your `<objective>`
+1. Read `iter-1-plan.md` first. Implement ONLY the executor task(s) your `<objective>`
    assigns, drawn from the plan's Additive-surface allowlist.
 2. Write ONLY the files/appends the plan names for this executor's task: new CI workflow
    files, or additive appends (a new key/hook/script) to the specific tooling-config
@@ -39,7 +52,7 @@ writing anything.
    chmod +x .acs/ci/run-e2e.py
    ```
 
-   This mirrors `plugins/acs/skills/init/SKILL.md`'s Step 7f (same `cp`/`chmod` shape,
+   This mirrors `plugins/acs/skills/setup/SKILL.md`'s Step 7f (same `cp`/`chmod` shape,
    same `${CLAUDE_PLUGIN_ROOT}/templates/ci/` source, same two target paths).
 4. **NEVER edit, rename, move, or delete any pre-existing source file** not named as an
    append target by the plan — this restriction holds regardless of what the plan's
@@ -47,7 +60,7 @@ writing anything.
    `disallowedTools` restriction above. **This executor also never mutates branch
    protection** — it does not call the GitHub API to add or change required status
    checks on any branch; wiring the `E2E suite` (or any) required check into branch
-   protection stays exclusively with `/acs:init` Step 7f (D1).
+   protection stays exclusively with `/acs:setup` Step 7f (D1).
 5. **NEVER write under `<principles_path>/**` or `<standards_path>/**`**, under any
    circumstance, even when the plan's Recommended follow-up candidates name a missing
    principles or standards set — that is a report-only finding this executor never acts
@@ -87,7 +100,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-execute.json</file>
     <file>.github/workflows/ci.yml</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="4200" cost-usd="0.07"/>
   <stop-reason>Scaffolded the CI workflow file the plan's allowlist named; no pre-existing source touched.</stop-reason>
 </result>
 ```

@@ -12,17 +12,17 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 24 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{skill-start,new-ticket,handoff,validate_xml,pr-conventions}.py` | 5 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /init Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 18 |
+| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
-Skills are invoked namespaced: `/acs:init`, `/acs:ship`, `/acs:create-ticket`, …
-(The requirements docs write `/init`, `/ship`, … — same skills, plugin-namespaced
+Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
+(The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
 by Claude Code.)
 
 ## Hook event binding (resolves the open question in docs/requirements/functional/hooks.md)
@@ -41,12 +41,16 @@ onto the plugin hooks API like this:
    directly.
 2. **Post-hooks — coordinator-invoked, gate-backed.** `post-<skill>.py` is the
    skill's mandatory final step (each SKILL.md ends with it). It must be a
-   script the coordinator calls because its inputs — final status, stop reason,
-   findings, token/cost usage — exist only in the coordinator's context. The
-   pipeline does not depend on the model's goodwill: skill-start has already
-   appended an `in_progress` run entry, and every downstream pre-hook gates on
-   `runs[-1].status == "completed"`, so a skipped post-hook leaves the gate
-   closed, never open.
+   script the coordinator calls because its inputs — final status, stop
+   reason, and findings — exist only in the coordinator's context. Token/cost
+   usage is the one exception since MAR-1 (ADR 0082): `finalize_run` measures
+   both itself, from the run's own Claude Code transcript and a sampled
+   statusLine cost figure, rather than trusting a coordinator-supplied value —
+   a `tokens`/`cost_usd` pair on the result document is accepted for backward
+   compatibility but silently ignored. The pipeline does not depend on the
+   model's goodwill: skill-start has already appended an `in_progress` run
+   entry, and every downstream pre-hook gates on `runs[-1].status ==
+   "completed"`, so a skipped post-hook leaves the gate closed, never open.
 3. **SessionEnd safety net.** `dispatch.py session-end` finalizes any run this
    checkout left `in_progress` as `interrupted` (and releases the lock), so
    abnormal endings still write state. A hard kill that skips even SessionEnd
@@ -66,6 +70,9 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations):
      plan    -> spawn <skill>-planner   (XML <task phase="plan">,   returns <result>)
+                (for /acs:code this line is lane-conditional since MAR-72: STANDARD/COMPLEX
+                 spawn the planner as shown; on TRIVIAL/SMALL the coordinator writes plan.md
+                 directly, with no XML plan message sent or returned — D-4)
      execute -> spawn <skill>-executor(s) (XML <task phase="execute">; parallel executors
                 allowed when outputs cannot conflict; decomposition is coordinator-only)
      verify  -> spawn <skill>-verifier  (XML <task phase="verify">,  returns <result> with findings)
@@ -88,6 +95,19 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
+**All twelve triad-keeping skills exception (MAR-71, slice 1b of MAR-69, for
+`/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`;
+MAR-302 for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
+`/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, and
+`/acs:create-principles`; completed for `/acs:create-architecture`,
+`/acs:create-design`, and `/acs:create-requirements`):** for every triad
+skill, the plan step above runs exactly once, before this loop starts, and
+is not part of any iteration — it is never re-entered on iteration 2+. The
+loop body for all twelve is execute → verify only: on iteration 2+, verifier
+findings feed straight into the next iteration's **executor** `<context>`,
+never back into a re-plan step, and the executor authors the remediation.
+There is no longer a triad-keeping skill that re-plans per iteration.
+
 ### Phase artifacts (written by the subagents themselves)
 
 Subagents persist their full work products into the partition — the XML result
@@ -96,7 +116,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` | planner | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
@@ -143,14 +163,31 @@ pipeline end.
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 
-Three sanctioned substitutions: `/acs:init` and `/acs:update` (no ticket)
-replace the Ticket line with **Scope**, and `/acs:handoff` puts the
-`continue_with` command in **Next**. Per-skill Results/Next content is fixed
-in each SKILL.md's "Completion report" section.
+**The `iterations` element.** A skill that runs no reflection loop omits it
+entirely rather than reporting a fraction of a loop it never ran. That is a
+property, not a list: it covers the inline apply-work skills (`create-ticket`,
+`create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `metrics`,
+`usage`, `test`, `release`, `install-hooks`), and the orchestrators that drive
+other skills' loops without running one of their own (`ship`, `handoff`). The
+twelve triad-keeping skills report it.
+
+`<cap>` is a constant **3** for eleven of those twelve. Only `/acs:code`
+derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 1 on light depth
+and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
+
+**Sanctioned substitutions.** A skill that runs without a ticket drops
+`<ticket-id>` from the heading and replaces the **Ticket** line with a
+one-line label naming what the run covered — **Scope** for the
+configuration and reporting utilities (`setup`, `update`, `metrics`,
+`usage`, `install-hooks`), **Run** for the two run-oriented ones (`test`,
+`release`), whose subject is an execution rather than a scope. `/acs:handoff`
+additionally puts the `continue_with` command in **Next**. No other label
+substitution is sanctioned; per-skill Results/Next content is fixed in each
+SKILL.md's "Completion report" section.
 
 ### The result document (input to post-<skill>.py)
 
@@ -166,6 +203,17 @@ in each SKILL.md's "Completion report" section.
   "handoff_summary": "only when status=handed_off"
 }
 ```
+
+`status` is REQUIRED. A post hook invoked with no result document at all, or
+with one that omits `status`, exits 1 rather than defaulting to `completed` --
+defaulting would finalize the run and open the next gate on nothing. The same
+rule holds one layer down: `finalize_run` raises on a result with no status,
+so an in-process caller cannot bypass it either.
+
+`tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
+silently ignored since MAR-1 — `finalize_run` measures both itself (see the
+Token/cost usage exception noted above) rather than trusting a coordinator-supplied
+value. Emitting them is harmless but has no effect.
 
 `post-<skill>.py` finalizes `runs[-1]`, merges `states` (replaces `findings` /
 `errors` when present), updates `pipeline-state.json`, `tickets-index.json`,
@@ -184,7 +232,7 @@ The next skill reads these — keep the names exact:
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (partition-relative `design.md`), `decision` (one line) |
-| code | `verifier_passed: true/false` (the /create-pr gate), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
+| code | `verifier_passed: true/false` (the /create-pr gate), `plan_approved: true/false` (written by `plan-approval.py`; not a gate this release), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr gate) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
 
@@ -264,9 +312,9 @@ audit trail. Current conditional controls:
 
 | Control | Set where | Effect |
 |---------|-----------|--------|
-| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1531-1541`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
+| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1532-1542`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
 | `docs_only` | ticket analysis, user-confirmed | `true`: /code drops tests-first and the coverage hard fail (`coverage: n/a — docs_only`); the full suite still runs once and must be green; the verifier's Tests/Coverage dimensions become n/a, all others apply. A diff line touching executable code under this flag is a blocking finding. |
-| epic children | minted by `new-ticket.py` | a completed `create-ticket` run is recorded at mint time — children start at /create-design (epic's) or /code without a fake step. |
+| epic children | minted by `new-ticket.py` **in a `--fan-out` or split/restructure run** | a completed `create-ticket` run is recorded at mint time — a child never reruns `/acs:create-ticket` and never runs its own `/create-design`; its pipeline starts at `/acs:code`, which reads the parent epic's `design.md` directly, without a fake step. |
 | `flow: product` | product-level skills | the delivery ticket skips the six-step pipeline; /merge-pr's gate accepts the PR reference from the product skill's state file. |
 
 The spine — ticket → code → docs-sync → PR → merge — is deliberately
@@ -286,14 +334,14 @@ which the code-verifier owns. Three layers:
 | Layer | Authored | Executed & gated |
 |-------|----------|------------------|
 | Unit + coverage | /code executors, tests-first (TDD) per the spec's Test plan | Executors iterate to green; the verifier RE-RUNS the suite and RE-MEASURES coverage vs `test_coverage_percent` — hard fail below target (`docs_only` relaxes only this layer's authoring, never the suite-must-stay-green rule) |
-| E2E (`settings.e2e`: command + optional setup/teardown) | /code executors, when the spec's Test plan declares e2e impact — same changeset, never a follow-up; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /init detects and offers the config | Executors run the AFFECTED e2e tests; the verifier runs the FULL suite (setup → command → teardown always) — a red suite blocks, and with `per_iteration: false` (default, e2e is slow) the run may be skipped only on iterations that already have other blocking findings: **no zero-findings verdict without a green e2e run** |
+| E2E (`settings.e2e`: command + optional setup/teardown) | /code executors, when the spec's Test plan declares e2e impact — same changeset, never a follow-up; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | Executors run the AFFECTED e2e tests; the verifier runs the FULL suite (setup → command → teardown always) — a red suite blocks, and with `per_iteration: false` (default, e2e is slow) the run may be skipped only on iterations that already have other blocking findings: **no zero-findings verdict without a green e2e run** |
 | CI (scaffolded by /create-project; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
 
 The chain of declarations keeps e2e honest: the spec's Test plan states the
 e2e impact (or "no e2e impact" with a reason) → the code plan maps it into
 executor tasks → the verifier demands matching e2e test diffs from any spec
 that declared impact. A repo without `settings.e2e` skips the layer entirely;
-adding it later is one /acs:init re-run.
+adding it later is one /acs:setup re-run.
 
 ## Requirement clarification — controlled, recorded, never repeated
 
@@ -349,7 +397,10 @@ induction invariant, not a periodic chore:
 - **Drift repair (boy-scout)** — commits that bypass the pipeline can still
   desynchronize docs. Both the design planner and the code planner compare
   the touched area's docs against current code and schedule stale sections
-  for repair as part of the ticket; widespread drift triggers a recommended
+  for repair as part of the ticket (on TRIVIAL/SMALL this survey is
+  **best-effort** and coordinator-carried instead of planner-carried, since
+  there is no code-planner spawn on those lanes — MAR-72; its omission there
+  is never a finding); widespread drift triggers a recommended
   /create-architecture re-run (the full reconcile, shipped as its own
   delivery ticket + docs PR).
 
@@ -415,8 +466,8 @@ sanctioned way to keep children shippable when a slice alone would break.
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
-- `enforcement` (opt-in, /init Step 7c): repo-side CI that holds *every* PR to
-  the same conventions, so the pipeline can't be silently bypassed. /init copies
+- `enforcement` (opt-in, /setup Step 7c): repo-side CI that holds *every* PR to
+  the same conventions, so the pipeline can't be silently bypassed. /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
   is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
@@ -434,7 +485,7 @@ sanctioned way to keep children shippable when a slice alone would break.
   partition/state, and skips tracker sync and archiving — `skill-start.py --pr`
   validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
   refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. `/acs:init` Step 7e injects the guidance **body** from
+  ticket-backed. `/acs:setup` Step 7e injects the guidance **body** from
   `templates/CLAUDE.acs.md` (the template's maintainer header and its own markers
   are dropped) into the repo's `CLAUDE.md`, wrapped by `upsert_managed_block` in
   exactly one acs-managed marker pair — idempotent (byte-identical re-runs) and
@@ -467,6 +518,6 @@ authoritative XSD validation via `ACS_XML_AUTHORITATIVE=1`; the default fast
 path is the in-process stdlib validator which is XSD-equivalent and requires no
 external tool). `acs_lib.check_toolchain()` is
 the single source of truth for this list (kind = required | recommended |
-optional, with per-platform install commands); `/init` Step 0b reports it and
+optional, with per-platform install commands); `/setup` Step 0b reports it and
 offers to install the missing required/recommended tools before configuring
 anything, so the full workflow is ready rather than failing mid-pipeline.

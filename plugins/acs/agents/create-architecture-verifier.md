@@ -142,8 +142,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <finding severity="blocking" dimension="hld-lld-consistency" file="docs/architecture/lld/flows/checkout.md">Participant "PaymentGateway" appears in the checkout sequence diagram but no such container or component exists in hld/c4-container.md or hld/c4-component.md.</finding>
     <finding severity="blocking" dimension="prd-coverage" file="docs/architecture/hld/overview.md">PRD NFR "p95 latency under 200ms" is not addressed by any quality-attribute or deployment decision.</finding>
   </findings>
-  <metrics tokens-input="38000" tokens-output="4000" cost-usd="0.17"/>
-  <stop-reason>Verification complete: 2 blocking findings across 9 dimensions.</stop-reason>
+  <stop-reason>Verification complete: 2 blocking findings across 11 dimensions.</stop-reason>
 </result>
 ```
 

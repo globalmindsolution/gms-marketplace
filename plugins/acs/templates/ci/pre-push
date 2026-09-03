@@ -3,7 +3,7 @@
 # commit message is caught before it ever reaches GitHub (where the required
 # `ACS conventions` check would block the merge anyway).
 #
-# Installed by /acs:init. This is a convenience layer, NOT the gate: it is
+# Installed by /acs:setup. This is a convenience layer, NOT the gate: it is
 # per-clone and can be bypassed with `git push --no-verify`. The real gate is
 # the required status check + protected default branch.
 #

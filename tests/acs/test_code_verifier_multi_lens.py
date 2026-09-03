@@ -55,8 +55,11 @@ def skill_body():
 
 class LensTableTest(unittest.TestCase):
     """AC-1, AC-3: code-verifier.md documents a 4-lens table (A-D) whose
-    dimension assignment is exhaustive and non-overlapping across all 14
-    dimensions, plus the verify_lens constraint and -lens-<X>.md naming."""
+    dimension assignment is exhaustive and non-overlapping across all 16
+    dimensions, plus the verify_lens constraint and -lens-<X>.md naming.
+
+    MAR-74 (slice 4 of epic MAR-69) appended dimensions 15 and 16, so the
+    lens table now covers 1-16."""
 
     ROW_RE = re.compile(r"(?m)^\|\s*([A-D])\s*—[^|]*\|\s*([0-9, ]+?)\s*\|")
 
@@ -84,8 +87,8 @@ class LensTableTest(unittest.TestCase):
                                      "dimension number")
             all_nums.extend(parsed)
         self.assertEqual(
-            sorted(all_nums), list(range(1, 15)),
-            "the 4 lenses together must cover dimensions 1-14 exactly once "
+            sorted(all_nums), list(range(1, 17)),
+            "the 4 lenses together must cover dimensions 1-16 exactly once "
             "each (no omission, no double-assignment); got %r" % (
                 sorted(all_nums),))
 
@@ -288,20 +291,49 @@ class Adr0067Test(unittest.TestCase):
                       "ADR 0067 must scope the decision to verify_depth")
 
 
-class RequirementsDocsUpdatedTest(unittest.TestCase):
-    """reflection.md's dimension-count drift (12 -> 14) is corrected and the
-    full-depth multi-lens shape is described; skills.md's code-verifier
-    MUST-review bullet mentions the full-depth multi-lens shape."""
+def _line_containing(body, anchor):
+    """The single physical line containing `anchor` -- located by a stable
+    substring that survives the substitution itself, mirroring
+    PrdDimensionConsistencyTest's anchor technique, reused for
+    reflection.md."""
+    hits = [line for line in body.splitlines() if anchor in line]
+    if len(hits) != 1:
+        raise AssertionError(
+            "expected exactly one reflection.md line containing anchor %r, "
+            "found %d" % (anchor, len(hits)))
+    return hits[0]
 
-    def test_reflection_md_dimension_count_bumped_to_14(self):
+
+class RequirementsDocsUpdatedTest(unittest.TestCase):
+    """reflection.md's dimension-count drift (12 -> 14 -> 16/15) is corrected
+    and the full-depth multi-lens shape is described; skills.md's
+    code-verifier MUST-review bullet mentions the full-depth multi-lens
+    shape.
+
+    MAR-74 (slice 4 of epic MAR-69) appends verifier dimensions 15 and 16:
+    full verify now reviews 16 dimensions, light verify 15. Each line is
+    located by a stable anchor substring that survives the substitution
+    itself, plus a file-scope stale-count scan."""
+
+    def test_reflection_md_full_verify_line_states_16_dimension_multi_lens(self):
+        line = _line_containing(read(REFLECTION_MD), "multi-lens review + e2e")
+        self.assertIn("16-dimension", line)
+        self.assertIn("multi-lens", line)
+
+    def test_reflection_md_full_verify_dimension_count_is_16(self):
+        line = _line_containing(read(REFLECTION_MD), "Full verify's")
+        self.assertIn("16 dimensions", line)
+
+    def test_reflection_md_light_verify_line_states_15_dimension(self):
+        line = _line_containing(read(REFLECTION_MD), "single-subagent")
+        self.assertIn("15-dimension", line)
+
+    def test_reflection_md_has_no_stale_dimension_count(self):
         body = read(REFLECTION_MD)
         self.assertNotRegex(
-            body, r"12-dimension",
-            "the stale '12-dimension' phrase must be corrected")
-        self.assertRegex(body, r"14-dimension",
-                          "reflection.md must state the 14-dimension count")
-        self.assertRegex(body, r"(?i)multi-lens",
-                          "reflection.md must describe the multi-lens shape")
+            body, r"1[234][- ]dimension",
+            "no 12/13/14-dimension phrase (hyphenated or spaced) may "
+            "survive the MAR-74 dimension-count sweep")
 
     def test_skills_md_code_verifier_bullet_mentions_multi_lens(self):
         body = read(SKILLS_MD)
@@ -318,7 +350,12 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
     corrected to '13-dimension' (lane-neutral gate-list mentions) or
     '14-dimension, multi-lens' (full-verify-specific mentions), mirroring
     reflection.md:56-63. Each line is located by a stable anchor substring
-    that survives the substitution itself, not by hardcoded line number."""
+    that survives the substitution itself, not by hardcoded line number.
+
+    MAR-74 (slice 4 of epic MAR-69) appends verifier dimensions 15 and 16,
+    making the base set 13 -> 15 dimensions; the same 8 anchors now read
+    '15-dimension' (lane-neutral) or '16-dimension, multi-lens'
+    (full-verify-specific)."""
 
     # anchor substring -> the physical prd.md line it identifies (lane-neutral:
     # generic gate-list mentions, not singling out full verify).
@@ -353,23 +390,23 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
             "the stale '12-dimension' phrase must be fully corrected in "
             "docs/product/prd.md")
 
-    def test_lane_neutral_lines_mention_13_dimension(self):
+    def test_lane_neutral_lines_mention_15_dimension(self):
         body = read(PRD_MD)
         for anchor in self.LANE_NEUTRAL_ANCHORS:
             line = self._line_containing(body, anchor)
             self.assertIn(
-                "13-dimension", line,
+                "15-dimension", line,
                 "lane-neutral prd.md line near anchor %r must read "
-                "'13-dimension'" % anchor)
+                "'15-dimension'" % anchor)
 
-    def test_full_verify_lines_mention_14_dimension_multi_lens(self):
+    def test_full_verify_lines_mention_16_dimension_multi_lens(self):
         body = read(PRD_MD)
         for anchor in self.FULL_VERIFY_ANCHORS:
             line = self._line_containing(body, anchor)
             self.assertIn(
-                "14-dimension", line,
+                "16-dimension", line,
                 "full-verify-specific prd.md line near anchor %r must "
-                "mention '14-dimension'" % anchor)
+                "mention '16-dimension'" % anchor)
             self.assertIn(
                 "multi-lens", line,
                 "full-verify-specific prd.md line near anchor %r must "

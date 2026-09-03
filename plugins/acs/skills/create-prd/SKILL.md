@@ -83,6 +83,9 @@ continuing:
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
 4. Continue from the first unfinished phase. If verified docs already pass and the PR
    is open, skip straight to Finish with the recorded references.
+5. A resumed run reuses the existing `<partition>/phases/create-prd/iter-1-plan.md`
+   and never spawns a second planner; the plan phase runs (once) only when that
+   artifact is absent.
 
 If `context.handoff_summary` exists, read it (and
 `<partition>/phases/create-prd/handoff-context.md` if present), do a light reconcile
@@ -90,7 +93,17 @@ of the same checks, and continue from where it points.
 
 ## Reflection loop
 
-Plan -> execute -> verify, max 3 iterations. Spawn subagents with the Agent tool:
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:create-prd-planner` across the whole run, however many iterations the loop below
+uses. The loop itself is execute -> verify, max 3 iterations.
+
+**What an iteration counts.** One iteration is one execute -> verify round;
+the plan phase runs once, before the loop, and is not part of any iteration,
+so the cap counts execute+verify rounds, not a plan+execute+verify triad.
+`/acs:create-prd` has no lane-driven verify-depth selection: the cap is a fixed 3 in
+every lane, and this ticket introduces none.
+
+Spawn subagents with the Agent tool:
 `subagent_type` `acs:create-prd-planner` / `acs:create-prd-executor` /
 `acs:create-prd-verifier` (fall back to the un-namespaced name if the runtime rejects
 the namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn when not
@@ -107,10 +120,18 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `<partition>/phases/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
-starting the next phase. Decomposition is YOURS alone — subagents never spawn
-subagents.
+starting the next phase. The plan phase runs once, so its message pair persists once
+as `iter-1-plan.xml` and its artifact is `<partition>/phases/create-prd/iter-1-plan.md`;
+execute and verify keep persisting per iteration, and every iteration's executor and
+verifier `<inputs>` name that same `iter-1-plan.md`. Decomposition is YOURS alone —
+subagents never spawn subagents.
 
-### Plan
+### Plan (once, before the loop)
+
+Spawned exactly once per run, before iteration 1 — the plan is authored once
+and there is no per-iteration re-plan. On iterations 2-3 the verifier's
+findings route straight to the executor's `<task>` `<context>`, with no
+planner spawn in between.
 
 The planner's first job is mode classification:
 
@@ -127,12 +148,12 @@ The planner also runs the shared ADR-0012 design-time doc-consistency step; any
 findings surface through the "Clarification ledger first" mechanism below (User
 interaction).
 
-Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iteration
-2+, the verifier findings to fix):
+Example task (fill real values; `<context>` carries `$ARGUMENTS` and the user's
+recorded clarification answers):
 
 ```xml
 <task skill="create-prd" phase="plan" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (greenfield/brownfield/amend); produce the prd.md and roadmap.md outline, the elicitation or reverse-engineering plan, and the open questions for the user.</objective>
+  <objective>Classify mode (greenfield/brownfield/amend); produce the prd.md and roadmap.md outline, the elicitation or reverse-engineering plan, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the verifier's deterministic floor parses.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/product/prd.md</file>
@@ -144,7 +165,7 @@ Example task (fill real values; `<context>` carries `$ARGUMENTS` and, on iterati
     <constraint name="audience_style_profile">product/business (plainer prose)</constraint>
     <constraint name="amend_rule">amendments preserve untouched sections exactly</constraint>
   </constraints>
-  <context>User notes from $ARGUMENTS; prior findings on iteration 2+.</context>
+  <context>User notes from $ARGUMENTS; the user's recorded clarification answers.</context>
 </task>
 ```
 
@@ -202,11 +223,16 @@ finish and judges the combined result.
 ### Verify
 
 Spawn the verifier (`phase="verify"`) with ONLY artifact references (the two files,
-the ticket, the git diff) — never the executor's reasoning. Its `<constraints>` also
-carry `required_sections` and `audience_style_profile` (both declared above in the
+the ticket, the git diff) — never the executor's reasoning. Its `<inputs>` also carry
+`<partition>/clarifications.json`, and its `<constraints>` also carry
+`required_sections`, `audience_style_profile` (both declared above in the
 Plan task example — the same eight-section list the executor was instructed to write,
-so the structure gate has no second, driftable copy). It re-reads everything fresh
-and checks, all findings blocking:
+so the structure gate has no second, driftable copy), and `repo_root` (the consumer
+repo root, for the plan-conformance code-evidence family). In amend mode, the
+verifier itself derives the `--added-heading` values its plan-conformance check
+needs from its own `git diff -- <settings.prd_path>` (already dimension 8's
+mechanism): every `+###`/`+####` heading line added to `roadmap.md`. It re-reads
+everything fresh and checks, all findings blocking:
 
 - all eight required `prd.md` sections present and non-empty, plus `roadmap.md`;
 - every feature traces to at least one goal; no orphan features, no goal without a
@@ -222,10 +248,11 @@ and checks, all findings blocking:
   version is a blocking finding;
 - amend mode: `git diff` shows only the intended sections changed.
 
-Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed the
-findings into the next plan/execute iteration. After iteration 3 with findings
-remaining: STOP — final status `failed`, findings recorded; go to Finish (no PR is
-opened).
+Zero findings = pass -> Deliver. Findings -> persist the verify XML, then route every
+finding verbatim into the next iteration's executor `<task>` `<context>`, with no
+planner spawn in between — the executor authors the remediation, and the run
+continues execute -> verify. After iteration 3 with findings remaining: STOP — final
+status `failed`, findings recorded; go to Finish (no PR is opened).
 
 ## Deliver the docs-only PR
 
@@ -351,14 +378,11 @@ MANDATORY final step — never skipped, also on failure.
        "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-amend-prd-add-org-enforcement-policy"}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 84000, "output": 21000},
-     "cost_usd": 0.61
+     "errors": []
    }
    ```
 
-   Estimate `tokens`/`cost_usd` for this run (all subagents + coordinator). On
-   failure keep whatever is true: status `failed`, remaining verifier findings in
+   On failure keep whatever is true: status `failed`, remaining verifier findings in
    `findings`, `states.prd` if the files were written, NO `states.pr` if no PR was
    opened, and the reason in `stop_reason`.
 
@@ -394,6 +418,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PRD files written/amended at `prd_path` (`prd.md`, `roadmap.md`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-architecture`
 ```

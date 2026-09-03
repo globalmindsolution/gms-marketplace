@@ -20,9 +20,24 @@ create-architecture, create-project, create-quality, create-operations,
 create-principles, create-standards, standardize-project, create-requirements) MUST apply the
 Reflection pattern as a
 **plan–execute–verify cycle**, with a **different subagent for each phase**.
+All twelve now run a plan-once shape of this cycle, where the plan phase
+runs exactly once per run before the loop rather than per iteration:
+`/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
+`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
+`/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles`,
+`/acs:create-architecture`, `/acs:create-design`, and
+`/acs:create-requirements` — see the `code` conditional-triad note
+immediately below and the Exception bullet under Requirements for the full
+statement.
 Each phase runs in a separate context window so the verify phase judges the work
-fresh rather than rubber-stamping its own output. The table below shows the three
-phases and their responsibilities for a representative triad-running skill:
+fresh rather than rubber-stamping its own output. **`code` is a conditional
+triad (MAR-72):** its plan phase spawns the `code-planner` subagent only on
+STANDARD/COMPLEX lanes; on TRIVIAL/SMALL the coordinator authors the plan
+artifact itself, with zero planner spawns, against the identical artifact
+contract — execute and verify stay unconditional on every lane, so only the
+plan phase's subagent-vs-coordinator authorship varies by lane. The table
+below shows the three phases and their responsibilities for a representative
+triad-running skill:
 
 | Phase | Subagent (example for `/code`) | Responsibility |
 |-------|--------------------------------|----------------|
@@ -47,19 +62,38 @@ Requirements:
   the verifier judges the work fresh rather than rubber-stamping its own
   output.
 - On verification failure, the cycle reflects: the coordinator feeds the
-  verifier's findings back into another plan/execute iteration.
+  verifier's findings back into another iteration. For every one of the
+  twelve triad-keeping skills, findings feed the **executor's** `<context>`
+  on the next iteration — execute → verify only, with no re-plan and no
+  second planner spawn (MAR-71, slice 1b of MAR-69, for `/acs:code`;
+  MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`; MAR-302
+  for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
+  `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`,
+  and `/acs:create-principles`; and completing the migration for
+  `/acs:create-architecture`, `/acs:create-design`, and
+  `/acs:create-requirements`). For `/acs:code` on TRIVIAL/SMALL specifically
+  there is no planner to feed back into in the first place — the plan was
+  coordinator-authored with zero planner spawns, so the loop-back is
+  executor-only on every lane; escalating mid-flight to STANDARD/COMPLEX
+  never retro-spawns a planner either (MAR-72, D-3). None of the other
+  eleven triad skills has a lane-conditional planner — each runs a fixed
+  iteration cap of 3 in every lane (MAR-300, MAR-301, MAR-302, MAR-305, and
+  the completion of this migration for `/acs:create-architecture`,
+  `/acs:create-design`, and `/acs:create-requirements`).
   - The cycle runs at most **lane-driven iterations**:
     - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **1 iteration** (light
       verify — single verifier pass that may iterate once on blocking findings;
       cap = `VERIFY_ITERATION_CAP["light"]` = 1).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
-      **3 iterations** (full verify — existing plan→execute→verify loop + full
-      14-dimension, multi-lens review + e2e when configured, unchanged; cap =
-      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 14 dimensions are
+      **3 iterations** (full verify — execute → verify loop, with the plan
+      authored once before it starts rather than a per-iteration
+      plan→execute→verify loop, + full 16-dimension, multi-lens review + e2e
+      when configured; an iteration is one execute+verify round; cap =
+      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 16 dimensions are
       split across 4 parallel independent lenses (each reading a distinct
       evidence source), followed by a coordinator-performed
       confidence-scoring/adversarial merge pass before findings count; light
-      verify keeps today's single-subagent, 13-dimension pass unchanged.
+      verify keeps today's single-subagent, 15-dimension pass unchanged.
     - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
       conservatively to full (3-iteration ceiling).
     - On hitting the lane's cap with findings remaining, the skill stops and
@@ -143,7 +177,32 @@ Requirements:
 > checklist** section only (a floor, never a ceiling), and verifiers never
 > read executor reasoning — only artifacts.
 >
-> **Spec-time vs. code-time simplicity (MAR-88)**: the `code-planner`
+> **Bounded exception — `/acs:code` plan conformance (MAR-74, slice 4 of
+> MAR-69, ADR 0073)**: for `/acs:code` alone, and for the `code-verifier`'s
+> plan-conformance dimension (15) alone, the approved plan's `## Executor
+> tasks & file map` and its folded `Approach`/`API/data changes` content are
+> additionally a bounded conformance contract. The dimension is active only
+> while the verifier itself computes — never from a coordinator-relayed
+> value — that `<partition>/phases/code/plan-approval.json` exists and
+> parses, carries `eligible: true` and `plan_path == phases/code/plan.md`,
+> and pins a `plan_sha256` equal to the current `plan.md` bytes; when any
+> condition fails the dimension reports an evidenced **N/A**, never a block.
+> The hazards ADR-0004 named are structurally absent in exactly this case:
+> the approval is a deterministic non-LLM predicate over the plan's own
+> bytes (MAR-73), and since MAR-71 the plan is not a same-iteration artifact
+> at all — it is authored once, before the loop. The dimension is strictly
+> **subordinate to acceptance-criteria conformance** (dimension 1): an
+> approved plan is never evidence that an acceptance criterion is satisfied.
+> Everywhere else — every other dimension, every other skill, and every case
+> where the record is absent or does not hold — the rule above stands
+> unchanged, the plan a floor and never a ceiling. When the plan itself is
+> wrong, the boundary-gated, `clarify.py`-recorded revocation path
+> (`plan-superseded-<k>.md`) revises and re-approves it instead of bending
+> the rule.
+>
+> **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author (the
+> `code-planner` on STANDARD/COMPLEX; the coordinator on TRIVIAL/SMALL,
+> **best-effort**, MAR-72)
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on
@@ -159,13 +218,23 @@ Requirements:
 flowchart TD
     CO[Coordinator] -->|XML task| PL[planner]
     PL -->|XML plan| CO
+    CO -->|TRIVIAL/SMALL: self-authors plan.md, no planner spawn| CO
     CO -->|XML task + plan| EX[executor]
     EX -->|XML result| CO
     CO -->|XML task + result| VF[verifier]
     VF -->|XML verdict| CO
     CO -->|verdict = fail, iterations left| PL
+    CO -->|verdict = fail, iterations left (/acs:code)| EX
     CO -->|verdict = pass| ST[(write state JSON via post-hook)]
 ```
+
+For `/acs:code` (MAR-71, slice 1b of MAR-69), a failing verdict with
+iterations left routes straight back to the **executor** (`EX`), never to
+the planner — the plan is authored once, before iteration 1. **The `CO
+-->|XML task| PL` edge is itself lane-conditional (MAR-72, ADR-0074):** it
+fires only on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator instead
+takes the self-loop edge above, authoring `plan.md` itself with zero
+`code-planner` spawns.
 
 ## Coordinator ↔ subagent communication: XML
 
@@ -210,19 +279,27 @@ during design:
 - Subagents MUST write their **states, findings, error details, and stop
   reasons** into JSON files in the workspace folder. Concretely, every phase
   writes its own artifact into `<partition>/phases/<skill>/`: the planner
-  `iter-<n>-plan.md` (the complete plan), each executor
-  `iter-<n>-execute[-<k>].json` (artifacts produced, repo files changed,
-  commands run with outcomes), the verifier `iter-<n>-verify.md` (every check
-  with evidence, every finding in detail). XML results reference these files,
-  never inline their bodies.
+  `iter-<n>-plan.md` (the complete plan) — except `/acs:code`, whose planner
+  writes a single per-ticket `plan.md` (MAR-70), written once per run,
+  before the loop (MAR-71, slice 1b of MAR-69) — each executor
+  `iter-<n>-execute[-<k>].json` (artifacts produced,
+  repo files changed, commands run with outcomes), the verifier
+  `iter-<n>-verify.md` (every check with evidence, every finding in detail).
+  `/acs:code` additionally persists `phases/code/plan-approval.json` on
+  STANDARD/COMPLEX — written by `plan-approval.py`, **not** by a subagent
+  (MAR-73, slice 3 of MAR-69). XML results reference these files, never
+  inline their bodies.
 - **Grounding**: every subagent decision, claim, and finding MUST be traceable
   to a source read or run in that task — cited file/section next to the
   statement, or the quoted command and output. A missing input is an error,
   not a guess; an unverifiable point is an explicit assumption with rationale;
   verifiers treat ungrounded plans/reports as blocking findings.
 - Native **plan mode is not used** for the reflection plan phase: planners are
-  spawned subagents with no user to approve a plan, and resumability comes
-  from the phase artifacts plus gates. The planner's read-only discipline is
+  spawned subagents with no user to give **human/interactive** approval to a
+  plan, and resumability comes from the phase artifacts plus gates. This is
+  unaffected by `/acs:code`'s deterministic plan-approval record (MAR-73,
+  slice 3 of MAR-69) — a machine conformance verdict over the plan's own
+  bytes, never an interactive gate. The planner's read-only discipline is
   enforced by its tool allowlist (planners/verifiers: read tools + Write
   solely for their own phase artifact; executors additionally may not spawn
   agents or invoke skills).

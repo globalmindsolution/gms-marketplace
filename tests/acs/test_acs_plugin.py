@@ -40,7 +40,7 @@ class TestDispatcher(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_unhooked_acs_skills_pass_through(self):
-        for skill in ("init", "ship", "handoff", "metrics", "usage"):
+        for skill in ("setup", "ship", "handoff", "metrics", "usage"):
             self.assertEqual(self.pre(skill).returncode, 0, skill)
 
     def test_garbage_stdin_does_not_crash(self):
@@ -49,13 +49,13 @@ class TestDispatcher(AcsWorkspaceCase):
 
 
 class TestGates(AcsWorkspaceCase):
-    def test_uninitialized_repo_blocks_with_init_message(self):
+    def test_uninitialized_repo_blocks_with_setup_message(self):
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(plain)
         subprocess.run(["git", "init", "-q", plain], check=True)
         result = self.pre("create-ticket", cwd=plain)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("init", result.stderr)
+        self.assertIn("setup", result.stderr)
 
     def test_create_architecture_requires_prd(self):
         result = self.pre("create-architecture")
@@ -198,6 +198,21 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
             "propertyNames"]["enum"]
         self.assertNotIn("create-spec", overrides_enum)
+
+    def test_settings_schema_overrides_enum_tracks_hooked_skills(self):
+        """The schema enum and acs_lib.HOOKED_SKILLS are two copies of one list.
+
+        The schema half is hand-maintained, so nothing but this test notices
+        when a skill is hooked (or unhooked) and only one copy is updated --
+        which is the drift MAR-516 exists to close.
+        """
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
+            "propertyNames"]["enum"]
+        self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
         for field in ("requirements_path", "e2e"):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
@@ -574,7 +589,6 @@ class TestValidators(AcsWorkspaceCase):
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<outputs><file>/src/foo.py</file></outputs>'
         '<findings><finding severity="info">all clear</finding></findings>'
-        '<metrics tokens-input="1000" tokens-output="200" cost-usd="0.05"/>'
         '<stop-reason>done</stop-reason>'
         '</result>'
     )
@@ -659,7 +673,12 @@ class TestValidators(AcsWorkspaceCase):
         '</handoff>'
     )
 
-    # duplicate <metrics> in <result> (optional, maxOccurs=1)
+    # <metrics> was removed from the schema outright (D5-A): any occurrence
+    # (let alone a duplicate) is now rejected as an unrecognized <result>
+    # child via CHILD_ORDER/ALLOWED_ATTRS, not via a maxOccurs=1 cardinality
+    # check. Retained in MALFORMED_CORPUS (still non-empty errors); dropped
+    # from the cardinality-specific case lists below since it no longer
+    # exercises that violation class.
     MALFORMED_DUP_METRICS = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<metrics tokens-input="100" tokens-output="50" cost-usd="0.01"/>'
@@ -685,8 +704,15 @@ class TestValidators(AcsWorkspaceCase):
         '</handoff>'
     )
 
-    # (vii) xs:decimal grammar: cost-usd must match optional-sign + digits +
-    # optional single decimal point — NO exponent, NO inf/nan, NO underscores.
+    # (vii) xs:decimal grammar for <metrics cost-usd>. <metrics> was removed
+    # from the schema outright (D5-A) — cost-usd is no longer a live contract
+    # attribute, and every case below is now rejected primarily because
+    # <metrics> itself is an unrecognized <result> child. validate_xml.py's
+    # decimal-grammar check (_is_xs_decimal) is left in place as defense in
+    # depth for any lingering caller and still fires as an additional error,
+    # so these fixtures still exercise that code path and still match
+    # xmllint (which now rejects them for "unknown element" instead of a
+    # decimal violation — both engines agree on INVALID either way).
     # Each of these is accepted by Python float() but rejected by xs:decimal.
     MALFORMED_COST_USD_INF = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
@@ -721,6 +747,13 @@ class TestValidators(AcsWorkspaceCase):
         '<task skill="code" phase="execute" ticket-id="SHOP-1" bogus="y">'
         '<objective>x</objective></task>'
     )
+    # <metrics> was removed from the schema outright (D5-A): this is no
+    # longer specifically an "undeclared attribute" case — <metrics> itself
+    # is now an unrecognized <result> child, so the whole element is
+    # rejected regardless of which attributes it carries. Retained in
+    # MALFORMED_CORPUS (still non-empty errors); dropped from
+    # CLOSED_CONTENT_CASES below since it no longer isolates that specific
+    # violation class.
     MALFORMED_UNDECLARED_ATTR_METRICS = (
         '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
         '<metrics cost-usd="0.1" bogus="1"/></result>'
@@ -836,14 +869,16 @@ class TestValidators(AcsWorkspaceCase):
         """Duplicate maxOccurs=1 sequence children must be rejected by validate_structurally.
 
         xs:sequence in acs-messages.xsd has maxOccurs=1 (default) for every element.
-        Two <objective>, two <summary>, two <metrics>, two <inputs>, two <next-step>
+        Two <objective>, two <summary>, two <inputs>, two <next-step>
         must each produce at least one error (AC-2 cardinality gap closure).
+        (<metrics> was removed from the schema outright per D5-A, so a
+        duplicate <metrics> case no longer exercises this cardinality class —
+        see MALFORMED_DUP_METRICS's own comment.)
         """
         mod = self._load_validate_xml()
         cardinality_cases = [
             ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
             ("dup_summary", self.MALFORMED_DUP_SUMMARY),
-            ("dup_metrics", self.MALFORMED_DUP_METRICS),
             ("dup_inputs", self.MALFORMED_DUP_INPUTS),
             ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
         ]
@@ -862,7 +897,6 @@ class TestValidators(AcsWorkspaceCase):
         cardinality_cases = [
             ("dup_objective", self.MALFORMED_DUP_OBJECTIVE),
             ("dup_summary", self.MALFORMED_DUP_SUMMARY),
-            ("dup_metrics", self.MALFORMED_DUP_METRICS),
             ("dup_inputs", self.MALFORMED_DUP_INPUTS),
             ("dup_next_step", self.MALFORMED_DUP_NEXT_STEP),
         ]
@@ -1235,9 +1269,11 @@ class TestValidators(AcsWorkspaceCase):
     # (the XSD has no anyAttribute/wildcard; in-process must match xmllint).
     # -----------------------------------------------------------------------
 
+    # (<metrics> was removed from the schema outright per D5-A, so
+    # undeclared_attr_metrics no longer isolates this violation class — see
+    # MALFORMED_UNDECLARED_ATTR_METRICS's own comment.)
     CLOSED_CONTENT_CASES = [
         ("undeclared_attr_root", MALFORMED_UNDECLARED_ATTR_ROOT),
-        ("undeclared_attr_metrics", MALFORMED_UNDECLARED_ATTR_METRICS),
         ("undeclared_attr_finding", MALFORMED_UNDECLARED_ATTR_FINDING),
         ("undeclared_attr_constraint", MALFORMED_UNDECLARED_ATTR_CONSTRAINT),
         ("child_in_file", MALFORMED_CHILD_IN_FILE),
@@ -1329,7 +1365,7 @@ class TestStatusLines(AcsWorkspaceCase):
 
 
 class ToolchainTests(unittest.TestCase):
-    """check_toolchain backs /init Step 0b — the full-workflow dependency preflight."""
+    """check_toolchain backs /setup Step 0b — the full-workflow dependency preflight."""
 
     def test_reports_every_known_tool(self):
         names = [r["name"] for r in lib.check_toolchain()]
@@ -1440,7 +1476,7 @@ class TestManagedBlock(unittest.TestCase):
         self.assertIn("/acs:ship", text)
         self.assertIn("/acs:merge-pr --pr", text)
 
-    # -- MAR-70 regression: doubling / non-idempotency of the /acs:init writer ----
+    # -- MAR-70 regression: doubling / non-idempotency of the /acs:setup writer ----
     # The template ships a COMPLETE block (maintainer header + its own BEGIN/END);
     # the writer must inject only the inner body wrapped in exactly ONE marker pair.
 
@@ -1540,7 +1576,7 @@ class TestManagedBlock(unittest.TestCase):
     # (rfind span + _strip_stray_markers) is the repair; both are idempotent. ----
 
     def _real_corrupted_file(self, prefix_user, suffix_user, n_orphan_end=1):
-        """Reconstruct the artifact a buggy /acs:init actually produced and then
+        """Reconstruct the artifact a buggy /acs:setup actually produced and then
         degraded: the WHOLE substituted template (maintainer header + its own
         inner BEGIN/END) wrapped in an OUTER marker pair, followed by N orphaned
         trailing END markers that accumulated on subsequent re-runs (the old
@@ -1626,7 +1662,7 @@ class TestManagedBlock(unittest.TestCase):
                 self.assertEqual(lib.upsert_managed_block(out, body), out, name)
 
     # -- MAR-104: every upsert_managed_block return path ends with exactly one
-    # trailing newline, so /acs:init Step 7e never writes a CLAUDE.md missing an
+    # trailing newline, so /acs:setup Step 7e never writes a CLAUDE.md missing an
     # EOF newline (which trips pre-commit's end-of-file-fixer in consumer CI). --
 
     def _assert_single_trailing_newline(self, out):
@@ -1817,7 +1853,7 @@ class TestExemptPrMerge(AcsWorkspaceCase):
         if os.path.isdir(repo_root):
             for name in os.listdir(repo_root):
                 # only metrics.json may appear (post-merge-pr --pr bumps it)
-                self.assertIn(name, {"metrics.json"}, name)
+                self.assertIn(name, {"metrics.json", "counters.json"}, name)
 
     # ---- spec 03: post-merge-pr --pr metrics-only ----------------------
 
@@ -2506,13 +2542,13 @@ class TestDeriveLane(unittest.TestCase):
         """large + high -> COMPLEX because Rule 2 (size=large) fires before Rule 3."""
         self.assertEqual(self._lane("large", "high", False, "story"), "COMPLEX")
 
-    # --- needs_design floor (Rule 4) ---
+    # --- needs_design no longer floors the lane (Rule 4 removed) ---
 
-    def test_trivial_low_needs_design_floors_to_standard(self):
-        self.assertEqual(self._lane("trivial", "low", True, "story"), "STANDARD")
+    def test_needs_design_true_does_not_floor_trivial_low(self):
+        self.assertEqual(self._lane("trivial", "low", True, "story"), "TRIVIAL")
 
-    def test_small_normal_needs_design_floors_to_standard(self):
-        self.assertEqual(self._lane("small", "normal", True, "story"), "STANDARD")
+    def test_needs_design_true_does_not_floor_small_normal(self):
+        self.assertEqual(self._lane("small", "normal", True, "story"), "SMALL")
 
     # --- epic override (Rule 1) ---
 
@@ -2525,7 +2561,7 @@ class TestDeriveLane(unittest.TestCase):
     def test_standard_high_epic_is_complex(self):
         self.assertEqual(self._lane("standard", "high", False, "epic"), "COMPLEX")
 
-    # --- absent / None / unrecognized inputs (Rule 6 — AC-3) ---
+    # --- absent / None / unrecognized inputs (Rule 5 — AC-3) ---
 
     def test_none_none_defaults_to_standard(self):
         self.assertEqual(self._lane(None, None, False, "story"), "STANDARD")
@@ -2545,11 +2581,10 @@ class TestDeriveLane(unittest.TestCase):
     def test_task_type_uses_size_dispatch(self):
         self.assertEqual(self._lane("small", "low", False, "task"), "SMALL")
 
-    def test_needs_design_true_with_trivial_low_gives_standard_not_trivial(self):
-        """needs_design=True must prevent TRIVIAL even with size=trivial, stakes=low."""
+    def test_needs_design_true_no_longer_prevents_trivial(self):
+        """needs_design=True no longer floors the lane; size dispatch alone decides it."""
         result = self._lane("trivial", "low", True, "task")
-        self.assertEqual(result, "STANDARD")
-        self.assertNotEqual(result, "TRIVIAL")
+        self.assertEqual(result, "TRIVIAL")
 
 
 
@@ -4499,7 +4534,8 @@ class TestRecordExternal(AcsWorkspaceCase):
             self.new_ticket("Wishlist notifications", "task", "--parent", epic,
                             "--needs-design", "false"),
         ]
-        epic_before = lib.load_ticket(self.tdir(epic))
+        epic_json = os.path.join(self.tdir(epic), "ticket.json")
+        epic_stat_before = os.stat(epic_json)
 
         for i, child in enumerate(children):
             key = str(200 + i)
@@ -4512,9 +4548,13 @@ class TestRecordExternal(AcsWorkspaceCase):
         self.assertIsNone(epic_after.get("external"),
                           "the parent epic's own external must stay untouched by "
                           "child-scoped writes (AC-6)")
-        self.assertEqual(epic_after.get("updated_at"), epic_before.get("updated_at"),
-                         "writing a child's external must not touch the parent "
-                         "epic's ticket.json at all (AC-6)")
+        epic_stat_after = os.stat(epic_json)
+        self.assertEqual(
+            (epic_stat_after.st_mtime_ns, epic_stat_after.st_ino),
+            (epic_stat_before.st_mtime_ns, epic_stat_before.st_ino),
+            "writing a child's external must not touch the parent epic's ticket.json "
+            "at all (AC-6); st_mtime_ns/st_ino detect a re-save that acs_lib.now_iso()'s "
+            "second-resolution updated_at cannot (acs_lib.py:391-392, 419-431)")
 
     def test_ac4_product_flow_title_refused(self):
         """AC-4 defense-in-depth: a ticket titled exactly a PRODUCT_TICKET_TITLES

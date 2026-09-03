@@ -7,7 +7,7 @@
   "required": ["skill", "ticket_id", "states", "findings", "errors", "runs"],
   "properties": {
     "skill": {
-      "enum": ["create-prd", "create-architecture", "create-project", "create-ticket", "create-design", "create-spec", "code", "create-pr", "merge-pr"]
+      "enum": ["code", "create-architecture", "create-design", "create-docs", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "handoff", "install-hooks", "merge-pr", "metrics", "release", "setup", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
     },
     "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "states": {
@@ -28,15 +28,77 @@
         "properties": {
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+          "session_id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+          "transcript_path": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+          "checkout_id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "tokens": {
             "type": "object",
             "properties": {
               "input": {"type": "integer", "minimum": 0},
-              "output": {"type": "integer", "minimum": 0}
+              "output": {"type": "integer", "minimum": 0},
+              "cache_creation": {"type": "integer", "minimum": 0},
+              "cache_read": {"type": "integer", "minimum": 0}
             },
             "additionalProperties": false
           },
-          "cost_usd": {"type": "number", "minimum": 0},
+          "cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+          "cost_basis": {
+            "description": "Never fabricated, never zero-padded: absent/unavailable means no dollar figure is claimed.",
+            "enum": ["measured", "apportioned", "unavailable"]
+          },
+          "cost_scope": {
+            "description": "\"session_total\"/\"main_session_only\" on a measured or apportioned charge; cost_sampler.allocate_cost also reuses this field as the degraded reason (\"no_unconsumed_sample_in_window\"/\"cost_total_reset\") when cost_usd is null -- verified against the module's own real return values, not just the design's abstract two-value description.",
+            "enum": ["session_total", "main_session_only", "no_unconsumed_sample_in_window", "cost_total_reset"]
+          },
+          "excluded_cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+          "excluded_token_share": {"oneOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
+          "api_duration_ms": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+          "api_duration_basis": {
+            "description": "Never fabricated, never zero-padded: absent/unavailable means no duration figure is claimed.",
+            "enum": ["measured", "apportioned", "unavailable"]
+          },
+          "api_duration_scope": {
+            "description": "Distinct from cost_scope: cost_sampler.allocate_cost's api_duration_scope carries its own 5th value (\"duration_unavailable_on_cursor\") that cost_scope never emits, so the two fields are declared separately rather than sharing one enum.",
+            "enum": ["session_total", "main_session_only", "no_unconsumed_sample_in_window", "cost_total_reset", "duration_unavailable_on_cursor"]
+          },
+          "role_usage": {
+            "description": "Per-role measured token/cost buckets (usage_reader/cost_sampler); a 'role': 'unattributed' entry counts toward the apportionment denominator but never receives a dollar share.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["role"],
+              "properties": {
+                "role": {"type": "string"},
+                "input": {"type": "integer", "minimum": 0},
+                "output": {"type": "integer", "minimum": 0},
+                "cache_creation": {"type": "integer", "minimum": 0},
+                "cache_read": {"type": "integer", "minimum": 0},
+                "cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+                "cost_basis": {"enum": ["measured", "apportioned", "unavailable"]},
+                "api_duration_ms": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+                "api_duration_basis": {"enum": ["measured", "apportioned", "unavailable"]}
+              },
+              "additionalProperties": true
+            }
+          },
+          "model_usage": {
+            "description": "Per-model measured token/cost buckets (usage_reader/cost_sampler), parallel to role_usage; cost_usd is the FULL charged delta apportioned by token share with no unattributed exclusion (D1.2 Option A), so its sum can exceed role_usage's attributed-only cost sum by excluded_cost_usd.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["model"],
+              "properties": {
+                "model": {"type": "string"},
+                "input": {"type": "integer", "minimum": 0},
+                "output": {"type": "integer", "minimum": 0},
+                "cache_creation": {"type": "integer", "minimum": 0},
+                "cache_read": {"type": "integer", "minimum": 0},
+                "cost_usd": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
+                "cost_basis": {"enum": ["measured", "apportioned", "unavailable"]}
+              },
+              "additionalProperties": true
+            }
+          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {

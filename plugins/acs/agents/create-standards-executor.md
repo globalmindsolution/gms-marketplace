@@ -18,8 +18,9 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: t
 `iter-<n>-plan.md`, the PRD, the architecture set, the principles set when present, the
 three `standards/` template files, any existing `standards_path` files to regenerate),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path — plus
-`standards_path` and format strings), and optionally `<context>` with prior-iteration
-verifier findings. The coordinator may run several executors in parallel; when it does,
+`standards_path` and format strings), and, on iteration >= 2, a `<context>` carrying the
+prior iteration's verifier findings verbatim (no planner spawn happens in between — the
+plan you read is the same one authored once before iteration 1). The coordinator may run several executors in parallel; when it does,
 your task names your slice and an executor index `k`. You share no memory with the
 coordinator: read the plan and every input file yourself before writing anything.
 
@@ -42,6 +43,8 @@ coordinator: read the plan and every input file yourself before writing anything
    verification passing): create the branch per `formats.branch_name` (embeds the ticket
    id), commit per `formats.commit_message`, push, and open the docs-only PR against the
    default branch with the `ACS` label via `gh pr create`.
+5. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
+   the plan covers; leaving a listed finding unaddressed fails the next verify.
 
 ## The execute artifact
 
@@ -73,7 +76,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
     <file>docs/standards/conventions.md</file>
     <file>docs/standards/review-checklist.md</file>
   </outputs>
-  <metrics tokens-input="20000" tokens-output="6000" cost-usd="0.08"/>
   <stop-reason>standards/ files written, tailored to the detected stack and principles.</stop-reason>
 </result>
 ```

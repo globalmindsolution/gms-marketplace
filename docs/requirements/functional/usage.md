@@ -8,9 +8,10 @@ in the sibling files; this doc adds no new rules, it shows them in action.
 
 ```text
 cd acme-shop
-/init
+/setup
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   ~/acs-workspace    (must be outside the repo)
+  → workspace_path?   (default: derives to <main-checkout>/.acs/state-machine — no answer needed;
+                        set it only to point somewhere else)
   → ticket_prefix?    SHOP               (suggested from the repo name)
   → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
 ```
@@ -51,9 +52,10 @@ of reverse-engineer, and one extra step scaffolds the repo:
 What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
-   docs; creates epic `SHOP-4` with children `SHOP-5`, `SHOP-6` (you
-   confirm the breakdown and `needs_design` flags). Epic flips to
-   **In Progress** when work starts.
+   docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
+   `/create-design` runs next; then `/acs:create-ticket SHOP-4 --fan-out`
+   mints children `SHOP-5`, `SHOP-6` from the design's slices (you confirm
+   the breakdown). Epic flips to **In Progress** when work starts.
 2. Per child: `/create-design` (or the child inherits the epic's design) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
@@ -126,8 +128,8 @@ git worktree add ../shop-SHOP-6 && cd ../shop-SHOP-6
 
 Each worktree gets its own `sessions/<checkout-id>.json` pointer; each
 ticket partition is locked by its session, so the two never collide. The
-workspace lives outside the repo precisely so both worktrees share one
-state store.
+workspace resolves to the same main-checkout-anchored location from every
+worktree, precisely so both worktrees share one state store (ADR-0086).
 
 ## Long session? Hand off
 
@@ -172,7 +174,75 @@ no network call:
   no ticket has a parseable `due_date` — B1),
   coverage achieved vs target, review iterations before the verifier passed,
   and lead + cycle time per ticket.
-- **`/usage`** (usage view) — usage summary (total cost, time, runs, and four
-  averages), cost + time per ticket by pipeline step with the four averages
-  (avg working time and cost per ticket and per merged PR), and token burn by
-  role (planner/executor/verifier).
+- **`/usage`** (usage view) — usage summary (total cost, time, runs, API
+  duration, and six averages: avg working time and cost per ticket and per
+  merged PR, plus avg API duration per ticket and per merged PR), cost + time
+  per ticket by pipeline step with the four averages
+  (avg working time and cost per ticket and per merged PR). Each ticket row
+  also expands into a per-skill sub-row per pipeline step showing that
+  skill's own API-duration figure alongside its wall-clock **step span**
+  (`step_api_duration`/`step_order`) — mirroring Claude Code's own `/usage`
+  split between wall-clock and API time; the API-duration cell renders the
+  literal `unavailable` marker uniformly whether that skill's entry is
+  structurally absent (e.g. the unhooked `test` pipeline step) or present
+  with its own basis `unavailable`, never a bare "no data" at this per-skill
+  scope. Plus token burn by
+  role (coordinator/planner/executor/verifier/other, plus an `unattributed`
+  bucket for same-window tokens with no attribution or attributed to a
+  different acs skill than the run's own — `coordinator` is always rendered,
+  `other`/`unattributed` appear whenever the ticket has any such spend),
+  each bucket additionally showing its repo-scope **token-share** and
+  **cost-share** percentage of panel 6's own totals (`token_share_pct`/
+  `cost_share_pct`, computed once after all runs are summed),
+  and usage by model — input/output/cache-write/cache-read tokens and cost
+  per model, at both repo and per-ticket scope. Its cost figure apportions
+  the run's full charged delta by token share with no unattributed
+  exclusion, unlike the role-scoped figure above, so the by-model total can
+  exceed the role-scoped attributed-only total by the excluded/unattributed
+  share — a named reconciliation identity, not a discrepancy.
+  Plus usage by ticket — input/output/cache-write/cache-read tokens and cost
+  per role, per ticket, each role additionally showing its **token-share**
+  and **cost-share** percentage of that ticket's own totals (ticket-scoped,
+  distinct from panel 6's repo-scope shares above — a different denominator
+  over the same underlying data, not a conflicting figure). Each ticket also
+  opens with a ticket-scope API-duration figure (`api_duration_ms`/
+  `api_duration_basis`, folded across that ticket's own skills) and a
+  `skills[]` breakdown — one row per hooked skill the ticket ever ran, its
+  own run time, API duration, and basis, plus per-run detail — that degrades
+  independently of the role table above: a skill with run entries but no
+  duration ever measured/apportioned still gets a row (null duration, basis
+  `unavailable`) rather than being dropped, and the list is empty only when
+  the ticket has zero run entries for every hooked skill; a role with no
+  measured cost in that ticket renders `no data` for its cost figure and
+  `unavailable` for its cost-share, independent of any sibling role in the
+  same ticket.
+  This render-layer `unavailable` marker (used only on a cost-share cell
+  with no measured cost, in either panel) is a distinct thing from the
+  `cost_basis` field's own pre-existing `unavailable` enum value described
+  below — the former is a share computation with no denominator to divide
+  by, the latter is a run-level fact about how that run's cost was priced;
+  they happen to share a string but never the same field.
+  Every cost figure carries a `cost_basis` — `measured` (the
+  attributed-token share of the real session-window dollar delta sampled
+  from Claude Code's own statusLine cost payload — that delta net of the
+  excluded/unattributed token share, per the "drop, don't redistribute"
+  policy — still sourced directly from Claude Code's own real number, never
+  an acs-invented estimate), `apportioned` (that same attributed share split
+  further across roles by measured token share), or `unavailable` (no
+  fabricated number; excluded from sums, not zero-padded) — plus a
+  `cost_scope`: `session_total` or `main_session_only` (a statusLine total
+  proved not to include subagent spend) on a charge, reused as
+  `no_unconsumed_sample_in_window` or `cost_total_reset` to carry the
+  degraded reason when `cost_usd` is `null`. There is no
+  `pricing_snapshot_date`: acs owns no price table, so no derived-from-a-price-list
+  framing applies (MAR-1, ADR 0082).
+- **Accepted timestamp forms.** A transcript or sample record is counted only
+  when its timestamp parses as an ISO-8601 *instant*: a date and a time with
+  the `T` separator, optionally fractional seconds of any precision, and
+  optionally `Z` or a `±HH:MM` / `±HHMM` offset. A value with no timezone is
+  read as UTC; an offset is normalised to UTC. A **bare date does not parse**
+  — the panel-7 lead/cycle callers read that as "no data" and degrade rather
+  than anchoring to midnight (ADR 0020). Acceptance MUST NOT vary by Python
+  version: the set above holds identically on every interpreter in the CI
+  matrix, so a record counted on one is never silently dropped on another
+  (MAR-520).

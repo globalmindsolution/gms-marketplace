@@ -27,13 +27,24 @@ A pre-hook runs before its skill and checks **readiness**:
 
 - The predecessor skill's state file exists for the current ticket and
   reports **completed**.
-- Required input artifacts exist (e.g. `pre-code.py` requires only that
-  `/create-ticket` has completed — `gate_code` in `acs_lib.py`).
+- Required input artifacts exist (e.g. `pre-code.py` requires that
+  `/create-ticket` has completed and that the ticket is not an `epic` —
+  `gate_code` in `acs_lib.py`).
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /init"), `workspace_path` is valid and outside the repo, and the
-  `<ticket-id>` partition can be resolved. Pre-hooks also check the ticket's
+  "run /setup"), `workspace_path` is resolvable (explicit override or
+  derived default) and consistent across worktrees, and the `<ticket-id>`
+  partition can be resolved. Pre-hooks also check the ticket's
   `.lock` file and exit 2 if another session holds it
   ([workspace-and-state.md](workspace-and-state.md)).
+- A pre-hook is not purely a gate: it also **records** the
+  ticket-independent session-correlation marker (`session_id`,
+  `transcript_path`, `cwd`, `skill`) off the genuine `PreToolUse(Skill)` hook
+  envelope into `sessions/<checkout-id>-session.json`, inside its own
+  fail-open guard so a marker-write failure can never turn into a blocked
+  gate. The next skill's start step reads that marker (rejecting a foreign
+  `checkout_id` or one older than 15 minutes) to correlate real cost/time
+  measurement with this run (MAR-1,
+  [workspace-and-state.md](workspace-and-state.md)).
 
 **Exit code contract:**
 
@@ -65,6 +76,10 @@ file in the workspace partition:
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
   the previous state in place silently.
+- A post-hook MUST be given a result document that states a `status`
+  (via `--result-file`, JSON on stdin, or an explicit `--status`). An
+  invocation with no result document, or one omitting `status`, is
+  REFUSED with a non-zero exit — it is never recorded as a completed run.
 - See [workspace-and-state.md](workspace-and-state.md) for the state
   file inventory and schemas.
 
@@ -89,20 +104,20 @@ examples given in the requirements; exact names to confirm.
 
 | Skill | Pre-hook gate (predecessor must be completed) |
 |-------|-----------------------------------------------|
-| `/create-prd` | `/init` done; product-level — no ticket required. |
-| `/create-architecture` | `/init` done; PRD doc set exists (`prd_path`). |
-| `/create-project` | `/init` done; architecture doc set exists (greenfield only). |
-| `/create-quality` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-operations` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-principles` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-standards` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
-| `/create-ticket` | `/init` done (settings exist); no pipeline predecessor. |
+| `/create-prd` | `/setup` done; product-level — no ticket required. |
+| `/create-architecture` | `/setup` done; PRD doc set exists (`prd_path`). |
+| `/create-project` | `/setup` done; architecture doc set exists (greenfield only). |
+| `/create-quality` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-operations` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-principles` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-standards` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/create-ticket` | `/setup` done (settings exist); no pipeline predecessor. |
 | `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |
-| `/code` | `/create-ticket` completed. (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
+| `/code` | `/create-ticket` completed and the ticket is not an `epic` — an epic is refused with an actionable breakdown message (`gate_code` in `acs_lib.py`). (Since MAR-72, the fold's authorship is the plan's author — the `code-planner` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL.) (Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |
 | `/docs-sync` | `/code` completed (and `/test`, when the post-code test gate was active for this ticket). |
 | `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |
 | `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |
-| `/standardize-project` | `/init` done; architecture doc set exists (`hld/tech-stack.md`). |
+| `/standardize-project` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |
 
 > **NOTE (MAR-160):** `/create-pr`'s gate ADDITIONALLY requires `/docs-sync`
 > completed, alongside the `/code` + verifier-passed check in its row above
@@ -126,7 +141,10 @@ examples given in the requirements; exact names to confirm.
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
   skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
-  branch name ([workflow.md](workflow.md#ticket-context)).
+  branch name ([workflow.md](workflow.md#ticket-context)). Since MAR-1, the
+  `sessions/` directory holds more than this pointer per checkout — see the
+  session-correlation marker and cost-sample/cursor files in
+  [workspace-and-state.md](workspace-and-state.md).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.
 - **Validation**: hooks perform lightweight structural validation of the
@@ -141,8 +159,10 @@ completed" event exists):
 
 - **Pre-hooks** bind to the **`PreToolUse`** event matching the **`Skill`**
   tool: a dispatcher (`dispatch.py pre`) extracts the skill name from the
-  tool input and routes to the named `pre-<skill>.py` with the same stdin
-  payload; exit 2 blocks the skill before it runs. This fires for user-typed
+  tool input and runs that skill's gate **in its own process**, under a
+  bounded alarm; exit 2 blocks the skill before it runs. The gate MUST fail
+  closed — a gate that raises, overruns its bound, or exits early still ends
+  as exit 2, because any other exit code reads as "not blocked". This fires for user-typed
   slash commands and model-initiated Skill calls alike (including the step skills
   `/ship` invokes directly).
 - **Post-hooks** are invoked by the skill's **coordinator as its mandatory

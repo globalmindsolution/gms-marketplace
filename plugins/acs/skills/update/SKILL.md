@@ -70,7 +70,7 @@ Present the delta to the user. Call out explicitly:
 
 - any **MAJOR** bump — breaking changes to skills, hooks, settings keys, or
   state-file contracts; quote the migration notes from the changelog;
-- changes to `settings.json` keys (the user may want an `/acs:init` re-run);
+- changes to `settings.json` keys (the user may want a `/acs:setup` re-run);
 - changes to workspace state shapes (existing partitions keep working —
   schemas are additive by policy — but flag anything the changelog marks
   otherwise).
@@ -112,17 +112,20 @@ they do.
    PY
    ```
 
-   On INVALID: recommend `/acs:init` (it updates files in place).
+   On INVALID: recommend `/acs:setup` (it updates files in place).
 
 2. **Status-line paths** — these hold resolved absolute paths and break when
    an update relocates the install. Read `~/.claude/settings.json` and
    `<repo>/.claude/settings.json`; for any `statusLine` /
    `subagentStatusLine` command containing `acs`, check the referenced
-   script file exists. Missing → tell the user to re-run `/acs:init`
+   script file exists. Missing → tell the user to re-run `/acs:setup`
    (Step 7b) after reloading, which rewrites the paths.
 
-3. **Workspace reachable** — `workspace_path` exists and is writable; if
-   not, the next pre-hook will block anyway, but say it now.
+3. **Workspace reachable** — resolve the workspace the same way item 1 does
+   (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
+   in-repo `.acs/state-machine` default when no explicit `workspace_path` is
+   set), then check the resolved directory exists and is writable; if not,
+   the next pre-hook will block anyway, but say it now.
 
 ## Completion report (normative)
 
@@ -139,5 +142,5 @@ Every terminal outcome ends your final message with the standard block
 - **Findings**: <breaking changes, invalid settings, broken paths, or "none">
 - **Artifacts**: none (this skill writes nothing)
 - **Metrics**: n/a
-- **Next**: restart the session or run /reload-plugins; then `/acs:init` if flagged above
+- **Next**: restart the session or run /reload-plugins; then `/acs:setup` if flagged above
 ```

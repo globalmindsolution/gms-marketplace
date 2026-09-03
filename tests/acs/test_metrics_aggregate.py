@@ -27,6 +27,7 @@ if _SCRIPTS_DIR not in sys.path:
 
 import acs_lib  # noqa: E402  (after sys.path mutation)
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
+metrics_render = importlib.import_module("metrics_render")  # noqa: E402
 
 REPO_ID = "globalmindsolution-gms-marketplace"
 HOOKED = acs_lib.HOOKED_SKILLS
@@ -103,7 +104,6 @@ def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
 _RESULT_XML = (
     '<result skill="code" phase="{phase}" ticket-id="{tid}" iteration="{it}" status="completed">\n'
     '  <outputs><file>x</file></outputs>\n'
-    '  {metrics}\n'
     '</result>\n'
 )
 _TASK_XML = (
@@ -112,19 +112,47 @@ _TASK_XML = (
     '</task>\n'
 )
 
+# Test-local phase -> role vocabulary, mirroring the real attributionAgent/attributionSkill
+# suffix mapping usage_reader.py derives (planner/executor/verifier from a subagent suffix,
+# coordinator from the main-session attributionSkill). metrics_aggregate.py itself no longer
+# owns a phase->role table -- role_usage already carries the role string.
+_TEST_PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifier",
+                    "coordinate": "coordinator"}
+
 
 def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
-                     reorder=False, no_metrics=False, archived=False):
-    """Write phases/<skill_dir>/iter-<it>-<phase>.xml (a result XML, optionally carrying <metrics>)."""
+                     reorder=False, no_metrics=False, archived=False, model_usage=None):
+    """Write phases/<skill_dir>/iter-<it>-<phase>.xml -- a result XML with no <metrics> element,
+    the only shape a result XML can carry now that element is retired.
+
+    Unless no_metrics, also appends a role_usage-bearing run entry (the real shape
+    acs_lib.finalize_run/usage_reader.py produce) to <skill_dir>-state.json's runs list, since
+    panel 6 sources token burn from there rather than from the XML file. `reorder` is now a
+    no-op, kept only for call-site compatibility with test_metrics_render.py (which imports and
+    reuses this fixture; that suite is outside this unit's file map). `model_usage`, when given,
+    is a list of model_usage item dicts (the real acs_lib.finalize_run persisted shape, MAR-3) --
+    omitted entirely by default, matching a pre-MAR-3 legacy run entry with no `model_usage` key."""
     tdir = _ticket_dir(ws, tid, archived)
-    if no_metrics:
-        metrics = ""
-    elif reorder:
-        metrics = '<metrics cost-usd="%s" tokens-output="%s" tokens-input="%s"/>' % (cost, to, ti)
-    else:
-        metrics = '<metrics tokens-input="%s" tokens-output="%s" cost-usd="%s"/>' % (ti, to, cost)
-    body = _RESULT_XML.format(phase=phase, tid=tid, it=it, metrics=metrics)
+    body = _RESULT_XML.format(phase=phase, tid=tid, it=it)
     _write_text(os.path.join(tdir, "phases", skill_dir, "iter-%d-%s.xml" % (it, phase)), body)
+    if no_metrics:
+        return
+    state_path = os.path.join(tdir, "%s-state.json" % skill_dir)
+    state = acs_lib.read_json(state_path)
+    if not isinstance(state, dict):
+        state = {"skill": skill_dir, "ticket_id": tid, "states": {}, "runs": []}
+    role = _TEST_PHASE_ROLE.get(phase, phase)
+    run_entry = {
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+        "status": "completed",
+        "role_usage": [{"role": role, "input": ti, "output": to,
+                         "cache_creation": 0, "cache_read": 0,
+                         "cost_usd": cost, "cost_basis": "measured"}],
+    }
+    if model_usage is not None:
+        run_entry["model_usage"] = model_usage
+    state.setdefault("runs", []).append(run_entry)
+    _write_json(state_path, state)
 
 
 def write_task_xml(ws, tid, skill_dir, phase, it, archived=False):
@@ -233,6 +261,93 @@ class Panel3CostTime(unittest.TestCase):
             self.assertEqual(p3["repo_totals"]["cost_usd"], 18.75)
 
 
+class Panel3ApiDuration(unittest.TestCase):
+    """MAR-7 spec 01 tests 1-3: panel 3 gains step_api_duration/step_order sibling keys;
+    `steps` itself stays byte-identical (F13's no-mutation invariant)."""
+
+    def test_panel3_gains_step_api_duration_and_step_order_steps_key_untouched(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {
+                "code": {"started_at": "2026-06-15T16:24:30Z", "status": "completed",
+                         "ended_at": "2026-06-15T17:03:15Z"},
+            }
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+                 "status": "completed", "api_duration_ms": 4200.0,
+                 "api_duration_basis": "measured"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            # F13 no-mutation invariant: byte-identical to the pre-MAR-7 value
+            # (Panel3CostTime.test_per_ticket_seconds_and_totals_rollup's own assertion, re-run).
+            self.assertEqual(row["steps"]["code"], 2325)
+            self.assertEqual(row["step_api_duration"]["code"], {"ms": 4200.0, "basis": "measured"})
+            self.assertEqual(row["step_order"], ["code"])
+
+    def test_step_order_orders_by_pipeline_step_order_then_sorted_tail_for_unknown_keys(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {
+                "test": {"started_at": "2026-06-15T10:00:00Z", "status": "completed",
+                         "ended_at": "2026-06-15T10:05:00Z"},
+                "code": {"started_at": "2026-06-15T10:05:00Z", "status": "completed",
+                         "ended_at": "2026-06-15T10:10:00Z"},
+            }
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
+                 "status": "completed", "api_duration_ms": 1000.0,
+                 "api_duration_basis": "apportioned"},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-quality-state.json"), {
+                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
+                     "status": "completed", "api_duration_ms": 500.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            # union = {test, code, create-quality}; create-quality is a product-level skill now
+            # listed in PIPELINE_STEP_ORDER (before create-ticket/code/test), so it orders first;
+            # code before test follows PIPELINE_STEP_ORDER's own relative position for both.
+            self.assertEqual(row["step_order"], ["create-quality", "code", "test"])
+
+    def test_step_api_duration_present_without_steps_entry_hooked_only_skill(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_pipeline(ws, "MAR-6", steps={}, archived=True)
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-quality-state.json"), {
+                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
+                     "status": "completed", "api_duration_ms": 750.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            self.assertNotIn("create-quality", row["steps"])
+            self.assertEqual(row["step_api_duration"]["create-quality"],
+                             {"ms": 750.0, "basis": "apportioned"})
+            self.assertIn("create-quality", row["step_order"])
+
+    def test_steps_entry_present_without_step_api_duration_the_test_step_case(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            steps = {"test": {"started_at": "2026-06-15T10:00:00Z", "status": "completed",
+                              "ended_at": "2026-06-15T10:05:00Z"}}
+            write_pipeline(ws, "MAR-6", steps=steps, archived=True)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            self.assertIn("test", row["steps"])
+            self.assertNotIn("test", row["step_api_duration"])
+            self.assertEqual(row["step_order"], ["test"])
+
+
 class Panel4Coverage(unittest.TestCase):
     def test_numeric_cell(self):
         with TemporaryDirectory() as ws:
@@ -280,39 +395,741 @@ class Panel5ReviewIterations(unittest.TestCase):
 
 
 class Panel6TokenBurn(unittest.TestCase):
-    def test_three_role_buckets_order_independent_coordinate_excluded_and_zero(self):
+    def test_four_role_buckets_from_role_usage_coordinator_included(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            # plan -> planner; execute -> executor; verify -> verifier (one with reordered attrs)
+            # plan -> planner; execute -> executor; verify -> verifier; coordinate -> coordinator
             write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, cost=0.17, archived=True)
             write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, cost=3.5, archived=True)
-            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0,
-                             reorder=True, archived=True)
-            # coordinate phase -> contributes 0 to all role buckets (ledger C-5)
-            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=999999, to=999999, cost=99.0,
+            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0, archived=True)
+            # coordinator-attributed usage was silently excluded pre-fix (ledger C-5); it is now
+            # a first-class, present, non-empty bucket (AC-4)
+            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=15000, to=3000, cost=0.4,
                              archived=True)
-            # a -task.xml without metrics, and a merge-pr phase dir with NO metrics XML -> 0 contribution
+            # a -task.xml (never a run entry itself), and a merge-pr run with no_metrics -> 0 contribution
             write_task_xml(ws, "MAR-6", "code", "plan", 1, archived=True)
             write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1, no_metrics=True, archived=True)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
-            self.assertEqual(p6["planner"], {"input": 42000, "output": 7500, "cost": 0.17})
-            self.assertEqual(p6["executor"], {"input": 480000, "output": 90000, "cost": 3.5})
-            self.assertEqual(p6["verifier"], {"input": 100000, "output": 20000, "cost": 1.0})
-            # coordinate's 999999 burn appears in no role bucket
-            self.assertNotIn("coordinate", p6)
-            self.assertEqual(p6["planner"]["input"], 42000)
+            # (input, output, cost) per role -- MAR-4 widens each bucket to 7 keys (cache classes
+            # are 0 for every role here) plus repo-scope token_share_pct/cost_share_pct.
+            raw = {
+                "planner": (42000, 7500, 0.17),
+                "executor": (480000, 90000, 3.5),
+                "verifier": (100000, 20000, 1.0),
+                "coordinator": (15000, 3000, 0.4),
+            }
+            token_total = sum(i + o for i, o, c in raw.values())
+            cost_total = sum(c for i, o, c in raw.values())
+            for role, (i, o, c) in raw.items():
+                bucket = p6[role]
+                self.assertEqual(bucket["input"], i)
+                self.assertEqual(bucket["output"], o)
+                self.assertEqual(bucket["cache_creation"], 0)
+                self.assertEqual(bucket["cache_read"], 0)
+                self.assertAlmostEqual(bucket["cost"], c)
+                self.assertEqual(bucket["token_share_pct"], round((i + o) / token_total * 100, 4))
+                self.assertAlmostEqual(bucket["cost_share_pct"], round(c / cost_total * 100, 4))
+            # AC-4/AC-5: coordinator bucket is present and non-empty (inverted from the old exclusion)
+            self.assertIn("coordinator", p6)
 
-    def test_missing_attribute_defaults_to_zero(self):
+    def test_missing_role_usage_fields_default_to_zero(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-8": {"status": "done", "type": "task"}})
-            tdir = _ticket_dir(ws, "MAR-8")
-            # a metrics tag with only tokens-input present; the others default to schema 0
-            body = ('<result skill="code" phase="plan" ticket-id="MAR-8" iteration="1" status="completed">\n'
-                    '  <metrics tokens-input="500"/>\n</result>\n')
-            _write_text(os.path.join(tdir, "phases", "code", "iter-1-plan.xml"), body)
+            # a role_usage item with only "input" present -- output/cost default to 0, matching
+            # usage_reader.py's own optional-field contract
+            write_code_state(ws, "MAR-8", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [{"role": "planner", "input": 500}]},
+            ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            self.assertEqual(out["panels"]["6"]["planner"], {"input": 500, "output": 0, "cost": 0.0})
+            self.assertEqual(out["panels"]["6"]["planner"], {
+                "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
+                "cost_seen": False, "token_share_pct": 100.0, "cost_share_pct": None,
+            })
+            # sibling seeded roles stay all-zero but share the same repo-scope denominator
+            self.assertEqual(out["panels"]["6"]["executor"]["token_share_pct"], 0.0)
+            self.assertIsNone(out["panels"]["6"]["executor"]["cost_share_pct"])
+
+    def test_non_dict_role_usage_items_and_missing_role_skipped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
+                                {"role": "executor", "input": 7, "output": 2, "cost_usd": 0.02}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p6 = out["panels"]["6"]
+            self.assertEqual(p6["executor"], {
+                "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0, "cost": 0.02,
+                "cost_seen": True, "token_share_pct": 100.0, "cost_share_pct": 100.0,
+            })
+            # the malformed/roleless entries contributed to no bucket
+            self.assertEqual(p6["planner"]["input"], 0)
+            self.assertEqual(p6["planner"]["output"], 0)
+            self.assertEqual(p6["planner"]["cost"], 0.0)
+            self.assertEqual(p6["verifier"]["input"], 0)
+            self.assertEqual(p6["verifier"]["output"], 0)
+            self.assertEqual(p6["verifier"]["cost"], 0.0)
+
+
+class UsageByModelPanel(unittest.TestCase):
+    """MAR-3 spec 04: panels.usage_by_model, built from persisted model_usage (AC-2, data half)."""
+
+    def test_usage_by_model_repo_scope_sums_across_tickets_and_skills(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 10, "cache_read": 5,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1,
+                             model_usage=[{"model": "opus", "input": 500, "output": 100,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.05, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                             model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            by_model = {row["model"]: row for row in repo}
+            self.assertEqual(by_model["opus"], {"model": "opus", "input": 1500, "output": 300,
+                                                 "cache_creation": 10, "cache_read": 5,
+                                                 "cost_usd": 0.15, "cost_basis": "apportioned"})
+            self.assertEqual(by_model["sonnet"], {"model": "sonnet", "input": 2000, "output": 400,
+                                                   "cache_creation": 0, "cache_read": 0,
+                                                   "cost_usd": 0.2, "cost_basis": "apportioned"})
+
+    def test_usage_by_model_per_ticket_scope(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                             model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            tickets = {row["ticket_id"]: row["models"]
+                       for row in out["panels"]["usage_by_model"]["tickets"]}
+            self.assertEqual(tickets["MAR-6"], [{"model": "opus", "input": 1000, "output": 200,
+                                                  "cache_creation": 0, "cache_read": 0,
+                                                  "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            self.assertEqual(tickets["MAR-7"], [{"model": "sonnet", "input": 2000, "output": 400,
+                                                  "cache_creation": 0, "cache_read": 0,
+                                                  "cost_usd": 0.2, "cost_basis": "apportioned"}])
+
+    def test_usage_by_model_models_sorted_by_name(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1,
+                             model_usage=[
+                                 {"model": "sonnet", "input": 1, "output": 1,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.01, "cost_basis": "apportioned"},
+                                 {"model": "opus", "input": 1, "output": 1,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.02, "cost_basis": "apportioned"},
+                             ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            self.assertEqual([row["model"] for row in repo], ["opus", "sonnet"])
+
+    def test_model_cost_null_and_unavailable_when_no_entry_carries_cost(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1,
+                             model_usage=[{"model": "opus", "input": 500, "output": 100,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": None, "cost_basis": "unavailable"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo_row = out["panels"]["usage_by_model"]["repo"][0]
+            self.assertIsNone(repo_row["cost_usd"])
+            self.assertEqual(repo_row["cost_basis"], "unavailable")
+            self.assertEqual(repo_row["input"], 500)
+
+    def test_legacy_run_entry_without_model_usage_yields_no_data_row(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-1": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-1", "code", "execute", 1, ti=500, to=100, cost=0.05)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            panel = out["panels"]["usage_by_model"]
+            self.assertEqual(panel["repo"], "no data")
+            row = next(r for r in panel["tickets"] if r["ticket_id"] == "MAR-1")
+            self.assertEqual(row["models"], "no data")
+
+    def test_empty_workspace_usage_by_model_is_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["usage_by_model"], "no data")
+
+    def test_usage_by_model_adds_no_additional_file_reads(self):
+        """G7 guard: usage_by_model reads only the same per-ticket state files _accumulate_burn
+        already opens for panel 6 -- no new file path is introduced for this panel. Proven by
+        comparing acs_lib.read_json call counts and basename sets between two matched runs of
+        aggregate() on the same fixture shape -- one with model_usage populated, one without
+        (model_usage=None) -- rather than by inspecting basenames for the substring "model"."""
+
+        def _tracked_run(model_usage):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                                 model_usage=model_usage)
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_model = _tracked_run([{"model": "opus", "input": 1000, "output": 200,
+                                     "cache_creation": 10, "cache_read": 5,
+                                     "cost_usd": 0.1, "cost_basis": "apportioned"}])
+        without_model = _tracked_run(None)
+
+        self.assertTrue(with_model)
+        self.assertTrue(without_model)
+        self.assertEqual(len(with_model), len(without_model))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_model),
+                         sorted(os.path.basename(p) for p in without_model))
+
+    def test_panel6_bucket_shape_widened_by_this_ticket(self):
+        """Seam guard: panel 6 buckets widen to the 8-key shape (MAR-4 + cost_seen), and this
+        widening stays independent of usage_by_model even when the same run entry also carries
+        model_usage."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                             model_usage=[{"model": "opus", "input": 1000, "output": 200,
+                                           "cache_creation": 0, "cache_read": 0,
+                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            self.assertEqual(set(bucket.keys()),
+                             {"input", "output", "cache_creation", "cache_read", "cost",
+                              "cost_seen", "token_share_pct", "cost_share_pct"})
+            self.assertEqual(bucket["input"], 1000)
+            self.assertEqual(bucket["output"], 200)
+            self.assertEqual(bucket["cache_creation"], 0)
+            self.assertEqual(bucket["cache_read"], 0)
+            self.assertEqual(bucket["cost"], 0.1)
+            self.assertEqual(bucket["token_share_pct"], 100.0)
+            self.assertEqual(bucket["cost_share_pct"], 100.0)
+            # usage_by_model's own item shape is untouched by this widening (no cost_basis key
+            # leaked into panel 6, no percentage key leaked into usage_by_model).
+            model_row = out["panels"]["usage_by_model"]["repo"][0]
+            self.assertNotIn("token_share_pct", model_row)
+            self.assertNotIn("cost_share_pct", model_row)
+
+    def test_non_dict_model_usage_items_and_missing_model_skipped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-9": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-9", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "model_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
+                                 {"model": "opus", "input": 7, "output": 2,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.02, "cost_basis": "apportioned"}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo = out["panels"]["usage_by_model"]["repo"]
+            self.assertEqual(repo, [{"model": "opus", "input": 7, "output": 2,
+                                      "cache_creation": 0, "cache_read": 0,
+                                      "cost_usd": 0.02, "cost_basis": "apportioned"}])
+
+
+class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
+    """MAR-4 spec 01: panel-6 four-class widening + repo-scope shares (AC-1), and the new
+    panels.usage_by_ticket panel with ticket-scoped role shares (AC-1)."""
+
+    def test_panel6_bucket_widens_to_four_token_classes(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 30, "cache_read": 20, "cost_usd": 0.5}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["planner"]
+            # previously silently dropped -- now folded into the panel-6 bucket
+            self.assertEqual(bucket["cache_creation"], 30)
+            self.assertEqual(bucket["cache_read"], 20)
+
+    def test_panel6_token_share_pct_and_cost_share_pct_repo_scope(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                     {"role": "executor", "input": 300, "output": 150,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 3.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            p6 = out["panels"]["6"]
+            token_total = sum(b["input"] + b["output"] + b["cache_creation"] + b["cache_read"]
+                              for b in p6.values())
+            cost_total = sum(b["cost"] for b in p6.values())
+            total_token_pct = 0.0
+            for bucket in p6.values():
+                token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+                self.assertEqual(bucket["token_share_pct"], round(token_sum / token_total * 100, 4))
+                total_token_pct += bucket["token_share_pct"]
+            self.assertAlmostEqual(total_token_pct, 100.0, places=4)
+            planner = p6["planner"]
+            self.assertEqual(planner["cost_share_pct"], round(1.0 / cost_total * 100, 4))
+
+    def test_panel6_cost_share_pct_null_when_no_cost_measured_repo_wide(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "planner", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            for bucket in out["panels"]["6"].values():
+                self.assertIsNone(bucket["cost_share_pct"])
+
+    def test_panel6_token_share_pct_null_on_all_zero_tokens(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            for bucket in out["panels"]["6"].values():
+                self.assertIsNone(bucket["token_share_pct"])
+                self.assertIsNone(bucket["cost_share_pct"])
+
+    def test_apply_panel6_shares_cost_share_pct_none_when_bucket_never_charged_but_sibling_costed(self):
+        burn = {
+            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                        "cost": 0.0, "cost_seen": False},
+            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                         "cost": 5.0, "cost_seen": True},
+        }
+        metrics_aggregate._apply_panel6_shares(burn)
+        self.assertIsNone(burn["planner"]["cost_share_pct"])
+        self.assertEqual(burn["executor"]["cost_share_pct"], 100.0)
+
+    def test_apply_panel6_shares_cost_share_pct_zero_when_bucket_genuinely_charged_zero(self):
+        burn = {
+            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                        "cost": 0.0, "cost_seen": True},
+            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                         "cost": 5.0, "cost_seen": True},
+        }
+        metrics_aggregate._apply_panel6_shares(burn)
+        self.assertEqual(burn["planner"]["cost_share_pct"], 0.0)
+
+    def test_panel6_render_unavailable_not_zero_pct_when_role_never_charged_but_repo_has_cost(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
+                     {"role": "executor", "input": 200, "output": 100,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": None},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            self.assertIsNone(bucket["cost_share_pct"])
+            rows = metrics_render._term_panel6(out["panels"]["6"])
+            executor_row = next(r for r in rows if r.strip().startswith("executor"))
+            self.assertIn(metrics_render.UNAVAILABLE, executor_row)
+            self.assertNotIn("0.0%", executor_row)
+
+    def test_panel6_render_zero_pct_when_role_genuinely_charged_exactly_zero(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 50,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
+                     {"role": "executor", "input": 200, "output": 100,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 0.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            bucket = out["panels"]["6"]["executor"]
+            self.assertEqual(bucket["cost_share_pct"], 0.0)
+            rows = metrics_render._term_panel6(out["panels"]["6"])
+            executor_row = next(r for r in rows if r.strip().startswith("executor"))
+            self.assertIn("0.0%", executor_row)
+            self.assertNotIn(metrics_render.UNAVAILABLE, executor_row)
+
+    def test_usage_by_ticket_role_shares_are_ticket_scoped_not_repo_scoped(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "MAR-6": {"status": "done", "type": "task"},
+                "MAR-7": {"status": "done", "type": "task"},
+            })
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                     {"role": "executor", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                 ]},
+            ])
+            write_code_state(ws, "MAR-7", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 900, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 9.0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            repo_planner_pct = out["panels"]["6"]["planner"]["token_share_pct"]
+            tickets = {row["ticket_id"]: row["roles"]
+                       for row in out["panels"]["usage_by_ticket"]["tickets"]}
+            mar6_planner_pct = tickets["MAR-6"]["planner"]["token_share_pct"]
+            mar7_planner_pct = tickets["MAR-7"]["planner"]["token_share_pct"]
+            # MAR-6: planner 100 / (100 + 100) = 50%; MAR-7: planner 900 / 900 = 100%.
+            self.assertEqual(mar6_planner_pct, 50.0)
+            self.assertEqual(mar7_planner_pct, 100.0)
+            # neither ticket's own share equals the repo-scope share -- proves the scopes are
+            # computed independently, not one derived from the other.
+            self.assertNotEqual(mar6_planner_pct, repo_planner_pct)
+            self.assertNotEqual(mar7_planner_pct, repo_planner_pct)
+
+    def test_usage_by_ticket_cost_basis_unavailable_per_role_independent_of_siblings(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "planner", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0, "cost_usd": 2.0},
+                     {"role": "executor", "input": 100, "output": 0,
+                      "cache_creation": 0, "cache_read": 0},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertEqual(roles["planner"]["cost_usd"], 2.0)
+            self.assertEqual(roles["planner"]["cost_basis"], "apportioned")
+            self.assertIsNotNone(roles["planner"]["cost_share_pct"])
+            # sibling role with no measured cost: unaffected by planner's costed contribution.
+            self.assertIsNone(roles["executor"]["cost_usd"])
+            self.assertEqual(roles["executor"]["cost_basis"], "unavailable")
+            self.assertIsNone(roles["executor"]["cost_share_pct"])
+
+    def test_usage_by_ticket_roles_no_data_when_ticket_has_no_role_usage(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertEqual(ticket["roles"], "no data")
+            # genuine zero-run-entries case: skills == [] too (never confused with the
+            # "has runs but no measured duration" case, which still gets a populated row).
+            self.assertEqual(ticket["skills"], [])
+
+    def test_usage_by_ticket_roles_sorted_by_role_name(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
+                 "status": "completed", "role_usage": [
+                     {"role": "verifier", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "planner", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "executor", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "coordinator", "input": 10, "output": 0, "cost_usd": 0.1},
+                 ]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
+                        if r["ticket_id"] == "MAR-6")
+            self.assertEqual(list(roles.keys()),
+                             ["coordinator", "executor", "planner", "verifier"])
+
+    def test_empty_workspace_usage_by_ticket_is_no_data(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            self.assertEqual(out["panels"]["usage_by_ticket"], "no data")
+
+    def test_usage_by_ticket_adds_no_additional_file_reads(self):
+        """G7 guard: usage_by_ticket reads only the same per-ticket state files _accumulate_burn
+        already opens for panel 6 -- no new file path is introduced for this panel. Proven by
+        comparing acs_lib.read_json call counts and basename sets between two matched runs of
+        aggregate() on the same fixture shape -- one with role_usage populated, one without."""
+
+        def _tracked_run(with_role_usage):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                runs = [{"started_at": "2026-01-01T00:00:00Z",
+                        "ended_at": "2026-01-01T00:00:01Z", "status": "completed",
+                        "role_usage": [{"role": "planner", "input": 10, "output": 0,
+                                        "cost_usd": 0.1}]}] if with_role_usage else []
+                write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=runs)
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_usage = _tracked_run(True)
+        without_usage = _tracked_run(False)
+
+        self.assertTrue(with_usage)
+        self.assertTrue(without_usage)
+        self.assertEqual(len(with_usage), len(without_usage))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_usage),
+                         sorted(os.path.basename(p) for p in without_usage))
+
+
+class UsageByTicketSkillWidening(unittest.TestCase):
+    """MAR-7 spec 01 tests 4-8: usage_by_ticket gains ticket-scope api_duration_ms/basis
+    (siblings of the unchanged `roles` key) and a `skills[]` array."""
+
+    def test_api_duration_ms_null_or_unavailable_basis_excluded_from_skill_sum_never_fabricated_zero(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:02:00Z",
+                 "status": "completed", "api_duration_ms": 3000.0, "api_duration_basis": "measured"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            # never fabricated as if the null run contributed 0 -- equals only the measured run.
+            self.assertEqual(code_skill["api_duration_ms"], 3000.0)
+            # rolled-up basis collapses to "apportioned" (seen=True from >=1 contributing run),
+            # mirroring _finalize_model_bucket's own cost_basis rule.
+            self.assertEqual(code_skill["api_duration_basis"], "apportioned")
+
+    def test_usage_by_ticket_gains_ticket_scope_api_duration_ms_and_basis_siblings_of_roles(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 2500.0, "api_duration_basis": "apportioned",
+                 "role_usage": [{"role": "executor", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertEqual(ticket["api_duration_ms"], 2500.0)
+            self.assertEqual(ticket["api_duration_basis"], "apportioned")
+            # "roles" key unchanged in shape
+            self.assertIn("executor", ticket["roles"])
+            self.assertEqual(ticket["roles"]["executor"]["input"], 100)
+
+    def test_usage_by_ticket_skills_array_one_entry_per_hooked_skill_with_run_entries_in_hooked_skills_order(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            _write_json(os.path.join(tdir, "create-design-state.json"), {
+                "skill": "create-design", "ticket_id": "MAR-6", "states": {}, "runs": [
+                    {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
+                     "status": "completed", "api_duration_ms": 200.0,
+                     "api_duration_basis": "apportioned"},
+                ],
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            skill_names = [s["skill"] for s in ticket["skills"]]
+            # acs_lib.HOOKED_SKILLS order (code precedes create-design there), not insertion order.
+            self.assertEqual(skill_names, ["code", "create-design"])
+            self.assertNotIn("test", skill_names)  # test has no run entries (F13) -- never appears
+
+    def test_usage_by_ticket_skills_runs_array_preserves_persisted_run_order_and_per_run_fields(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            runs = [
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:03:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
+                {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:00:30Z",
+                 "status": "completed", "api_duration_ms": 50.0, "api_duration_basis": "apportioned"},
+            ]
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            self.assertEqual(len(code_skill["runs"]), 3)
+            self.assertEqual(code_skill["runs"][0]["started_at"], "2026-01-01T00:00:00Z")
+            self.assertEqual(code_skill["runs"][0]["wall_clock_seconds"], 60)
+            self.assertEqual(code_skill["runs"][0]["api_duration_ms"], 100.0)
+            self.assertEqual(code_skill["runs"][0]["api_duration_basis"], "apportioned")
+            self.assertEqual(code_skill["runs"][1]["api_duration_ms"], None)
+            self.assertEqual(code_skill["runs"][1]["api_duration_basis"], "unavailable")
+            self.assertEqual(code_skill["runs"][2]["wall_clock_seconds"], 30)
+            self.assertEqual(set(code_skill["runs"][0].keys()),
+                             {"started_at", "wall_clock_seconds", "api_duration_ms", "api_duration_basis"})
+
+    def test_usage_by_ticket_skills_empty_list_not_no_data_when_ticket_has_runs_but_no_duration(self):
+        """MAR-7 iteration 2 MERGED-2 fix: a skill with a measurable run_seconds_sum but zero
+        measured/apportioned api_duration must still surface its row -- api_duration degrades to
+        null/"unavailable" independently, it does not suppress the whole row (design.md:760-769,
+        1201-1207)."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable",
+                 "role_usage": [{"role": "executor", "input": 10, "output": 5,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.1}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertIsInstance(ticket["roles"], dict)  # populated -- not the "no data" case
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            self.assertEqual(code_skill["run_seconds_sum"], 60.0)
+            self.assertIsNone(code_skill["api_duration_ms"])
+            self.assertEqual(code_skill["api_duration_basis"], "unavailable")
+
+
+class StepSpanRunSecondsSumReconciliation(unittest.TestCase):
+    """MAR-7 iteration 2 MERGED-3 (aggregator half): regression guard for the already-correct
+    W-B reconciliation identity -- panel 3's step span (the pipeline step's own started_at/
+    ended_at bracket) strictly exceeds usage_by_ticket's run_seconds_sum (the sum of each run
+    entry's own, smaller bracket) whenever runs leave an idle gap between them. No production
+    change; both computations were already correct (design.md:530-531)."""
+
+    def test_panel3_and_usage_by_ticket_step_span_gt_run_seconds_sum_two_run_gap_reconciliation(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_pipeline(ws, "MAR-6", steps={
+                "code": {"started_at": "2026-01-01T00:00:00Z", "status": "completed",
+                         "ended_at": "2026-01-01T00:05:00Z"},
+            }, archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 1000.0,
+                 "api_duration_basis": "apportioned"},
+                {"started_at": "2026-01-01T00:03:00Z", "ended_at": "2026-01-01T00:03:30Z",
+                 "status": "completed", "api_duration_ms": None,
+                 "api_duration_basis": "unavailable"},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+
+            p3_row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
+            step_span = p3_row["steps"]["code"]
+            self.assertEqual(step_span, 300)
+
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
+            run_seconds_sum = code_skill["run_seconds_sum"]
+            self.assertEqual(run_seconds_sum, 90)
+
+            self.assertGreater(step_span, run_seconds_sum)
+
+
+class AccumulateBurnThreeTuple(unittest.TestCase):
+    """MAR-7 spec 01 test 11: pinned-shape regression guard on _accumulate_burn's widened
+    3-tuple return (both aggregate() call sites must unpack it consistently)."""
+
+    def test_accumulate_burn_returns_three_tuple_ticket_skills_third(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "api_duration_ms": 42.0, "api_duration_basis": "apportioned",
+                 "role_usage": [{"role": "executor", "input": 1, "output": 1,
+                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.01}]},
+            ])
+            tdir = _ticket_dir(ws, "MAR-6", archived=True)
+            burn = {role: metrics_aggregate._empty_panel6_bucket()
+                    for role in ("planner", "executor", "verifier", "coordinator")}
+            result = metrics_aggregate._accumulate_burn(burn, tdir)
+            self.assertEqual(len(result), 3)
+            ticket_models, ticket_roles, ticket_skills = result
+            self.assertIn("code", ticket_skills)
+            self.assertIn("executor", ticket_roles)
+
+
+class NoAdditionalFileReadsForDuration(unittest.TestCase):
+    """MAR-7 spec 01 test 12: extends the G7 no-extra-file-reads guard to the new per-skill
+    duration collection."""
+
+    def test_panel3_and_usage_by_ticket_add_no_additional_file_reads(self):
+
+        def _tracked_run(with_duration):
+            with TemporaryDirectory() as ws:
+                write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+                write_pipeline(ws, "MAR-6", steps={
+                    "code": {"started_at": "2026-01-01T00:00:00Z", "status": "completed",
+                             "ended_at": "2026-01-01T00:01:00Z"},
+                }, archived=True)
+                runs = [{"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                        "status": "completed", "api_duration_ms": 10.0,
+                        "api_duration_basis": "apportioned"}] if with_duration else []
+                write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
+                seen_paths = []
+                orig_read = acs_lib.read_json
+
+                def _tracking_read(path):
+                    seen_paths.append(path)
+                    return orig_read(path)
+
+                acs_lib.read_json = _tracking_read
+                try:
+                    metrics_aggregate.aggregate(ws, REPO_ID)
+                finally:
+                    acs_lib.read_json = orig_read
+                return seen_paths
+
+        with_duration = _tracked_run(True)
+        without_duration = _tracked_run(False)
+
+        self.assertTrue(with_duration)
+        self.assertTrue(without_duration)
+        self.assertEqual(len(with_duration), len(without_duration))
+        self.assertEqual(sorted(os.path.basename(p) for p in with_duration),
+                         sorted(os.path.basename(p) for p in without_duration))
 
 
 # ---------------------------------------------------------------------------
@@ -1714,6 +2531,38 @@ class TestUsageSummary(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["usage_summary"], "no data")
 
+    def test_usage_summary_gains_total_and_two_averages_api_duration_fields(self):
+        """MAR-7 spec 01 test 9: mirrors the existing total_cost_usd/avg_cost_per_ticket pair."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {
+                "T1": {"status": "done", "type": "story"},
+                "T2": {"status": "done", "type": "story"},
+            })
+            write_metrics(ws, {
+                "prs": {"created": 2, "merged": 2},
+                "totals": {"runs": 4, "working_seconds": 3600,
+                           "tokens": {"input": 1000, "output": 200}, "cost_usd": 5.0,
+                           "api_duration_ms": 9000.0},
+            })
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            us = out["panels"]["usage_summary"]
+            self.assertEqual(us["total_api_duration_ms"], 9000.0)
+            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 4500.0)
+            self.assertEqual(us["avg_api_duration_ms_per_pr"], 4500.0)
+
+    def test_usage_summary_api_duration_defaults_to_zero_and_no_data_averages_on_empty_workspace(self):
+        """MAR-7 spec 01 test 10: extends test_missing_metrics_json_zero_defaults's own pattern --
+        totals.api_duration_ms absent -> total_api_duration_ms defaults to 0.0 (mirrors
+        total_cost_usd's own default, never None); avg_..._per_pr is 'no data' (merged == 0,
+        no metrics.json means prs defaults to {"created": 0, "merged": 0})."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"T1": {"status": "done", "type": "story"}})
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            us = out["panels"]["usage_summary"]
+            self.assertEqual(us["total_api_duration_ms"], 0.0)
+            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 0.0)
+            self.assertEqual(us["avg_api_duration_ms_per_pr"], "no data")
+
 
 class TestTestRunsRead(unittest.TestCase):
     """MAR-114 spec 03: metrics_aggregate.aggregate() gains a test-runs/ read-only source.
@@ -1770,7 +2619,8 @@ class TestTestRunsRead(unittest.TestCase):
             # No test-runs/ directory at all.
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             for k in ("1", "2", "3", "4", "5", "6", "7", "delivery_summary", "issues",
-                      "progress", "deadline", "usage_summary"):
+                      "progress", "deadline", "usage_summary", "usage_by_model",
+                      "usage_by_ticket"):
                 self.assertIn(k, out["panels"])
             # Absence is itself a "no data" marker for the new source, not a raise.
             self.assertEqual(out["test_runs"], "no data")
@@ -1824,19 +2674,22 @@ class TestTestRunsRead(unittest.TestCase):
                 acs_lib.write_json = orig_write
             self.assertEqual(calls, [], "test-runs/ read must never write")
 
-    def test_panel_keys_constants_untouched(self):
-        """PANEL_KEYS / _NEW_PANEL_KEYS are unchanged by this spec (no new panel key)."""
+    def test_new_panel_keys_includes_usage_by_model(self):
+        """PANEL_KEYS is unchanged (no new "1".."7" key); _NEW_PANEL_KEYS gains "usage_by_model"
+        (MAR-3 spec 04) and "usage_by_ticket" (MAR-4 spec 01)."""
         self.assertEqual(metrics_aggregate.PANEL_KEYS, ("1", "2", "3", "4", "5", "6", "7"))
         self.assertEqual(
             metrics_aggregate._NEW_PANEL_KEYS,
-            ("delivery_summary", "issues", "progress", "deadline", "usage_summary"),
+            ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+             "usage_by_model", "usage_by_ticket"),
         )
 
 
 class TestNewPanelKeyPresence(unittest.TestCase):
     """MAR-14 spec 01 §Test plan: key-presence (AC-1 / B1)."""
 
-    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                 "usage_by_model", "usage_by_ticket")
     _OLD_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
     def test_all_five_new_keys_present_happy_path(self):
@@ -1876,7 +2729,8 @@ class TestNewPanelKeyPresence(unittest.TestCase):
 class TestAggregatorDeterminism(unittest.TestCase):
     """MAR-14 spec 01: new panels identical across two calls (extends existing determinism coverage)."""
 
-    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+    _NEW_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                 "usage_by_model", "usage_by_ticket")
 
     def test_new_panels_identical_across_two_calls(self):
         """Run aggregate() twice on the same workspace; new panel values are equal."""

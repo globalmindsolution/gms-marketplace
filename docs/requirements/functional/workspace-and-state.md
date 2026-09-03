@@ -6,10 +6,13 @@
   hooks MUST read and write their files in the workspace folder**, located
   via `workspace_path` in `settings.json`
   ([configuration.md](configuration.md)).
-- The workspace MUST live **outside the consumer repo**. Rationale: state
-  must survive and be shared across git worktrees, enabling **parallel
-  tasks** — a worktree per ticket without state colliding or polluting the
-  repo.
+- The workspace MUST be resolvable to the **same physical location from
+  every worktree of a repo** — that is the actual invariant, enabling
+  **parallel tasks** (a worktree per ticket without state colliding or
+  polluting the repo). It is achieved by default via the in-repo,
+  main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
+  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
+  override for anyone who needs a different location (see ADR-0086).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be
@@ -20,6 +23,27 @@
   `<repo>` partition — identity derives from the main repo / remote, never
   from the worktree path.
 
+## Migrating an existing external workspace
+
+- When an existing external `workspace_path` is detected for a repo,
+  `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
+  migration into the in-repo default on the next re-run (ADR-0086; the
+  MUST/SHOULD split for `/setup` itself is specified in
+  [skills.md](skills.md) and not restated here).
+- A repo owner who migrates without re-running `/acs:setup` MUST use
+  the documented manual path instead: `migrate_workspace.py --from
+  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
+  <repo-root> [--dry-run]` (contract in
+  [contracts.md](../../architecture/lld/contracts.md)). The migrator
+  preflights — refusing to run while a `.lock` is held or an `in_progress`
+  run exists anywhere under the old workspace's partition tree — then
+  copies the repo's partition tree, verifies the copy, and only then
+  removes the old tree; it is idempotent, so re-running after an
+  interruption is safe.
+- Once the migration succeeds, the repo owner MUST remove the
+  `workspace_path` key from `.acs/settings.local.json`, so that future runs
+  resolve the in-repo default instead of the old override.
+
 ## Layout
 
 ```
@@ -28,8 +52,11 @@
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── counters.json                   # ticket id sequence (next ticket number)
     ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens, cost
-    ├── sessions/                       # per-checkout pointers for parallel worktree sessions
-    │   └── <checkout-id>.json          # current ticket id for that checkout/worktree
+    ├── sessions/                       # per-checkout state for parallel worktree sessions
+    │   ├── <checkout-id>.json          # current ticket id for that checkout/worktree
+    │   ├── <checkout-id>-session.json  # ticket-independent session-correlation marker (MAR-1)
+    │   ├── <checkout-id>-cost-samples.jsonl  # append-only statusLine cost samples, rotated in place (MAR-1)
+    │   └── <checkout-id>-cost-cursor.json    # allocation cursor into the cost-sample log (MAR-1)
     ├── archive/                        # partitions of done tickets move here post-merge
     ├── SHOP-1/                         # a product-level delivery ticket (here: PRD)
     │   ├── ticket.json                 # type task, e.g. "Product definition (PRD)"
@@ -46,7 +73,7 @@
         ├── ticket.json                 # output of /create-ticket (local source of truth); stores parent
         ├── pipeline-state.json         # compact step ledger for /ship and pre-hooks
         ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
-        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md / -execute.json / -verify.md + XML snapshots
+        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md (all triad skills; /code: plan.md, MAR-70) / -execute.json / -verify.md + XML snapshots; /code also: plan-approval.json (STANDARD/COMPLEX, written by plan-approval.py, not a subagent — MAR-73, slice 3 of MAR-69), plan-superseded-<k>.md (written by the coordinator on revocation, a byte-identical copy of the revoked plan.md, never deleted — MAR-74, slice 4 of MAR-69)
         ├── create-ticket-state.json
         ├── specs/                      # legacy input: pre-existing specs (1..n, conform to the design) read by /code when present; new tickets have none — /code self-authors the fold content instead
         │   ├── 01-data-model.md
@@ -63,12 +90,35 @@ Repo-level files (all maintained by hooks):
   parent/children, updated_at); lets skills and the user list work without
   scanning partitions.
 - **`counters.json`** — the ticket id sequence counter
-  (`<ticket_prefix>-<n>`).
+  (`<ticket_prefix>-<n>`). First allocation for a given `(repo_id, prefix)`
+  partition is fail-closed (MAR-402): absent both `next` and
+  `reconciled: true`, `allocate_ticket_id` refuses with exit 2 and a ranked,
+  bounded, network-free local-evidence proposal rather than silently
+  restarting the sequence at 1; a human confirms (or repairs a wrong/stuck
+  reconciliation) via `--seed-next <n>` on either `new-ticket.py` or
+  `skill-start.py --allocate`. Confirmed reconciliation is recorded via three
+  additive optional fields: `reconciled` (boolean), `seed_source`
+  (`committed-files`\|`git-history`\|`branch-names`\|`explicit-user`), and
+  `seeded_at` (ISO-8601 UTC). The evidence scan's `observed_max` is surfaced
+  only in the refusal message, for a human to read — it is never persisted.
+  An already-populated `next` is treated as already reconciled — no prompt,
+  no regression for existing repos.
 - **`sessions/<checkout-id>.json`** — the per-checkout *current ticket*
   pointer written by the coordinator at skill start; `<checkout-id>` is
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
   ([hooks.md](hooks.md)).
+- **`sessions/<checkout-id>-session.json`**,
+  **`sessions/<checkout-id>-cost-samples.jsonl`**,
+  **`sessions/<checkout-id>-cost-cursor.json`** (MAR-1) — three additional
+  per-checkout files backing real cost/time measurement: a
+  ticket-independent session-correlation marker (`session_id`/
+  `transcript_path`/`cwd`/`skill`, written by a pre-hook inside its own
+  fail-open guard, rejected by the consuming skill if stale past 15 minutes
+  or from a foreign `checkout_id`); an append-only log of `statusLine`
+  cost samples, rotated in place once it exceeds 64 KiB (no `.1` sibling);
+  and the allocation cursor marking how much of that log has already been
+  charged to a run ([hooks.md](hooks.md)).
 - **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
@@ -99,7 +149,7 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
-| `needs_design` | boolean | True for epics; user-confirmed for stories/tasks |
+| `needs_design` | boolean | True for epics only; always `false` for stories/tasks (never offered or confirmed) — MAR-76 |
 | `docs_only` | boolean | True when the change is docs/comments only; default false |
 | `due_date` | string\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |
 | `created_at` | ISO-8601 datetime | Set at ticket creation, never changed |
@@ -156,8 +206,17 @@ Each state file MUST capture:
     {
       "started_at": "2026-06-12T09:00:00Z",
       "ended_at": "2026-06-12T10:00:00Z",
-      "tokens": { "input": 152000, "output": 38000 },
+      "session_id": "...",
+      "transcript_path": "...",
+      "checkout_id": "...",
+      "tokens": { "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 },
       "cost_usd": 4.21,
+      "cost_basis": "measured",
+      "cost_scope": "session_total",
+      "excluded_cost_usd": 0.0,
+      "excluded_token_share": 0.0,
+      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
+      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }
@@ -209,6 +268,29 @@ worktree per ticket**:
   auto-stolen.
 - Product-level skills lock their **delivery ticket's** partition like any
   other skill — no separate locking scheme.
+- **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
+  narrower parallelism shape layered on top of worktree-per-ticket: one
+  unhooked coordinator mints **two independent delivery tickets** (one per
+  eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
+  session checkout, then runs each phase (plan → execute → verify) as a
+  parallel batch across both legs; each leg enters its own worktree at its
+  own Delivery step's **Branch** sub-step, before that leg's Execute phase.
+  Both tickets share the run's `checkout_id`
+  for the Start/plan/execute/verify portion of the run — the disposition for
+  this shared-checkout case is: pointer/marker/cursor collisions are
+  accepted, labeled degradations (statusline shows only one leg; the losing
+  leg's cost sampling degrades to `unavailable`) rather than a correctness
+  bug, because every consumer of ticket identity gets the ticket id
+  explicitly and `cost_basis` is never fabricated for the losing leg. Each
+  leg's own `.lock`/pointer/state files are otherwise unaffected — the
+  legs remain two ordinary, independently-resumable delivery tickets. See
+  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
+  `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
+  critical section that serializes two legs finishing concurrently on the
+  normal path. This is best-effort, not absolute: on a bounded spin timeout
+  the guard fails open and the write proceeds unguarded rather than blocking
+  forever, so the last-write-wins race is narrowed, not eliminated.
 
 ## Metrics
 
@@ -224,9 +306,35 @@ all of it:
   and runs for the ticket.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
   counts (created, merged), and total working time, tokens, and cost.
-- **[ASSUMPTION]** The coordinator reports token/cost usage in its XML
-  result, and post-hooks persist it; how usage data is obtained from the
-  Claude Code runtime is an implementation detail.
+- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's XML
+  result carries no token/cost figures at all — the standing `[ASSUMPTION]`
+  this bullet used to record is resolved, not merely reworded. A run's
+  `session_id`/`transcript_path` are captured from the genuine
+  `PreToolUse(Skill)` hook envelope by a session-correlation marker,
+  threaded onto the run entry at `skill-start.py`. At finalize time,
+  `usage_reader.py` reads real token counts (all four `message.usage`
+  classes) from that exact recorded transcript plus its `subagents/`
+  subtree — never a constructed path — and buckets them by role, including a
+  first-class `coordinator` bucket. A dollar figure is sourced from Claude
+  Code's own real-time cost computation, sampled off the opt-in `statusLine`
+  hook and apportioned across roles by measured token share
+  (`cost_sampler.py`) via a cursor-consumed, non-overlapping partition that
+  makes double-charging structurally impossible. acs owns no price table.
+  Every figure carries a basis label — `measured` / `apportioned` /
+  `unavailable` — never fabricated, never zero-padded; coverage is
+  contingent on `statusLine` opt-in and on an unconsumed sample existing in
+  a run's window, a disclosed limitation rather than a silent one. The
+  dollar-cost double-charging guarantee above (`cost_sampler.py`'s
+  checkout-scoped cursor) is unaffected by fan-out and holds unconditionally,
+  in every topology including the one below. A separate, narrower guarantee —
+  subagent-role token attribution (`usage_reader.py`) being immune to
+  cross-session contamination — is scoped to topologies where each ticket
+  runs in its own session — true of worktree-per-ticket generally, but not of
+  the "Cross-skill, phase-level fan-out" shape two headings above, where
+  `/acs:create-docs`'s two legs share one session and their subagent work is
+  folded into shared role buckets by suffix alone, so subagent-role token
+  accounting is not immune to cross-contamination in that one specific case.
+  See ADR 0082's "Amendment — MAR-1" for the mechanism.
 
 ## Epic ↔ child linkage
 
@@ -244,3 +352,19 @@ When a ticket is merged/done, its partition is **archived** — moved to
 full audit trail without cluttering the active workspace. Archived tickets
 remain in `tickets-index.json` (status `done`) and in the metrics
 aggregates.
+
+### Ticket allocation on resume
+
+`skill-start.py --allocate` MUST NOT mint a second ticket for work that
+already has one, and MUST NOT let one run adopt another's partition. Reuse
+is therefore resolved from EXPLICIT inputs only:
+
+- `--ticket <id>`, for any skill; or
+- `--args` for `/acs:create-ticket` alone, and only when the argument IS the
+  id rather than prose citing one.
+
+The session pointer and the branch name — which `resolve_ticket_id` consults
+on the non-allocating path — MUST NOT be consulted here. Product-level legs
+run concurrently (a doc-bootstrap fan-out runs two at once) passing neither,
+and resolving through either would collapse two independent delivery tickets
+into one.

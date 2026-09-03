@@ -22,7 +22,11 @@ Ground rules, non-negotiable:
   specs, or diffs. You read exactly three kinds of things:
   `pipeline-state.json`, `ticket.json`, and the compact `<handoff>` XML each
   step returns (~1 KB). Between steps your context is safe to compact — the
-  ledger holds everything you need to continue.
+  ledger holds everything you need to continue. One step is an exception:
+  `code` on a full-verify lane runs its own full reflection cycle inline in
+  your context, and that is allowed precisely because of the stop described
+  in "Full-verify pipeline boundary" below — the two rules coexist only via
+  that stop.
 - **Never run /acs:merge-pr.** /acs:ship deliberately stops at create-pr so the
   PR is reviewed before it lands; landing is a separate step, not part of ship.
 
@@ -47,12 +51,12 @@ print(json.dumps({
     "workspace": workspace,
     "repo_id": lib.repo_partition_id(cwd),
     "ticket_prefix": settings["ticket_prefix"],
-    "settings_sources": sources,
+    "settings_sources": sources
 }, indent=2))
 PY
 ```
 
-On exit 2: surface stderr verbatim (typically "Run /acs:init first") and
+On exit 2: surface stderr verbatim (typically "Run /acs:setup first") and
 stop. Otherwise record `workspace`, `repo_id`, and `ticket_prefix`. The
 ticket partition path is always
 `<workspace>/<repo_id>/<ticket-id>/` — call it `<partition>` below.
@@ -77,11 +81,11 @@ per-step agent for a per-role setting to apply to.
 | # | Step | Runs when |
 |---|------|-----------|
 | 1 | create-ticket | new request, or resume with the step not completed |
-| 2 | create-design | conditional — see below |
-| 3 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
-| 4 | test (post-code) | conditional — see "Post-code test gate" below |
-| 5 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
-| 6 | create-pr | always |
+| 2 | code | always — self-authors the folded spec content when `specs/` is absent or empty, on every lane |
+| 3 | test (post-code) | conditional — see "Post-code test gate" below |
+| 4 | docs-sync | always — once code (+ test, when the post-code test gate was active) has completed |
+| 5 | create-pr | always |
+| — | create-design | **planning step, not implementation** — conditional, see below |
 | — | merge-pr | **NEVER by you** — ship stops at create-pr; the PR is landed separately after review |
 
 Design step rules (read `needs_design` and `parent` from
@@ -118,47 +122,132 @@ An explicit `enabled: true` with no e2e configured is not a validation
 error: the step still runs, scoped to whatever ticket-named Test-plan
 suites exist (a harmless no-op when the ticket names none).
 
-**Running the step, when active.** Reusing the same `import acs_lib as lib`
-inline-Python pattern Step 1 already uses to read/write
-`pipeline-state.json`, and the existing generic `update_pipeline(tdir,
-ticket_id, skill, status, summary=None, ...)` helper (no `acs_lib.py`
-code change — it already writes an arbitrary-shape step dict):
+**Running the step, when active.** Every write below goes through the
+`pipeline-step.py` CLI — never embedded Python (ADR 0001). `--set
+fix_loops=<n>` merges the counter onto the step entry and `--unset
+fix_loops` removes it; the step's own `status`/timestamps stay owned by the
+CLI. Read the current value from `pipeline-state.json.steps.test.fix_loops`
+in Step 1's existing read:
 
 1. Read `pipeline-state.json.steps.test.fix_loops` (default `0` when the
    `test` step entry is absent) and the cap from
    `settings.post_code_test.fix_loops_cap` (default `2`). `fix_loops` is
    independent of `/code`'s own internal iteration cap — the two counters
    never interact.
+   **Re-entry reset.** If the existing `steps.test` entry is `failed`, this
+   is a resumed run re-entering the step after a previous cap. Reset the
+   counter first and treat `fix_loops` as `0` below:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status in_progress --unset fix_loops
+   ```
+
+   Without this the resumed run re-reads the capped value, falls straight
+   into case 5 on its first failure, and can never make progress.
 2. Invoke `/acs:test --for-ticket <ticket-id>`, which runs scoped to `e2e`
    plus the ticket's Test-plan-named suites, unconditionally skips its own
    regression-ticket triage, and returns a `{"status", "failure_output"}`
-   verdict.
-3. **Verdict is `pass`** → `update_pipeline(...)` records `steps.test` as
-   `completed`, and you proceed to "Picking the next step" (which now
-   advances to docs-sync).
-4. **Verdict is `fail` and `fix_loops < cap`** → increment `fix_loops` in
-   `pipeline-state.json.steps.test` (status stays `in_progress`), then
+   verdict. That invocation records the step's own pass/fail outcome
+   itself (see `/acs:test`'s "Recording the run in the pipeline ledger") —
+   **you do not re-record the outcome here.** What follows is the counter,
+   which is yours alone.
+3. **Verdict is `pass`** → `/acs:test` has already recorded `steps.test` as
+   `completed`. Clear the counter, then proceed to "Picking the next step"
+   (which now advances to docs-sync):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status completed --unset fix_loops
+   ```
+4. **Verdict is `fail` and `fix_loops < cap`** → increment the counter, then
    relay the verdict's `failure_output` into `/acs:code <ticket-id>`
    **exactly via the existing "Re-invoke after needs_input" pattern**
    (see "Step-specific adjustments" below) — not a new relay mechanism.
    After `/acs:code`'s handoff completes, loop back to step 2 above; this
    is the fix-and-re-test loop.
-5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...)`
-   records `steps.test` as `failed` with a summary noting the cap was
-   reached; STOP, mirroring the existing failed-handling shape (see
-   "Handling the handoff").
 
-**Orchestration, not step-work.** `/acs:test` has and keeps no post-hook
-of its own (it is not in `WORKFLOW_SKILLS`), so this ledger bookkeeping —
-reading/writing the `steps.test` entry via `acs_lib`'s existing generic
-functions — is `/acs:ship`'s own responsibility to fill a gap only it can
-fill. This is orchestration bookkeeping, consistent with "You orchestrate;
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status in_progress \
+     --set fix_loops=<fix_loops + 1>
+   ```
+5. **Verdict is `fail` and `fix_loops == cap`** → record the cap on the step
+   and STOP, mirroring the existing failed-handling shape (see "Handling the
+   handoff"). A later resumed run clears the counter via the re-entry reset
+   in step 1:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status failed \
+     --set fix_loops=<cap> --summary "fix_loops cap reached"
+   ```
+
+**Orchestration, not step-work.** `/acs:test` has no post-hook of its own
+(it is not in `WORKFLOW_SKILLS`), so the `fix_loops` counter and its cap are
+`/acs:ship`'s to keep, while the step's pass/fail outcome is recorded by the
+`/acs:test` run that produced it. Both use the same `pipeline-step.py` CLI,
+and the split is what keeps them from overwriting each other: `/acs:test`
+owns `status`, `/acs:ship` owns `fix_loops`. This is orchestration
+bookkeeping, consistent with "You orchestrate;
 you never implement" above — the step's actual work (suite execution,
 verdict computation) remains entirely inside `/acs:test`'s own Steps 1-3,
 invoked the same way any other step skill is invoked. Note also that
 `/acs:test`'s Steps 1-3 execute inline in `/acs:ship`'s own context (it has
 no coordinator/subagent separation to delegate to, unlike the other three
 hooked steps).
+
+## Full-verify pipeline boundary
+
+`code` is the one step whose full reflection cycle — planner, every
+executor, and (on a full-verify lane) up to three multi-lens verifier
+iterations — lands entirely inside your own coordinator context, because you
+run it as its coordinator (see "Running a step"). On a light-verify lane
+that is small; on a full-verify lane it routinely leaves too little context
+left to safely reach create-pr. Left unacknowledged, the run just trails off
+after `code` completes — an implicit silent stop that reads as a failure.
+This section replaces that implicit stop with a **designed boundary, not a
+failure**.
+
+**Deciding the depth.** After `code` returns `completed`, re-read
+`<partition>/ticket.json` (already a permitted read — see "Keep your own
+context tiny") and resolve the depth with the same inline-Python
+`import acs_lib as lib` pattern Step 1 already uses, passing the `<partition>` path resolved in Step 1 as the script argument:
+
+```bash
+python3 - "<partition>" <<'PY'
+import json, os, sys
+sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
+import acs_lib as lib
+ticket = json.load(open(os.path.join(sys.argv[1], "ticket.json")))
+print(lib.verify_depth(ticket.get("lane"), ticket.get("stakes")))
+PY
+```
+
+Re-read `ticket.json` here rather than trusting whatever depth you resolved
+before `code` ran — `code` may have escalated the lane mid-flight and
+durably written the escalation back to `ticket.json`.
+
+- `"light"` → no stop. Cheap-tail pipelines are unaffected by this section:
+  continue straight through the post-code test gate → docs-sync → create-pr
+  exactly as today.
+- `"full"` → STOP. Stop right after `code` completes, before the post-code
+  test gate — `/acs:test`'s inline Steps 1-3 also run in your own context,
+  so stopping before them is strictly safer. Do not mark any step `failed`,
+  and do not run `handoff.py` (unchanged: /acs:ship is not hooked and owns
+  no run entry).
+
+**The stop report.** `code` is complete on a full-verify lane, and
+`/acs:ship` stops here by design. The remaining steps (test when the gate is
+active, docs-sync, create-pr) run in a fresh session. Resume with
+`/acs:ship <ticket-id>` — `<partition>/pipeline-state.json` already records
+`code` completed, so the resumed run picks up at the next incomplete step.
+Close with the standard completion report block below, `<status>` =
+`handed_off`.
+
+This section changes only **when** the tail runs, never **which** steps run
+or in what order — "Picking the next step" stays a single, lane-uniform
+walk.
 
 ## Picking the next step
 
@@ -192,7 +281,10 @@ For each step, **invoke the Skill tool directly** with skill `acs:<step>` and
 args `<ticket-id>`, and follow that step skill to completion as its
 coordinator. Run steps **sequentially**, one at a time — you are the step's
 coordinator, in your own context, holding the Agent tool the step needs to
-spawn its own planner/executor/verifier. Keep what you pass lean: the ticket
+spawn its own planner/executor/verifier. For `code` specifically, that
+reflection cycle can run to full-verify depth entirely inside your context —
+see "Full-verify pipeline boundary" for when that step then stops the
+pipeline by design. Keep what you pass lean: the ticket
 id is enough (`<partition>` is derivable from `<workspace>/<repo_id>/<ticket-id>/`).
 
 You do not prompt a subagent; you run the step skill yourself. A few
@@ -259,7 +351,9 @@ Branch strictly on `status`:
 - **completed** — re-read `<partition>/pipeline-state.json` to confirm the
   ledger agrees (the step's post-hook wrote it), keep only the one-line
   summary, drop the rest from your working context, and go back to "Picking
-  the next step".
+  the next step" — except immediately after `code` completes, where you
+  evaluate "Full-verify pipeline boundary" first, before returning to
+  "Picking the next step".
 - **needs_input** — a directly-invoked step normally asks the user itself;
   when it nonetheless returns `needs_input`, ask the user every `<question>`
   (use AskUserQuestion; plain questions if unavailable). Then re-invoke the
@@ -298,8 +392,8 @@ When the create-ticket handoff (or resume) yields a ticket with
    `needs_design: true`; every child's /code gates on the epic's
    `design.md`).
 2. Read the epic's `children` array from `ticket.json`. If it is empty, ask
-   the user whether to re-run `/acs:create-ticket <epic-id>` to fan out
-   children — an epic with no children has nothing to ship.
+   the user whether to run `/acs:create-ticket <epic-id> --fan-out` to fan
+   out children — an epic with no children has nothing to ship.
 3. Ask the user which child(ren) to ship now (AskUserQuestion, options from
    the children's ids and titles — read each child's `ticket.json` title
    only, nothing more).
@@ -358,6 +452,6 @@ succeeded. Same labels, same order, `none` where empty:
 - **Results**: per-step status table from `pipeline-state.json` (one line per step); PR reference for each ticket that reached create-pr
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: review each PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<step> <ticket-id>`)
 ```

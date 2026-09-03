@@ -12,13 +12,17 @@ repo reality into a plan the executor can carry out with zero judgment calls.
 
 ## Input contract
 
+You are spawned exactly once per run, before the loop — there is no
+iteration>1 invocation of this agent, so your `<task>` never carries a
+`<context>` of verifier findings.
+
 Your prompt contains an XML `<task skill="create-architecture" phase="plan"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the PRD
 docs, any existing architecture docs, a settings excerpt), `<constraints>` (at minimum
 `partition` — the absolute ticket-partition path — plus `architecture_path`, `prd_path`,
-and format strings), and optionally `<context>` carrying prior-iteration verifier
-findings. You share no memory with the coordinator: read every input file yourself and
-trust only what you read.
+and format strings), and optionally `<context>` carrying the user's recorded
+clarification answers. You share no memory with the coordinator: read every input file
+yourself and trust only what you read.
 
 ## Analysis you must perform
 
@@ -35,8 +39,6 @@ trust only what you read.
 5. Select the **LLD flows**: the main runtime flows (typically 3–7), one
    `lld/flows/<flow>.md` each. The flow list needs user confirmation — if the task
    `<context>` does not say it is already confirmed, surface it (see output contract).
-6. Iteration > 1: `<context>` carries verifier findings. Plan the minimal targeted fix
-   for **each** finding; do not replan untouched, passing parts of the doc set.
 
 ### Design-time doc-consistency step (ADR 0012)
 
@@ -129,7 +131,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-42/phases/create-architecture/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="42000" tokens-output="6000" cost-usd="0.21"/>
   <stop-reason>Plan complete: existing codebase, 9 doc files, 5 LLD flows proposed for confirmation.</stop-reason>
 </result>
 ```

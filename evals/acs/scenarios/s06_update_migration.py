@@ -9,8 +9,9 @@ deterministic logic that the free tier can certify offline:
     (installed > latest), compared numerically (split on ".", compare tuples),
     never as strings (so "0.10.0" > "0.9.0").
   * Step 6 — post-update migration checks: settings still validate against the
-    schema (`acs_lib.validate_settings`), and the workspace requirement is
-    enforced. On INVALID the skill recommends `/acs:init`.
+    schema (`acs_lib.validate_settings`), and workspace resolution is
+    exercised (explicit override honored; absent -> in-repo default). On
+    INVALID the skill recommends `/acs:setup`.
 
 This scenario drives the *installed build's* `acs_lib` directly (the same module
 the skill's Step-6 snippet imports) so it certifies the shipped behavior, and
@@ -82,34 +83,32 @@ def run():
         try:
             ws = lib.validate_settings(settings, sb.repo)
             check.ok("migration: valid settings pass validate_settings", True)
-            check.ok("migration: workspace resolves outside the repo",
-                     bool(ws) and os.path.commonpath([ws, sb.repo]) != sb.repo,
-                     "ws=%r repo=%r" % (ws, sb.repo))
+            check.ok("migration: explicit workspace_path override honored verbatim",
+                     ws == os.path.abspath(sb.ws),
+                     "ws=%r sb.ws=%r" % (ws, sb.ws))
         except lib.GateError as exc:
             check.ok("migration: valid settings pass validate_settings", False,
                      "unexpected GateError: %s" % exc)
 
         # Broken settings: a bad merge_strategy must be caught -> skill says
-        # "settings: INVALID" and recommends /acs:init.
+        # "settings: INVALID" and recommends /acs:setup.
         bad = dict(settings)
         bad["merge_strategy"] = "fast-forward"  # not squash|merge|rebase
         try:
             lib.validate_settings(bad, sb.repo)
-            check.ok("migration: invalid settings flagged (recommend /acs:init)",
+            check.ok("migration: invalid settings flagged (recommend /acs:setup)",
                      False, "validate_settings accepted a bad merge_strategy")
         except lib.GateError as exc:
-            check.ok("migration: invalid settings flagged (recommend /acs:init)",
+            check.ok("migration: invalid settings flagged (recommend /acs:setup)",
                      "merge_strategy" in str(exc), str(exc))
 
-        # Workspace requirement: missing workspace_path must block (the Step-6
-        # "workspace reachable" / not-initialized case).
+        # Workspace resolution: an absent workspace_path derives the in-repo
+        # default (the Step-6 "workspace reachable" case, post-MAR-2).
         no_ws = {k: v for k, v in settings.items() if k != "workspace_path"}
-        try:
-            lib.validate_settings(no_ws, sb.repo)
-            check.ok("migration: missing workspace_path flagged", False,
-                     "validate_settings accepted a missing workspace_path")
-        except lib.GateError as exc:
-            check.ok("migration: missing workspace_path flagged",
-                     "workspace_path" in str(exc), str(exc))
+        derived = lib.validate_settings(no_ws, sb.repo)
+        expected = os.path.join(sb.repo, ".acs", "state-machine")
+        check.ok("migration: absent workspace_path derives the in-repo default",
+                 derived == expected and os.path.commonpath([derived, sb.repo]) == sb.repo,
+                 "derived=%r expected=%r" % (derived, expected))
 
     return check

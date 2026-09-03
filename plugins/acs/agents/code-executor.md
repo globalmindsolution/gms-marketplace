@@ -19,10 +19,10 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<objective>` — which spec (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
-  the plan `<partition>/phases/code/iter-<n>-plan.md` (your task's file map and
-  test strategy live there), `<partition>/ticket.json`, and `design.md` when
-  one applies. READ EVERY ONE. Derive `<partition>` from the directory
-  containing `ticket.json`;
+  the plan artifact `<partition>/phases/code/plan.md` (the path supplied in
+  `<inputs>`; your task's file map and test strategy live there),
+  `<partition>/ticket.json`, and `design.md` when one applies. READ EVERY
+  ONE. Derive `<partition>` from the directory containing `ticket.json`;
 - `<constraints>` — at least `coverage_target`, `branch` (the ticket branch the
   coordinator already created), `commit_message` (format with `{ticket_id}`,
   `{summary}`, optionally `{type}`/`{external_key}`);
@@ -143,7 +143,7 @@ The XML result references this file and lists the changed paths; full detail
 - Mutate ONLY the files in your task's file map (plus your execute report). If
   the implementation genuinely requires touching a file outside it, STOP before
   touching it and return `needs_input` naming the file — the coordinator
-  re-plans; you do not improvise scope.
+  adjusts the task's file map; you do not improvise scope.
 - Never guess on a decision that changes user-visible behavior: a contradiction
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
@@ -166,7 +166,6 @@ after it. Self-check it first:
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>
   </outputs>
-  <metrics tokens-input="120000" tokens-output="30000" cost-usd="0.95"/>
   <stop-reason>Spec 02 green: 84/84 tests pass, coverage 93.4% vs target 90, 2 commits.</stop-reason>
 </result>
 ```

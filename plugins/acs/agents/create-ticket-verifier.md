@@ -23,8 +23,10 @@ phase="verify" ticket-id="..." iteration="n">` message conforming to
   user-confirmed decisions), the execute report `iter-<n>-execute.json`,
   child partitions, the PRD files, and the settings/template files.
 - `<constraints>` — the format/template names and tracker provider in force.
-- `<context>` — the user-confirmed decisions (final type, needs_design,
-  child list, confirmed divergence) and any prior-iteration findings.
+- `<context>` — the final type; `needs_design` (`true` for epics — stated,
+  never user-confirmed; otherwise `false`, never offered); and the
+  user-confirmed decisions (child list, confirmed divergence) and any
+  prior-iteration findings.
 
 You share no memory with the coordinator or the executor: read every input
 file yourself before judging.
@@ -55,8 +57,8 @@ Use these exact `dimension` values in your findings.
    feature in the PRD text (Grep it; do not trust the claim), OR the recorded
    divergence matches a user-confirmed one in `<context>`/the plan.
    Unconfirmed divergence is blocking.
-6. **needs-design** — `true` for an epic, no exceptions; for story/task it
-   equals the user-confirmed value recorded in the plan/`<context>`. A silent
+6. **needs-design** — `true` for an epic, no exceptions; `false` for
+   story/task, no exceptions (never offered, never user-confirmed). A silent
    flip is blocking.
 7. **children** (epics only; for story/task assert `children == []`) — for
    every id in the epic's `children`: the child partition directory exists;
@@ -92,7 +94,6 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
     <finding severity="blocking" dimension="children" file="/abs/path/SHOP-124/ticket.json">child SHOP-124 has parent=null; epic SHOP-123 lists it in children</finding>
     <finding severity="blocking" dimension="acceptance-criteria">criterion 2 "works smoothly" is not testable</finding>
   </findings>
-  <metrics tokens-input="25000" tokens-output="2500" cost-usd="0.18"/>
   <stop-reason>2 blocking findings across children, acceptance-criteria</stop-reason>
 </result>
 ```
@@ -108,7 +109,7 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
   the verdict. `failed` only when you could not verify (missing input,
   tracker CLI unavailable; name it in `<errors>`). Never `needs_input` —
   ambiguity about confirmed decisions is a blocking finding against the plan.
-- Estimate `<metrics>`; one-line `<stop-reason>`. Self-validate first:
+- One-line `<stop-reason>`. Self-validate first:
   `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ## Hard rules

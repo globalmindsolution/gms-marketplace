@@ -13,13 +13,17 @@ out with zero judgment calls.
 
 ## Input contract
 
+You are spawned exactly once per run, before the loop — there is no
+iteration>1 invocation of this agent, so your `<task>` never carries a
+`<context>` of verifier findings.
+
 Your prompt contains an XML `<task skill="create-standards" phase="plan"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: `prd.md`
 under `prd_path`, the full `architecture_path` set, the `principles_path` set when
 present, any existing `standards_path` files), `<constraints>` (at minimum `partition` —
 the absolute ticket-partition path — plus `standards_path`, `principles_path`,
 `architecture_path`, `prd_path`, and format strings), and optionally `<context>` carrying
-prior-iteration verifier findings. You share no memory with the coordinator: read every
+the user's recorded clarification answers. You share no memory with the coordinator: read every
 input file yourself and trust only what you read.
 
 ## Analysis you must perform
@@ -39,8 +43,6 @@ input file yourself and trust only what you read.
 5. If `settings.standards_path` is `null`, note that the coordinator must refuse
    to run (a Start-time guard, not a planning decision) — this check is scoped to
    `standards_path` only, never to `principles_path`.
-6. Iteration > 1: `<context>` carries verifier findings. Plan the minimal targeted fix
-   for **each** finding; do not replan untouched, passing parts of the doc set.
 
 ### Design-time doc-consistency step (ADR 0012)
 
@@ -93,7 +95,16 @@ Required sections:
 - **Upstream inventory** — the PRD facts and architecture-set facts the doc set must
   reflect, with file/line citations, PLUS the principles-set facts when present — and an
   explicit "principles/ N/A: <why>" note when `principles_path` is null or the set is
-  absent.
+  absent. Each citation is one line of the shape
+
+  ```
+  - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown; the line/range is advisory only, and
+  the excerpt is mandatory and must be a verbatim quotation of the cited passage,
+  never a paraphrase. The `principles/ N/A: <why>` note is exempt from this grammar —
+  it carries no path or excerpt.
 - **Target doc set** — the exact three files under `standards_path`:
   `coding-standards.md`, `conventions.md`, `review-checklist.md`, each bootstrapped from
   its template verbatim, then lightly tailored to the detected stack and (when
@@ -126,7 +137,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-4/phases/create-standards/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="23000" tokens-output="3200" cost-usd="0.10"/>
   <stop-reason>Plan complete: bootstrap mode, 3 doc files planned, tailored to the detected stack and principles.</stop-reason>
 </result>
 ```

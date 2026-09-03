@@ -13,12 +13,16 @@ judgment calls.
 
 ## Input contract
 
+You are spawned exactly once per run, before the loop — there is no
+iteration>1 invocation of this agent, so your `<task>` never carries a
+`<context>` of verifier findings.
+
 Your prompt contains an XML `<task skill="create-quality" phase="plan"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: `prd.md`
 under `prd_path`, the full `architecture_path` set, any existing `quality_path` files),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path — plus
 `quality_path`, `architecture_path`, `prd_path`, and format strings), and optionally
-`<context>` carrying prior-iteration verifier findings. You share no memory with the
+`<context>` carrying the user's recorded clarification answers. You share no memory with the
 coordinator: read every input file yourself and trust only what you read.
 
 ## Analysis you must perform
@@ -32,8 +36,6 @@ coordinator: read every input file yourself and trust only what you read.
    preserving still-accurate content).
 4. If `settings.quality_path` is `null`, note that the coordinator must refuse
    to run (a Start-time guard, not a planning decision).
-5. Iteration > 1: `<context>` carries verifier findings. Plan the minimal targeted fix
-   for **each** finding; do not replan untouched, passing parts of the doc set.
 
 ### Design-time doc-consistency step (ADR 0012)
 
@@ -84,7 +86,15 @@ Required sections:
 
 - **Mode** — `bootstrap` or `re-run`, with the evidence that decided it.
 - **Upstream inventory** — the PRD NFRs and architecture-set facts the doc set must
-  reflect, with file/line citations.
+  reflect, with file/line citations. Each citation is one line of the shape
+
+  ```
+  - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown; the line/range is advisory only, and
+  the excerpt is mandatory and must be a verbatim quotation of the cited passage,
+  never a paraphrase.
 - **Target doc set** — the exact two files under `quality_path`: `test-strategy.md`
   (testing philosophy/pyramid, coverage-percent policy, suite inventory, CI gates,
   flaky-test policy) and `coverage-policy.md` (target/hard-fail rule, exclusions,
@@ -115,7 +125,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-42/phases/create-quality/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="21000" tokens-output="3000" cost-usd="0.09"/>
   <stop-reason>Plan complete: bootstrap mode, 2 doc files planned, tailored to the detected stack.</stop-reason>
 </result>
 ```

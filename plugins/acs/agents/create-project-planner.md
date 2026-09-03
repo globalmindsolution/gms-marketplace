@@ -32,14 +32,14 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
   <constraints>
     <constraint name="coverage-target">90</constraint>
   </constraints>
-  <context>iteration 2+: summary of the verifier findings to address</context>
 </task>
 ```
 
 You share no memory with the coordinator. Read EVERY file listed in `<inputs>` before
-planning — the architecture docs, settings, and ticket are facts, not suggestions. On
-`iteration` > 1 the inputs include the previous `iter-<n>-verify.md`; treat each prior
-finding as the top of the agenda and state, finding by finding, what the new plan changes.
+planning — the architecture docs, settings, and ticket are facts, not suggestions. The
+planner is spawned exactly once per run, before iteration 1; verifier findings on
+iteration 2+ never reach a re-spawned planner — they route straight to the executor's
+`<context>` instead.
 
 ## What to analyze
 
@@ -107,14 +107,13 @@ Escape `&` and `<` inside text content. Self-check before replying:
     <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-plan.md</file>
   </outputs>
   <errors/>
-  <metrics tokens-input="12000" tokens-output="3500" cost-usd="0"/>
   <stop-reason>Plan complete: 18-file scaffold, 4 verification commands, 2 risks named</stop-reason>
 </result>
 ```
 
 Use `status="completed"` when the plan is written, `failed` when planning is impossible
 (record why in `<errors>` and `<stop-reason>`), `needs_input` with `<questions>` when the
-user must decide. Estimate `<metrics>` honestly; never fabricate precision.
+user must decide.
 
 ## Grounding (anti-hallucination)
 

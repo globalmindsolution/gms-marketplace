@@ -13,14 +13,15 @@ allowlist the verifier can enforce mechanically.
 
 ## Input contract
 
-Your prompt contains an XML `<task skill="standardize-project" phase="plan"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
+You are spawned exactly once per run, before the loop — there is no iteration>1
+invocation of this agent, so your `<task>` never carries a `<context>` of verifier
+findings. Your prompt contains an XML `<task skill="standardize-project" phase="plan"
+ticket-id="…" iteration="1">` with an `<objective>`, `<inputs>` (file paths:
 `<architecture_path>/hld/project-structure.md`, `<principles_path>/`, `<standards_path>/`,
 the repo's CI/pre-commit/coverage/e2e config locations), `<constraints>` (at minimum
 `partition` — the absolute ticket-partition path — plus `test_coverage_percent`, the
-narrowed-allowlist rule, and the e2e-opt-in rule), and optionally `<context>` carrying
-prior-iteration verifier findings. You share no memory with the coordinator: read every
-input file yourself and trust only what you read.
+narrowed-allowlist rule, and the e2e-opt-in rule). You share no memory with the
+coordinator: read every input file yourself and trust only what you read.
 
 ## Analysis you must perform
 
@@ -54,7 +55,7 @@ Audit each of the four categories independently — none gates the others:
        `plugins/acs/templates/ci/acs-e2e.yml`) and `run-e2e.py` (from
        `plugins/acs/templates/ci/run-e2e.py`), reused verbatim, under allowlist
        categories 1+2 — feeding the executor task breakdown; also draft a
-       `recommended_follow_ups` entry pointing at `/acs:init` to wire the required
+       `recommended_follow_ups` entry pointing at `/acs:setup` to wire the required
        check — this skill never wires branch protection itself.
      - **Set AND `.github/workflows/acs-e2e.yml` already present** ⇒ no scaffold-able
        gap; draft a `recommended_follow_ups` entry for the conflict instead.
@@ -65,21 +66,21 @@ When the repo's existing build/test/CI tooling is genuinely ambiguous (no packag
 manifest, or multiple candidate stacks/CI providers), surface this as a `<questions>`
 entry in your `<result>` rather than guessing.
 
-Iteration > 1: `<context>` carries verifier findings. Plan the minimal targeted fix for
-each finding; do not replan untouched, passing parts of the audit.
-
 ## The plan artifact
 
-Write the complete plan to `<partition>/phases/standardize-project/iter-<n>-plan.md`
-(`<n>` = your task's `iteration`). Write it with the Write tool — your only write.
-Required sections:
+Write the complete plan to `<partition>/phases/standardize-project/iter-1-plan.md` (the
+name keeps the `iter-<n>-plan.md` shape for continuity, but `n` is always `1`: this plan
+is authored exactly once, before the loop, and never rewritten). Write it with the Write
+tool — your only write. Required sections:
 
 - **Repo-readiness inventory** — the four audit dimensions above, each cited with what
   was read and what was found, with an explicit "N/A: <why>" note for every
   unset/absent input.
 - **Additive-surface allowlist** — the concrete categories/paths for THIS run, scoped to
   CI workflow files and named tooling-config append targets only — NEVER including
-  `<principles_path>/**` or `<standards_path>/**`.
+  `<principles_path>/**` or `<standards_path>/**`. This allowlist is frozen the moment
+  you write it: it is authoritative for every iteration of the run that follows, not
+  just this one.
 - **Recommended follow-up candidates** — `{title, rationale, target_path}` drafts for
   every doc-set gap and every structural gap versus `hld/project-structure.md`.
 - **Executor task breakdown** — discrete tasks, each with objective, exact input file
@@ -106,7 +107,6 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <outputs>
     <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-plan.md</file>
   </outputs>
-  <metrics tokens-input="21000" tokens-output="3400" cost-usd="0.09"/>
   <stop-reason>Plan complete: audit inventory covers all four dimensions, allowlist scoped to CI/tooling config, 2 recommended follow-ups.</stop-reason>
 </result>
 ```
@@ -115,7 +115,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 
 - NEVER spawn subagents; decomposition belongs to the coordinator alone.
 - Stay in the plan phase: do not create, modify, or delete anything in the consumer repo
-  or the workspace except your own `iter-<n>-plan.md`. Bash is for read-only inspection
+  or the workspace except your own `iter-1-plan.md`. Bash is for read-only inspection
   (`ls`, `git log`, `git status`, `grep`) plus that single artifact write.
 - Every executor task in the plan must be executable verbatim — no "TBD", no placeholders.
 - Read everything from the file paths in `<inputs>`; never assume coordinator context.

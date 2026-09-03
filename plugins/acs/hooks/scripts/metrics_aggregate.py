@@ -17,13 +17,14 @@ aggregate JSON object to stdout:
 Design A1 (helper emits aggregate JSON; the SKILL renders show_widget — ZERO show_widget
 dependency here), B1 (every panel key "1".."7" PLUS the five new string keys is ALWAYS present;
 degradation is a "no data" marker inside the panel plus a meta.degraded entry, never a missing
-key), C1 (panel 6 token-burn buckets plan->planner / execute->executor / verify->verifier from
-the <metrics> element, the `coordinate` phase EXCLUDED from all three buckets per ledger C-5;
-panel 5 review iterations from code-state states.review.iterations authoritative with the max
+key), C1 (panel 6 token-burn buckets sourced from each HOOKED_SKILLS run entry's measured
+`role_usage` field (acs_lib.finalize_run), bucketed by role string as-is — this now
+includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; panel 5 review
+iterations from code-state states.review.iterations authoritative with the max
 verify-XML-iteration fallback), D1 (bounded single pass: enumerate tickets from
 tickets-index.json, resolve each partition active-then-archive, read the four state files once
-each, glob phases/*/iter-*-*.xml and extract <metrics> with a compiled attribute-order-INDEPENDENT
-regex; xml.etree is a documented reserved fallback, not used by default).
+each, plus each HOOKED_SKILLS `<skill>-state.json` for role_usage; xml.etree is a documented
+reserved fallback, not used by default).
 
 New panel keys (MAR-14 spec 01):
   "delivery_summary" — PM KPIs: done/total, prs_merged, avg lead/cycle, coverage_pass_rate.
@@ -31,6 +32,26 @@ New panel keys (MAR-14 spec 01):
   "progress"         — overall done/total, per_epic breakdown, burn_up date series.
   "deadline"         — always degraded "not set" frame (Child 3 / MAR-15 wires real data).
   "usage_summary"    — totals + four averages from panel3; mirrors usage view data needs.
+
+New panel key (MAR-3 spec 04):
+  "usage_by_model"   — per-model token/cost breakdown, at repo AND per-ticket scope, folded
+                        from each run entry's model_usage field (acs_lib._measure_run_usage)
+                        in the same single pass _accumulate_burn already makes for panel 6
+                        (zero additional file reads). "no data" repo/ticket-row when no
+                        contributing run entry anywhere carries model_usage (legacy history).
+
+New panel key (MAR-4 spec 01):
+  "usage_by_ticket"  — per-ticket role-share percentages: panel 6's bucket widens to the four
+                        token classes plus repo-scope token_share_pct/cost_share_pct; this panel
+                        adds the SAME shares at ticket scope, keyed by role, in the same
+                        _accumulate_burn pass (zero additional file reads). "no data" ticket row
+                        when the ticket contributed no role_usage anywhere.
+
+Per-skill/per-run API-duration surfacing (MAR-7 spec 01): panel 3 gains "step_api_duration"/
+"step_order" additive sibling keys per ticket ("steps" itself unchanged); "usage_by_ticket"
+widens with ticket/skill-scoped api_duration_ms/api_duration_basis and a skills[] array;
+"usage_summary" gains total_api_duration_ms and its two per-ticket/per-pr averages. All sourced
+from fields MAR-6 already persists — zero additional file reads.
 
 Existing panel keys "1".."7" and their shapes are UNCHANGED (A1 contract). New keys are additive.
 meta.degraded entries for new panels use string panel names; entries for "1".."7" use integers.
@@ -54,22 +75,11 @@ import acs_lib  # noqa: E402
 
 PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
 
-# New additive panel keys (MAR-14 spec 01). Not added to PANEL_KEYS (A1 contract preserved).
-_NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary")
+# New additive panel keys (MAR-14 spec 01, plus usage_by_model from MAR-3 spec 04 and
+# usage_by_ticket from MAR-4 spec 01). Not added to PANEL_KEYS (A1 contract preserved).
+_NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_summary",
+                    "usage_by_model", "usage_by_ticket")
 
-# phase attribute -> role bucket (panel 6). `coordinate` maps to no bucket (ledger C-5):
-# the role IS the phase; we invent no `role` attribute and add no fourth bucket.
-PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifier"}
-
-# Attribute-order-INDEPENDENT extraction (D1 / Risk R2): pull the <metrics ...> tag, then each
-# attribute by its own sub-pattern so tag order does not matter. xml.etree is the reserved
-# fallback (D2) and is intentionally not used here.
-_METRICS_TAG_RE = re.compile(r"<metrics\b([^>]*?)/?>")
-_TI_RE = re.compile(r'\btokens-input\s*=\s*"([^"]*)"')
-_TO_RE = re.compile(r'\btokens-output\s*=\s*"([^"]*)"')
-_COST_RE = re.compile(r'\bcost-usd\s*=\s*"([^"]*)"')
-# the enclosing element's phase attribute (result/task both expose phase=)
-_PHASE_RE = re.compile(r'\bphase\s*=\s*"([^"]*)"')
 # iteration="N" on a verify result XML (panel 5 fallback)
 _ITER_RE = re.compile(r'\biteration\s*=\s*"(\d+)"')
 
@@ -79,13 +89,6 @@ def _to_int(text):
         return int(text)
     except (TypeError, ValueError):
         return 0
-
-
-def _to_float(text):
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _is_number(value):
@@ -104,26 +107,33 @@ def _safe_avg(numerator, denominator):
     return numerator / denominator
 
 
+def _share_pct(value, total):
+    """Guarded percentage (MAR-4 spec 01): round(value / total * 100, 4), 0-100 scale.
+
+    None on a zero/absent/negative total or a non-numeric value — never a division by zero,
+    never a fabricated share. Mirrors _safe_avg's guard-before-divide style.
+    """
+    if not _is_number(total) or total <= 0 or not _is_number(value):
+        return None
+    return round(value / total * 100, 4)
+
+
 def _elapsed_seconds(start_iso, end_iso):
     """Wall-clock elapsed `end - start` in whole seconds, or None (AC-2).
 
-    Mirrors acs_lib.run_seconds but returns value-or-None (not 0), so a missing/invalid anchor
-    or a negative interval is distinguishable from a true zero-length interval. Total function:
-    parse_iso returns None on bad/missing input, so this never raises.
+    Thin delegate over acs_lib.elapsed_seconds, the single shared primitive both this
+    function and acs_lib.run_seconds adapt (design D1-C) — so a missing/invalid anchor or
+    an inverted interval is None, distinguishable from a true zero-length interval, with
+    that guarantee enforced in exactly one place. Total function: never raises.
 
-    Overlap-safe guarantee (spec 02 / design B1): an inverted interval (start > end, i.e.
-    `not (end >= start)`) returns None rather than raising or returning a negative value.
-    Callers (_panel7_row) map None to the string "no data" and append a meta.degraded entry;
-    aggregate() writes nothing in any case. This guarantee covers both the lead-inversion case
-    (merge-pr.ended_at < ticket.created_at) and the cycle-inversion case
-    (code.started_at > merge-pr.ended_at, e.g. a re-cycled ticket). The production guard on
-    line `end >= start` below is intentionally NOT a rewrite — it is the minimal total-function
-    property (design Decision B1: "a guarantee + test, not a rewrite").
+    Overlap-safe guarantee (spec 02 / design B1): an inverted interval (start > end) returns
+    None rather than raising or returning a negative value. Callers (_panel7_row) map None to
+    the string "no data" and append a meta.degraded entry; aggregate() writes nothing in any
+    case. This guarantee covers both the lead-inversion case (merge-pr.ended_at <
+    ticket.created_at) and the cycle-inversion case (code.started_at > merge-pr.ended_at, e.g.
+    a re-cycled ticket).
     """
-    start, end = acs_lib.parse_iso(start_iso), acs_lib.parse_iso(end_iso)
-    if start and end and end >= start:
-        return int((end - start).total_seconds())
-    return None
+    return acs_lib.elapsed_seconds(start_iso, end_iso)
 
 
 def _parse_due_date(value):
@@ -204,7 +214,12 @@ def aggregate(workspace, repo_id, now=None):
     p4_rows = []
     p5_rows = []
     p7_rows = []
-    burn = {role: {"input": 0, "output": 0, "cost": 0.0} for role in ("planner", "executor", "verifier")}
+    burn = {role: _empty_panel6_bucket()
+            for role in ("planner", "executor", "verifier", "coordinator")}
+    repo_models = {}  # model -> raw accumulator (MAR-3: usage_by_model repo scope)
+    _ticket_model_rows = []  # [(ticket_id, {model -> raw accumulator}), ...] (ticket scope)
+    _ticket_role_rows = []  # [(ticket_id, {role -> raw accumulator}), ...] (MAR-4: usage_by_ticket)
+    _ticket_skill_rows = []  # [(ticket_id, {skill -> raw duration accumulator}), ...] (MAR-7)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
     # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
@@ -224,7 +239,6 @@ def aggregate(workspace, repo_id, now=None):
         pipeline = acs_lib.read_json(os.path.join(tdir, "pipeline-state.json"))
         if isinstance(pipeline, dict):
             _accumulate_funnel(funnel, pipeline)
-            p3_rows.append(_panel3_row(ticket_id, pipeline))
         else:
             degrade(ticket_id, 2, "pipeline-state.json absent — ticket omitted from the funnel")
             degrade(ticket_id, 3, "pipeline-state.json absent — no cost/time row")
@@ -250,7 +264,15 @@ def aggregate(workspace, repo_id, now=None):
 
         p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
 
-        _accumulate_burn(burn, tdir)
+        ticket_models, ticket_roles, ticket_skills = _accumulate_burn(burn, tdir)
+        if isinstance(pipeline, dict):
+            p3_rows.append(_panel3_row(ticket_id, pipeline, ticket_skills))
+        for model, bucket in ticket_models.items():
+            repo_bucket = repo_models.setdefault(model, _empty_model_bucket())
+            _fold_model_bucket(repo_bucket, bucket)
+        _ticket_model_rows.append((ticket_id, ticket_models))
+        _ticket_role_rows.append((ticket_id, ticket_roles))
+        _ticket_skill_rows.append((ticket_id, ticket_skills))
 
         # Collect ticket.json.updated_at for burn_up fallback (spec 01:198-202).
         # ticket.json is already opened in _panel7_row (read-only, no extra I/O cost).
@@ -289,6 +311,7 @@ def aggregate(workspace, repo_id, now=None):
     }
     panel4 = {"tickets": p4_rows}
     panel5 = {"tickets": p5_rows}
+    _apply_panel6_shares(burn)  # repo-scope token_share_pct/cost_share_pct, once (MAR-4 spec 01)
     panel6 = burn
     panel7 = _panel7(p7_rows)
 
@@ -311,8 +334,15 @@ def aggregate(workspace, repo_id, now=None):
     _now_date = _parse_due_date(_now_str)  # date object for comparison; None if now is None
     deadline = _deadline_panel(_tickets_due_data, _now_date, degrade)
 
-    # usage_summary: totals + four averages (spec 01:251-269)
-    usage_summary = _usage_summary_panel(totals, prs, panel3["averages"])
+    # usage_summary: totals + four averages (spec 01:251-269), + 3 API-duration fields (MAR-7)
+    usage_summary = _usage_summary_panel(totals, prs, panel3["averages"], ticket_count)
+
+    # usage_by_model: per-model token/cost breakdown, repo + per-ticket (MAR-3 spec 04)
+    usage_by_model = _usage_by_model_panel(repo_models, _ticket_model_rows)
+
+    # usage_by_ticket: per-ticket role-share percentages (MAR-4 spec 01), widened with
+    # ticket/skill-scoped API duration + a skills[] array (MAR-7 spec 01)
+    usage_by_ticket = _usage_by_ticket_panel(_ticket_role_rows, _ticket_skill_rows)
 
     panels = {
         "1": panel1, "2": panel2, "3": panel3, "4": panel4, "5": panel5,
@@ -322,6 +352,8 @@ def aggregate(workspace, repo_id, now=None):
         "progress": progress,
         "deadline": deadline,
         "usage_summary": usage_summary,
+        "usage_by_model": usage_by_model,
+        "usage_by_ticket": usage_by_ticket,
     }
     return {
         "panels": panels,
@@ -605,7 +637,7 @@ def _deadline_panel(tickets_with_due, now_date, degrade):
     return {"rows": rows, "rollup": rollup}
 
 
-def _usage_summary_panel(totals, prs, panel3_averages):
+def _usage_summary_panel(totals, prs, panel3_averages, ticket_count):
     """Build the usage_summary panel from already-computed totals and panel3 averages (spec 01:251-269).
 
     Keys:
@@ -619,6 +651,9 @@ def _usage_summary_panel(totals, prs, panel3_averages):
       avg_working_seconds_per_pr       — from panel3_averages (float or "no data").
       avg_cost_per_ticket              — from panel3_averages (float or "no data").
       avg_cost_per_pr                  — from panel3_averages (float or "no data").
+      total_api_duration_ms            — float from totals.api_duration_ms (or 0.0, MAR-7).
+      avg_api_duration_ms_per_ticket   — total_api_duration_ms / ticket_count (or "no data", MAR-7).
+      avg_api_duration_ms_per_pr       — total_api_duration_ms / prs_merged (or "no data", MAR-7).
 
     No meta.degraded entry (degrades to zeros, never absent).
     """
@@ -651,6 +686,10 @@ def _usage_summary_panel(totals, prs, panel3_averages):
 
     avgs = panel3_averages if isinstance(panel3_averages, dict) else {}
 
+    total_api_duration_ms = t.get("api_duration_ms", 0.0)
+    if not _is_number(total_api_duration_ms):
+        total_api_duration_ms = 0.0
+
     return {
         "total_cost_usd": total_cost_usd,
         "total_tokens_input": total_tokens_input,
@@ -662,7 +701,206 @@ def _usage_summary_panel(totals, prs, panel3_averages):
         "avg_working_seconds_per_pr": avgs.get("avg_working_seconds_per_pr", "no data"),
         "avg_cost_per_ticket": avgs.get("avg_cost_per_ticket", "no data"),
         "avg_cost_per_pr": avgs.get("avg_cost_per_pr", "no data"),
+        "total_api_duration_ms": total_api_duration_ms,
+        "avg_api_duration_ms_per_ticket": _safe_avg(total_api_duration_ms, ticket_count),
+        "avg_api_duration_ms_per_pr": _safe_avg(total_api_duration_ms, prs_merged),
     }
+
+
+def _empty_panel6_bucket():
+    """Shared panel-6 bucket shape (MAR-4 spec 01): the four token classes plus a running cost.
+
+    Replaces the two independent 3-key literals (the `burn` seed and _accumulate_burn's
+    setdefault) that previously had to be kept in lockstep by hand. cost_seen mirrors
+    _empty_model_bucket's pattern: True only once a numeric cost_usd has contributed.
+    """
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
+            "cost_seen": False}
+
+
+def _apply_panel6_shares(burn):
+    """Repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, computed once,
+    post-loop (D2 placement; MAR-4 spec 01). Percentage scale is 0-100. Mutates `burn` in place.
+    """
+    token_total = sum(
+        b["input"] + b["output"] + b["cache_creation"] + b["cache_read"] for b in burn.values()
+    )
+    cost_total = sum(b["cost"] for b in burn.values())
+    for bucket in burn.values():
+        token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+        bucket["token_share_pct"] = _share_pct(token_sum, token_total)
+        bucket["cost_share_pct"] = (
+            _share_pct(bucket["cost"], cost_total) if bucket["cost_seen"] else None
+        )
+
+
+def _empty_model_bucket():
+    """Raw (pre-finalization) per-model accumulator for usage_by_model (MAR-3 spec 04)."""
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0,
+            "cost_sum": 0.0, "cost_seen": False}
+
+
+def _empty_skill_duration_bucket():
+    """Raw (pre-finalization) per-skill duration accumulator for usage_by_ticket.skills[] and
+    panel 3's step_api_duration (MAR-7 spec 01). Mirrors _empty_model_bucket's seen/sum-pair
+    pattern: a None-elapsed run or a None/non-numeric api_duration_ms is excluded from its own
+    sum but never prevents the skill from appearing (never a fabricated 0)."""
+    return {"api_duration_ms_sum": 0.0, "api_duration_seen": False,
+            "run_seconds_sum": 0.0, "run_seconds_seen": False, "runs": []}
+
+
+def _fold_model_bucket(dest, src):
+    """Add one raw model accumulator's counts into another, in place."""
+    dest["input"] += src["input"]
+    dest["output"] += src["output"]
+    dest["cache_creation"] += src["cache_creation"]
+    dest["cache_read"] += src["cache_read"]
+    dest["cost_sum"] += src["cost_sum"]
+    dest["cost_seen"] = dest["cost_seen"] or src["cost_seen"]
+
+
+def _finalize_model_bucket(model, bucket):
+    """Raw accumulator -> the panel's public item shape (cost roll-up rule, spec 04).
+
+    cost_usd is the sum of non-null contributing costs, never a fabricated 0: None with
+    cost_basis "unavailable" when no contributing model_usage item carried a numeric cost,
+    else "apportioned" with cost_usd rounded to 6 places (mirrors _accumulate_burn's rounding).
+    """
+    return {
+        "model": model,
+        "input": bucket["input"],
+        "output": bucket["output"],
+        "cache_creation": bucket["cache_creation"],
+        "cache_read": bucket["cache_read"],
+        "cost_usd": round(bucket["cost_sum"], 6) if bucket["cost_seen"] else None,
+        "cost_basis": "apportioned" if bucket["cost_seen"] else "unavailable",
+    }
+
+
+def _usage_by_model_panel(repo_models, ticket_model_rows):
+    """Build panels.usage_by_model: repo scope + per-ticket scope (MAR-3 spec 04, AC-2).
+
+    repo_models: {model -> raw accumulator} folded across every ticket/skill.
+    ticket_model_rows: [(ticket_id, {model -> raw accumulator}), ...] in ticket iteration order.
+    "no data" (repo, or a ticket's own "models") when nothing contributed at that scope --
+    e.g. a legacy pre-MAR-3 run entry with no model_usage (AC-6 forward-only gap, disclosed).
+    """
+    if repo_models:
+        repo = [_finalize_model_bucket(m, repo_models[m]) for m in sorted(repo_models)]
+    else:
+        repo = "no data"
+
+    tickets = []
+    for ticket_id, models in ticket_model_rows:
+        if models:
+            models_list = [_finalize_model_bucket(m, models[m]) for m in sorted(models)]
+        else:
+            models_list = "no data"
+        tickets.append({"ticket_id": ticket_id, "models": models_list})
+
+    return {"repo": repo, "tickets": tickets}
+
+
+def _finalize_role_ticket_bucket(bucket, token_total, cost_total):
+    """Raw per-role accumulator -> usage_by_ticket's public role-item shape (MAR-4 spec 01).
+
+    cost_usd/cost_basis follow the model roll-up rule (None/"unavailable" when this role had no
+    measured cost in this ticket, independent of sibling roles in the same ticket). Both
+    percentages are ticket-scoped (token_total/cost_total are this ticket's own sums, never the
+    repo total). cost_share_pct is None whenever cost_usd is None OR the ticket-scope cost total
+    is zero/absent (a role with no measured cost cannot express a share of an unknown quantity).
+    """
+    token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
+    cost_usd = round(bucket["cost_sum"], 6) if bucket["cost_seen"] else None
+    return {
+        "input": bucket["input"],
+        "output": bucket["output"],
+        "cache_creation": bucket["cache_creation"],
+        "cache_read": bucket["cache_read"],
+        "cost_usd": cost_usd,
+        "cost_basis": "apportioned" if bucket["cost_seen"] else "unavailable",
+        "token_share_pct": _share_pct(token_sum, token_total),
+        "cost_share_pct": _share_pct(cost_usd, cost_total) if cost_usd is not None else None,
+    }
+
+
+def _finalize_skill_bucket(skill, bucket):
+    """Raw per-skill duration accumulator -> usage_by_ticket.skills[]'s public item shape
+    (MAR-7 spec 01). Structural mirror of _finalize_model_bucket's cost roll-up rule: a rolled-up
+    figure across possibly several run entries collapses to "apportioned"/"unavailable" (never a
+    fabricated 0) -- distinct from _panel3_row's step_api_duration cell, which passes through a
+    single contributing run's own literal basis rather than collapsing it.
+    """
+    return {
+        "skill": skill,
+        "run_seconds_sum": round(bucket["run_seconds_sum"], 4) if bucket["run_seconds_seen"] else None,
+        "api_duration_ms": round(bucket["api_duration_ms_sum"], 4) if bucket["api_duration_seen"] else None,
+        "api_duration_basis": "apportioned" if bucket["api_duration_seen"] else "unavailable",
+        "runs": bucket["runs"],
+    }
+
+
+def _usage_by_ticket_panel(ticket_role_rows, ticket_skill_rows):
+    """Build panels.usage_by_ticket: ticket-scoped role-share percentages (MAR-4 spec 01, AC-1),
+    widened with ticket-scope api_duration_ms/api_duration_basis and a skills[] array (MAR-7
+    spec 01, D5.4/S-C).
+
+    ticket_role_rows: [(ticket_id, {role -> raw accumulator}), ...] in ticket iteration order.
+    ticket_skill_rows: [(ticket_id, {skill -> raw duration accumulator}), ...], same order.
+    A ticket's "roles" is the literal "no data" when it contributed no role_usage anywhere;
+    otherwise a dict keyed by role name (no repeated "role" key inside each bucket), inserted in
+    sorted() role-name order for determinism -- the renderer never re-sorts (D2 placement).
+    api_duration_ms/api_duration_basis are ticket-scope siblings of "roles", folded across this
+    ticket's own ticket_skills raw buckets (identical roll-up discipline to the skill-level
+    figure, never double-derived from skills[]'s own already-rounded sums). "skills" is an EMPTY
+    list -- never the string "no data" -- only when the ticket has NO run entries for any skill;
+    a skill with run entries but no measured/apportioned duration still gets a row, with
+    api_duration_ms/_basis degrading to null/"unavailable" independently (Risk 3 / test 8).
+    """
+    skill_map = dict(ticket_skill_rows)
+    tickets = []
+    for ticket_id, roles_raw in ticket_role_rows:
+        if not roles_raw:
+            roles = "no data"
+        else:
+            token_total = sum(
+                b["input"] + b["output"] + b["cache_creation"] + b["cache_read"]
+                for b in roles_raw.values()
+            )
+            cost_total = sum(b["cost_sum"] for b in roles_raw.values())
+            roles = {
+                role: _finalize_role_ticket_bucket(roles_raw[role], token_total, cost_total)
+                for role in sorted(roles_raw)
+            }
+
+        ticket_skills = skill_map.get(ticket_id) or {}
+        api_ms_sum = 0.0
+        api_seen = False
+        for bucket in ticket_skills.values():
+            if bucket["api_duration_seen"]:
+                api_ms_sum += bucket["api_duration_ms_sum"]
+                api_seen = True
+
+        # A skill row is emitted whenever the skill has any run entries at all -- either duration
+        # figure having ever been measured/apportioned is enough; api_duration_ms/_basis then
+        # degrade to null/"unavailable" independently via _finalize_skill_bucket. A skill with
+        # zero run entries never reaches this list (it is simply absent from ticket_skills), which
+        # is what keeps a genuinely-empty ticket's skills == [] (Risk 3 / test 8).
+        skills = [
+            _finalize_skill_bucket(skill, ticket_skills[skill])
+            for skill in acs_lib.HOOKED_SKILLS
+            if skill in ticket_skills and (ticket_skills[skill]["api_duration_seen"]
+                                            or ticket_skills[skill]["run_seconds_seen"])
+        ]
+
+        tickets.append({
+            "ticket_id": ticket_id,
+            "roles": roles,
+            "api_duration_ms": round(api_ms_sum, 4) if api_seen else None,
+            "api_duration_basis": "apportioned" if api_seen else "unavailable",
+            "skills": skills,
+        })
+    return {"tickets": tickets}
 
 
 def _test_runs_source(workspace, repo_id, degrade):
@@ -749,14 +987,44 @@ def _accumulate_funnel(funnel, pipeline):
             funnel[skill] += 1
 
 
-def _panel3_row(ticket_id, pipeline):
+def _panel3_row(ticket_id, pipeline, ticket_skills=None):
+    """Panel-3 row: ticket_id/steps/totals unchanged (F13's no-mutation invariant -- `steps` is
+    only ever read here, never reordered or filtered), plus two additive sibling keys (MAR-7
+    spec 01, D5.4/S-C): step_api_duration (per-skill API duration + basis) and step_order (the
+    ordered union of steps' and step_api_duration's own key sets, K-A).
+
+    ticket_skills: the SAME raw {skill -> duration accumulator} map _accumulate_burn returns --
+    zero extra file reads (P-1). A skill's step_api_duration cell's "basis" passes through the
+    LAST contributing run's own literal basis (not the "apportioned"/"unavailable" collapse
+    _finalize_skill_bucket uses for usage_by_ticket.skills[] -- that scope's own roll-up rule).
+    """
     steps = pipeline.get("steps") if isinstance(pipeline.get("steps"), dict) else {}
     per_step = {}
     for skill, step in steps.items():
         if isinstance(step, dict):
             per_step[skill] = acs_lib.run_seconds(step)
     totals = pipeline.get("totals") if isinstance(pipeline.get("totals"), dict) else {}
-    return {"ticket_id": ticket_id, "steps": per_step, "totals": totals}
+
+    ticket_skills = ticket_skills if isinstance(ticket_skills, dict) else {}
+    step_api_duration = {}
+    for skill, bucket in ticket_skills.items():
+        if not bucket.get("api_duration_seen"):
+            continue
+        contributing = [r for r in bucket.get("runs", []) if _is_number(r.get("api_duration_ms"))]
+        basis = contributing[-1]["api_duration_basis"] if contributing else "unavailable"
+        step_api_duration[skill] = {"ms": round(bucket["api_duration_ms_sum"], 4), "basis": basis}
+
+    union = set(per_step) | set(step_api_duration)
+    step_order = ([s for s in acs_lib.PIPELINE_STEP_ORDER if s in union]
+                  + sorted(union - set(acs_lib.PIPELINE_STEP_ORDER)))
+
+    return {
+        "ticket_id": ticket_id,
+        "steps": per_step,
+        "totals": totals,
+        "step_api_duration": step_api_duration,
+        "step_order": step_order,
+    }
 
 
 def _panel4_row(ticket_id, code_state, degrade):
@@ -913,24 +1181,91 @@ def _max_verify_iteration(tdir):
 
 
 def _accumulate_burn(burn, tdir):
-    """Sum <metrics> token burn into role buckets across the ticket's phase XMLs (panel 6)."""
-    for path in glob.glob(os.path.join(tdir, "phases", "*", "iter-*-*.xml")):
-        text = _read_text(path)
-        tag = _METRICS_TAG_RE.search(text)
-        if not tag:
-            continue  # no <metrics> (e.g. -task.xml or a no-metrics result) contributes 0
-        phase_match = _PHASE_RE.search(text)
-        role = PHASE_ROLE.get(phase_match.group(1)) if phase_match else None
-        if role is None:
-            continue  # `coordinate` (or any unmapped phase) is excluded — ledger C-5
-        attrs = tag.group(1)
-        ti = _TI_RE.search(attrs)
-        to = _TO_RE.search(attrs)
-        cost = _COST_RE.search(attrs)
-        bucket = burn[role]
-        bucket["input"] += _to_int(ti.group(1)) if ti else 0
-        bucket["output"] += _to_int(to.group(1)) if to else 0
-        bucket["cost"] = round(bucket["cost"] + (_to_float(cost.group(1)) if cost else 0.0), 6)
+    """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6, now
+    widened to the four token classes, MAR-4 spec 01), this ticket's OWN role_usage into a raw
+    per-role accumulator (usage_by_ticket, MAR-4 spec 01), this ticket's `model_usage` into
+    per-model buckets (usage_by_model, MAR-3 spec 04), and each entry's own `api_duration_ms`/
+    `api_duration_basis`/wall-clock seconds into a raw per-skill duration accumulator (panel 3's
+    step_api_duration + usage_by_ticket.skills[], MAR-7 spec 01, D5.4/P-1 -- zero additional
+    file reads).
+
+    Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
+    <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
+    `coordinator` now surfaces like any other role instead of being silently excluded.
+    `burn`'s shape and behavior are unchanged (widened, not reshaped); the model/role/skill
+    accumulators are this function's return value -- (ticket_models, ticket_roles, ticket_skills).
+    """
+    ticket_models = {}
+    ticket_roles = {}
+    ticket_skills = {}
+    for skill in acs_lib.HOOKED_SKILLS:
+        state = acs_lib.read_json(acs_lib.state_path(tdir, skill))
+        if not isinstance(state, dict):
+            continue
+        for entry in state.get("runs") or []:
+            if not isinstance(entry, dict):
+                continue
+
+            skill_bucket = ticket_skills.setdefault(skill, _empty_skill_duration_bucket())
+            wall_clock_seconds = acs_lib.run_seconds(entry)
+            if wall_clock_seconds is not None:
+                skill_bucket["run_seconds_sum"] += wall_clock_seconds
+                skill_bucket["run_seconds_seen"] = True
+            api_duration_ms = entry.get("api_duration_ms")
+            api_duration_basis = entry.get("api_duration_basis") or "unavailable"
+            if _is_number(api_duration_ms):
+                skill_bucket["api_duration_ms_sum"] += api_duration_ms
+                skill_bucket["api_duration_seen"] = True
+            skill_bucket["runs"].append({
+                "started_at": entry.get("started_at"),
+                "wall_clock_seconds": wall_clock_seconds,
+                "api_duration_ms": api_duration_ms,
+                "api_duration_basis": api_duration_basis,
+            })
+
+            for item in entry.get("role_usage") or []:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get("role")
+                if not role:
+                    continue
+                cache_creation = _to_int(item.get("cache_creation"))
+                cache_read = _to_int(item.get("cache_read"))
+                cost = item.get("cost_usd")
+
+                bucket = burn.setdefault(role, _empty_panel6_bucket())
+                bucket["input"] += _to_int(item.get("input"))
+                bucket["output"] += _to_int(item.get("output"))
+                bucket["cache_creation"] += cache_creation
+                bucket["cache_read"] += cache_read
+                if _is_number(cost):
+                    bucket["cost"] = round(bucket["cost"] + cost, 6)
+                    bucket["cost_seen"] = True
+
+                role_bucket = ticket_roles.setdefault(role, _empty_model_bucket())
+                role_bucket["input"] += _to_int(item.get("input"))
+                role_bucket["output"] += _to_int(item.get("output"))
+                role_bucket["cache_creation"] += cache_creation
+                role_bucket["cache_read"] += cache_read
+                if _is_number(cost):
+                    role_bucket["cost_sum"] += cost
+                    role_bucket["cost_seen"] = True
+            for item in entry.get("model_usage") or []:
+                if not isinstance(item, dict):
+                    continue
+                model = item.get("model")
+                if not model:
+                    continue
+                model_bucket = ticket_models.setdefault(model, _empty_model_bucket())
+                model_bucket["input"] += _to_int(item.get("input"))
+                model_bucket["output"] += _to_int(item.get("output"))
+                model_bucket["cache_creation"] += _to_int(item.get("cache_creation"))
+                model_bucket["cache_read"] += _to_int(item.get("cache_read"))
+                cost = item.get("cost_usd")
+                if _is_number(cost):
+                    model_bucket["cost_sum"] += cost
+                    model_bucket["cost_seen"] = True
+    return ticket_models, ticket_roles, ticket_skills
 
 
 def _read_text(path):

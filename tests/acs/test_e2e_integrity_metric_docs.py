@@ -150,7 +150,7 @@ class TestNoNewMechanism(unittest.TestCase):
 
 class TestD1AttributionFix(unittest.TestCase):
     """[AC-5] prd.md no longer attributes e2e branch-protection wiring to
-    /acs:standardize-project; /acs:init is named as the wiring owner; the
+    /acs:standardize-project; /acs:setup is named as the wiring owner; the
     OPT-IN invariant sentence is preserved verbatim."""
 
     @classmethod
@@ -169,9 +169,9 @@ class TestD1AttributionFix(unittest.TestCase):
         self.assertNotIn(
             "opt-in wiring of a required e2e merge-gate status check", self.c2_line)
 
-    def test_init_named_as_wiring_owner(self):
-        self.assertIn("/acs:init", self.sp_line)
-        self.assertIn("/acs:init", self.c2_line)
+    def test_setup_named_as_wiring_owner(self):
+        self.assertIn("/acs:setup", self.sp_line)
+        self.assertIn("/acs:setup", self.c2_line)
 
     def test_optin_invariant_sentence_preserved(self):
         self.assertIn(

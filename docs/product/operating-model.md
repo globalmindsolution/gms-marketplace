@@ -110,7 +110,7 @@ releases — through the acs pipeline.
 | Seat | Mission | Decides on | Operates (skills) | Answers for | Failure mode to guard |
 |---|---|---|---|---|---|
 | **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket, metrics | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
-| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, init; future standardize-project / create-standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
+| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; future standardize-project / create-standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
 | **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
 | **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config, metrics/usage gate-health; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
 
@@ -233,7 +233,7 @@ Head-of split. Titles stay modest until scale demands headroom.
 | Release | release (future) | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
 | Operate & observe | metrics, usage, failure-mode dashboards, create-operations (future) | Ops hat / evals engineer |
-| Governance | init, install-hooks, org policy | Principal |
+| Governance | setup, install-hooks, org policy | Principal |
 
 ---
 

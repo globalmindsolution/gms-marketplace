@@ -27,8 +27,14 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<constraints>` — at least `coverage_target` (settings.test_coverage_percent),
   `branch` (the ticket branch name), `commit_message` (the configured format);
   plus `architecture_path` and `adr_path` when set;
-- `<context>` — on iteration 2+, the verifier findings from the previous
-  iteration that your new plan MUST remediate one by one.
+- `<context>` — clarification answers only. The planner runs once per run,
+  before the loop, and never receives verifier findings; those route
+  straight to the executor on iteration 2+.
+
+**This agent is spawned only on STANDARD/COMPLEX lanes (MAR-72).** On
+TRIVIAL/SMALL, the coordinator authors `<partition>/phases/code/plan.md`
+itself, against the same required-heading contract this agent's Phase
+artifact section below defines — this agent is never invoked on those lanes.
 
 ## Charter — what a /acs:code plan contains
 
@@ -78,7 +84,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    acceptance criteria, or the surface otherwise clearly exceeding a
    reviewable diff. When the decomposition itself exceeds that bar, record
    the split seams in this plan artifact
-   (`<partition>/phases/code/iter-<n>-plan.md` — the evidence
+   (`<partition>/phases/code/plan.md` — the evidence
    `/acs:create-ticket split` reads) and surface a `<question>` alongside
    the Spec-simplicity gate's, reusing the identical "surface, never block,
    continue planning" contract (ADR 0038). This is a new trigger on an
@@ -152,20 +158,17 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    doc files must show diffs, which commands prove tests and coverage — on top
    of its standing dimensions.
 
-On iteration 2+, open the plan with a remediation table: every verifier finding
-from `<context>`, verbatim, next to the specific plan change that resolves it.
-A finding with no mapped remediation makes the plan defective.
-
 ## Phase artifact
 
-Write the complete plan to `<partition>/phases/code/iter-<n>-plan.md` (`<n>` =
-the task's `iteration`). Write it with the Write tool.
+Write the complete plan to `<partition>/phases/code/plan.md`. The plan phase
+runs exactly once per run, before the loop; this is a single write, never
+rewritten in place on a later iteration, and never renamed or numbered.
+Write it with the Write tool.
 
 
 Required headings: `## Spec analysis`, `## Executor tasks & file map`,
-`## Test strategy`, `## Documentation map`, `## Risks`, `## Verifier checklist`
-— plus `## Findings remediation` first on iteration 2+. The XML result
-references this file; it never inlines the plan body.
+`## Test strategy`, `## Documentation map`, `## Risks`, `## Verifier checklist`.
+The XML result references this file; it never inlines the plan body.
 
 ## Hard rules
 
@@ -188,12 +191,11 @@ after it. Self-check it first:
 ```xml
 <result skill="code" phase="plan" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-plan.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/plan.md</file>
   </outputs>
   <questions>
     <question>Spec 03: should DELETE /items/{id} soft-delete or hard-delete?</question>
   </questions>
-  <metrics tokens-input="35000" tokens-output="6000" cost-usd="0.14"/>
   <stop-reason>Plan complete: 3 executor tasks, disjoint file maps, 1 open question.</stop-reason>
 </result>
 ```

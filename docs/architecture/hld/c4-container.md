@@ -6,9 +6,9 @@ C4Container
 
     Person(dev, "Developer")
     System_Boundary(mkt, "GMS Marketplace (plugin catalog)") {
-        Container(skills, "acs Skills", "24 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
+        Container(skills, "acs Skills", "25 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
         Container(agents, "acs Subagents", "45 x agent .md (39 reachable)", "Planner/executor/verifier triad for the twelve triad-keeping skills (create-prd/-architecture/-project/-quality/-operations/-principles/-standards/-design/code/docs-sync/standardize-project/create-requirements); the three apply-work skills (create-ticket/-pr/merge-pr) run inline with at most one executor, no planner/verifier — their 6 plan/verify agent files are orphaned; grounding rules; XML I/O")
-        Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 15 pre + 15 post hooks; skill-start, new-ticket, handoff, clarify, validate_xml, mermaid_lint, structure_lint, status lines; acs_lib")
+        Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 15 pre + 15 post hooks; skill-start, new-ticket, handoff, clarify, validate_xml, mermaid_lint, structure_lint, citation_check, prd_conformance_check, status lines; acs_lib")
         Container(schemas, "acs Schemas & templates", "JSON Schema / XSD / md", "9 state schemas, acs-messages.xsd, 6 description templates; templates/ci/ now includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
         Container(tabp_skills, "tabp Skills", "2 x SKILL.md (screen-cvs, /tabp:usage)", "Screen-CV recruiting workflow; coordinator orchestrates parallel Sonnet-per-CV subagents + Opus synthesis via the coordinator+subagents convention; dispatched via Cowork or Claude Code")
         Container(tabp_agents, "tabp Subagents", "3 x agent .md", "Three reusable tabp-namespaced agent charters under plugins/tabp/agents/: screen-cv-subagent (Sonnet, one per CV) + synthesis-subagent (Opus, once per run) + screen-verifier-subagent (Sonnet, independent verifier, always-on). Spawned by the screen-cvs coordinator. No foreign-namespace tokens.")
@@ -16,9 +16,11 @@ C4Container
     }
     System_Ext(cc, "Claude Code runtime")
     System_Ext(cowork, "Cowork runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "<workspace>/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); an explicit workspace_path override may point elsewhere")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
+    ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")
+    System_Ext(statusline_src, "statusLine cost payload", "Opt-in Claude Code stdin feed to statusline.py — a shape-agnostic total_cost_usd figure, sampled and persisted into the workspace store, never read back from Claude Code directly (MAR-1)")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
     Container(evals_plugin, "evals/<plugin>/", "Python, run_evals.py", "Per-plugin behavioral evals; run locally only, NOT in CI")
@@ -31,7 +33,7 @@ C4Container
     Rel(agents, ws, "phase artifacts (plan/execute/verify)")
     Rel(hooks, ws, "state files, ledger, locks, index, metrics")
     Rel(agents, repo, "executors edit source/docs on ticket branch")
-    Rel(skills, trackers, "gh / acli (sync, PRs)")
+    Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tabp_skills, cowork, "screen-cvs skill dispatched via Cowork")
     Rel(tabp_skills, cc, "screen-cvs / /tabp:usage dispatched via Claude Code")
@@ -39,6 +41,9 @@ C4Container
     Rel(tabp_skills, tabp_helper, "run-start / state-write / decision-write / run-finalize / run-status (Bash)")
     Rel(tabp_helper, ws, ".tabp/ state: run.json, evidence, decision, history, lock")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")
+    Rel(hooks, transcript, "usage_reader.py reads the run's exact recorded transcript_path + subagents/, read-only, never a constructed path (MAR-1)")
+    Rel(cc, statusline_src, "pipes a JSON payload (model, workspace, session, cost) to statusline.py on every refresh")
+    Rel(hooks, statusline_src, "cost_sampler.py samples the real cost figure and persists it into the workspace store (MAR-1)")
 ```
 
 Container responsibilities are deliberately asymmetric: **skills/agents decide,
@@ -47,3 +52,10 @@ makes a judgment call. The marketplace boundary holds heterogeneous plugin
 shapes: acs (full-shape) and tabp (skills + helper + schemas + subagent charters).
 Tooling containers (`tests/<plugin>/`, `evals/<plugin>/`) are developer/CI support
 and sit outside the runtime boundary.
+
+**Transcript store and statusLine payload (MAR-1, ADR 0082).** Both new
+external data sources are read-only from the hook layer's side — the hook
+layer never writes into the transcript store, and it consumes the
+statusLine payload only to sample and persist a shape-agnostic cost figure,
+never to read it back. This is the read-outside-the-workspace exception
+recorded in `docs/requirements/non-functional/portability.md`.

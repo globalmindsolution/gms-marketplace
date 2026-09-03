@@ -62,7 +62,35 @@ BASELINE_FLOWS = {
 # file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail
 # still catches an ACCIDENTAL new flow file from a future MAR-119-adjacent
 # change; it is not meant to freeze the directory against every later ticket.
-KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md"}
+# MAR-1 (ADR 0080) legitimately added acs-cost-metering.md — its own design
+# requires a new standing flow file for acs's own cost/time metering, which
+# no existing flow doc covered.
+# The MAR-1-epic-split's S1 child (workspace state-root resolution) legitimately
+# added state-root-resolution.md — the parent epic's design.md Flow 1 requires a
+# new standing flow file for default_state_root()'s git-plumbing derivation,
+# which no existing flow doc covered.
+# The MAR-1-epic-split's S4 child (`/acs:docs-sync` pass) legitimately added
+# setup-state-root-setup.md (renamed from initialize-state-root-setup.md by a
+# later MAR-1, the acs:initialize -> acs:setup rename) — the parent epic's
+# design.md Flow 2 covers the bootstrap skill's gitignore retrofit + optional
+# migration, a distinct runtime flow from Flow 1 above that no existing flow
+# doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
+# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
+# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
+# MAR-402 (inheriting design.md from parent epic MAR-401, Option J/D5) legitimately
+# added ticket-id-reconciliation.md — the fail-closed first-allocate reconciliation
+# gate's own sequence (refusal, evidence scan, confirm, steady state) is a distinct
+# runtime flow that no existing flow doc covered.
+# MAR-403 (sibling child of the same parent epic MAR-401, Option C/D2) legitimately
+# added github-call-failure-policy.md — the gh-only call-criticality classification's
+# own sequence (per-call success/critical/non-critical dispatch plus the post-merge
+# loud-but-non-reverting arm) is a distinct runtime flow that no existing flow doc
+# covered.
+KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
+                          "acs-cost-metering.md", "state-root-resolution.md",
+                          "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
+                          "ticket-id-reconciliation.md", "github-call-failure-policy.md"}
 
 
 def read(path):

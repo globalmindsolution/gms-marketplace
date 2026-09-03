@@ -32,16 +32,34 @@ import socket
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
-WORKFLOW_SKILLS = ["create-ticket", "create-design", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
-HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS
-UNHOOKED_SKILLS = ["init", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release"]
+WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
+PLANNING_SKILLS = ["create-design"]
+HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+
+# Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
+# order. Unused within this ticket -- a later ticket is its first consumer;
+# a schema-mirror equality test is what stops this list from drifting.
+PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-quality",
+                        "create-operations", "create-principles", "create-standards",
+                        "create-requirements", "create-ticket", "create-design", "code", "test",
+                        "docs-sync", "create-pr", "merge-pr"]
+
+# Explicit override for observed attributionSkill values (transcript records
+# carry "acs:<value>") that do not literally match a skill name once the
+# "acs:" prefix is stripped -- e.g. the setup skill's own attribution value
+# is observed as "acs:init" or "acs:initialize", not "acs:setup" (its two
+# historical names, from before MAR-184 and MAR-1 respectively). Covers both
+# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, setup)
+# are observed as attributionSkill values even though they write no run entry.
+ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
 
 RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
 TICKET_TYPES = ["epic", "story", "task"]
@@ -66,6 +84,146 @@ DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
 DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
                                **{"standardize-project": "Brownfield project standardization"})
 
+# Declared (never inferred) doc-bootstrap dependency edges for the fan-out
+# eligibility predicate below. "hard" gates eligibility outright; "soft" only
+# excludes a candidate from sharing a fan-out BATCH with an eligible peer it
+# is tagged against -- it never makes the candidate ineligible on its own.
+# No hard edge exists today: every list below is empty, stated explicitly.
+DOC_BOOTSTRAP_DEPENDENCIES = {
+    "create-quality": {"hard": [], "soft": []},
+    "create-operations": {"hard": [], "soft": []},
+    "create-principles": {"hard": [], "soft": []},
+    "create-standards": {"hard": [], "soft": ["create-principles"]},
+}
+
+# Explicit skill -> settings-key map for the doc-bootstrap skills, resolved
+# by lookup rather than string-built from the skill name.
+DOC_BOOTSTRAP_SETTINGS_KEY = {
+    "create-quality": "quality_path",
+    "create-operations": "operations_path",
+    "create-principles": "principles_path",
+    "create-standards": "standards_path",
+}
+
+# Each doc-bootstrap skill's own first output file (its output contract),
+# used as the D4.2(a) sentinel for "has this doc set actually shipped."
+DOC_BOOTSTRAP_SENTINEL = {
+    "create-quality": "test-strategy.md",
+    "create-operations": "release-process.md",
+    "create-principles": "principles.md",
+    "create-standards": "coding-standards.md",
+}
+
+# D7-A: v1 fans out exactly this pair. A third doc-bootstrap skill becomes
+# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES AND
+# DOC_BOOTSTRAP_SETTINGS_KEY AND DOC_BOOTSTRAP_SENTINEL (fanout_batches also
+# indexes those two, unguarded) -- all four are data changes, no code change.
+DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations")
+
+
+def doc_set_present_on_disk(checkout_root, settings, skill):
+    """D4.2(a): a doc-bootstrap skill's doc set counts as shipped only when its
+    own first output file exists at its configured path -- a populated but
+    otherwise-produced directory does not count (fails toward re-bootstrapping)."""
+    base = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[skill])
+    if not base:
+        return False
+    return os.path.isfile(os.path.join(checkout_root, base, DOC_BOOTSTRAP_SENTINEL[skill]))
+
+
+def _soft_peers(candidate, eligible):
+    """AC-5: the soft edge is an UNDIRECTED batching constraint -- an edge
+    counts whether the candidate declares it or the peer does, so the
+    invariant cannot be broken by re-ordering the table or by declaring the
+    edge on the other side."""
+    declared = set(DOC_BOOTSTRAP_DEPENDENCIES[candidate]["soft"])
+    reverse = {peer for peer in eligible
+               if candidate in DOC_BOOTSTRAP_DEPENDENCIES[peer]["soft"]}
+    return (declared | reverse) & set(eligible)
+
+
+def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
+    """D4.1 eligibility (configured, not-shipped, no open delivery ticket, hard
+    deps clear) plus D4.3 batching: group eligible candidates so a soft
+    dependency edge never shares a batch with its eligible peer, in either
+    direction. candidates defaults to the declared v1 fan-out set
+    (DOC_BOOTSTRAP_FANOUT_V1); an explicit candidates argument exists so the
+    general-case (future N-way) semantics stay unit-testable even though only
+    the v1 pair is fanned out today. Names not present in
+    DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
+    tickets = (tickets_index or {}).get("tickets") or {}
+
+    def _open_ticket(skill):
+        title = DELIVERY_TICKET_TITLES.get(skill)
+        return any(
+            isinstance(t, dict) and t.get("title") == title
+            and t.get("type") == "task" and t.get("status") != "done"
+            for t in tickets.values()
+        )
+
+    eligible = []
+    for candidate in (DOC_BOOTSTRAP_FANOUT_V1 if candidates is None else candidates):
+        if candidate not in DOC_BOOTSTRAP_DEPENDENCIES:
+            continue  # unknown/non-doc-bootstrap name: never eligible, never raises
+        deps = DOC_BOOTSTRAP_DEPENDENCIES[candidate]
+        configured = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[candidate]) is not None
+        not_shipped = not doc_set_present_on_disk(checkout_root, settings, candidate)
+        not_open = not _open_ticket(candidate)
+        hard_deps_clear = all(
+            settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[dep]) is None
+            or doc_set_present_on_disk(checkout_root, settings, dep)
+            for dep in deps["hard"]
+        )
+        if configured and not_shipped and not_open and hard_deps_clear:
+            eligible.append(candidate)
+
+    batches = []
+    for candidate in eligible:
+        soft_peers = _soft_peers(candidate, eligible)
+        for batch in batches:
+            if not soft_peers & set(batch):
+                batch.append(candidate)
+                break
+        else:
+            batches.append([candidate])
+    return batches
+
+
+# /acs:create-docs's only argument. Matched only as a whole flag ("--for",
+# "--for=", or a bare trailing "--for") so an unrelated --for-* flag never
+# triggers it.
+_FANOUT_FOR_RE = re.compile(r"--for(?:=|\s|$)")
+
+
+def parse_fanout_for_arg(args_text):
+    """Parse /acs:create-docs's `--for <skill>[,<skill>...]` argument against
+    the declared v1 fan-out gate (D7-A).
+
+    Returns (candidates, rejected):
+      candidates is None when no --for flag is present -- the caller hands that
+        straight to fanout_batches, which then applies its own
+        DOC_BOOTSTRAP_FANOUT_V1 default;
+      otherwise candidates is the requested names that ARE in
+        DOC_BOOTSTRAP_FANOUT_V1 (order-preserving, de-duplicated) and rejected
+        is every other requested name -- an unknown name and a real but non-v1
+        doc-bootstrap skill (e.g. create-principles) alike. A rejected name is
+        reported ("not in v1's fan-out set") and never fanned out; it is
+        deliberately kept OUT of fanout_batches's candidates, whose own
+        contract is to skip unknown names silently (see above)."""
+    text = args_text or ""
+    m = _FANOUT_FOR_RE.search(text)
+    if not m:
+        return (None, [])
+    candidates, rejected = [], []
+    for name in text[m.end():].replace(",", " ").split():
+        if name.startswith("-"):
+            break
+        bucket = candidates if name in DOC_BOOTSTRAP_FANOUT_V1 else rejected
+        if name not in bucket:
+            bucket.append(name)
+    return (candidates, rejected)
+
+
 # Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
 FORMAT_PLACEHOLDERS = {
     "branch_name": {"ticket_id", "type", "slug", "external_key"},
@@ -88,9 +246,8 @@ def derive_lane(size, stakes, needs_design, ticket_type):
       Rule 1 (type override):     epic -> COMPLEX
       Rule 2 (size=large):        large -> COMPLEX
       Rule 3 (high-stakes floor): stakes=high -> STANDARD (size<=standard floor)
-      Rule 4 (needs_design):      needs_design=True -> at least STANDARD
-      Rule 5 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
-      Rule 6 (default):           STANDARD (conservative fallback for absent/unknown)
+      Rule 4 (size dispatch):     standard->STANDARD, small->SMALL, trivial->TRIVIAL
+      Rule 5 (default):           STANDARD (conservative fallback for absent/unknown)
 
     Returns one of: 'TRIVIAL', 'SMALL', 'STANDARD', 'COMPLEX'.
     Pure function; no side effects; stdlib only.
@@ -100,8 +257,6 @@ def derive_lane(size, stakes, needs_design, ticket_type):
     if size == "large":
         return "COMPLEX"
     if stakes == "high":
-        return "STANDARD"
-    if needs_design:
         return "STANDARD"
     if size == "standard":
         return "STANDARD"
@@ -327,6 +482,193 @@ def classify_additive_diff(diff_output, allowlist_globs):
     return violations
 
 
+# ---------------------------------------------------------------------------
+# Plan-approval predicate
+# ---------------------------------------------------------------------------
+
+PLAN_REQUIRED_SECTIONS = [
+    "Spec analysis",
+    "Executor tasks & file map",
+    "Test strategy",
+    "Documentation map",
+    "Risks",
+    "Verifier checklist",
+]
+"""The six planner headings code/SKILL.md's Plan step requires on every lane."""
+
+PLAN_FOLD_SECTIONS = [
+    "Scope",
+    "Approach",
+    "API/data changes",
+    "Test plan",
+    "Out of scope",
+]
+"""The five spec-authoring-fold sections, in the order structure_lint's
+--ordered lint checks them (code/SKILL.md's fold contract)."""
+
+PLAN_FOLD_CLAUSES = [
+    "no separate /acs:create-spec invocation and no separate create-spec "
+    "planner subagent",
+    "every ticket.acceptance_criteria entry maps to at least one test the "
+    "folded plan will write",
+]
+"""The two mandatory verbatim clauses the fold requires (code/SKILL.md:398-401)."""
+
+_PLAN_HEADING_RE = re.compile(r"^(#{1,6}) (.*)$")
+
+
+def _plan_headings(text):
+    """(line_no, level, stripped-text) for every markdown heading line, in
+    doc order -- same heading-matching semantics as structure_lint._headings
+    (1-based line_no, same regex), but kept import-free so this predicate
+    stays pure (a first import touches disk)."""
+    found = []
+    for i, raw in enumerate(text.split("\n")):
+        m = _PLAN_HEADING_RE.match(raw)
+        if m:
+            found.append((i + 1, len(m.group(1)), m.group(2).strip()))
+    return found
+
+
+def _coverage_target_stated(norm_text, target):
+    """`target` appears as a standalone numeric token within 200 characters
+    of a case-insensitive "coverage" occurrence in `norm_text`."""
+    if target is None:
+        return False
+    if isinstance(target, float) and target.is_integer():
+        target_str = str(int(target))
+    else:
+        target_str = str(target)
+    token_re = re.compile(r"(?<!\d)" + re.escape(target_str) + r"(?!\d)")
+    for m in re.finditer(r"(?i)coverage", norm_text):
+        window = norm_text[max(0, m.start() - 200):m.end() + 200]
+        if token_re.search(window):
+            return True
+    return False
+
+
+def plan_approval_eligible(plan_text, settings, fold_active=True):
+    """Structural conformance of the plan artifact to code/SKILL.md's own
+    contract -- the deterministic half of plan approval (never an LLM
+    self-assertion). Pure: plain values in, plain values out, no I/O/clock.
+
+    Returns (eligible, evaluation) where evaluation = {"inputs", "checks",
+    "failures"}; eligible is `not failures`. The digest is computed here
+    (not by the caller) so a verdict can never be paired with a digest of
+    different bytes.
+    """
+    text = plan_text or ""
+    settings = settings or {}
+    coverage_target = settings.get("test_coverage_percent", DEFAULT_SETTINGS["test_coverage_percent"])
+    norm_text = re.sub(r"\s+", " ", text)
+
+    failures = []
+    checks = {}
+
+    plan_non_empty = bool(text.strip())
+    checks["plan_non_empty"] = plan_non_empty
+    if not plan_non_empty:
+        failures.append("empty-plan")
+
+    lines = text.split("\n")
+    headings = _plan_headings(text)
+    by_name = {}
+    for i, (_lineno, _level, htext) in enumerate(headings):
+        by_name.setdefault(htext, []).append(i)
+
+    def _scan(names):
+        # Mirrors structure_lint.lint_structure's `ambiguous` safeguard
+        # (structure_lint.py:72-81): a name repeated in the declared list, or
+        # matching more than one heading in the doc, is flagged so the order
+        # check below can exclude it -- an ambiguous name must never
+        # false-block a conforming doc (structure_lint.py:19-23).
+        unique_names = list(dict.fromkeys(names))
+        ambiguous = {n for n in unique_names if names.count(n) > 1}
+        for n in unique_names:
+            if len(by_name.get(n, [])) > 1:
+                ambiguous.add(n)
+        out = {}
+        for name in names:
+            occs = by_name.get(name, [])
+            if not occs:
+                out[name] = (False, False, None, name in ambiguous)
+                continue
+            i = occs[0]
+            own_level = headings[i][1]
+            end_line = len(lines) + 1
+            for j in range(i + 1, len(headings)):
+                if headings[j][1] <= own_level:
+                    end_line = headings[j][0]
+                    break
+            body = lines[headings[i][0]:end_line - 1]
+            out[name] = (True, any(l.strip() for l in body), i, name in ambiguous)
+        return out
+
+    required_scan = _scan(PLAN_REQUIRED_SECTIONS)
+    required_ok = True
+    for name in PLAN_REQUIRED_SECTIONS:
+        present, non_empty, _idx, _ambiguous = required_scan[name]
+        if not present:
+            failures.append("missing-section: %s" % name)
+            required_ok = False
+        elif not non_empty:
+            failures.append("empty-section: %s" % name)
+            required_ok = False
+    checks["required_sections_ok"] = required_ok
+
+    if fold_active:
+        fold_scan = _scan(PLAN_FOLD_SECTIONS)
+        fold_ok = True
+        for name in PLAN_FOLD_SECTIONS:
+            present, non_empty, _idx, _ambiguous = fold_scan[name]
+            if not present:
+                failures.append("missing-section: %s" % name)
+                fold_ok = False
+            elif not non_empty:
+                failures.append("empty-section: %s" % name)
+                fold_ok = False
+        checks["fold_sections_ok"] = fold_ok
+
+        ordered_ok = True
+        present_seq = [(name, fold_scan[name][2]) for name in PLAN_FOLD_SECTIONS
+                        if fold_scan[name][0] and not fold_scan[name][3]]
+        for k in range(len(present_seq) - 1):
+            name_a, idx_a = present_seq[k]
+            name_b, idx_b = present_seq[k + 1]
+            if idx_a > idx_b:
+                failures.append("section-order: %s before %s" % (name_b, name_a))
+                ordered_ok = False
+        checks["fold_sections_ordered"] = ordered_ok
+
+        clauses_ok = True
+        for clause in PLAN_FOLD_CLAUSES:
+            if re.sub(r"\s+", " ", clause) not in norm_text:
+                failures.append("missing-clause: %s" % clause)
+                clauses_ok = False
+        checks["mandatory_clauses_ok"] = clauses_ok
+    else:
+        checks["fold_sections_ok"] = True
+        checks["fold_sections_ordered"] = True
+        checks["mandatory_clauses_ok"] = True
+
+    coverage_stated = _coverage_target_stated(norm_text, coverage_target)
+    checks["coverage_target_stated"] = coverage_stated
+    if not coverage_stated:
+        failures.append("coverage-target-not-stated: %s" % coverage_target)
+
+    inputs = {
+        "plan_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "plan_chars": len(text),
+        "fold_active": bool(fold_active),
+        "coverage_target": coverage_target,
+        "required_sections": list(PLAN_REQUIRED_SECTIONS),
+        "fold_sections": list(PLAN_FOLD_SECTIONS),
+        "mandatory_clauses": list(PLAN_FOLD_CLAUSES),
+    }
+    evaluation = {"inputs": inputs, "checks": checks, "failures": failures}
+    return not failures, evaluation
+
+
 DEFAULT_SETTINGS = {
     "test_coverage_percent": 90,
     "merge_strategy": "squash",
@@ -384,6 +726,43 @@ class GateError(Exception):
     """Raised when a pre-hook gate fails; message is user-facing (stderr, exit 2)."""
 
 
+class ReconciliationRequired(GateError):
+    """Raised by allocate_ticket_id when a (repo_id, prefix) partition has never
+    allocated an id; carries the ranked local-evidence proposal for the caller
+    to render as actionable stderr."""
+
+    def __init__(self, prefix, repo_id, observed_max, seed_source, proposed_next):
+        self.prefix = prefix
+        self.repo_id = repo_id
+        self.observed_max = observed_max
+        self.seed_source = seed_source
+        self.proposed_next = proposed_next
+        super().__init__(self.render("--seed-next <n>"))
+
+    def render(self, seed_command):
+        """Pure: the three-part actionable stderr (blocked+why / local evidence
+        as a FLOOR / the exact recovery command); seed_command is the caller's
+        own command string so each CLI prints something a user can paste."""
+        lines = [
+            "blocked — workspace partition %s has never allocated a ticket id and "
+            "carries no reconciliation marker, so allocating would restart the %s "
+            "sequence at 1 and may collide with ids already used in this repo's "
+            "history." % (self.repo_id, self.prefix)
+        ]
+        if self.observed_max is not None:
+            lines.append(
+                "Local evidence suggests the highest existing id is %s-%d (source: %s). "
+                "Local evidence is a FLOOR, not the truth — the tracker may hold higher ids."
+                % (self.prefix, self.observed_max, self.seed_source)
+            )
+        else:
+            lines.append(
+                "No local evidence found for the %s sequence." % self.prefix
+            )
+        lines.append("Confirm the first id to mint:  %s" % seed_command)
+        return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Small utilities
 # ---------------------------------------------------------------------------
@@ -392,11 +771,63 @@ def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+#: An ISO-8601 *instant*: a date AND a time, optional fractional seconds,
+#: optional `Z` or numeric offset. A bare date does not match, deliberately --
+#: see parse_iso. The `T` separator is required; a space-separated or basic
+#: ("20260620T090000Z") form is not an instant acs or Claude Code ever writes.
+_ISO_INSTANT = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})"
+    r"T(?P<time>\d{2}:\d{2}:\d{2})"
+    r"(?:\.(?P<frac>\d+))?"
+    r"(?P<tz>Z|[+-]\d{2}:?\d{2})?$"
+)
+
+
 def parse_iso(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except (TypeError, ValueError):
+    """Parse an ISO-8601 instant as an aware UTC datetime, else None.
+
+    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
+    timestamps produced elsewhere -- Claude Code transcript records above all,
+    where fractional seconds and explicit offsets both occur. Rejecting those
+    silently drops every such usage record.
+
+    Two invariants bound that tolerance:
+
+    * A bare date returns None. ADR 0020 requires it: the panel-7 lead/cycle
+      callers read None as "no data" and degrade, and a date parsed as midnight
+      would render a real-looking number instead. `metrics_aggregate` carries
+      the same directive in code.
+    * Acceptance does not vary by interpreter. `datetime.fromisoformat` gained
+      most of this leniency in CPython 3.11, so leaning on it would accept
+      records on 3.12 that are silently dropped on 3.9 -- this repo's support
+      floor, and the exact failure this function exists to prevent. The regex
+      and strptime below behave identically on both.
+
+    A value with no timezone is read as UTC; an explicit offset is normalised
+    to UTC.
+    """
+    if not isinstance(value, str):
         return None
+    match = _ISO_INSTANT.match(value.strip())
+    if not match:
+        return None
+    # strptime's %f accepts 1-6 digits: pad a shorter fraction, truncate a
+    # longer one (sub-microsecond precision is below anything acs measures).
+    frac = (match.group("frac") or "").ljust(6, "0")[:6]
+    try:
+        parsed = datetime.strptime(
+            "%sT%s.%s" % (match.group("date"), match.group("time"), frac),
+            "%Y-%m-%dT%H:%M:%S.%f")
+    except ValueError:
+        return None  # a well-shaped but impossible date, e.g. 2026-02-30
+    tz = match.group("tz")
+    if not tz or tz == "Z":
+        return parsed.replace(tzinfo=timezone.utc)
+    digits = tz[1:].replace(":", "")
+    offset = timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
+    if tz[0] == "-":
+        offset = -offset
+    return (parsed - offset).replace(tzinfo=timezone.utc)
 
 
 def slugify(text, max_len=40):
@@ -454,8 +885,73 @@ def _git(args, cwd):
 
 
 # ---------------------------------------------------------------------------
+# GitHub CLI failure diagnostics (MAR-403 / ADR-0088)
+# ---------------------------------------------------------------------------
+
+GH_ACCESS_DENIED_MARKER = "GitHub access is not enabled for this session"
+
+GH_ACCESS_HINT = (
+    "This looks like a session-level access restriction — a Claude Code "
+    "cloud/managed session must have the Claude GitHub App connected for this "
+    "organization by an org admin. A local Claude Code session uses your own "
+    "`gh` authentication and should not see this."
+)
+
+GH_GENERIC_HINT = "check `gh auth status` and repo access"
+
+
+def gh_failure_hint(stderr_text):
+    """Classify a gh failure's stderr into one canonical, actionable hint."""
+    text = stderr_text if isinstance(stderr_text, str) else str(stderr_text or "")
+    if GH_ACCESS_DENIED_MARKER in text:
+        return GH_ACCESS_HINT
+    return GH_GENERIC_HINT
+
+
+# ---------------------------------------------------------------------------
 # Repo identity & checkout identity
 # ---------------------------------------------------------------------------
+
+_EVIDENCE_RANKS = ("committed-files", "git-history", "branch-names")
+
+
+def _evidence_source_commands(prefix):
+    """The three ranked git argv lists (bounds pinned by the design), in rank order."""
+    id_grep = r"\b%s-[0-9]+" % re.escape(prefix)
+    return {
+        "committed-files": ["grep", "-I", "-E", id_grep, "--", "."],
+        "git-history": ["log", "--format=%s%n%b", "-400"],
+        "branch-names": ["for-each-ref", "--count=400", "--format=%(refname:short)",
+                          "refs/heads", "refs/remotes"],
+    }
+
+
+def scan_local_ticket_evidence(repo_root, prefix):
+    """Rank-ordered, bounded, network-free scan for the highest <prefix>-<n> id
+    that committed files, git history, or branch names reveal; never raises and
+    never touches the network — every source shells out only to `git` via _git,
+    which supplies the 10s-per-subprocess timeout and the None-on-failure degrade."""
+    per_source = {rank: None for rank in _EVIDENCE_RANKS}
+    if repo_root:
+        pattern = re.compile(r"\b%s-(\d+)\b" % re.escape(prefix))
+        commands = _evidence_source_commands(prefix)
+        for rank in _EVIDENCE_RANKS:
+            output = _git(commands[rank], repo_root)
+            if output:
+                ids = [int(match) for match in pattern.findall(output)]
+                if ids:
+                    per_source[rank] = max(ids)
+
+    observed_max = None
+    seed_source = None
+    for rank in _EVIDENCE_RANKS:
+        value = per_source[rank]
+        if value is not None and (observed_max is None or value > observed_max):
+            observed_max = value
+            seed_source = rank
+
+    return {"observed_max": observed_max, "seed_source": seed_source, "per_source": per_source}
+
 
 def checkout_root(cwd):
     """Root of the current checkout/worktree."""
@@ -511,6 +1007,45 @@ def checkout_id(cwd):
 
 def current_branch(cwd):
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
+
+
+def default_state_root(cwd):
+    """Derive <main-checkout>/.acs/state-machine straight from git plumbing (D1-D3);
+    deliberately does not call main_repo_root(), which cannot tell a bare/submodule
+    layout apart from a normal one."""
+    is_bare = _git(["rev-parse", "--is-bare-repository"], cwd)
+    if not is_bare:
+        raise GateError(
+            "%s is not a git repository (or git is unavailable); acs cannot derive an "
+            "in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    if is_bare == "true":
+        raise GateError(
+            "%s is a bare git repository; acs cannot derive an in-repo state root here. "
+            "Set an explicit workspace_path override." % cwd
+        )
+    common = _git(["rev-parse", "--git-common-dir"], cwd)
+    if not common:
+        raise GateError(
+            "could not resolve %s's git-common-dir; acs cannot derive an in-repo state "
+            "root here. Set an explicit workspace_path override." % cwd
+        )
+    if not os.path.isabs(common):
+        common = os.path.join(cwd, common)
+    common = os.path.normpath(common)
+    if os.path.basename(common) != ".git":
+        superproject = _git(["rev-parse", "--show-superproject-working-tree"], cwd)
+        if superproject:
+            raise GateError(
+                "%s is a git submodule; acs cannot derive an in-repo state root anchored "
+                "to a stable main checkout here. Set an explicit workspace_path override." % cwd
+            )
+        raise GateError(
+            "%s has an unusual git layout (git-common-dir is not a .git directory); acs "
+            "cannot derive an in-repo state root here. Set an explicit workspace_path override." % cwd
+        )
+    root = os.path.dirname(common)
+    return os.path.join(root, ".acs", "state-machine")
 
 
 # ---------------------------------------------------------------------------
@@ -570,27 +1105,16 @@ def validate_settings(settings, cwd, require_workspace=True):
     """Shared baseline validation used by every pre-hook. Raises GateError."""
     workspace = settings.get("workspace_path")
     if require_workspace:
-        if not workspace:
-            raise GateError(
-                "acs is not initialized for this repo: workspace_path is not configured. Run /acs:init first."
-            )
-        workspace = os.path.abspath(os.path.expanduser(str(workspace)))
-        for root in (main_repo_root(cwd), checkout_root(cwd)):
-            if root:
-                try:
-                    if os.path.commonpath([workspace, os.path.abspath(root)]) == os.path.abspath(root):
-                        raise GateError(
-                            "workspace_path (%s) is inside the repository (%s); it must live outside the "
-                            "consumer repo so worktrees and parallel tickets work. Re-run /acs:init." % (workspace, root)
-                        )
-                except ValueError:
-                    pass  # different drives (Windows) — necessarily outside
+        if workspace:
+            workspace = os.path.abspath(os.path.expanduser(str(workspace)))
+        else:
+            workspace = default_state_root(cwd)  # may raise GateError
     prefix = settings.get("ticket_prefix")
     if require_workspace:
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):
             raise GateError(
                 "ticket_prefix is missing or invalid (must be a non-empty uppercase identifier, e.g. SHOP). "
-                "Run /acs:init."
+                "Run /acs:setup."
             )
     coverage = settings.get("test_coverage_percent", 90)
     if not isinstance(coverage, (int, float)) or not (0 < coverage <= 100):
@@ -654,6 +1178,35 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: The per-role models /acs:setup recommends. Single source of truth for the
+#: recommendation: the setup prose (skills/setup/SKILL.md) and this repo's own
+#: .acs/settings.json are both asserted against it, so a new model generation is
+#: a change to this constant, that prose, and those settings -- never a test
+#: edit. Nothing in the runtime reads it: the recommendation is a product fact
+#: the tests enforce, not an input to gate or spawn behaviour.
+RECOMMENDED_MODELS = {
+    "planner":  {"model": "claude-opus-5",   "effort": "high"},
+    "executor": {"model": "claude-sonnet-5", "effort": "high"},
+    "verifier": {"model": "claude-opus-5",   "effort": "high"},
+}
+
+#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
+MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
+#: The three reflection roles a model/effort pair can be configured for.
+MODEL_ROLES = ("planner", "executor", "verifier")
+
+
+def _model_override_skills():
+    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
+
+    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
+    subagents of its own and every hooked skill can."""
+    return frozenset(HOOKED_SKILLS)
+
+
+MODEL_OVERRIDE_SKILLS = _model_override_skills()
+
+
 def validate_models(models):
     if not isinstance(models, dict):
         raise GateError("models must be an object.")
@@ -667,16 +1220,29 @@ def validate_models(models):
             extra = set(value) - {"model", "effort"}
             if extra:
                 raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
+            effort = value.get("effort")
+            if effort is not None and effort not in MODEL_EFFORTS:
+                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
+                                % (path, effort, ", ".join(MODEL_EFFORTS)))
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier"):
+    for role in MODEL_ROLES:
         if role in models:
             check_role(role, models[role])
-    for skill, roles in models.get("overrides", {}).items():
+    overrides = models.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise GateError("models.overrides must be an object of skill -> role -> model.")
+    for skill, roles in overrides.items():
+        if skill not in MODEL_OVERRIDE_SKILLS:
+            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
+                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
         if not isinstance(roles, dict):
             raise GateError("models.overrides.%s must be an object of role -> model." % skill)
         for role, value in roles.items():
+            if role not in MODEL_ROLES:
+                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
+                                % (skill, role, ", ".join(MODEL_ROLES)))
             check_role("overrides.%s.%s" % (skill, role), value)
 
 
@@ -742,6 +1308,30 @@ def pointer_path(workspace, repo_id, ckid):
     return os.path.join(sessions_dir(workspace, repo_id), "%s.json" % ckid)
 
 
+def session_marker_path(workspace, repo_id, ckid):
+    """Ticket-independent session-correlation marker, sibling of pointer_path."""
+    return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
+
+
+def record_session_marker(ctx, payload):
+    """Persist the PreToolUse(Skill) envelope's session-correlation fields so
+    skill-start.py can thread them onto the new run entry without guessing.
+    Fields come straight off the envelope; a missing one is written as null,
+    never constructed (e.g. never a cwd-derived guess)."""
+    tool_input = payload.get("tool_input")
+    marker = {
+        "session_id": payload.get("session_id"),
+        "transcript_path": payload.get("transcript_path"),
+        "cwd": payload.get("cwd"),
+        "checkout_id": ctx["checkout_id"],
+        "hook_event_name": payload.get("hook_event_name"),
+        "skill": tool_input.get("skill") if isinstance(tool_input, dict) else None,
+        "updated_at": now_iso(),
+    }
+    write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
+    return marker
+
+
 def state_path(tdir, skill):
     return os.path.join(tdir, "%s-state.json" % skill)
 
@@ -778,7 +1368,7 @@ def ticket_id_from_text(text, prefix=None):
 
 
 # ---------------------------------------------------------------------------
-# CLAUDE.md managed-block helpers (written/refreshed by /acs:init). Pure string
+# CLAUDE.md managed-block helpers (written/refreshed by /acs:setup). Pure string
 # functions so the splice and the placeholder substitution are unit-testable.
 # The markers MUST match templates/CLAUDE.acs.md exactly.
 # ---------------------------------------------------------------------------
@@ -884,7 +1474,7 @@ def upsert_managed_block(existing_text, block_body):
 def managed_block_is_malformed(text):
     """True when *text* does NOT contain exactly one acs-managed marker pair.
 
-    Pure detector used by /acs:init Step 7e to decide whether the consumer
+    Pure detector used by /acs:setup Step 7e to decide whether the consumer
     CLAUDE.md needs REPAIR before the refresh: a doubled block (2+ BEGIN and/or
     END) or an orphaned marker (unequal counts, a lone BEGIN or END) all read as
     malformed. Note a file with NO markers is likewise "not exactly one pair" and
@@ -1061,24 +1651,136 @@ def skill_completed(tdir, skill):
     return last_run_status(tdir, skill) == "completed"
 
 
-def append_in_progress_run(tdir, skill, ticket_id):
+def append_in_progress_run(tdir, skill, ticket_id, session=None):
+    """Append a new in_progress run entry. `session` (an accepted session
+    marker dict) is optional -- when given, its session_id/transcript_path are
+    persisted onto the entry; the default None keeps every existing caller's
+    entry shape byte-identical."""
     state = load_state(tdir, skill, ticket_id)
-    state["runs"].append({
+    entry = {
         "started_at": now_iso(),
         "ended_at": None,
         "tokens": {"input": 0, "output": 0},
         "cost_usd": 0.0,
         "status": "in_progress",
         "stop_reason": None,
-    })
+    }
+    if session:
+        entry["session_id"] = session.get("session_id")
+        entry["transcript_path"] = session.get("transcript_path")
+        # Needed at finalize time to locate this checkout's cost-sample/cursor
+        # files (cost_sampler.allocate_cost) -- schema-safe under the run
+        # entry's own additionalProperties:true.
+        entry["checkout_id"] = session.get("checkout_id")
+    state["runs"].append(entry)
     write_json(state_path(tdir, skill), state)
     return state
 
 
+_EMPTY_MEASURED_TOKENS = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}
+_TOKEN_TOTAL_FIELDS = ("input", "output", "cache_creation", "cache_read")
+
+
+def _sum_role_tokens(role_usage):
+    """Sum every role_usage bucket's four token fields (including an
+    'unattributed' bucket, if present) into one raw-measured totals dict."""
+    totals = dict(_EMPTY_MEASURED_TOKENS)
+    for item in role_usage:
+        if not isinstance(item, dict):
+            continue
+        for key in totals:
+            value = item.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[key] += value
+    return totals
+
+
+def _measure_run_usage(entry, tdir, skill):
+    """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
+    own recorded transcript (usage_reader) and priced via
+    cost_sampler.allocate_cost -- rather than trusting a coordinator's
+    self-reported result["tokens"]/result["cost_usd"] (AC-3).
+
+    Required short-circuit (Risk R-N): a run entry with no session_id/
+    transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
+    create-ticket runs) never performs transcript I/O -- cost_usd=None,
+    cost_basis="unavailable", tokens empty.
+
+    `skill` (the run's own skill, as finalize_run received it) is threaded
+    through to usage_reader so it can filter main-session attribution to
+    this run's own skill only, excluding same-window records attributed to
+    a different acs skill."""
+    session_id = entry.get("session_id")
+    transcript_path = entry.get("transcript_path")
+    if not session_id or not transcript_path:
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        entry["model_usage"] = []
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
+        return
+
+    import usage_reader
+    usage = usage_reader.read_transcript_usage(
+        transcript_path, entry.get("started_at"), entry.get("ended_at"), skill)
+    if usage.get("degraded"):
+        # A failed measurement must never look like a successful one: no
+        # cost sample may be consumed and no cursor may advance for a run
+        # whose transcript read itself is unreliable.
+        entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["role_usage"] = []
+        entry["model_usage"] = []
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
+        return
+    role_usage = usage.get("role_usage") or []
+    model_usage = usage.get("model_usage") or []
+    entry["tokens"] = _sum_role_tokens(role_usage)
+
+    checkout_id = entry.get("checkout_id")
+    if not checkout_id:
+        # Tokens are measured (transcript-only); cost needs the checkout-scoped
+        # sample/cursor files this entry has no checkout_id to locate.
+        entry["role_usage"] = role_usage
+        entry["model_usage"] = model_usage
+        entry["cost_usd"] = None
+        entry["cost_basis"] = "unavailable"
+        entry["api_duration_ms"] = None
+        entry["api_duration_basis"] = "unavailable"
+        return
+
+    import cost_sampler
+    workspace = os.path.dirname(os.path.dirname(tdir))
+    repo_id = os.path.basename(os.path.dirname(tdir))
+    result = cost_sampler.allocate_cost(
+        workspace, repo_id, checkout_id,
+        entry.get("started_at"), entry.get("ended_at"), role_usage, model_usage)
+    entry["role_usage"] = result["role_usage"]
+    entry["model_usage"] = result["model_usage"]
+    entry["cost_usd"] = result["cost_usd"]
+    entry["cost_basis"] = result["cost_basis"]
+    entry["cost_scope"] = result["cost_scope"]
+    entry["excluded_cost_usd"] = result["excluded_cost_usd"]
+    entry["excluded_token_share"] = result["excluded_token_share"]
+    entry["api_duration_ms"] = result["api_duration_ms"]
+    entry["api_duration_basis"] = result["api_duration_basis"]
+    entry["api_duration_scope"] = result["api_duration_scope"]
+
+
 def finalize_run(tdir, skill, ticket_id, result):
-    """Finalize runs[-1] (or append, if the coordinator never registered the run)."""
+    """Finalize runs[-1] (or append, if the coordinator never registered the run).
+
+    tokens/role_usage/cost_usd/cost_basis are MEASURED (see
+    _measure_run_usage), never taken from `result`."""
     state = load_state(tdir, skill, ticket_id)
-    status = result.get("status", "completed")
+    # No default: this writes the status the next pre-hook gates on, so a
+    # result document that never stated one must fail here rather than
+    # silently finalize the run as completed.
+    status = result.get("status")
     if status not in RUN_STATUSES or status == "in_progress":
         raise ValueError("invalid final run status: %r" % status)
     entry = last_run(state)
@@ -1088,9 +1790,7 @@ def finalize_run(tdir, skill, ticket_id, result):
     entry["ended_at"] = now_iso()
     entry["status"] = status
     entry["stop_reason"] = result.get("stop_reason")
-    tokens = result.get("tokens") or {}
-    entry["tokens"] = {"input": int(tokens.get("input", 0) or 0), "output": int(tokens.get("output", 0) or 0)}
-    entry["cost_usd"] = float(result.get("cost_usd", 0.0) or 0.0)
+    _measure_run_usage(entry, tdir, skill)
     if status == "handed_off":
         entry["handoff_summary"] = result.get("handoff_summary") or result.get("stop_reason") or ""
     if isinstance(result.get("states"), dict):
@@ -1174,11 +1874,19 @@ def confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes, clarify
     return ticket
 
 
+def elapsed_seconds(start, end):
+    """Wall-clock `end - start` in whole seconds, or None for a missing/malformed/
+    inverted interval — a true zero-length interval returns 0, distinguishable
+    from "unknown"."""
+    start_dt, end_dt = parse_iso(start), parse_iso(end)
+    if start_dt and end_dt and end_dt >= start_dt:
+        return int((end_dt - start_dt).total_seconds())
+    return None
+
+
 def run_seconds(entry):
-    start, end = parse_iso(entry.get("started_at")), parse_iso(entry.get("ended_at"))
-    if start and end and end >= start:
-        return int((end - start).total_seconds())
-    return 0
+    """Adapter: elapsed_seconds over a run entry's started_at/ended_at."""
+    return elapsed_seconds(entry.get("started_at"), entry.get("ended_at"))
 
 
 # ---------------------------------------------------------------------------
@@ -1194,7 +1902,14 @@ def load_pipeline(tdir, ticket_id, flow="ticket"):
     return data
 
 
-def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None):
+def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None,
+                    extra=None):
+    """Record a pipeline step transition.
+
+    `extra` merges caller-supplied fields into the step dict (e.g. /ship's
+    `fix_loops` counter on the `test` step). Keys the step owns -- status,
+    started_at, ended_at, summary -- are never overridden from `extra`; a
+    None value deletes the key so a counter can be reset rather than frozen."""
     data = load_pipeline(tdir, ticket_id, flow or ("product" if skill in PRODUCT_SKILLS else "ticket"))
     if flow:
         data["flow"] = flow
@@ -1206,6 +1921,15 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
     step["status"] = status
     if summary is not None:
         step["summary"] = summary
+    if extra:
+        reserved = {"status", "started_at", "ended_at", "summary"}
+        for key, value in extra.items():
+            if key in reserved:
+                continue
+            if value is None:
+                step.pop(key, None)
+            else:
+                step[key] = value
     if lane is not None:
         data["lane"] = lane
     data["totals"] = compute_ticket_totals(tdir)
@@ -1214,8 +1938,21 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
 
 
 def compute_ticket_totals(tdir):
-    """Roll up time/tokens/cost across every skill state file in the partition."""
-    totals = {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0}
+    """Roll up time/tokens/cost across every skill state file in the partition.
+
+    A None-elapsed run (missing/malformed/inverted interval) is excluded from
+    working_seconds rather than counted as zero, but still counts in runs and
+    in exactly one of runs_timed/runs_untimed. Likewise, a run whose
+    cost_basis is "measured"/"apportioned" contributes its cost_usd and
+    counts in runs_cost_measured; every other run (cost_basis "unavailable",
+    or absent -- a legacy pre-cutover run, C-11) counts in
+    runs_cost_unavailable and contributes nothing to the cost_usd sum."""
+    totals = {
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
+    }
     for skill in HOOKED_SKILLS:
         state = read_json(state_path(tdir, skill))
         if not isinstance(state, dict):
@@ -1224,12 +1961,33 @@ def compute_ticket_totals(tdir):
             if not isinstance(entry, dict):
                 continue
             totals["runs"] += 1
-            totals["working_seconds"] += run_seconds(entry)
+            seconds = run_seconds(entry)
+            if seconds is None:
+                totals["runs_untimed"] += 1
+            else:
+                totals["runs_timed"] += 1
+                totals["working_seconds"] += seconds
             tokens = entry.get("tokens") or {}
-            totals["tokens"]["input"] += int(tokens.get("input", 0) or 0)
-            totals["tokens"]["output"] += int(tokens.get("output", 0) or 0)
-            totals["cost_usd"] += float(entry.get("cost_usd", 0.0) or 0.0)
+            for field in _TOKEN_TOTAL_FIELDS:
+                totals["tokens"][field] += int(tokens.get(field, 0) or 0)
+            cost_basis = entry.get("cost_basis") or "unavailable"
+            cost_usd = entry.get("cost_usd")
+            if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                    and not isinstance(cost_usd, bool):
+                totals["runs_cost_measured"] += 1
+                totals["cost_usd"] += float(cost_usd)
+            else:
+                totals["runs_cost_unavailable"] += 1
+            api_duration_basis = entry.get("api_duration_basis") or "unavailable"
+            api_duration_ms = entry.get("api_duration_ms")
+            if api_duration_basis in ("measured", "apportioned") and isinstance(api_duration_ms, (int, float)) \
+                    and not isinstance(api_duration_ms, bool):
+                totals["runs_api_duration_measured"] += 1
+                totals["api_duration_ms"] += float(api_duration_ms)
+            else:
+                totals["runs_api_duration_unavailable"] += 1
     totals["cost_usd"] = round(totals["cost_usd"], 4)
+    totals["api_duration_ms"] = round(totals["api_duration_ms"], 4)
     return totals
 
 
@@ -1276,9 +2034,11 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     }
 
 
-def allocate_ticket_id(workspace, repo_id, prefix):
+def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):
     """Allocate the next <prefix>-<n> id; counter guarded by an O_EXCL spin lock so
-    parallel worktree sessions never collide."""
+    parallel worktree sessions never collide. A partition with no reconciliation
+    marker refuses (raises ReconciliationRequired) instead of minting from 1,
+    unless seed_next authoritatively confirms/repairs the floor."""
     rdir = repo_dir(workspace, repo_id)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, "counters.json.lock")
@@ -1299,11 +2059,39 @@ def allocate_ticket_id(workspace, repo_id, prefix):
             import time
             time.sleep(0.05)
     try:
-        counters = read_json(os.path.join(rdir, "counters.json")) or {}
-        next_n = int(counters.get("next", 1))
-        counters["next"] = next_n + 1
-        write_json(os.path.join(rdir, "counters.json"), counters)
-        return "%s-%d" % (prefix, next_n)
+        counters_path = os.path.join(rdir, "counters.json")
+        counters = read_json(counters_path) or {}
+
+        if seed_next is not None:
+            if seed_next < 1:
+                raise ValueError(
+                    "allocate_ticket_id requires seed_next >= 1 (defense-in-depth "
+                    "behind the CLIs' own >= 1 checks); got %r" % (seed_next,)
+                )
+            previous_next = counters.get("next")
+            if isinstance(previous_next, int) and seed_next < previous_next:
+                sys.stderr.write(
+                    "acs: warning: --seed-next %d lowers counters.json's next "
+                    "(was %d)\n" % (seed_next, previous_next)
+                )
+            counters["reconciled"] = True
+            counters["seed_source"] = "explicit-user"
+            counters["seeded_at"] = now_iso()
+            counters.pop("observed_max", None)
+            counters["next"] = seed_next + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, seed_next)
+
+        if "next" in counters or counters.get("reconciled") is True:
+            next_n = int(counters.get("next", 1))
+            counters["next"] = next_n + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, next_n)
+
+        scan = scan_local_ticket_evidence(repo_root, prefix)
+        observed_max = scan["observed_max"]
+        proposed_next = observed_max + 1 if observed_max is not None else None
+        raise ReconciliationRequired(prefix, repo_id, observed_max, scan["seed_source"], proposed_next)
     finally:
         if acquired:
             try:
@@ -1316,28 +2104,69 @@ def index_path(workspace, repo_id):
     return os.path.join(repo_dir(workspace, repo_id), "tickets-index.json")
 
 
+def _guarded_repo_write(workspace, repo_id, guard_name, fn):
+    """D5.1(a): run fn (a repo_id-keyed read-modify-write) under the same
+    O_EXCL spin-lock pattern as allocate_ticket_id's counters guard (bounded
+    spin, same 200 x 0.05s budget). Mirrors that pre-existing pattern's
+    fail-open fallback: if a live foreign guard is never released within the
+    budget, the loop gives up (acquired stays False) and still runs fn()
+    unguarded, leaving the foreign guard file untouched -- a best-effort lock,
+    not an absolute guarantee against a dropped concurrent update."""
+    rdir = repo_dir(workspace, repo_id)
+    os.makedirs(rdir, exist_ok=True)
+    guard = os.path.join(rdir, guard_name)
+    acquired = False
+    for _ in range(200):
+        try:
+            fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            acquired = True
+            break
+        except FileExistsError:
+            try:
+                if os.path.getmtime(guard) < datetime.now(timezone.utc).timestamp() - 30:
+                    os.unlink(guard)  # stale guard from a crashed writer
+                    continue
+            except OSError:
+                pass
+            import time
+            time.sleep(0.05)
+    try:
+        return fn()
+    finally:
+        if acquired:
+            try:
+                os.unlink(guard)
+            except OSError:
+                pass
+
+
 def update_index(workspace, repo_id, ticket, archived=None):
     path = index_path(workspace, repo_id)
-    data = read_json(path) or {"tickets": {}}
-    data.setdefault("tickets", {})
-    entry = data["tickets"].setdefault(ticket["id"], {})
-    entry.update({
-        "id": ticket["id"],
-        "title": ticket.get("title"),
-        "type": ticket.get("type"),
-        "status": ticket.get("status"),
-        "parent": ticket.get("parent"),
-        "children": ticket.get("children", []),
-        "needs_design": ticket.get("needs_design"),
-        "lane": ticket.get("lane"),
-        "external": ticket.get("external"),
-        "due_date": ticket.get("due_date"),
-        "updated_at": now_iso(),
-    })
-    if archived is not None:
-        entry["archived"] = archived
-    write_json(path, data)
-    return data
+
+    def _write():
+        data = read_json(path) or {"tickets": {}}
+        data.setdefault("tickets", {})
+        entry = data["tickets"].setdefault(ticket["id"], {})
+        entry.update({
+            "id": ticket["id"],
+            "title": ticket.get("title"),
+            "type": ticket.get("type"),
+            "status": ticket.get("status"),
+            "parent": ticket.get("parent"),
+            "children": ticket.get("children", []),
+            "needs_design": ticket.get("needs_design"),
+            "lane": ticket.get("lane"),
+            "external": ticket.get("external"),
+            "due_date": ticket.get("due_date"),
+            "updated_at": now_iso(),
+        })
+        if archived is not None:
+            entry["archived"] = archived
+        write_json(path, data)
+        return data
+
+    return _guarded_repo_write(workspace, repo_id, "tickets-index.json.lock", _write)
 
 
 def metrics_path(workspace, repo_id):
@@ -1347,11 +2176,32 @@ def metrics_path(workspace, repo_id):
 def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merged=False, pr_number=None):
     """Repo-level aggregates: ticket counts recomputed from the index (idempotent),
     PR counts and run totals accumulated incrementally."""
+    def _write():
+        return _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, pr_number)
+
+    return _guarded_repo_write(workspace, repo_id, "metrics.json.lock", _write)
+
+
+def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, pr_number):
     path = metrics_path(workspace, repo_id)
     data = read_json(path) or {}
     data.setdefault("tickets", {})
     data.setdefault("prs", {"created": 0, "merged": 0, "created_pr_numbers": []})
-    data.setdefault("totals", {"runs": 0, "working_seconds": 0, "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0})
+    data.setdefault("totals", {
+        "runs": 0, "working_seconds": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
+        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
+        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
+    })
+    # A pre-existing metrics.json predates these counters; backfill them at 0.
+    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable",
+                     "runs_api_duration_measured", "runs_api_duration_unavailable"):
+        data["totals"].setdefault(counter, 0)
+    data["totals"].setdefault("api_duration_ms", 0.0)
+    # A pre-existing metrics.json's tokens dict predates the cache fields; backfill at 0.
+    data["totals"].setdefault("tokens", {})
+    for field in _TOKEN_TOTAL_FIELDS:
+        data["totals"]["tokens"].setdefault(field, 0)
 
     index = read_json(index_path(workspace, repo_id)) or {"tickets": {}}
     by_status = {}
@@ -1373,12 +2223,32 @@ def update_metrics(workspace, repo_id, run_entry=None, pr_created=False, pr_merg
     if run_entry:
         totals = data["totals"]
         totals["runs"] = int(totals.get("runs", 0)) + 1
-        totals["working_seconds"] = int(totals.get("working_seconds", 0)) + run_seconds(run_entry)
+        seconds = run_seconds(run_entry)
+        if seconds is None:
+            totals["runs_untimed"] = int(totals.get("runs_untimed", 0)) + 1
+        else:
+            totals["runs_timed"] = int(totals.get("runs_timed", 0)) + 1
+            totals["working_seconds"] = int(totals.get("working_seconds", 0)) + seconds
         tokens = run_entry.get("tokens") or {}
-        totals.setdefault("tokens", {"input": 0, "output": 0})
-        totals["tokens"]["input"] = int(totals["tokens"].get("input", 0)) + int(tokens.get("input", 0) or 0)
-        totals["tokens"]["output"] = int(totals["tokens"].get("output", 0)) + int(tokens.get("output", 0) or 0)
-        totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(run_entry.get("cost_usd", 0.0) or 0.0), 4)
+        totals.setdefault("tokens", {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
+        for field in _TOKEN_TOTAL_FIELDS:
+            totals["tokens"][field] = int(totals["tokens"].get(field, 0)) + int(tokens.get(field, 0) or 0)
+        cost_basis = run_entry.get("cost_basis") or "unavailable"
+        cost_usd = run_entry.get("cost_usd")
+        if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
+                and not isinstance(cost_usd, bool):
+            totals["runs_cost_measured"] = int(totals.get("runs_cost_measured", 0)) + 1
+            totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(cost_usd), 4)
+        else:
+            totals["runs_cost_unavailable"] = int(totals.get("runs_cost_unavailable", 0)) + 1
+        api_duration_basis = run_entry.get("api_duration_basis") or "unavailable"
+        api_duration_ms = run_entry.get("api_duration_ms")
+        if api_duration_basis in ("measured", "apportioned") and isinstance(api_duration_ms, (int, float)) \
+                and not isinstance(api_duration_ms, bool):
+            totals["runs_api_duration_measured"] = int(totals.get("runs_api_duration_measured", 0)) + 1
+            totals["api_duration_ms"] = round(float(totals.get("api_duration_ms", 0.0)) + float(api_duration_ms), 4)
+        else:
+            totals["runs_api_duration_unavailable"] = int(totals.get("runs_api_duration_unavailable", 0)) + 1
     data["updated_at"] = now_iso()
     write_json(path, data)
     return data
@@ -1502,7 +2372,7 @@ def build_context(cwd, require_workspace=True):
         raise GateError("acs requires a git repository; %s is not inside one." % cwd)
     settings, sources = load_settings(cwd)
     if require_workspace and not sources:
-        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:init first.")
+        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:setup first.")
     workspace = validate_settings(settings, cwd, require_workspace=require_workspace)
     repo_id = repo_partition_id(cwd)
     if not repo_id:
@@ -1639,17 +2509,26 @@ def gate_docs_sync(ctx, payload):
     if test_step is not None and test_step.get("status") != "completed":
         raise GateError(
             "/test is recorded as %r for %s (the post-code test gate was active but has not "
-            "completed) — run /acs:test --for-ticket %s first." % (
+            "completed) — run /acs:test --for-ticket %s and get it green; the run records "
+            "the step itself." % (
                 test_step.get("status"), ticket_id, ticket_id)
         )
     return ticket_id
 
 
 def gate_code(ctx, payload):
-    # AC-4: unconditional pass-through once create-ticket has completed -- no
-    # lane branch, no create-spec/specs/ precondition (create-spec is deleted;
-    # the code-planner self-authors the folded spec content when needed).
-    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    # AC-4: unconditional pass-through on LANE once create-ticket has completed --
+    # no lane branch, no create-spec/specs/ precondition (create-spec is deleted;
+    # the code-planner self-authors the folded spec content when needed). The one
+    # branch here keys on the ticket's own type: epics are refused outright.
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    if ticket.get("type") == "epic":
+        raise GateError(
+            "ticket %s is an epic — epics are never implemented directly; run "
+            "/acs:create-design %s first if the epic has no design yet, then break it down "
+            "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
+            "on a child." % (ticket_id, ticket_id, ticket_id)
+        )
     return ticket_id
 
 
@@ -1784,7 +2663,7 @@ def tracker_cli_warning(settings):
 
 # Every external tool the full acs workflow touches. kind: required (no pipeline
 # without it), recommended (a major capability needs it), optional (graceful
-# fallback). gh/acli are bumped to required by tracker provider. /init's Step 0b
+# fallback). gh/acli are bumped to required by tracker provider. /setup's Step 0b
 # preflight reports these and offers to install the missing ones.
 TOOLCHAIN = [
     {"name": "git", "kind": "required",
@@ -1821,7 +2700,7 @@ def _tool_version(name):
 
 
 def check_toolchain(settings=None):
-    """Status of every tool the full acs workflow uses (for /init's preflight).
+    """Status of every tool the full acs workflow uses (for /setup's preflight).
 
     Returns a list of dicts: name, kind (required|recommended|optional), present
     (bool), version (str|None), why, install (platform -> command). A tool's kind
@@ -1845,7 +2724,7 @@ def check_toolchain(settings=None):
 
 
 def missing_tools(settings=None, kinds=("required", "recommended")):
-    """Names of not-present tools in the given kinds — what /init should offer to install."""
+    """Names of not-present tools in the given kinds — what /setup should offer to install."""
     return [r["name"] for r in check_toolchain(settings)
             if r["kind"] in kinds and not r["present"]]
 
@@ -1856,20 +2735,42 @@ def run_pre(skill):
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         payload = {}
+    sys.exit(run_pre_payload(skill, payload))
+
+
+def run_pre_payload(skill, payload):
+    """Gate one skill from an already-parsed hook payload; return the exit code.
+
+    Separate from run_pre so the dispatcher can gate in-process rather than
+    spawning a forwarder: a subprocess that hangs or dies takes its exit code
+    with it, and anything other than 2 lets the skill run."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
+        try:
+            record_session_marker(ctx, payload)
+        except Exception:  # a marker-write bug must never block a gated skill
+            pass
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
         GATES[skill](ctx, payload)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
-        sys.exit(2)
+        return 2
+    except TimeoutError as exc:  # a gate that never returns must not let the skill run
+        sys.stderr.write("acs pre-%s: blocked — gate timed out: %s\n" % (skill, exc))
+        return 2
     except Exception as exc:  # fail closed: a gating system must not fail open
         sys.stderr.write("acs pre-%s: blocked — unexpected error in gate: %r\n" % (skill, exc))
-        sys.exit(2)
-    sys.exit(0)
+        return 2
+    except (SystemExit, KeyboardInterrupt) as exc:
+        # Neither is an Exception. A gate calling sys.exit(), or a SIGINT
+        # arriving mid-gate, would otherwise leave this frame with an exit code
+        # that is not 2 -- which Claude Code reads as "not blocked".
+        sys.stderr.write("acs pre-%s: blocked — gate exited early: %r\n" % (skill, exc))
+        return 2
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1904,7 +2805,25 @@ def _read_result_from_argv():
         result["status"] = args.status
     if args.stop_reason:
         result["stop_reason"] = args.stop_reason
-    result.setdefault("status", "completed")
+    if not result:
+        # Defaulting an absent result to "completed" would finalize the run and
+        # open the next gate on nothing at all. The status must be stated.
+        if args.result_file:
+            # Naming the path matters: told only "no result document", an
+            # operator who did pass one would reissue the same command.
+            sys.stderr.write(
+                "acs: result file %s is empty — it must carry at least a status\n"
+                % args.result_file)
+        else:
+            sys.stderr.write(
+                "acs: no result document — pass --result-file <path>, JSON on stdin, "
+                "or --status explicitly\n")
+        sys.exit(1)
+    if not result.get("status"):
+        sys.stderr.write(
+            "acs: result document has no 'status' — one of %s is required\n"
+            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+        sys.exit(1)
     return result, args.ticket
 
 
@@ -1976,7 +2895,7 @@ def run_post(skill):
         sys.stderr.write("acs post-%s: no active partition for %s.\n" % (skill, ticket_id))
         sys.exit(1)
 
-    status = result.get("status", "completed")
+    status = result["status"]  # guaranteed by _read_result_from_argv
     state, entry = finalize_run(tdir, skill, ticket_id, result)
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")

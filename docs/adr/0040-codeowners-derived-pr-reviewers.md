@@ -49,8 +49,10 @@ empty set, and the PR is never failed.
 
 - A new deterministic-layer component, `codeowners.py`, is added: stdlib-only
   Python >= 3.9, no `acs_lib` import (pure parse+match, no workspace
-  read/write, no lock), gated by a `cov_*` unit-coverage harness
-  (`tests/acs/cov_codeowners.py`).
+  read/write, no lock), covered by the discovered `test_codeowners.py`
+  behavior suite (`tests/acs/test_codeowners.py`), which reproduces the same
+  9-fixture matrix the retired `cov_*` unit-coverage harness originally
+  exercised.
 - No new settings key is added; `plugins/acs/schemas/settings.schema.json` is
   unchanged.
 - The parser's happy path (owners actually resolved and requested) is

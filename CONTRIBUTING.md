@@ -36,7 +36,10 @@ python3 evals/run_evals.py --paid          # full agentic suite — PRE-RELEASE 
 ### Reproducing the *Tests & coverage* gate locally
 
 The required `Tests & coverage` check runs the exact command committed at
-`.acs/settings.json`'s `tests.command`. Measurement now depends on a
+`.acs/settings.json`'s `tests.command`. The floor itself, its exclusions, and
+the escalation path are the normative subject of
+[docs/quality/coverage-policy.md](docs/quality/coverage-policy.md) — this
+section only covers reproducing the gate locally. Measurement now depends on a
 committed repo-root [`.coveragerc`](.coveragerc), so reproducing the gate
 locally needs a couple of extra pieces beyond the stdlib-only commands
 above:
@@ -45,7 +48,7 @@ above:
    the default day-to-day commands — this is only needed to reproduce the
    coverage gate itself):
    ```bash
-   python3 -m pip install "coverage>=7.14.2" diff-cover
+   python3 -m pip install "coverage>=7.14.2"
    ```
 2. `export ACS_COVERAGE=90` — CI's runner exports this from
    `settings.test_coverage_percent` (this repo's `.acs/settings.json` sets
@@ -53,17 +56,16 @@ above:
    `--fail-under` receives an empty argument locally.
 3. The gate itself, byte-identical to the committed `tests.command`:
    ```bash
-   export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage xml -o coverage.xml && python3 -m diff_cover.diff_cover_tool coverage.xml --compare-branch "origin/${GITHUB_BASE_REF:-main}" --fail-under $ACS_COVERAGE
+   export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE
    ```
-   This is **diff-scoped**: `diff-cover` grades only the lines your branch
-   changes against `origin/main`, not repo-wide TOTAL. That's the gate as
-   it stands today.
-4. Optional diagnostic (not the gate — no `--fail-under`) for the repo-wide
-   TOTAL:
+   This is **repo-wide**: it grades the whole measured `source` tree
+   against `$ACS_COVERAGE`, not just the lines your branch changes. Drop
+   `--fail-under=$ACS_COVERAGE` from the same pipeline for a diagnostic
+   TOTAL without failing:
    ```bash
    export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report
    ```
-5. **Gotcha:** `.coveragerc`'s `source`/`data_file` are `${ACS_COV_ROOT}`-
+4. **Gotcha:** `.coveragerc`'s `source`/`data_file` are `${ACS_COV_ROOT}`-
    substituted absolute paths. If you run a bare `python3 -m coverage run
    ...` from the repo root without exporting `ACS_COV_ROOT` first, it
    collects **nothing** — a silent no-op, not a loud failure.

@@ -2,42 +2,46 @@
 
 ## Pipeline
 
-The `acs` plugin implements a multi-step delivery workflow. The six workflow
-skills MUST run in the following order for a given ticket (`/create-design`
-is conditional — see below):
+The `acs` plugin implements a multi-step delivery workflow. Five **workflow
+skills** — `/create-ticket`, `/code`, `/docs-sync`, `/create-pr`,
+`/merge-pr` — MUST run in the following order for a given ticket;
+`/create-design` is a **planning skill**, conditional on `needs_design`, not
+counted among the five (see below):
 
 | # | Skill | Purpose (summary) |
 |---|-------|-------------------|
 | 1 | `/create-ticket` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
-| 2 | `/create-design` | *(conditional — when the ticket needs design)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. |
+| 2 | `/create-design` | *(planning step, conditional on `needs_design`)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not `/code` — the epic's own ticket never proceeds to `/code`. |
 | 3 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
 | 4 | `/docs-sync` | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
 | 5 | `/create-pr` | Create a pull request shipping the implementation. |
 | 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
-always set for **epics**, and set for stories/tasks during `/create-ticket`
-analysis (planner recommendation, confirmed with the user). Child tickets of
+set for **epics only**; stories/tasks are always `false`. Child tickets of
 an epic do **not** repeat design: their `/code` consumes the parent
 epic's `design.md`.
 
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
-    T -->|needs design| D[/create-design/]
-    D --> C[/code/]
-    T -->|otherwise| C
+    T -->|needs design, epic| D[/create-design/]
+    D -->|child inherits the design| C
+    T -->|otherwise| C[/code/]
+    D -->|epic: after design| FO[/create-ticket --fan-out/]
+    FO -->|per child| C
     C --> DS[/docs-sync/]
     DS --> P[/create-pr/]
     P --> M[/merge-pr/]
 
     T -. "ticket JSON" .-> W[(workspace/<repo>/<ticket-id>/)]
     D -. "design.md + state" .-> W
+    FO -. "child ticket JSONs" .-> W
     C -. "code-state.json incl. review findings" .-> W
     DS -. "docs-sync state" .-> W
     P -. "pr state" .-> W
     M -. "merge state" .-> W
-    W -. "pre-hooks read predecessor state" .-> T & D & C & DS & P & M
+    W -. "pre-hooks read predecessor state" .-> T & D & FO & C & DS & P & M
 ```
 
 > **NOTE (MAR-160):** A new hooked skill, `/docs-sync`, now runs after `/code`
@@ -54,16 +58,22 @@ flowchart LR
 - Each workflow skill MUST be guarded by a **pre-hook** that checks readiness
   before the skill runs. Readiness means, at minimum: the predecessor skill's
   state file exists in `<workspace>/<repo>/<ticket-id>/` and reports **completed**.
-  The conditional design step branches the chain: `/code`'s
-  predecessor is `/create-design` when the ticket (or its parent epic) needs
-  design, otherwise `/create-ticket`; `/create-design`'s own gate
-  additionally requires `needs_design: true`.
+  The conditional design step branches the chain: `/code`'s predecessor is
+  `/create-design` when a **child** ticket's parent epic needs design (a
+  child inherits, never reruns, its epic's design), otherwise
+  `/create-ticket`; `/create-design`'s own gate additionally requires
+  `needs_design: true`. For an **epic** itself, the step that follows
+  `/create-design` is the fan-out run
+  (`/acs:create-ticket <epic-id> --fan-out`), never `/code` — the epic's own
+  ticket never proceeds to `/code`.
 - If the predecessor is not complete, the pre-hook MUST exit with code **2**,
   which blocks the skill from running, and SHOULD emit a clear message telling
   the user which skill to run first.
   - Example: `pre-code.py` is unconditional on lane once `/create-ticket` has
     completed (`gate_code` in `acs_lib.py`); e.g. `/code` blocked when
-    `/create-ticket` has not completed.
+    `/create-ticket` has not completed, and `/code` blocked when the ticket
+    is an `epic` (epics are never implemented directly — break the epic down
+    and run `/code` on a child).
 - Each workflow skill MUST be followed by a **post-hook** that writes the
   skill's own state into a JSON state file in the workspace
   (e.g. `post-code.py` writes `code-state.json`).
@@ -76,7 +86,8 @@ requirements.
 
 `/ship <prompt>` drives the pipeline end-to-end: it MUST run
 `/create-ticket` → `/create-design` (when the ticket needs design) →
-`/code` → `/docs-sync` → `/create-pr` in sequence, pausing for user
+`/code` → `/test` (when e2e is configured) → `/docs-sync` →
+`/create-pr` in sequence, pausing for user
 clarifications wherever a skill requires them, and MUST **stop before
 `/merge-pr`** — the PR is landed separately after review.
 
@@ -97,6 +108,11 @@ every skill's transcript in one context:
   planner/executor/verifier). Between steps it reads only `pipeline-state.json`,
   `ticket.json`, and the step's `<handoff>` / `result.json` — never the step's
   transcript — so its own context stays small.
+  - Exception: `code`'s full reflection cycle runs inside the coordinator's
+    own context, so at full verify depth the two rules are reconciled by
+    the boundary stop after `code` rather than by compaction
+    ([skills.md](skills.md#ship-umbrella)'s `/ship` entry; `ship/SKILL.md`
+    "Full-verify pipeline boundary").
 - A step returns only a **compact XML handoff result** (status, stop reason,
   artifact references — bounded to roughly a kilobyte); full detail lives in
   the workspace state files.
@@ -132,8 +148,17 @@ branch name. See [hooks.md](hooks.md) and
 
 ## Epic fan-out
 
-When `/create-ticket` creates an **epic**, it MUST suggest creating child
-**story**/**task** tickets for it. Each child ticket:
+An epic's own **creation** run MUST NOT propose a child breakdown and MUST
+end with `children: []` — no children are minted at epic-creation time. Two
+of `/create-ticket`'s modes mint children, and neither is the epic's own
+creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
+**after** the epic's `/create-design` has completed, and a split/restructure
+run, which mints children at the recorded seams (see
+[skills.md](skills.md)). The `--fan-out` run mints children only (it does
+not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
+the epic's `design.md` slice/seam content when a design exists, and is
+presented and user-confirmed at the same Step-2 confirmation gate before any
+child is minted. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
 - runs its own pipeline (`/code` → … → `/merge-pr`) independently —
@@ -151,11 +176,19 @@ Done.
 
 ## Inside each step: Reflection
 
-Every skill MUST internally run a **plan → execute → verify** cycle using a
-dedicated subagent per phase (e.g. `code-planner`, `code-executor`,
-`code-verifier`). The coordinator orchestrates these subagents and
-communicates with them in XML. Details in
-[reflection.md](reflection.md).
+Every one of the twelve **triad-keeping** workflow and product-level skills
+MUST internally run a **plan → execute → verify** cycle using a dedicated
+subagent per phase (e.g. `code-planner`, `code-executor`, `code-verifier`) —
+with one exception: for `/acs:code`, the plan phase's dedicated subagent is
+spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors
+the plan artifact itself, with zero planner spawns (MAR-72, ADR 0074). The
+execute and verify phases keep dedicated subagents in every lane, for
+`/acs:code` and for the other eleven triad-keeping skills.
+The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
+run **inline** instead — the coordinator, optionally delegating to at most
+one `<skill>-executor` subagent, spawns no planner and no verifier in any
+lane. The coordinator orchestrates these subagents and communicates with
+them in XML. Details in [reflection.md](reflection.md).
 
 ## Review feedback loop
 
@@ -168,15 +201,18 @@ Changeset review happens **inside `/code`**, performed by the
   technical standards, architecture, system design, security, and
   documentation (affected docs updated and consistent with the code).
 - When the verifier produces blocking findings, the coordinator MUST
-  automatically run another remediation iteration: re-plan, re-execute (TDD
-  still applies), re-verify.
+  automatically run another remediation iteration: **re-execute, re-verify**
+  (TDD still applies) — passing every finding to the next iteration's
+  executor(s) in `<context>` with no intervening planner spawn; the plan is
+  authored once, before iteration 1 (MAR-71, slice 1b of MAR-69).
 - **All findings block** — there is no severity threshold; the loop runs
   until the verifier reports **zero findings**. When an `e2e` layer is
   configured ([configuration.md](configuration.md)), a **green e2e
   run** is part of the zero-findings bar.
 - PRD **G13**'s e2e-integrity metric is validated **read-only** from artifacts this loop already produces: sub-metric (a) — 0 merges with a red e2e suite while the gate is enabled — reads each ticket's `merge-pr` `result.json` `states.readiness.ci` cross-checked against `"E2E suite"` being a required branch-protection status check; sub-metric (b) — 100% of user-facing-surface specs declare e2e impact — is enforced by this loop's own e2e-impact dimension above (no new mechanism). Until a repo wires the gate as a required check, sub-metric (a) holds vacuously (no gate-enabled window to violate); see `docs/product/prd.md`'s G13 line for the latest recorded result.
-- The loop runs at most **3 iterations**; if findings remain, `/code` stops
-  and records the findings and stop reason in `code-state.json`.
+- The loop runs at most **3 iterations** (execute+verify rounds); if findings
+  remain, `/code` stops and records the findings and stop reason in
+  `code-state.json`.
 - Only when the verifier passes does the `/create-pr` pre-hook gate open.
 - Every iteration is recorded in the workspace state files (findings, fixes,
   stop reasons), so the loop is resumable and auditable like everything else.
@@ -239,18 +275,29 @@ every workflow skill's coordinator SHOULD perform the same flush proactively
 when it detects its context window running low — never burn the last of the
 context on work that would be lost with the session.
 
-Scope: handoff targets a new session on the **same machine/workspace**
-(`workspace_path` is machine-local). Cross-machine handoff would require a
-shared or synced workspace — out of scope for now.
+Scope: handoff targets a new session on the **same machine/checkout** — the
+state machine lives in the repo's main checkout at `.acs/state-machine/`, or
+at an explicit `workspace_path` override (ADR-0086). Cross-machine handoff
+would require a shared or synced workspace — out of scope for now.
 
 ## Parallel work
 
 - The workspace is partitioned by repo, then by `<ticket-id>`
   (`<workspace>/<repo>/<ticket-id>/`), so multiple tickets — across one or
   many consumer repos — can progress independently and in parallel.
-- Because the workspace lives **outside** the consumer repo, the same ticket
-  pipeline can run inside a dedicated git worktree without state colliding
-  with other worktrees.
+- Because the workspace is resolved from the repo's main checkout (`git
+  rev-parse --git-common-dir`), every linked worktree resolves to the same
+  `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
+  dedicated git worktree without state colliding with other worktrees
+  (ADR-0086).
+- A second, narrower mechanism layers cross-*skill*, phase-level fan-out on
+  top of the above: `/acs:create-docs` mints one delivery ticket per
+  eligible doc-bootstrap skill and runs each phase (plan, then execute,
+  then verify) as a parallel batch across both tickets, rather than running
+  the skills one after another — reusing the same worktree-per-ticket
+  primitive per leg, with each leg entering its own worktree at its own
+  Branch step, before that leg's Execute phase.
+  See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 
 ## Product-level architecture
 
@@ -314,7 +361,7 @@ markdown file per feature area):
 For a greenfield product, the product-level skills run before the first
 ticket:
 
-1. Create the empty git repo (user) and run **`/init`** (workspace +
+1. Create the empty git repo (user) and run **`/setup`** (workspace +
    settings).
 2. **`/create-prd`** — elicit the product definition from the user: vision,
    problem, personas, goals with success metrics, prioritized features,
@@ -326,7 +373,8 @@ ticket:
    linters, CI, and a minimal green vertical slice. Without this, the
    `/code` TDD gates have no harness to run against.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
-   roadmap, fanned out into child stories/tasks
+   roadmap, created childless; its `/create-design` then runs; then
+   `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.

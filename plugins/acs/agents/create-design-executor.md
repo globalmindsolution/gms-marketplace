@@ -102,7 +102,6 @@ Your FINAL message is ONLY an XML `<result>` valid against
     <file>/abs/workspace/owner-repo/SHOP-123/design.md</file>
     <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="90000" tokens-output="20000" cost-usd="0.70"/>
   <stop-reason>design.md written: 2 options, decision recorded, 2 sequence diagrams, conformance: 2 doc-set changes listed</stop-reason>
 </result>
 ```

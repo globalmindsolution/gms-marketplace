@@ -1,4 +1,4 @@
-"""Guard test pinning the coverage measurement configuration (MAR-175).
+"""Guard test pinning the coverage measurement configuration (MAR-175, MAR-174).
 
 Coverage.py does not measure subprocesses by default, and the deterministic
 suite drives the real hook CLIs via subprocess.run (tests/acs/acs_case.py:49-54's
@@ -10,14 +10,9 @@ shape, the `.gitignore` parallel-data-file entry, the `tests.setup`
 coverage-version floor, and `tests.command`'s measurement wiring plus
 `coverage combine`.
 
-Deliberately absent, by design (do not add): an assertion that
-`tests.command` orders `coverage combine` before `coverage report`, and an
-assertion that `tests.command` does not contain `diff_cover`. Both
-properties hold only after a later change flips `tests.command` from this
-diff-scoped diff-cover form to the repo-wide `coverage report
---fail-under=$ACS_COVERAGE` form -- that flip is out of scope here, and
-asserting either property on this branch would fail this PR's own required
-"Tests & coverage" check, which still runs the diff-scoped form.
+`tests.command` runs repo-wide: it orders `coverage combine` before
+`coverage report`, and it contains no `diff_cover` step -- both properties
+are asserted below.
 """
 
 import configparser
@@ -31,7 +26,6 @@ SCRIPTS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 COVERAGERC = os.path.join(REPO_ROOT, ".coveragerc")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 GITIGNORE = os.path.join(REPO_ROOT, ".gitignore")
-THIS_MODULE = os.path.abspath(__file__)
 
 
 def _read_coveragerc():
@@ -142,19 +136,8 @@ class TestSettingsCoverageFloor(unittest.TestCase):
 
 
 class TestSettingsTestsCommand(unittest.TestCase):
-    """AC-5: tests.command wires measurement, runs coverage combine, keeps diff-cover reporting."""
+    """AC-5: tests.command wires measurement, runs coverage combine, then reports repo-wide."""
 
-    INTERMEDIATE_FORM = (
-        "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; "
-        "python3 -m coverage run -m unittest discover -s tests && "
-        "python3 -m coverage combine && "
-        "python3 -m coverage xml -o coverage.xml && "
-        "python3 -m diff_cover.diff_cover_tool coverage.xml "
-        "--compare-branch \"origin/${GITHUB_BASE_REF:-main}\" --fail-under $ACS_COVERAGE"
-    )
-    # The final, repo-wide form a later change alone introduces -- listed here
-    # only so the pinned-form check is a disjunction, never asserted as this
-    # branch's own value.
     FINAL_FORM = (
         "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; "
         "python3 -m coverage run -m unittest discover -s tests && "
@@ -179,32 +162,40 @@ class TestSettingsTestsCommand(unittest.TestCase):
         self.assertIn("$ACS_COVERAGE", self.command)
 
     def test_tests_command_matches_a_pinned_form(self):
-        self.assertIn(self.command, (self.INTERMEDIATE_FORM, self.FINAL_FORM))
-        # On this branch the diff-cover reporting step must be retained --
-        # only a later, out-of-scope change flips to the repo-wide FINAL_FORM.
-        self.assertEqual(self.command, self.INTERMEDIATE_FORM)
+        self.assertEqual(self.command, self.FINAL_FORM)
+
+    def test_tests_command_reports_after_combine(self):
+        combine_idx = self.command.index("coverage combine")
+        report_idx = self.command.index("coverage report")
+        self.assertLess(combine_idx, report_idx)
+
+    def test_tests_command_has_no_diff_cover_step(self):
+        self.assertNotIn("diff_cover", self.command)
+        self.assertNotIn("diff-cover", self.command)
 
 
-class TestGuardScopeExcludesLaterOnlyProperties(unittest.TestCase):
-    """AC-7 negative scope: this guard must never gain the two post-flip-only assertions."""
+class TestSettingsTestsSetup(unittest.TestCase):
+    """AC-2 (MAR-183): tests.setup carries no diff-cover reference and no
+    deep base-branch git fetch -- both existed only to support the retired
+    diff-cover gate (MAR-174) and its now-moot rollback path."""
 
-    # Built via concatenation so the forbidden phrase itself never appears as
-    # a contiguous run in this file's own source -- otherwise this very
-    # assertion would match itself. A future literal addition of either
-    # phrase (the natural way to write the forbidden assertion) still trips
-    # this check, since the concatenation only hides it from a plain read.
-    _FORBIDDEN_MARKERS = (
-        "in" + 'dex("coverage report")',
-        "in" + "dex('coverage report')",
-        "assertNotIn(" + '"diff_cover"',
-        "assertNotIn(" + "'diff_cover'",
-    )
+    def setUp(self):
+        self.setup = _read_settings()["tests"]["setup"]
 
-    def test_does_not_assert_combine_before_report_or_diff_cover_absence(self):
-        with open(THIS_MODULE, encoding="utf-8") as fh:
-            source = fh.read()
-        for marker in self._FORBIDDEN_MARKERS:
-            self.assertNotIn(marker, source)
+    def test_tests_setup_has_no_diff_cover_reference(self):
+        self.assertNotIn("diff_cover", self.setup)
+        self.assertNotIn("diff-cover", self.setup)
+
+    def test_tests_setup_has_no_git_fetch(self):
+        self.assertNotIn("git fetch", self.setup)
+        self.assertNotIn("GITHUB_BASE_REF", self.setup)
+
+    def test_tests_setup_matches_a_pinned_form(self):
+        self.assertEqual(
+            self.setup,
+            'sudo apt-get update -qq && sudo apt-get install -y -qq '
+            'libxml2-utils && python3 -m pip install --quiet '
+            '"coverage>=7.14.2" jsonschema')
 
 
 class TestNoHandRolledSitecustomize(unittest.TestCase):

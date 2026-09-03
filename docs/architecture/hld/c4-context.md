@@ -11,8 +11,8 @@ C4Context
     System_Ext(cc, "Claude Code", "Runtime: executes skills/agents, fires hook events, spawns subagents (acs targets Claude Code)")
     System_Ext(cowork, "Cowork", "Runtime: executes Cowork skills (tabp targets Cowork for screen-cvs)")
     System_Ext(repo, "Consumer repository", "Any git repo: source, tests, docs/product, docs/architecture")
-    System_Ext(ws, "Workspace folder", "Outside the repo: per-repo/ticket pipeline state, locks, metrics")
-    System_Ext(gh, "GitHub", "PRs (gh CLI), optional Projects v2 tracker, marketplace distribution")
+    System_Ext(ws, "Workspace folder", "In-repo by default (.acs/state-machine, gitignored, main-checkout-anchored); optionally external via a workspace_path override — per-repo/ticket pipeline state, locks, metrics")
+    System_Ext(gh, "GitHub", "PRs (gh CLI, acs's sole GitHub transport -- ADR-0088), optional Projects v2 tracker, marketplace distribution")
     System_Ext(jira, "Jira", "Optional tracker (acli CLI), two-way ticket sync")
 
     Rel(dev, cc, "types /acs:* commands, answers questions")
@@ -25,5 +25,10 @@ C4Context
 ```
 
 Trust boundaries: the marketplace plugins never store credentials — `gh` and
-`acli` own authentication. The workspace is machine-local; cross-machine
-handoff is out of scope (see PRD).
+`acli` own authentication. No second GitHub transport is sanctioned
+(ADR-0088): `gh` remains the only GitHub credential holder in every
+environment. The workspace defaults to an in-repo, gitignored
+folder anchored to the repo's main checkout, so every linked worktree
+resolves to the same physical state (ADR-0086) — worktree-sharing survives
+via that anchoring, not via a fully separate machine-local folder;
+cross-machine handoff is still out of scope (see PRD).

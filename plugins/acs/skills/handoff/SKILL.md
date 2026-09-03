@@ -41,9 +41,14 @@ You need the partition path before flushing. Resolve it like the hooks do:
   `<main-checkout>/.acs/settings.local.json`, then
   `<main-checkout>/.acs/settings.json`, then `~/.acs/settings.json`; take the
   first `workspace_path` (expand `~`) and `ticket_prefix` found. In a linked
-  worktree also check the worktree's own `.acs/` files. No `workspace_path`
-  anywhere means acs is not initialized — stop and tell the user to run
-  `/acs:init` first.
+  worktree also check the worktree's own `.acs/` files. **Workspace**: derive
+  the in-repo default first — `<main-checkout>/.acs/state-machine`, the same
+  derivation `acs_lib.default_state_root()` does — and only fall back to an
+  explicit `workspace_path` override when the settings actually set one. "acs
+  is not initialized" is reserved for the case where even the default cannot
+  be derived (a bare repo or a submodule, with no override set) — stop and
+  tell the user to run `/acs:setup` first, or set an explicit
+  `workspace_path`.
 - **repo-id**: from `git config --get remote.origin.url` take the last two
   path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
   replace `:` with `/`; sanitize any character outside `[A-Za-z0-9._-]` to
@@ -68,8 +73,8 @@ Find which hooked skill (if any) has a run in progress:
    `<workspace>/<repo-id>/sessions/<checkout-id>.json`.
 3. **Scan** — check `<partition>/<skill>-state.json` for
    `runs[-1].status == "in_progress"`, in `acs_lib.HOOKED_SKILLS` order
-   (`plugins/acs/hooks/scripts/acs_lib.py:41-43` — 8 product skills
-   followed by 7 workflow skills, 15 in total). That is the order
+   (`plugins/acs/hooks/scripts/acs_lib.py:41-44` — 8 product skills
+   followed by 6 workflow skills and 1 planning skill, 15 in total). That is the order
    `handoff.py:64` itself scans, so your flush lands where its
    finalization points. Do not restate the list here: the constant is
    the authority, and a copy of it is what drifted.
@@ -150,7 +155,11 @@ On success it prints JSON:
 
 If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
-- `workspace_path is not configured` — tell the user to run `/acs:init`.
+- `no .acs/settings.json found (user or project scope)` — tell the user to
+  run `/acs:setup`.
+- `... acs cannot derive an in-repo state root here` (bare repo or
+  submodule) — tell the user to set an explicit `workspace_path` override in
+  `.acs/settings.local.json`, or run `/acs:setup` to do it interactively.
 - `no current ticket for this checkout (nothing to hand off)` — ask the user
   for the ticket id and re-run `/acs:handoff SHOP-123`.
 - `no active partition for <id>` — the ticket never started or is archived
@@ -172,8 +181,10 @@ Tell the user, compactly:
 3. **Lock released** — any session or worktree on this machine can now take
    the ticket over, not just this checkout.
 4. **Scope** — the handoff targets a new session on the **same machine and
-   workspace** (`workspace_path` is machine-local); cross-machine handoff is
-   out of scope.
+   checkout**: the state machine lives in the repo's main checkout at
+   `.acs/state-machine/` by default, or at an explicit `workspace_path`
+   override when one is set; either way it is local to this machine, so
+   cross-machine handoff is out of scope.
 
 If `handoff.py` reported `"skill": null`, say explicitly that **nothing was
 in progress — there is nothing to hand off**: every completed step is already
@@ -196,6 +207,6 @@ succeeded. Same labels, same order, `none` where empty:
 - **Results**: what was flushed to the partition (soft context, decisions, partial findings); run entry finalized `handed_off`; lock released
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: the exact `continue_with` command printed by `handoff.py`, e.g. `/acs:code SHOP-123` in a fresh session
 ```

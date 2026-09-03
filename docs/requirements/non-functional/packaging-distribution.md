@@ -11,7 +11,7 @@ unchanged).
   (`.claude-plugin/marketplace.json`) so users can add it with
   `claude plugin marketplace add` (or the equivalent UI flow) and install it.
 - acs MUST bundle, per standard Claude Code plugin layout:
-  - **Skills** (slash commands): `/init`, `/ship`, `/handoff`, `/update`,
+  - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
     `/create-prd`, `/create-architecture`, `/create-project`,
     `/create-ticket`, `/create-design`, `/code`,
     `/create-pr`, `/merge-pr`.
@@ -29,7 +29,7 @@ unchanged).
   - **Hooks**: a pre and post hook per workflow skill and per product-level
     skill, implemented as Python scripts
     (e.g. `pre-code.py`, `post-code.py`).
-  - MAY bundle optional extras wired by `/init` on user consent — e.g. the
+  - MAY bundle optional extras wired by `/setup` on user consent — e.g. the
     status-line scripts (prompt line and agent-panel line).
 
 ## Distribution & versioning

@@ -129,12 +129,12 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
         cls.split_section = ticket_body[start:end]
 
     def test_planner_clause_names_plan_artifact_path_token(self):
-        self.assertIn("phases/code/iter-", self.item2)
+        self.assertIn("phases/code/plan.md", self.item2)
 
     def test_split_section_names_same_artifact(self):
         self.assertTrue(
             "`/code` plan artifact" in self.split_section
-            or "phases/code/iter-" in self.split_section,
+            or "phases/code/plan.md" in self.split_section,
             "create-ticket/SKILL.md's split section must name the same "
             "plan-artifact evidence source Site 1 names")
 

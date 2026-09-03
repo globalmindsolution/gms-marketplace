@@ -42,7 +42,7 @@ CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 # --- This spec's sweep-set files ---
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
-INIT_SKILL = os.path.join(SKILLS_DIR, "init", "SKILL.md")
+SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
 CREATE_QUALITY_SKILL = os.path.join(SKILLS_DIR, "create-quality", "SKILL.md")
@@ -58,7 +58,7 @@ RULE2_IDENTICAL_FILES = [
 ]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
-RULE2_AFFECTED_FILES = [INIT_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
+RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
 
 # --- Untouched backward-compat / out-of-scope surface (negative guards) ---
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
@@ -90,9 +90,9 @@ CREATE_DESIGN_ROUTING_PHRASES = [
     "verifier before it gates `/acs:code`.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
-    "the next step (`/acs:code <id>`; for an epic, /acs:code on",
-    "`<next-step>/acs:code <id></next-step>`.",
-    "**Next**: `/acs:code <ticket-id>`",
+    "the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,",
+    "exactly one `<next-step>`: `/acs:code <id>`",
+    "**Next**: `/acs:code <ticket-id>` for a non-epic ticket",
 ]
 
 
@@ -146,27 +146,31 @@ def changelog_unreleased_section(body):
 
 
 def changelog_entry_section(body):
-    """The section carrying this change's entry, durable across a release cut.
+    """The section carrying THIS entry (MAR-164), durable across a release cut
+    and across later unrelated entries landing under [Unreleased] (MAR-176).
 
     Before a cut the entry sits under [Unreleased]; `/acs:release` moves it
     into the new version's section and leaves [Unreleased] empty. Pinning
-    [Unreleased] specifically would make these assertions fail the moment a
-    release is cut, so resolve to [Unreleased] when it has content and to the
-    topmost released version section otherwise. The [Unreleased] heading
-    itself must still exist -- changelog_unreleased_section() enforces that.
+    [Unreleased] specifically, or "whichever section is currently non-empty",
+    both break the moment ANOTHER ticket's entry lands under [Unreleased]
+    ahead of a release cut -- resolving by section-emptiness conflates "this
+    entry's section" with "the topmost section that happens to have content".
+    Instead, resolve by locating the literal '(MAR-164' marker across every
+    '## [...]' span, mirroring
+    tests/acs/test_standards_conformance_chain.py's
+    ChangelogMar119EntryTest.test_changelog_mar119_entry_durable_and_references_g10.
+    The [Unreleased] heading itself must still exist --
+    changelog_unreleased_section() enforces that.
     """
-    unreleased = changelog_unreleased_section(body)
-    if unreleased.strip():
-        return unreleased
-    m = re.search(r"(?m)^## \[(?!Unreleased\])[^\]]+\].*$", body)
-    if m is None:
-        raise AssertionError("plugins/acs/CHANGELOG.md has an empty "
-                             "[Unreleased] section and no released version "
-                             "section to fall back to")
-    start = m.end()
-    nxt = re.search(r"(?m)^## \[", body[start:])
-    end = start + nxt.start() if nxt else len(body)
-    return body[start:end]
+    changelog_unreleased_section(body)  # heading-presence guard, see docstring
+    spans = [m.start() for m in re.finditer(r"(?m)^## \[[^\]]*\]", body)] + [len(body)]
+    for start, end in zip(spans, spans[1:]):
+        candidate = body[start:end]
+        if "(MAR-164" in candidate:
+            return candidate
+    raise AssertionError(
+        "plugins/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
+        "'## [...]' section span")
 
 
 class Ac2ExactSetPredicateTest(unittest.TestCase):
@@ -305,8 +309,8 @@ class Rule2OutcomeTextTest(unittest.TestCase):
                     "/acs:create-design and /acs:code are not involved):",
                     read(path))
 
-    def test_init_pipeline_recital_adjacency(self):
-        body = read(INIT_SKILL)
+    def test_setup_pipeline_recital_adjacency(self):
+        body = read(SETUP_SKILL)
         self.assertRegex(
             norm(body), phrase_re("`/acs:create-design` → `/acs:code`"))
         self.assertNotIn("create-spec", body)

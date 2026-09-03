@@ -98,3 +98,44 @@ decomposition-simplicity judgment this ADR originally placed in
 `create-spec-planner.md`. The clause itself (materially simpler alternative,
 same acceptance criteria, surfaced via `<questions>` — never a block) is
 unchanged; only its home file changes.
+
+## Amendment — MAR-72
+
+**Date**: 2026-08-23 · **Status**: Accepted (narrowed)
+
+`/acs:code`'s plan phase becomes lane-conditional (MAR-72, slice 2 of
+MAR-69, ADR 0074 —
+`docs/adr/0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md`):
+on STANDARD/COMPLEX a `code-planner` subagent is spawned as before and
+performs this ADR's gate itself; on TRIVIAL/SMALL the coordinator authors
+`plan.md` itself, with zero planner spawns. This narrows the MAR-156
+amendment's attribution of the gate to its plan's-author form, without
+touching the gate's clause or its migrated home.
+
+- **What narrows**: the MAR-156 amendment's "it is **the planner** that
+  owns the same decomposition-simplicity judgment" and its premise
+  "`code-planner.md` now self-authors the folded spec content on every
+  lane" (both above) narrow to **the plan's author** — the `code-planner`
+  on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL. The fold's
+  activation stays every-lane; only *who writes it* changes — the same
+  narrowing ADR 0066's own MAR-72 amendment already records for its
+  Decision 2, cross-referenced here rather than restated. Cite ADR 0074
+  and `plugins/acs/skills/code/SKILL.md:435-437`.
+- **What does NOT narrow**: the clause itself — a materially simpler
+  alternative satisfying the **same acceptance criteria**, surfaced via
+  `<questions>` for a user decision, never a block — is unchanged and
+  still lives verbatim in `plugins/acs/agents/code-planner.md:67-81`; its
+  home file (that charter step) and its disposition (ADR 0038) are
+  untouched by MAR-72. Separately, on TRIVIAL/SMALL this charter item is
+  one of four — with the oversize signal, the ADR-0012 doc-graph-gap
+  check, and the Boy-scout drift survey — that become **best-effort,
+  carried by the coordinator instead**, and their omission on those lanes
+  is **never a finding** (`plugins/acs/skills/code/SKILL.md:456-462`;
+  `docs/requirements/functional/skills.md:930-936`).
+- **What the MAR-156 amendment above keeps**: its own substance is
+  untouched — the deletion of `/acs:create-spec` and
+  `create-spec-planner.md` (ADR 0066) and the gate's **migration** into
+  `code-planner.md`'s executor-decomposition charter step, a migration and
+  not a bare retirement, stand exactly as recorded. Only *who owns the
+  judgment* and *how strictly it is carried on TRIVIAL/SMALL* narrow. This
+  ADR's Decision and Alternatives (`:31-70`) are unaffected.

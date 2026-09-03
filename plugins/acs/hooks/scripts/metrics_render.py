@@ -13,7 +13,7 @@ MAR-14 spec 02 extends this module with two-view entrypoints:
 
     render_pm_terminal(data) -> str   PM view: delivery_summary,1,2,issues,progress,deadline,4,5,7
     render_pm_html(data)     -> str   PM view HTML (self-contained)
-    render_usage_terminal(data) -> str   usage view: usage_summary,3,6
+    render_usage_terminal(data) -> str   usage view: usage_summary,3,6,usage_by_model,usage_by_ticket
     render_usage_html(data)    -> str   usage view HTML (self-contained)
 
 A --view {pm,usage,all} CLI flag selects the view. Default is pm (clarification C-2 — see note
@@ -74,15 +74,22 @@ _PM_PANELS = (
     "7",
 )
 
-# Usage view panels — in display order (design pinned allocation MAR-8/design.md:376-378)
+# Usage view panels — in display order (design pinned allocation MAR-8/design.md:376-378;
+# usage_by_model appended per MAR-3 spec 05; usage_by_ticket appended per MAR-4 spec 02).
 _USAGE_PANELS = (
     "usage_summary",
     "3",
     "6",
+    "usage_by_model",
+    "usage_by_ticket",
 )
 
 # Canonical, fixed iteration orders (determinism — never rely on dict insertion order).
-ROLE_ORDER = ("planner", "executor", "verifier")
+# These four roles are ALWAYS present in the aggregate's panel-6 value dict (metrics_aggregate.py
+# seeds all four up front); "other"/"unattributed" are NOT always present (_accumulate_burn only
+# setdefaults them when such usage exists), so they are never added here — panel 6 derives them
+# dynamically from whatever extra keys actually appear in the value dict at render time.
+ROLE_ORDER = ("planner", "executor", "verifier", "coordinator")
 
 PANEL_TITLES = {
     "1": "Panel 1 — Throughput by status / type",
@@ -101,6 +108,8 @@ _NEW_PANEL_TITLES = {
     "progress": "Progress",
     "deadline": "Deadline",
     "usage_summary": "Usage Summary",
+    "usage_by_model": "Usage by model",
+    "usage_by_ticket": "Usage by ticket",
 }
 
 # Fixed-key order for the Panel 3 averages summary rows (determinism — read by name, not by
@@ -113,6 +122,11 @@ AVERAGE_ROWS = (
 )
 
 NO_DATA = "no data"
+
+# Cost-share-only null marker (MAR-4 spec 02, D6): distinct from NO_DATA. Used ONLY by a
+# cost-share cell whose value is None (an unavailable cost basis) -- a token-share cell's
+# None still renders NO_DATA, its own separate convention.
+UNAVAILABLE = "unavailable"
 
 # Unicode block glyphs for the deterministic block-bar (statusline.py's deterministic-glyph style).
 _BAR_FULL = "█"   # █
@@ -165,6 +179,14 @@ def _humanize_seconds(value):
     return sign + " ".join(parts[:2])
 
 
+def _humanize_ms(value):
+    """Format a millisecond duration (MAR-7 spec 02): converts to seconds, then delegates to
+    _humanize_seconds for the actual formatting. NO_DATA for any non-number, same guard."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return NO_DATA
+    return _humanize_seconds(value / 1000.0)
+
+
 def _fmt_money(value, empty=NO_DATA):
     """Format a USD cost cell to EXACTLY 2 decimals, or the cell's empty marker for any non-number.
 
@@ -179,6 +201,20 @@ def _fmt_money(value, empty=NO_DATA):
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return empty
     return "%.2f" % value
+
+
+def _fmt_pct(value, empty):
+    """Format a percentage cell to EXACTLY 1 decimal + '%', or `empty` for any non-number.
+
+    Mirrors _fmt_money's house style: a numeric, non-bool `value` renders "%.1f%%" (e.g.
+    12.5 -> "12.5%"). bool (an int subclass) and any non-numeric value (None, the literal
+    NO_DATA string) return `empty` -- the caller's own marker (NO_DATA for token_share_pct,
+    UNAVAILABLE for cost_share_pct). No division here (D2 placement) -- the value arrives
+    pre-computed from metrics_aggregate.py; this only formats.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return empty
+    return "%.1f%%" % value
 
 
 def _meta_lines(meta):
@@ -294,6 +330,29 @@ def _average_cells(value):
     return out
 
 
+def _term_panel3_sub_rows(row):
+    """Per-skill sub-rows (MAR-7 spec 02, D5.4/S-C): "step span" (from `steps`, unchanged
+    mechanism) + API duration/basis (from `step_api_duration`), one line per `step_order` entry.
+    A missing/non-list `step_order` (legacy pre-MAR-7 aggregate JSON) yields no sub-rows at all."""
+    step_order = row.get("step_order")
+    if not isinstance(step_order, list):
+        return []
+    steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
+    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
+    out = []
+    for skill in step_order:
+        step_span = _humanize_seconds(steps.get(skill))
+        entry = step_api_duration.get(skill)
+        if not isinstance(entry, dict):
+            api_str = UNAVAILABLE
+        elif entry.get("basis") == "unavailable":
+            api_str = UNAVAILABLE
+        else:
+            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
+        out.append("    %-14s step span %10s   api duration %s" % (skill, step_span, api_str))
+    return out
+
+
 def _term_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
@@ -310,6 +369,7 @@ def _term_panel3(value):
         working_time = _humanize_seconds(totals.get("working_seconds", "-"))
         cost = _fmt_money(totals.get("cost_usd", "-"), empty="-")
         out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), working_time, cost))
+        out.extend(_term_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         out.append("  %-12s %12s %12s"
@@ -356,22 +416,32 @@ def _term_panel5(value):
     return out
 
 
+def _panel6_extra_roles(value):
+    """Extra panel-6 keys beyond ROLE_ORDER ("other"/"unattributed" when present), sorted."""
+    return sorted(k for k in value if k not in ROLE_ORDER)
+
+
 def _term_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
-    out = ["  %-10s %12s %12s %10s" % ("role", "input", "output", "cost_usd")]
+    out = ["  %-10s %12s %12s %10s %10s %10s" % ("role", "input", "output", "cost_usd",
+                                                   "token %", "cost %")]
+    roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         if isinstance(bucket.get("input"), (int, float)):
             inputs.append(bucket.get("input"))
     peak = max(inputs or [0])
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        out.append("  %-10s %12s %12s %10s   %s"
+        out.append("  %-10s %12s %12s %10s %10s %10s   %s"
                    % (role, inp, bucket.get("output", 0),
-                      _fmt_money(bucket.get("cost", 0), empty="-"), _bar(inp, peak)))
+                      _fmt_money(bucket.get("cost", 0), empty="-"),
+                      _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
+                      _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE),
+                      _bar(inp, peak)))
     return out
 
 
@@ -564,6 +634,29 @@ def _html_panel2(value):
     return "<table>" + "".join(rows) + "</table>"
 
 
+def _html_panel3_sub_rows(row):
+    """HTML equivalent of _term_panel3_sub_rows (MAR-7 spec 02) — one extra <tr> per skill,
+    reusing the main row's 3-column shape (skill / step span / API duration + basis)."""
+    step_order = row.get("step_order")
+    if not isinstance(step_order, list):
+        return []
+    steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
+    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
+    out = []
+    for skill in step_order:
+        step_span = _humanize_seconds(steps.get(skill))
+        entry = step_api_duration.get(skill)
+        if not isinstance(entry, dict):
+            api_str = UNAVAILABLE
+        elif entry.get("basis") == "unavailable":
+            api_str = UNAVAILABLE
+        else:
+            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
+        out.append("<tr><td>&nbsp;&nbsp;%s</td><td>step span %s</td><td>api duration %s</td></tr>"
+                   % (_esc(skill), _esc(step_span), _esc(api_str)))
+    return out
+
+
 def _html_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
@@ -581,6 +674,7 @@ def _html_panel3(value):
                     % (_esc(row.get("ticket_id", "?")),
                        _esc(_humanize_seconds(totals.get("working_seconds", "-"))),
                        _esc(_fmt_money(totals.get("cost_usd", "-"), empty="-"))))
+        rows.extend(_html_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
         rows.append("<tr><td>REPO TOTAL</td><td>%s</td><td>%s</td></tr>"
@@ -633,18 +727,22 @@ def _html_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
     # Bar on `input` tokens (consistent with the terminal surface's panel-6 peak).
+    roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
-    for role in ROLE_ORDER:
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inputs.append(bucket.get("input", 0))
     panel_max = _panel_max(inputs)
-    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th><th>bar</th></tr>"]
-    for role in ROLE_ORDER:
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th>"
+            "<th>token %</th><th>cost %</th><th>bar</th></tr>"]
+    for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
                     % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
                        _esc(_fmt_money(bucket.get("cost", 0), empty="-")),
+                       _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
+                       _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)),
                        _html_bar_cell(inp, panel_max)))
     return "<table>" + "".join(rows) + "</table>"
 
@@ -1061,6 +1159,17 @@ def _term_render_usage_summary(panel):
     avg_cp = panel.get("avg_cost_per_pr", NO_DATA)
     out.append("  avg cost / merged PR (USD):         %s" % (
         _fmt_money(avg_cp) if not _is_no_data(avg_cp) else NO_DATA))
+    # 3 API-duration rows (MAR-7 spec 02) — total row guarded is-not-None like
+    # total_working_seconds; the two averages follow the existing NO_DATA-guarded pattern.
+    tad = panel.get("total_api_duration_ms")
+    out.append("  total API duration:                 %s" % (
+        _humanize_ms(tad) if tad is not None else NO_DATA))
+    avg_at = panel.get("avg_api_duration_ms_per_ticket", NO_DATA)
+    out.append("  avg API duration / ticket:          %s" % (
+        _humanize_ms(avg_at) if not _is_no_data(avg_at) else NO_DATA))
+    avg_ap = panel.get("avg_api_duration_ms_per_pr", NO_DATA)
+    out.append("  avg API duration / merged PR:       %s" % (
+        _humanize_ms(avg_ap) if not _is_no_data(avg_ap) else NO_DATA))
     return out
 
 
@@ -1104,7 +1213,254 @@ def _html_render_usage_summary(panel):
     rows.append(_avg_row("avg cost / merged PR (USD)",
                          panel.get("avg_cost_per_pr", NO_DATA),
                          _fmt_money))
+    # 3 API-duration rows (MAR-7 spec 02) — mirrors the same guard pattern as above.
+    tad = panel.get("total_api_duration_ms")
+    tad_str = _humanize_ms(tad) if tad is not None else NO_DATA
+    cls = ' class="nodata"' if tad_str == NO_DATA else ""
+    rows.append("<tr><td>total API duration</td><td%s>%s</td></tr>" % (cls, _esc(tad_str)))
+    rows.append(_avg_row("avg API duration / ticket",
+                         panel.get("avg_api_duration_ms_per_ticket", NO_DATA),
+                         _humanize_ms))
+    rows.append(_avg_row("avg API duration / merged PR",
+                         panel.get("avg_api_duration_ms_per_pr", NO_DATA),
+                         _humanize_ms))
     return "<table>" + "".join(rows) + "</table>"
+
+
+# ---------------------------------------------------------------------------
+# MAR-3 spec 05 — "Usage by model" table (AC-2, render half): repo scope then one
+# section per ticket, from panels.usage_by_model's {repo, tickets} shape (design.md:733-744).
+# No division is performed here — cost_usd is formatted as given.
+# ---------------------------------------------------------------------------
+
+_MODEL_ROW_FMT = "%s%-28s %10s %10s %12s %12s %10s"
+
+
+def _term_model_table(models, indent):
+    """Rendered lines for one models list (a 'no data' string/missing key/empty list -> one cell)."""
+    out = [_MODEL_ROW_FMT % (indent, "model", "input", "output", "cache write", "cache read", "cost_usd")]
+    if _is_no_data(models) or not isinstance(models, list) or not models:
+        out.append(indent + NO_DATA)
+        return out
+    for row in models:
+        if not isinstance(row, dict):
+            continue
+        out.append(_MODEL_ROW_FMT % (
+            indent, str(row.get("model", "?")), row.get("input", 0), row.get("output", 0),
+            row.get("cache_creation", 0), row.get("cache_read", 0),
+            _fmt_money(row.get("cost_usd"), empty=NO_DATA)))
+    return out
+
+
+def _term_render_usage_by_model(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _term_no_data_block()
+    out = ["  repo:"]
+    out.extend(_term_model_table(value.get("repo"), indent="    "))
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        out.append("  " + NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        out.append("  ticket %s:" % row.get("ticket_id", "?"))
+        out.extend(_term_model_table(row.get("models"), indent="    "))
+    return out
+
+
+def _html_model_table(models):
+    """Rendered <table> for one models list (a 'no data' string/missing key/empty list -> nodata row)."""
+    rows = ["<tr><th>model</th><th>input</th><th>output</th><th>cache write</th>"
+            "<th>cache read</th><th>cost_usd</th></tr>"]
+    if _is_no_data(models) or not isinstance(models, list) or not models:
+        rows.append('<tr><td colspan="6" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for row in models:
+        if not isinstance(row, dict):
+            continue
+        cost = _fmt_money(row.get("cost_usd"), empty=NO_DATA)
+        cls = ' class="nodata"' if cost == NO_DATA else ""
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td%s>%s</td></tr>"
+                    % (_esc(row.get("model", "?")), _esc(row.get("input", 0)),
+                       _esc(row.get("output", 0)), _esc(row.get("cache_creation", 0)),
+                       _esc(row.get("cache_read", 0)), cls, _esc(cost)))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _html_render_usage_by_model(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _html_no_data()
+    parts = ["<h4>repo</h4>", _html_model_table(value.get("repo"))]
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        parts.append('<div class="nodata">%s</div>' % NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        parts.append("<h4>ticket %s</h4>" % _esc(row.get("ticket_id", "?")))
+        parts.append(_html_model_table(row.get("models")))
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# MAR-4 spec 02 — "Usage by ticket" table: one role-share table per ticket, from
+# panels.usage_by_ticket's {"tickets": [{"ticket_id", "roles"}, ...]} shape (design.md:750-758).
+# No division is performed here — the percentages arrive pre-computed from
+# metrics_aggregate.py (D2 placement); roles are rendered in the dict's OWN key order
+# (already sorted by the aggregator) — never re-sorted here.
+# ---------------------------------------------------------------------------
+
+_ROLE_ROW_FMT = "%s%-14s %10s %10s %12s %12s %10s %10s %10s"
+
+
+def _term_role_table(roles):
+    """Rendered lines for one ticket's roles dict (a 'no data' string/non-dict/empty dict ->
+    one nodata row), following _term_model_table's exact house style."""
+    out = [_ROLE_ROW_FMT % ("", "role", "input", "output", "cache write", "cache read",
+                            "cost_usd", "token %", "cost %")]
+    if _is_no_data(roles) or not isinstance(roles, dict) or not roles:
+        out.append(NO_DATA)
+        return out
+    for role, bucket in roles.items():
+        if not isinstance(bucket, dict):
+            continue
+        out.append(_ROLE_ROW_FMT % (
+            "", str(role), bucket.get("input", 0), bucket.get("output", 0),
+            bucket.get("cache_creation", 0), bucket.get("cache_read", 0),
+            _fmt_money(bucket.get("cost_usd"), empty=NO_DATA),
+            _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
+            _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)))
+    return out
+
+
+def _html_role_table(roles):
+    """Rendered <table> for one ticket's roles dict (a 'no data' string/non-dict/empty dict ->
+    one nodata row), following _html_model_table's exact house style."""
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cache write</th>"
+            "<th>cache read</th><th>cost_usd</th><th>token %</th><th>cost %</th></tr>"]
+    if _is_no_data(roles) or not isinstance(roles, dict) or not roles:
+        rows.append('<tr><td colspan="8" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for role, bucket in roles.items():
+        if not isinstance(bucket, dict):
+            continue
+        cost = _fmt_money(bucket.get("cost_usd"), empty=NO_DATA)
+        cls = ' class="nodata"' if cost == NO_DATA else ""
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+                    "<td%s>%s</td><td>%s</td><td>%s</td></tr>"
+                    % (_esc(role), _esc(bucket.get("input", 0)), _esc(bucket.get("output", 0)),
+                       _esc(bucket.get("cache_creation", 0)), _esc(bucket.get("cache_read", 0)),
+                       cls, _esc(cost),
+                       _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
+                       _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE))))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+_SKILL_ROW_FMT = "%s%-16s %22s %14s %12s"
+
+
+def _term_skill_table(skills, indent):
+    """Rendered lines for one ticket's skills[] list (MAR-7 spec 02), structural mirror of
+    _term_model_table: a "no data" string/missing key/empty list -> one nodata cell. Each row's
+    per-run detail (skills[].runs[]) nests as further-indented lines directly under it."""
+    out = [_SKILL_ROW_FMT % (indent, "skill", "run time (sum of runs)", "api duration", "basis")]
+    if _is_no_data(skills) or not isinstance(skills, list) or not skills:
+        out.append(indent + NO_DATA)
+        return out
+    for row in skills:
+        if not isinstance(row, dict):
+            continue
+        basis = row.get("api_duration_basis")
+        api_str = UNAVAILABLE if basis == "unavailable" else _humanize_ms(row.get("api_duration_ms"))
+        out.append(_SKILL_ROW_FMT % (
+            indent, str(row.get("skill", "?")), _humanize_seconds(row.get("run_seconds_sum")),
+            api_str, basis or UNAVAILABLE))
+        for run in (row.get("runs") or []):
+            if not isinstance(run, dict):
+                continue
+            run_basis = run.get("api_duration_basis")
+            run_api_str = UNAVAILABLE if run_basis == "unavailable" else _humanize_ms(run.get("api_duration_ms"))
+            out.append("%s  run %s: wall %s, api %s (%s)" % (
+                indent, run.get("started_at", "?"), _humanize_seconds(run.get("wall_clock_seconds")),
+                run_api_str, run_basis or UNAVAILABLE))
+    return out
+
+
+def _html_skill_table(skills):
+    """Rendered <table> for one ticket's skills[] list (MAR-7 spec 02), structural mirror of
+    _html_model_table. A "no data" string/missing key/empty list -> one nodata row. Each row's
+    per-run detail nests as a second, smaller <table> in an extra <tr> beneath it."""
+    rows = ["<tr><th>skill</th><th>run time (sum of runs)</th><th>api duration</th><th>basis</th></tr>"]
+    if _is_no_data(skills) or not isinstance(skills, list) or not skills:
+        rows.append('<tr><td colspan="4" class="nodata">%s</td></tr>' % NO_DATA)
+        return "<table>" + "".join(rows) + "</table>"
+    for row in skills:
+        if not isinstance(row, dict):
+            continue
+        basis = row.get("api_duration_basis")
+        api_str = UNAVAILABLE if basis == "unavailable" else _humanize_ms(row.get("api_duration_ms"))
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+                    % (_esc(row.get("skill", "?")), _esc(_humanize_seconds(row.get("run_seconds_sum"))),
+                       _esc(api_str), _esc(basis or UNAVAILABLE)))
+        runs = row.get("runs") if isinstance(row.get("runs"), list) else []
+        if runs:
+            run_rows = ["<tr><th>started_at</th><th>wall clock</th><th>api duration</th></tr>"]
+            for run in runs:
+                if not isinstance(run, dict):
+                    continue
+                run_basis = run.get("api_duration_basis")
+                run_api_str = (UNAVAILABLE if run_basis == "unavailable"
+                               else _humanize_ms(run.get("api_duration_ms")))
+                run_rows.append("<tr><td>%s</td><td>%s</td><td>%s (%s)</td></tr>"
+                                % (_esc(run.get("started_at", "?")),
+                                   _esc(_humanize_seconds(run.get("wall_clock_seconds"))),
+                                   _esc(run_api_str), _esc(run_basis or UNAVAILABLE)))
+            rows.append('<tr><td></td><td colspan="3"><table>%s</table></td></tr>' % "".join(run_rows))
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _ticket_api_duration_str(row):
+    """Ticket-scope api_duration_ms/api_duration_basis header value (MAR-7 spec 02) — shared by
+    both surfaces' usage_by_ticket renderers."""
+    basis = row.get("api_duration_basis")
+    if basis == "unavailable":
+        return UNAVAILABLE
+    return _humanize_ms(row.get("api_duration_ms"))
+
+
+def _term_render_usage_by_ticket(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _term_no_data_block()
+    out = []
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        out.append("  " + NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        out.append("  ticket %s:" % row.get("ticket_id", "?"))
+        out.append("    api duration: %s" % _ticket_api_duration_str(row))
+        out.extend("    " + line for line in _term_role_table(row.get("roles")))
+        out.append("    skills:")
+        out.extend(_term_skill_table(row.get("skills"), indent="      "))
+    return out
+
+
+def _html_render_usage_by_ticket(value):
+    if _is_no_data(value) or not isinstance(value, dict):
+        return _html_no_data()
+    parts = []
+    tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
+    if not tickets:
+        parts.append('<div class="nodata">%s</div>' % NO_DATA)
+    for row in tickets:
+        if not isinstance(row, dict):
+            continue
+        parts.append("<h4>ticket %s</h4>" % _esc(row.get("ticket_id", "?")))
+        parts.append("<p>api duration: %s</p>" % _esc(_ticket_api_duration_str(row)))
+        parts.append(_html_role_table(row.get("roles")))
+        parts.append(_html_skill_table(row.get("skills")))
+    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -1142,12 +1498,16 @@ _USAGE_TERMINAL_PANELS = {
     "usage_summary": _term_render_usage_summary,
     "3": _term_panel3,
     "6": _term_panel6,
+    "usage_by_model": _term_render_usage_by_model,
+    "usage_by_ticket": _term_render_usage_by_ticket,
 }
 
 _USAGE_HTML_PANELS = {
     "usage_summary": _html_render_usage_summary,
     "3": _html_panel3,
     "6": _html_panel6,
+    "usage_by_model": _html_render_usage_by_model,
+    "usage_by_ticket": _html_render_usage_by_ticket,
 }
 
 

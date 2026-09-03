@@ -31,7 +31,7 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
   <constraints>
     <constraint name="coverage-target">90</constraint>
   </constraints>
-  <context>iteration 2+: verifier findings the new plan addresses</context>
+  <context>on iteration >= 2, the verifier findings your scaffold must fix</context>
 </task>
 ```
 
@@ -63,7 +63,7 @@ Work in this order:
    delivery is the coordinator's step after verification passes.
 7. Write your execute report (below), then emit the result XML.
 
-On `iteration` > 1, the plan embeds the verifier's findings: fix exactly those, re-run the
+On iteration >= 2, fix every finding listed in the task's `<context>`, re-run the
 four commands, and record per finding what you changed.
 
 ## Scope rules
@@ -112,15 +112,13 @@ Escape `&` and `<` in text content. Self-check with
     <file>/abs/repo/.github/workflows/ci.yml</file>
   </outputs>
   <errors/>
-  <metrics tokens-input="30000" tokens-output="9000" cost-usd="0"/>
   <stop-reason>Scaffold committed on feature/SHOP-3-scaffold; build, lint, tests, coverage all green locally</stop-reason>
 </result>
 ```
 
 List the execute report plus every repo file you created or changed in `<outputs>`.
 `status="completed"` only when all four commands passed and the commit exists; otherwise
-`failed` (with `<errors>`) or `needs_input` (with `<questions>`). Estimate `<metrics>`
-honestly.
+`failed` (with `<errors>`) or `needs_input` (with `<questions>`).
 
 ## Grounding (anti-hallucination)
 

@@ -2,14 +2,14 @@
 
 | Layer | Technology | Why |
 |-------|------------|-----|
-| acs Skills (24) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (24 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
+| acs Skills (25) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (25 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
 | Subagents (45 files, 39 reachable) | Markdown agent definitions | Separate contexts per reflection phase for the twelve triad-keeping skills (36 agents); the three apply-work skills run inline with at most one executor each (3 agents), leaving 6 plan/verify files orphaned; tool allowlists in frontmatter |
 | Hooks & helpers | **Python ≥ 3.9, stdlib only** | Deterministic gating/persistence with zero consumer-machine installs |
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
 | Messaging | XML validated against `acs-messages.xsd` (in-process stdlib structural validation by default — no per-message subprocess; xmllint opt-in only via `ACS_XML_AUTHORITATIVE=1`) | Fail-fast malformed coordinator↔subagent traffic |
 | Diagrams | Mermaid (C4, ER, sequence, state) | Diffable, GitHub-rendered, agent-maintainable |
-| VCS / delivery | git, GitHub via `gh` CLI | Branch-per-ticket, PR-based delivery |
-| Trackers (optional) | `gh` (Projects v2), `acli` (Jira) | Two-way sync; CLIs own auth — no secrets in settings |
+| VCS / delivery | git, GitHub via `gh` CLI — acs's **sole** GitHub transport, by decision (ADR-0088; no MCP fallback) | Branch-per-ticket, PR-based delivery |
+| Trackers (optional) | `gh` (Projects v2), `acli` (Jira) | Two-way sync; CLIs own auth — no secrets in settings; a failed `gh` call is classified **critical** (verbatim stderr + one canonical hint, stop) or **non-critical** (info finding + replayable command, continue) per ADR-0088 |
 | CI / release | GitHub Actions | Per-plugin shape-conditional tests + validation per PR (`tests/acs/` + `tests/tabp/`; per-plugin schemas, hooks, skills presence-gated; no eval calls in CI); tag-on-version-bump releases |
 | Tests | `unittest` (stdlib) | Multi-plugin test discovery: `python3 -m unittest discover -s tests` finds `tests/acs/` and `tests/tabp/` automatically; per-plugin `__init__.py` package markers prevent import collisions |
 | tabp_helper.py | Python ≥ 3.9, stdlib only (no pip) | tabp `.tabp/` atomic write / locking / schema validation / run-history / usage aggregation (MAR-38); invoked via Bash by the screen-cvs coordinator |

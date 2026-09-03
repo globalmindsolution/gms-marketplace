@@ -28,9 +28,9 @@ the single highest-priority correctness requirement for this decision).
 
 1. `/acs:test` gains a `--for-ticket <id>` invocation mode. It resolves the
    ticket's partition, narrows the suite run set to the reserved `e2e` key
-   plus any suite named in the ticket's own folded Test-plan (read from the
-   highest-numbered `<partition>/phases/code/iter-*-plan.md` at invocation
-   time), and reuses Steps 1-4 exactly as the standing mode runs them.
+   plus any suite named in the ticket's own folded Test-plan (read from
+   `<partition>/phases/code/plan.md`), and reuses Steps 1-4 exactly as the
+   standing mode runs them.
 2. In this mode, a failure **unconditionally** skips Steps 4a-4b (triage,
    regression-key derivation, dedup/mint-or-bump/comment-bump) — no
    condition re-enables them. Instead, the mode returns a compact verdict

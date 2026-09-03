@@ -30,6 +30,20 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 - `<context>` — on iteration 2+, the verifier findings naming the cleanup
   steps to redo.
 
+## GitHub call failure policy
+
+Canon lives in `merge-pr/SKILL.md`'s own "GitHub call failure policy"
+section — this agent classifies no `gh` call itself, it only follows that
+classification: critical for the merge itself and every readiness/
+update-branch read (step 0, step 1a, step 1); loud-but-non-reverting for
+step 4's post-merge tracker sync only. Canon hint text
+(`acs_lib.GH_ACCESS_HINT`, selected by `acs_lib.gh_failure_hint(stderr)`):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
+
 ## Doing the work — strictly in this order
 
 Run EVERYTHING from the main checkout the plan's Cleanup inventory names
@@ -74,8 +88,10 @@ the worktree you are about to remove.
 
    If GitHub rejects the command (the repo disallows the configured strategy,
    or the PR became unmergeable since the plan), return `failed` with the
-   exact gh stderr in `<errors>` — NEVER substitute another strategy, never
-   retry with `--admin`.
+   exact gh stderr plus the canonical hint from `acs_lib.gh_failure_hint` in
+   `<errors>` — critical, per merge-pr/SKILL.md's classification, no
+   fallback to any other transport — NEVER substitute another strategy,
+   never retry with `--admin`.
 2. **Remove the ticket worktree** when the plan's inventory lists one:
    `git worktree remove <path>`. Append `--force` ONLY if leftover untracked
    files block removal AND step 0/1 confirmed the PR is merged. If the
@@ -85,7 +101,13 @@ the worktree you are about to remove.
    non-empty: `git branch -D <pr.branch>`. If the branch is checked out in the
    main checkout, first `git checkout <pr.base> && git pull`.
 4. **Sync the tracker to Done** — only when `tracker_provider` != `local` AND
-   `ticket.external` is set:
+   `ticket.external` is set. **Loud-but-non-reverting** (mirrors merge-pr/
+   SKILL.md's Step 2 rule): the merge already landed at step 1 and is never
+   revisited because of this step — a failed `gh issue close` or
+   `gh project item-edit` here never reverts the merge and is never
+   re-attempted automatically; record one error-severity finding naming the
+   outstanding sync plus a replayable command block, and still report
+   `merged_this_iteration` truthfully (the merge itself succeeded):
    - `github`: `gh issue close <external.key> --comment "Merged: <pr.url>"`;
      when the plan records a configured `project_number`, also set the
      project's Status field to Done — locate the item with
@@ -118,7 +140,6 @@ Your FINAL message is ONLY a `<result>` element valid against
   <outputs>
     <file>/abs/workspace/acme-shop/SHOP-123/phases/merge-pr/iter-1-execute.json</file>
   </outputs>
-  <metrics tokens-input="18000" tokens-output="3500" cost-usd="0.09"/>
   <stop-reason>PR #87 squash-merged; remote+local branch deleted, worktree removed, GitHub issue #42 closed.</stop-reason>
 </result>
 ```

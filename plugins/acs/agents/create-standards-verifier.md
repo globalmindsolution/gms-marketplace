@@ -18,7 +18,7 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: t
 `iter-<n>-plan.md`, the execute report(s) `iter-<n>-execute*.json`, the PRD, the
 architecture set, the principles set when present, the three produced `standards_path`
 files), `<constraints>` (at minimum `partition` — the absolute ticket-partition path —
-plus `standards_path`, `principles_path`, `architecture_path`, each file's
+plus `standards_path`, `principles_path`, `architecture_path`, `prd_path`, each file's
 `required_sections:<file>`, and `audience_style_profile`), and on iteration > 1
 a `<context>` listing the prior iteration's findings. You share no memory with the
 coordinator: read every input yourself.
@@ -36,6 +36,35 @@ coordinator: read every input yourself.
    (per the templates in `plugins/acs/templates/standards/`).
 4. **plan-conformance** — everything `iter-<n>-plan.md` promised exists; no missing
    section, no unplanned extra file.
+   - Independently re-open and check every upstream-fact citation the planner
+     recorded in the current iteration's `Upstream inventory` section — never
+     just diff the executor's output against the plan artifact. Run `Bash
+     python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
+     <partition>/phases/<skill>/iter-<n>-plan.md --root prd=<prd_path> --root
+     architecture=<architecture_path>` — and, for `create-standards` only,
+     additionally `--root principles=<principles_path>`, but ONLY when
+     `principles_path` is non-null and the `principles/` set exists on disk.
+     When it is null or the set is absent, omit the `--root principles=`
+     argument entirely — never pass an empty value: an empty root is a usage
+     error (exit 2) and the principles set is documented optional, never a
+     block, so an absent set must not manufacture a finding.
+   - Every stderr `source:line: [rule] message` finding becomes one `<finding
+     severity="blocking" dimension="plan-conformance">`; exit 2 (a usage
+     error, or an unreadable plan file) is itself a blocking
+     `plan-conformance` finding, so a broken invocation can never silently
+     pass.
+   - Then re-open each resolved citation named in the script's stdout
+     manifest yourself and judge whether the passage actually substantiates
+     the claim — never take the script's excerpt match alone as proof of
+     substantiation. Locate that passage by searching the file for the
+     manifest entry's own verbatim `excerpt` text; the manifest's `line`
+     field is the citation's line in the plan file only, informational, and
+     never a locus in the cited file. A resolved citation that does
+     not substantiate its claim is its own `<finding severity="blocking"
+     dimension="plan-conformance">`, naming the claim, the cited path, and
+     why the passage does not support it. No advisory carve-out applies to
+     this check — every mapped or judged finding here is
+     `severity="blocking"`, with no lesser severity ever emitted.
 5. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
    change sits under `standards_path`; no source files, configs, or stray files touched.
 6. **consistency** — confirm any `consistency_findings` the planner surfaced
@@ -112,8 +141,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <findings>
     <finding severity="blocking" dimension="architecture-conformance" file="docs/standards/coding-standards.md">Tailored content names "Java" but hld/tech-stack.md documents a Python stack — the file was not tailored to the detected stack.</finding>
   </findings>
-  <metrics tokens-input="15000" tokens-output="2200" cost-usd="0.06"/>
-  <stop-reason>Verification complete: 1 blocking finding across 6 dimensions.</stop-reason>
+  <stop-reason>Verification complete: 1 blocking finding across 8 dimensions.</stop-reason>
 </result>
 ```
 

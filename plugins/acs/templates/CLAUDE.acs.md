@@ -1,5 +1,5 @@
 <!--
-  CLAUDE.acs.md — acs managed block, written/refreshed by /acs:init into the
+  CLAUDE.acs.md — acs managed block, written/refreshed by /acs:setup into the
   consumer repo's own CLAUDE.md. Everything between the BEGIN and END markers is
   owned by acs and replaced wholesale on each re-run; edit guidance here, not in
   the consumer CLAUDE.md. Placeholders: {ticket_prefix}, {exempt_label}.
@@ -21,7 +21,8 @@ bypass it.
   pipeline-produced PR passes by construction; a hand-made PR bypasses the
   rendering and fails the gate.
 - **Ship a brand-new change through `/acs:ship`.** It runs the full pipeline
-  (create-ticket → create-spec → code → create-pr) and ends by opening the PR.
+  (create-ticket → create-design when needed → code → test when e2e is
+  configured → docs-sync → create-pr) and ends by opening the PR.
 - **Ticketed work uses the `{ticket_prefix}-N` prefix.** Reference the ticket id
   in branch names and commits so the gate and tracker can trace the change.
 - **For a legitimate one-off NON-ticket PR** (a hotfix, a chore, a doc tweak

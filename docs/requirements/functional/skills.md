@@ -1,17 +1,18 @@
 # Skill Requirements
 
-Twenty-four skills in total: the bootstrap skill (`/init`), the umbrella
+Twenty-five skills in total: the bootstrap skill (`/setup`), the umbrella
 command (`/ship`), the utility skills — the session-handoff helper
 (`/handoff`), the update assistant (`/update`), the local-hooks installer
 (`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
-read-only usage dashboard (`/usage`), and the standing suite runner
-(`/acs:test`) — the product-level `/create-prd`, `/create-architecture`,
+read-only usage dashboard (`/usage`), the standing suite runner
+(`/acs:test`), `/acs:release`, and `/acs:create-docs` — the product-level
+`/create-prd`, `/create-architecture`,
 `/create-project`, `/create-quality`, `/create-operations`,
 `/create-principles`, `/create-standards`, and `/create-requirements`, `/acs:standardize-project`
 (its own triad-keeping workflow skill with its own delivery ticket — **not**
 one of the product-level `<set>_path` doc-set producers just listed, and
-adds no new settings key), and six workflow skills (one of them,
-`/create-design`, conditional).
+adds no new settings key), five workflow skills, and one planning skill
+(`/create-design`, conditional).
 Every **workflow** skill MUST:
 
 - Twelve **workflow/product skills** (docs-sync, code, create-prd,
@@ -53,32 +54,50 @@ Every **workflow** skill MUST:
   only after the post-hook succeeded; under `/ship` the compact XML handoff
   replaces it.
 
+`/create-design` remains bound by every clause above despite MAR-77's split of
+`acs_lib.PLANNING_SKILLS` out of `acs_lib.WORKFLOW_SKILLS`: it keeps the same
+hooked lifecycle — pre-hook gate and post-hook persistence, partition-scoped
+state, settings-driven subagent models, the per-ticket clarification ledger,
+and the standard completion report. MAR-77 changed only where `/create-design`
+sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
+table; none of its runtime obligations changed.
+
 ---
 
-## `/init` (bootstrap)
+## `/setup` (bootstrap)
 
 Purpose: make the `acs` plugin work on any consumer repo by generating its
 configuration.
 
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
-  scope at init time.
-- MUST prompt the user for `workspace_path` — there is no default; this is
-  required input at init time.
+  scope at setup time.
+- `workspace_path` derives silently to `<main-checkout>/.acs/state-machine`
+  when the user does not set it — no prompt, no required input; an explicit
+  override is optional (ADR-0086).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix.
-- MUST require/validate that `workspace_path` is **outside the consumer
-  repo**, so git worktrees and parallel tasks are supported.
+  global default prefix. This prompt is unaffected by the `workspace_path`
+  default change.
 - MUST set `test_coverage_percent` with a default of **90** (user may
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
-- `/init` is not part of the gated pipeline (no planner/executor/verifier
+- MUST ensure the derived in-repo state root is ignored by git through two
+  layers — a tracked `.gitignore` entry and an idempotent
+  `<git-common-dir>/info/exclude` append — MUST verify the combined result
+  with `git check-ignore -v`, and MUST warn (never silently proceed) when
+  the ignore is not actually in effect, or when a broad `.acs/` rule would
+  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
+- When an existing external workspace for the repo is detected, SHOULD offer
+  a user-confirmed, one-shot migration into the in-repo state root;
+  declining leaves the old workspace and `workspace_path` unchanged
+  (ADR-0086).
+- `/setup` is not part of the gated pipeline (no planner/executor/verifier
   subagents); it is a simple setup skill.
-- All other skills' pre-hooks fail fast (exit 2) with a "run /init first"
+- All other skills' pre-hooks fail fast (exit 2) with a "run /setup first"
   message when no `settings.json` can be found.
-- Re-running `/init` on an initialized repo/user scope **updates the
+- Re-running `/setup` on an initialized repo/user scope **updates the
   existing settings in place** (preserving keys it does not touch).
 
 ## `/ship` (umbrella)
@@ -89,7 +108,8 @@ Purpose: drive the whole pipeline from one command.
   lane and stop before `/merge-pr`, which a reviewer lands as a separate step
   ([workflow.md](workflow.md#umbrella-command-ship)):
   `/create-ticket` → `/create-design` (when the ticket needs design) →
-  `/code` → `/docs-sync` → `/create-pr`. No lane branches the walk — spec
+  `/code` → `/test` (when e2e is configured) → `/docs-sync` →
+  `/create-pr`. No lane branches the walk — spec
   authoring is folded into `/code`'s plan phase on every lane
   (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
   SAME order on every lane — the fold is universal now, so no lane branches
@@ -97,6 +117,18 @@ Purpose: drive the whole pipeline from one command.
 - MUST NOT bypass any pre/post hook; it adds orchestration only.
 - SHOULD be resumable: re-running it for a ticket continues from the first
   incomplete step recorded in workspace state.
+- MUST stop after `/code` completes and before the post-code test gate when
+  the ticket's resolved verify depth is `full` (`verify_depth(lane,
+  stakes)`), re-read from `ticket.json` after `/code` returns because
+  `/code` may escalate the lane mid-flight and write it back durably. The
+  stop is a designed boundary, not a failure: no step is marked `failed`,
+  no run entry is written (`/ship` is unhooked and owns none),
+  `pipeline-state.json` records `code` completed, and the run ends with
+  status `handed_off`. The tail (`test` when the gate is active ->
+  `/docs-sync` -> `/create-pr`) runs in a fresh session resumed with
+  `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
+  through, unchanged
+  (`ship/SKILL.md` "Full-verify pipeline boundary"; workflow.md#context-handoff-between-steps).
 - No planner/executor/verifier of its own; each step skill is **invoked
   directly by the ship coordinator in its own context** and runs its own
   reflection cycle, returning only a compact XML handoff — `/ship` tracks the
@@ -134,7 +166,7 @@ this skill owns the workflow around it.
   when the plugin's `version` bumps (semver; automated release tagging).
 - Runs post-update migration checks: settings valid against the new schema,
   status-line paths still resolve (they hold absolute install paths —
-  re-run `/init` Step 7b when the install moved), workspace reachable.
+  re-run `/setup` Step 7b when the install moved), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
@@ -185,7 +217,8 @@ existing workspace state — no network, no new config key, nothing written.
   (headline spend KPIs — total cost, total working time, total runs, plus four
   averages: avg working time per ticket and per merged PR, avg cost per ticket
   and per merged PR), cost + time per ticket by step with the four averages, and
-  token burn by role (planner/executor/verifier).
+  token burn by role (coordinator/planner/executor/verifier/other, plus
+  `unattributed` whenever the ticket has any such spend).
 - The coordinator **routes** the aggregate JSON through `metrics_render.py
   --view usage`: **terminal** (Claude Code CLI default) or `--html`
   (self-contained HTML → `show_widget`). Rendering is deterministic and
@@ -206,12 +239,19 @@ closing the loop on failures with a regression ticket.
   suite, or check whether anything broke routes here.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
-- **Unhooked** — like `/init`/`/update`/`/metrics`/`/usage`, `/acs:test` has
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`, `/acs:test` has
   no planner/executor/verifier triad and no `test-state.json` skill-start
   ticket allocation. It is not part of the gated pipeline.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
+- **Records its own pipeline step** in ticket-scoped mode: a
+  `--for-ticket` run writes the ticket's `steps.test` entry itself, since
+  the skill is unhooked and has no post-hook to do it. A green run
+  recording `completed` is what opens `/acs:docs-sync`'s gate — the remedy
+  that gate's own error message names. A failing run updates the entry only
+  when it already exists, so a direct user-initiated run cannot newly shut a
+  gate that was not blocking them.
 - **All-green determinism:** when every suite passes, the run makes zero
   model calls and mints no tickets — triage only runs on the failure path.
 - **Failure-path triage:** on a failing suite, the skill derives a stable
@@ -230,6 +270,75 @@ closing the loop on failures with a regression ticket.
   triage/mint-or-bump loop entirely and instead returns a `{status,
   failure_output}` verdict — invoked as one step inside `/acs:ship`'s
   pipeline walk. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+
+## /acs:release (utility)
+
+Purpose: the one-command **release-cut** utility — assembles/verifies the
+CHANGELOG section for a release version from the merged-ticket archive, and,
+for tickets merged without an archive entry, from `base_branch` commit
+history, bumps the version-location files plus any extra refs configured in
+the repo's `.acs/settings.json` `release` block, dates the section, and opens
+an exempt `release/*` PR for a mandatory human merge.
+
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
+  `/acs:release` has no planner/executor/verifier triad, no `release-state.json`
+  skill-start ticket allocation, no `.lock`, no pointer file, no partition.
+  It is not part of the gated pipeline.
+- **Fails fast** when no `release` block is configured in `.acs/settings.json`
+  — before shelling out to `release_notes.py` at all.
+- **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
+  durable record of a release cut is the release PR itself; `workspace` is
+  read-only input (to enumerate the merged-ticket archive), never a write
+  target. The git-history fallback source is the repo checkout, not the
+  workspace — this is user-observable: the count is non-zero even with no
+  `archive/` present whenever `base_branch` history carries leading
+  ticket-ref commit subjects (a tracker-ref-only history, e.g. `[#399] …`,
+  still yields zero — the fallback recovers only subjects whose leading
+  token is a ticket ref).
+- **Never publishes itself** — it never runs `git tag` or `gh release create`;
+  the privileged tag/publish step stays in the block's `publish_driver`.
+- **Scope**: cutting a new version of a repo already configured for release
+  cuts — not for opening a ticket's own PR (`/acs:create-pr`) or
+  landing/merging a PR (`/acs:merge-pr`).
+- **Enumeration provenance and prefix anchoring**: each ticket the coverage
+  report and draft enumerate is stamped `source: archive|git-log`, and
+  `/acs:release` passes `--ticket-prefix <settings.ticket_prefix>` to both
+  `draft` and `bump` to anchor the git-history fallback to this repo's own
+  ticket ids.
+
+## /acs:create-docs (utility)
+
+Purpose: the cross-skill, phase-level **doc-bootstrap fan-out** umbrella —
+detects independent doc-bootstrap skills (currently `create-quality` and
+`create-operations`) whose upstream prerequisites are already satisfied, and
+runs them in parallel instead of one after another; each leg keeps its own
+hooks, reflection cycle, and gating unchanged, and delivers as its own
+docs-only PR on its own delivery ticket.
+
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`/`/acs:release`,
+  `/acs:create-docs` has no planner/executor/verifier triad of its own and no
+  `create-docs-state.json` skill-start ticket allocation; it is not one of
+  the twelve triad-keeping skills. Like `/acs:ship`, it adopts
+  `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
+- **Eligibility**: `fanout_batches()` (`acs_lib.py`) computes the eligible
+  batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
+  the consumer repo's settings and on-disk doc state, gated on the declared
+  v1 set `DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
+- **Mechanism**: mints one delivery ticket per eligible leg via real
+  `Skill`-tool `Start`s in the session checkout, then runs each phase
+  (plan → execute → verify) as a parallel batch across legs; each leg enters
+  its own worktree at its own Delivery step's Branch sub-step, before that
+  leg's Execute phase.
+- **Failure isolation**: legs share no failure state — one leg reaching its
+  verifier iteration cap never blocks or rolls back a sibling leg's
+  completed PR; a failed leg resumes via its own skill's standalone Resume &
+  reconcile path, never by re-invoking the umbrella. See
+  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- **Argument contract**: `--for <skill>[,<skill>...]` narrows the batch to
+  the named skill(s); with no flag, every currently-eligible skill fans out;
+  a name outside `DOC_BOOTSTRAP_FANOUT_V1` is rejected as *not in v1's
+  fan-out set* (`parse_fanout_for_arg()`, `acs_lib.py`) — reported, never
+  silently fanned out or silently dropped.
 
 ## Product-level delivery (tickets)
 
@@ -287,6 +396,25 @@ else is verified against.
   and a blocking `audience-style` check (declared audience/style profile; an
   unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
   makes it `severity="info"`, non-blocking).
+- **Independent corroboration (MAR-304).** The planner additionally records
+  three plan sections the deterministic floor parses: `## Code evidence`
+  (brownfield/amend only, one citation per brownfield code claim in the
+  house grammar; `N/A — greenfield, no code to cite` in greenfield),
+  `## Answer fidelity` (one line per `clarifications.json`
+  answered/assumed entry, naming a verbatim anchor in `prd.md`/`roadmap.md`,
+  or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
+  declared milestone, its verbatim `roadmap.md` heading text). The
+  verifier's `Plan conformance` dimension runs the shared deterministic
+  `prd_conformance_check.py` floor over these three families — importing
+  `citation_check.py`'s own resolution helpers unchanged for the
+  code-evidence family — then itself judges the semantic ceiling: whether
+  each answer is reflected and not contradicted (every `N/A` judged, never
+  silently accepted), whether each resolved code citation substantiates its
+  claim, and whether each matched milestone maps to the intended epic.
+  Every such finding — mechanical or semantic — and an exit 2 from the
+  script are `severity="blocking"`; there is no `severity="info"`
+  carve-out. `clarifications.json` and the repo root are declared
+  verify-task inputs/constraints for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -384,6 +512,24 @@ pipeline verifies against.
   blocking) and a blocking `audience-style` check (an unwaived
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -421,6 +567,24 @@ operations contract the pipeline and the on-call team run against.
   blocking) and a blocking `audience-style` check (an unwaived
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking).
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - The planner phase also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger; the verifier's `consistency` dimension
@@ -458,6 +622,24 @@ engineering principles and their rationale — the standing values contract
   surfacing gap/staleness findings through the existing clarification ledger;
   the verifier's `consistency` dimension confirms any such findings were
   resolved or explicitly deferred.
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - State lives in the delivery ticket's partition
   (`create-principles-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -498,6 +680,25 @@ values contract.
   through the existing clarification ledger; the verifier's `consistency`
   dimension confirms any such findings were resolved or explicitly
   deferred.
+- **Citation corroboration (MAR-303).** The planner MUST record every
+  `Upstream inventory` citation in the one-line grammar
+
+  ```
+  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
+  ```
+
+  The path is backtick-quoted exactly as shown, the optional
+  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
+  verbatim and mandatory. The verifier's
+  `plan-conformance` dimension MUST independently re-open and check every
+  such citation: it runs the shared deterministic `citation_check.py` floor
+  over `prd_path` + `architecture_path`, plus `principles_path` when it is
+  non-null and the set exists on disk, then itself judges substantiation
+  for every citation the script resolves. Every such finding — mechanical
+  (`citation_check.py`'s three rules) or semantic (the verifier's own
+  substantiation judgment) — and an exit 2 from the script are
+  `severity="blocking"`; there is **no** `severity="info"` carve-out.
+  `prd_path` is a declared verify-task constraint for this skill.
 - State lives in the delivery ticket's partition
   (`create-standards-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -616,12 +817,50 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
 - **e2e CI-gate scaffold (E2E-2):** when `settings.e2e`/`suites.e2e` is set and
   `.github/workflows/acs-e2e.yml` is missing, the readiness-tooling audit's e2e
   dimension becomes a concrete scaffold target — `acs-e2e.yml` + `run-e2e.py`,
-  reused verbatim from `/acs:init`'s (E2E-1) committed templates, under
+  reused verbatim from `/acs:setup`'s (E2E-1) committed templates, under
   allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
   gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
-  — that stays with `/acs:init`, surfaced as a `recommended_follow_ups` entry pointing there.
+  — that stays with `/acs:setup`, surfaced as a `recommended_follow_ups` entry pointing there.
 - Runs the full Reflection cycle — `standardize-project-planner`,
-  `standardize-project-executor`, `standardize-project-verifier`.
+  `standardize-project-executor`, `standardize-project-verifier` — as three
+  separate subagent contexts, but the plan phase runs **exactly once per
+  run, before the loop**: exactly one `standardize-project-planner` spawn
+  across the whole run, including on resume (MAR-302). The loop body is
+  execute → verify only, cap 3 in every lane, counting execute+verify
+  rounds (never plan+execute+verify triads).
+- **Allowlist provenance and immutability (MAR-302).** The Additive-surface
+  allowlist is authored exactly once, by the iteration-1 planner, in
+  `iter-1-plan.md`, and is frozen and authoritative for the whole run: the
+  executor's writable surface is monotonically non-increasing across
+  iterations 1-3 (it may shrink, e.g. via a narrowing finding, but never
+  grow), and the verifier re-reads that same literal frozen path every
+  iteration rather than trusting a per-iteration re-derivation. This bounds,
+  and does not close, the iteration-1 trust gap (ADR-0079).
+- **Out-of-scope-finding route (MAR-302).** A verifier finding whose
+  remediation would need a path/category outside the frozen iteration-1
+  allowlist is never silently added to the executor's writable surface. It
+  degrades to `severity="info"` and is surfaced as a `recommended_follow_ups`
+  entry **only** when all four of these hold (fail-closed otherwise, i.e.
+  undetermined stays blocking): `dimension="plan-conformance"`; the finding
+  is of the missing-scaffold/under-coverage class (never the over-scaffold
+  "unplanned extra scaffold file" class); the remediation target lies
+  outside the frozen allowlist; and the target is absent from this
+  iteration's `git diff --name-status` output. `dimension="additive-only"`,
+  `dimension="doc-set-authorship"`, `dimension="recommended-follow-ups-only"`,
+  `completion-report` shape findings, and dimension 4's second clause ("no
+  unplanned extra scaffold file") are **never** degradable — they always
+  block (ADR-0079).
+- **Executor-refusal route, class-scoped (MAR-302).** An executor refusal
+  for an out-of-frozen-allowlist finding converts to a
+  `recommended_follow_ups` entry **only** when the underlying verifier
+  finding is of that same degradable `plan-conformance` missing-scaffold
+  class, judged from the verifier's own prior finding — never from the
+  executor's self-report. Every other refusal class — including an
+  over-scaffold `plan-conformance` finding, or any `additive-only` /
+  `doc-set-authorship` / `recommended-follow-ups-only` / `completion-report`
+  shape finding — remains a genuine run failure. This is **not** an
+  unconditional conversion; fail closed on any undetermined class
+  (ADR-0079).
 - Structural gaps outside the additive-surface allowlist are surfaced as
   `recommended_follow_ups` entries in the completion report and PR body —
   **never** auto-minted as new tickets (D7).
@@ -656,11 +895,15 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   is introduced — the check is inline coordinator judgment folded into the
   existing Step 1/Step 2 flow.
 - MUST create a ticket with a type of **epic**, **story**, or **task**.
-- When the ticket type is **epic**, MUST suggest creating child
-  **story**/**task** tickets; each child gets its own `<ticket-id>` and runs
-  its own pipeline. The epic's status is auto-managed: **In Progress** when
-  work starts on any child, **Done** when all children are merged
-  (see [workflow.md](workflow.md#epic-fan-out)).
+- When the ticket type is **epic**, its own creation run mints no children
+  and ends with `children: []`; `/create-ticket <epic-id> --fan-out`, run
+  after the epic's design is approved, mints them — the breakdown is
+  derived from the design's slice/seam content when present and
+  user-confirmed at the same Step-2 gate. Each child gets its own
+  `<ticket-id>` and runs its own pipeline. The epic's status is
+  auto-managed: **In Progress** when work starts on any child, **Done**
+  when all children are merged (see
+  [workflow.md](workflow.md#epic-fan-out)).
 - Ticket title and description MUST follow the per-type ticket formats
   configured in `settings.json` — epic, story, and task each have their own
   title/description format ([configuration.md](configuration.md)).
@@ -678,15 +921,23 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
   directly, optionally delegating to at most one `create-ticket-executor`
   subagent; no planner subagent; no verifier subagent. Correctness is gated by
-  schema validation and the user-confirmation gate (size/stakes/lane/needs_design),
+  schema validation and the user-confirmation gate (size/stakes/lane),
   not an in-skill verifier.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
-  per-repo counter lives in `<workspace>/<repo>/counters.json`.
+  per-repo counter lives in `<workspace>/<repo>/counters.json`. The
+  **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
+  it refuses with exit 2 and a confirmable local-evidence proposal rather
+  than restarting the sequence at 1, and a human confirms with
+  `--seed-next <n>`; an already-populated counter is treated as already
+  reconciled. See `workspace-and-state.md` for the recorded fields.
 - MAY **import an existing remote ticket**: `/create-ticket <remote-key>`
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs
-  the normal analysis/clarification on the imported description (incl.
-  setting `needs_design`). From there the ticket ships like any local one.
+  the normal analysis/clarification on the imported description — imports get
+  the same clarification, typing, PRD trace, and `needs_design` decision as a
+  local request (`needs_design` is set only when the imported ticket is an
+  epic; story/task imports are always `false`). From there the ticket ships
+  like any local one.
 - Two-way sync runs **on demand** (triggered explicitly by the user or a
   skill); scheduled background sync routines are a later enhancement.
 - Sync conflicts (both the local and the remote ticket changed) are resolved
@@ -695,9 +946,9 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   criteria, priority, parent epic, children, status, external mapping,
   assignee, story points, needs-design flag, docs-only flag**. Parent/child links are stored
   in **both directions** (epic lists `children`; each child stores `parent`).
-- MUST set **`needs_design`** during analysis: always `true` for epics; for
-  stories/tasks the planner recommends a value and the user confirms it
-  ([workflow.md](workflow.md)).
+- MUST set **`needs_design`**, epic-only: always `true` for epics (stated,
+  not asked); always `false` for stories and tasks, never offered or
+  confirmed ([workflow.md](workflow.md)).
 - MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
@@ -709,7 +960,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
     `auth/**`, `payments/**`, `migrations/**`, `public-api/**`, `security/**`) to
     RECOMMEND a `stakes` value. Any match yields `stakes=high` (full-verify); no match
     yields `stakes=normal`. The planner also recommends `size` based on scope analysis.
-  - The user CONFIRMS or overrides both values (same pattern as `needs_design`/`docs_only`).
+  - The user CONFIRMS or overrides both values (same pattern as `docs_only`).
     Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires
     explicit user confirmation.
   - The executor writes the confirmed `size`, `stakes`, and the derived `lane` (computed
@@ -742,13 +993,17 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - **Fan-out tracker sync (standing behavior, MAR-84):** the tracker-sync set
   Step 5 syncs is the root ticket (unless it is an import) plus **every child
   minted during epic fan-out** (Step 4) — no fanned-out child is left
-  unsynced. Product-flow delivery tickets ("Product definition (PRD)",
-  "Product architecture doc set") are excluded from this set and always stay
-  unsynced. A sync failure for any one ticket in the set is surfaced (never
-  silently swallowed) and does not abort the rest of the batch; that ticket's
-  `external` stays `null` for a later retry. `external` is written into each
-  synced ticket's own `ticket.json` by the deterministic write seam
-  `record-external.py`.
+  unsynced — **EXCLUDING any ticket whose `external` is already non-null**,
+  so a `--fan-out` (or split/restructure) run syncs only the newly minted
+  children and never re-creates the already-synced root's remote issue as a
+  duplicate; a split run's already-synced root has its remote issue
+  **updated** instead. Product-flow delivery tickets ("Product definition
+  (PRD)", "Product architecture doc set") are excluded from this set and
+  always stay unsynced. A sync failure for any one ticket in the set is
+  surfaced (never silently swallowed) and does not abort the rest of the
+  batch; that ticket's `external` stays `null` for a later retry. `external`
+  is written into each synced ticket's own `ticket.json` by the
+  deterministic write seam `record-external.py`.
 - **Group-B issue-item field sync (standing behavior, MAR-103):** at
   creation, Priority, Story Points, and Parent sync to the board's matching
   named field (fixed case-insensitive table: `Priority`; `Story
@@ -764,9 +1019,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 Purpose: settle the system design before implementation is specified — for
 tickets where the change is architecturally significant.
 
-- Runs only when the ticket carries **`needs_design: true`** (always set for
-  epics; set for stories/tasks during `/create-ticket` analysis with user
-  confirmation). All other tickets skip straight to `/code`.
+- Runs only when the ticket carries **`needs_design: true`** (set for epics
+  only; stories/tasks are always `false` and skip straight to `/code`, unless
+  they inherit a parent epic's design). All other tickets skip straight to
+  `/code`.
 - MUST analyze the ticket, the codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
   genuinely open decision points before settling.
@@ -808,9 +1064,10 @@ Purpose: author the ticket's implementation specs when none exist, then
 implement them in the consumer repo using TDD.
 
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
-`<partition>/specs/` is absent or empty the `code-planner` authors the spec
-content itself inside its plan artifact
-(`<partition>/phases/code/iter-<n>-plan.md`), on EVERY lane with no lane
+`<partition>/specs/` is absent or empty the plan's author (the `code-planner`
+on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72) authors the
+spec content itself inside the plan artifact
+(`<partition>/phases/code/plan.md`), on EVERY lane with no lane
 check; when specs are already present it reads them unchanged
 (`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
 from ticket clarification through the oversized-ticket escalation — moved
@@ -823,7 +1080,7 @@ bind `/code`'s plan phase:
   larger tickets.
 - MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume
   them without conversation history. Since ADR 0066 the folded spec content
-  lives in that same partition, at `phases/code/iter-<n>-plan.md`; a
+  lives in that same partition, at `phases/code/plan.md`; a
   pre-existing `specs/` directory is still read when one is present.
 - Spec format: **markdown** with required sections — **scope, approach,
   API/data changes, test plan, out-of-scope**. The **approach** section stays
@@ -866,7 +1123,74 @@ bind `/code`'s plan phase:
   `"failed"` (`stop_reason` "user chose to split; restructure required
   before implementation"), runs its mandatory Finish steps, and returns
   `<next-step>` pointing at `/acs:create-ticket split <id> per
-  <partition>/phases/code/iter-<n>-plan.md`.
+  <partition>/phases/code/plan.md`.
+- **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
+  MAR-73).** The plan artifact is a single per-ticket
+  `<partition>/phases/code/plan.md` (authored by the `code-planner` on
+  STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
+  exactly once per run, before the loop. `plan.md` is the only name ever
+  read or written for the plan artifact, in every case, on every lane — the
+  MAR-70-era resume-only read-both fallback to the highest-numbered
+  `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
+  explicit product decision); a ticket that never completed its MAR-70-era
+  transition to `plan.md` is no longer resumable via this path.
+  `<partition>/phases/code/plan-superseded-<k>.md` is the plan-revocation
+  path's superseded-plan artifact — a byte-identical copy of the revoked
+  `plan.md` (copy, never a move/rename), written by the coordinator at an
+  iteration/run boundary, so existing `iter-<n>-verify.md` `plan.md:<line>`
+  citations resolve unchanged; it is never an approval input and never a
+  conformance contract (MAR-74, slice 4 of MAR-69). This is the
+  naming axis only — the executor's `-execute[-<k>].json`, the verifier's
+  `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml` message
+  snapshots are unaffected.
+- **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
+  execute → verify: the plan above is authored exactly once per run, before
+  the loop starts, so exactly one `code-planner` subagent is spawned across
+  the whole run **on STANDARD/COMPLEX**, however many iterations it uses.
+  On TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero
+  planner spawns, against the identical artifact contract (MAR-72, slice 2
+  of MAR-69, ADR 0074). On iteration 2+, the
+  verifier's findings are delivered to the executor's `<context>` — never to
+  a new planner spawn — and the executor authors the remediation, on every
+  lane. The
+  light=1 / full=3 verify-depth caps are unchanged in value; they now count
+  execute+verify rounds rather than plan+execute+verify triads. Mid-flight
+  escalation (MAR-57)'s detection point and monotone ceiling are unaffected;
+  escalation never retro-spawns a planner (D-3).
+- **Coordinator plan approval (MAR-73, slice 3 of MAR-69).** On
+  **STANDARD/COMPLEX** only, after `plan.md` is authored and before the loop
+  starts, `/code` MUST record a **deterministic plan-approval verdict**:
+  `plan-approval.py` computes `acs_lib.plan_approval_eligible` from the plan
+  artifact's own content plus `settings.test_coverage_percent` and is the
+  **sole writer** of `<partition>/phases/code/plan-approval.json` — never a
+  subagent's `Write`, never the coordinator's, never an LLM self-assertion.
+  The record carries the predicate's inputs, checks, failures and the
+  approved plan's **sha256**, and is written **at most once per approved
+  plan digest** (idempotent on resume; a revised `plan.md` writes a fresh
+  record). `states.plan_approved` is copied verbatim into `/code`'s
+  `result.json` and mirrored into `code-state.json`; it is **`false`** on
+  TRIVIAL/SMALL (no record is written at all) and on an ineligible plan. An
+  ineligible plan **does not block** this release: the run continues, at
+  most revising `plan.md` once and re-running the script. **Nothing gates on
+  `plan_approved`** — the `/create-pr` gate remains `verifier_passed` alone.
+- **Plan revocation (MAR-74, slice 4 of MAR-69).** When a blocking
+  `dimension="plan-conformance"` finding's remedy is that the *plan* is
+  wrong, `/code` MAY revoke the plan — **never automatically**, only at an
+  iteration/run boundary and only on an explicit `clarify.py`-recorded user
+  answer; the sequence is copy (`plan-superseded-<k>.md`, `<k>` the smallest
+  free positive integer) → revise `plan.md` in place (coordinator-authored;
+  no `code-planner` re-spawn) → re-run `plan-approval.py` for a fresh
+  record; superseded copies are the audit trail and are never deleted, never
+  an approval input, never a conformance contract.
+- **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
+  `code-planner.md` charter items that would otherwise run as part of the
+  (unspawned) planner — the spec-simplicity gate, the oversize signal, the
+  ADR-0012 doc-graph-gap check (E1-E4), and the Boy-scout drift survey — are
+  **best-effort**, carried by the coordinator instead, and their omission on
+  those lanes is never a finding. This does **not** extend to the
+  `docs/product/prd.md`/`docs/product/roadmap.md` factual-impact assessment
+  below, which stays **BLOCKING on every lane** regardless of who performs
+  it.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
@@ -912,8 +1236,17 @@ bind `/code`'s plan phase:
   standards** (conformant with the `standards/` doc set at `standards_path`
   when configured; falls back to documented architecture when unset),
   **architecture**, **system design**, **security**,
-  **documentation** (affected docs updated and consistent with the code), and
-  **Simplicity & scope** (overcomplication and out-of-scope edits are blocking)
+  **documentation** (affected docs updated and consistent with the code),
+  **Simplicity & scope** (overcomplication and out-of-scope edits are blocking),
+  **plan conformance** (MAR-74, slice 4 of MAR-69 — blocking when active, N/A
+  otherwise; active only when a deterministic approval record exists whose
+  `plan_path` is `phases/code/plan.md` and whose digest matches the current
+  `plan.md` bytes; the verifier computes activation itself; strictly
+  **subordinate to acceptance-criteria conformance**, which an approved plan
+  can never substitute for), and **approval-audit** (MAR-74, slice 4 of MAR-69
+  — re-runs `recommend_stakes` over the changed files; a `"high"` return
+  unaccounted for by `ticket.stakes: "high"` or a recorded upward escalation
+  event is blocking)
   — in addition to spec conformance, tests, and coverage. The architecture /
   system-design review judges the changeset against the approved `design.md`
   when one exists (the ticket's own or its parent epic's). On full-depth
@@ -932,17 +1265,24 @@ bind `/code`'s plan phase:
   against reality (e.g. re-run tests for specs marked implemented) and
   resume from the first unfinished spec/phase
   ([workflow.md](workflow.md#resuming-a-ticket)).
-- Pre-hook (`pre-code.py`) MUST verify only that `/create-ticket` has
-  completed: the gate is unconditional on lane and has no `specs/` or
-  predecessor-decomposition precondition; otherwise it exits 2 to stop the
-  skill (`gate_code` in `acs_lib.py`). Whether `<partition>/specs/` already has
-  content is discovered by the `code-planner`, not asserted by the gate — when
+- Pre-hook (`pre-code.py`) MUST verify that `/create-ticket` has completed
+  **and** that the ticket's own `type` is not `epic`: the gate is
+  unconditional on lane and has no `specs/` or predecessor-decomposition
+  precondition, but an epic ticket is refused outright with a `GateError`
+  directing the user to `/acs:create-design` (if the epic has no design yet)
+  then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
+  otherwise it exits 2 to stop the skill (`gate_code` in `acs_lib.py`).
+  Whether `<partition>/specs/` already has
+  content is discovered by the plan's author (the `code-planner` on
+  STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72), not asserted
+  by the gate — when
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded
-  into `/code`'s plan phase by the code-planner, on EVERY lane. The
+  into `/code`'s plan phase by the plan's author, on EVERY lane. The
   TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
   gate) are preserved unchanged in every lane.
-- Subagents: `code-planner`, `code-executor`, `code-verifier`.
+- Subagents: `code-planner`, `code-executor`, `code-verifier` (the planner is
+  spawned on STANDARD/COMPLEX only — MAR-72).
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
   stop, record the achieved coverage and reason in `code-state.json`, and
   leave the `/create-pr` gate closed.
@@ -1028,8 +1368,9 @@ run. The following contract governs all automatic mid-flight lane changes:
    ambiguous inputs.
 
 9. **Sibling behavior unchanged.** The spec-authoring fold (MAR-59, universal
-   since ADR 0066: the code-planner self-authors the spec content on every
-   lane when `<partition>/specs/` is absent or empty) applies to
+   since ADR 0066: the plan's author — the code-planner on STANDARD/COMPLEX,
+   the coordinator on TRIVIAL/SMALL, MAR-72 — self-authors the spec content on
+   every lane when `<partition>/specs/` is absent or empty) applies to
    non-escalating tickets and is not changed by this contract. The apply-tier
    inlining (MAR-60: `create-pr` → `merge-pr` → `create-ticket`) is also
    unchanged.
@@ -1167,3 +1508,19 @@ Purpose: land the change.
   PR #{pr.number} — {pr.url}`), so the closed issue's timeline still reaches
   both the acs ticket id and the PR. The `gh issue close` call and the
   Status→Done edit are otherwise unchanged.
+- **GitHub call failure policy (standing behavior, MAR-403, ADR-0088):** `gh`
+  is this skill's only GitHub transport. A readiness *dimension that
+  evaluates to fail* stays report-only, unchanged. A readiness *read that
+  cannot be evaluated* because the `gh` call itself failed is **critical**:
+  verbatim `gh` stderr plus one canonical `acs_lib.gh_failure_hint()` hint,
+  and the run **stops before any merge is attempted** — an unevaluable gate
+  is never treated as passed. This applies identically to the Step 0
+  readiness reads, the resume/reconcile `gh pr view`, the BEHIND carve-out's
+  `gh pr update-branch` call and its required-checks poll, and the exempt
+  `--pr` path's identical reads. Separately, once the merge has landed, the
+  post-merge tracker sync (`gh issue close`, Status→Done) is
+  **loud-but-non-reverting**: a failure there produces one error-severity
+  finding naming the outstanding sync plus a replayable command block; the
+  merge is never reverted or re-attempted; and the run still finishes
+  `merged: true` — this qualifies, without changing, the post-merge actions
+  and reconciliation close-comment bullets above.

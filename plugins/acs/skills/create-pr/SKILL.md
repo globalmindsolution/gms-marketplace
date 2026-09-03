@@ -308,11 +308,12 @@ exact error — no silent fallback.
      (command + error), never abort. This loop runs after the Status
      sub-step, on both the create and edit paths (same guard as the
      existing sub-step).
-   - **Failure handling.** Every `gh` call above is individually guarded: a
-     non-zero exit or error response is captured as a finding (the exact
-     command plus the error) that must never abort the PR create/edit that
-     steps 5–6 already completed — the flow simply continues to the next
-     metadata sub-step.
+   - **Failure handling — non-critical class.** Every `gh` call above is
+     individually guarded: a non-zero exit or error response is captured as
+     an `info` finding (the exact command plus the error) plus a replayable
+     block of that same command, ready to re-run — this never aborts the PR
+     create/edit that steps 5–6 already completed; the flow simply continues
+     to the next metadata sub-step.
    - **Local/unsynced no-op.** When the guard above does not hold (provider
      is not `github`, or the ticket has no `external.key`), this entire
      metadata-fill block is skipped — the PR produced is byte-identical to
@@ -339,6 +340,84 @@ label/Project outcomes and any findings — additive, alongside the existing
 fields, plus the additive `reviewers{requested, skipped_reason, findings}`
 and `project_fields{priority, story_points, parent, findings}` keys).
 Validate any `<task>`/`<result>` XML with validate_xml.py.
+
+### GitHub call failure policy (gh is acs's only transport)
+
+`gh` is acs's only GitHub transport in this skill — there is no MCP-based
+transport and no second credential path (ADR-0088). Every `gh` call below is one of
+exactly two classes:
+
+- **Critical** — a gate input, or a call this step cannot proceed without.
+  On non-zero exit: surface gh's verbatim stderr plus ONE canonical hint from
+  `acs_lib.gh_failure_hint(stderr)` (`acs_lib.GH_ACCESS_HINT` when the
+  stderr names a session-access restriction, else `acs_lib.GH_GENERIC_HINT`),
+  then STOP — no retry, no fallback to any other transport. Canon hint text
+  (`acs_lib.GH_ACCESS_HINT`):
+
+  > This looks like a session-level access restriction — a Claude Code
+  > cloud/managed session must have the Claude GitHub App connected for this
+  > organization by an org admin. A local Claude Code session uses your own
+  > `gh` authentication and should not see this.
+
+- **Non-critical** — metadata/best-effort. On non-zero exit: one `info`
+  finding plus a replayable block (the exact failed command, ready to
+  re-run), then continue — never abort the run for this class. Finding
+  shape: `{severity, area, message, command, error, hint, replayable}`
+  (`info` / `replayable: true` here).
+
+Per-call classification in this skill:
+
+- **Critical**: `gh pr list` (step 1, resume/create-vs-update detect);
+  `gh repo view --json defaultBranchRef` (step 1, base detect); `gh pr
+  create` / `gh pr edit` (step 5).
+- **Non-critical**: `gh pr ready` (step 5, un-draft); `gh pr view` (step 6,
+  Record — a confirming re-read); the labels/assignee/milestone/type-label
+  fill and its `gh label list` / `gh api …/milestones` reads (step 6a);
+  Projects v2 `gh project item-add` / `field-list` / `item-edit` and the
+  `gh pr diff` CODEOWNERS reviewer request (step 6a); `gh issue comment`
+  (step 7, PR back-reference); the `gh run list` CI-run diagnostic read
+  below.
+
+See "CI convention-check troubleshooting (frozen-payload gotcha)" below for
+that last read's one extra rule (an unverified check is never assumed
+green).
+
+### CI convention-check troubleshooting (frozen-payload gotcha)
+
+`.github/workflows/acs-conventions.yml` reads `ACS_PR_TITLE`, `ACS_PR_BODY`,
+`ACS_PR_BRANCH`, `ACS_BASE_REF`, and `ACS_PR_LABELS` from
+`github.event.pull_request.*` in its `env:` block — the webhook payload as it
+was FROZEN at the moment that specific triggering event fired, never a live
+`gh pr view`/API call. A label, title, or body change applied via a separate
+call AFTER a given event fired is invisible to that event's own check run;
+only a later event (its own `edited`/`labeled`/`synchronize` run) observes it.
+
+Re-running a completed workflow run (e.g. `rerun_workflow_run`) replays that
+run's ORIGINAL frozen payload — it can never pick up a label, title, or body
+change made afterward. Rerunning an `opened`-triggered run that failed for
+missing-label reasons will fail again every time, no matter how many times
+it's rerun. Worse, if that rerun finishes AFTER a separate, correctly-passing
+run (e.g. the `labeled` run), its stale failing conclusion can become the
+"latest" one GitHub reports for the check, shadowing the real, already-green
+result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
+
+Before treating a failing "Branch / PR / commit conventions" check as real:
+
+1. List the workflow runs for the PR's head SHA
+   (`gh run list --branch <head-ref> --commit <head-sha>`), ordered by
+   recency. This is a **non-critical** read: on failure, one `info` finding
+   plus a replayable `gh run list --branch <head-ref> --commit <head-sha>`
+   block, never abort — but the convention check itself is then reported
+   **unverified, never assumed green**, since the newest run's conclusion
+   could not be confirmed.
+2. Read the NEWEST run's conclusion — that is the check's actual current
+   state, regardless of what any older run for the same SHA reported.
+3. If the newest run is already green, the check is fine; no action needed.
+4. If a genuine re-check is needed (e.g. the payload really was wrong and a
+   fix has since landed), trigger a FRESH webhook event rather than rerunning
+   an old one — toggle a label off and back on (the workflow's `labeled`/
+   `unlabeled` trigger types already listen for this), or push a new commit.
+   Never call `rerun_workflow_run` on a stale/superseded run as the fix.
 
 ## User interaction
 
@@ -420,9 +499,7 @@ MANDATORY final step — never skipped, also on failure:
        }
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 52000, "output": 9000},
-     "cost_usd": 0.34
+     "errors": []
    }
    ```
 
@@ -432,8 +509,7 @@ MANDATORY final step — never skipped, also on failure:
    updated but verification failed, still record the real `pr` object; if no
    PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
    closed. Put verifier findings in `findings`, errors in `errors`, the reason
-   in `stop_reason`. Always fill `tokens` and `cost_usd` with your best
-   estimates for this run.
+   in `stop_reason`.
 
 2. Run the post-hook:
 
@@ -469,6 +545,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
 ```
+</content>

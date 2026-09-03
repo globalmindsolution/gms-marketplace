@@ -57,6 +57,9 @@ silently switch branches.
   `<partition>/phases/docs-sync/handoff-context.md` (when present), do a
   light reconcile, and continue from where it points.
 - Fresh run (`reconcile` false): start at iteration 1, plan phase.
+- A resumed run reuses the existing
+  `<partition>/phases/docs-sync/iter-1-plan.md` and never spawns a second
+  planner; the plan phase runs (once) only when that artifact is absent.
 
 ## Inputs — gather before planning
 
@@ -87,8 +90,17 @@ independently.
 
 ## Reflection loop
 
-Run plan → execute → verify, max 3 iterations. Decomposition is YOURS alone —
-subagents never spawn subagents.
+Plan runs exactly once per run, before iteration 1 — spawn exactly one
+`acs:docs-sync-planner` across the whole run, however many iterations the
+loop below uses. The loop itself is execute → verify, max 3 iterations.
+Decomposition is YOURS alone — subagents never spawn subagents.
+
+**What an iteration counts.** One iteration is one execute → verify round;
+the plan phase runs once, before the loop, and is not part of any
+iteration — so the cap counts execute+verify rounds, not
+plan+execute+verify triads. docs-sync has no lane-driven verify-depth
+selection: the cap is a fixed 3 in every lane, and this ticket does not
+introduce one.
 
 For every phase:
 
@@ -110,24 +122,35 @@ For every phase:
    the run with that exact error — no silent fallback.
 4. Persist the phase's `<task>` and `<result>` to
    `<partition>/phases/docs-sync/iter-<n>-<phase>.xml` at the phase
-   boundary, BEFORE starting the next phase.
+   boundary, BEFORE starting the next phase. The plan phase runs once, so
+   its message pair persists once as `iter-1-plan.xml` and its artifact is
+   `<partition>/phases/docs-sync/iter-1-plan.md`; execute and verify keep
+   persisting per iteration.
 
-### Phase: plan — `acs:docs-sync-planner`
+### Phase: plan (once, before the loop) — `acs:docs-sync-planner`
+
+Spawned exactly once per run, before iteration 1 — the plan is authored
+once and there is no per-iteration re-plan. On iterations 2-3 the
+verifier's findings route straight to the executor's `<task>` `<context>`
+(see `docs-sync-executor.md`'s input contract), where the executor authors
+the remediation.
 
 Objective: from the six inputs above, produce a doc-delta plan in its
 `<result>` — which doc files need which specific changes and why, each
 cross-referenced to the diff lines / `docs_updated` entries / `problems`
-entries that justify it. No file writes.
+entries that justify it. No writes beyond its own plan artifact.
 
 ### Phase: execute — `acs:docs-sync-executor`
 
 Objective: apply the planned doc updates as additional commits on the SAME
 ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
-using the FIXED v1 structure — the existing `iter-<n>-plan.md` /
-`iter-<n>-execute.json` / `iter-<n>-verify.md` artifact triad every hooked
-skill already writes. No new artifact type, no settings-driven template, no
-new `settings.schema.json` keys.
+using the FIXED v1 structure — the existing `iter-<n>-execute.json` /
+`iter-<n>-verify.md` artifact shape every hooked skill already writes
+(`/acs:code`'s own plan phase writes `plan.md` instead of
+`iter-<n>-plan.md` from MAR-70 onward; the other hooked skills' plan
+artifacts are unaffected). No new artifact type, no settings-driven
+template, no new `settings.schema.json` keys.
 
 ### Phase: verify — `acs:docs-sync-verifier`
 
@@ -136,9 +159,10 @@ doc impact from the same six-input contract itself (not exempt from the
 independent-re-derivation rule) and checks each committed doc change is
 accurate, complete against the diff, and consistent with `docs_updated` /
 `problems` / the final verify.md. ALL findings block; zero findings = pass.
-On findings: persist, feed into next iteration's plan `<task>` as
-`<context>`, re-run. After iteration 3 with findings remaining: stop, final
-status `failed`.
+On findings: persist, then AUTOMATICALLY re-execute, passing every finding
+to the next iteration's executor `<task>` as `<context>`, with no planner
+spawn in between — the executor authors the remediation. After iteration 3
+with findings remaining: stop, final status `failed`.
 
 ## User interaction
 
@@ -192,9 +216,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
        "review": {"iterations": 1, "findings_open": 0}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 60000, "output": 12000},
-     "cost_usd": 0.35
+     "errors": []
    }
    ```
 
@@ -240,6 +262,6 @@ invocations:
 - **Results**: doc files committed; commits made; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-pr <ticket-id>`
 ```

@@ -20,10 +20,11 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<objective>` — verify this iteration's PRD doc set;
 - `<inputs>` — absolute paths: `<prd_path>/prd.md`, `<prd_path>/roadmap.md`, the
   approved plan (`<partition>/phases/create-prd/iter-<n>-plan.md`), the delivery
-  `ticket.json` (derive `<partition>` from its directory), and the execute report.
-  READ EVERY ONE — you share no memory with anyone;
+  `ticket.json` (derive `<partition>` from its directory), `<partition>/clarifications.json`,
+  and the execute report. READ EVERY ONE — you share no memory with anyone;
 - `<constraints>` — at least `prd_path`, `required_sections`, `audience_style_profile`,
-  `amend_rule`, and the mode (greenfield/brownfield/amend);
+  `amend_rule`, `repo_root` (the consumer repo root), and the mode
+  (greenfield/brownfield/amend);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
@@ -51,7 +52,41 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
    (**0 orphan milestones**) in the "Release versions" mapping table.
 7. **Plan conformance** — the documents realize the approved plan's outline; user
    answers recorded in the plan/context are reflected, not contradicted; brownfield
-   claims match the code evidence the plan cites (spot-check with Grep).
+   claims match the code evidence the plan cites. Run the deterministic floor
+   yourself, never take the execute report's word:
+   - In amend mode, compute `--added-heading` values yourself from your own
+     `git diff -- <prd_path>` (dimension 8's mechanism, below): extract every
+     `+###`/`+####` heading line added to `roadmap.md` and pass each as its
+     own `--added-heading` flag; omit the flag entirely outside amend mode.
+   - Run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py
+     --plan <partition>/phases/create-prd/iter-<n>-plan.md --mode
+     <greenfield|brownfield|amend> --repo-root <repo_root> --clarifications
+     <partition>/clarifications.json --prd <prd_path>/prd.md --roadmap
+     <prd_path>/roadmap.md [--added-heading "<heading>" ...]`. It
+     independently and deterministically re-checks three families: the plan's
+     `## Code evidence` citations (family `code-evidence`; brownfield/amend
+     only — N/A in greenfield, never a block there), the plan's `## Answer
+     fidelity` anchors against every `answered`/`assumed`
+     `clarifications.json` entry (family `answer-fidelity`; active every
+     mode), and the plan's `## Roadmap milestones` headings against
+     `roadmap.md` (family `roadmap-outline`; both directions in
+     greenfield/brownfield, the reverse direction scoped to the
+     `--added-heading` values in amend mode).
+   - Every stderr `source:line: [rule] message` finding becomes one `<finding
+     severity="blocking" dimension="Plan conformance">`; exit 2 (a usage
+     error, or an unreadable plan/clarifications/prd/roadmap input) is itself
+     a blocking `<finding severity="blocking" dimension="Plan conformance">`,
+     so a broken invocation can never silently pass.
+   - Then re-open each entry on the script's stdout manifest yourself and
+     judge the semantic ceiling — never take the script's resolution alone as
+     proof: whether the produced doc actually reflects each recorded answer
+     and it is not contradicted (judge every `N/A` entry too — mandatory,
+     never silently accepted); whether each resolved code citation actually
+     substantiates its claim; and whether each matched milestone maps to the
+     intended epic. A failure at this layer is its own `<finding
+     severity="blocking" dimension="Plan conformance">`. No advisory
+     carve-out applies to this check — every mapped or judged finding here is
+     `severity="blocking"`, with no lesser severity ever emitted.
 8. **Amend-mode diff discipline** (amend mode only) — run
    `git diff -- <prd_path>` yourself and confirm ONLY the intended sections changed;
    any byte changed in a section the plan marked "preserved" is a finding.
@@ -117,8 +152,7 @@ Self-check it:
     <finding severity="blocking" dimension="measurable-metrics" file="docs/product/prd.md">Goal G2 "delight power users" has no measurable metric (no value/unit/timeframe).</finding>
     <finding severity="blocking" dimension="roadmap-coverage" file="docs/product/roadmap.md">Must-have feature F4 (bulk import) appears in no milestone.</finding>
   </findings>
-  <metrics tokens-input="28000" tokens-output="5000" cost-usd="0.11"/>
-  <stop-reason>Verification complete: 7 of 9 dimensions pass, 2 blocking findings.</stop-reason>
+  <stop-reason>Verification complete: 9 of 11 dimensions pass, 2 blocking findings.</stop-reason>
 </result>
 ```
 

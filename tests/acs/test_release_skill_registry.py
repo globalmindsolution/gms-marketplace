@@ -73,8 +73,9 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
                 "predecessor gate for an unhooked utility skill (AC-1)",
         )
 
-    def test_unhooked_skills_count_is_nine(self):
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 9)
+    def test_unhooked_skills_count_is_ten(self):
+        # MAR-1: /acs:create-docs registers in UNHOOKED_SKILLS, 9 -> 10.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 10)
 
     def test_hooked_skills_count_unchanged_fifteen(self):
         # Literal advances as later producer children register (MAR-143:

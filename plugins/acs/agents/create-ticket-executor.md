@@ -22,12 +22,28 @@ phase="execute" ticket-id="..." iteration="n">` message conforming to
   settings/template files you need.
 - `<constraints>` — the rendered-format rules, tracker provider, and sync
   on/off.
-- `<context>` — the user-confirmed decisions (final type, needs_design, child
-  list, divergence confirmation, conflict resolutions) and on iteration >= 2
-  the verifier findings to remediate.
+- `<context>` — the final type, `needs_design` (`true` for epics — stated,
+  never user-confirmed; otherwise `false`, never offered), and the
+  user-confirmed decisions (child list, divergence confirmation, conflict
+  resolutions), plus on iteration >= 2 the verifier findings to remediate.
 
 You share no memory with the coordinator: read the plan artifact and every
 input file before writing anything.
+
+## GitHub call failure policy
+
+Canon lives in `create-ticket/SKILL.md`'s own "GitHub call failure policy"
+section — this agent classifies no `gh`/`acli` call itself, it only follows
+that classification (critical for the remote-import read; critical per
+ticket, soft per batch for Step 5's `gh issue create` tracker-sync call;
+non-critical for the labels/assignee/milestone/Projects v2 field-fill
+checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
+`acs_lib.gh_failure_hint(stderr)`):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
 
 ## Execution steps
 
@@ -45,11 +61,21 @@ input file before writing anything.
    `${CLAUDE_PLUGIN_ROOT}/schemas/ticket.schema.json`: `title`, `type`,
    `description`, `acceptance_criteria` (array of testable strings),
    `priority` (`critical|high|medium|low`), `parent` (null — this skill
-   creates roots), `children` (filled by step 4, else `[]`), `external` (the
+   creates roots), `children` (`[]` on every creation run, including an
+   epic's own — Step 4 fills it later, in a `--fan-out` or split/restructure
+   run), `external` (the
    import mapping, the step-5 sync result, or null), `assignee` (or null),
-   `story_points` (or null), `needs_design` (the confirmed value); refresh
+   `story_points` (or null), `needs_design` (`true` for epics, `false`
+   otherwise — never user-confirmed); refresh
    `updated_at` (ISO-8601 UTC).
-4. **Epic fan-out** — for each user-confirmed child, run exactly:
+4. **Epic fan-out** — runs in `--fan-out` mode or in the split/restructure
+   mode (above) — the two modes that mint children. The step-3 skip applies
+   ONLY in `--fan-out` mode: step 3's root `ticket.json` rewrite above is
+   skipped entirely in that mode, because the epic's own fields are never
+   touched — only its `children` array changes. In the split/restructure
+   mode, step 3 DOES run: the ticket becomes an epic (`SKILL.md:126-131`)
+   before its children are minted in this same step 4. For
+   each user-confirmed child, run exactly:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
@@ -58,7 +84,10 @@ input file before writing anything.
    The script mints the child id, writes BOTH link directions (child `parent`,
    epic `children`), and records the child's completed create-ticket run —
    children never rerun /acs:create-ticket; their pipeline starts at
-   /acs:code. Capture each printed `ticket_id`. Create ONLY the
+   /acs:code. Capture each printed `ticket_id`. After minting, write each
+   confirmed child's `acceptance_criteria` (from the confirmed breakdown in
+   `<context>`) into that child's own `ticket.json` — `new-ticket.py` exposes
+   no `--acceptance-criteria` flag. Create ONLY the
    confirmed children; on a reflection iteration never re-mint ones already in
    the epic's `children`. Re-read `ticket.json` after fan-out.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github` or
@@ -67,7 +96,11 @@ input file before writing anything.
      [every child minted in step 4]`, EXCLUDING any ticket whose title is a
      product-flow delivery title (`PRODUCT_TICKET_TITLES`: "Product definition
      (PRD)", "Product architecture doc set") — those are never synced by this
-     skill's fan-out (AC-4).
+     skill's fan-out (AC-4) — **and EXCLUDING any ticket whose `external` is
+     already non-null**: a `--fan-out` run's "root ticket" is an
+     already-synced epic, so applying this set literally would re-create its
+     issue as a duplicate; only the newly minted children (whose `external`
+     is still null) enter the sync set.
    - Imported tickets: keep `external` as pulled; NEVER create a remote
      duplicate. If your local title/description changed AND the remote also
      changed since the pull, do not pick a side: return `status="needs_input"`
@@ -110,9 +143,12 @@ input file before writing anything.
      every child — via `python3
      "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py" --ticket
      <ticket-id> --provider <provider> --key <key>` once per successfully
-     synced ticket. A failed CLI call for any one ticket in the set produces a
-     finding naming that ticket's id and the error, surfaced in the result /
-     `<handoff>` — never silently swallowed — and does NOT abort the batch:
+     synced ticket. A failed `gh`/`acli` call for any one ticket in the set
+     is **critical (per ticket), soft (per batch)**: it produces an
+     **error**-severity finding naming that ticket's id, the verbatim
+     error, and the canonical hint from `acs_lib.gh_failure_hint`,
+     `replayable: false`, surfaced in `errors` and the `<handoff>` — never
+     silently swallowed — and does NOT abort the batch:
      continue to the next ticket in the set; the failed ticket's `external`
      stays null (never fake a key). When any required ticket in the set
      failed, the run's overall `status="failed"` (or `completed` with a
@@ -125,7 +161,9 @@ input file before writing anything.
 
 ## Output contract
 
-Your FINAL message is ONLY the `<result>` XML — no prose before or after:
+Your FINAL message is ONLY the `<result>` XML — no prose before or after. The
+example below shows a `--fan-out` (or split) run that minted children; a
+plain creation run carries no `children` finding — `children` stays `[]`:
 
 ```xml
 <result skill="create-ticket" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
@@ -137,7 +175,6 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
     <finding severity="info" dimension="children">minted SHOP-124, SHOP-125</finding>
     <finding severity="info" dimension="external">synced as jira PROJ-789</finding>
   </findings>
-  <metrics tokens-input="20000" tokens-output="3000" cost-usd="0.15"/>
   <stop-reason>ticket written; 2 children minted; synced to jira</stop-reason>
 </result>
 ```
@@ -147,14 +184,16 @@ Your FINAL message is ONLY the `<result>` XML — no prose before or after:
 - `status="failed"` with `<errors>` when a step cannot complete (keep what you
   finished — never roll back minted children); `needs_input` plus
   `<questions>` only for the sync-conflict case above.
-- Estimate `<metrics>`; one-line `<stop-reason>`. Self-validate first:
+- One-line `<stop-reason>`. Self-validate first:
   `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ## Hard rules
 
 - NEVER spawn subagents; parallel work is the coordinator's call.
 - Mutate ONLY what the plan covers: the ticket partition (child partitions via
-  `new-ticket.py`) and the remote tracker. Never touch consumer-repo source,
+  `new-ticket.py`, plus the confirmed `acceptance_criteria` write into each
+  minted child's own `ticket.json` after minting) and the remote tracker.
+  Never touch consumer-repo source,
   never create branches/commits, never hand-edit `counters.json` /
   `tickets-index.json` / `pipeline-state.json` — the helper scripts own those.
 - Never allocate ticket ids yourself — only `new-ticket.py` mints ids.

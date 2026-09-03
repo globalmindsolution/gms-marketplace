@@ -168,3 +168,30 @@ Two-layer safety net:
 Sub-check (c), the MAR-65 product-doc-consistency check, is OUTSIDE this
 two-layer net's scope entirely — it has its own single, unchanged, blocking
 enforcement inside `/acs:code`, per the Ownership boundary above.
+
+## Amendment — MAR-72
+
+**Date**: 2026-08-23 · **Status**: Accepted (extended)
+
+### Lane-conditional authorship
+
+`/acs:code`'s plan phase becomes lane-conditional (slice 2 of MAR-69, ADR
+0074): on STANDARD/COMPLEX a `code-planner` subagent is spawned as before;
+on TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero
+planner spawns. This narrows two attributions elsewhere in this ADR to
+their plan's-author form, without changing either obligation's substance:
+
+- **MAR-65 factual-impact assessment** (`:38` above, "The code-planner
+  assesses factual impact during planning"): the assessment is now performed
+  by the plan's author — the `code-planner` on STANDARD/COMPLEX, the
+  coordinator on TRIVIAL/SMALL. This sub-check stays **BLOCKING on every
+  lane** regardless of who performs it — the induction loop is not weakened
+  by this amendment.
+- **Boy-scout drift survey** (Ownership boundary above, "the code planner
+  still compares the touched area's docs against the current code…and
+  records the item in the plan's `## Documentation map`"): performed by the
+  plan's author, same as above. On TRIVIAL/SMALL this survey is
+  **best-effort** and coordinator-carried; its omission on those lanes is
+  never a finding. The three-hop repair route this ADR already describes
+  (plan → executor `problems` → `/acs:docs-sync`) is unchanged when the
+  survey does run.
