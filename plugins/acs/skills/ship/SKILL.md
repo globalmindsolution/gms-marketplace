@@ -124,33 +124,46 @@ suites exist (a harmless no-op when the ticket names none).
 
 **Running the step, when active.** Reusing the same `import acs_lib as lib`
 inline-Python pattern Step 1 already uses to read/write
-`pipeline-state.json`, and the existing generic `update_pipeline(tdir,
-ticket_id, skill, status, summary=None, ...)` helper (no `acs_lib.py`
-code change — it already writes an arbitrary-shape step dict):
+`pipeline-state.json`, and the generic `update_pipeline(tdir, ticket_id,
+skill, status, summary=None, extra=None)` helper. `fix_loops` is written
+through that `extra` channel — `extra={"fix_loops": <n>}` merges the field,
+`extra={"fix_loops": None}` removes it — never by hand-editing the step
+dict, so the step's own `status`/timestamps stay owned by `update_pipeline`:
 
 1. Read `pipeline-state.json.steps.test.fix_loops` (default `0` when the
    `test` step entry is absent) and the cap from
    `settings.post_code_test.fix_loops_cap` (default `2`). `fix_loops` is
    independent of `/code`'s own internal iteration cap — the two counters
    never interact.
+   **Re-entry reset.** If the existing `steps.test` entry is `failed`, this
+   is a resumed run re-entering the step after a previous cap. Reset the
+   counter first — `update_pipeline(..., "test", "in_progress",
+   extra={"fix_loops": None})` — and treat `fix_loops` as `0` below.
+   Without this the resumed run re-reads the capped value, falls straight
+   into case 5 on its first failure, and can never make progress.
 2. Invoke `/acs:test --for-ticket <ticket-id>`, which runs scoped to `e2e`
    plus the ticket's Test-plan-named suites, unconditionally skips its own
    regression-ticket triage, and returns a `{"status", "failure_output"}`
    verdict.
-3. **Verdict is `pass`** → `update_pipeline(...)` records `steps.test` as
-   `completed`, and you proceed to "Picking the next step" (which now
-   advances to docs-sync).
-4. **Verdict is `fail` and `fix_loops < cap`** → increment `fix_loops` in
-   `pipeline-state.json.steps.test` (status stays `in_progress`), then
+3. **Verdict is `pass`** → `update_pipeline(..., "test", "completed",
+   extra={"fix_loops": None})` records `steps.test` as `completed` and
+   clears the counter (a passing step carries no outstanding fix loops),
+   and you proceed to "Picking the next step" (which now advances to
+   docs-sync).
+4. **Verdict is `fail` and `fix_loops < cap`** → increment the counter with
+   `update_pipeline(..., "test", "in_progress",
+   extra={"fix_loops": <fix_loops + 1>})`, then
    relay the verdict's `failure_output` into `/acs:code <ticket-id>`
    **exactly via the existing "Re-invoke after needs_input" pattern**
    (see "Step-specific adjustments" below) — not a new relay mechanism.
    After `/acs:code`'s handoff completes, loop back to step 2 above; this
    is the fix-and-re-test loop.
-5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...)`
-   records `steps.test` as `failed` with a summary noting the cap was
-   reached; STOP, mirroring the existing failed-handling shape (see
-   "Handling the handoff").
+5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...,
+   "test", "failed", summary="...", extra={"fix_loops": <cap>})` records
+   `steps.test` as `failed` with a summary noting the cap was reached, and
+   keeps the counter for the report; STOP, mirroring the existing
+   failed-handling shape (see "Handling the handoff"). A later resumed run
+   clears it via the re-entry reset in step 1.
 
 **Orchestration, not step-work.** `/acs:test` has and keeps no post-hook
 of its own (it is not in `WORKFLOW_SKILLS`), so this ledger bookkeeping —

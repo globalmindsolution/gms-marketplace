@@ -1,9 +1,10 @@
-"""pipeline-step.py: the CLI unhooked skills use to record a step transition,
-plus update_pipeline's `extra` channel that backs it.
+"""update_pipeline's `extra` channel: a writer for step fields it does not own.
 
-Covers MAR-510 (a writer for arbitrary step fields such as /ship's fix_loops)
-and MAR-511 (a passing ticket-scoped /acs:test run records its own step, so
-the docs-sync gate's remedy is satisfiable).
+MAR-510. /acs:ship keeps a `fix_loops` counter on the `test` step entry and
+had no supported way to write it -- the skill's prose claimed update_pipeline
+"already writes an arbitrary-shape step dict", which it did not. `extra` merges
+caller fields, `extra={"<key>": None}` removes one, and the fields the step
+entry itself owns stay unwritable through it.
 """
 
 import json
