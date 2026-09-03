@@ -88,7 +88,8 @@ failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_
 
 ## Hook events (Claude Code)
 
-`PreToolUse(Skill)` → `dispatch.py pre` → `pre-<skill>.py` (exit 2 blocks);
+`PreToolUse(Skill)` → `dispatch.py pre` → `acs_lib.GATES[skill]`, run
+in-process under a bounded alarm that fails closed (exit 2 blocks);
 `SessionEnd` → `dispatch.py session-end` (finalize `interrupted`, release lock).
 
 ## Ticket classification fields (MAR-56)
