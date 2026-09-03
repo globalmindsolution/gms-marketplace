@@ -16,6 +16,20 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-09-03
+
+> ### ⚠️ This patch release contains four BREAKING changes
+>
+> The version increment does not signal them, so read this before updating:
+>
+> 1. **`/acs:initialize` no longer resolves** — the skill is renamed to `/acs:setup` (MAR-1). Every invocation, alias and doc reference must be updated.
+> 2. **Pipeline state moved into the repo** at `.acs/state-machine/` (ADR-0086). An existing external workspace is not read from its old location; `/acs:setup` offers a one-shot `migrate_workspace.py` migration.
+> 3. **A post hook now refuses a result document with no `status`** (MAR-515). Any caller relying on the implicit `completed` default must state the status explicitly.
+> 4. **`models.overrides.ship` is now a hard error** (MAR-516). `/ship` spawns no subagents of its own — move the override onto the skill that runs the phase.
+>
+> Upgrading from v0.4.8 is not a drop-in patch upgrade despite the version number.
+
+
 ### Added
 
 - **`pipeline-step.py` — a CLI for skills with no post-hook to record a pipeline step** (MAR-511). `/acs:test` has no post-hook, so without it the skill would have to embed Python in its prose to reach `update_pipeline`, the pattern ADR 0001 exists to prevent. A ticket-scoped `/acs:test --for-ticket <id>` run now records its own `steps.test` outcome, which is what opens `/acs:docs-sync`'s gate — the remedy that gate's own error message names, and which nothing could previously satisfy. `--only-if-present` keeps a direct, user-initiated run from newly creating the gate it was run to open. `--ticket` and `--skill` are validated against `pipeline-state.schema.json`'s own id pattern and step enum before the partition is resolved, since `--ticket` becomes a path segment. **Migration:** none — new script, additive step field.
