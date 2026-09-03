@@ -122,13 +122,12 @@ An explicit `enabled: true` with no e2e configured is not a validation
 error: the step still runs, scoped to whatever ticket-named Test-plan
 suites exist (a harmless no-op when the ticket names none).
 
-**Running the step, when active.** Reusing the same `import acs_lib as lib`
-inline-Python pattern Step 1 already uses to read/write
-`pipeline-state.json`, and the generic `update_pipeline(tdir, ticket_id,
-skill, status, summary=None, extra=None)` helper. `fix_loops` is written
-through that `extra` channel — `extra={"fix_loops": <n>}` merges the field,
-`extra={"fix_loops": None}` removes it — never by hand-editing the step
-dict, so the step's own `status`/timestamps stay owned by `update_pipeline`:
+**Running the step, when active.** Every write below goes through the
+`pipeline-step.py` CLI — never embedded Python (ADR 0001). `--set
+fix_loops=<n>` merges the counter onto the step entry and `--unset
+fix_loops` removes it; the step's own `status`/timestamps stay owned by the
+CLI. Read the current value from `pipeline-state.json.steps.test.fix_loops`
+in Step 1's existing read:
 
 1. Read `pipeline-state.json.steps.test.fix_loops` (default `0` when the
    `test` step entry is absent) and the cap from
@@ -137,43 +136,60 @@ dict, so the step's own `status`/timestamps stay owned by `update_pipeline`:
    never interact.
    **Re-entry reset.** If the existing `steps.test` entry is `failed`, this
    is a resumed run re-entering the step after a previous cap. Reset the
-   counter first — `update_pipeline(..., "test", "in_progress",
-   extra={"fix_loops": None})` — and treat `fix_loops` as `0` below.
+   counter first and treat `fix_loops` as `0` below:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status in_progress --unset fix_loops
+   ```
+
    Without this the resumed run re-reads the capped value, falls straight
    into case 5 on its first failure, and can never make progress.
 2. Invoke `/acs:test --for-ticket <ticket-id>`, which runs scoped to `e2e`
    plus the ticket's Test-plan-named suites, unconditionally skips its own
    regression-ticket triage, and returns a `{"status", "failure_output"}`
-   verdict.
-3. **Verdict is `pass`** → `update_pipeline(..., "test", "completed",
-   extra={"fix_loops": None})` records `steps.test` as `completed` and
-   clears the counter (a passing step carries no outstanding fix loops),
-   and you proceed to "Picking the next step" (which now advances to
-   docs-sync).
-4. **Verdict is `fail` and `fix_loops < cap`** → increment the counter with
-   `update_pipeline(..., "test", "in_progress",
-   extra={"fix_loops": <fix_loops + 1>})`, then
+   verdict. That invocation records the step's own pass/fail outcome
+   itself (see `/acs:test`'s "Recording the run in the pipeline ledger") —
+   **you do not re-record the outcome here.** What follows is the counter,
+   which is yours alone.
+3. **Verdict is `pass`** → `/acs:test` has already recorded `steps.test` as
+   `completed`. Clear the counter, then proceed to "Picking the next step"
+   (which now advances to docs-sync):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status completed --unset fix_loops
+   ```
+4. **Verdict is `fail` and `fix_loops < cap`** → increment the counter, then
    relay the verdict's `failure_output` into `/acs:code <ticket-id>`
    **exactly via the existing "Re-invoke after needs_input" pattern**
    (see "Step-specific adjustments" below) — not a new relay mechanism.
    After `/acs:code`'s handoff completes, loop back to step 2 above; this
    is the fix-and-re-test loop.
-5. **Verdict is `fail` and `fix_loops == cap`** → `update_pipeline(...,
-   "test", "failed", summary="...", extra={"fix_loops": <cap>})` records
-   `steps.test` as `failed` with a summary noting the cap was reached, and
-   keeps the counter for the report; STOP, mirroring the existing
-   failed-handling shape (see "Handling the handoff"). A later resumed run
-   clears it via the re-entry reset in step 1.
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status in_progress \
+     --set fix_loops=<fix_loops + 1>
+   ```
+5. **Verdict is `fail` and `fix_loops == cap`** → record the cap on the step
+   and STOP, mirroring the existing failed-handling shape (see "Handling the
+   handoff"). A later resumed run clears the counter via the re-entry reset
+   in step 1:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+     --ticket <ticket-id> --skill test --status failed \
+     --set fix_loops=<cap> --summary "fix_loops cap reached"
+   ```
 
 **Orchestration, not step-work.** `/acs:test` has no post-hook of its own
 (it is not in `WORKFLOW_SKILLS`), so the `fix_loops` counter and its cap are
-`/acs:ship`'s to keep. Write the step entry with the
-`pipeline-step.py` CLI rather than embedded Python — e.g.
-`pipeline-step.py --ticket <id> --skill test --status in_progress --set fix_loops=<n>`
-to bump the counter, `--status completed --unset fix_loops` on a pass, and
-`--status failed --summary "fix_loops cap reached"` at the cap. `/acs:test`
-records the outcome of its own run through the same CLI; the counter stays
-here. This is orchestration bookkeeping, consistent with "You orchestrate;
+`/acs:ship`'s to keep, while the step's pass/fail outcome is recorded by the
+`/acs:test` run that produced it. Both use the same `pipeline-step.py` CLI,
+and the split is what keeps them from overwriting each other: `/acs:test`
+owns `status`, `/acs:ship` owns `fix_loops`. This is orchestration
+bookkeeping, consistent with "You orchestrate;
 you never implement" above — the step's actual work (suite execution,
 verdict computation) remains entirely inside `/acs:test`'s own Steps 1-3,
 invoked the same way any other step skill is invoked. Note also that

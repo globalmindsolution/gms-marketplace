@@ -135,32 +135,6 @@ ticket mint/comment/link).
 
 ## Ticket-scoped mode (`--for-ticket`)
 
-**Recording the run in the pipeline ledger.** After the run-set completes,
-record the outcome on the ticket's `steps.test` entry so
-`/acs:docs-sync`'s gate — which blocks while `steps.test` exists and is not
-`completed` — can be satisfied by the command its own error message names:
-
-Every suite in the run-set green:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-  --ticket <ticket-id> --skill test --status completed --summary "<suites> green"
-```
-
-A suite failed — update an active gate, never open a new one:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-  --ticket <ticket-id> --skill test --status failed --only-if-present \
-  --summary "<suite> failed"
-```
-
-`--only-if-present` on the failure path is what keeps a standing test run from
-newly blocking a pipeline: a red suite records a failure only where `/acs:ship`
-had already activated the step. `/acs:ship` still owns the `fix_loops` counter
-and its cap; this records the outcome of the run this skill actually performed.
-
-
 This section applies only when `--for-ticket <id>` was given on this
 invocation. Standing invocations (no `--for-ticket`) never consult it, and
 Steps 4a-4b below are completely unaffected by anything in this section.
@@ -184,6 +158,52 @@ change or to e2e. When neither an `e2e` entry nor any Test-plan-named suite
 resolves to a real `suites` key, apply the same "nothing configured,
 nothing to run" empty-artifact behavior Step 1 already defines for the
 zero-suites case.
+
+**Recording the run in the pipeline ledger.** After the run-set completes,
+record the outcome on the ticket's `steps.test` entry so
+`/acs:docs-sync`'s gate — which blocks while `steps.test` exists and is not
+`completed` — can be satisfied by the command its own error message names.
+
+Every suite in the run-set green:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status completed --summary "<suites> green"
+```
+
+A suite failed — update an active gate, never open a new one:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status failed --only-if-present \
+  --summary "<suite> failed"
+```
+
+`--only-if-present` on the failure path guards the DIRECT invocation: a user
+running `/acs:test --for-ticket <id>` themselves — exactly what the docs-sync
+gate's error message tells them to run — on a ticket where `/acs:ship` never
+activated the `test` step. Recording a failure there would newly create the
+very gate that was not blocking them, out of a run they performed to get
+unblocked. Where `/acs:ship` did activate the step, the entry exists and the
+failure is recorded normally. (A standing run — no `--for-ticket` — never
+reaches this section at all.)
+
+`/acs:ship` still owns the `fix_loops` counter and its cap; this records the
+outcome of the run this skill actually performed.
+
+**Zero run set.** When the run-set resolves empty, the "nothing configured,
+nothing to run" behavior above applies to execution — but the ledger write
+still happens, with `--status completed`: a ticket that names no suite has
+nothing that can fail, and `/acs:ship` may already have activated the step,
+which would otherwise leave the docs-sync gate permanently shut with no
+command able to open it.
+
+**A non-zero `pipeline-step.py` exit** is a real error, not a warning: report
+it and stop rather than continuing as though the step were recorded. The
+common case is an archived partition (exit 2, `no active partition`), which
+`--for-ticket` resolution deliberately accepts for the run itself — an
+archived ticket's suites can still be run, but its ledger is closed and no
+longer records.
 
 **Steps 2-4 reused unmodified.** The per-suite setup→command→teardown
 execution (Step 2), the results-artifact write (Step 3), and the all-green
