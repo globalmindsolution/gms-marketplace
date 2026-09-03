@@ -32,7 +32,7 @@ import socket
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -771,27 +771,63 @@ def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+#: An ISO-8601 *instant*: a date AND a time, optional fractional seconds,
+#: optional `Z` or numeric offset. A bare date does not match, deliberately --
+#: see parse_iso. The `T` separator is required; a space-separated or basic
+#: ("20260620T090000Z") form is not an instant acs or Claude Code ever writes.
+_ISO_INSTANT = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})"
+    r"T(?P<time>\d{2}:\d{2}:\d{2})"
+    r"(?:\.(?P<frac>\d+))?"
+    r"(?P<tz>Z|[+-]\d{2}:?\d{2})?$"
+)
+
+
 def parse_iso(value):
-    """Parse an ISO-8601 instant, tolerantly, as UTC.
+    """Parse an ISO-8601 instant as an aware UTC datetime, else None.
 
     acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
     timestamps produced elsewhere -- Claude Code transcript records above all,
     where fractional seconds and explicit offsets both occur. Rejecting those
-    would silently drop every usage record rather than fail loudly."""
-    if not isinstance(value, str) or not value.strip():
+    silently drops every such usage record.
+
+    Two invariants bound that tolerance:
+
+    * A bare date returns None. ADR 0020 requires it: the panel-7 lead/cycle
+      callers read None as "no data" and degrade, and a date parsed as midnight
+      would render a real-looking number instead. `metrics_aggregate` carries
+      the same directive in code.
+    * Acceptance does not vary by interpreter. `datetime.fromisoformat` gained
+      most of this leniency in CPython 3.11, so leaning on it would accept
+      records on 3.12 that are silently dropped on 3.9 -- this repo's support
+      floor, and the exact failure this function exists to prevent. The regex
+      and strptime below behave identically on both.
+
+    A value with no timezone is read as UTC; an explicit offset is normalised
+    to UTC.
+    """
+    if not isinstance(value, str):
         return None
-    text = value.strip()
-    try:
-        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except ValueError:
-        pass
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
+    match = _ISO_INSTANT.match(value.strip())
+    if not match:
         return None
-    if parsed.tzinfo is None:
+    # strptime's %f accepts 1-6 digits: pad a shorter fraction, truncate a
+    # longer one (sub-microsecond precision is below anything acs measures).
+    frac = (match.group("frac") or "").ljust(6, "0")[:6]
+    try:
+        parsed = datetime.strptime(
+            "%sT%s.%s" % (match.group("date"), match.group("time"), frac),
+            "%Y-%m-%dT%H:%M:%S.%f")
+    except ValueError:
+        return None  # a well-shaped but impossible date, e.g. 2026-02-30
+    tz = match.group("tz")
+    if not tz or tz == "Z":
         return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    digits = tz[1:].replace(":", "")
+    offset = timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
+    if tz[0] == "-":
+        offset = -offset
+    return (parsed - offset).replace(tzinfo=timezone.utc)
 
 
 def slugify(text, max_len=40):
