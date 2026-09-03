@@ -13,7 +13,6 @@ Run:  python3 -m unittest tests.acs.test_mar126_standardize_e2e_scaffold -v
 
 import os
 import re
-import subprocess
 import sys
 import unittest
 
@@ -26,7 +25,6 @@ SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
 PLANNER_PATH = os.path.join(AGENTS, "standardize-project-planner.md")
 EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-executor.md")
 VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-verifier.md")
-SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)

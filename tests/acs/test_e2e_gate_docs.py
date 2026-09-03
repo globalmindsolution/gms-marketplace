@@ -21,7 +21,6 @@ FLOW_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows",
                          "enforce-e2e-merge-gate.md")
 CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
-SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 
 def read(path):
