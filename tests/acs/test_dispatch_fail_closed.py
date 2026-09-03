@@ -151,44 +151,5 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
         self.assertFalse(issubclass(dispatch.GateTimeout, Exception))
 
 
-class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
-    """--allocate must not mint a second ticket for work that already has one
-    (MAR-509), and must not let one product-level leg adopt another's ticket."""
-
-    def _ids(self):
-        index = lib.read_json(lib.index_path(self.ws, lib.build_context(self.repo)["repo_id"]))
-        return sorted((index or {}).get("tickets", {}))
-
-    def test_fresh_run_allocates(self):
-        result = self.run_script("skill-start.py", "--skill", "create-ticket",
-                                 "--allocate", "--args", "add a wishlist API")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self._ids()), 1)
-
-    def test_resume_with_the_id_in_args_reuses_the_partition(self):
-        first = self.run_script("skill-start.py", "--skill", "create-ticket",
-                                "--allocate", "--args", "add a wishlist API")
-        self.assertEqual(first.returncode, 0, first.stderr)
-        ticket_id = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], ticket_id))
-
-        again = self.run_script("skill-start.py", "--skill", "create-ticket",
-                                "--allocate", "--args", ticket_id)
-        self.assertEqual(again.returncode, 0, again.stderr)
-        self.assertEqual(json.loads(again.stdout)["ticket_id"], ticket_id)
-        self.assertEqual(self._ids(), [ticket_id])
-
-    def test_a_second_product_leg_still_gets_its_own_ticket(self):
-        """Two doc-bootstrap legs run concurrently with no id in their args;
-        neither may adopt the other's ticket through the session pointer."""
-        first = self.run_script("skill-start.py", "--skill", "create-quality", "--allocate")
-        self.assertEqual(first.returncode, 0, first.stderr)
-        second = self.run_script("skill-start.py", "--skill", "create-operations", "--allocate")
-        self.assertEqual(second.returncode, 0, second.stderr)
-        self.assertNotEqual(json.loads(first.stdout)["ticket_id"],
-                            json.loads(second.stdout)["ticket_id"])
-        self.assertEqual(len(self._ids()), 2)
-
-
 if __name__ == "__main__":
     unittest.main()

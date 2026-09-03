@@ -4,7 +4,9 @@
 Performs the deterministic start-of-run bookkeeping:
   * resolves settings, repo partition, and ticket id (argument -> pointer -> branch);
   * for /create-ticket and the product-level skills, allocates the (delivery) ticket
-    id and creates the partition + ticket.json skeleton (--allocate);
+    id and creates the partition + ticket.json skeleton (--allocate) -- unless the
+    run is RESUMING one, in which case the existing partition is reused rather than
+    a second ticket minted for the same work (see _resume_id_for_allocate);
   * acquires the partition .lock (re-entrant for this checkout);
   * writes the per-checkout pointer file sessions/<checkout-id>.json;
   * appends an `in_progress` run entry to <skill>-state.json (so even a hard crash
@@ -123,13 +125,53 @@ def _run_exempt_pr_mode(args, ctx):
     }, indent=2))
 
 
+def _resume_id_for_allocate(args, ctx):
+    """The ticket id an --allocate run is RESUMING, or None to mint a new one.
+
+    Resume reuses the existing partition: /acs:ship re-invokes an interrupted
+    create-ticket with the ticket id as its args, and allocating again there
+    would mint a second ticket for the same work.
+
+    Three deliberate narrowings, each closing a way for one run to adopt
+    another's ticket:
+
+    * Only `--ticket`, or an `--args` value that IS an id, counts. The session-
+      pointer and branch-name fallbacks `resolve_ticket_id` would also try must
+      not apply: a product-level leg (a doc-bootstrap fan-out runs two at once)
+      passes neither, and adopting whatever ticket the pointer happens to name
+      would collapse two independent delivery tickets into one.
+    * `--args` is matched WHOLE, not searched. `ticket_id_from_text` is a
+      re.search, so free text that merely cites an id ("follow-up to SHOP-1:
+      also handle the archived case") would resolve to it -- and create-ticket
+      is invoked with the user's prompt verbatim as its args. That fires
+      exactly when the cited ticket is live, i.e. when it overwrites active
+      work.
+    * Only /acs:create-ticket derives an id from `--args` at all. The six
+      product-level skills each route resume through a separate `--ticket`
+      call with no `--allocate` (see create-quality/SKILL.md's "each run gets
+      its own delivery ticket"), so args-derived reuse buys them nothing and is
+      pure exposure.
+    """
+    explicit = (args.ticket or "").strip()
+    if explicit:
+        return explicit
+    if args.skill != "create-ticket":
+        return None
+    text = (args.args or "").strip()
+    if not text:
+        return None
+    candidate = lib.ticket_id_from_text(text, ctx["settings"].get("ticket_prefix"))
+    # A whole-argument id is a resume; an id inside a sentence is a citation.
+    return candidate if candidate == text else None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--skill", required=True, choices=lib.HOOKED_SKILLS)
     parser.add_argument("--ticket", help="explicit ticket id")
     parser.add_argument("--args", default="", help="the skill's raw $ARGUMENTS (ticket id is extracted)")
     parser.add_argument("--allocate", action="store_true",
-                        help="allocate a new ticket id + partition (create-ticket / product-level skills)")
+                        help="allocate a new ticket id + partition (create-ticket / product-level skills), unless --ticket (or, for create-ticket, --args) names a live partition to resume")
     parser.add_argument("--title", help="ticket title when allocating")
     parser.add_argument("--type", dest="ttype", choices=lib.TICKET_TYPES, default="task",
                         help="ticket type when allocating (default: task)")
@@ -167,31 +209,20 @@ def main():
     workspace, repo_id = ctx["workspace"], ctx["repo_id"]
     flow = "product" if args.skill in lib.PRODUCT_SKILLS else "ticket"
 
-    allocated = False
+    reused = False
     if args.allocate:
         if args.skill not in lib.DELIVERY_TICKET_SKILLS and args.skill != "create-ticket":
             sys.stderr.write("acs skill-start: --allocate is only valid for /create-ticket and product-level skills\n")
             sys.exit(2)
-        # Resume reuses the existing partition: /acs:ship re-invokes an interrupted
-        # create-ticket with the ticket id as its args, and allocating again there
-        # would mint a second ticket for the same work.
-        #
-        # Only an EXPLICITLY supplied id counts here -- --ticket, or one written in
-        # --args. The session-pointer and branch fallbacks that resolve_ticket_id
-        # would also try must not apply: a product-level leg (a doc-bootstrap
-        # fan-out runs two at once) passes neither, and adopting whatever ticket
-        # the pointer happens to name would collapse two independent delivery
-        # tickets into one.
-        existing_id = (args.ticket or "").strip() or lib.ticket_id_from_text(
-            args.args, ctx["settings"].get("ticket_prefix"))
+        existing_id = _resume_id_for_allocate(args, ctx)
         if existing_id:
             existing_dir, existing_archived = lib.find_ticket_partition(workspace, repo_id, existing_id)
             if not existing_archived and os.path.isdir(existing_dir):
                 existing_ticket = lib.load_ticket(existing_dir)
                 if existing_ticket:
                     ticket_id, tdir, ticket = existing_id, existing_dir, existing_ticket
-                    allocated = True
-        if not allocated:
+                    reused = True
+        if not reused:
             prefix = ctx["settings"]["ticket_prefix"]
             repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
             try:
