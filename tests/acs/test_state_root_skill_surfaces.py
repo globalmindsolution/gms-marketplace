@@ -50,7 +50,6 @@ RELEASE_SKILL = os.path.join(PLUGIN, "skills", "release", "SKILL.md")
 PLUGIN_JSON = os.path.join(PLUGIN, ".claude-plugin", "plugin.json")
 PLUGIN_README = os.path.join(PLUGIN, "README.md")
 ROOT_README = os.path.join(REPO_ROOT, "README.md")
-MARKETPLACE_JSON = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 
 
@@ -272,19 +271,6 @@ def _base_ref():
     return None
 
 
-def git_blob_at_merge_base(rel_path):
-    """Content of `rel_path` at the commit where this branch diverged from
-    `main` — a fixed historical snapshot (unlike re-reading the working tree
-    twice in one process, which would trivially always match itself)."""
-    base_ref = _base_ref()
-    base = subprocess.check_output(
-        ["git", "merge-base", base_ref, "HEAD"], cwd=REPO_ROOT, text=True
-    ).strip()
-    return subprocess.check_output(
-        ["git", "show", "%s:%s" % (base, rel_path)], cwd=REPO_ROOT, text=True
-    )
-
-
 def git_diff_against_merge_base(rel_path):
     """Unified diff of `rel_path` between the commit where this branch
     diverged from `main` and the current working tree."""
@@ -298,9 +284,13 @@ def git_diff_against_merge_base(rel_path):
 
 
 class OutOfScopeUntouchedCase(unittest.TestCase):
-    """AC5 regression guard. `.claude-plugin/marketplace.json` must stay
-    byte-identical to its content at the commit this branch diverged from
-    `main` (byte-pinned, out of MAR-4's own scope).
+    """AC5 regression guard on the CHANGELOG's append-only invariant.
+
+    This class also byte-pinned `.claude-plugin/marketplace.json` to `main`,
+    a per-PR scope guard for MAR-4 that outlived its PR. A release MUST edit
+    that file -- the version and the acs `source.ref` are steps 1 and 2 of
+    the documented release process -- so the guard made cutting any release
+    impossible. Removed in 0.4.9, the same class of cleanup as #488.
 
     `plugins/acs/CHANGELOG.md` is different: any ticket adding its own
     dated entry under `[Unreleased]` is expected and must not be blocked by
@@ -314,13 +304,6 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
     def setUp(self):
         if _base_ref() is None:
             self.skipTest("no base ref (origin/main or main) to diff against")
-
-    def test_marketplace_json_untouched(self):
-        self.assertEqual(
-            git_blob_at_merge_base(".claude-plugin/marketplace.json"), read(MARKETPLACE_JSON),
-            msg="`.claude-plugin/marketplace.json` must stay byte-identical "
-                "to its content on `main` (out of MAR-4 scope, byte-pinned)",
-        )
 
     def test_changelog_append_only(self):
         diff = git_diff_against_merge_base("plugins/acs/CHANGELOG.md")
