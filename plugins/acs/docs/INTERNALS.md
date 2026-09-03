@@ -187,6 +187,12 @@ in each SKILL.md's "Completion report" section.
 }
 ```
 
+`status` is REQUIRED. A post hook invoked with no result document at all, or
+with one that omits `status`, exits 1 rather than defaulting to `completed` --
+defaulting would finalize the run and open the next gate on nothing. The same
+rule holds one layer down: `finalize_run` raises on a result with no status,
+so an in-process caller cannot bypass it either.
+
 `tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
 silently ignored since MAR-1 — `finalize_run` measures both itself (see the
 Token/cost usage exception noted above) rather than trusting a coordinator-supplied

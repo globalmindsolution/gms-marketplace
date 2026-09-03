@@ -168,6 +168,17 @@ class TestRunPostExits(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("no 'status'", result.stderr)
 
+    def test_an_empty_result_file_is_named_in_the_error(self):
+        """Told only "no result document", an operator who DID pass --result-file
+        would reissue the identical command. The path has to be in the message."""
+        path = os.path.join(self.tmp, "empty.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        result = self.run_script("post-code.py", "--result-file", path, stdin="")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(path, result.stderr)
+        self.assertIn("is empty", result.stderr)
+
 
 class TestEpicAutoDone(unittest.TestCase):
     """_epic_auto_done's no-parent (1915), parent-has-no-children (1920),
