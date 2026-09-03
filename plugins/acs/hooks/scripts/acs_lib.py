@@ -726,6 +726,43 @@ class GateError(Exception):
     """Raised when a pre-hook gate fails; message is user-facing (stderr, exit 2)."""
 
 
+class ReconciliationRequired(GateError):
+    """Raised by allocate_ticket_id when a (repo_id, prefix) partition has never
+    allocated an id; carries the ranked local-evidence proposal for the caller
+    to render as actionable stderr."""
+
+    def __init__(self, prefix, repo_id, observed_max, seed_source, proposed_next):
+        self.prefix = prefix
+        self.repo_id = repo_id
+        self.observed_max = observed_max
+        self.seed_source = seed_source
+        self.proposed_next = proposed_next
+        super().__init__(self.render("--seed-next <n>"))
+
+    def render(self, seed_command):
+        """Pure: the three-part actionable stderr (blocked+why / local evidence
+        as a FLOOR / the exact recovery command); seed_command is the caller's
+        own command string so each CLI prints something a user can paste."""
+        lines = [
+            "blocked — workspace partition %s has never allocated a ticket id and "
+            "carries no reconciliation marker, so allocating would restart the %s "
+            "sequence at 1 and may collide with ids already used in this repo's "
+            "history." % (self.repo_id, self.prefix)
+        ]
+        if self.observed_max is not None:
+            lines.append(
+                "Local evidence suggests the highest existing id is %s-%d (source: %s). "
+                "Local evidence is a FLOOR, not the truth — the tracker may hold higher ids."
+                % (self.prefix, self.observed_max, self.seed_source)
+            )
+        else:
+            lines.append(
+                "No local evidence found for the %s sequence." % self.prefix
+            )
+        lines.append("Confirm the first id to mint:  %s" % seed_command)
+        return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Small utilities
 # ---------------------------------------------------------------------------
@@ -798,6 +835,47 @@ def _git(args, cwd):
 # ---------------------------------------------------------------------------
 # Repo identity & checkout identity
 # ---------------------------------------------------------------------------
+
+_EVIDENCE_RANKS = ("committed-files", "git-history", "branch-names")
+
+
+def _evidence_source_commands(prefix):
+    """The three ranked git argv lists (bounds pinned by the design), in rank order."""
+    id_grep = r"\b%s-[0-9]+" % re.escape(prefix)
+    return {
+        "committed-files": ["grep", "-I", "-E", id_grep, "--", "."],
+        "git-history": ["log", "--format=%s%n%b", "-400"],
+        "branch-names": ["for-each-ref", "--count=400", "--format=%(refname:short)",
+                          "refs/heads", "refs/remotes"],
+    }
+
+
+def scan_local_ticket_evidence(repo_root, prefix):
+    """Rank-ordered, bounded, network-free scan for the highest <prefix>-<n> id
+    that committed files, git history, or branch names reveal; never raises and
+    never touches the network — every source shells out only to `git` via _git,
+    which supplies the 10s-per-subprocess timeout and the None-on-failure degrade."""
+    per_source = {rank: None for rank in _EVIDENCE_RANKS}
+    if repo_root:
+        pattern = re.compile(r"\b%s-(\d+)\b" % re.escape(prefix))
+        commands = _evidence_source_commands(prefix)
+        for rank in _EVIDENCE_RANKS:
+            output = _git(commands[rank], repo_root)
+            if output:
+                ids = [int(match) for match in pattern.findall(output)]
+                if ids:
+                    per_source[rank] = max(ids)
+
+    observed_max = None
+    seed_source = None
+    for rank in _EVIDENCE_RANKS:
+        value = per_source[rank]
+        if value is not None and (observed_max is None or value > observed_max):
+            observed_max = value
+            seed_source = rank
+
+    return {"observed_max": observed_max, "seed_source": seed_source, "per_source": per_source}
+
 
 def checkout_root(cwd):
     """Root of the current checkout/worktree."""
@@ -1819,9 +1897,11 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     }
 
 
-def allocate_ticket_id(workspace, repo_id, prefix):
+def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):
     """Allocate the next <prefix>-<n> id; counter guarded by an O_EXCL spin lock so
-    parallel worktree sessions never collide."""
+    parallel worktree sessions never collide. A partition with no reconciliation
+    marker refuses (raises ReconciliationRequired) instead of minting from 1,
+    unless seed_next authoritatively confirms/repairs the floor."""
     rdir = repo_dir(workspace, repo_id)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, "counters.json.lock")
@@ -1842,11 +1922,39 @@ def allocate_ticket_id(workspace, repo_id, prefix):
             import time
             time.sleep(0.05)
     try:
-        counters = read_json(os.path.join(rdir, "counters.json")) or {}
-        next_n = int(counters.get("next", 1))
-        counters["next"] = next_n + 1
-        write_json(os.path.join(rdir, "counters.json"), counters)
-        return "%s-%d" % (prefix, next_n)
+        counters_path = os.path.join(rdir, "counters.json")
+        counters = read_json(counters_path) or {}
+
+        if seed_next is not None:
+            if seed_next < 1:
+                raise ValueError(
+                    "allocate_ticket_id requires seed_next >= 1 (defense-in-depth "
+                    "behind the CLIs' own >= 1 checks); got %r" % (seed_next,)
+                )
+            previous_next = counters.get("next")
+            if isinstance(previous_next, int) and seed_next < previous_next:
+                sys.stderr.write(
+                    "acs: warning: --seed-next %d lowers counters.json's next "
+                    "(was %d)\n" % (seed_next, previous_next)
+                )
+            counters["reconciled"] = True
+            counters["seed_source"] = "explicit-user"
+            counters["seeded_at"] = now_iso()
+            counters.pop("observed_max", None)
+            counters["next"] = seed_next + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, seed_next)
+
+        if "next" in counters or counters.get("reconciled") is True:
+            next_n = int(counters.get("next", 1))
+            counters["next"] = next_n + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, next_n)
+
+        scan = scan_local_ticket_evidence(repo_root, prefix)
+        observed_max = scan["observed_max"]
+        proposed_next = observed_max + 1 if observed_max is not None else None
+        raise ReconciliationRequired(prefix, repo_id, observed_max, scan["seed_source"], proposed_next)
     finally:
         if acquired:
             try:

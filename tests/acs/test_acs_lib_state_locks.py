@@ -661,10 +661,15 @@ class TestAllocateTicketId(unittest.TestCase):
     def setUp(self):
         self.workspace = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.workspace, True)
+        # MAR-402: allocate_ticket_id now refuses an unreconciled partition;
+        # seed a reconciled counters.json so these lock-interaction cases
+        # exercise the lock, not the reconciliation gate.
+        rdir = lib.repo_dir(self.workspace, "acme-shop")
+        os.makedirs(rdir, exist_ok=True)
+        lib.write_json(os.path.join(rdir, "counters.json"), {"next": 1, "reconciled": True})
 
     def test_removes_stale_guard_and_proceeds(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         open(guard, "w").close()
         old = time.time() - 60
@@ -674,7 +679,6 @@ class TestAllocateTicketId(unittest.TestCase):
 
     def test_waits_out_a_live_guard_until_released(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         open(guard, "w").close()  # fresh mtime -> not stale, must be waited out
 
@@ -693,7 +697,6 @@ class TestAllocateTicketId(unittest.TestCase):
 
     def test_swallows_oserror_releasing_its_own_guard(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         original_write_json = lib.write_json
 

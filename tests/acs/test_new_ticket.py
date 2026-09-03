@@ -90,6 +90,89 @@ class TestExternalMapping(acs_case.AcsWorkspaceCase):
         self.assertEqual(_partition_entries(self.ws), before)
 
 
+class TestReconciliationRefusal(acs_case.AcsWorkspaceCase):
+    """AC-1, AC-6 (CLI half): allocate_ticket_id's fail-closed reconciliation
+    gate surfaces as an exit-2 refusal with actionable stderr, and mints
+    nothing (MAR-402)."""
+
+    def test_first_allocation_in_an_unreconciled_workspace_exits_2(self):
+        self.unreconcile()
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(err.startswith("acs new-ticket: "))
+        self.assertIn("blocked", err)
+        self.assertIn("SHOP", err)
+        self.assertIn("new-ticket.py --seed-next <n>", err)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+
+class TestSeedNext(acs_case.AcsWorkspaceCase):
+    """AC-5: --seed-next <n> confirms/repairs the reconciliation floor on
+    new-ticket.py (MAR-402)."""
+
+    def test_seed_next_confirms_the_floor_and_mints_that_id(self):
+        self.unreconcile()
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task", "--seed-next", "5"])
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["ticket_id"], "SHOP-5")
+
+    def test_seed_next_records_explicit_user_provenance(self):
+        self.unreconcile()
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task", "--seed-next", "5"])
+        self.assertEqual(code, 0, err)
+        counters = acs_case.lib.read_json(self._counters_path())
+        self.assertEqual(counters["seed_source"], "explicit-user")
+        self.assertTrue(counters["reconciled"])
+
+    def test_seed_next_repairs_a_wrong_existing_reconciliation(self):
+        # setUp seeds a reconciled next=1; simulate a stuck/wrong value and
+        # repair it downward -- no workspace state is deleted to do so.
+        self.seed_counters(next_n=100)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task", "--seed-next", "3"])
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["ticket_id"], "SHOP-3")
+        self.assertIn("--seed-next", err)
+        self.assertIn("100", err)
+        self.assertTrue(os.path.exists(self._counters_path()))
+        self.assertTrue(os.path.isdir(
+            acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-3")))
+
+    def test_seed_next_below_one_exits_2(self):
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task", "--seed-next", "0"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertEqual(_partition_entries(self.ws), before)
+
+    def test_seed_next_non_integer_exits_2(self):
+        before = _partition_entries(self.ws)
+        mod = acs_case.load_module(MODULE_FILENAME)
+        with acs_case.pushd(self.repo):
+            code, out, err = acs_case.run_main(
+                mod, ["--title", "X", "--type", "task", "--seed-next", "abc"])
+        self.assertEqual(code, 2)
+        self.assertEqual(_partition_entries(self.ws), before)
+
+
 class TestParentRefusals(acs_case.AcsWorkspaceCase):
     """78-85: unknown / archived / non-epic parent refusals."""
 

@@ -135,7 +135,19 @@ def main():
                         help="ticket type when allocating (default: task)")
     parser.add_argument("--pr", help="exempt non-ticket PR ref (--pr N / #N / PR URL); "
                         "only valid with --skill merge-pr")
+    parser.add_argument("--seed-next", dest="seed_next", type=int,
+                        help="Confirm or repair the ticket-id reconciliation floor "
+                             "(only valid together with --allocate).")
     args = parser.parse_args()
+
+    if args.seed_next is not None and not args.allocate:
+        sys.stderr.write(
+            "acs skill-start: --seed-next is only valid together with --allocate\n")
+        sys.exit(2)
+    if args.seed_next is not None and args.seed_next < 1:
+        sys.stderr.write(
+            "acs skill-start: --seed-next must be >= 1, got: %d\n" % args.seed_next)
+        sys.exit(2)
 
     cwd = os.getcwd()
     try:
@@ -160,7 +172,16 @@ def main():
             sys.stderr.write("acs skill-start: --allocate is only valid for /create-ticket and product-level skills\n")
             sys.exit(2)
         prefix = ctx["settings"]["ticket_prefix"]
-        ticket_id = lib.allocate_ticket_id(workspace, repo_id, prefix)
+        repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
+        try:
+            ticket_id = lib.allocate_ticket_id(
+                workspace, repo_id, prefix,
+                repo_root=repo_root, seed_next=args.seed_next)
+        except lib.ReconciliationRequired as exc:
+            sys.stderr.write("acs skill-start: " + exc.render(
+                "skill-start.py --skill %s --allocate --seed-next <n>" % args.skill
+            ) + "\n")
+            sys.exit(2)
         tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
         os.makedirs(tdir, exist_ok=True)
         title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
