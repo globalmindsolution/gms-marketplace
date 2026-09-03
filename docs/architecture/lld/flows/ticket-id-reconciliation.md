@@ -29,8 +29,8 @@ sequenceDiagram
 
     alt seed_next is not None
         Note over ALLOC,CJ: authoritative confirm/recovery path
-        ALLOC->>CJ: write next=seed_next, reconciled=true, seed_source=explicit-user, seeded_at=now
-        ALLOC-->>CALLER: mint PREFIX-seed_next, increment
+        ALLOC->>CJ: write next=seed_next+1, reconciled=true, seed_source=explicit-user, seeded_at=now
+        ALLOC-->>CALLER: mint PREFIX-seed_next
     else next present, or reconciled is true
         Note over ALLOC,CJ: already reconciled — existing/migrated repos never prompted, no scan, no new keys
         ALLOC->>CJ: write next incremented by one

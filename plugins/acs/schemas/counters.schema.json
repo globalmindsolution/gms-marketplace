@@ -2,14 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/counters.schema.json",
   "title": "acs counters.json",
-  "description": "Per-repo ticket id sequence at <workspace>/<repo>/counters.json. Ids are <ticket_prefix>-<n>; allocation is guarded against parallel sessions.",
+  "description": "Per-repo ticket id sequence at <workspace>/<repo>/counters.json. Ids are <ticket_prefix>-<n>; allocation is guarded against parallel sessions. observed_max (the local-evidence scan's proposed floor) is surfaced only in the reconciliation refusal message for a human to read and is never persisted here.",
   "type": "object",
   "required": ["next"],
   "properties": {
     "next": {"type": "integer", "minimum": 1},
     "reconciled": {"type": "boolean"},
     "seed_source": {"type": "string", "enum": ["committed-files", "git-history", "branch-names", "explicit-user"]},
-    "observed_max": {"type": "integer", "minimum": 0},
     "seeded_at": {"type": "string"}
   },
   "additionalProperties": true

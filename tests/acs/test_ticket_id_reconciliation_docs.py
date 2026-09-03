@@ -101,12 +101,18 @@ class DataModelDocsTest(unittest.TestCase):
         cls.body = read(DATA_MODEL)
         cls.norm = norm(cls.body)
 
-    def test_data_model_counters_block_declares_the_four_fields(self):
+    def test_data_model_counters_block_declares_the_persisted_fields(self):
         block_match = re.search(r"COUNTERS \{([^}]*)\}", self.body, re.DOTALL)
         self.assertIsNotNone(block_match, "COUNTERS must have an ER attribute block")
         block = block_match.group(1)
-        for field in ("next", "reconciled", "seed_source", "observed_max", "seeded_at"):
+        for field in ("next", "reconciled", "seed_source", "seeded_at"):
             self.assertIn(field, block, "COUNTERS block missing field %r" % field)
+
+    def test_data_model_counters_block_does_not_declare_observed_max(self):
+        # observed_max is never persisted (refusal-message-only) — F1.
+        block_match = re.search(r"COUNTERS \{([^}]*)\}", self.body, re.DOTALL)
+        self.assertIsNotNone(block_match)
+        self.assertNotIn("observed_max", block_match.group(1))
 
     def test_documents_the_fail_closed_first_allocate_rule(self):
         self.assertIsNotNone(
@@ -163,6 +169,12 @@ class FlowDocTest(unittest.TestCase):
         ):
             self.assertIn(token, norm_body, "flow doc missing token %r" % token)
 
+    def test_seed_next_wording_names_the_correct_next_write(self):
+        # --seed-next n mints PREFIX-n immediately, but writes next=n+1 (so
+        # the FOLLOWING mint is PREFIX-(n+1)) -- not next=n.
+        body = read(FLOW_DOC)
+        self.assertIn("next=seed_next+1", body)
+
 
 class WorkspaceAndStateDocsTest(unittest.TestCase):
     """AC-8: counters.json's description gains the reconciliation fields."""
@@ -174,9 +186,17 @@ class WorkspaceAndStateDocsTest(unittest.TestCase):
 
     def test_workspace_and_state_documents_the_fail_closed_first_allocation(self):
         self.assertIsNotNone(re.search(r"(?i)fail-closed", self.norm))
-        for field in ("reconciled", "seed_source", "observed_max", "seeded_at"):
+        for field in ("reconciled", "seed_source", "seeded_at"):
             self.assertIn(field, self.body)
         self.assertIn("--seed-next", self.body)
+
+    def test_observed_max_is_documented_as_refusal_message_only(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)observed_max.{0,80}(refusal|never persisted)", self.norm)
+            or re.search(r"(?i)(refusal|never persisted).{0,80}observed_max", self.norm),
+            "observed_max must be documented as surfaced only in the refusal "
+            "message, never persisted to counters.json",
+        )
 
 
 class Adr0087Test(unittest.TestCase):
@@ -203,6 +223,22 @@ class Adr0087Test(unittest.TestCase):
     def test_records_rejected_options(self):
         for term in ("tracker", "high-water-mark", "bare fail-closed"):
             self.assertIn(term.lower(), self.norm.lower())
+
+    def test_observed_max_is_documented_as_refusal_message_only(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)observed_max.{0,80}(refusal|never persisted)", self.norm)
+            or re.search(r"(?i)(refusal|never persisted).{0,80}observed_max", self.norm),
+            "observed_max must be documented as surfaced only in the refusal "
+            "message, never persisted to counters.json",
+        )
+
+    def test_seed_next_wording_names_the_correct_next_write(self):
+        # --seed-next n mints <PREFIX>-n immediately, but writes next=n+1 (so
+        # the FOLLOWING mint is <PREFIX>-(n+1)) -- not next=n.
+        self.assertIsNotNone(
+            re.search(r"(?i)next=n\+1", self.norm),
+            "must document that --seed-next n writes next=n+1, not next=n",
+        )
 
 
 class Adr0087IndexTest(unittest.TestCase):

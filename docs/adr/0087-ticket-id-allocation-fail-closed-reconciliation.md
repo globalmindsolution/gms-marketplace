@@ -77,17 +77,20 @@ authoritative: the script proposes, a human confirms, the script writes.
 - **Confirmed reconciliation is recorded**, not merely acted on: additive,
   optional `counters.json` fields — `reconciled` (boolean), `seed_source`
   (`committed-files`\|`git-history`\|`branch-names`\|`explicit-user`),
-  `observed_max` (integer), `seeded_at` (ISO-8601 UTC) — all valid today
-  under the schema's existing `additionalProperties: true`, with `required`
-  staying `["next"]`.
+  `seeded_at` (ISO-8601 UTC) — all valid today under the schema's existing
+  `additionalProperties: true`, with `required` staying `["next"]`. The
+  evidence scan's `observed_max` is surfaced only in `ReconciliationRequired`'s
+  refusal message, for a human to read — it is never persisted to
+  `counters.json`.
 - **`--seed-next <n>`** is added to both `new-ticket.py` and
   `skill-start.py --allocate`, as one flag serving two roles: it is the
   *confirm* answer to a refusal's proposal, and the *recovery* path when a
-  reconciliation state is wrong or stuck — writing `next=n`,
-  `reconciled=true`, `seed_source=explicit-user`, `seeded_at=now`, minting
-  `<PREFIX>-n`, with no workspace state deleted. Both CLIs gain the flag so
-  neither `allocate_ticket_id` call site is a dead end regardless of which
-  one triggers the refusal.
+  reconciliation state is wrong or stuck — minting `<PREFIX>-n` immediately
+  and writing `next=n+1`, `reconciled=true`, `seed_source=explicit-user`,
+  `seeded_at=now` (so the *next* mint after this confirm is `<PREFIX>-(n+1)`,
+  not `<PREFIX>-n` again), with no workspace state deleted. Both CLIs gain
+  the flag so neither `allocate_ticket_id` call site is a dead end regardless
+  of which one triggers the refusal.
 
 Local evidence is a **floor, not the truth** — the tracker may hold higher
 ids than any local source can observe — which is why the proposal must stay

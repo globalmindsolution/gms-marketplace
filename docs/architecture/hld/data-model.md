@@ -34,7 +34,6 @@ erDiagram
         integer next "next ticket number to mint, required, minimum 1"
         boolean reconciled "MAR-402, true once this partition's floor is confirmed"
         string seed_source "MAR-402, committed-files|git-history|branch-names|explicit-user"
-        integer observed_max "MAR-402, highest id the evidence scan observed"
         string seeded_at "MAR-402, ISO-8601 UTC timestamp of the seeding write"
     }
     TICKET {
@@ -178,7 +177,9 @@ partition is fail-closed: absent both `next` and `reconciled: true`,
 `allocate_ticket_id` refuses (exit 2) with a ranked local-evidence proposal
 instead of minting an id, and only a confirmed `--seed-next <n>` (or an
 already-populated `next`, treated as already reconciled) writes `next`,
-`reconciled`, `seed_source`, and `seeded_at`.
+`reconciled`, `seed_source`, and `seeded_at`. The evidence scan's
+`observed_max` is surfaced only in the refusal message, for a human to read —
+it is never persisted to `counters.json`.
 
 **PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
 MAR-74 slice 4, by MAR-300, by MAR-301, by MAR-302, by MAR-305, and by the
