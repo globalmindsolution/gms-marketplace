@@ -54,6 +54,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
+import claude_code_adapter as cc  # noqa: E402
 
 MAX_LOG_BYTES = 64 * 1024
 
@@ -75,6 +76,11 @@ def cost_samples_path(workspace, repo_id, ckid):
 
 def cost_cursor_path(workspace, repo_id, ckid):
     return os.path.join(lib.sessions_dir(workspace, repo_id), "%s-cost-cursor.json" % ckid)
+
+
+def claude_version_path(workspace, repo_id, ckid):
+    """TTL cache for the `claude --version` probe recorded on each sample."""
+    return os.path.join(lib.sessions_dir(workspace, repo_id), "%s-claude-version.json" % ckid)
 
 
 # ---------------------------------------------------------------------------
@@ -103,50 +109,34 @@ def _recursive_scan(node, depth, prefix="", key_re=_TOTAL_COST_KEY_RE):
     return None
 
 
-def _extract_total_cost(payload):
-    """Probe, in order: cost.total_cost_usd, cost.total_cost, total_cost_usd,
-    then a bounded recursive scan. Returns (value, src) or (None, None)."""
+def _probe(payload, order, key_re):
+    """Probe `payload` for a quantity: the adapter's explicit key order
+    first, then a bounded recursive scan. Returns (value, src) or
+    (None, None). The key names themselves live in claude_code_adapter --
+    this function knows only how to look, never what to look for."""
     if not isinstance(payload, dict):
         return None, None
-    cost = payload.get("cost")
-    if isinstance(cost, dict):
-        value = cost.get("total_cost_usd")
+    for container, key in order:
+        node = payload if container is None else payload.get(container)
+        if not isinstance(node, dict):
+            continue
+        value = node.get(key)
         if _is_number(value):
-            return float(value), "cost.total_cost_usd"
-        value = cost.get("total_cost")
-        if _is_number(value):
-            return float(value), "cost.total_cost"
-    value = payload.get("total_cost_usd")
-    if _is_number(value):
-        return float(value), "total_cost_usd"
-    found = _recursive_scan(payload, 1)
+            return float(value), cc.probe_source(container, key)
+    found = _recursive_scan(payload, 1, key_re=key_re)
     if found is not None:
         return found
     return None, None
+
+
+def _extract_total_cost(payload):
+    """Probe the session's total cost. See _probe; order from the adapter."""
+    return _probe(payload, cc.COST_PROBE_ORDER, _TOTAL_COST_KEY_RE)
 
 
 def _extract_api_duration(payload):
-    """Exact structural mirror of _extract_total_cost, probing the API-
-    duration quantity instead: cost.total_api_duration_ms,
-    cost.total_api_duration, total_api_duration_ms, then a bounded recursive
-    scan. Returns (value, src) or (None, None)."""
-    if not isinstance(payload, dict):
-        return None, None
-    cost = payload.get("cost")
-    if isinstance(cost, dict):
-        value = cost.get("total_api_duration_ms")
-        if _is_number(value):
-            return float(value), "cost.total_api_duration_ms"
-        value = cost.get("total_api_duration")
-        if _is_number(value):
-            return float(value), "cost.total_api_duration"
-    value = payload.get("total_api_duration_ms")
-    if _is_number(value):
-        return float(value), "total_api_duration_ms"
-    found = _recursive_scan(payload, 1, key_re=_TOTAL_API_DURATION_KEY_RE)
-    if found is not None:
-        return found
-    return None, None
+    """Probe the session's total API duration -- the cost probe's twin."""
+    return _probe(payload, cc.DURATION_PROBE_ORDER, _TOTAL_API_DURATION_KEY_RE)
 
 
 # ---------------------------------------------------------------------------
@@ -244,11 +234,13 @@ def record_cost_sample(payload):
         dvalue, dsrc = _extract_api_duration(payload)
         if value is None and dvalue is None:
             return
-        cwd = ((payload.get("workspace") or {}).get("current_dir")) or payload.get("cwd") or os.getcwd()
+        cwd = cc.payload_cwd(payload)
         ctx = lib.build_context(cwd)
         sample = {
             "ts": lib.now_iso(), "total_cost_usd": value, "src": src,
             "total_api_duration_ms": dvalue, "duration_src": dsrc,
+            "claude_version": cc.claude_version(
+                claude_version_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])),
         }
         path = cost_samples_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
         _append_sample_line(path, sample)
@@ -277,7 +269,7 @@ def _unavailable_role_usage(role_usage, value_field="cost_usd", basis_field="cos
     for entry in role_usage:
         item = dict(entry)
         item[value_field] = None
-        item[basis_field] = "unavailable"
+        item[basis_field] = cc.UNAVAILABLE
         out.append(item)
     return out
 
@@ -305,7 +297,7 @@ def _apportion(role_usage, delta):
         if entry.get("role") == UNATTRIBUTED_ROLE:
             excluded_tokens += tokens
             item["cost_usd"] = None
-            item["cost_basis"] = "unavailable"
+            item["cost_basis"] = cc.UNAVAILABLE
         else:
             item["cost_usd"] = delta * (tokens / total_tokens)
             item["cost_basis"] = "apportioned"
@@ -338,7 +330,7 @@ def _apportion_duration(role_usage, duration_delta):
         item = dict(entry)
         if entry.get("role") == UNATTRIBUTED_ROLE:
             item["api_duration_ms"] = None
-            item["api_duration_basis"] = "unavailable"
+            item["api_duration_basis"] = cc.UNAVAILABLE
         else:
             tokens = _tokens(entry)
             item["api_duration_ms"] = duration_delta * (tokens / total_tokens)
@@ -435,10 +427,11 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
             "role_usage": _unavailable_role_usage(
                 _unavailable_role_usage(role_usage), "api_duration_ms", "api_duration_basis"),
             "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
-            "cost_usd": None, "cost_basis": "unavailable",
-            "cost_scope": "no_unconsumed_sample_in_window",
+            "cost_usd": None, "cost_basis": cc.UNAVAILABLE,
+            "cost_scope": cc.unavailable("no_unconsumed_sample_in_window",
+                                          source="cost_sampler"),
             "excluded_cost_usd": None, "excluded_token_share": None,
-            "api_duration_ms": None, "api_duration_basis": "unavailable",
+            "api_duration_ms": None, "api_duration_basis": cc.UNAVAILABLE,
             "api_duration_scope": "no_unconsumed_sample_in_window",
         }
 
@@ -454,10 +447,10 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
             "role_usage": _unavailable_role_usage(
                 _unavailable_role_usage(role_usage), "api_duration_ms", "api_duration_basis"),
             "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
-            "cost_usd": None, "cost_basis": "unavailable",
-            "cost_scope": "cost_total_reset",
+            "cost_usd": None, "cost_basis": cc.UNAVAILABLE,
+            "cost_scope": cc.unavailable("cost_total_reset", source="cost_sampler"),
             "excluded_cost_usd": None, "excluded_token_share": None,
-            "api_duration_ms": None, "api_duration_basis": "unavailable",
+            "api_duration_ms": None, "api_duration_basis": cc.UNAVAILABLE,
             "api_duration_scope": "cost_total_reset",
         }
 
@@ -482,8 +475,9 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
         role_usage_with_duration = _unavailable_role_usage(
             role_usage_with_cost, "api_duration_ms", "api_duration_basis")
         api_duration_ms = None
-        api_duration_basis = "unavailable"
-        api_duration_scope = "duration_unavailable_on_cursor"
+        api_duration_basis = cc.UNAVAILABLE
+        api_duration_scope = cc.unavailable("duration_unavailable_on_cursor",
+                                             source="cost_sampler")
 
     return {
         "role_usage": role_usage_with_duration,

@@ -374,3 +374,36 @@ claim continues to hold exactly as stated under MAR-1's topology too.
    behavior. See `docs/requirements/functional/workspace-and-state.md`'s
    "Measured, not self-reported (MAR-1, ADR 0082)" bullet for the
    requirements-level cross-reference to this same scoped exception.
+
+## Amendment — MAR-520
+
+Append-only; Context, Decision and Consequences above are unedited.
+
+This decision rests on five Claude Code interfaces that are **not a published
+contract**: hook-envelope fields, the transcript JSONL record shape,
+`attributionSkill`/`attributionAgent`, the subagent transcript directory
+layout, and the statusLine payload keys. They were spelled out independently in
+five scripts (`usage_reader.py`, `cost_sampler.py`, `acs_lib.py`,
+`statusline.py`, `subagent-statusline.py`), so an upstream rename broke
+measurement in five places, each degrading its own way.
+
+They now live once, in `plugins/acs/hooks/scripts/claude_code_adapter.py`:
+
+- **Total accessors.** Every accessor returns `None` (or a documented default)
+  for a malformed, absent, or wrong-typed value. Callers measure; they never
+  validate Claude Code's output. One consequence is visible: a statusLine
+  payload that is valid JSON but not an object now renders the ordinary
+  fallback line instead of reaching `statusline.main`'s last-ditch literal.
+- **One degradation switch.** `claude_code_adapter.unavailable(reason)` logs
+  the reason and returns it. Every `"unavailable"` in a metrics artifact
+  traces to that one call site; the destination is `$ACS_DEGRADATION_LOG`
+  (JSONL, rotated), and stderr under `$ACS_DEBUG` — a status line stays quiet
+  by default.
+- **Provenance.** Each cost sample now carries `claude_version`, cached with a
+  24-hour TTL beside the sample log, so a future shape change can be dated
+  against the build that introduced it.
+
+The apportionment mechanism, the cursor rule, and the `cost_basis` vocabulary
+are unchanged. `tests/acs/test_claude_code_adapter.py` pins the eight
+distinctive interface literals as adapter-exclusive by AST inspection, so the
+drift this amendment removes cannot silently return.

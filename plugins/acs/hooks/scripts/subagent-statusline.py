@@ -33,10 +33,14 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import claude_code_adapter as cc  # noqa: E402
 
+# Role vocabulary comes from the adapter (MAR-520) -- the same observed
+# agent-name suffixes usage_reader attributes tokens by.
 ROLE_RE = re.compile(
     r"\b(create-prd|create-architecture|create-project|create-ticket|"
-    r"create-design|create-spec|code|create-pr|merge-pr)-(planner|executor|verifier)\b"
+    r"create-design|create-spec|code|create-pr|merge-pr)-(%s)\b"
+    % "|".join(role for _, role in cc.ROLE_SUFFIXES)
 )
 PHASE = {"planner": "plan", "executor": "execute", "verifier": "verify"}
 STATUS_GLYPH = {"running": "▶", "in_progress": "▶", "pending": "○",

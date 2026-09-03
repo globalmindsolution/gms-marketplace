@@ -138,10 +138,25 @@ class TestMainNeverCrashes(unittest.TestCase):
         mod = acs_case.load_module(MODULE_FILENAME)
         tmp = tempfile.mkdtemp(prefix="acs-statusline-")
         self.addCleanup(shutil.rmtree, tmp, True)
-        with acs_case.pushd(tmp):
+        with acs_case.pushd(tmp), \
+                mock.patch.object(mod, "fallback", side_effect=RuntimeError("boom")):
             code, out, err = acs_case.run_main(mod, [], stdin="[]")
         self.assertEqual(code, 0)
         self.assertEqual(out, "Claude\n")
+
+    def test_a_non_dict_payload_renders_the_fallback_line_not_the_irreducible_one(self):
+        """MAR-520: the payload accessors moved to claude_code_adapter are
+        total, so a payload that is valid JSON but not an object (here a
+        list) degrades to the normal fallback line -- model plus the cwd's
+        basename -- instead of reaching main()'s last-ditch handler. The
+        handler above still stands for anything that does raise."""
+        mod = acs_case.load_module(MODULE_FILENAME)
+        tmp = tempfile.mkdtemp(prefix="acs-statusline-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        with acs_case.pushd(tmp):
+            code, out, err = acs_case.run_main(mod, [], stdin="[]")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "Claude · %s\n" % os.path.basename(tmp))
 
 
 class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
