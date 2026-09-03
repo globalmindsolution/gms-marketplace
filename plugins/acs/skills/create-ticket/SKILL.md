@@ -54,13 +54,44 @@ Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
   URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
 - provider `local`, or no match: not an import — treat `$ARGUMENTS` as the request.
 
-On import: if the pull fails, stop and surface the CLI error. Otherwise seed the
+On import: if the pull fails — **critical**, a gate input this run cannot
+proceed without — stop and surface the CLI error verbatim plus the canonical
+hint from `acs_lib.gh_failure_hint(stderr)` (see "GitHub call failure
+policy" below), with no fallback to any other transport. Otherwise seed the
 working title/description from the remote issue and record the mapping
 `external = {"provider": "jira", "key": "PROJ-456"}` (or `{"provider": "github",
 "key": "123"}`) for the executor to write into `ticket.json`. Then run the NORMAL
 analysis below on the imported description — imports get the same clarification,
 typing, PRD trace, and needs_design decision as a local request. Never create a new
 remote issue for an imported ticket: the mapping points at the existing one.
+
+### GitHub call failure policy
+
+`gh` (and `acli` for Jira) are the only tracker transports this skill uses —
+no MCP-based transport, no second credential path (ADR-0088). Two classes apply to
+every call below: **critical** (a gate input this step cannot proceed
+without — gh's verbatim stderr plus ONE canonical hint from
+`acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other
+transport) and **non-critical** (metadata/best-effort — one `info` finding
+plus a replayable command block, never abort). Canon hint text
+(`acs_lib.GH_ACCESS_HINT`, selected when the stderr names a session-access
+restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
+
+Finding shape (both classes): `{severity, area, message, command, error,
+hint, replayable}` — `info` / `replayable: true` for non-critical, `error` /
+`replayable: false` for critical. Per-call classification:
+
+- **Critical**: the remote-import `gh issue view` above.
+- **Non-critical**: Step 5's `gh issue create` tracker-sync loop (per
+  ticket; the batch continues on any one ticket's failure — see Step 5's
+  existing guard, preserved verbatim) and its labels/assignee/milestone/
+  Projects v2 field-fill checklist (`gh label list`, `gh api …/milestones`,
+  `gh project item-add` / `field-list` / `item-edit`).
 
 ## Epic fan-out mode (`--fan-out`)
 
@@ -338,9 +369,11 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   minted children (whose `external` is still null) enter the sync set, the
   same split MAR-69's own fan-out produced (issue kept, new issues created
   for the children only). **For each ticket to
-  sync**, run the `gh issue create` sequence below once per ticket — a failed
-  `gh`/`acli` call for any one ticket is never silently swallowed: it produces
-  a finding naming that ticket's id + error, surfaced in `findings` and the
+  sync**, run the `gh issue create` sequence below once per ticket — this is
+  a **non-critical** gh call: a failed `gh`/`acli` call for any one ticket is
+  never silently swallowed: it produces an `info` finding naming that
+  ticket's id + error + the canonical hint from `acs_lib.gh_failure_hint`
+  plus a replayable command block, surfaced in `findings` and the
   `<handoff>`, and does not abort the batch (the loop continues to other
   tickets; that ticket's `external` stays null). The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
@@ -363,7 +396,10 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   After `gh issue create` and `gh project item-add` succeed, complete this
   ordered field-fill checklist (AC-6 — fill every field the target repo's
   Project schema actually supports for the synced issue, not just add it to
-  the project):
+  the project). Every `gh` call in this checklist — labels, assignee,
+  milestone, Projects v2 — is **non-critical** ("GitHub call failure
+  policy" above): a failed read/write produces one `info` finding + a
+  replayable command block, never aborts the ticket:
 
   a. **Labels.** Ensure and apply the `ACS` label (mirrors the label
      `/acs:create-pr` already applies) and the type label (`epic` / `story` /

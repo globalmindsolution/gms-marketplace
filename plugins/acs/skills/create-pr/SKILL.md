@@ -308,11 +308,12 @@ exact error — no silent fallback.
      (command + error), never abort. This loop runs after the Status
      sub-step, on both the create and edit paths (same guard as the
      existing sub-step).
-   - **Failure handling.** Every `gh` call above is individually guarded: a
-     non-zero exit or error response is captured as a finding (the exact
-     command plus the error) that must never abort the PR create/edit that
-     steps 5–6 already completed — the flow simply continues to the next
-     metadata sub-step.
+   - **Failure handling — non-critical class.** Every `gh` call above is
+     individually guarded: a non-zero exit or error response is captured as
+     an `info` finding (the exact command plus the error) plus a replayable
+     block of that same command, ready to re-run — this never aborts the PR
+     create/edit that steps 5–6 already completed; the flow simply continues
+     to the next metadata sub-step.
    - **Local/unsynced no-op.** When the guard above does not hold (provider
      is not `github`, or the ticket has no `external.key`), this entire
      metadata-fill block is skipped — the PR produced is byte-identical to
@@ -340,30 +341,46 @@ fields, plus the additive `reviewers{requested, skipped_reason, findings}`
 and `project_fields{priority, story_points, parent, findings}` keys).
 Validate any `<task>`/`<result>` XML with validate_xml.py.
 
-### GitHub MCP fallback (no gh CLI)
+### GitHub call failure policy (gh is acs's only transport)
 
-When `gh` is unavailable and the GitHub MCP tools are used instead of the `gh`
-calls in steps 3–6a, PR creation and labeling can no longer happen in one
-atomic call: `mcp__github__create_pull_request` has no label parameter, so the
-`ACS` label (step 3) and the ticket-type label (step 6a) must be applied via a
-SEPARATE `mcp__github__issue_write` (or equivalent label-add) call immediately
-after `create_pull_request` returns the PR number. Use this create-then-label
-sequence:
+`gh` is acs's only GitHub transport in this skill — there is no MCP-based
+transport and no second credential path (ADR-0088). Every `gh` call below is one of
+exactly two classes:
 
-1. `mcp__github__create_pull_request` — creates the PR with title/body/base/
-   head only; no labels are set in this call.
-2. `mcp__github__issue_write` (or the label-add equivalent) — adds `ACS` and
-   `<ticket.type>` to the now-existing PR/issue number, right after step 1.
+- **Critical** — a gate input, or a call this step cannot proceed without.
+  On non-zero exit: surface gh's verbatim stderr plus ONE canonical hint from
+  `acs_lib.gh_failure_hint(stderr)` (`acs_lib.GH_ACCESS_HINT` when the
+  stderr names a session-access restriction, else `acs_lib.GH_GENERIC_HINT`),
+  then STOP — no retry, no fallback to any other transport. Canon hint text
+  (`acs_lib.GH_ACCESS_HINT`):
 
-Consequence: the very first `opened`-triggered convention-check run fires
-before step 2 has landed the label, so it evaluates a PR with no `ACS` label
-yet and reports a spurious "missing ACS label" failure. This self-heals once
-the `labeled` webhook's own run (triggered by step 2) completes and reports
-its own, correct conclusion. This is expected under the gh-unavailable path,
-not a defect — it does not by itself require action. Do not "fix" it by
-editing the PR again, and do not rerun the failing `opened` run (see the
-frozen-payload gotcha below for why a rerun cannot help); wait for the
-`labeled` run's conclusion instead.
+  > This looks like a session-level access restriction — a Claude Code
+  > cloud/managed session must have the Claude GitHub App connected for this
+  > organization by an org admin. A local Claude Code session uses your own
+  > `gh` authentication and should not see this.
+
+- **Non-critical** — metadata/best-effort. On non-zero exit: one `info`
+  finding plus a replayable block (the exact failed command, ready to
+  re-run), then continue — never abort the run for this class. Finding
+  shape: `{severity, area, message, command, error, hint, replayable}`
+  (`info` / `replayable: true` here).
+
+Per-call classification in this skill:
+
+- **Critical**: `gh pr list` (step 1, resume/create-vs-update detect);
+  `gh repo view --json defaultBranchRef` (step 1, base detect); `gh pr
+  create` / `gh pr edit` (step 5).
+- **Non-critical**: `gh pr ready` (step 5, un-draft); `gh pr view` (step 6,
+  Record — a confirming re-read); the labels/assignee/milestone/type-label
+  fill and its `gh label list` / `gh api …/milestones` reads (step 6a);
+  Projects v2 `gh project item-add` / `field-list` / `item-edit` and the
+  `gh pr diff` CODEOWNERS reviewer request (step 6a); `gh issue comment`
+  (step 7, PR back-reference); the `gh run list` CI-run diagnostic read
+  below.
+
+See "CI convention-check troubleshooting (frozen-payload gotcha)" below for
+that last read's one extra rule (an unverified check is never assumed
+green).
 
 ### CI convention-check troubleshooting (frozen-payload gotcha)
 
@@ -387,9 +404,12 @@ result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
 Before treating a failing "Branch / PR / commit conventions" check as real:
 
 1. List the workflow runs for the PR's head SHA
-   (`gh run list --branch <head-ref> --commit <head-sha>`, or the equivalent
-   `actions_list`/`actions_get` MCP calls when `gh` is unavailable), ordered
-   by recency.
+   (`gh run list --branch <head-ref> --commit <head-sha>`), ordered by
+   recency. This is a **non-critical** read: on failure, one `info` finding
+   plus a replayable `gh run list --branch <head-ref> --commit <head-sha>`
+   block, never abort — but the convention check itself is then reported
+   **unverified, never assumed green**, since the newest run's conclusion
+   could not be confirmed.
 2. Read the NEWEST run's conclusion — that is the check's actual current
    state, regardless of what any older run for the same SHA reported.
 3. If the newest run is already green, the check is fine; no action needed.

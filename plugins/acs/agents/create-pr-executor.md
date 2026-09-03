@@ -28,6 +28,20 @@ with:
   branch, `tracker_provider`;
 - `<context>` — on iteration 2+, the verifier findings to fix.
 
+## GitHub call failure policy
+
+Canon lives in `create-pr/SKILL.md`'s own "GitHub call failure policy
+(gh is acs's only transport)" section — this agent classifies no `gh` call
+itself, it only follows that classification (critical for branch/base
+detection and PR create/edit; non-critical for the metadata/tracker-fill
+calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
+`acs_lib.gh_failure_hint(stderr)`):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
+
 ## Charter — ship the PR, in this order
 
 1. **Branch.** Verify the ticket branch from the plan exists
@@ -152,8 +166,10 @@ Write `<partition>/phases/create-pr/iter-<n>-execute.json` (`<n>` = the task's
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
   `ticket.json`, `specs/`, `design.md`, or `code-state.json` — a section the state
   cannot fill stays honest and minimal.
-- If `git push` or `gh pr create` fails, capture the exact stderr in `problems` and
-  `<errors>`; never retry destructively (no force-push, ever).
+- If `git push` or `gh pr create` fails, capture the exact stderr plus the
+  canonical hint from `acs_lib.gh_failure_hint` in `problems` and `<errors>`
+  (critical, per create-pr/SKILL.md's classification — no fallback to any
+  other transport); never retry destructively (no force-push, ever).
 
 ## Output contract
 

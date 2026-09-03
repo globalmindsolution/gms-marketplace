@@ -30,6 +30,20 @@ phase="execute" ticket-id="..." iteration="n">` message conforming to
 You share no memory with the coordinator: read the plan artifact and every
 input file before writing anything.
 
+## GitHub call failure policy
+
+Canon lives in `create-ticket/SKILL.md`'s own "GitHub call failure policy"
+section — this agent classifies no `gh`/`acli` call itself, it only follows
+that classification (critical for the remote-import read; non-critical for
+the Step 5 tracker-sync loop and its labels/milestone/Projects v2 fill).
+Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
+`acs_lib.gh_failure_hint(stderr)`):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
+
 ## Execution steps
 
 1. **Render the title** from `settings.formats.tickets.<type>.title` with
@@ -128,9 +142,11 @@ input file before writing anything.
      every child — via `python3
      "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py" --ticket
      <ticket-id> --provider <provider> --key <key>` once per successfully
-     synced ticket. A failed CLI call for any one ticket in the set produces a
-     finding naming that ticket's id and the error, surfaced in the result /
-     `<handoff>` — never silently swallowed — and does NOT abort the batch:
+     synced ticket. A failed CLI call for any one ticket in the set is
+     non-critical: it produces a finding naming that ticket's id, the
+     verbatim error, and the canonical hint from `acs_lib.gh_failure_hint`,
+     surfaced in the result / `<handoff>` — never silently swallowed — and
+     does NOT abort the batch:
      continue to the next ticket in the set; the failed ticket's `external`
      stays null (never fake a key). When any required ticket in the set
      failed, the run's overall `status="failed"` (or `completed` with a
