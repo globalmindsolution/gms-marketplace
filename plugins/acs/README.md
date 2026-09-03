@@ -56,6 +56,10 @@ architecture doc set, each delivered as a reviewable docs PR:
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
                            # → delivery ticket SHOP-1, docs PR
+                           # in a brand-new repo, this first allocation
+                           #   refuses with exit 2 — confirm once with
+                           #   --seed-next 1 (see Troubleshooting below),
+                           #   then re-run; every later allocation is normal
 /acs:merge-pr SHOP-1       # after you review the PR yourself
 
 /acs:create-architecture   # reverse-engineers HLD (C4 1–3, data model,
