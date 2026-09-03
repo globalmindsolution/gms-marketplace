@@ -104,6 +104,7 @@ class TestReconciliationRefusal(acs_case.AcsWorkspaceCase):
                 mod, ["--title", "X", "--type", "task"])
         self.assertEqual(code, 2)
         self.assertEqual(out, "")
+        self.assertTrue(err.startswith("acs new-ticket: "))
         self.assertIn("blocked", err)
         self.assertIn("SHOP", err)
         self.assertIn("new-ticket.py --seed-next <n>", err)

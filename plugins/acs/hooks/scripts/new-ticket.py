@@ -99,7 +99,7 @@ def main():
             workspace, repo_id, ctx["settings"]["ticket_prefix"],
             repo_root=repo_root, seed_next=args.seed_next)
     except lib.ReconciliationRequired as exc:
-        sys.stderr.write(exc.render("new-ticket.py --seed-next <n>") + "\n")
+        sys.stderr.write("acs new-ticket: " + exc.render("new-ticket.py --seed-next <n>") + "\n")
         sys.exit(2)
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)

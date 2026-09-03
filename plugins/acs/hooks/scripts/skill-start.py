@@ -178,7 +178,7 @@ def main():
                 workspace, repo_id, prefix,
                 repo_root=repo_root, seed_next=args.seed_next)
         except lib.ReconciliationRequired as exc:
-            sys.stderr.write(exc.render(
+            sys.stderr.write("acs skill-start: " + exc.render(
                 "skill-start.py --skill %s --allocate --seed-next <n>" % args.skill
             ) + "\n")
             sys.exit(2)

@@ -160,6 +160,7 @@ class TestReconciliationRefusal(acs_case.AcsWorkspaceCase):
                 mod, ["--skill", "create-ticket", "--allocate", "--title", "X"])
         self.assertEqual(code, 2)
         self.assertEqual(out, "")
+        self.assertTrue(err.startswith("acs skill-start: "))
         self.assertIn("blocked", err)
         self.assertIn("SHOP", err)
         self.assertEqual(_partition_entries(self.ws), before)
