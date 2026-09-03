@@ -3,15 +3,21 @@
 `gh` is acs's **sole** GitHub transport in every environment (ADR-0088; no
 GitHub MCP fallback, clarification C-6 of epic MAR-401). Every in-scope `gh`
 call site across `create-ticket/SKILL.md`, `create-pr/SKILL.md`, and
-`merge-pr/SKILL.md` is classified **critical** (gh's verbatim stderr plus one
-canonical `acs_lib.gh_failure_hint()` hint, then stop — no silent fallback to
-any other transport) or **non-critical** (one `info` finding plus a
-replayable `gh` command block, never abort). The classes are defined by
-consequence, not by write-versus-read: a gate-input read whose failure
-leaves a readiness gate unevaluable is critical, because an unevaluable gate
-is never treated as passed (`hld/overview.md:30`).
+`merge-pr/SKILL.md` is classified into one of four disposition classes:
+**critical** (gh's verbatim stderr plus one canonical
+`acs_lib.gh_failure_hint()` hint, then stop — no silent fallback to any
+other transport); **critical per ticket, soft per batch** (an error-severity
+finding for that one item, but the batch continues — `create-ticket/
+SKILL.md`'s `gh issue create` tracker-sync call); **non-critical** (one
+`info` finding plus a replayable `gh` command block, never abort); or
+**loud-but-non-reverting** (an error-severity finding naming the outstanding
+sync, but an already-completed action — such as a merge — is never reverted
+or re-attempted). The classes are defined by consequence, not by
+write-versus-read: a gate-input read whose failure leaves a readiness gate
+unevaluable is critical, because an unevaluable gate is never treated as
+passed (`hld/overview.md:30`).
 
-## Sequence — one gh call site, both classes, and the post-merge exception
+## Sequence — one gh call site, all four classes, and the post-merge exception
 
 ```mermaid
 sequenceDiagram
