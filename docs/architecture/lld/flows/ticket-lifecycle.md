@@ -30,6 +30,7 @@ sequenceDiagram
 
     Dev->>CO: /acs:merge-pr SHOP-123
     CO->>GH: readiness: CI status, approvals, conflicts, protections
+    note over CO,GH: a readiness read that itself fails is critical -- verbatim gh stderr plus the canonical hint, stop before any merge is attempted -- distinct from the not-ready report-only arm below (ADR-0088)
     alt not ready
         CO-->>Dev: report-only — what blocks, no auto-fix
     else ready
