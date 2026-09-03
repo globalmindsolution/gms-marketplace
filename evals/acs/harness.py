@@ -252,6 +252,7 @@ class Sandbox:
         self._git("commit", "-qm", "seed")
         if self._init:
             self._seed_settings()
+            self._seed_counters()
         # Baseline = seed + committed acs config, so changed_lines() later
         # measures only the feature diff (settings.json is committed in real
         # repos; settings.local.json stays gitignored).
@@ -294,6 +295,24 @@ class Sandbox:
         with open(path, "w") as fh:
             json.dump(data, fh, indent=2)
             fh.write("\n")
+
+    def _seed_counters(self):
+        """Seed a reconciled counters.json (MAR-402's fixture seam) so the
+        first allocation in a fresh sandbox partition mints <prefix>-1 instead
+        of hitting the reconciliation gate's refusal; mirrors
+        ForgeSandbox._seed_counters, keyed on this sandbox's own deterministic
+        origin remote set above."""
+        partition_id = _partition_id_from_remote(
+            "https://github.com/example/%s.git" % self.slug)
+        partition = os.path.join(self.ws, partition_id)
+        os.makedirs(partition, exist_ok=True)
+        with open(os.path.join(partition, "counters.json"), "w", encoding="utf-8") as fh:
+            json.dump({
+                "next": 1,
+                "reconciled": True,
+                "seed_source": "explicit-user",
+                "seeded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }, fh)
 
     # -- deterministic seeding via the installed helper CLIs -------------- #
     #
