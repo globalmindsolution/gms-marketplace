@@ -224,6 +224,13 @@ implemented; these edits are owned by the named child's `/acs:code` task.
 **Source:** `MAR-3/design.md:402-415`. The table below references that source; this inventory
 does NOT edit any of the listed files.
 
+> **Superseded for MAR-5 (MAR-518).** The MAR-5 wiring PR was rejected — Codex CLI has no
+> `Skill` hook matcher and no `SessionEnd` event (§4) — and `codex_adapter.py` was deleted
+> in MAR-518. The MAR-5 rows below therefore describe work that is **not** scheduled, and
+> the two rows adding a `codex_adapter.py` container and component describe a file that no
+> longer exists. They are kept as the record of what a future adapter would owe the doc set,
+> not as an open backlog.
+
 | Doc-set file | Required change | Owning child |
 |---|---|---|
 | `docs/architecture/hld/overview.md` | Replace "targets Claude Code" with second-runtime language; add Key architectural decision #5 (runtime-coupling-isolated design) | MAR-5 or MAR-6 |
