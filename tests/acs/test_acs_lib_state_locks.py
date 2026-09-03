@@ -106,6 +106,17 @@ class TestFinalizeRun(unittest.TestCase):
         with self.assertRaises(ValueError):
             lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "in_progress"})
 
+    def test_raises_when_the_result_states_no_status(self):
+        """finalize_run writes the status the next pre-hook gates on, so it is
+        the last place a missing one can still be caught. It used to default to
+        "completed" here -- refusing only at the CLI boundary left the silent
+        default intact at the point of persistence, reachable by any in-process
+        caller."""
+        with self.assertRaises(ValueError) as ctx:
+            lib.finalize_run(self.tdir, "code", "SHOP-1", {"stop_reason": "no status given"})
+        self.assertIn("None", str(ctx.exception))
+        self.assertEqual(lib.load_state(self.tdir, "code", "SHOP-1").get("runs", []), [])
+
     def test_synthesizes_run_entry_when_none_in_progress(self):
         state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["status"], "completed")
@@ -661,10 +672,15 @@ class TestAllocateTicketId(unittest.TestCase):
     def setUp(self):
         self.workspace = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.workspace, True)
+        # MAR-402: allocate_ticket_id now refuses an unreconciled partition;
+        # seed a reconciled counters.json so these lock-interaction cases
+        # exercise the lock, not the reconciliation gate.
+        rdir = lib.repo_dir(self.workspace, "acme-shop")
+        os.makedirs(rdir, exist_ok=True)
+        lib.write_json(os.path.join(rdir, "counters.json"), {"next": 1, "reconciled": True})
 
     def test_removes_stale_guard_and_proceeds(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         open(guard, "w").close()
         old = time.time() - 60
@@ -674,7 +690,6 @@ class TestAllocateTicketId(unittest.TestCase):
 
     def test_waits_out_a_live_guard_until_released(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         open(guard, "w").close()  # fresh mtime -> not stale, must be waited out
 
@@ -693,7 +708,6 @@ class TestAllocateTicketId(unittest.TestCase):
 
     def test_swallows_oserror_releasing_its_own_guard(self):
         rdir = lib.repo_dir(self.workspace, "acme-shop")
-        os.makedirs(rdir)
         guard = os.path.join(rdir, "counters.json.lock")
         original_write_json = lib.write_json
 

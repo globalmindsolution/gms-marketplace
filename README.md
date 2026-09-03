@@ -60,11 +60,12 @@ newer `v<version>` tag:
 ### Releasing & updating
 
 **Recommended: `/acs:release <version>`** — a one-command skill that drafts
-and dates the CHANGELOG section from the merged-ticket archive, bumps both
-manifests + `source.ref`, and opens the exempt `release/*` PR, then stops
-for a mandatory human merge (ADRs 0050-0052). The manual steps below are the
-underlying mechanism it automates, and remain the documented fallback if the
-skill is unavailable.
+and dates the CHANGELOG section from the merged-ticket archive, falling back
+to `base_branch` commit history for tickets merged without an archive entry,
+bumps both manifests + `source.ref`, and opens the exempt `release/*` PR,
+then stops for a mandatory human merge (ADRs 0050-0052). The manual steps
+below are the underlying mechanism it automates, and remain the documented
+fallback if the skill is unavailable.
 
 The catalog (`marketplace.json`) version is a marketplace-level identifier
 (currently 0.2.0) and is not CI-coupled to any plugin's version. The `acs`
@@ -108,9 +109,9 @@ The marketplace currently ships two plugins:
 
 - **`acs` (Autonomous Coding Skills)** — full-shape plugin targeting Claude Code.
   Provides a complete agentic software-delivery workflow: from a raw request
-  through product definition (PRD), architecture, ticketing, design,
-  implementation specs, TDD implementation with an automatic review loop, pull
-  request, and merge. Twenty-five skills (`/acs:setup`, `/acs:ship`, `/acs:code`, …)
+  through product definition (PRD), architecture, ticketing, design, TDD
+  implementation with an automatic review loop, a conditional post-code test
+  gate, doc sync, pull request, and merge. Twenty-five skills (`/acs:setup`, `/acs:ship`, `/acs:code`, …)
   each run a plan → execute → verify reflection cycle with dedicated subagents;
   pre/post hooks gate every step on the recorded state of its predecessor; and
   all durable state lives in a gitignored `.acs/state-machine` folder inside

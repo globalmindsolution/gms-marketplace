@@ -236,3 +236,13 @@ no network call:
   degraded reason when `cost_usd` is `null`. There is no
   `pricing_snapshot_date`: acs owns no price table, so no derived-from-a-price-list
   framing applies (MAR-1, ADR 0082).
+- **Accepted timestamp forms.** A transcript or sample record is counted only
+  when its timestamp parses as an ISO-8601 *instant*: a date and a time with
+  the `T` separator, optionally fractional seconds of any precision, and
+  optionally `Z` or a `±HH:MM` / `±HHMM` offset. A value with no timezone is
+  read as UTC; an offset is normalised to UTC. A **bare date does not parse**
+  — the panel-7 lead/cycle callers read that as "no data" and degrade rather
+  than anchoring to midnight (ADR 0020). Acceptance MUST NOT vary by Python
+  version: the set above holds identically on every interpreter in the CI
+  matrix, so a record counted on one is never silently dropped on another
+  (MAR-520).

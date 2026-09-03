@@ -198,6 +198,21 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
             "propertyNames"]["enum"]
         self.assertNotIn("create-spec", overrides_enum)
+
+    def test_settings_schema_overrides_enum_tracks_hooked_skills(self):
+        """The schema enum and acs_lib.HOOKED_SKILLS are two copies of one list.
+
+        The schema half is hand-maintained, so nothing but this test notices
+        when a skill is hooked (or unhooked) and only one copy is updated --
+        which is the drift MAR-516 exists to close.
+        """
+        schema_path = os.path.join(
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+        with open(schema_path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
+            "propertyNames"]["enum"]
+        self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
         for field in ("requirements_path", "e2e"):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
@@ -1838,7 +1853,7 @@ class TestExemptPrMerge(AcsWorkspaceCase):
         if os.path.isdir(repo_root):
             for name in os.listdir(repo_root):
                 # only metrics.json may appear (post-merge-pr --pr bumps it)
-                self.assertIn(name, {"metrics.json"}, name)
+                self.assertIn(name, {"metrics.json", "counters.json"}, name)
 
     # ---- spec 03: post-merge-pr --pr metrics-only ----------------------
 

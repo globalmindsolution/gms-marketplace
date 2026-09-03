@@ -30,6 +30,12 @@ erDiagram
     TICKET ||--o| PLAN : "exactly one phases/code/plan.md, authored once per run before the loop"
     PLAN ||--o{ PLAN_SUPERSEDED : "one plan-superseded-<k>.md per revocation; byte-identical copy, never deleted"
 
+    COUNTERS {
+        integer next "next ticket number to mint, required, minimum 1"
+        boolean reconciled "MAR-402, true once this partition's floor is confirmed"
+        string seed_source "MAR-402, committed-files|git-history|branch-names|explicit-user"
+        string seeded_at "MAR-402, ISO-8601 UTC timestamp of the seeding write"
+    }
     TICKET {
         string id PK "SHOP-123"
         string title
@@ -133,7 +139,7 @@ erDiagram
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
-        json steps "per-skill status/timestamps/summary"
+        json steps "per-skill status/timestamps/summary, plus any caller-merged fields (e.g. /acs:ship's `fix_loops`) written through `update_pipeline`'s `extra` channel"
         json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1); api_duration_ms, runs_api_duration_measured, runs_api_duration_unavailable (three counters additive since MAR-6, mirroring the cost counters' rule)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
@@ -165,6 +171,15 @@ erDiagram
         bool approval_input "false — never an approval input, never a conformance contract (dimension 15's plan_path condition)"
     }
 ```
+
+**COUNTERS note (MAR-402).** The first allocation for a `(repo_id, prefix)`
+partition is fail-closed: absent both `next` and `reconciled: true`,
+`allocate_ticket_id` refuses (exit 2) with a ranked local-evidence proposal
+instead of minting an id, and only a confirmed `--seed-next <n>` (or an
+already-populated `next`, treated as already reconciled) writes `next`,
+`reconciled`, `seed_source`, and `seeded_at`. The evidence scan's
+`observed_max` is surfaced only in the refusal message, for a human to read —
+it is never persisted to `counters.json`.
 
 **PHASE_ARTIFACT note (MAR-70, amended by MAR-71 slice 1b; label narrowed by
 MAR-74 slice 4, by MAR-300, by MAR-301, by MAR-302, by MAR-305, and by the

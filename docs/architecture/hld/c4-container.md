@@ -33,7 +33,7 @@ C4Container
     Rel(agents, ws, "phase artifacts (plan/execute/verify)")
     Rel(hooks, ws, "state files, ledger, locks, index, metrics")
     Rel(agents, repo, "executors edit source/docs on ticket branch")
-    Rel(skills, trackers, "gh / acli (sync, PRs)")
+    Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tabp_skills, cowork, "screen-cvs skill dispatched via Cowork")
     Rel(tabp_skills, cc, "screen-cvs / /tabp:usage dispatched via Claude Code")

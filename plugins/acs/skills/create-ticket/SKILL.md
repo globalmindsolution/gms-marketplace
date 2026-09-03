@@ -32,8 +32,19 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
 
 - The ticket id is minted up front (e.g. `SHOP-123`) with placeholder content; the
   executor rewrites `ticket.json` with the real content later. Sequence gaps from
-  abandoned runs are fine — never reuse or hand-pick ids.
+  abandoned runs are fine — never hand-pick ids.
+- **Except when resuming.** If `$ARGUMENTS` is exactly a ticket id, or
+  `--ticket` is passed, and that ticket still has a live partition, the run
+  resumes it instead of minting a second id for the same work (`/acs:ship`
+  re-invokes an interrupted create-ticket this way). A prompt that merely
+  MENTIONS an id — "follow-up to SHOP-1: …" — is not a resume and still mints
+  a new ticket.
 - If skill-start exits non-zero: STOP and surface its stderr verbatim to the user.
+  One specific case of this rule: on a fresh/unreconciled workspace partition,
+  `--allocate` refuses with exit 2 and a local-evidence reconciliation proposal
+  (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting an id.
+  Relay that stderr verbatim, obtain the confirmed start number from the user
+  — never invent it — and re-run `skill-start.py` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
@@ -49,13 +60,53 @@ Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
   URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
 - provider `local`, or no match: not an import — treat `$ARGUMENTS` as the request.
 
-On import: if the pull fails, stop and surface the CLI error. Otherwise seed the
+On import: if the pull fails — **critical**, a gate input this run cannot
+proceed without — stop and surface the CLI error verbatim plus the canonical
+hint from `acs_lib.gh_failure_hint(stderr)` (see "GitHub call failure
+policy" below), with no fallback to any other transport. Otherwise seed the
 working title/description from the remote issue and record the mapping
 `external = {"provider": "jira", "key": "PROJ-456"}` (or `{"provider": "github",
 "key": "123"}`) for the executor to write into `ticket.json`. Then run the NORMAL
 analysis below on the imported description — imports get the same clarification,
 typing, PRD trace, and needs_design decision as a local request. Never create a new
 remote issue for an imported ticket: the mapping points at the existing one.
+
+### GitHub call failure policy
+
+`gh` (and `acli` for Jira) are the only tracker transports this skill uses —
+no MCP-based transport, no second credential path (ADR-0088). Three classes apply to
+every call below: **critical** (a gate input this step cannot proceed
+without — gh's verbatim stderr plus ONE canonical hint from
+`acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other
+transport), **critical (per ticket), soft (per batch)** (Step 5's `gh issue
+create` only — an error finding naming that ticket, `replayable: false`,
+but the batch continues to the next ticket), and **non-critical**
+(metadata/best-effort — one `info` finding plus a replayable command block,
+never abort). Canon hint text
+(`acs_lib.GH_ACCESS_HINT`, selected when the stderr names a session-access
+restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
+
+> This looks like a session-level access restriction — a Claude Code
+> cloud/managed session must have the Claude GitHub App connected for this
+> organization by an org admin. A local Claude Code session uses your own
+> `gh` authentication and should not see this.
+
+Finding shape (all three classes; the hybrid class shares critical's
+pair): `{severity, area, message, command, error,
+hint, replayable}` — `info` / `replayable: true` for non-critical, `error` /
+`replayable: false` for critical and for critical (per ticket), soft (per
+batch). Per-call classification:
+
+- **Critical**: the remote-import `gh issue view` above.
+- **Critical (per ticket, soft per batch)**: Step 5's `gh issue create`
+  tracker-sync call — a failed create for one ticket is an **error**-severity
+  finding for that ticket (naming that ticket's id + error + the canonical
+  hint), `replayable: false`, but does NOT abort the batch: the loop
+  continues to the next ticket, and that ticket's `external` stays null.
+- **Non-critical**: the labels/assignee/milestone/Projects v2 field-fill
+  checklist only (`gh label list`, `gh api …/milestones`, `gh project
+  item-add` / `field-list` / `item-edit`) — one `info` finding,
+  `replayable: true`, continue.
 
 ## Epic fan-out mode (`--fan-out`)
 
@@ -333,11 +384,14 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   minted children (whose `external` is still null) enter the sync set, the
   same split MAR-69's own fan-out produced (issue kept, new issues created
   for the children only). **For each ticket to
-  sync**, run the `gh issue create` sequence below once per ticket — a failed
-  `gh`/`acli` call for any one ticket is never silently swallowed: it produces
-  a finding naming that ticket's id + error, surfaced in `findings` and the
-  `<handoff>`, and does not abort the batch (the loop continues to other
-  tickets; that ticket's `external` stays null). The Finish report lists which
+  sync**, run the `gh issue create` sequence below once per ticket — this is
+  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`/`acli`
+  call for any one ticket is never silently swallowed: it produces an
+  **error**-severity finding naming that ticket's id + error + the canonical
+  hint from `acs_lib.gh_failure_hint`, `replayable: false`, surfaced in
+  `errors` and the `<handoff>`, and does not abort the batch (the loop continues to other
+  tickets; that ticket's `external` stays null). Other tickets are
+  unaffected. The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
   failed ones can be retried individually. This set covers children minted in
   Step 4 by either the `--fan-out` mode or the split/restructure mode; a
@@ -358,7 +412,10 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   After `gh issue create` and `gh project item-add` succeed, complete this
   ordered field-fill checklist (AC-6 — fill every field the target repo's
   Project schema actually supports for the synced issue, not just add it to
-  the project):
+  the project). Every `gh` call in this checklist — labels, assignee,
+  milestone, Projects v2 — is **non-critical** ("GitHub call failure
+  policy" above): a failed read/write produces one `info` finding + a
+  replayable command block, never aborts the ticket:
 
   a. **Labels.** Ensure and apply the `ACS` label (mirrors the label
      `/acs:create-pr` already applies) and the type label (`epic` / `story` /
@@ -502,9 +559,7 @@ MANDATORY final step — never skipped, also on failure:
        "prd_trace": {"feature": "Wishlist (Must-have, roadmap M2)", "divergence": null}
      },
      "findings": [],
-     "errors": [],
-     "tokens": {"input": 48000, "output": 9500},
-     "cost_usd": 0.41
+     "errors": []
    }
    ```
 
@@ -559,6 +614,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: ticket id, type, title; `needs_design`; children created (ids) (none on an epic's own creation run); PRD trace or flagged divergence; tracker key when synced
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
 ```

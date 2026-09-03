@@ -32,7 +32,7 @@ import socket
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -726,6 +726,43 @@ class GateError(Exception):
     """Raised when a pre-hook gate fails; message is user-facing (stderr, exit 2)."""
 
 
+class ReconciliationRequired(GateError):
+    """Raised by allocate_ticket_id when a (repo_id, prefix) partition has never
+    allocated an id; carries the ranked local-evidence proposal for the caller
+    to render as actionable stderr."""
+
+    def __init__(self, prefix, repo_id, observed_max, seed_source, proposed_next):
+        self.prefix = prefix
+        self.repo_id = repo_id
+        self.observed_max = observed_max
+        self.seed_source = seed_source
+        self.proposed_next = proposed_next
+        super().__init__(self.render("--seed-next <n>"))
+
+    def render(self, seed_command):
+        """Pure: the three-part actionable stderr (blocked+why / local evidence
+        as a FLOOR / the exact recovery command); seed_command is the caller's
+        own command string so each CLI prints something a user can paste."""
+        lines = [
+            "blocked — workspace partition %s has never allocated a ticket id and "
+            "carries no reconciliation marker, so allocating would restart the %s "
+            "sequence at 1 and may collide with ids already used in this repo's "
+            "history." % (self.repo_id, self.prefix)
+        ]
+        if self.observed_max is not None:
+            lines.append(
+                "Local evidence suggests the highest existing id is %s-%d (source: %s). "
+                "Local evidence is a FLOOR, not the truth — the tracker may hold higher ids."
+                % (self.prefix, self.observed_max, self.seed_source)
+            )
+        else:
+            lines.append(
+                "No local evidence found for the %s sequence." % self.prefix
+            )
+        lines.append("Confirm the first id to mint:  %s" % seed_command)
+        return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Small utilities
 # ---------------------------------------------------------------------------
@@ -734,11 +771,63 @@ def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+#: An ISO-8601 *instant*: a date AND a time, optional fractional seconds,
+#: optional `Z` or numeric offset. A bare date does not match, deliberately --
+#: see parse_iso. The `T` separator is required; a space-separated or basic
+#: ("20260620T090000Z") form is not an instant acs or Claude Code ever writes.
+_ISO_INSTANT = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})"
+    r"T(?P<time>\d{2}:\d{2}:\d{2})"
+    r"(?:\.(?P<frac>\d+))?"
+    r"(?P<tz>Z|[+-]\d{2}:?\d{2})?$"
+)
+
+
 def parse_iso(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except (TypeError, ValueError):
+    """Parse an ISO-8601 instant as an aware UTC datetime, else None.
+
+    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
+    timestamps produced elsewhere -- Claude Code transcript records above all,
+    where fractional seconds and explicit offsets both occur. Rejecting those
+    silently drops every such usage record.
+
+    Two invariants bound that tolerance:
+
+    * A bare date returns None. ADR 0020 requires it: the panel-7 lead/cycle
+      callers read None as "no data" and degrade, and a date parsed as midnight
+      would render a real-looking number instead. `metrics_aggregate` carries
+      the same directive in code.
+    * Acceptance does not vary by interpreter. `datetime.fromisoformat` gained
+      most of this leniency in CPython 3.11, so leaning on it would accept
+      records on 3.12 that are silently dropped on 3.9 -- this repo's support
+      floor, and the exact failure this function exists to prevent. The regex
+      and strptime below behave identically on both.
+
+    A value with no timezone is read as UTC; an explicit offset is normalised
+    to UTC.
+    """
+    if not isinstance(value, str):
         return None
+    match = _ISO_INSTANT.match(value.strip())
+    if not match:
+        return None
+    # strptime's %f accepts 1-6 digits: pad a shorter fraction, truncate a
+    # longer one (sub-microsecond precision is below anything acs measures).
+    frac = (match.group("frac") or "").ljust(6, "0")[:6]
+    try:
+        parsed = datetime.strptime(
+            "%sT%s.%s" % (match.group("date"), match.group("time"), frac),
+            "%Y-%m-%dT%H:%M:%S.%f")
+    except ValueError:
+        return None  # a well-shaped but impossible date, e.g. 2026-02-30
+    tz = match.group("tz")
+    if not tz or tz == "Z":
+        return parsed.replace(tzinfo=timezone.utc)
+    digits = tz[1:].replace(":", "")
+    offset = timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
+    if tz[0] == "-":
+        offset = -offset
+    return (parsed - offset).replace(tzinfo=timezone.utc)
 
 
 def slugify(text, max_len=40):
@@ -796,8 +885,73 @@ def _git(args, cwd):
 
 
 # ---------------------------------------------------------------------------
+# GitHub CLI failure diagnostics (MAR-403 / ADR-0088)
+# ---------------------------------------------------------------------------
+
+GH_ACCESS_DENIED_MARKER = "GitHub access is not enabled for this session"
+
+GH_ACCESS_HINT = (
+    "This looks like a session-level access restriction — a Claude Code "
+    "cloud/managed session must have the Claude GitHub App connected for this "
+    "organization by an org admin. A local Claude Code session uses your own "
+    "`gh` authentication and should not see this."
+)
+
+GH_GENERIC_HINT = "check `gh auth status` and repo access"
+
+
+def gh_failure_hint(stderr_text):
+    """Classify a gh failure's stderr into one canonical, actionable hint."""
+    text = stderr_text if isinstance(stderr_text, str) else str(stderr_text or "")
+    if GH_ACCESS_DENIED_MARKER in text:
+        return GH_ACCESS_HINT
+    return GH_GENERIC_HINT
+
+
+# ---------------------------------------------------------------------------
 # Repo identity & checkout identity
 # ---------------------------------------------------------------------------
+
+_EVIDENCE_RANKS = ("committed-files", "git-history", "branch-names")
+
+
+def _evidence_source_commands(prefix):
+    """The three ranked git argv lists (bounds pinned by the design), in rank order."""
+    id_grep = r"\b%s-[0-9]+" % re.escape(prefix)
+    return {
+        "committed-files": ["grep", "-I", "-E", id_grep, "--", "."],
+        "git-history": ["log", "--format=%s%n%b", "-400"],
+        "branch-names": ["for-each-ref", "--count=400", "--format=%(refname:short)",
+                          "refs/heads", "refs/remotes"],
+    }
+
+
+def scan_local_ticket_evidence(repo_root, prefix):
+    """Rank-ordered, bounded, network-free scan for the highest <prefix>-<n> id
+    that committed files, git history, or branch names reveal; never raises and
+    never touches the network — every source shells out only to `git` via _git,
+    which supplies the 10s-per-subprocess timeout and the None-on-failure degrade."""
+    per_source = {rank: None for rank in _EVIDENCE_RANKS}
+    if repo_root:
+        pattern = re.compile(r"\b%s-(\d+)\b" % re.escape(prefix))
+        commands = _evidence_source_commands(prefix)
+        for rank in _EVIDENCE_RANKS:
+            output = _git(commands[rank], repo_root)
+            if output:
+                ids = [int(match) for match in pattern.findall(output)]
+                if ids:
+                    per_source[rank] = max(ids)
+
+    observed_max = None
+    seed_source = None
+    for rank in _EVIDENCE_RANKS:
+        value = per_source[rank]
+        if value is not None and (observed_max is None or value > observed_max):
+            observed_max = value
+            seed_source = rank
+
+    return {"observed_max": observed_max, "seed_source": seed_source, "per_source": per_source}
+
 
 def checkout_root(cwd):
     """Root of the current checkout/worktree."""
@@ -1024,6 +1178,35 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
+#: The per-role models /acs:setup recommends. Single source of truth for the
+#: recommendation: the setup prose (skills/setup/SKILL.md) and this repo's own
+#: .acs/settings.json are both asserted against it, so a new model generation is
+#: a change to this constant, that prose, and those settings -- never a test
+#: edit. Nothing in the runtime reads it: the recommendation is a product fact
+#: the tests enforce, not an input to gate or spawn behaviour.
+RECOMMENDED_MODELS = {
+    "planner":  {"model": "claude-opus-5",   "effort": "high"},
+    "executor": {"model": "claude-sonnet-5", "effort": "high"},
+    "verifier": {"model": "claude-opus-5",   "effort": "high"},
+}
+
+#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
+MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
+#: The three reflection roles a model/effort pair can be configured for.
+MODEL_ROLES = ("planner", "executor", "verifier")
+
+
+def _model_override_skills():
+    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
+
+    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
+    subagents of its own and every hooked skill can."""
+    return frozenset(HOOKED_SKILLS)
+
+
+MODEL_OVERRIDE_SKILLS = _model_override_skills()
+
+
 def validate_models(models):
     if not isinstance(models, dict):
         raise GateError("models must be an object.")
@@ -1037,16 +1220,29 @@ def validate_models(models):
             extra = set(value) - {"model", "effort"}
             if extra:
                 raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
+            effort = value.get("effort")
+            if effort is not None and effort not in MODEL_EFFORTS:
+                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
+                                % (path, effort, ", ".join(MODEL_EFFORTS)))
             return
         raise GateError("models.%s must be a model string or a {model, effort} object." % path)
 
-    for role in ("planner", "executor", "verifier"):
+    for role in MODEL_ROLES:
         if role in models:
             check_role(role, models[role])
-    for skill, roles in models.get("overrides", {}).items():
+    overrides = models.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise GateError("models.overrides must be an object of skill -> role -> model.")
+    for skill, roles in overrides.items():
+        if skill not in MODEL_OVERRIDE_SKILLS:
+            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
+                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
         if not isinstance(roles, dict):
             raise GateError("models.overrides.%s must be an object of role -> model." % skill)
         for role, value in roles.items():
+            if role not in MODEL_ROLES:
+                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
+                                % (skill, role, ", ".join(MODEL_ROLES)))
             check_role("overrides.%s.%s" % (skill, role), value)
 
 
@@ -1581,7 +1777,10 @@ def finalize_run(tdir, skill, ticket_id, result):
     tokens/role_usage/cost_usd/cost_basis are MEASURED (see
     _measure_run_usage), never taken from `result`."""
     state = load_state(tdir, skill, ticket_id)
-    status = result.get("status", "completed")
+    # No default: this writes the status the next pre-hook gates on, so a
+    # result document that never stated one must fail here rather than
+    # silently finalize the run as completed.
+    status = result.get("status")
     if status not in RUN_STATUSES or status == "in_progress":
         raise ValueError("invalid final run status: %r" % status)
     entry = last_run(state)
@@ -1703,7 +1902,14 @@ def load_pipeline(tdir, ticket_id, flow="ticket"):
     return data
 
 
-def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None):
+def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None,
+                    extra=None):
+    """Record a pipeline step transition.
+
+    `extra` merges caller-supplied fields into the step dict (e.g. /ship's
+    `fix_loops` counter on the `test` step). Keys the step owns -- status,
+    started_at, ended_at, summary -- are never overridden from `extra`; a
+    None value deletes the key so a counter can be reset rather than frozen."""
     data = load_pipeline(tdir, ticket_id, flow or ("product" if skill in PRODUCT_SKILLS else "ticket"))
     if flow:
         data["flow"] = flow
@@ -1715,6 +1921,15 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
     step["status"] = status
     if summary is not None:
         step["summary"] = summary
+    if extra:
+        reserved = {"status", "started_at", "ended_at", "summary"}
+        for key, value in extra.items():
+            if key in reserved:
+                continue
+            if value is None:
+                step.pop(key, None)
+            else:
+                step[key] = value
     if lane is not None:
         data["lane"] = lane
     data["totals"] = compute_ticket_totals(tdir)
@@ -1819,9 +2034,11 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     }
 
 
-def allocate_ticket_id(workspace, repo_id, prefix):
+def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):
     """Allocate the next <prefix>-<n> id; counter guarded by an O_EXCL spin lock so
-    parallel worktree sessions never collide."""
+    parallel worktree sessions never collide. A partition with no reconciliation
+    marker refuses (raises ReconciliationRequired) instead of minting from 1,
+    unless seed_next authoritatively confirms/repairs the floor."""
     rdir = repo_dir(workspace, repo_id)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, "counters.json.lock")
@@ -1842,11 +2059,39 @@ def allocate_ticket_id(workspace, repo_id, prefix):
             import time
             time.sleep(0.05)
     try:
-        counters = read_json(os.path.join(rdir, "counters.json")) or {}
-        next_n = int(counters.get("next", 1))
-        counters["next"] = next_n + 1
-        write_json(os.path.join(rdir, "counters.json"), counters)
-        return "%s-%d" % (prefix, next_n)
+        counters_path = os.path.join(rdir, "counters.json")
+        counters = read_json(counters_path) or {}
+
+        if seed_next is not None:
+            if seed_next < 1:
+                raise ValueError(
+                    "allocate_ticket_id requires seed_next >= 1 (defense-in-depth "
+                    "behind the CLIs' own >= 1 checks); got %r" % (seed_next,)
+                )
+            previous_next = counters.get("next")
+            if isinstance(previous_next, int) and seed_next < previous_next:
+                sys.stderr.write(
+                    "acs: warning: --seed-next %d lowers counters.json's next "
+                    "(was %d)\n" % (seed_next, previous_next)
+                )
+            counters["reconciled"] = True
+            counters["seed_source"] = "explicit-user"
+            counters["seeded_at"] = now_iso()
+            counters.pop("observed_max", None)
+            counters["next"] = seed_next + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, seed_next)
+
+        if "next" in counters or counters.get("reconciled") is True:
+            next_n = int(counters.get("next", 1))
+            counters["next"] = next_n + 1
+            write_json(counters_path, counters)
+            return "%s-%d" % (prefix, next_n)
+
+        scan = scan_local_ticket_evidence(repo_root, prefix)
+        observed_max = scan["observed_max"]
+        proposed_next = observed_max + 1 if observed_max is not None else None
+        raise ReconciliationRequired(prefix, repo_id, observed_max, scan["seed_source"], proposed_next)
     finally:
         if acquired:
             try:
@@ -2264,7 +2509,8 @@ def gate_docs_sync(ctx, payload):
     if test_step is not None and test_step.get("status") != "completed":
         raise GateError(
             "/test is recorded as %r for %s (the post-code test gate was active but has not "
-            "completed) — run /acs:test --for-ticket %s first." % (
+            "completed) — run /acs:test --for-ticket %s and get it green; the run records "
+            "the step itself." % (
                 test_step.get("status"), ticket_id, ticket_id)
         )
     return ticket_id
@@ -2489,6 +2735,15 @@ def run_pre(skill):
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         payload = {}
+    sys.exit(run_pre_payload(skill, payload))
+
+
+def run_pre_payload(skill, payload):
+    """Gate one skill from an already-parsed hook payload; return the exit code.
+
+    Separate from run_pre so the dispatcher can gate in-process rather than
+    spawning a forwarder: a subprocess that hangs or dies takes its exit code
+    with it, and anything other than 2 lets the skill run."""
     cwd = payload.get("cwd") or os.getcwd()
     try:
         ctx = build_context(cwd)
@@ -2502,11 +2757,20 @@ def run_pre(skill):
         GATES[skill](ctx, payload)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
-        sys.exit(2)
+        return 2
+    except TimeoutError as exc:  # a gate that never returns must not let the skill run
+        sys.stderr.write("acs pre-%s: blocked — gate timed out: %s\n" % (skill, exc))
+        return 2
     except Exception as exc:  # fail closed: a gating system must not fail open
         sys.stderr.write("acs pre-%s: blocked — unexpected error in gate: %r\n" % (skill, exc))
-        sys.exit(2)
-    sys.exit(0)
+        return 2
+    except (SystemExit, KeyboardInterrupt) as exc:
+        # Neither is an Exception. A gate calling sys.exit(), or a SIGINT
+        # arriving mid-gate, would otherwise leave this frame with an exit code
+        # that is not 2 -- which Claude Code reads as "not blocked".
+        sys.stderr.write("acs pre-%s: blocked — gate exited early: %r\n" % (skill, exc))
+        return 2
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -2541,7 +2805,25 @@ def _read_result_from_argv():
         result["status"] = args.status
     if args.stop_reason:
         result["stop_reason"] = args.stop_reason
-    result.setdefault("status", "completed")
+    if not result:
+        # Defaulting an absent result to "completed" would finalize the run and
+        # open the next gate on nothing at all. The status must be stated.
+        if args.result_file:
+            # Naming the path matters: told only "no result document", an
+            # operator who did pass one would reissue the same command.
+            sys.stderr.write(
+                "acs: result file %s is empty — it must carry at least a status\n"
+                % args.result_file)
+        else:
+            sys.stderr.write(
+                "acs: no result document — pass --result-file <path>, JSON on stdin, "
+                "or --status explicitly\n")
+        sys.exit(1)
+    if not result.get("status"):
+        sys.stderr.write(
+            "acs: result document has no 'status' — one of %s is required\n"
+            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+        sys.exit(1)
     return result, args.ticket
 
 
@@ -2613,7 +2895,7 @@ def run_post(skill):
         sys.stderr.write("acs post-%s: no active partition for %s.\n" % (skill, ticket_id))
         sys.exit(1)
 
-    status = result.get("status", "completed")
+    status = result["status"]  # guaranteed by _read_result_from_argv
     state, entry = finalize_run(tdir, skill, ticket_id, result)
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""release_notes.py — deterministic, settings-driven changelog draft + version-bump helper (MAR-129).
+"""release_notes.py — deterministic, settings-driven changelog draft + version-bump helper, with a
+git-history fallback for merged-ticket enumeration.
 
 Stdlib-only, Python >= 3.9. Provides three argparse subcommands, each emitting one JSON object
 to stdout:
@@ -15,10 +16,16 @@ Pure read-derive-write over repo files (--repo-root), the workspace archive (--w
 import, no lock/partition machinery). `git`/`gh` are invoked via subprocess.run with argument
 lists only. Never runs `git tag` or `gh release create` — those stay in release.yml.
 
+`draft`/`bump`'s merged-ticket enumeration reads the workspace archive first, then falls back to
+`base_branch` commit subjects since the boundary tag for tickets no archive entry recorded (e.g.
+merged directly on GitHub, bypassing `/acs:merge-pr`'s cleanup step); each ticket's `source` field
+in `draft`'s JSON output is `"archive"` or `"git-log"`. `--ticket-prefix` optionally anchors the
+fallback's commit-subject match to a specific ticket-id prefix.
+
 Usage:
   release_notes.py status --version <X.Y.Z> --repo-root <path> --release-config <json-file-or-string>
-  release_notes.py draft  --version <X.Y.Z> --repo-root <path> --workspace <path> --release-config <json-file-or-string>
-  release_notes.py bump   --version <X.Y.Z> --repo-root <path> --workspace <path> --release-config <json-file-or-string> [--dry-run]
+  release_notes.py draft  --version <X.Y.Z> --repo-root <path> --workspace <path> --release-config <json-file-or-string> [--ticket-prefix <PREFIX>]
+  release_notes.py bump   --version <X.Y.Z> --repo-root <path> --workspace <path> --release-config <json-file-or-string> [--dry-run] [--ticket-prefix <PREFIX>]
 
 Exit 0 on every successful data outcome (including "nothing to release"). Exit 2 on a malformed
 invocation, an unreadable/missing CHANGELOG.md/manifest, or a malformed/absent/mis-pointed
@@ -39,6 +46,14 @@ UNRELEASED_RE = re.compile(r"^## \[Unreleased\][^\n]*\n", re.M)
 NEXT_SECTION_RE = re.compile(r"^## \[", re.M)
 FIX_WORD_RE = re.compile(r"\b(fix|fixes|fixed|bug|bugfix|repair|regression)\b", re.I)
 CATEGORIES = ("Added", "Fixed", "Changed")
+_GENERIC_TICKET_PREFIX_RE = r"[A-Z][A-Z0-9]{1,9}"
+_PR_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
+
+
+def _ticket_subject_re(ticket_prefix=None):
+    """Anchored-at-start `[?<PREFIX>-N]?<sep>` matcher; `ticket_prefix=None` uses the generic shape."""
+    prefix_pattern = re.escape(ticket_prefix) if ticket_prefix else _GENERIC_TICKET_PREFIX_RE
+    return re.compile(r"^\[?(%s-\d+)\]?[\s:]" % prefix_pattern)
 
 
 class ReleaseNotesError(Exception):
@@ -427,45 +442,91 @@ def compute_status(version, repo_root, config):
 # draft — archive enumeration, categorization, rendering
 # ---------------------------------------------------------------------------
 
-def enumerate_merged_tickets(workspace, tag_time):
-    """Merged-since-boundary tickets from <workspace>/archive/*/ (R6: merge time = last runs[].ended_at)."""
+def enumerate_merged_tickets(workspace, tag_time, repo_root=None, base_branch=None,
+                              since_tag=None, ticket_prefix=None):
+    """Merged-since-boundary tickets from <workspace>/archive/*/ (R6: merge time = last runs[].ended_at),
+    extended with a repo-local git-history fallback for tickets a `/acs:merge-pr` archive entry
+    never recorded. The archive block's inputs/filters/ordering/output stay byte-identical apart
+    from the added `source` field; the fallback only runs when `repo_root` and `base_branch` are
+    both supplied, and never overrides an archive-derived id.
+    """
     archive_dir = os.path.join(workspace, "archive")
-    if not os.path.isdir(archive_dir):
+    result = []
+    if os.path.isdir(archive_dir):
+        tag_dt = _parse_iso(tag_time) if tag_time else None
+        for name in sorted(os.listdir(archive_dir)):
+            tdir = os.path.join(archive_dir, name)
+            if not os.path.isdir(tdir):
+                continue
+
+            merge_state = _read_json_or_none(os.path.join(tdir, "merge-pr-state.json"))
+            if not isinstance(merge_state, dict):
+                continue
+            states = merge_state.get("states")
+            if not isinstance(states, dict) or states.get("merged") is not True:
+                continue
+            runs = merge_state.get("runs")
+            if not isinstance(runs, list) or not runs or not isinstance(runs[-1], dict):
+                continue
+            merge_dt = _parse_iso(runs[-1].get("ended_at"))
+            if merge_dt is None:
+                continue
+            if tag_dt is not None and merge_dt <= tag_dt:
+                continue
+
+            ticket_json = _read_json_or_none(os.path.join(tdir, "ticket.json"))
+            if not isinstance(ticket_json, dict):
+                continue
+            result.append({
+                "id": ticket_json.get("id", name),
+                "title": ticket_json.get("title", ""),
+                "parent": ticket_json.get("parent"),
+                "description": ticket_json.get("description", ""),
+                "docs_only": bool(ticket_json.get("docs_only", False)),
+                "source": "archive",
+            })
+
+    if repo_root and base_branch:
+        archive_ids = {t["id"] for t in result}
+        result.extend(enumerate_git_log_tickets(
+            repo_root, base_branch, since_tag, ticket_prefix=ticket_prefix,
+            exclude_ids=archive_ids,
+        ))
+    return result
+
+
+def enumerate_git_log_tickets(repo_root, base_branch, since_tag, ticket_prefix=None, exclude_ids=()):
+    """Repo-local fallback: recover merged tickets a `/acs:merge-pr` archive entry never recorded.
+
+    Reads `base_branch` commit subjects since `since_tag` (or the full branch history when
+    `since_tag` is None, the bootstrap case), matches each subject's leading ticket-ref token,
+    keeps the first (newest) commit per id, and skips any id already found via the archive. A
+    non-zero `git` exit returns `[]` — enumeration must never raise.
+    """
+    revision_range = "%s..%s" % (since_tag, base_branch) if since_tag else base_branch
+    result = _run_git(repo_root, ["log", "--format=%s", revision_range])
+    if result.returncode != 0:
         return []
 
-    tag_dt = _parse_iso(tag_time) if tag_time else None
-    result = []
-    for name in sorted(os.listdir(archive_dir)):
-        tdir = os.path.join(archive_dir, name)
-        if not os.path.isdir(tdir):
+    pattern = _ticket_subject_re(ticket_prefix)
+    seen = set(exclude_ids)
+    tickets = []
+    for subject in result.stdout.splitlines():
+        match = pattern.match(subject)
+        if not match:
             continue
+        ticket_id = match.group(1)
+        if ticket_id in seen:
+            continue
+        seen.add(ticket_id)
 
-        merge_state = _read_json_or_none(os.path.join(tdir, "merge-pr-state.json"))
-        if not isinstance(merge_state, dict):
-            continue
-        states = merge_state.get("states")
-        if not isinstance(states, dict) or states.get("merged") is not True:
-            continue
-        runs = merge_state.get("runs")
-        if not isinstance(runs, list) or not runs or not isinstance(runs[-1], dict):
-            continue
-        merge_dt = _parse_iso(runs[-1].get("ended_at"))
-        if merge_dt is None:
-            continue
-        if tag_dt is not None and merge_dt <= tag_dt:
-            continue
-
-        ticket_json = _read_json_or_none(os.path.join(tdir, "ticket.json"))
-        if not isinstance(ticket_json, dict):
-            continue
-        result.append({
-            "id": ticket_json.get("id", name),
-            "title": ticket_json.get("title", ""),
-            "parent": ticket_json.get("parent"),
-            "description": ticket_json.get("description", ""),
-            "docs_only": bool(ticket_json.get("docs_only", False)),
+        remainder = _PR_SUFFIX_RE.sub("", subject[match.end():]).strip()
+        title = remainder or ticket_id
+        tickets.append({
+            "id": ticket_id, "title": title, "parent": None, "description": "",
+            "docs_only": False, "source": "git-log",
         })
-    return result
+    return tickets
 
 
 def resolve_pr_ref(workspace, repo_root, ticket_id, base_branch):
@@ -564,7 +625,7 @@ def _extract_unreleased_body(text):
     return text[match.end():end]
 
 
-def build_draft(version, repo_root, workspace, config, today=None):
+def build_draft(version, repo_root, workspace, config, today=None, ticket_prefix=None):
     """Authoritatively assemble the dated CHANGELOG section + coverage report (AC-3)."""
     _manifests, changelog_text = _preflight_version_locations(config, repo_root)
     unreleased_text = _extract_unreleased_body(changelog_text)
@@ -573,7 +634,10 @@ def build_draft(version, repo_root, workspace, config, today=None):
     tag = since_tag(repo_root, base_branch)
     tag_time = tag_creation_time(repo_root, tag) if tag else None
 
-    merged = enumerate_merged_tickets(workspace, tag_time)
+    merged = enumerate_merged_tickets(
+        workspace, tag_time, repo_root=repo_root, base_branch=base_branch,
+        since_tag=tag, ticket_prefix=ticket_prefix,
+    )
     merged.sort(key=lambda t: t["id"])
     for ticket in merged:
         pr_number, pr_url = resolve_pr_ref(workspace, repo_root, ticket["id"], base_branch)
@@ -593,7 +657,8 @@ def build_draft(version, repo_root, workspace, config, today=None):
 
     tickets_out = [
         {"id": t["id"], "title": t["title"], "parent": t["parent"],
-         "pr_number": t["pr_number"], "pr_url": t["pr_url"], "category": t["category"]}
+         "pr_number": t["pr_number"], "pr_url": t["pr_url"], "category": t["category"],
+         "source": t["source"]}
         for t in merged
     ]
     return {
@@ -620,7 +685,7 @@ def _insert_dated_section(text, draft_section):
     return text[:match.end()] + "\n" + draft_section + "\n" + text[next_start:]
 
 
-def bump(version, repo_root, workspace, config, dry_run=False, today=None):
+def bump(version, repo_root, workspace, config, dry_run=False, today=None, ticket_prefix=None):
     """Bump every version_locations/extra_refs entry + the dated CHANGELOG section, atomically (AC-2/4).
 
     Two-phase (resolve-then-write): every file is read and every pointer/selector confirmed
@@ -657,7 +722,7 @@ def bump(version, repo_root, workspace, config, dry_run=False, today=None):
 
     changelog_full_path = os.path.join(repo_root, config["changelog_path"])
     changelog_text = _read_text_or_raise(changelog_full_path)
-    draft = build_draft(version, repo_root, workspace, config, today=today)
+    draft = build_draft(version, repo_root, workspace, config, today=today, ticket_prefix=ticket_prefix)
     new_changelog_text = _insert_dated_section(changelog_text, draft["draft_section"])
 
     files_changed = sorted(set(distinct_files) | {config["changelog_path"]})
@@ -694,12 +759,19 @@ def _add_status_parser(sub):
     return p
 
 
+_TICKET_PREFIX_HELP = (
+    "optional ticket-id prefix (e.g. 'MAR') anchoring the git-history fallback's commit-subject "
+    "match; omitted, the fallback accepts any generic [A-Z][A-Z0-9]{1,9}-N-shaped id"
+)
+
+
 def _add_draft_parser(sub):
     p = sub.add_parser("draft")
     p.add_argument("--version", required=True)
     p.add_argument("--repo-root", required=True)
     p.add_argument("--workspace", required=True)
     p.add_argument("--release-config", required=True, help=_RELEASE_CONFIG_HELP)
+    p.add_argument("--ticket-prefix", default=None, help=_TICKET_PREFIX_HELP)
     return p
 
 
@@ -710,6 +782,7 @@ def _add_bump_parser(sub):
     p.add_argument("--workspace", required=True)
     p.add_argument("--release-config", required=True, help=_RELEASE_CONFIG_HELP)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--ticket-prefix", default=None, help=_TICKET_PREFIX_HELP)
     return p
 
 
@@ -730,9 +803,11 @@ def main(argv=None):
         if args.cmd == "status":
             result = compute_status(args.version, args.repo_root, config)
         elif args.cmd == "draft":
-            result = build_draft(args.version, args.repo_root, args.workspace, config)
+            result = build_draft(args.version, args.repo_root, args.workspace, config,
+                                  ticket_prefix=args.ticket_prefix)
         elif args.cmd == "bump":
-            result = bump(args.version, args.repo_root, args.workspace, config, dry_run=args.dry_run)
+            result = bump(args.version, args.repo_root, args.workspace, config, dry_run=args.dry_run,
+                           ticket_prefix=args.ticket_prefix)
         else:
             sys.exit(2)  # pragma: no cover - unreachable, argparse `required=True` gates cmd
         print(json.dumps(result))

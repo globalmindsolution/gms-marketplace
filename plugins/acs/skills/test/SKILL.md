@@ -159,6 +159,52 @@ resolves to a real `suites` key, apply the same "nothing configured,
 nothing to run" empty-artifact behavior Step 1 already defines for the
 zero-suites case.
 
+**Recording the run in the pipeline ledger.** After the run-set completes,
+record the outcome on the ticket's `steps.test` entry so
+`/acs:docs-sync`'s gate — which blocks while `steps.test` exists and is not
+`completed` — can be satisfied by the command its own error message names.
+
+Every suite in the run-set green:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status completed --summary "<suites> green"
+```
+
+A suite failed — update an active gate, never open a new one:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+  --ticket <ticket-id> --skill test --status failed --only-if-present \
+  --summary "<suite> failed"
+```
+
+`--only-if-present` on the failure path guards the DIRECT invocation: a user
+running `/acs:test --for-ticket <id>` themselves — exactly what the docs-sync
+gate's error message tells them to run — on a ticket where `/acs:ship` never
+activated the `test` step. Recording a failure there would newly create the
+very gate that was not blocking them, out of a run they performed to get
+unblocked. Where `/acs:ship` did activate the step, the entry exists and the
+failure is recorded normally. (A standing run — no `--for-ticket` — never
+reaches this section at all.)
+
+`/acs:ship` still owns the `fix_loops` counter and its cap; this records the
+outcome of the run this skill actually performed.
+
+**Zero run set.** When the run-set resolves empty, the "nothing configured,
+nothing to run" behavior above applies to execution — but the ledger write
+still happens, with `--status completed`: a ticket that names no suite has
+nothing that can fail, and `/acs:ship` may already have activated the step,
+which would otherwise leave the docs-sync gate permanently shut with no
+command able to open it.
+
+**A non-zero `pipeline-step.py` exit** is a real error, not a warning: report
+it and stop rather than continuing as though the step were recorded. The
+common case is an archived partition (exit 2, `no active partition`), which
+`--for-ticket` resolution deliberately accepts for the run itself — an
+archived ticket's suites can still be run, but its ledger is closed and no
+longer records.
+
 **Steps 2-4 reused unmodified.** The per-suite setup→command→teardown
 execution (Step 2), the results-artifact write (Step 3), and the all-green
 short-circuit (Step 4) run exactly as documented above, taking the
@@ -250,7 +296,14 @@ apply this **three-way policy** exactly:
    link to the results artifact
    (`<workspace>/<repo>/test-runs/<run-id>/results.json`). Record the
    printed `{"ticket_id", "partition"}` and mark this regression's action as
-   `"minted"`.
+   `"minted"`. If `new-ticket.py` exits non-zero, STOP and surface its stderr
+   verbatim — never invent a `ticket_id` for the `regressions[]` entry. In
+   particular, on a workspace partition that has never allocated an id it
+   refuses with exit 2 and a local-evidence reconciliation proposal
+   (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting the
+   regression ticket: relay that stderr, obtain the confirmed start number
+   from the user, and re-run `new-ticket.py` with `--seed-next <n>` added
+   (only `new-ticket.py` mints ids — never hand-pick one).
 
 2. **Found, ticket status is `open`, `in_progress`, or `in_review` →
    comment-bump the existing ticket — never mint a duplicate, never silently skip.**
@@ -262,7 +315,8 @@ apply this **three-way policy** exactly:
 
 3. **Found, ticket status is `done` → the regression recurred after being
    marked fixed: mint a NEW ticket linked to the old one — never silently reopen
-   the closed ticket.** Call `new-ticket.py` exactly as in case 1, but
+   the closed ticket.** Call `new-ticket.py` exactly as in case 1, including
+   its non-zero-exit / reconciliation-refusal handling above, but
    the `--description` additionally states explicitly that this is a
    recurrence and names the old (closed) ticket id it links back to. Mark
    this regression's action as `"minted_linked"` with `linked_ticket_id` set

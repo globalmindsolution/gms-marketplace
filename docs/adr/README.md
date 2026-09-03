@@ -93,6 +93,8 @@ context and consequences.
 | [0084](0084-create-architecture-design-requirements-remediation-loop-execute-verify-only.md) | `/acs:create-architecture`'s, `/acs:create-design`'s, and `/acs:create-requirements`'s remediation loops become execute → verify only, completing the plan-once migration across all twelve triad-keeping skills, amending ADR-0004's `/acs:code` carve-out to also name these three (append-only; ADR-0004 itself unedited) | Accepted |
 | [0085](0085-doc-bootstrap-parallel-fan-out.md) | Doc-bootstrap parallel fan-out: new unhooked umbrella skill `/acs:create-docs`, phase-level subagent-batch interleave, worktree-per-leg delivery, declared dependency table + eligibility helpers in `acs_lib.py`, v1 eligible set = `create-quality` + `create-operations` | Accepted |
 | [0086](0086-in-repo-anchored-state-machine.md) | In-repo, main-checkout-anchored state (`.acs/state-machine`), superseding ADR-0003 | Accepted |
+| [0087](0087-ticket-id-allocation-fail-closed-reconciliation.md) | Ticket-id allocation: fail-closed reconciliation gate plus a confirmable ranked local-evidence proposal | Accepted |
+| [0088](0088-gh-only-github-transport-and-criticality-classification.md) | gh is acs's only GitHub transport; failures are classified, not routed around | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

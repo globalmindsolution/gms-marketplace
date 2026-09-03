@@ -108,7 +108,8 @@ Purpose: drive the whole pipeline from one command.
   lane and stop before `/merge-pr`, which a reviewer lands as a separate step
   ([workflow.md](workflow.md#umbrella-command-ship)):
   `/create-ticket` → `/create-design` (when the ticket needs design) →
-  `/code` → `/docs-sync` → `/create-pr`. No lane branches the walk — spec
+  `/code` → `/test` (when e2e is configured) → `/docs-sync` →
+  `/create-pr`. No lane branches the walk — spec
   authoring is folded into `/code`'s plan phase on every lane
   (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
   SAME order on every lane — the fold is universal now, so no lane branches
@@ -244,6 +245,13 @@ closing the loop on failures with a regression ticket.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
+- **Records its own pipeline step** in ticket-scoped mode: a
+  `--for-ticket` run writes the ticket's `steps.test` entry itself, since
+  the skill is unhooked and has no post-hook to do it. A green run
+  recording `completed` is what opens `/acs:docs-sync`'s gate — the remedy
+  that gate's own error message names. A failing run updates the entry only
+  when it already exists, so a direct user-initiated run cannot newly shut a
+  gate that was not blocking them.
 - **All-green determinism:** when every suite passes, the run makes zero
   model calls and mints no tickets — triage only runs on the failure path.
 - **Failure-path triage:** on a failing suite, the skill derives a stable
@@ -266,10 +274,11 @@ closing the loop on failures with a regression ticket.
 ## /acs:release (utility)
 
 Purpose: the one-command **release-cut** utility — assembles/verifies the
-CHANGELOG section for a release version from the merged-ticket archive,
-bumps the version-location files plus any extra refs configured in the
-repo's `.acs/settings.json` `release` block, dates the section, and opens an
-exempt `release/*` PR for a mandatory human merge.
+CHANGELOG section for a release version from the merged-ticket archive, and,
+for tickets merged without an archive entry, from `base_branch` commit
+history, bumps the version-location files plus any extra refs configured in
+the repo's `.acs/settings.json` `release` block, dates the section, and opens
+an exempt `release/*` PR for a mandatory human merge.
 
 - **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
   `/acs:release` has no planner/executor/verifier triad, no `release-state.json`
@@ -280,12 +289,22 @@ exempt `release/*` PR for a mandatory human merge.
 - **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
   durable record of a release cut is the release PR itself; `workspace` is
   read-only input (to enumerate the merged-ticket archive), never a write
-  target.
+  target. The git-history fallback source is the repo checkout, not the
+  workspace — this is user-observable: the count is non-zero even with no
+  `archive/` present whenever `base_branch` history carries leading
+  ticket-ref commit subjects (a tracker-ref-only history, e.g. `[#399] …`,
+  still yields zero — the fallback recovers only subjects whose leading
+  token is a ticket ref).
 - **Never publishes itself** — it never runs `git tag` or `gh release create`;
   the privileged tag/publish step stays in the block's `publish_driver`.
 - **Scope**: cutting a new version of a repo already configured for release
   cuts — not for opening a ticket's own PR (`/acs:create-pr`) or
   landing/merging a PR (`/acs:merge-pr`).
+- **Enumeration provenance and prefix anchoring**: each ticket the coverage
+  report and draft enumerate is stamped `source: archive|git-log`, and
+  `/acs:release` passes `--ticket-prefix <settings.ticket_prefix>` to both
+  `draft` and `bump` to anchor the git-history fallback to this repo's own
+  ticket ids.
 
 ## /acs:create-docs (utility)
 
@@ -905,7 +924,12 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   schema validation and the user-confirmation gate (size/stakes/lane),
   not an in-skill verifier.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
-  per-repo counter lives in `<workspace>/<repo>/counters.json`.
+  per-repo counter lives in `<workspace>/<repo>/counters.json`. The
+  **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
+  it refuses with exit 2 and a confirmable local-evidence proposal rather
+  than restarting the sequence at 1, and a human confirms with
+  `--seed-next <n>`; an already-populated counter is treated as already
+  reconciled. See `workspace-and-state.md` for the recorded fields.
 - MAY **import an existing remote ticket**: `/create-ticket <remote-key>`
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs
@@ -1484,3 +1508,19 @@ Purpose: land the change.
   PR #{pr.number} — {pr.url}`), so the closed issue's timeline still reaches
   both the acs ticket id and the PR. The `gh issue close` call and the
   Status→Done edit are otherwise unchanged.
+- **GitHub call failure policy (standing behavior, MAR-403, ADR-0088):** `gh`
+  is this skill's only GitHub transport. A readiness *dimension that
+  evaluates to fail* stays report-only, unchanged. A readiness *read that
+  cannot be evaluated* because the `gh` call itself failed is **critical**:
+  verbatim `gh` stderr plus one canonical `acs_lib.gh_failure_hint()` hint,
+  and the run **stops before any merge is attempted** — an unevaluable gate
+  is never treated as passed. This applies identically to the Step 0
+  readiness reads, the resume/reconcile `gh pr view`, the BEHIND carve-out's
+  `gh pr update-branch` call and its required-checks poll, and the exempt
+  `--pr` path's identical reads. Separately, once the merge has landed, the
+  post-merge tracker sync (`gh issue close`, Status→Done) is
+  **loud-but-non-reverting**: a failure there produces one error-severity
+  finding naming the outstanding sync plus a replayable command block; the
+  merge is never reverted or re-attempted; and the run still finishes
+  `merged: true` — this qualifies, without changing, the post-merge actions
+  and reconciliation close-comment bullets above.

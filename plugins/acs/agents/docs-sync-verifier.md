@@ -86,7 +86,7 @@ actionable (file, expectation, observed behavior):
   <findings>
     <finding severity="blocking" dimension="completeness" file="docs/api/import.md">Diff adds a 409 response to POST /import but the doc still lists only 200/400.</finding>
   </findings>
-  <stop-reason>4 dimensions checked; 1 blocking finding</stop-reason>
+  <stop-reason>5 dimensions checked; 1 blocking finding</stop-reason>
 </result>
 ```
 

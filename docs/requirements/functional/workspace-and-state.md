@@ -90,7 +90,19 @@ Repo-level files (all maintained by hooks):
   parent/children, updated_at); lets skills and the user list work without
   scanning partitions.
 - **`counters.json`** — the ticket id sequence counter
-  (`<ticket_prefix>-<n>`).
+  (`<ticket_prefix>-<n>`). First allocation for a given `(repo_id, prefix)`
+  partition is fail-closed (MAR-402): absent both `next` and
+  `reconciled: true`, `allocate_ticket_id` refuses with exit 2 and a ranked,
+  bounded, network-free local-evidence proposal rather than silently
+  restarting the sequence at 1; a human confirms (or repairs a wrong/stuck
+  reconciliation) via `--seed-next <n>` on either `new-ticket.py` or
+  `skill-start.py --allocate`. Confirmed reconciliation is recorded via three
+  additive optional fields: `reconciled` (boolean), `seed_source`
+  (`committed-files`\|`git-history`\|`branch-names`\|`explicit-user`), and
+  `seeded_at` (ISO-8601 UTC). The evidence scan's `observed_max` is surfaced
+  only in the refusal message, for a human to read — it is never persisted.
+  An already-populated `next` is treated as already reconciled — no prompt,
+  no regression for existing repos.
 - **`sessions/<checkout-id>.json`** — the per-checkout *current ticket*
   pointer written by the coordinator at skill start; `<checkout-id>` is
   derived from the absolute path of the repo checkout/worktree, so multiple
@@ -340,3 +352,19 @@ When a ticket is merged/done, its partition is **archived** — moved to
 full audit trail without cluttering the active workspace. Archived tickets
 remain in `tickets-index.json` (status `done`) and in the metrics
 aggregates.
+
+### Ticket allocation on resume
+
+`skill-start.py --allocate` MUST NOT mint a second ticket for work that
+already has one, and MUST NOT let one run adopt another's partition. Reuse
+is therefore resolved from EXPLICIT inputs only:
+
+- `--ticket <id>`, for any skill; or
+- `--args` for `/acs:create-ticket` alone, and only when the argument IS the
+  id rather than prose citing one.
+
+The session pointer and the branch name — which `resolve_ticket_id` consults
+on the non-allocating path — MUST NOT be consulted here. Product-level legs
+run concurrently (a doc-bootstrap fan-out runs two at once) passing neither,
+and resolving through either would collapse two independent delivery tickets
+into one.

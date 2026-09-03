@@ -148,9 +148,13 @@ class CoverageNotReducedTest(unittest.TestCase):
         # sidecar must preserve BOTH occurrences per anchor, never deduping
         # to 8 total entries (R-C count-not-reduced risk).
         body = read(RUNTIME_COUPLING_SIDECAR)
+        # These track the inventory's own anchors: MAR-514 moved dispatch.py's
+        # functions when the gate stopped being a subprocess, so the three
+        # dispatch.py ranges were re-verified against the file and updated here
+        # with it. What is pinned is the TWO-occurrence property, not the ranges.
         anchors = [
             "hooks.json:3-14", "hooks.json:16-26",
-            "dispatch.py:25-38", "dispatch.py:41-75", "dispatch.py:49-54",
+            "dispatch.py:27-40", "dispatch.py:106-125", "dispatch.py:114-119",
             "acs_lib.py:44", "acs_lib.py:485-500", "acs_lib.py:1621",
         ]
         for anchor in anchors:

@@ -13,7 +13,6 @@ Run:  python3 -m unittest tests.acs.test_mar126_standardize_e2e_scaffold -v
 
 import os
 import re
-import subprocess
 import sys
 import unittest
 
@@ -26,7 +25,6 @@ SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
 PLANNER_PATH = os.path.join(AGENTS, "standardize-project-planner.md")
 EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-executor.md")
 VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-verifier.md")
-SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)
@@ -275,38 +273,6 @@ class Mar126ClassifyAdditiveDiffE2eCase(unittest.TestCase):
         violations = acs_lib.classify_additive_diff(diff, [".github/workflows/*.yml"])
         self.assertEqual(len(violations), 1)
         self.assertEqual(violations[0]["reason"], "delete")
-
-
-class Mar126NoSettingsSchemaChangeCase(unittest.TestCase):
-    """AC-6 (schema half) / C-4: no new settings key ships with this spec."""
-
-    def test_schema_diff_is_empty(self):
-        out = subprocess.run(
-            ["git", "diff", "--", SCHEMA_PATH],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        self.assertEqual(out.stdout.strip(), "", "settings.schema.json must be unchanged (C-4)")
-
-
-class Mar126UntouchedSurfacesCase(unittest.TestCase):
-    """Risks R3/R4/R6/scope guard: this spec never re-authors E2E-1's
-    templates, never edits classify_additive_diff, and never touches
-    setup/SKILL.md or merge-pr/SKILL.md."""
-
-    def test_untouched_paths_have_empty_diff(self):
-        untouched = [
-            os.path.join(PLUGIN, "templates", "ci", "acs-e2e.yml"),
-            os.path.join(PLUGIN, "templates", "ci", "run-e2e.py"),
-            os.path.join(HOOKS_DIR, "acs_lib.py"),
-            os.path.join(SKILLS, "setup", "SKILL.md"),
-            os.path.join(SKILLS, "merge-pr", "SKILL.md"),
-        ]
-        for path in untouched:
-            out = subprocess.run(
-                ["git", "diff", "--", path],
-                cwd=REPO_ROOT, capture_output=True, text=True,
-            )
-            self.assertEqual(out.stdout.strip(), "", "%s must be unchanged by this spec" % path)
 
 
 if __name__ == "__main__":

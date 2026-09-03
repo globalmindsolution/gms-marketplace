@@ -129,7 +129,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
   <findings>
     <finding severity="blocking" dimension="architecture-conformance" file="docs/principles/principles.md">Tailored content names "microservices" but hld/tech-stack.md documents a monolith — the file was not tailored to the detected stack.</finding>
   </findings>
-  <stop-reason>Verification complete: 1 blocking finding across 6 dimensions.</stop-reason>
+  <stop-reason>Verification complete: 1 blocking finding across 8 dimensions.</stop-reason>
 </result>
 ```
 

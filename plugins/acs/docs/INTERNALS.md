@@ -15,7 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,codex_adapter,handoff,mermaid_lint,metrics_aggregate,metrics_render,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 17 |
+| Helper CLIs | `hooks/scripts/{citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 18 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
@@ -163,14 +163,31 @@ pipeline end.
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/3 · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 
-Three sanctioned substitutions: `/acs:setup` and `/acs:update` (no ticket)
-replace the Ticket line with **Scope**, and `/acs:handoff` puts the
-`continue_with` command in **Next**. Per-skill Results/Next content is fixed
-in each SKILL.md's "Completion report" section.
+**The `iterations` element.** A skill that runs no reflection loop omits it
+entirely rather than reporting a fraction of a loop it never ran. That is a
+property, not a list: it covers the inline apply-work skills (`create-ticket`,
+`create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `metrics`,
+`usage`, `test`, `release`, `install-hooks`), and the orchestrators that drive
+other skills' loops without running one of their own (`ship`, `handoff`). The
+twelve triad-keeping skills report it.
+
+`<cap>` is a constant **3** for eleven of those twelve. Only `/acs:code`
+derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 1 on light depth
+and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
+
+**Sanctioned substitutions.** A skill that runs without a ticket drops
+`<ticket-id>` from the heading and replaces the **Ticket** line with a
+one-line label naming what the run covered — **Scope** for the
+configuration and reporting utilities (`setup`, `update`, `metrics`,
+`usage`, `install-hooks`), **Run** for the two run-oriented ones (`test`,
+`release`), whose subject is an execution rather than a scope. `/acs:handoff`
+additionally puts the `continue_with` command in **Next**. No other label
+substitution is sanctioned; per-skill Results/Next content is fixed in each
+SKILL.md's "Completion report" section.
 
 ### The result document (input to post-<skill>.py)
 
@@ -186,6 +203,12 @@ in each SKILL.md's "Completion report" section.
   "handoff_summary": "only when status=handed_off"
 }
 ```
+
+`status` is REQUIRED. A post hook invoked with no result document at all, or
+with one that omits `status`, exits 1 rather than defaulting to `completed` --
+defaulting would finalize the run and open the next gate on nothing. The same
+rule holds one layer down: `finalize_run` raises on a result with no status,
+so an in-process caller cannot bypass it either.
 
 `tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
 silently ignored since MAR-1 — `finalize_run` measures both itself (see the

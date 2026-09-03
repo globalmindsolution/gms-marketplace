@@ -711,9 +711,11 @@ def _empty_panel6_bucket():
     """Shared panel-6 bucket shape (MAR-4 spec 01): the four token classes plus a running cost.
 
     Replaces the two independent 3-key literals (the `burn` seed and _accumulate_burn's
-    setdefault) that previously had to be kept in lockstep by hand.
+    setdefault) that previously had to be kept in lockstep by hand. cost_seen mirrors
+    _empty_model_bucket's pattern: True only once a numeric cost_usd has contributed.
     """
-    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0}
+    return {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
+            "cost_seen": False}
 
 
 def _apply_panel6_shares(burn):
@@ -727,7 +729,9 @@ def _apply_panel6_shares(burn):
     for bucket in burn.values():
         token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
         bucket["token_share_pct"] = _share_pct(token_sum, token_total)
-        bucket["cost_share_pct"] = _share_pct(bucket["cost"], cost_total)
+        bucket["cost_share_pct"] = (
+            _share_pct(bucket["cost"], cost_total) if bucket["cost_seen"] else None
+        )
 
 
 def _empty_model_bucket():
@@ -1236,6 +1240,7 @@ def _accumulate_burn(burn, tdir):
                 bucket["cache_read"] += cache_read
                 if _is_number(cost):
                     bucket["cost"] = round(bucket["cost"] + cost, 6)
+                    bucket["cost_seen"] = True
 
                 role_bucket = ticket_roles.setdefault(role, _empty_model_bucket())
                 role_bucket["input"] += _to_int(item.get("input"))

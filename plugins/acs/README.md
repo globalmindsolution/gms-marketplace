@@ -2,9 +2,9 @@
 
 `acs` is a Claude Code plugin that turns a raw request into merged code
 through a complete, agentic software-delivery workflow: product definition
-(PRD), architecture, ticketing, design (when the change warrants it),
-implementation specs, TDD implementation with an automatic review loop, pull
-request, and merge. Every workflow skill runs a plan → execute → verify
+(PRD), architecture, ticketing, design (when the change warrants it), TDD
+implementation with an automatic review loop, a conditional post-code test
+gate, doc sync, pull request, and merge. Every workflow skill runs a plan → execute → verify
 reflection cycle with dedicated subagents, pre/post hooks gate each step on
 the recorded state of its predecessor, and all durable state lives in a
 gitignored `.acs/state-machine` folder inside your repo by default (an
@@ -56,6 +56,13 @@ architecture doc set, each delivered as a reviewable docs PR:
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
                            # → delivery ticket SHOP-1, docs PR
+                           # if this is the first allocation for this
+                           #   workspace partition since /acs:setup, it
+                           #   refuses with exit 2 and proposes a start
+                           #   number from local evidence — confirm or
+                           #   correct it with --seed-next <n> (see
+                           #   Troubleshooting below), then re-run; every
+                           #   later allocation is normal
 /acs:merge-pr SHOP-1       # after you review the PR yourself
 
 /acs:create-architecture   # reverse-engineers HLD (C4 1–3, data model,
@@ -76,7 +83,8 @@ Then ship features:
 ```
 
 `/acs:ship` runs `/acs:create-ticket` → `/acs:create-design` (when the
-ticket needs design) → `/acs:code` → `/acs:docs-sync` → `/acs:create-pr`,
+ticket needs design) → `/acs:code` → `/acs:test` (when e2e is configured)
+→ `/acs:docs-sync` → `/acs:create-pr`,
 asking clarifying questions along the way — and always stops before merge.
 After reviewing each PR yourself:
 
@@ -96,7 +104,7 @@ name.
 | Skill | Gated by | What it does |
 |-------|----------|--------------|
 | `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
-| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
+| `/acs:ship` | Each step's own gate | Umbrella: drives create-ticket → design → code → test (conditional) → docs-sync → create-pr end to end, resumable from the first incomplete step. Never merges. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the ticket partition, marks the run `handed_off`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
@@ -210,6 +218,15 @@ runs resolve the new in-repo default instead of the old override.
   `/acs:create-pr SHOP-123` — `create-pr`'s gate additionally requires
   `/acs:docs-sync` to have completed). A "run /setup first" message means no
   `settings.json` could be resolved: run `/acs:setup`.
+- **"blocked — … has never allocated a ticket id" (first ticket in a new
+  repo or a fresh clone).** The first allocation for a `(repo_id, prefix)`
+  partition refuses with exit 2 instead of restarting the sequence at 1. The
+  message proposes a start number from local evidence (a *floor*, not the
+  truth — your tracker may hold higher ids) — confirm or correct it by
+  re-running the same command with `--seed-next <n>` added (e.g.
+  `/acs:create-ticket`'s Start, or `new-ticket.py --seed-next <n>`
+  directly). An already-populated workspace (every existing repo) is
+  already treated as reconciled and never sees this.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
   worktree), finish or hand off there. If it crashed, ending that session

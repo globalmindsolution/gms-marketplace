@@ -5,8 +5,8 @@ Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. A fresh
 capability is reachable only by hand-editing `.acs/settings.json`. This module
 pins the three previously-gapped offers:
 
-  Gap 1 (AC-1) — the `### models` offer names the version-pinned ids
-    claude-opus-5 / claude-sonnet-5 for all three roles (aligned with
+  Gap 1 (AC-1) — the `### models` offer names the version-pinned ids for all
+    three roles (read from acs_lib.RECOMMENDED_MODELS, aligned with
     .acs/settings.json and MAR-81), not only coarse tiers.
   Gap 2 (AC-2) — per-role reasoning effort is a first-class choice (not merely
     the {model, effort} shape note), and the presented enum stays consistent
@@ -20,9 +20,9 @@ pins the three previously-gapped offers:
     "Any non-empty model string is accepted" sentence survives.
 
 MAR-154 dropped the `coordinator` role from the `models` settings contract
-entirely and renamed the default planner/verifier tier from claude-opus-4-8
-to claude-opus-5 — `/acs:setup`'s offer now names three roles, not four, and
-no coordinator-scope caveat remains.
+entirely and moved the default planner/verifier tier to the then-current opus
+generation — `/acs:setup`'s offer now names three roles, not four, and no
+coordinator-scope caveat remains.
 
 Stdlib-only (os, re, unittest, json), mirroring
 tests/acs/test_skill_contracts.py (REPO_ROOT/PLUGIN + read helper + bounded-
@@ -42,6 +42,7 @@ Run:  python3 -m unittest tests.acs.test_setup_offers -v
 import json
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,9 +51,14 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 ROLES = ("planner", "executor", "verifier")
-# Version-pinned ids the offer must name (aligned with .acs/settings.json:18-23
-# and tests/acs/test_settings_models_pinned.py).
-PINNED_IDS = ("claude-opus-5", "claude-sonnet-5")
+# The ids the offer must name, read from the single source in acs_lib rather than
+# duplicated here: moving to a newer model generation is a change to
+# RECOMMENDED_MODELS plus the setup prose, never a test edit.
+SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
+sys.path.insert(0, SCRIPTS)
+import acs_lib as lib  # noqa: E402
+
+PINNED_IDS = tuple(sorted({entry["model"] for entry in lib.RECOMMENDED_MODELS.values()}))
 
 
 def read(path):
