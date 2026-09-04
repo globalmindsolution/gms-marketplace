@@ -220,7 +220,10 @@ def record_session_marker(ctx, payload):
     marker = {
         "session_id": cc.hook_session_id(payload),
         "transcript_path": cc.hook_transcript_path(payload),
-        "cwd": payload.get("cwd"),
+        # Same shared probe order, but default=None: this record never
+        # constructs a value, so an envelope with no cwd persists null
+        # rather than the process cwd.
+        "cwd": cc.payload_cwd(payload, default=None),
         "checkout_id": ctx["checkout_id"],
         "hook_event_name": cc.hook_event_name(payload),
         "skill": cc.hook_tool_input(payload).get("skill"),

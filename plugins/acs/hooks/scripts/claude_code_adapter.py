@@ -87,12 +87,22 @@ def hook_tool_input(payload):
     return _dict(_dict(payload).get(HOOK_TOOL_INPUT))
 
 
-def payload_cwd(payload, default=None):
+#: Distinguishes "no default given" from an explicit default of None. Without
+#: it, `payload_cwd(p, default=None)` returned the process cwd -- the opposite
+#: of what a caller asking for None means, and how record_session_marker came
+#: to invent a cwd for an envelope that carried none.
+_NO_DEFAULT = object()
+
+
+def payload_cwd(payload, default=_NO_DEFAULT):
     """The working directory a payload resolves to.
 
     One probe order shared by hook envelopes and statusLine payloads:
-    `workspace.current_dir`, then top-level `cwd`, then `default` (when None,
-    the process cwd -- what every caller wanted anyway)."""
+    `workspace.current_dir`, then top-level `cwd`, then `default` -- which
+    defaults to the process cwd, what most callers want. Pass `default=None`
+    to get None instead: a caller that must never construct a value (the
+    session marker records envelope fields verbatim) needs the probe order
+    without the fallback."""
     payload = _dict(payload)
     value = _str_or_none(_dict(payload.get(HOOK_WORKSPACE)).get(HOOK_WORKSPACE_DIR))
     if value:
@@ -100,7 +110,7 @@ def payload_cwd(payload, default=None):
     value = _str_or_none(payload.get(HOOK_CWD))
     if value:
         return value
-    return default if default is not None else os.getcwd()
+    return os.getcwd() if default is _NO_DEFAULT else default
 
 
 # ---------------------------------------------------------------------------

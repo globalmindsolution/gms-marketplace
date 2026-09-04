@@ -739,5 +739,32 @@ class TestReviewFixesRoundTwo(AcsCliCase):
                          lib.missing_tools(kinds=("required",), rows=out["toolchain"]))
 
 
+class TestSharedEnvelopeProbe(AcsCliCase):
+    """MAR-520 gave the envelope one probe order in claude_code_adapter; the
+    gate path and the session marker were still reading `cwd` directly, so a
+    payload carrying workspace.current_dir resolved a DIFFERENT checkout for
+    gating than for measurement."""
+
+    def test_the_gate_path_honours_workspace_current_dir(self):
+        payload = {"workspace": {"current_dir": self.repo},
+                   "tool_input": {"skill": "create-prd"}}   # no top-level cwd
+        self.assertEqual(lib.run_pre_payload("create-prd", payload, record_marker=False), 0)
+
+    def test_the_marker_records_the_probed_cwd_but_never_invents_one(self):
+        ctx = lib.build_context(self.repo)
+        path = lib.session_marker_path(self.ws, "acme-shop", ctx["checkout_id"])
+        for existing in (path,):
+            if os.path.exists(existing):
+                os.unlink(existing)
+        lib.record_session_marker(ctx, {"session_id": "S1",
+                                        "workspace": {"current_dir": self.repo}})
+        self.assertEqual(lib.read_json(path)["cwd"], self.repo)
+
+        os.unlink(path)
+        lib.record_session_marker(ctx, {"session_id": "S2"})
+        self.assertIsNone(lib.read_json(path)["cwd"],
+                          "an envelope with no cwd must persist null, not the process cwd")
+
+
 if __name__ == "__main__":
     unittest.main()

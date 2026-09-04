@@ -340,7 +340,7 @@ def run_pre_payload(skill, payload, record_marker=True):
     record_session_marker faithfully persists those as null (deliberately: it
     never guesses), which would overwrite the real marker and cost the next run
     its usage attribution."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
         try:
@@ -547,7 +547,7 @@ def run_post(skill):
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
     its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:
