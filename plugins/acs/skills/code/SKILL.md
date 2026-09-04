@@ -205,7 +205,8 @@ applies judgment over finding text; the deterministic path is trigger (b).
 
 **(b) `high_stakes_paths` glob matched mid-implementation.** After the execute
 phase writes files, the coordinator calls `recommend_stakes(changed_paths,
-settings)` (`acs_lib.py`) over the iteration's changed file set. A return value
+settings)` (`acs_lib.py`) over the iteration's changed file set — as
+`acs.py stakes recommend --paths-from -`, fed `git diff --name-only`. A return value
 of `"high"` fires trigger (b). Stakes is then raised to `"high"` for the new
 axes. This is the deterministic, fully unit-testable trigger; it reuses the
 `high_stakes_paths` setting mechanism — no re-implementation.
@@ -217,6 +218,21 @@ The coordinator recognizes a request as explicit only when it unambiguously
 states a higher lane or axis value.
 
 **On-trigger escalation sequence (when any trigger fires):**
+
+Steps 1-2 and 4b-4f are one command — run it rather than reimplementing the
+sequence in ad-hoc Python (ADR 0001):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" lane apply \
+  --ticket <ticket-id> [--proposed-size <size>] [--proposed-stakes <stakes>] \
+  --trigger <a|b|c> [--source "<what the signal said>"]
+```
+
+It performs the steps below in exactly the order they are written, and prints
+`{escalated, event_recorded, lane, size, stakes, ceiling_before, ceiling_after,
+event}`. `escalated: false` means step 3's no-op fired and nothing was written.
+The prose that follows is the contract that command implements — read it to
+understand what the command guarantees, not as an instruction to hand-roll it.
 
 1. Determine new axes via `guard_axes(current_size, current_stakes, proposed_size,
    proposed_stakes)` (`acs_lib.py`). `guard_axes` returns `(effective_size,
@@ -296,7 +312,9 @@ confirmation sequence, in order, before any write:
    round-trip completes.
 4. Call `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
    clarify_ref=C-<n>)` (`acs_lib.py`), passing the resolved `C-<n>` ledger id
-   as `clarify_ref`. This subsection references the writer by its exact name
+   as `clarify_ref` — as `acs.py lane deescalate --ticket <id> --size <size>
+   --stakes <stakes> --clarify-ref C-<n>`, which refuses (exit 2, no write)
+   unless the ref resolves to an *answered* entry. This subsection references the writer by its exact name
    and signature only — the writer's internal behavior (lane recompute,
    persistence order, event recording) is its own contract, unchanged here.
 

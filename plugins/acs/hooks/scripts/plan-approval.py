@@ -6,6 +6,9 @@ acs_lib.plan_approval_eligible against the current plan artifact, once per
 approved plan digest, and mirrors the outcome into code-state.json's
 states.plan_approved. Never a subagent Write, never a gate.
 
+Reachable as `acs.py plan check` (MAR-521) — acs.py drops the verb and forwards
+the flags here unchanged; this script stays the implementation.
+
 Usage:
   plan-approval.py --ticket <ticket-id> [--plan <path>]
 """

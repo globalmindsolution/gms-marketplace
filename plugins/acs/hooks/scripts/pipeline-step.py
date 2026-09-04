@@ -5,6 +5,9 @@ The unhooked skills have no post-hook to write `pipeline-state.json` for them,
 so without this they would have to embed Python in their prose to reach
 `acs_lib.update_pipeline` — the pattern ADR 0001 exists to prevent.
 
+Reachable as `acs.py finish` (MAR-521) — acs.py forwards argv here unchanged
+and this script stays the implementation, so both spellings behave identically.
+
 Usage:
   pipeline-step.py --ticket SHOP-123 --skill test --status completed
                    [--summary "..."] [--set fix_loops=2] [--unset fix_loops]
