@@ -236,16 +236,19 @@ def cmd_lane_apply(args):
     from_size, from_stakes = ticket.get("size"), ticket.get("stakes")
     eff_size, eff_stakes = lib.guard_axes(from_size, from_stakes,
                                           args.proposed_size, args.proposed_stakes)
-    # guard_axes floors an absent axis at the LOWEST rank, so a ticket with no
-    # size would have "trivial" written into it by a rigor-RAISING path, which
-    # then anchors every later comparison. An axis nobody has stated stays
-    # absent; only a current or proposed value can be persisted.
-    if from_size is None and args.proposed_size is None:
-        eff_size = None
-    if from_stakes is None and args.proposed_stakes is None:
-        eff_stakes = None
+    # The lane is derived from the GUARDED axes, unchanged: guard_axes floors an
+    # absent axis at the lowest rank, and derive_lane must see that floor. Null
+    # them here instead and derive_lane(None, ...) returns its STANDARD default,
+    # so a call carrying no signal at all would escalate and raise the ceiling.
     new_lane, depth, ceiling_after = lib.escalate_lane(
         from_lane, eff_size, eff_stakes, ticket.get("needs_design"), ticket.get("type"))
+
+    # PERSISTENCE guard, applied after the derivation and only to what is
+    # written: an axis nobody has stated must not be materialised at the guard's
+    # floor by a rigor-RAISING path, where it would anchor every later
+    # comparison. Computed here, so it cannot influence the lane above.
+    write_size = None if (from_size is None and args.proposed_size is None) else eff_size
+    write_stakes = None if (from_stakes is None and args.proposed_stakes is None) else eff_stakes
 
     ceiling_before = (args.ceiling_before if args.ceiling_before is not None
                       else lib.VERIFY_ITERATION_CAP[lib.verify_depth(from_lane, from_stakes)])
@@ -265,12 +268,12 @@ def cmd_lane_apply(args):
         emit(result)
         return
 
-    result["size"], result["stakes"] = eff_size, eff_stakes
+    result["size"], result["stakes"] = write_size, write_stakes
 
-    if eff_size is not None:
-        ticket["size"] = eff_size
-    if eff_stakes is not None:
-        ticket["stakes"] = eff_stakes
+    if write_size is not None:
+        ticket["size"] = write_size
+    if write_stakes is not None:
+        ticket["stakes"] = write_stakes
     ticket["lane"] = new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
@@ -279,7 +282,7 @@ def cmd_lane_apply(args):
 
     event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
              "from_size": from_size, "from_stakes": from_stakes,
-             "to_size": eff_size, "to_stakes": eff_stakes,
+             "to_size": write_size, "to_stakes": write_stakes,
              "trigger": args.trigger, "source": args.source or args.trigger,
              "ceiling_before": ceiling_before, "ceiling_after": result["ceiling_after"],
              "direction": "up", "confirmation_ref": None}
@@ -312,11 +315,18 @@ def cmd_lane_deescalate(args):
     try:
         updated = lib.confirm_deescalation(tdir, ticket, args.size, args.stakes,
                                            args.clarify_ref)
-    except (ValueError, KeyError) as exc:
+    except (ValueError, KeyError, OSError) as exc:
+        # "Did anything actually change on disk?" -- NOT "does the ticket now
+        # hold the requested values?", which is also true when the ticket
+        # already sat at them and the call refused before writing a byte.
+        # OSError is caught because the failure this handler exists for is the
+        # audit write, which fails that way on a full or read-only disk.
         on_disk = lib.load_ticket(tdir) or {}
-        applied = (on_disk.get("size") == args.size
-                   and on_disk.get("stakes") == args.stakes)
+        applied = any(on_disk.get(k) != before[k] for k in ("lane", "size", "stakes"))
         if not applied:
+            if isinstance(exc, KeyError):
+                die("lane deescalate", "ticket.json for %s has no %s field to lower"
+                    % (ticket_id, exc))
             die("lane deescalate", str(exc))
         emit({"ok": False, "ticket_id": ticket_id, "from": before,
               "lane": on_disk.get("lane"), "size": on_disk.get("size"),
@@ -326,9 +336,14 @@ def cmd_lane_deescalate(args):
         die("lane deescalate",
             "axes and lane are LOWERED but the de-escalation event was not "
             "recorded: %s" % exc)
+    recorded = lib.last_run(lib.load_state(tdir, "code")) or {}
+    events = recorded.get("escalations") or []
     emit({"ok": True, "ticket_id": ticket_id, "from": before,
           "lane": updated["lane"], "size": updated["size"], "stakes": updated["stakes"],
           "applied": True, "event_recorded": True,
+          # Both audited lane-writing paths report `event`, so a coordinator can
+          # branch on it uniformly instead of only on the upward one.
+          "event": events[-1] if events else None,
           "confirmation_ref": args.clarify_ref})
 
 
@@ -455,10 +470,8 @@ def cmd_doctor(args):
     # both spawned every `<tool> --version` subprocess twice, each with a 5s
     # timeout.
     rows = lib.check_toolchain(settings)
-    missing = [row["name"] for row in rows
-               if row.get("kind") in ("required", "recommended") and not row.get("present")]
-    required_missing = [row["name"] for row in rows
-                        if row.get("kind") == "required" and not row.get("present")]
+    missing = lib.missing_tools(settings, rows=rows)
+    required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
     # `ok` is the verdict the module contract tells callers to read, so it must
     # answer "is the toolchain usable?" — not be a constant.
     emit({"ok": not required_missing, "context": ctx is not None,
@@ -485,19 +498,15 @@ def delegate(command, argv):
 # Parser
 # ---------------------------------------------------------------------------
 
-#: group name -> that group's parser, so `acs.py lane` can print the usage that
-#: actually names its subcommands. Populated by build_parser().
-GROUP_PARSERS = {}
-
-
 def build_parser():
+    """Return (parser, groups) where `groups` maps a group name to its parser.
+
+    That map is argparse's own `sub.choices` -- keeping a module-level copy
+    would go stale the moment build_parser() ran twice, pointing at the newest
+    parser's children while main() held an older one."""
     parser = argparse.ArgumentParser(prog="acs.py", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="group")
-    GROUP_PARSERS.clear()
-
-    def group(name, **kwargs):
-        GROUP_PARSERS[name] = sub.add_parser(name, **kwargs)
-        return GROUP_PARSERS[name]
+    group = sub.add_parser
 
     ctx = group("context", help="resolved settings, workspace and paths")
     ctx.add_argument("--ticket", help="also resolve this ticket's partition")
@@ -601,7 +610,7 @@ def build_parser():
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
                        help="delegated to %s" % DELEGATED[name])
-    return parser
+    return parser, sub.choices
 
 
 def main(argv=None):
@@ -615,14 +624,13 @@ def main(argv=None):
             rest = rest[1:]
         sys.exit(delegate(argv[0], rest))
 
-    parser = build_parser()
+    parser, groups = build_parser()
     args = parser.parse_args(argv)
     func = getattr(args, "func", None)
     if func is None:
         # A group with no subcommand ("acs.py lane") — show THAT group's usage,
         # which is what names its subcommands; the root help does not.
-        group = getattr(args, "group", None)
-        (GROUP_PARSERS.get(group) or parser).print_help(sys.stderr)
+        (groups.get(getattr(args, "group", None)) or parser).print_help(sys.stderr)
         sys.exit(2)
     func(args)
 

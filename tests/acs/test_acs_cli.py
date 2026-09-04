@@ -437,9 +437,10 @@ class TestDelegation(AcsCliCase):
         through_front_door = self.acs("finish", "--ticket", self.ticket, *common)
         direct = self.run_script("pipeline-step.py", "--ticket", other, *common)
         self.assertEqual(through_front_door.returncode, direct.returncode)
-        self.assertEqual(self._volatile(through_front_door.stdout),
-                         self._volatile(direct.stdout),
-                         "the front door must print exactly what the delegate prints")
+        self.assertEqual(
+            self._volatile(through_front_door.stdout).replace(self.ticket, "<t>"),
+            self._volatile(direct.stdout).replace(other, "<t>"),
+            "the front door must print exactly what the delegate prints")
         self.assertTrue(json.loads(through_front_door.stdout)["written"])
 
     def test_start_matches_skill_start(self):
@@ -648,6 +649,94 @@ class TestReviewFixes(AcsCliCase):
         for sub in ("derive", "escalate", "apply", "deescalate"):
             self.assertIn(sub, res.stderr)
         self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not lane's")
+
+
+class TestReviewFixesRoundTwo(AcsCliCase):
+    """A review of the fixes above caught two regressions IN them, both
+    reproduced live. These pin the corrected behaviour."""
+
+    def test_apply_carrying_no_signal_writes_nothing(self):
+        """Nulling the axes before escalate_lane changed the DERIVATION, not
+        just the persistence: derive_lane(None, ...) returns its STANDARD
+        default, so a call with no proposal at all escalated SMALL -> STANDARD,
+        wrote three files and raised the verify ceiling 1 -> 3."""
+        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
+        tpath = self.tdir(ticket)
+        doc = lib.load_ticket(tpath)
+        doc.pop("size", None)
+        doc["lane"], doc["stakes"] = "SMALL", "normal"
+        lib.save_ticket(tpath, doc)
+        lib.append_in_progress_run(tpath, "code", ticket)
+        before = lib.load_ticket(tpath)
+
+        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket, "--trigger", "b"))
+        self.assertFalse(out["escalated"])
+        self.assertEqual(out["ceiling_before"], out["ceiling_after"])
+        self.assertEqual(lib.load_ticket(tpath), before)
+        self.assertEqual(lib.last_run(lib.load_state(tpath, "code")).get("escalations", []), [])
+
+    def test_a_real_raise_still_fires_without_inventing_the_absent_axis(self):
+        """The guard must not have been bought by disabling escalation."""
+        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
+        tpath = self.tdir(ticket)
+        doc = lib.load_ticket(tpath)
+        doc.pop("size", None)
+        doc["lane"], doc["stakes"] = "SMALL", "normal"
+        lib.save_ticket(tpath, doc)
+        lib.append_in_progress_run(tpath, "code", ticket)
+
+        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
+                                    "--proposed-stakes", "high", "--trigger", "b"))
+        self.assertTrue(out["escalated"])
+        self.assertIsNone(out["size"])
+        self.assertNotIn("size", lib.load_ticket(tpath))
+
+    def test_deescalate_refusal_at_the_target_values_is_a_plain_refusal(self):
+        """`applied` must mean "the ticket changed", not "the ticket now holds
+        the requested values" — which is also true when the call refused before
+        writing a byte, firing the loudest alarm in the system for nothing."""
+        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
+        tpath = self.tdir(ticket)
+        doc = lib.load_ticket(tpath)
+        doc.update({"size": "small", "stakes": "low", "lane": "SMALL"})
+        lib.save_ticket(tpath, doc)
+        before = lib.load_ticket(tpath)
+
+        res = self.acs("lane", "deescalate", "--ticket", ticket, "--size", "small",
+                       "--stakes", "low", "--clarify-ref", "C-99")
+        self.assertEqual(res.returncode, 2)
+        self.assertEqual(res.stdout.strip(), "", "a refusal that wrote nothing prints nothing")
+        self.assertIn("does not resolve", res.stderr)
+        self.assertNotIn("LOWERED", res.stderr)
+        self.assertEqual(lib.load_ticket(tpath), before)
+
+    def test_a_marker_with_a_real_session_is_never_blanked(self):
+        """Guarded at the root now, so a caller that forgets record_marker=False
+        cannot cost the next run its attribution."""
+        ctx = lib.build_context(self.repo)
+        path = lib.session_marker_path(self.ws, "acme-shop", ctx["checkout_id"])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        lib.write_json(path, {"session_id": "REAL", "transcript_path": "/x/t.jsonl"})
+        lib.record_session_marker(ctx, {"cwd": self.repo})          # no session_id
+        self.assertEqual(lib.read_json(path)["session_id"], "REAL")
+
+    def test_a_fresh_marker_still_records_absent_fields_as_null(self):
+        """The guard must not have broken the invariant it sits next to: a
+        genuinely absent field is written as null, never guessed."""
+        ctx = lib.build_context(self.repo)
+        path = lib.session_marker_path(self.ws, "acme-shop", ctx["checkout_id"])
+        if os.path.exists(path):
+            os.unlink(path)
+        lib.record_session_marker(ctx, {"cwd": self.repo})
+        self.assertIsNone(lib.read_json(path)["session_id"])
+
+    def test_doctor_and_setup_agree_on_what_is_missing(self):
+        """One predicate: doctor reuses missing_tools over pre-probed rows
+        rather than re-implementing its kind filter."""
+        out = self.ok_json(self.acs("doctor"))
+        self.assertEqual(out["missing"], lib.missing_tools(rows=out["toolchain"]))
+        self.assertEqual(out["missing_required"],
+                         lib.missing_tools(kinds=("required",), rows=out["toolchain"]))
 
 
 if __name__ == "__main__":

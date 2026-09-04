@@ -36,13 +36,14 @@ from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS
     resolve_template, settings_files, validate_formats, validate_models,
     validate_settings)  # noqa: F401
 
-from .repo import (resolve_active_partition,GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
     checkout_id, checkout_root, current_branch, default_state_root,
     find_ticket_partition, gh_failure_hint, index_path, lock_path, main_repo_root,
     pointer_path, record_session_marker, repo_dir, repo_partition_id,
-    resolve_ticket_id, scan_local_ticket_evidence, session_marker_path, sessions_dir,
-    state_path, ticket_dir, ticket_id_from_text)  # noqa: F401
+    resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
+    session_marker_path, sessions_dir, state_path, ticket_dir,
+    ticket_id_from_text)  # noqa: F401
 
 from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
     PLAN_REQUIRED_SECTIONS, VERIFY_ITERATION_CAP, _PLAN_HEADING_RE, _SIZE_ORDER,
@@ -68,7 +69,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, TOOLCHAIN, _BARE_INT
     parse_fanout_for_arg, render_managed_block, tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
-from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _clear_pointers_for_ticket,
+from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATES, _archive_partition, _clear_pointers_for_ticket,
     _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
     _require_architecture_doc_set, _require_completed, _resolve_ticket_for_gate,
     build_context, design_requirement, gate_code, gate_create_architecture,

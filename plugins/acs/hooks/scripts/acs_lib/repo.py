@@ -216,6 +216,7 @@ def record_session_marker(ctx, payload):
     skill-start.py can thread them onto the new run entry without guessing.
     Fields come straight off the envelope; a missing one is written as null,
     never constructed (e.g. never a cwd-derived guess)."""
+    path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
     marker = {
         "session_id": cc.hook_session_id(payload),
         "transcript_path": cc.hook_transcript_path(payload),
@@ -225,7 +226,16 @@ def record_session_marker(ctx, payload):
         "skill": cc.hook_tool_input(payload).get("skill"),
         "updated_at": now_iso(),
     }
-    write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
+    # A payload with no session_id carries nothing to correlate, and writing its
+    # nulls OVER a marker that has a real one costs the next run its cost/usage
+    # attribution. Writing those nulls into a fresh marker is still correct (the
+    # field is genuinely absent and is never guessed) -- only clobbering a good
+    # one is refused, so no caller can destroy attribution by forgetting a flag.
+    if marker["session_id"] is None:
+        existing = read_json(path)
+        if isinstance(existing, dict) and existing.get("session_id") is not None:
+            return existing
+    write_json(path, marker)
     return marker
 
 
