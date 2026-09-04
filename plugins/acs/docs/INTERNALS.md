@@ -15,7 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; `acs_lib.py`, `usage_reader.py`, `cost_sampler.py`, and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 19 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package and `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py` and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 19 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
@@ -312,7 +312,7 @@ audit trail. Current conditional controls:
 
 | Control | Set where | Effect |
 |---------|-----------|--------|
-| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib.py:1532-1542`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
+| `needs_design` | ticket analysis (epics always true) | `false`: pre-create-design BLOCKS the step; `skill-start.py`'s `design_requirement()` (`acs_lib/gates.py`, called at `skill-start.py:207`) resolves that no design.md applies, so `/code`'s plan phase does not expect one. The skip is enforced in both directions. |
 | `docs_only` | ticket analysis, user-confirmed | `true`: /code drops tests-first and the coverage hard fail (`coverage: n/a — docs_only`); the full suite still runs once and must be green; the verifier's Tests/Coverage dimensions become n/a, all others apply. A diff line touching executable code under this flag is a blocking finding. |
 | epic children | minted by `new-ticket.py` **in a `--fan-out` or split/restructure run** | a completed `create-ticket` run is recorded at mint time — a child never reruns `/acs:create-ticket` and never runs its own `/create-design`; its pipeline starts at `/acs:code`, which reads the parent epic's `design.md` directly, without a fake step. |
 | `flow: product` | product-level skills | the delivery ticket skips the six-step pipeline; /merge-pr's gate accepts the PR reference from the product skill's state file. |
@@ -323,7 +323,7 @@ verifiable contract + reviewed implementation, doc truth independently
 re-derived from the diff, delivery, human gate), and each scales down
 with task size. A new conditional step must follow the same pattern:
 a ticket-level flag, user confirmation at analysis time, and gate logic in
-`acs_lib.py` enforcing both the skip and the non-skip.
+`acs_lib/gates.py` enforcing both the skip and the non-skip.
 
 ## Testing layers — unit always, e2e by configuration, CI at the gate
 
@@ -459,7 +459,7 @@ sanctioned way to keep children shippable when a slice alone would break.
 ## Settings, formats, templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user
-  `~/.acs/settings.json`, deep-merged per key (defaults in `acs_lib.py`).
+  `~/.acs/settings.json`, deep-merged per key (defaults in `acs_lib/settings.py`).
   A linked worktree without its own gitignored `settings.local.json` inherits
   the main checkout's.
 - Inline formats are validated by every pre-hook (unknown placeholder = exit 2;

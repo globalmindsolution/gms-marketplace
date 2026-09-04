@@ -16,6 +16,7 @@ import ast
 import glob
 import importlib.util
 import os
+import sys
 import re
 import unittest
 
@@ -45,12 +46,22 @@ def section(body, heading):
 
 
 def _load_acs_lib():
-    """Load the REPO's acs_lib.py by file path (never the cached plugin
-    install), so HOOKED_SKILLS reflects this worktree's live source."""
-    target = os.path.join(PLUGIN, "hooks", "scripts", "acs_lib.py")
-    spec = importlib.util.spec_from_file_location("acs_lib_mar123", target)
+    """Load the REPO's acs_lib by file path (never the cached plugin install),
+    so HOOKED_SKILLS reflects this worktree's live source.
+
+    acs_lib is a package since MAR-522: the spec needs the package's search
+    location and the module must be registered before exec, or its own relative
+    imports cannot resolve."""
+    pkg = os.path.join(PLUGIN, "hooks", "scripts", "acs_lib")
+    spec = importlib.util.spec_from_file_location(
+        "acs_lib_mar123", os.path.join(pkg, "__init__.py"),
+        submodule_search_locations=[pkg])
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.modules[spec.name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop(spec.name, None)
     return mod
 
 

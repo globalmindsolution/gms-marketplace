@@ -25,6 +25,28 @@ sys.path.insert(0, SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 
+#: The acs_lib package (MAR-522 split the single acs_lib.py into seven modules).
+ACS_LIB_PKG = os.path.join(SCRIPTS, "acs_lib")
+
+
+def acs_lib_paths():
+    """Every module file of the acs_lib package, sorted for stable output.
+
+    A text scan that used to open acs_lib.py must walk these instead, or it
+    silently stops covering the code it was written to guard."""
+    return [os.path.join(ACS_LIB_PKG, name)
+            for name in sorted(os.listdir(ACS_LIB_PKG)) if name.endswith(".py")]
+
+
+def acs_lib_source():
+    """The package's concatenated source -- what reading acs_lib.py used to give."""
+    parts = []
+    for path in acs_lib_paths():
+        with open(path, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
+
+
 class AcsWorkspaceCase(unittest.TestCase):
     """Fixture: a consumer git repo with valid .acs settings + empty workspace."""
 
@@ -105,7 +127,10 @@ def load_module(script_filename, alias=None):
     """Fresh-import a hyphenated hook script by path, popping any stale cache first."""
     name = alias or script_filename
     sys.modules.pop(name, None)
-    sys.modules.pop("acs_lib", None)
+    # acs_lib is a package (MAR-522): popping the facade alone leaves its
+    # submodules cached, so the "fresh import" would re-bind the SAME objects.
+    for cached in [n for n in sys.modules if n == "acs_lib" or n.startswith("acs_lib.")]:
+        sys.modules.pop(cached, None)
     path = os.path.join(SCRIPTS, script_filename)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)

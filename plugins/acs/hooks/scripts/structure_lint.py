@@ -38,12 +38,15 @@ reconciled into one default.
 
 import re
 import sys
+import os
 from collections import namedtuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import markdown_headings  # noqa: E402
 
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 
 # Bounded line-prefix heading match — no nested quantifiers, ReDoS-safe.
-_HEADING = re.compile(r"^(#{1,6}) (.*)$")
 
 
 def _parse_sections(raw):
@@ -51,14 +54,8 @@ def _parse_sections(raw):
     return [s.strip() for s in raw.split(";")]
 
 
-def _headings(lines):
-    """Return (line_no, level, text) for each heading line, in doc order."""
-    found = []
-    for idx, raw in enumerate(lines, start=1):
-        m = _HEADING.match(raw)
-        if m:
-            found.append((idx, len(m.group(1)), m.group(2).strip()))
-    return found
+# The one heading scanner (MAR-522) — see markdown_headings.py.
+_headings = markdown_headings.headings
 
 
 def lint_structure(text, sections, ordered=True, source="<text>"):

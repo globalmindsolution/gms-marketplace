@@ -70,13 +70,15 @@ Run:
 import ast
 import collections
 import os
+import sys
 import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS_DIR = os.path.join(REPO_ROOT, "tests")
 SCRIPTS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-ACS_LIB_PATH = os.path.join(SCRIPTS_DIR, "acs_lib.py")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from acs_case import acs_lib_source  # noqa: E402
 
 SECOND_RESOLUTION_REASON = (
     "acs_lib.now_iso() is second-resolution (acs_lib.py:391-392), so a "
@@ -602,7 +604,7 @@ def _verdict(token, corpus):
 def scan_vacuous_absence_repo():
     """[(relpath, lineno, token, verdict)]; verdict is "flag", "pass", or "abstain"
     (no MODULE_FILENAME or no derivable token)."""
-    lib_source = read(ACS_LIB_PATH)
+    lib_source = acs_lib_source()
     results = []
     for path in py_files():
         try:
@@ -674,7 +676,7 @@ class TestNoVacuousAbsenceAssertions(unittest.TestCase):
         assert_no_vacuous_absence(scan_vacuous_absence_repo())
 
     def test_detector_silent_on_a_genuinely_creatable_path(self):
-        lib_source = read(ACS_LIB_PATH)
+        lib_source = acs_lib_source()
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus = build_corpus(clarify_source, lib_source, depth=1)
         self.assertEqual(_verdict("clarifications.json", corpus), "pass")
@@ -706,7 +708,7 @@ class T(unittest.TestCase):
         self.assertIsNone(module_under_test(tree))
 
     def test_one_hop_closure_resolves_lib_helpers(self):
-        lib_source = read(ACS_LIB_PATH)
+        lib_source = acs_lib_source()
         handoff_source = read(os.path.join(SCRIPTS_DIR, "handoff.py"))
         corpus_depth0 = build_corpus(handoff_source, lib_source, depth=0)
         self.assertNotIn("lock_path", corpus_depth0)
@@ -736,7 +738,7 @@ class T(unittest.TestCase):
         control at a token that script still cannot create rather than deleting
         it; the hermetic twin (test_detector_fires_on_a_never_created_path) is
         the primary firing evidence, this control proves it on real sources."""
-        lib_source = read(ACS_LIB_PATH)
+        lib_source = acs_lib_source()
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus_clarify = build_corpus(clarify_source, lib_source, depth=1)
         self.assertEqual(_verdict("pipeline-state.json", corpus_clarify), "flag")

@@ -65,7 +65,7 @@ runtimes), STOP immediately and surface the same breakdown message
 circumstance, regardless of what the pre-gate did or did not enforce.
 
 For this non-epic ticket, **recompute** `derive_lane(ticket.size,
-ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib.py`) fresh —
+ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib/lanes.py`) fresh —
 never read the cached `ticket.lane`, which can be stale or hand-edited
 (NFR-S4). When the recomputed lane is `COMPLEX` (e.g. `size: large` → lane
 COMPLEX), **surface** — never block — a breakdown recommendation: note the
@@ -147,7 +147,7 @@ check described in the next section — it is never lowered):
 
 1. Read `ticket.lane` and `ticket.stakes` from `context.ticket` (fields added
    by MAR-56; available in `context.ticket.lane` and `context.ticket.stakes`).
-2. Call `verify_depth(ticket.lane, ticket.stakes)` (defined in `acs_lib.py`)
+2. Call `verify_depth(ticket.lane, ticket.stakes)` (defined in `acs_lib/lanes.py`)
    to obtain `"light"` or `"full"`.
 3. Set the reflection-loop iteration ceiling from `VERIFY_ITERATION_CAP[depth]`:
    - `"light"` (TRIVIAL/SMALL at low/normal stakes) → ceiling = **1** iteration.
@@ -205,7 +205,7 @@ applies judgment over finding text; the deterministic path is trigger (b).
 
 **(b) `high_stakes_paths` glob matched mid-implementation.** After the execute
 phase writes files, the coordinator calls `recommend_stakes(changed_paths,
-settings)` (`acs_lib.py`) over the iteration's changed file set — as
+settings)` (`acs_lib/lanes.py`) over the iteration's changed file set — as
 `acs.py stakes recommend --paths-from -`, fed `git diff --name-only`. A return value
 of `"high"` fires trigger (b). Stakes is then raised to `"high"` for the new
 axes. This is the deterministic, fully unit-testable trigger; it reuses the
@@ -235,7 +235,7 @@ The prose that follows is the contract that command implements — read it to
 understand what the command guarantees, not as an instruction to hand-roll it.
 
 1. Determine new axes via `guard_axes(current_size, current_stakes, proposed_size,
-   proposed_stakes)` (`acs_lib.py`). `guard_axes` returns `(effective_size,
+   proposed_stakes)` (`acs_lib/lanes.py`). `guard_axes` returns `(effective_size,
    effective_stakes)` by taking the higher of each axis — it is the axis-level
    realization of the negative guarantee (design.md:29 invariant (e)):
    no automatic/unattended path can write a `size` or `stakes` value that is
@@ -243,7 +243,7 @@ understand what the command guarantees, not as an instruction to hand-roll it.
    proposed stakes is `"high"`; for trigger (a)/(c), pass the axis value the
    signal indicates. Call `guard_axes` BEFORE `escalate_lane`.
 2. Call `escalate_lane(current_lane, eff_size, eff_stakes, needs_design,
-   ticket_type)` (`acs_lib.py`) to obtain `(new_lane, new_depth, new_ceiling)`.
+   ticket_type)` (`acs_lib/lanes.py`) to obtain `(new_lane, new_depth, new_ceiling)`.
    Lane is never hand-set — `derive_lane` inside `escalate_lane` is the single
    authoritative producer (ADR 0030).
 3. If `new_lane == current_lane` (no raise needed): no-op, continue.
@@ -263,7 +263,7 @@ understand what the command guarantees, not as an instruction to hand-roll it.
       from_stakes, to_size, to_stakes, trigger, source, ceiling_before,
       ceiling_after, direction, confirmation_ref`) with `direction: "up"` and
       `confirmation_ref: null`, and call `record_escalation_event(tdir, "code",
-      event)` (`acs_lib.py`) to durably persist it to `runs[-1].escalations` on
+      event)` (`acs_lib/state.py`) to durably persist it to `runs[-1].escalations` on
       `code-state.json`. This ordering makes an audit-write failure detectable:
       the axes/lane are already durably applied by b-d, so a lane change with
       no matching event is itself the signal, rather than an event recorded for
@@ -311,7 +311,7 @@ confirmation sequence, in order, before any write:
    `pipeline-state.json`/`tickets-index.json` happens before this confirmation
    round-trip completes.
 4. Call `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
-   clarify_ref=C-<n>)` (`acs_lib.py`), passing the resolved `C-<n>` ledger id
+   clarify_ref=C-<n>)` (`acs_lib/state.py`), passing the resolved `C-<n>` ledger id
    as `clarify_ref` — as `acs.py lane deescalate --ticket <id> --size <size>
    --stakes <stakes> --clarify-ref C-<n>`, which refuses (exit 2, no write)
    unless the ref resolves to an *answered* entry. This subsection references the writer by its exact name

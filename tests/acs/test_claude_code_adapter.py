@@ -326,12 +326,32 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
                 found.append(node.value)
         return found
 
+    def _plugin_modules(self):
+        """Every plugin module under the scripts dir, RECURSIVELY.
+
+        acs_lib became a package in MAR-522. A non-recursive listdir would skip
+        its seven modules entirely -- the guard would keep passing while the
+        literals it exists to catch moved into acs_lib/state.py."""
+        found = []
+        for root, _dirs, files in os.walk(PLUGIN_SCRIPTS):
+            if "__pycache__" in root:
+                continue
+            for name in sorted(files):
+                if name.endswith(".py") and name != "claude_code_adapter.py":
+                    found.append(os.path.join(root, name))
+        return sorted(found)
+
+    def test_the_walk_reaches_inside_the_acs_lib_package(self):
+        """Grounding check: without it, the guard below could pass vacuously."""
+        scanned = self._plugin_modules()
+        self.assertTrue(any(os.path.join("acs_lib", "state.py") in p for p in scanned),
+                        "the module walk must reach acs_lib's package modules")
+        self.assertGreater(len(scanned), 30)
+
     def test_no_other_plugin_module_spells_these_out(self):
         offenders = []
-        for name in sorted(os.listdir(PLUGIN_SCRIPTS)):
-            if not name.endswith(".py") or name == "claude_code_adapter.py":
-                continue
-            path = os.path.join(PLUGIN_SCRIPTS, name)
+        for path in self._plugin_modules():
+            name = os.path.relpath(path, PLUGIN_SCRIPTS)
             strings = self._code_strings(path)
             for literal in self.ADAPTER_ONLY:
                 if any(literal == value for value in strings):

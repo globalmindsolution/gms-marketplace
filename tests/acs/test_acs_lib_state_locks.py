@@ -841,14 +841,16 @@ class TestBuildContext(unittest.TestCase):
                         {"ticket_prefix": "SHOP", "workspace_path": ws})
         fake_home = os.path.join(tmp, "home")
         os.makedirs(fake_home)
-        original = lib.repo_partition_id
-        lib.repo_partition_id = lambda cwd: None
+        # build_context lives in acs_lib.gates and bound repo_partition_id at
+        # import time (MAR-522), so the stub has to replace THAT binding.
+        original = lib.gates.repo_partition_id
+        lib.gates.repo_partition_id = lambda cwd: None
         try:
             with mock.patch.dict(os.environ, {"HOME": fake_home}):
                 with self.assertRaises(lib.GateError) as ctx:
                     lib.build_context(repo)
         finally:
-            lib.repo_partition_id = original
+            lib.gates.repo_partition_id = original
         self.assertIn("could not derive a repo identity", str(ctx.exception))
 
 

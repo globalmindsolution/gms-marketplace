@@ -256,7 +256,7 @@ class TestReconciliationGate(unittest.TestCase):
             return {"observed_max": None, "seed_source": None,
                     "per_source": {"committed-files": None, "git-history": None, "branch-names": None}}
 
-        with mock.patch.object(lib, "scan_local_ticket_evidence", side_effect=fake_scan):
+        with mock.patch.object(lib.state, "scan_local_ticket_evidence", side_effect=fake_scan):
             with self.assertRaises(lib.ReconciliationRequired):
                 lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP")
         self.assertTrue(seen.get("guard_exists"))
@@ -288,7 +288,7 @@ class TestReconciliationGate(unittest.TestCase):
     def test_populated_next_allocates_without_running_the_scan(self):
         os.makedirs(self.rdir, exist_ok=True)
         lib.write_json(self.counters_path, {"next": 10})
-        with mock.patch.object(lib, "scan_local_ticket_evidence") as scan:
+        with mock.patch.object(lib.state, "scan_local_ticket_evidence") as scan:
             result = lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP")
         self.assertEqual(result, "SHOP-10")
         scan.assert_not_called()
