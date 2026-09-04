@@ -13,7 +13,7 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, lock, phase, slug, fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -42,6 +42,8 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py lock status --ticket MAR-1
+  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
   acs.py plan check --ticket MAR-1
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
@@ -351,6 +353,58 @@ def cmd_ticket_save(args):
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
 
 
+def _lock_view(tdir, ticket_id, ctx):
+    lock = lib.read_lock(tdir)
+    if not isinstance(lock, dict):
+        return {"ok": True, "ticket_id": ticket_id, "held": False, "lock": None,
+                "stale": None, "basis": None, "basis_detail": None, "held_by_me": False}
+    stale, basis = lib.lock_staleness(lock)
+    return {"ok": True, "ticket_id": ticket_id, "held": True, "lock": lock,
+            "stale": stale, "basis": basis,
+            "basis_detail": lib.LOCK_STALENESS_REASONS[basis],
+            "held_by_me": lock.get("checkout_id") == ctx["checkout_id"]}
+
+
+def cmd_lock_status(args):
+    """What holds this ticket's lock, and on what evidence.
+
+    `stale` is a verdict, `basis` is how it was reached — a lock held on
+    another host has no liveness signal at all and degrades to an age timeout
+    (lib.lock_staleness). Read both before breaking anything."""
+    ticket_id, tdir, ctx = partition_or_die("lock status", args.ticket)
+    view = _lock_view(tdir, ticket_id, ctx)
+    view["lock_path"] = lib.lock_path(tdir)
+    view["audit_path"] = lib.lock_audit_path(tdir)
+    emit(view)
+
+
+def cmd_lock_force_unlock(args):
+    """Break a lock this checkout does not hold, recording who and why.
+
+    The audited escape hatch for the case release_lock refuses by design: the
+    holding session is gone but its lock is not (and, cross-host, will not read
+    as stale for 24 hours). --reason is required and lands in the ticket's
+    append-only lock-events.jsonl before the lock file is removed."""
+    ticket_id, tdir, ctx = partition_or_die("lock force-unlock", args.ticket)
+    before = _lock_view(tdir, ticket_id, ctx)
+    if not before["held"]:
+        emit({"ok": True, "ticket_id": ticket_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(tdir)})
+        return
+    if before["held_by_me"] and not args.force:
+        die("lock force-unlock",
+            "this checkout holds the lock — the post hook releases it; pass --force "
+            "to break your own lock anyway")
+    try:
+        result = lib.force_release_lock(tdir, os.getcwd(), args.reason, actor=args.actor)
+    except (ValueError, lib.GateError) as exc:
+        die("lock force-unlock", str(exc))
+    emit({"ok": True, "ticket_id": ticket_id, "forced": result["forced"],
+          "detail": result["detail"], "audit_path": result["audit_path"],
+          "broken_lock": result["lock"], "was_stale": before["stale"],
+          "staleness_basis": before["basis"]})
+
+
 def cmd_phase_validate(args):
     """Check a phase result document BEFORE the post-hook consumes it. The
     post-hook refuses a document with no status (it would otherwise finalize a
@@ -491,6 +545,22 @@ def build_parser():
     save.add_argument("--from", dest="source", metavar="FILE",
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
+
+    lock = sub.add_parser("lock", help="inspect and (audited) break a ticket lock")
+    lock_sub = lock.add_subparsers(dest="cmd")
+
+    lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
+    lstatus.add_argument("--ticket")
+    lstatus.set_defaults(func=cmd_lock_status)
+
+    lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
+    lforce.add_argument("--ticket")
+    lforce.add_argument("--reason", required=True,
+                        help="why the lock is being broken; recorded in the audit ledger")
+    lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
+    lforce.add_argument("--force", action="store_true",
+                        help="break the lock even when this checkout is its holder")
+    lforce.set_defaults(func=cmd_lock_force_unlock)
 
     phase = sub.add_parser("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")

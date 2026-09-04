@@ -1,0 +1,464 @@
+"""MAR-530: the repo-level write guards and the ticket lock fail CLOSED.
+
+Two mechanisms, one principle — a guard that gives up silently is worse than
+no guard, because it makes the loss invisible:
+
+  * `repo_guard` (and through it `_guarded_repo_write` and
+    `allocate_ticket_id`) used to spin for ten seconds and then run the
+    read-modify-write anyway. Exhaustion now raises `GuardTimeout` and writes
+    nothing. `tests/acs/test_index_metrics_concurrency_guard.py` covers the two
+    repo-level writers; this module covers the id allocator, whose fail-open
+    arm could hand two sessions the SAME ticket id.
+  * The ticket `.lock` has no cross-host liveness signal at all — a pid from
+    another container is meaningless here. `lock_staleness` now says which
+    regime a verdict came from, and `force_release_lock` is the explicit,
+    audited way to break a lock instead of "delete the file and hope someone
+    remembers who did it".
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest import mock
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+sys.path.insert(0, SCRIPTS)
+
+import acs_lib as lib  # noqa: E402
+
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+from acs_case import AcsWorkspaceCase  # noqa: E402
+
+
+def _hours_ago(n):
+    return (datetime.now(timezone.utc) - timedelta(hours=n)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class RepoGuardExhaustionTest(unittest.TestCase):
+    """The shared guard: what happens at the end of the budget."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_raises_without_running_the_body(self):
+        open(os.path.join(self.tmp, "g.lock"), "w").close()  # fresh -> never stale
+        ran = []
+        with mock.patch("time.sleep"):
+            with self.assertRaises(lib.GuardTimeout):
+                with lib.repo_guard(self.tmp, "g.lock"):
+                    ran.append(True)
+        self.assertEqual(ran, [], "the body must not run without the guard")
+
+    def test_the_message_names_the_guard_the_budget_and_the_refusal(self):
+        open(os.path.join(self.tmp, "g.lock"), "w").close()
+        with mock.patch("time.sleep"):
+            with self.assertRaises(lib.GuardTimeout) as caught:
+                with lib.repo_guard(self.tmp, "g.lock", attempts=4, interval=0.25):
+                    pass
+        message = str(caught.exception)
+        self.assertIn("g.lock", message)
+        self.assertIn("1.0s", message)          # attempts * interval, not the default
+        self.assertIn("REFUSED", message)
+
+    def test_budget_is_bounded_by_attempts_not_wall_clock(self):
+        """The spin is exactly `attempts` iterations — a test that mocks sleep
+        must terminate, and a caller reading the constants gets the real
+        budget."""
+        open(os.path.join(self.tmp, "g.lock"), "w").close()
+        with mock.patch("time.sleep") as slept:
+            with self.assertRaises(lib.GuardTimeout):
+                with lib.repo_guard(self.tmp, "g.lock", attempts=7, interval=0.05):
+                    pass
+        self.assertEqual(slept.call_count, 7)
+        self.assertEqual(lib.GUARD_ATTEMPTS * lib.GUARD_INTERVAL, 10.0)
+
+
+    def test_releases_its_own_guard_on_the_way_out(self):
+        with lib.repo_guard(self.tmp, "g.lock") as guard:
+            self.assertTrue(os.path.exists(guard))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "g.lock")))
+
+    def test_releases_its_own_guard_when_the_body_raises(self):
+        with self.assertRaises(ZeroDivisionError):
+            with lib.repo_guard(self.tmp, "g.lock"):
+                1 / 0
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "g.lock")))
+
+    def test_guard_timeout_is_a_gate_error_so_the_pre_hook_reports_it(self):
+        """run_pre already turns a GateError into `blocked — <reason>` + exit 2.
+        Inheriting from it is what keeps a guard timeout out of a traceback."""
+        self.assertTrue(issubclass(lib.GuardTimeout, lib.GateError))
+
+
+class GuardAttemptsOverrideTest(unittest.TestCase):
+    """The budget is operable: refusing after 10s is a real failure mode, so a
+    slow shared workspace can raise it and a test can collapse it."""
+
+    def test_default_when_unset_or_unusable(self):
+        for value in ({}, {"ACS_GUARD_ATTEMPTS": ""}, {"ACS_GUARD_ATTEMPTS": "many"},
+                      {"ACS_GUARD_ATTEMPTS": "0"}, {"ACS_GUARD_ATTEMPTS": "-3"}):
+            with mock.patch.dict(os.environ, value, clear=True):
+                self.assertEqual(lib.guard_attempts(), lib.GUARD_ATTEMPTS)
+
+    def test_positive_override_is_honoured(self):
+        with mock.patch.dict(os.environ, {"ACS_GUARD_ATTEMPTS": "3"}):
+            self.assertEqual(lib.guard_attempts(), 3)
+
+    def test_repo_guard_reads_it_per_call(self):
+        tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        open(os.path.join(tmp, "g.lock"), "w").close()
+        with mock.patch.dict(os.environ, {"ACS_GUARD_ATTEMPTS": "2"}):
+            with mock.patch("time.sleep") as slept:
+                with self.assertRaises(lib.GuardTimeout):
+                    with lib.repo_guard(tmp, "g.lock"):
+                        pass
+        self.assertEqual(slept.call_count, 2)
+
+
+class AllocateTicketIdFailsClosedTest(AcsWorkspaceCase):
+    """The allocator is the sharpest case: fail-open here mints a DUPLICATE id."""
+
+    def test_refuses_rather_than_minting_from_an_unguarded_read(self):
+        rdir = lib.repo_dir(self.ws, "acme-shop")
+        guard = os.path.join(rdir, "counters.json.lock")
+        open(guard, "w").close()  # fresh mtime -> never stale, held for the call
+
+        with mock.patch("time.sleep"):
+            with self.assertRaises(lib.GuardTimeout):
+                lib.allocate_ticket_id(self.ws, "acme-shop", "SHOP")
+
+        counters = lib.read_json(os.path.join(rdir, "counters.json"))
+        self.assertEqual(counters["next"], 1, "a refused allocation must not advance the counter")
+        self.assertTrue(os.path.exists(guard), "the refusal must not steal the foreign guard")
+
+    def test_new_ticket_cli_reports_the_refusal_instead_of_a_duplicate_id(self):
+        """Out of process, so the refusal is proven where a coordinator meets
+        it. $ACS_GUARD_ATTEMPTS collapses the 10s budget to one attempt --
+        the arm under test is exhaustion, not how long exhaustion takes."""
+        rdir = lib.repo_dir(self.ws, "acme-shop")
+        open(os.path.join(rdir, "counters.json.lock"), "w").close()
+        out = self.run_script("new-ticket.py", "--title", "T", "--type", "task",
+                              env=dict(os.environ, ACS_GUARD_ATTEMPTS="1"))
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("counters.json.lock", out.stderr)
+        self.assertEqual(lib.read_json(os.path.join(rdir, "counters.json"))["next"], 1)
+
+
+class PostHookReportsGuardTimeoutTest(AcsWorkspaceCase):
+    """Fail-closed has to be legible where a coordinator meets it. The post hook
+    reaches the repo-level writers AFTER the run and pipeline-state are already
+    durable, so a refusal there is a partial-write situation and the message has
+    to say which half landed."""
+
+    def test_index_guard_timeout_exits_1_names_what_landed_and_frees_the_lock(self):
+        ticket = self.new_ticket("Audit", "task")
+        self.start("standardize-project", ticket)
+        tdir = self.tdir(ticket)
+        self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+
+        guard = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "tickets-index.json.lock")
+        open(guard, "w").close()  # fresh -> never stale, held for the whole call
+        out = self.run_script(
+            "post-standardize-project.py", "--ticket", ticket,
+            stdin=json.dumps({"status": "completed",
+                              "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}}),
+            env=dict(os.environ, ACS_GUARD_ATTEMPTS="1"))
+
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("tickets-index.json.lock", out.stderr)
+        self.assertIn("ARE written", out.stderr)
+        self.assertIn("Do NOT re-run this hook", out.stderr)
+        # The half that landed really did land...
+        self.assertEqual(lib.last_run_status(tdir, "standardize-project"), "completed")
+        self.assertEqual(lib.load_ticket(tdir)["status"], "in_review")
+        # ...the repo-level half did not: the index still carries the pre-call
+        # status, which is the divergence the message tells the operator about.
+        index = lib.read_json(lib.index_path(self.ws, "acme-shop")) or {}
+        self.assertEqual(index["tickets"][ticket]["status"], "in_progress")
+        # ...and the ticket is not left locked by a session that has exited.
+        self.assertFalse(os.path.exists(lib.lock_path(tdir)))
+        self.assertTrue(os.path.exists(guard), "the refusal must not steal the foreign guard")
+
+    def test_merge_pr_names_the_archive_among_the_writes_that_did_not_happen(self):
+        """merge-pr's tail archives the partition through a second guarded
+        index write, so its failure loses more than the index entry and the
+        message has to say so."""
+        ticket = self.new_ticket("Audit", "task")
+        self.start("merge-pr", ticket)
+        guard = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "tickets-index.json.lock")
+        open(guard, "w").close()
+        out = self.run_script(
+            "post-merge-pr.py", "--ticket", ticket,
+            stdin=json.dumps({"status": "completed"}),
+            env=dict(os.environ, ACS_GUARD_ATTEMPTS="1"))
+
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("and the partition archive", out.stderr)
+        self.assertTrue(os.path.isdir(self.tdir(ticket)), "the partition must not be archived")
+
+
+class LockStalenessBasisTest(unittest.TestCase):
+    """Every arm of the verdict, and what each one could actually observe."""
+
+    def test_same_host_live_process_is_not_stale(self):
+        lock = {"hostname": lib.socket.gethostname(), "pid": os.getpid(),
+                "created_at": _hours_ago(100)}
+        self.assertEqual(lib.lock_staleness(lock), (False, "holder-process-live"))
+
+    def test_same_host_gone_process_is_stale_however_young(self):
+        lock = {"hostname": lib.socket.gethostname(), "pid": 424242, "created_at": lib.now_iso()}
+        with mock.patch("os.kill", side_effect=ProcessLookupError):
+            self.assertEqual(lib.lock_staleness(lock), (True, "holder-process-gone"))
+
+    def test_same_host_unprobeable_process_is_not_stale(self):
+        lock = {"hostname": lib.socket.gethostname(), "pid": 424242, "created_at": lib.now_iso()}
+        with mock.patch("os.kill", side_effect=PermissionError):
+            self.assertEqual(lib.lock_staleness(lock), (False, "holder-process-unprobeable"))
+
+    def test_foreign_host_never_probes_the_pid(self):
+        """The cross-host limit, asserted rather than described: a foreign
+        lock's pid names a process in another namespace, so probing it here
+        would answer a question about an unrelated LOCAL process."""
+        lock = {"hostname": "some-other-host", "pid": os.getpid(), "created_at": lib.now_iso()}
+        with mock.patch("os.kill") as killed:
+            stale, basis = lib.lock_staleness(lock)
+        killed.assert_not_called()
+        self.assertEqual((stale, basis), (False, "age-within-timeout"))
+
+    def test_foreign_host_degrades_to_an_age_timeout(self):
+        old = {"hostname": "some-other-host", "created_at": _hours_ago(25)}
+        self.assertEqual(lib.lock_staleness(old), (True, "age-timeout"))
+
+    def test_same_host_non_integer_pid_has_no_liveness_signal_either(self):
+        lock = {"hostname": lib.socket.gethostname(), "pid": "1234", "created_at": _hours_ago(25)}
+        self.assertEqual(lib.lock_staleness(lock), (True, "age-timeout"))
+
+    def test_unreadable_created_at_is_not_stale(self):
+        self.assertEqual(lib.lock_staleness({"hostname": "elsewhere"}), (False, "age-unknown"))
+
+    def test_lock_is_stale_is_the_verdict_half_of_lock_staleness(self):
+        for lock in ({"hostname": "elsewhere", "created_at": _hours_ago(25)},
+                     {"hostname": "elsewhere", "created_at": lib.now_iso()},
+                     {"hostname": lib.socket.gethostname(), "pid": os.getpid()}):
+            self.assertEqual(lib.lock_is_stale(lock), lib.lock_staleness(lock)[0])
+
+    def test_every_basis_has_an_operator_facing_clause(self):
+        """check_lock indexes LOCK_STALENESS_REASONS with whatever basis comes
+        back; a basis with no entry would raise KeyError inside the message."""
+        bases = {"holder-process-live", "holder-process-gone", "holder-process-unprobeable",
+                 "age-timeout", "age-within-timeout", "age-unknown"}
+        self.assertEqual(set(lib.LOCK_STALENESS_REASONS), bases)
+
+    def test_the_documented_timeout_matches_the_constant(self):
+        """The docstrings spell the number out (a docstring cannot be built by
+        %-formatting and stay a docstring), so pin the two together."""
+        self.assertEqual(lib.LOCK_MAX_AGE_HOURS, 24)
+        for doc in (lib.lock_staleness.__doc__, lib.force_release_lock.__doc__):
+            self.assertIn("LOCK_MAX_AGE_HOURS (24h)", doc)
+
+    def test_lock_staleness_documents_the_no_liveness_signal_regime(self):
+        doc = lib.lock_staleness.__doc__
+        self.assertIn("no liveness signal", doc)
+        self.assertIn("pid namespace", doc)
+
+
+class CheckLockMessageTest(unittest.TestCase):
+    """The message an operator reads before deciding to break a lock."""
+
+    def setUp(self):
+        self.tdir = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tdir, True)
+
+    def test_stale_message_names_the_basis_and_the_audited_way_out(self):
+        lib.write_json(lib.lock_path(self.tdir),
+                       {"checkout_id": "other", "hostname": "elsewhere",
+                        "created_at": _hours_ago(30)})
+        ok, message = lib.check_lock(self.tdir, "mine")
+        self.assertFalse(ok)
+        self.assertIn("older than 24h", message)
+        self.assertIn("lock force-unlock", message)
+
+    def test_live_message_says_why_it_is_not_considered_stale(self):
+        lib.write_json(lib.lock_path(self.tdir),
+                       {"checkout_id": "other", "hostname": "elsewhere",
+                        "created_at": lib.now_iso()})
+        ok, message = lib.check_lock(self.tdir, "mine")
+        self.assertFalse(ok)
+        self.assertIn("younger than 24h", message)
+
+
+class ForceReleaseLockTest(unittest.TestCase):
+    """The explicit break: refuses without a reason, and records before it acts."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = os.path.join(self.tmp, "repo")
+        os.makedirs(self.repo)
+        subprocess.run(["git", "init", "-q", self.repo], check=True, capture_output=True)
+        self.tdir = os.path.join(self.tmp, "SHOP-1")
+        os.makedirs(self.tdir)
+        self.foreign = {"checkout_id": "someone-else", "checkout_path": "/elsewhere/repo",
+                        "pid": 4242, "hostname": "dead-container", "created_at": lib.now_iso()}
+
+    def _write_lock(self):
+        lib.write_json(lib.lock_path(self.tdir), self.foreign)
+
+    def _events(self):
+        with open(lib.lock_audit_path(self.tdir), encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+
+    def test_refuses_without_a_reason(self):
+        self._write_lock()
+        for empty in (None, "", "   "):
+            with self.assertRaises(ValueError):
+                lib.force_release_lock(self.tdir, self.repo, empty)
+        self.assertTrue(os.path.exists(lib.lock_path(self.tdir)),
+                        "a refused break must leave the lock alone")
+        self.assertFalse(os.path.exists(lib.lock_audit_path(self.tdir)),
+                         "a refused break is not an event")
+
+    def test_breaks_the_lock_and_records_who_and_why(self):
+        self._write_lock()
+        result = lib.force_release_lock(self.tdir, self.repo, "  the holding container died  ",
+                                        actor="ops@example.com")
+        self.assertTrue(result["forced"])
+        self.assertFalse(os.path.exists(lib.lock_path(self.tdir)))
+
+        events = self._events()
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["event"], "lock_force_released")
+        self.assertEqual(event["reason"], "the holding container died")
+        self.assertEqual(event["actor"], "ops@example.com")
+        self.assertEqual(event["broken_lock"], self.foreign)
+        self.assertEqual(event["by_checkout_id"], lib.checkout_id(self.repo))
+        self.assertEqual(event["by_pid"], os.getpid())
+        self.assertEqual(event["by_hostname"], lib.socket.gethostname())
+
+    def test_records_the_staleness_verdict_it_did_not_obey(self):
+        """A break does not need the lock to look stale — the audit entry is
+        what makes the decision reviewable, so it must capture what the tooling
+        thought at the time, including "this looked alive"."""
+        self._write_lock()
+        lib.force_release_lock(self.tdir, self.repo, "reclaiming the ticket")
+        event = self._events()[0]
+        self.assertFalse(event["staleness_verdict"])
+        self.assertEqual(event["staleness_basis"], "age-within-timeout")
+
+    def test_no_lock_is_reported_not_audited(self):
+        result = lib.force_release_lock(self.tdir, self.repo, "nothing to break")
+        self.assertFalse(result["forced"])
+        self.assertIsNone(result["audit_path"])
+        self.assertFalse(os.path.exists(lib.lock_audit_path(self.tdir)))
+
+    def test_audit_is_written_before_the_unlink(self):
+        """Ordering, proven by failing the unlink: the ledger must already name
+        the break. The other order would leave a broken lock nobody can trace."""
+        self._write_lock()
+        with mock.patch("os.unlink", side_effect=OSError("read-only")):
+            with self.assertRaises(lib.GateError) as caught:
+                lib.force_release_lock(self.tdir, self.repo, "container died")
+        self.assertIn("could not remove", str(caught.exception))
+        events = self._events()
+        self.assertEqual([e["event"] for e in events],
+                         ["lock_force_released", "lock_force_release_failed"])
+        self.assertEqual(events[1]["error"], "read-only")
+
+    def test_the_ledger_is_append_only(self):
+        for n in range(3):
+            self._write_lock()
+            lib.force_release_lock(self.tdir, self.repo, "break %d" % n)
+        self.assertEqual([e["reason"] for e in self._events()],
+                         ["break 0", "break 1", "break 2"])
+
+
+class LockCliTest(AcsWorkspaceCase):
+    """`acs.py lock status` / `lock force-unlock` end to end."""
+
+    def setUp(self):
+        super().setUp()
+        self.ticket = self.new_ticket("Ship the thing", "task")
+        self.tdir_path = self.tdir(self.ticket)
+
+    def _acs(self, *args):
+        return self.run_script("acs.py", *args)
+
+    def _write_foreign_lock(self, **over):
+        lock = {"checkout_id": "someone-else", "checkout_path": "/elsewhere/repo",
+                "pid": 4242, "hostname": "dead-container", "created_at": lib.now_iso()}
+        lock.update(over)
+        lib.write_json(lib.lock_path(self.tdir_path), lock)
+        return lock
+
+    def test_status_reports_no_lock(self):
+        out = self._acs("lock", "status", "--ticket", self.ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertFalse(body["held"])
+        self.assertIsNone(body["lock"])
+
+    def test_status_reports_the_holder_the_verdict_and_the_basis(self):
+        self._write_foreign_lock()
+        out = self._acs("lock", "status", "--ticket", self.ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertTrue(body["held"])
+        self.assertFalse(body["held_by_me"])
+        self.assertFalse(body["stale"])
+        self.assertEqual(body["basis"], "age-within-timeout")
+        self.assertIn("no liveness signal", body["basis_detail"])
+        self.assertEqual(body["lock_path"], lib.lock_path(self.tdir_path))
+
+    def test_force_unlock_requires_a_reason(self):
+        self._write_foreign_lock()
+        out = self._acs("lock", "force-unlock", "--ticket", self.ticket)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("--reason", out.stderr)
+        self.assertTrue(os.path.exists(lib.lock_path(self.tdir_path)))
+
+    def test_force_unlock_breaks_a_foreign_lock_and_leaves_the_ledger(self):
+        lock = self._write_foreign_lock()
+        out = self._acs("lock", "force-unlock", "--ticket", self.ticket,
+                        "--reason", "the holding container died")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertTrue(body["forced"])
+        self.assertEqual(body["broken_lock"], lock)
+        self.assertFalse(os.path.exists(lib.lock_path(self.tdir_path)))
+        with open(lib.lock_audit_path(self.tdir_path), encoding="utf-8") as fh:
+            event = json.loads(fh.readline())
+        self.assertEqual(event["reason"], "the holding container died")
+
+    def test_force_unlock_refuses_this_checkouts_own_lock_without_force(self):
+        """Breaking your own lock is almost always a mistake — the post hook
+        releases it — so the CLI makes you say you meant it."""
+        lib.acquire_lock(self.tdir_path, self.repo)
+        out = self._acs("lock", "force-unlock", "--ticket", self.ticket, "--reason", "oops")
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("--force", out.stderr)
+        self.assertTrue(os.path.exists(lib.lock_path(self.tdir_path)))
+
+        out = self._acs("lock", "force-unlock", "--ticket", self.ticket,
+                        "--reason", "reclaiming after a crash", "--force")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertFalse(os.path.exists(lib.lock_path(self.tdir_path)))
+
+    def test_force_unlock_on_no_lock_is_reported_not_an_error(self):
+        out = self._acs("lock", "force-unlock", "--ticket", self.ticket, "--reason", "tidying")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertFalse(body["forced"])
+        self.assertIn("no lock file", body["detail"])
+
+
+if __name__ == "__main__":
+    unittest.main()

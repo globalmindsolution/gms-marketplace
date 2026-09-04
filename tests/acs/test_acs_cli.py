@@ -452,6 +452,12 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
     writing Python. Each name below is checked by RUNNING the subcommand that
     covers it, so the mapping cannot rot into a comment."""
 
+    def setUp(self):
+        super().setUp()
+        # `lock status` resolves a partition, so this class needs a ticket the
+        # pure-function subcommands do not.
+        self.ticket = self.new_ticket("Add a widget", "task")
+
     COVERAGE = {
         "derive_lane": ("lane", "derive", "--size", "small", "--stakes", "low"),
         "lane_rank": ("lane", "rank", "--lane", "SMALL"),
@@ -464,12 +470,13 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         "check_toolchain": ("doctor",),
         "build_context": ("context",),
         "fanout_batches": ("fanout", "batches"),
+        "lock_staleness": ("lock", "status", "--ticket", "@ticket"),
     }
 
     def test_each_named_function_has_a_working_subcommand(self):
         for function, argv in sorted(self.COVERAGE.items()):
             with self.subTest(function=function):
-                res = self.acs(*argv)
+                res = self.acs(*[self.ticket if a == "@ticket" else a for a in argv])
                 self.assertEqual(res.returncode, 0,
                                  "%s: %s\n%s" % (function, res.stdout, res.stderr))
                 json.loads(res.stdout)  # the stdout contract: one JSON object
@@ -501,8 +508,8 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
     def test_help_lists_every_group(self):
         res = self.acs("--help")
         self.assertEqual(res.returncode, 0)
-        for group in ("context", "gate", "lane", "stakes", "ticket", "phase",
-                      "slug", "fanout", "doctor", "start", "finish", "plan"):
+        for group in ("context", "gate", "lane", "stakes", "ticket", "lock",
+                      "phase", "slug", "fanout", "doctor", "start", "finish", "plan"):
             self.assertIn(group, res.stdout)
 
 

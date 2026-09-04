@@ -295,11 +295,46 @@ Conventions:
   sessions/<checkout-id>.json           # per-worktree current-ticket pointer
   archive/<ticket-id>/                  # moved here by post-merge-pr
   <ticket-id>/
-    .lock  ticket.json  pipeline-state.json
+    .lock  lock-events.jsonl  ticket.json  pipeline-state.json
     design.md  specs/NN-slug.md
     phases/<skill>/iter-<n>-<phase>.xml  phases/<skill>/result.json
     <skill>-state.json ...
 ```
+
+### Concurrency: two mechanisms, both fail closed
+
+**Repo-level guards.** `tickets-index.json`, `metrics.json` and `counters.json`
+are read-modify-written by any session in any worktree, so each write holds an
+`O_EXCL` guard file beside it (`repo_guard`, a bounded spin: `ACS_GUARD_ATTEMPTS`
+× 0.05s, default 200 → 10s; a guard older than 30s is treated as abandoned by a
+crashed writer and removed). **Exhausting the budget raises `GuardTimeout` and
+writes nothing.** It used to write anyway, which meant the guard covered every
+case except the one it exists for. A refused write is recoverable; a clobbered
+one is invisible — and for `counters.json` it means two sessions holding the
+same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
+landed: the run, `ticket.json` and `pipeline-state.json` are already durable, the
+index self-heals on the next post hook, and that run's tokens and cost are lost
+from `metrics.json`.
+
+**The ticket lock.** `<ticket-id>/.lock` records the holder's `checkout_id`,
+path, pid, hostname and start time. `lock_staleness(lock)` returns a verdict
+*and its basis*, because only one of its two regimes actually observes the
+holder:
+
+| Regime | Evidence | Verdict |
+|---|---|---|
+| Same hostname, integer pid | `os.kill(pid, 0)` — a real liveness probe | live → not stale; gone → stale; not ours to probe → not stale |
+| Anything else (foreign host, absent hostname, non-integer pid) | **none** — the pid names a process in another machine's namespace, so it is deliberately not probed | age only: stale after `LOCK_MAX_AGE_HOURS` (24h) |
+
+The second row is the ordinary case for containers, CI runners and worktrees on
+different machines, and it means a *live* holder elsewhere reads as stale once
+24h pass, while a *dead* one reads as live until then. Nothing is removed on the
+verdict alone: `check_lock` reports the basis and the operator decides.
+`release_lock` still refuses another checkout's lock; breaking one goes through
+**`acs.py lock force-unlock --reason "…"`**, which appends the break — who, from
+where, why, and the staleness verdict it did not obey — to the ticket's
+append-only `lock-events.jsonl` *before* removing the file. `acs.py lock status`
+prints the same view without changing anything.
 
 ## Conditional steps — skipping is data, never improvisation
 

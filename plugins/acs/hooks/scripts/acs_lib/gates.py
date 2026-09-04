@@ -16,7 +16,7 @@ import claude_code_adapter as cc  # noqa: E402
 
 from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json
 from .settings import load_settings, validate_settings
-from .repo import archive_dir, checkout_id, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .repo import GuardTimeout, archive_dir, checkout_id, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
 from .state import check_lock, finalize_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
@@ -493,35 +493,52 @@ def run_post(skill):
     ticket = load_ticket(tdir)
     epic_done = None
     archived_to = None
-    if ticket:
-        if status == "completed":
-            if skill == "create-pr" and ticket.get("status") != "done":
-                ticket["status"] = "in_review"
-                save_ticket(tdir, ticket)
-            if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
-                ticket["status"] = "in_review"
-                save_ticket(tdir, ticket)
-            if skill == "merge-pr":
-                ticket["status"] = "done"
-                save_ticket(tdir, ticket)
-        update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    try:
+        if ticket:
+            if status == "completed":
+                if skill == "create-pr" and ticket.get("status") != "done":
+                    ticket["status"] = "in_review"
+                    save_ticket(tdir, ticket)
+                if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
+                    ticket["status"] = "in_review"
+                    save_ticket(tdir, ticket)
+                if skill == "merge-pr":
+                    ticket["status"] = "done"
+                    save_ticket(tdir, ticket)
+            update_index(ctx["workspace"], ctx["repo_id"], ticket)
 
-    pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
-    update_metrics(
-        ctx["workspace"], ctx["repo_id"], run_entry=entry,
-        pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
-                    and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
-        pr_merged=(skill == "merge-pr" and status == "completed"),
-        pr_number=pr_number,
-    )
+        pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
+        update_metrics(
+            ctx["workspace"], ctx["repo_id"], run_entry=entry,
+            pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
+                        and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
+            pr_merged=(skill == "merge-pr" and status == "completed"),
+            pr_number=pr_number,
+        )
+        release_lock(tdir, cwd)
 
-    release_lock(tdir, cwd)
-
-    if skill == "merge-pr" and status == "completed" and ticket:
-        epic_done = _epic_auto_done(ctx, ticket)
-        update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
-        _clear_pointers_for_ticket(ctx, ticket_id)
-        archived_to = _archive_partition(ctx, tdir, ticket_id)
+        if skill == "merge-pr" and status == "completed" and ticket:
+            epic_done = _epic_auto_done(ctx, ticket)
+            update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
+            _clear_pointers_for_ticket(ctx, ticket_id)
+            archived_to = _archive_partition(ctx, tdir, ticket_id)
+    except GuardTimeout as exc:
+        # MAR-530: the repo-level writers refuse rather than write unguarded, and
+        # they sit AFTER the per-ticket writes, so this is a partial phase. Say
+        # exactly which half is durable -- the operator is repairing a
+        # repo-level gap, not re-running the phase.
+        release_lock(tdir, cwd)
+        sys.stderr.write(
+            "acs post-%s: %s\n"
+            "%s's run, ticket.json and pipeline-state.json ARE written and the lock "
+            "is released; the repo-level writes (tickets-index.json, metrics.json%s) "
+            "are not. The index entry is rebuilt from ticket.json by the next post "
+            "hook, so it self-heals; this run's tokens and cost are lost from "
+            "metrics.json. Do NOT re-run this hook to repair it -- the run is "
+            "already finalized, so a second call appends a second run entry.\n"
+            % (skill, exc, ticket_id,
+               ", and the partition archive" if skill == "merge-pr" else ""))
+        sys.exit(1)
 
     out = {"ok": True, "skill": skill, "ticket_id": ticket_id, "status": status}
     if archived_to:
