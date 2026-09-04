@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """skill-start.py — run by a skill's coordinator as its FIRST action.
 
+Reachable as `acs.py start` (MAR-521) — acs.py forwards argv here unchanged
+and this script stays the implementation, so both spellings behave identically.
+
 Performs the deterministic start-of-run bookkeeping:
   * resolves settings, repo partition, and ticket id (argument -> pointer -> branch);
   * for /create-ticket and the product-level skills, allocates the (delivery) ticket
