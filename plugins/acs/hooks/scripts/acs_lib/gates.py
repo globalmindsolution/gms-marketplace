@@ -14,12 +14,13 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json
+from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
 from .settings import load_settings, validate_settings
-from .repo import archive_dir, checkout_id, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .repo import archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
 from .state import check_lock, finalize_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
+from .derive import derive_states, disagreements
 
 
 
@@ -485,7 +486,28 @@ def run_post(skill):
         sys.exit(1)
 
     status = result["status"]  # guaranteed by _read_result_from_argv
+
+    # MAR-523: the gate-bearing states keys are COMPUTED from the artifacts,
+    # not read from the document. Done before finalize_run so what is persisted
+    # is the derived view; the disagreements ride on the run entry, which is
+    # append-only and audited.
+    derived, notes = derive_states(
+        tdir, skill, result, settings=ctx["settings"],
+        branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+    conflicts = disagreements(result.get("states") or {}, derived)
+    if derived:
+        result.setdefault("states", {}).update(derived)
+
     state, entry = finalize_run(tdir, skill, ticket_id, result)
+    entry["derived_states"] = {"values": derived, "provenance": notes,
+                               "overrode": [{"key": key, "supplied": was, "derived": now}
+                                            for key, was, now in conflicts]}
+    write_json(state_path(tdir, skill), state)
+    for key, was, now in conflicts:
+        sys.stderr.write(
+            "acs post-%s: states.%s was %r in the result document; the artifacts say "
+            "%r (%s). The derived value is what was written.\n"
+            % (skill, key, was, now, notes.get(key, "derived")))
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")
     update_pipeline(tdir, ticket_id, skill, status, summary=summary, flow=flow)

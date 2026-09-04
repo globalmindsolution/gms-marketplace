@@ -876,21 +876,32 @@ MANDATORY final step — never skipped, also on failure:
    }
    ```
 
+   **Four of these keys are DERIVED (MAR-523).** `verifier_passed`, `tests`,
+   `pr` and `review.iterations` are **computed by the post-hook from the
+   artifacts** — the verifier's verdict, the executors' execute reports, the
+   forge, and the verify files on disk. Write your best value anyway (the
+   document is a contract with humans too), but what lands is the computed one,
+   and a disagreement is written to `runs[-1].derived_states.overrode` and
+   printed. You cannot open the /acs:create-pr gate by writing `true`.
+
    Canonical `states` keys — EXACT names; pre-create-pr.py gates on them:
-   - `verifier_passed`: copied from `acs.py verdict show`'s `passed` for the
-     final iteration — the verifier's own derived verdict (MAR-527), never a
-     conclusion you draw yourself. This is the /acs:create-pr gate.
+   - `verifier_passed`: **derived** from the verifier's `verdict.json` for the
+     highest iteration (MAR-527); no passing verdict means `false`, whatever
+     the document says. This is the /acs:create-pr gate.
    - `plan_approved`: `true`/`false`, copied verbatim from `plan-approval.py`'s
      printed output on STANDARD/COMPLEX (see `### Plan approval` above);
      `false` on TRIVIAL/SMALL or an ineligible plan. Not a gate this release.
    - `branch`: the ticket branch name (rendered from `formats.branch_name`).
    - `specs_implemented`: spec basenames fully implemented AND verified, in
      order.
-   - `tests`: `{passed, failed, coverage_percent, coverage_target}` from the
-     final test/coverage run.
+   - `tests`: `{passed, failed, coverage_percent, coverage_target}` — **derived**
+     from the last iteration's `iter-<n>-execute*.json` reports (`coverage_target`
+     from `settings.test_coverage_percent`). Kept as you wrote it only when no
+     execute report records a run.
    - `docs_updated`: repo-relative paths of every doc file changed.
-   - `review`: `{iterations, findings_open}` — iterations used and findings
-     still open (0 on success).
+   - `review`: `{iterations, findings_open}` — `iterations` is **derived** by
+     counting the verify artifacts on disk; `findings_open` is yours (findings
+     still open, 0 on success).
 
    Advisory documentation findings (`severity="info" dimension="documentation"`,
    from code-verifier's demoted per-commit doc-sync, living-requirements, and

@@ -122,6 +122,23 @@ class AcsWorkspaceCase(unittest.TestCase):
     def tdir(self, ticket):
         return lib.ticket_dir(self.ws, "acme-shop", ticket)
 
+    def seed_verdict(self, ticket, passed=True, skill="code", iteration=1, lens=None):
+        """Write the verifier verdict MAR-523 derives `states.verifier_passed`
+        from, so a fixture can reach /acs:create-pr the way a real run does.
+
+        Since MAR-523 the coordinator's `verifier_passed` is IGNORED: the
+        post-hook computes it from this file, and its absence means the gate
+        stays shut. A fixture that only posts `{"verifier_passed": true}` is
+        therefore asserting something the pipeline no longer believes."""
+        finding = [] if passed else [{"severity": "blocking", "dimension": "tests",
+                                      "detail": "seeded failing verdict"}]
+        return lib.write_verdict(self.tdir(ticket), skill, iteration, {
+            "skill": skill, "ticket_id": ticket, "iteration": iteration, "lens": lens,
+            "passed": passed,
+            "dimensions": [{"id": 1, "result": "pass" if passed else "fail"}],
+            "findings": finding,
+        }, lens)
+
 
 def load_module(script_filename, alias=None):
     """Fresh-import a hyphenated hook script by path, popping any stale cache first."""

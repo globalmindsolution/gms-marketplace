@@ -263,6 +263,24 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
+**Four `states` keys are DERIVED, not read (MAR-523).** `run_post` computes
+`verifier_passed`, `tests`, `pr` and `review.iterations` from the artifacts
+before persisting the document, and the computed value wins:
+
+| Key | Source | When it cannot be computed |
+|---|---|---|
+| `verifier_passed` | the verifier's `iter-<n>-verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
+| `tests` | the last iteration's `iter-<n>-execute*.json` reports (`coverage_target` from `settings.test_coverage_percent`) | the coordinator's value is kept |
+| `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
+| `review.iterations` | the verify artifacts on disk | the coordinator's value is kept |
+
+A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
+carries `values`, a one-line `provenance` for every key considered (including
+the ones it declined to compute, and why), and `overrode` — the
+supplied-vs-derived pairs — which is also printed on stderr. `verifier_passed`
+is derived only for `code`, the one skill whose verdict `/acs:create-pr` gates
+on. **A coordinator cannot open that gate by writing `true`.**
+
 `tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
 silently ignored since MAR-1 — `finalize_run` measures both itself (see the
 Token/cost usage exception noted above) rather than trusting a coordinator-supplied

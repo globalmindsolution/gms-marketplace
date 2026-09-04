@@ -13,6 +13,7 @@ it always did. In dependency order:
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   gates          context resolution, the pre-hook gates, post-hook persistence
   verdict        the verifier's verdict document and its derived-pass rule
+  derive         the result-document fields the kernel computes from artifacts
   lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
@@ -22,7 +23,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               gates, verdict, lifecycle)  # noqa: F401
+               verdict, derive, gates, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -97,3 +98,7 @@ from .lifecycle import stop as stop_hook  # noqa: F401
 from .verdict import (DIMENSION_RESULTS, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
     blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
     validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
+
+from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
+    derive_verifier_passed, disagreements, execute_reports, gh_pr_for_branch,
+    latest_verdict, review_iterations)  # noqa: F401
