@@ -10,6 +10,14 @@ The ids themselves are NOT written here: they are read from
 acs_lib.RECOMMENDED_MODELS, so this module keeps asserting the property when
 the recommendation moves to a newer model generation.
 
+A role this repo deliberately runs OFF that recommendation is declared once, in
+REPO_OVERRIDES below -- the only place a literal id belongs, because a
+repo-local choice is not the plugin's recommendation and must not be pushed
+into RECOMMENDED_MODELS (that constant is what a fresh /acs:setup offers every
+other consumer repo). Every role absent from REPO_OVERRIDES still has to mirror
+the recommendation exactly, so the constant remains the single source for the
+rest and a new model generation is still a change to it, not to this file.
+
 Uses the same stdlib-only approach as TestHighStakesPathsSettings /
 TestDueDateSchema in test_acs_plugin.py (no jsonschema import) -- the CI
 "Tests & validation" job does not install jsonschema (only a separate,
@@ -37,12 +45,28 @@ sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 
-# Not a literal pin: the ids live in acs_lib.RECOMMENDED_MODELS. What is
-# asserted here is the shape (object form with a non-empty id and a schema-valid
-# effort) and that the committed settings agree with that single source, so a
-# new model generation changes the constant and the settings it is mirrored
-# into -- never this file.
-EXPECTED = lib.RECOMMENDED_MODELS
+# Roles this repo runs off the shipped recommendation, on purpose. A literal id
+# is correct here and nowhere else: it states THIS repo's choice, not what acs
+# recommends to anyone else. Each entry needs a reason, and must actually differ
+# from RECOMMENDED_MODELS -- test_overrides_are_live_divergences fails a stale
+# entry the recommendation has since caught up with, so the list cannot rot into
+# a silent copy of the mirror it is exempting.
+#
+#   executor: the executor is the only role that WRITES the code planner and
+#   verifier merely reason about, and this repo would rather pay for one strong
+#   pass than iterate a cheaper one. The shipped recommendation keeps sonnet
+#   there, where the cost/benefit is a consumer repo's call to make.
+REPO_OVERRIDES = {
+    "executor": {"model": "claude-opus-5", "effort": "high"},
+}
+
+# Not a literal pin for the roles that mirror: their ids live in
+# acs_lib.RECOMMENDED_MODELS. What is asserted is the shape (object form with a
+# non-empty id and a schema-valid effort) and that the committed settings agree
+# with that single source wherever REPO_OVERRIDES does not deliberately depart
+# from it, so a new model generation changes the constant and the settings it is
+# mirrored into -- never this file.
+EXPECTED = dict(lib.RECOMMENDED_MODELS, **REPO_OVERRIDES)
 
 
 class SettingsModelsPinnedCase(unittest.TestCase):
@@ -115,6 +139,23 @@ class SettingsModelsPinnedCase(unittest.TestCase):
                 models[role]["model"],
                 ("opus", "sonnet"),
                 msg=f"models.{role}.model still holds a generic alias literal: {models[role]['model']!r}",
+            )
+
+    def test_overrides_are_live_divergences(self):
+        """Every REPO_OVERRIDES entry names a real role, is shaped like one, and
+        still DIFFERS from the recommendation. An override the recommendation has
+        caught up with is dead weight that would silently exempt a role from the
+        mirror, so it fails here until it is deleted."""
+        for role, entry in REPO_OVERRIDES.items():
+            self.assertIn(role, lib.MODEL_ROLES, msg="%s is not a model role" % role)
+            self.assertIsInstance(entry, dict, msg="%s must use the {model, effort} form" % role)
+            self.assertTrue(entry.get("model", "").strip(), msg="%s needs a model id" % role)
+            self.assertIn(entry.get("effort"), lib.MODEL_EFFORTS,
+                          msg="%s effort must be one of %s" % (role, ", ".join(lib.MODEL_EFFORTS)))
+            self.assertNotEqual(
+                entry, lib.RECOMMENDED_MODELS[role],
+                msg="REPO_OVERRIDES[%r] now equals the recommendation -- delete the "
+                    "override and let the role mirror RECOMMENDED_MODELS again" % role,
             )
 
     def test_coordinator_no_longer_shape_checked(self):

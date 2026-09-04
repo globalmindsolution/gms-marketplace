@@ -1182,10 +1182,13 @@ def validate_formats(formats):
 
 
 #: The per-role models /acs:setup recommends. Single source of truth for the
-#: recommendation: the setup prose (skills/setup/SKILL.md) and this repo's own
-#: .acs/settings.json are both asserted against it, so a new model generation is
-#: a change to this constant, that prose, and those settings -- never a test
-#: edit. Nothing in the runtime reads it: the recommendation is a product fact
+#: recommendation: the setup prose (skills/setup/SKILL.md) is asserted against it
+#: in full, and this repo's own .acs/settings.json for every role it does not
+#: deliberately run off the recommendation (those are declared with a reason in
+#: tests/acs/test_settings_models_pinned.py's REPO_OVERRIDES -- one consumer
+#: repo's model choice is not what acs recommends to the rest, so it never edits
+#: this constant). A new model generation is a change to this constant, that
+#: prose, and those settings -- never a test edit. Nothing in the runtime reads it: the recommendation is a product fact
 #: the tests enforce, not an input to gate or spawn behaviour.
 RECOMMENDED_MODELS = {
     "planner":  {"model": "claude-opus-5",   "effort": "high"},
