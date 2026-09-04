@@ -39,6 +39,7 @@ import xml.etree.ElementTree as ET
 from ._common import GateError, HOOKED_SKILLS, now_iso, read_json, write_json
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
 from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
+from . import verdict
 
 #: agent_type suffix -> the phase name its artifact is filed under.
 ROLE_PHASES = {"planner": "plan", "executor": "execute", "verifier": "verify"}
@@ -404,9 +405,53 @@ def subagent_stop(payload, validator=None):
     written = write_phase_snapshot(tdir, skill, role, message)
     if written:
         _note("wrote %s" % written)
+
+    verdict_errors = check_verifier_verdict(tdir, skill, role, message)
+    if verdict_errors:
+        if attempts >= BLOCK_LIMIT:
+            _warn("%s's verdict is still unusable after %d attempts (%s); letting the "
+                  "subagent stop -- the coordinator must record the failure"
+                  % (payload.get("agent_type"), attempts, "; ".join(verdict_errors)))
+            return 0
+        _warn("%s must write a valid verdict.json alongside its report:\n  %s\n"
+              "Write it and answer again." % (payload.get("agent_type"),
+                                              "\n  ".join(verdict_errors)))
+        return 2
+
     if agent_id:
         clear_agent(tdir, agent_id)
     return 0
+
+
+def check_verifier_verdict(tdir, skill, role, message):
+    """Errors in the verdict a VERIFIER must have written, or [] for anyone else.
+
+    The verdict is the one thing only the verifier knows, and the coordinator
+    used to transcribe it. Validating it here is what makes it a finding rather
+    than a claim -- in particular `passed` must agree with the findings
+    (acs_lib.verdict), so a verdict that says it passed while carrying a
+    blocking finding is rejected instead of believed.
+    """
+    if role != "verifier":
+        return []
+    try:
+        root = ET.fromstring(message)
+    except ET.ParseError:
+        return []
+    if root.tag != "result":
+        return []  # a handoff/needs_input answer reports no verdict
+    if root.get("status") != "completed":
+        return []  # verification did not finish; there is nothing to have judged
+    iteration = root.get("iteration") or "1"
+    lens = root.get("lens")
+    for constraint in root.iter("constraint"):
+        if constraint.get("name") == "verify_lens":
+            lens = (constraint.text or "").strip() or None
+    path = verdict.verdict_path(tdir, root.get("skill") or skill, iteration, lens)
+    doc = read_json(path)
+    if doc is None:
+        return ["no verdict at %s" % path]
+    return verdict.validate_verdict(doc, lens=lens)
 
 
 def write_phase_snapshot(tdir, skill, role, message):

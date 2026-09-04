@@ -13,7 +13,7 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, verdict, phase, slug, fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -42,6 +42,8 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py verdict show --iteration 2
+  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
@@ -351,6 +353,52 @@ def cmd_ticket_save(args):
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
 
 
+def cmd_verdict_show(args):
+    """The verifier's verdict for one iteration — validated, not just printed.
+
+    `passed` in the output is DERIVED from the findings, so a document that
+    claims otherwise shows up as an error here rather than as a pass."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict show", args.ticket)
+    doc = lib.load_verdict(tdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
+    if doc is None:
+        die("verdict show", "no verdict at %s" % path)
+    errors = lib.validate_verdict(doc, lens=args.lens)
+    emit({"ok": not errors, "ticket_id": ticket_id, "path": path,
+          "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
+          "blocking": len(lib.blocking_findings(doc)), "errors": errors,
+          "verdict": doc})
+
+
+def cmd_verdict_merge(args):
+    """Merge the four full-depth lens verdicts into the iteration's verdict.
+
+    Mechanical — passed is the conjunction, findings the union, each dimension
+    the worst result any lens reported — so the coordinator INVOKES the merge
+    rather than authoring a verdict it did not reach."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
+    lenses = args.lens or list(lib.LENSES)
+    docs, missing = [], []
+    for lens in lenses:
+        doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
+        if doc is None:
+            missing.append(lens)
+        else:
+            docs.append(doc)
+    if missing:
+        die("verdict merge", "no verdict for lens %s (iteration %s)"
+            % (", ".join(missing), args.iteration))
+    merged = lib.merge_lens_verdicts(docs)
+    merged["written_at"] = lib.now_iso()
+    errors = lib.validate_verdict(merged)
+    if errors:
+        die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
+    path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
+    emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
+          "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
+          "verdict": merged})
+
+
 def cmd_phase_validate(args):
     """Check a phase result document BEFORE the post-hook consumes it. The
     post-hook refuses a document with no status (it would otherwise finalize a
@@ -491,6 +539,24 @@ def build_parser():
     save.add_argument("--from", dest="source", metavar="FILE",
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
+
+    verdict = sub.add_parser("verdict", help="the verifier's verdict document")
+    verdict_sub = verdict.add_subparsers(dest="cmd")
+
+    vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
+    vshow.add_argument("--ticket")
+    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--iteration", type=int, default=1)
+    vshow.add_argument("--lens", choices=list(lib.LENSES))
+    vshow.set_defaults(func=cmd_verdict_show)
+
+    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
+    vmerge.add_argument("--ticket")
+    vmerge.add_argument("--skill", default="code")
+    vmerge.add_argument("--iteration", type=int, default=1)
+    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
+                        help="restrict the merge to these lenses (default: all four)")
+    vmerge.set_defaults(func=cmd_verdict_merge)
 
     phase = sub.add_parser("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")

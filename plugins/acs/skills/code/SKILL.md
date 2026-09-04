@@ -742,7 +742,24 @@ constraint, no `-lens-` suffix — checking all 15 base dimensions
 (dimension 14 is full-depth-only) and writing
 `<partition>/phases/code/iter-<n>-verify.md` directly, exactly as today.
 
-ALL findings block — zero findings = pass (`verifier_passed: true`). On
+**The verdict is the verifier's, not yours (MAR-527).** Each verifier writes
+`<partition>/phases/code/iter-<n>-verdict.json` (lens-scoped on full depth) with
+its per-dimension results and findings, and the SubagentStop hook refuses an
+answer whose verdict is missing or does not hold together — in particular
+`passed` must agree with the findings. Read it; never conclude it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" verdict merge --iteration <n>   # full depth: the 4 lenses
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" verdict show  --iteration <n>
+```
+
+`merge` is arithmetic over the lens files (conjunction of `passed`, union of
+findings, worst result per dimension), not a second opinion; on light depth
+there is one verdict and only `show` applies. `states.verifier_passed` in your
+result document is that command's `passed`, copied — not a judgement you make
+from the findings count.
+
+ALL findings block — zero findings = pass. On
 findings: persist the verify output, then AUTOMATICALLY re-execute, passing
 every finding to the next iteration's executor(s) in `<context>` with no
 planner spawn in between (TDD still applies to fixes: failing test first when
@@ -860,8 +877,9 @@ MANDATORY final step — never skipped, also on failure:
    ```
 
    Canonical `states` keys — EXACT names; pre-create-pr.py gates on them:
-   - `verifier_passed`: `true` ONLY on a zero-findings verifier pass. This is
-     the /acs:create-pr gate.
+   - `verifier_passed`: copied from `acs.py verdict show`'s `passed` for the
+     final iteration — the verifier's own derived verdict (MAR-527), never a
+     conclusion you draw yourself. This is the /acs:create-pr gate.
    - `plan_approved`: `true`/`false`, copied verbatim from `plan-approval.py`'s
      printed output on STANDARD/COMPLEX (see `### Plan approval` above);
      `false` on TRIVIAL/SMALL or an ineligible plan. Not a gate this release.
