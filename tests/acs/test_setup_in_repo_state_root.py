@@ -190,5 +190,3 @@ class Mar4InitStateRootCase(unittest.TestCase):
     def test_gitignore_already_has_the_state_machine_line(self):
         """This repo's own .gitignore carries the entry (unmoved)."""
         self.assertIn(".acs/state-machine/", read(GITIGNORE_PATH).splitlines())
-
-
