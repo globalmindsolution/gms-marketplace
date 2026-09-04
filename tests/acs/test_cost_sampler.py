@@ -17,12 +17,14 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
+import claude_code_adapter as cc  # noqa: E402
 import cost_sampler  # noqa: E402
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
@@ -90,7 +92,23 @@ class TestExtractTotalCost(unittest.TestCase):
 # record_cost_sample: end-to-end, against a real (throwaway) workspace
 # ---------------------------------------------------------------------------
 
-class TestRecordCostSample(AcsWorkspaceCase):
+class _HermeticVersionProbe(AcsWorkspaceCase):
+    """record_cost_sample records `claude_version`, so without this every test
+    below execs whatever `claude` sits on the runner's PATH — a real subprocess
+    with a 10s timeout, and a sample whose content differs per machine."""
+
+    VERSION = "test-claude-9.9.9"
+
+    def setUp(self):
+        super(_HermeticVersionProbe, self).setUp()
+        cc._VERSION_MEMO.clear()
+        patcher = mock.patch.object(cc, "_probe_claude_version", return_value=self.VERSION)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(cc._VERSION_MEMO.clear)
+
+
+class TestRecordCostSample(_HermeticVersionProbe):
     def _samples(self, ctx):
         path = cost_sampler.cost_samples_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
         if not os.path.exists(path):
@@ -547,7 +565,7 @@ class TestAllocateCostModelUsage(unittest.TestCase):
         self.assertAlmostEqual(result["excluded_token_share"], 0.75)
 
 
-class TestRecordCostSampleApiDuration(AcsWorkspaceCase):
+class TestRecordCostSampleApiDuration(_HermeticVersionProbe):
     """MAR-6: record_cost_sample's F5 fix -- a duration-only or cost-only
     payload now writes a sample; only a payload with neither quantity is a
     silent no-op. Originating ticket: MAR-6."""

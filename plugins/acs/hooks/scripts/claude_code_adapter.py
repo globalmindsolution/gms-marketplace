@@ -43,7 +43,9 @@ Claude Code's output.
 import datetime
 import json
 import os
+import re
 import subprocess
+import tempfile
 import sys
 
 # ---------------------------------------------------------------------------
@@ -243,6 +245,14 @@ STATUS_MODEL_DISPLAY_NAME = "display_name"
 
 #: Cost probe order: (container key or None, key). A None container means the
 #: payload's own top level. Tried in order, then a bounded recursive scan.
+#: The key names a session payload spells its running totals with, as patterns
+#: for a nested scan. They live here because they are Claude Code's spellings,
+#: not ours -- the same reason COST_PROBE_ORDER does. A regex source is not a
+#: string constant the AST guard can match, so keeping them at the call site
+#: left an unwatched drift door.
+TOTAL_COST_KEY_RE = re.compile(r"total_cost(_usd)?$")
+TOTAL_API_DURATION_KEY_RE = re.compile(r"total_api_duration(_ms)?$")
+
 COST_PROBE_ORDER = (("cost", "total_cost_usd"),
                     ("cost", "total_cost"),
                     (None, "total_cost_usd"))
@@ -331,14 +341,25 @@ def claude_version(cache_path=None, ttl_seconds=CLAUDE_VERSION_TTL_SECONDS):
     longer than the subprocess timeout."""
     if cache_path:
         cached = _read_version_cache(cache_path, ttl_seconds)
-        if cached is not None:
-            return cached.get("version")
+        # A cached null is a FAILED probe, not an answer. Treating it as a hit
+        # negatively cached the failure for the whole TTL, so a probe that failed
+        # once (claude not yet on PATH) reported no version for 24 hours.
+        if cached is not None and cached.get("version") is not None:
+            _VERSION_MEMO["version"] = cached["version"]
+            return cached["version"]
+        # The disk cache did not answer. An EXPIRED one must re-probe -- that is
+        # what the TTL is for. One that is merely absent or unwritable must not:
+        # behind the old `elif` the memo was skipped whenever cache_path was
+        # given, so an unwritable cache re-spawned the subprocess on every call,
+        # on statusline.main's pre-print path (measured: 3 calls, 3 spawns).
+        if not _version_cache_is_stale(cache_path, ttl_seconds) and "version" in _VERSION_MEMO:
+            return _VERSION_MEMO["version"]
     elif "version" in _VERSION_MEMO:
         return _VERSION_MEMO["version"]
 
     version = _probe_claude_version()
     _VERSION_MEMO["version"] = version
-    if cache_path:
+    if cache_path and version is not None:
         _write_version_cache(cache_path, version)
     return version
 
@@ -355,6 +376,17 @@ def _probe_claude_version():
         return proc.stdout.decode("utf-8", errors="replace").strip() or None
     except Exception:
         return None
+
+
+def _version_cache_is_stale(path, ttl_seconds):
+    """True only when the cache EXISTS and has aged out.
+
+    Absent, unreadable or unwritable is not stale: there is nothing to refresh,
+    so the in-process memo may answer instead of re-probing."""
+    try:
+        return (_now_epoch() - os.path.getmtime(path)) > ttl_seconds
+    except OSError:
+        return False
 
 
 def _read_version_cache(path, ttl_seconds):
@@ -374,10 +406,20 @@ def _write_version_cache(path, version):
         parent = os.path.dirname(path)
         if parent and not os.path.isdir(parent):
             os.makedirs(parent, exist_ok=True)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"version": version, "probed_at": _now_iso()}, fh, sort_keys=True)
-        os.replace(tmp, path)
+        # mkstemp, not a fixed "<path>.tmp": two sessions in the same checkout
+        # write this concurrently, and a fixed name lets one truncate the
+        # other's partial file. The unlink keeps a failed write from leaking it.
+        fd, tmp = tempfile.mkstemp(dir=parent or ".", prefix=".acs-version-")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump({"version": version, "probed_at": _now_iso()}, fh, sort_keys=True)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         pass
 
