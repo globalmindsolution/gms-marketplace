@@ -456,6 +456,33 @@ hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
 
+## Forge metadata: two commands, two failure policies
+
+`gh` is acs's only transport to GitHub, and everything acs writes through it
+beyond the PR or issue itself — labels, assignee, milestone, reviewers, Project
+membership and fields — goes through `acs_lib.forge` (MAR-525), reached as two
+commands:
+
+| Command | Performs | Policy |
+|---|---|---|
+| `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch: issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+
+Both resolve Project fields the same way: **the board's own spelling wins.** A
+field is matched case-insensitively against a fixed table of accepted names
+(`Story Points` / `Points` / `Estimate`; `Parent` / `Epic`), an option is matched
+case-insensitively against the ticket's value, and a board that defines neither
+the field nor the option gets **one info finding naming exactly what was skipped**
+— a schema-undefined field is surfaced, never silently ignored, and never a
+wrong-type write. A ticket value that is simply `null` is skipped silently: that
+is expected data, not a gap.
+
+The runner is injectable and the resolvers are pure, so every arm — including
+the ones that only fire when a board lacks a field, or when one call in five
+fails — is exercised from a recorded `gh` transcript with no forge. `--gh-replay
+FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
+through `acli`, not `gh`.
+
 ## Settings, formats, templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user

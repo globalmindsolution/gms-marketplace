@@ -75,57 +75,25 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 5a. **Tracker-metadata fill (github-tracker only)** — only when
    `tracker_provider == "github"` AND `ticket.external.key` is set (the same
    guard step 6 below uses); applies on **both** the create and edit paths of
-   step 4, now that the PR number is known from step 5:
-   - `gh pr edit <number> --add-assignee @me` (assignee = PR author).
-   - `gh label create <ticket.type> --description "Created by the acs pipeline" 2>/dev/null || true`
-     then `gh pr edit <number> --add-label <ticket.type>` (type label
-     alongside `ACS`, idempotent).
-   - **Reviewer request (CODEOWNERS-derived).** `gh pr diff <number> --name-only`
-     for the changed-file list, feed it to
-     `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codeowners.py" resolve --repo-root <checkout_root> --changed-files -`
-     via stdin, drop any entry equal to the already-resolved `@me` login
-     (the PR author). If the remaining set is non-empty:
-     `gh pr edit <number> --add-reviewer <owners minus author, comma-joined>`
-     — `@org/team` entries go through this identical call, no separate path.
-     If the remaining set is empty (no CODEOWNERS file, no pattern matched,
-     or every matched owner was the author) — never call
-     `gh pr edit --add-reviewer`; add exactly one info finding naming the
-     reason: `"No CODEOWNERS file found"`, `"No CODEOWNERS pattern matched
-     the changed files"`, or `"Only eligible reviewer is the PR author;
-     skipped (self-review impossible)"`.
-   - `gh project item-add <project_number> --owner <owner> --url <pr-url>`
-     (deliberately WITHOUT `--format json` — a permanent deviation, do not
-     "fix" it back), then resolve the item id via
-     `gh project item-list <project_number> --owner <owner> --format json --limit 500`
-     parsed `strict=False`, then `gh project field-list <project_number> --owner <owner> --format json`
-     to find the Status field's id/option ids. Resolve the in-review
-     option's `<oid>` by case-insensitive name match — first **In Review**,
-     else **Review** — and feed it to
-     `gh project item-edit --project-id <pid> --id <item-id> --field-id <fid> --single-select-option-id <oid>`
-     to set Status, on both the create and edit paths. When neither name
-     matches, add an info finding naming the missing option and how to add
-     it (single-select options aren't creatable via `gh`), leave Status
-     unchanged, never fail the PR. A field the Project schema does not
-     define is surfaced as an info finding, never silently skipped.
-   - **Group-B PR-item field-fill (Priority, Story Points, Parent).** Reuse
-     the SAME `field-list` JSON already fetched above for Status — no new
-     list call. For each of Priority, Story Points, Parent: resolve the
-     board field by case-insensitive name match against the fixed table
-     (`priority` → `Priority`; `story_points` → `Story Points`, `Points`, or
-     `Estimate`; `parent` → `Parent` or `Epic`); undefined on the board →
-     info finding, field left unset. When defined, map by the field's
-     `dataType`: Priority → `SINGLE_SELECT` (case-insensitive option-name
-     match against `critical`/`high`/`medium`/`low`, no match → info
-     finding); Story Points → `NUMBER` (`item-edit --number
-     <ticket.story_points>`, or the same option-name resolver if the field
-     is `SINGLE_SELECT`-bucketed); Parent → `TEXT` (`item-edit --text
-     <parent-tracker-key>`), any other `dataType` unresolvable → info
-     finding. Every `item-edit` call in this loop is individually guarded
-     like the Status call, on both create and edit paths.
-   - Every call above is individually guarded: a failure is captured as a
-     finding (command + error) and never aborts the PR create/edit. When the
-     guard condition does not hold (local/unsynced), this entire step is
-     skipped — no-op.
+   step 4, now that the PR number is known from step 5. One command:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr metadata fill \
+     --pr <number> --author <the @me login>
+   ```
+
+   It assigns the PR, applies the ticket-type label alongside `ACS`, requests
+   the CODEOWNERS-derived reviewers with the author dropped, adds the PR to the
+   Project, and sets Status and the Priority / Story Points / Parent fields the
+   board defines. When the guard does not hold it reports `skipped: true` and
+   writes nothing.
+
+   **Non-critical throughout**: exit 0 means the pass ran, not that every field
+   landed. Copy the printed `findings` into your execute report's
+   `metadata_fill.findings` verbatim — each is an `info` finding carrying the
+   command, ready to re-run — and never fail the PR over one.
+
+
 6. **Tracker sync** — only when `tracker_provider` is `github` or `jira` AND
    `ticket.external.key` is set (skip for `local`; when the provider is configured
    but the ticket was never synced, record an info finding instead):

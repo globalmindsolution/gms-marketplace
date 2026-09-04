@@ -11,6 +11,7 @@ it always did. In dependency order:
   state          run ledgers, pipeline state, tickets, index, counters, locking
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
+  forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gates          context resolution, the pre-hook gates, post-hook persistence
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
@@ -19,7 +20,8 @@ that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import _common, settings, repo, lanes, state, metrics, setup_helpers, gates  # noqa: F401
+from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
+               forge, gates)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -82,3 +84,9 @@ from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _cl
 # `acs_lib.subprocess.run` patches the shared module object every submodule sees.
 from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
     subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
+
+from .forge import (GROUP_B_FIELDS, PR_STATUS_OPTIONS, TICKET_STATUS_OPTIONS,
+    TYPE_OPTIONS, Gh, fill_group_b, find_item_for_url, finding, first_matching_option,
+    match_field, match_option, pr_metadata_fill, project_fields, project_fill,
+    project_items, reviewers_for, sync_candidates, tracker_sync,
+    tracker_sync_one)  # noqa: F401
