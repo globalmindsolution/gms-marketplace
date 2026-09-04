@@ -252,6 +252,30 @@ def find_ticket_partition(workspace, repo_id, ticket_id):
 # Ticket id resolution (deterministic: argument -> pointer file -> branch name)
 # ---------------------------------------------------------------------------
 
+def resolve_active_partition(cwd, ctx, explicit=None, allow_archived=False):
+    """(ticket_id, tdir, archived) for a resolved partition, or raise GateError.
+
+    The resolve_ticket_id -> find_ticket_partition -> refuse-if-archived
+    sequence that clarify.py, plan-approval.py and acs.py each spelled out
+    independently, with their own slightly different refusal text (MAR-521
+    review). One implementation means the resolution order can change in one
+    place; the messages are the ones those callers already printed.
+
+    `allow_archived` is for a read-only command (clarify.py list) that may look
+    at a finished ticket; a writer must never take that path.
+    """
+    ticket_id, _source = resolve_ticket_id(
+        cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"], explicit=explicit)
+    if not ticket_id:
+        raise GateError("could not resolve the ticket id (pass --ticket)")
+    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    if not os.path.isdir(tdir):
+        raise GateError("no partition for %s" % ticket_id)
+    if archived and not allow_archived:
+        raise GateError("no active partition for %s" % ticket_id)
+    return ticket_id, tdir, archived
+
+
 def ticket_id_from_text(text, prefix=None):
     if not text:
         return None

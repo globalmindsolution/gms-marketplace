@@ -186,8 +186,10 @@ class TestTicket(AcsCliCase):
         self.assertEqual(out["partition"], self.tdir(self.ticket))
 
     def test_show_refuses_an_unknown_ticket(self):
+        """A ticket that does not exist and one that is archived are different
+        situations, and the shared resolver says which (MAR-521 review)."""
         self.refusal(self.acs("ticket", "show", "--ticket", "SHOP-4242"),
-                     "no active partition")
+                     "no partition for SHOP-4242")
 
     def test_save_writes_the_document_and_reindexes(self):
         doc = self.ok_json(self.acs("ticket", "show", "--ticket", self.ticket))["ticket"]
@@ -303,7 +305,7 @@ class TestLaneApply(AcsCliCase):
     def test_apply_refuses_an_unknown_ticket(self):
         self.refusal(self.acs("lane", "apply", "--ticket", "SHOP-4242",
                               "--proposed-size", "large", "--trigger", "t"),
-                     "no active partition")
+                     "no partition for SHOP-4242")
 
 
 class TestLaneDeescalate(AcsCliCase):
@@ -418,20 +420,38 @@ class TestDelegation(AcsCliCase):
         super(TestDelegation, self).setUp()
         self.ticket = self.new_ticket("Add a widget", "task")
 
+    @staticmethod
+    def _volatile(text):
+        """Blank the timestamps/ids two runs cannot share, so the REST of the
+        payload is compared rather than skipped."""
+        import re
+        return re.sub(r'"(started_at|ended_at|updated_at|created_at|ts)": "[^"]*"',
+                      r'"\1": "<ts>"', text)
+
     def test_finish_matches_pipeline_step(self):
-        args = ("--ticket", self.ticket, "--skill", "test", "--status", "completed")
-        through_front_door = self.acs("finish", *args)
-        direct = self.run_script("pipeline-step.py", *args)
+        """Each invocation gets its OWN ticket: pipeline-step is a writer, so
+        running both against one partition compares a first write with a second
+        and can pass or fail for reasons unrelated to delegation."""
+        other = self.new_ticket("Add a widget", "task")
+        common = ("--skill", "test", "--status", "completed")
+        through_front_door = self.acs("finish", "--ticket", self.ticket, *common)
+        direct = self.run_script("pipeline-step.py", "--ticket", other, *common)
         self.assertEqual(through_front_door.returncode, direct.returncode)
-        self.assertEqual(json.loads(through_front_door.stdout)["skill"],
-                         json.loads(direct.stdout)["skill"])
+        self.assertEqual(self._volatile(through_front_door.stdout),
+                         self._volatile(direct.stdout),
+                         "the front door must print exactly what the delegate prints")
         self.assertTrue(json.loads(through_front_door.stdout)["written"])
 
     def test_start_matches_skill_start(self):
+        other = self.new_ticket("Add a widget", "task")
         through_front_door = self.acs("start", "--skill", "code", "--ticket", self.ticket)
-        direct = self.run_script("skill-start.py", "--skill", "code", "--ticket", self.ticket)
+        direct = self.run_script("skill-start.py", "--skill", "code", "--ticket", other)
         self.assertEqual(through_front_door.returncode, direct.returncode)
-        self.assertEqual(through_front_door.stderr, direct.stderr)
+        self.assertEqual(
+            self._volatile(through_front_door.stdout).replace(self.ticket, "<t>"),
+            self._volatile(direct.stdout).replace(other, "<t>"),
+            "stdout must match too — comparing only the exit code would let the "
+            "front door print nothing and still pass")
 
     def test_plan_check_drops_the_verb_before_delegating(self):
         """`acs.py plan check` reads as a verb pair; plan-approval.py takes
@@ -504,6 +524,130 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         for group in ("context", "gate", "lane", "stakes", "ticket", "phase",
                       "slug", "fanout", "doctor", "start", "finish", "plan"):
             self.assertIn(group, res.stdout)
+
+
+class TestReviewFixes(AcsCliCase):
+    """MAR-521 review: behaviours the original contract tests never posed —
+    a partial document, an absent axis, a failed audit write, a real session
+    marker. Each of these was a defect that shipped green."""
+
+    def test_gate_does_not_touch_the_session_marker(self):
+        """`gate` answers "would this pass?" — it is not a PreToolUse event.
+        Routing it through the hook path rewrote the marker with null
+        session_id/transcript_path, costing the NEXT run its cost attribution."""
+        ctx = lib.build_context(self.repo)
+        marker_path = lib.session_marker_path(self.ws, "acme-shop", ctx["checkout_id"])
+        os.makedirs(os.path.dirname(marker_path), exist_ok=True)
+        real = {"session_id": "REAL-SESSION", "transcript_path": "/x/t.jsonl",
+                "cwd": self.repo, "checkout_id": ctx["checkout_id"],
+                "hook_event_name": "PreToolUse", "skill": "acs:code",
+                "updated_at": lib.now_iso()}
+        lib.write_json(marker_path, real)
+
+        self.ok_json(self.acs("gate", "--skill", "create-prd"))
+        self.assertEqual(lib.read_json(marker_path), real,
+                         "gate must leave the real session marker untouched")
+
+    def test_ticket_save_is_a_patch_not_a_replacement(self):
+        ticket = self.new_ticket("Add a widget", "task")
+        before = lib.load_ticket(self.tdir(ticket))
+        out = self.ok_json(self.acs("ticket", "save", "--ticket", ticket,
+                                    stdin=json.dumps({"description": "clarified"})))
+        self.assertEqual(out["fields_written"], ["description"])
+        after = lib.load_ticket(self.tdir(ticket))
+        self.assertEqual(after["description"], "clarified")
+        for key in ("id", "title", "type", "status", "needs_design"):
+            self.assertEqual(after.get(key), before.get(key),
+                             "%s must survive a partial save" % key)
+
+    def test_ticket_save_keeps_the_index_row_populated(self):
+        """The wholesale overwrite blanked title/type/status in the index, which
+        gate_code and fanout_batches read."""
+        ticket = self.new_ticket("Add a widget", "task")
+        self.ok_json(self.acs("ticket", "save", "--ticket", ticket,
+                              stdin=json.dumps({"description": "clarified"})))
+        index = lib.read_json(lib.index_path(self.ws, "acme-shop")) or {}
+        row = json.dumps(index)
+        self.assertIn("Add a widget", row)
+        self.assertNotIn('"title": null', row)
+
+    def test_lane_apply_does_not_invent_an_absent_axis(self):
+        """guard_axes floors an absent axis at the lowest rank; a rigor-RAISING
+        path must not use that to write size: trivial."""
+        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
+        tpath = self.tdir(ticket)
+        doc = lib.load_ticket(tpath)
+        doc.pop("size", None)
+        lib.save_ticket(tpath, doc)
+        lib.append_in_progress_run(tpath, "code", ticket)
+
+        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
+                                    "--proposed-stakes", "high", "--trigger", "b"))
+        self.assertIsNone(out["size"])
+        self.assertNotIn("size", lib.load_ticket(tpath))
+        if out["escalated"]:
+            event = lib.last_run(lib.load_state(tpath, "code"))["escalations"][-1]
+            self.assertIsNone(event["to_size"])
+
+    def test_lane_apply_no_op_reports_the_disk_state_not_the_proposal(self):
+        """A caller branching on out["stakes"] must not read a raise that was
+        never persisted."""
+        ticket = self.new_ticket("Add a widget", "task")   # standard/normal
+        tpath = self.tdir(ticket)
+        lib.append_in_progress_run(tpath, "code", ticket)
+        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
+                                    "--proposed-stakes", "high", "--trigger", "b"))
+        self.assertFalse(out["escalated"])
+        self.assertEqual(out["stakes"], lib.load_ticket(tpath).get("stakes"))
+        self.assertEqual(out["proposed_stakes"], "high")
+        self.assertIsNone(out["event"], "the documented `event` key must be present")
+
+    def test_lane_deescalate_reports_a_write_that_landed_without_its_event(self):
+        """confirm_deescalation persists BEFORE recording its event. With no run
+        entry the event write fails — and the axes are already lowered, so a bare
+        exit-2 refusal would hide a durable rigor-lowering write."""
+        ticket = self.new_ticket("Add a widget", "task", "--size", "large")
+        tpath = self.tdir(ticket)
+        self.run_script("clarify.py", "add", "--skill", "code", "--ticket", ticket,
+                        "--question", "Lower it?")
+        self.run_script("clarify.py", "answer", "--id", "C-1", "--ticket", ticket,
+                        "--answer", "yes")
+        res = self.acs("lane", "deescalate", "--ticket", ticket, "--size", "small",
+                       "--stakes", "low", "--clarify-ref", "C-1")
+        self.assertEqual(res.returncode, 2)
+        out = json.loads(res.stdout)
+        self.assertTrue(out["applied"])
+        self.assertFalse(out["event_recorded"])
+        self.assertIn("LOWERED", res.stderr)
+        self.assertEqual(lib.load_ticket(tpath)["size"], "small")
+
+    def test_context_says_whether_the_partition_exists(self):
+        out = self.ok_json(self.acs("context", "--ticket", "SHOP-4242"))
+        self.assertFalse(out["exists"],
+                         "find_ticket_partition returns a path for a ticket that "
+                         "exists nowhere; the output must say so")
+        ticket = self.new_ticket("Add a widget", "task")
+        self.assertTrue(self.ok_json(self.acs("context", "--ticket", ticket))["exists"])
+
+    def test_context_reports_the_keys_it_advertises(self):
+        out = self.ok_json(self.acs("context"))
+        for key in ("checkout_id", "repo_dir", "index_path", "plugin_root"):
+            self.assertIn(key, out)
+
+    def test_doctor_ok_is_a_verdict_not_a_constant(self):
+        out = self.ok_json(self.acs("doctor"))
+        self.assertEqual(out["ok"], not out["missing_required"])
+        for row in out["toolchain"]:
+            if row.get("kind") == "required" and not row.get("present"):
+                self.assertIn(row["name"], out["missing_required"])
+
+    def test_a_group_prints_its_own_subcommands_not_the_root_help(self):
+        res = self.acs("lane")
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("acs.py lane", res.stderr)
+        for sub in ("derive", "escalate", "apply", "deescalate"):
+            self.assertIn(sub, res.stderr)
+        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not lane's")
 
 
 if __name__ == "__main__":

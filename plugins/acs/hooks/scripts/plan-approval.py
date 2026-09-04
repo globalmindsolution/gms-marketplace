@@ -75,15 +75,13 @@ def main():
         sys.stderr.write("acs plan-approval: %s\n" % exc)
         sys.exit(2)
 
-    ticket_id, _src = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"],
-                                            explicit=args.ticket)
-    if not ticket_id:
-        sys.stderr.write("acs plan-approval: could not resolve the ticket id (pass --ticket)\n")
-        sys.exit(2)
-
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        sys.stderr.write("acs plan-approval: no active partition for %s\n" % ticket_id)
+    # Shared resolution (MAR-521 review): one implementation of
+    # resolve -> find -> refuse-if-archived, in acs_lib.resolve_active_partition.
+    try:
+        ticket_id, tdir, _archived = lib.resolve_active_partition(
+            cwd, ctx, explicit=args.ticket)
+    except lib.GateError as exc:
+        sys.stderr.write("acs plan-approval: %s\n" % exc)
         sys.exit(2)
 
     ticket = lib.load_ticket(tdir)

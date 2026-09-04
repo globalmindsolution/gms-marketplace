@@ -38,7 +38,7 @@ Usage:
   acs.py lane escalate --current-lane SMALL --size large --stakes high --type task
   acs.py lane apply --ticket MAR-1 --proposed-stakes high --trigger high_stakes_paths
   acs.py lane deescalate --ticket MAR-1 --size small --stakes low --clarify-ref C-2
-  acs.py stakes recommend --path plugins/acs/hooks/scripts/acs_lib.py
+  acs.py stakes recommend --path plugins/acs/hooks/scripts/acs_lib/state.py
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
@@ -96,16 +96,15 @@ def context_or_die(command):
 def partition_or_die(command, explicit):
     """Resolve (ticket_id, tdir, ctx) for an ACTIVE partition, or exit 2.
 
-    Same resolution order as clarify.py / plan-approval.py: explicit --ticket
-    wins, else the pointer/branch resolution in resolve_ticket_id."""
+    The resolution itself lives in acs_lib.resolve_active_partition, shared with
+    clarify.py and plan-approval.py — this only turns its GateError into the
+    CLI's `acs <command>: <reason>` + exit 2."""
     ctx = context_or_die(command)
-    ticket_id, _src = lib.resolve_ticket_id(
-        os.getcwd(), ctx["settings"], ctx["workspace"], ctx["repo_id"], explicit=explicit)
-    if not ticket_id:
-        die(command, "could not resolve the ticket id (pass --ticket)")
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        die(command, "no active partition for %s" % ticket_id)
+    try:
+        ticket_id, tdir, _archived = lib.resolve_active_partition(
+            os.getcwd(), ctx, explicit=explicit)
+    except lib.GateError as exc:
+        die(command, str(exc))
     return ticket_id, tdir, ctx
 
 
@@ -141,23 +140,34 @@ def read_json_arg(command, path):
 # context / gate
 # ---------------------------------------------------------------------------
 
+#: Keys build_context actually returns that a coordinator needs by name. Copied
+#: explicitly rather than passing ctx through, so a new internal key never
+#: leaks into this command's contract by accident.
+CONTEXT_KEYS = ("checkout_root", "main_repo_root", "workspace", "repo_id",
+                "checkout_id", "plugin_root", "settings", "settings_sources")
+
+
 def cmd_context(args):
     """The resolved workspace view: what checkout_root, main_repo_root,
-    default_state_root, repo_dir, repo_partition_id, index_path and
-    load_settings each answer, in one call."""
+    repo_partition_id, index_path, repo_dir and load_settings each answer, in
+    one call, plus checkout_id (which names this checkout's pointer and
+    cost-sample files)."""
     ctx = context_or_die("context")
-    out = {"ok": True, "checkout_root": ctx.get("checkout_root"),
-           "workspace": ctx.get("workspace"), "repo_id": ctx.get("repo_id"),
-           "settings": ctx.get("settings")}
-    for key in ("main_repo_root", "worktree", "state_root"):
+    out = {"ok": True}
+    for key in CONTEXT_KEYS:
         if key in ctx:
             out[key] = ctx[key]
     out["index_path"] = lib.index_path(ctx["workspace"], ctx["repo_id"])
+    out["repo_dir"] = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
     if args.ticket:
         tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], args.ticket)
+        # find_ticket_partition returns the ACTIVE path for a ticket that exists
+        # nowhere, so the path alone cannot be read as "this ticket exists" --
+        # every other partition-taking subcommand refuses that case outright.
         out["ticket_id"] = args.ticket
         out["partition"] = tdir
         out["archived"] = bool(archived)
+        out["exists"] = os.path.isdir(tdir)
     emit(out)
 
 
@@ -167,11 +177,14 @@ def cmd_gate(args):
     if args.skill not in lib.GATES:
         die("gate", "unknown skill %r (expected one of %s)"
             % (args.skill, ", ".join(sorted(lib.GATES))))
-    payload = {"cwd": os.getcwd(), "hook_event_name": "PreToolUse",
-               "tool_input": {"skill": args.skill}}
+    payload = {"cwd": os.getcwd(), "tool_input": {"skill": args.skill}}
     if args.ticket:
         payload["tool_input"]["args"] = args.ticket
-    code = lib.run_pre_payload(args.skill, payload)
+    # record_marker=False: this is NOT a PreToolUse event. The payload has no
+    # session_id or transcript_path, and record_session_marker persists those
+    # faithfully as null -- overwriting the real marker and costing the next run
+    # its cost/usage attribution. Asking "would this gate pass?" must not.
+    code = lib.run_pre_payload(args.skill, payload, record_marker=False)
     emit({"ok": code == 0, "skill": args.skill, "exit_code": code})
     sys.exit(code)
 
@@ -223,23 +236,42 @@ def cmd_lane_apply(args):
     from_size, from_stakes = ticket.get("size"), ticket.get("stakes")
     eff_size, eff_stakes = lib.guard_axes(from_size, from_stakes,
                                           args.proposed_size, args.proposed_stakes)
+    # guard_axes floors an absent axis at the LOWEST rank, so a ticket with no
+    # size would have "trivial" written into it by a rigor-RAISING path, which
+    # then anchors every later comparison. An axis nobody has stated stays
+    # absent; only a current or proposed value can be persisted.
+    if from_size is None and args.proposed_size is None:
+        eff_size = None
+    if from_stakes is None and args.proposed_stakes is None:
+        eff_stakes = None
     new_lane, depth, ceiling_after = lib.escalate_lane(
         from_lane, eff_size, eff_stakes, ticket.get("needs_design"), ticket.get("type"))
 
     ceiling_before = (args.ceiling_before if args.ceiling_before is not None
                       else lib.VERIFY_ITERATION_CAP[lib.verify_depth(from_lane, from_stakes)])
     result = {"ticket_id": ticket_id, "from_lane": from_lane, "lane": new_lane,
-              "size": eff_size, "stakes": eff_stakes, "depth": depth,
-              "ceiling_before": ceiling_before,
+              "depth": depth, "ceiling_before": ceiling_before,
               "ceiling_after": max(ceiling_before, ceiling_after)}
 
     if lib.lane_rank(new_lane) <= lib.lane_rank(from_lane):
-        result.update({"escalated": False, "event_recorded": False,
+        # Report what is ON DISK, not the computed effective axes: nothing was
+        # written, and a caller branching on out["stakes"] must not read a raise
+        # that never happened. What was asked for is reported separately.
+        result.update({"lane": from_lane, "size": from_size, "stakes": from_stakes,
+                       "proposed_size": args.proposed_size,
+                       "proposed_stakes": args.proposed_stakes,
+                       "escalated": False, "event_recorded": False, "event": None,
                        "reason": "candidate lane is not strictly higher — no write"})
         emit(result)
         return
 
-    ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
+    result["size"], result["stakes"] = eff_size, eff_stakes
+
+    if eff_size is not None:
+        ticket["size"] = eff_size
+    if eff_stakes is not None:
+        ticket["stakes"] = eff_stakes
+    ticket["lane"] = new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
     lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
@@ -264,7 +296,15 @@ def cmd_lane_apply(args):
 
 def cmd_lane_deescalate(args):
     """confirm_deescalation — the only sanctioned lane-lowering path, and it
-    refuses without an answered clarify.py ledger id."""
+    refuses without an answered clarify.py ledger id.
+
+    confirm_deescalation persists ticket.json, pipeline-state.json and the index
+    BEFORE recording its audit event, exactly like the upward path. So a failure
+    is not automatically "nothing happened": on any error this re-reads the
+    ticket and reports what actually landed, the way `lane apply` does. Exit 2
+    with `applied: true` means a rigor-LOWERING write is durable with no
+    matching event — the loudest case in the system, and previously reported as
+    a bare refusal with empty stdout."""
     ticket_id, tdir, _ctx = partition_or_die("lane deescalate", args.ticket)
     ticket = load_ticket_or_die("lane deescalate", tdir, ticket_id)
     before = {"lane": ticket.get("lane"), "size": ticket.get("size"),
@@ -273,9 +313,22 @@ def cmd_lane_deescalate(args):
         updated = lib.confirm_deescalation(tdir, ticket, args.size, args.stakes,
                                            args.clarify_ref)
     except (ValueError, KeyError) as exc:
-        die("lane deescalate", str(exc))
+        on_disk = lib.load_ticket(tdir) or {}
+        applied = (on_disk.get("size") == args.size
+                   and on_disk.get("stakes") == args.stakes)
+        if not applied:
+            die("lane deescalate", str(exc))
+        emit({"ok": False, "ticket_id": ticket_id, "from": before,
+              "lane": on_disk.get("lane"), "size": on_disk.get("size"),
+              "stakes": on_disk.get("stakes"), "applied": True,
+              "event_recorded": False, "error": str(exc),
+              "confirmation_ref": args.clarify_ref})
+        die("lane deescalate",
+            "axes and lane are LOWERED but the de-escalation event was not "
+            "recorded: %s" % exc)
     emit({"ok": True, "ticket_id": ticket_id, "from": before,
           "lane": updated["lane"], "size": updated["size"], "stakes": updated["stakes"],
+          "applied": True, "event_recorded": True,
           "confirmation_ref": args.clarify_ref})
 
 
@@ -332,23 +385,36 @@ def cmd_ticket_save(args):
     """save_ticket + update_index in one call — SKILL.md never pairs them any
     other way, and a save without the re-index leaves the index stale.
 
+    The document is a PATCH, not a replacement: incoming keys are merged over
+    the stored ticket. A caller that hand-builds a document — the model-driven
+    caller this CLI exists to serve — would otherwise wipe every field it did
+    not think to include, taking title, type, status, parent and children with
+    it and blanking the index row, which `gate_code`, `_epic_auto_done` and
+    `fanout_batches` all read.
+
     Refuses to write axes or lane: those move only through `lane apply` /
     `lane deescalate`, which carry the guard and the audit event."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
 
-    if incoming.get("id") != current.get("id"):
+    if not current.get("id"):
+        die("ticket save", "the stored ticket.json for %s has no id" % ticket_id)
+    if "id" in incoming and incoming["id"] != current["id"]:
         die("ticket save", "document id %r does not match the partition's %r"
             % (incoming.get("id"), current.get("id")))
-    guarded = [k for k in ("size", "stakes", "lane") if incoming.get(k) != current.get(k)]
+    guarded = [k for k in ("size", "stakes", "lane")
+               if k in incoming and incoming[k] != current.get(k)]
     if guarded:
         die("ticket save", "%s move only through `acs.py lane apply` / `lane deescalate`"
             % ", ".join(guarded))
 
-    lib.save_ticket(tdir, incoming)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], incoming)
-    emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
+    updated = dict(current)
+    updated.update(incoming)
+    lib.save_ticket(tdir, updated)
+    lib.update_index(ctx["workspace"], ctx["repo_id"], updated)
+    emit({"ok": True, "ticket_id": ticket_id, "indexed": True,
+          "fields_written": sorted(incoming)})
 
 
 def cmd_phase_validate(args):
@@ -385,9 +451,19 @@ def cmd_doctor(args):
     except lib.GateError:
         pass  # the toolchain report is useful precisely when the context is not
     settings = ctx["settings"] if ctx else None
-    emit({"ok": True, "context": ctx is not None,
-          "toolchain": lib.check_toolchain(settings),
-          "missing": lib.missing_tools(settings)})
+    # Probed ONCE: missing_tools() re-runs check_toolchain internally, so calling
+    # both spawned every `<tool> --version` subprocess twice, each with a 5s
+    # timeout.
+    rows = lib.check_toolchain(settings)
+    missing = [row["name"] for row in rows
+               if row.get("kind") in ("required", "recommended") and not row.get("present")]
+    required_missing = [row["name"] for row in rows
+                        if row.get("kind") == "required" and not row.get("present")]
+    # `ok` is the verdict the module contract tells callers to read, so it must
+    # answer "is the toolchain usable?" — not be a constant.
+    emit({"ok": not required_missing, "context": ctx is not None,
+          "toolchain": rows, "missing": missing,
+          "missing_required": required_missing})
 
 
 # ---------------------------------------------------------------------------
@@ -409,20 +485,30 @@ def delegate(command, argv):
 # Parser
 # ---------------------------------------------------------------------------
 
+#: group name -> that group's parser, so `acs.py lane` can print the usage that
+#: actually names its subcommands. Populated by build_parser().
+GROUP_PARSERS = {}
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="acs.py", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="group")
+    GROUP_PARSERS.clear()
 
-    ctx = sub.add_parser("context", help="resolved settings, workspace and paths")
+    def group(name, **kwargs):
+        GROUP_PARSERS[name] = sub.add_parser(name, **kwargs)
+        return GROUP_PARSERS[name]
+
+    ctx = group("context", help="resolved settings, workspace and paths")
     ctx.add_argument("--ticket", help="also resolve this ticket's partition")
     ctx.set_defaults(func=cmd_context)
 
-    gate = sub.add_parser("gate", help="run a skill's pre-gate without the skill")
+    gate = group("gate", help="run a skill's pre-gate without the skill")
     gate.add_argument("--skill", required=True)
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)
 
-    lane = sub.add_parser("lane", help="lane derivation, escalation and the audited apply")
+    lane = group("lane", help="lane derivation, escalation and the audited apply")
     lane_sub = lane.add_subparsers(dest="cmd")
 
     derive = lane_sub.add_parser("derive", help="derive_lane")
@@ -463,7 +549,7 @@ def build_parser():
     deesc.add_argument("--clarify-ref", dest="clarify_ref", required=True)
     deesc.set_defaults(func=cmd_lane_deescalate)
 
-    stakes = sub.add_parser("stakes", help="stakes recommendation and the axis guard")
+    stakes = group("stakes", help="stakes recommendation and the axis guard")
     stakes_sub = stakes.add_subparsers(dest="cmd")
 
     rec = stakes_sub.add_parser("recommend", help="recommend_stakes over changed paths")
@@ -479,7 +565,7 @@ def build_parser():
     guard.add_argument("--proposed-stakes", dest="proposed_stakes", choices=STAKES)
     guard.set_defaults(func=cmd_stakes_guard)
 
-    ticket = sub.add_parser("ticket", help="read and write ticket.json")
+    ticket = group("ticket", help="read and write ticket.json")
     ticket_sub = ticket.add_subparsers(dest="cmd")
 
     show = ticket_sub.add_parser("show", help="load_ticket")
@@ -492,24 +578,24 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
-    phase = sub.add_parser("phase", help="phase artifacts")
+    phase = group("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")
     pval = phase_sub.add_parser("validate", help="check a result document before the post-hook")
     pval.add_argument("--skill", required=True)
     pval.add_argument("--result-file", dest="result_file", metavar="FILE")
     pval.set_defaults(func=cmd_phase_validate)
 
-    slug = sub.add_parser("slug", help="slugify (branch and file naming)")
+    slug = group("slug", help="slugify (branch and file naming)")
     slug.add_argument("--text", required=True)
     slug.add_argument("--max-len", dest="max_len", type=int, default=40)
     slug.set_defaults(func=cmd_slug)
 
-    fanout = sub.add_parser("fanout", help="epic fan-out helpers")
+    fanout = group("fanout", help="epic fan-out helpers")
     fanout_sub = fanout.add_subparsers(dest="cmd")
     batches = fanout_sub.add_parser("batches", help="fanout_batches")
     batches.set_defaults(func=cmd_fanout_batches)
 
-    doctor = sub.add_parser("doctor", help="check_toolchain / missing_tools")
+    doctor = group("doctor", help="check_toolchain / missing_tools")
     doctor.set_defaults(func=cmd_doctor)
 
     for name in sorted(DELEGATED):
@@ -533,8 +619,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     func = getattr(args, "func", None)
     if func is None:
-        # A group with no subcommand ("acs.py lane") — show that group's usage.
-        parser.print_help(sys.stderr)
+        # A group with no subcommand ("acs.py lane") — show THAT group's usage,
+        # which is what names its subcommands; the root help does not.
+        group = getattr(args, "group", None)
+        (GROUP_PARSERS.get(group) or parser).print_help(sys.stderr)
         sys.exit(2)
     func(args)
 

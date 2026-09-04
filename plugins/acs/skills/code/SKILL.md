@@ -206,7 +206,17 @@ applies judgment over finding text; the deterministic path is trigger (b).
 **(b) `high_stakes_paths` glob matched mid-implementation.** After the execute
 phase writes files, the coordinator calls `recommend_stakes(changed_paths,
 settings)` (`acs_lib/lanes.py`) over the iteration's changed file set — as
-`acs.py stakes recommend --paths-from -`, fed `git diff --name-only`. A return value
+`acs.py stakes recommend --paths-from -`, fed the iteration's full changed
+set:
+
+```bash
+{ git diff --name-only HEAD; git ls-files --others --exclude-standard; } \
+  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" stakes recommend --paths-from -
+```
+
+`git diff --name-only` alone lists only unstaged edits to tracked files, so a
+newly created `auth/session.py` — exactly the kind of path the trigger exists to
+catch — would be invisible and the trigger would never fire. A return value
 of `"high"` fires trigger (b). Stakes is then raised to `"high"` for the new
 axes. This is the deterministic, fully unit-testable trigger; it reuses the
 `high_stakes_paths` setting mechanism — no re-implementation.
