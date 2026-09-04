@@ -153,12 +153,15 @@ class CoverageNotReducedTest(unittest.TestCase):
         # dispatch.py ranges were re-verified against the file and updated here
         # with it. What is pinned is the TWO-occurrence property, not the ranges.
         anchors = [
-            "hooks.json:3-14", "hooks.json:16-26",
-            "dispatch.py:27-40", "dispatch.py:106-125", "dispatch.py:114-119",
+            "hooks.json:3-14", "hooks.json:64-74",
+            "dispatch.py:40-53", "dispatch.py:145-167", "dispatch.py:153-158",
             # MAR-522 split acs_lib.py into a package; re-verified against the
             # new modules and moved here with the sidecar.
             "acs_lib/_common.py:31", "acs_lib/settings.py:284-299",
             "acs_lib/gates.py:539",
+            # MAR-528 registered four more hook events, moving the SessionEnd
+            # and dispatch.py ranges above and adding Surface #6's three.
+            "hooks.json:16-63", "dispatch.py:119-142", "acs_lib/lifecycle.py:333-486",
         ]
         for anchor in anchors:
             with self.subTest(anchor=anchor):

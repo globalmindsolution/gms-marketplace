@@ -56,6 +56,28 @@ onto the plugin hooks API like this:
    abnormal endings still write state. A hard kill that skips even SessionEnd
    still leaves `in_progress` + a stale lock — downstream gates read "not
    completed" and the next run reconciles.
+4. **Lifecycle hooks (MAR-528).** Four more events are bound, each replacing an
+   instruction a coordinator had to remember:
+
+   | Event | Matcher | `dispatch.py` mode | What it does |
+   |---|---|---|---|
+   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents.json`, keyed by `agent_id` so parallel executors of one type stay distinct |
+   | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
+   | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
+   | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
+
+   The matchers are **anchored on the plugin scope** on purpose: unanchored,
+   the subagent events would fire for every subagent in the session — `Explore`,
+   `Plan`, another plugin's agents — and try to file their output as an acs
+   phase artifact.
+
+   These four fail **OPEN**, which is the opposite of the gate. The gate fails
+   closed because letting a skill run unchecked is the harm; here the harm runs
+   the other way — a bookkeeping bug that ends a session or wedges a subagent
+   costs more than the bookkeeping is worth — so `dispatch.py`'s
+   `run_lifecycle` turns anything raised into exit 0 plus one line on stderr.
+   Both blocking hooks also give up after `BLOCK_LIMIT`: a session that cannot
+   stop is worse than a run SessionEnd will mark `interrupted`.
 
 ## Skill lifecycle (every hooked skill)
 
@@ -119,6 +141,23 @@ findings, error details, and stop reasons into workspace files):
 | plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+
+**The XML snapshot is written by the SubagentStop hook** (MAR-528), not by the
+coordinator remembering to. The hook fires on `^acs:`-matched agents, validates
+the returned message against `acs-messages.xsd`, and files it at
+`phases/<skill>/iter-<iteration>-<phase>.xml` — a path taken entirely from the
+message's own `skill`, `phase` and `iteration` attributes, so nothing about it
+has to be carried in the coordinator's head. An invalid message sends the
+subagent back with the errors, at most twice (`BLOCK_LIMIT`); a still-invalid
+third message is let through and the coordinator records the failure, because a
+hook that can refuse forever is a hung session. Two consequences worth knowing:
+a `<handoff>` is the run's outcome, not a phase artifact, so it validates but
+files nothing; and since the schema reads an *absent* `iteration` as `1`, a
+subagent must echo its task's `iteration` — one that omits it on iteration 3 is
+claiming to be iteration 1, and the hook says so on stderr rather than guessing
+at a counter it cannot see. The coordinator still writes the snapshot itself for
+work it performs **inline** (TRIVIAL/SMALL lanes, `/acs:merge-pr`), where no
+subagent runs and therefore no SubagentStop fires.
 
 **Every statement in a phase artifact must be grounded**: decisions and
 analysis cite the file (path + line/section) they are based on; claims about
