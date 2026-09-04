@@ -1,6 +1,6 @@
 """acs_lib — the deterministic kernel behind every acs hook and helper CLI.
 
-MAR-522 split the 2,989-line module into seven domain modules; this facade
+MAR-522 split the 2,989-line module into eight domain modules; this facade
 re-exports their public surface, so `import acs_lib as lib` resolves every name
 it always did. In dependency order:
 
@@ -68,7 +68,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, TOOLCHAIN, _BARE_INT
     parse_fanout_for_arg, render_managed_block, tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
-from .gates import (GATES, _archive_partition, _clear_pointers_for_ticket,
+from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _clear_pointers_for_ticket,
     _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
     _require_architecture_doc_set, _require_completed, _resolve_ticket_for_gate,
     build_context, design_requirement, gate_code, gate_create_architecture,

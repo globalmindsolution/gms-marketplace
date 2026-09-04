@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Dependency-free corroboration checker for a plan's `Upstream inventory` citations.
 
+No third-party dependency, but it is not standalone: the heading scanner
+lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
+which must sit beside this file on sys.path.
+
 The 4 bootstrap-doc planners (create-quality, create-standards,
 create-operations, create-principles) record upstream-fact citations in an
 `Upstream inventory` section of `iter-<n>-plan.md`: one line per citation,
@@ -55,7 +59,6 @@ import markdown_headings  # noqa: E402
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 Citation = namedtuple("Citation", ["line", "claim", "path", "excerpt"])
 
-# Bounded line-prefix heading match — no nested quantifiers, ReDoS-safe.
 
 # "- <claim> — `<path>[:line[-line]]` — "<excerpt>"" — one line, non-greedy
 # claim so an em-dash inside the claim text does not confuse the boundary.

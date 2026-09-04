@@ -12,8 +12,10 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
-# The scripts dir, one level up from this package -- sibling helpers
-# (claude_code_adapter, usage_reader, cost_sampler) are imported flat.
+# The scripts dir, one level up from this package. Done ONCE, here: the
+# facade imports _common first, so every sibling import in the package
+# (claude_code_adapter in repo, markdown_headings in lanes) resolves
+# without each module pushing its own duplicate entry onto sys.path.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import claude_code_adapter as cc  # noqa: E402
 

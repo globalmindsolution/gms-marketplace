@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Dependency-free linter for section/structure conformance in generated Markdown docs.
 
+No third-party dependency, but it is not standalone: the heading scanner
+lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
+which must sit beside this file on sys.path.
+
 The acs doc-producing skills (create-prd, create-architecture, create-design,
 create-principles, create-standards, create-quality, create-operations) each
 declare a required-section list in their SKILL.md. This linter is the
@@ -36,7 +40,6 @@ wants strict order checking. This asymmetry is intentional and not
 reconciled into one default.
 """
 
-import re
 import sys
 import os
 from collections import namedtuple
@@ -46,7 +49,6 @@ import markdown_headings  # noqa: E402
 
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 
-# Bounded line-prefix heading match — no nested quantifiers, ReDoS-safe.
 
 
 def _parse_sections(raw):

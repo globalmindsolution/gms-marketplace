@@ -12,9 +12,6 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
-# The scripts dir, one level up from this package -- sibling helpers
-# (claude_code_adapter, usage_reader, cost_sampler) are imported flat.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json
@@ -271,30 +268,35 @@ def _require_architecture_doc_set(ctx):
         )
 
 
-#: Doc-set producers whose ONLY precondition is the architecture doc set. One
-#: row each, instead of four functions with the same two-line body (MAR-522).
-#: Adding a producer with that precondition is a row here, not a new function.
+#: Doc-set producers whose ONLY precondition is the architecture doc set.
+#: The CHECK is one function (_require_architecture_doc_set, above) -- what was
+#: duplicated before MAR-522 was its three-line body, inlined in
+#: gate_create_project and gate_standardize_project. This tuple is the declared
+#: set, asserted against GATES by tests/acs/test_acs_lib_gates.py, so adding a
+#: producer with this precondition is a row plus a two-line gate, and the two
+#: cannot drift apart.
 ARCHITECTURE_DEPENDENT_SKILLS = ("create-quality", "create-operations",
                                  "create-principles", "create-standards")
 
 
-def _architecture_dependent_gate(skill):
-    """Build one architecture-dependent gate, named and documented like a
-    hand-written one so `lib.gate_create_quality` still resolves and the
-    tracebacks still read as that gate rather than as a shared closure."""
-    def gate(ctx, payload):
-        _require_architecture_doc_set(ctx)
-        return None
-
-    gate.__name__ = gate.__qualname__ = "gate_" + skill.replace("-", "_")
-    gate.__doc__ = ("Pre-hook gate for /acs:%s — requires the architecture doc "
-                    "set. Generated from ARCHITECTURE_DEPENDENT_SKILLS." % skill)
-    return gate
+def gate_create_quality(ctx, payload):
+    """Pre-hook gate for /acs:create-quality -- requires the architecture doc set."""
+    return _require_architecture_doc_set(ctx)
 
 
-for _skill in ARCHITECTURE_DEPENDENT_SKILLS:
-    globals()["gate_" + _skill.replace("-", "_")] = _architecture_dependent_gate(_skill)
-del _skill
+def gate_create_operations(ctx, payload):
+    """Pre-hook gate for /acs:create-operations -- requires the architecture doc set."""
+    return _require_architecture_doc_set(ctx)
+
+
+def gate_create_principles(ctx, payload):
+    """Pre-hook gate for /acs:create-principles -- requires the architecture doc set."""
+    return _require_architecture_doc_set(ctx)
+
+
+def gate_create_standards(ctx, payload):
+    """Pre-hook gate for /acs:create-standards -- requires the architecture doc set."""
+    return _require_architecture_doc_set(ctx)
 
 
 GATES = {

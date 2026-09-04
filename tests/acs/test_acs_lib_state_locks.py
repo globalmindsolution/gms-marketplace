@@ -721,7 +721,10 @@ class TestAllocateTicketId(unittest.TestCase):
                 pass
             return original_write_json(path, data)
 
-        with mock.patch.object(lib, "write_json", side_effect=shim):
+        # acs_lib is a package (MAR-522): acs_lib.state bound this name at import
+        # time, so patching the facade would leave the real one in place and
+        # this branch would go uncovered while the test still passed.
+        with mock.patch.object(lib.state, "write_json", side_effect=shim):
             result = lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP")
         self.assertEqual(result, "SHOP-1")
 

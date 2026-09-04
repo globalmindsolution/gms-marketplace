@@ -25,7 +25,7 @@ sys.path.insert(0, SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 
-#: The acs_lib package (MAR-522 split the single acs_lib.py into seven modules).
+#: The acs_lib package (MAR-522 split the single acs_lib.py into eight modules).
 ACS_LIB_PKG = os.path.join(SCRIPTS, "acs_lib")
 
 

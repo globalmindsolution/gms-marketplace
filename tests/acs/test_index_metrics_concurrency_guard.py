@@ -35,13 +35,14 @@ class GuardDocstringHonestyTest(unittest.TestCase):
 
 
 class _GuardedWriterCaseMixin:
+
+    """Shared arms for the O_EXCL guard around a repo-level read-modify-write.
+    Subclasses set guard_name and implement _call()."""
+
     #: The acs_lib submodule whose read_json/write_json binding the writer under
     #: test calls. acs_lib is a package (MAR-522), and a name imported into a
     #: sibling binds at import time -- patching the facade would not reach it.
     MODULE = None
-
-    """Shared arms for the O_EXCL guard around a repo-level read-modify-write.
-    Subclasses set guard_name and implement _call()."""
 
     guard_name = None
 

@@ -330,7 +330,7 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
         """Every plugin module under the scripts dir, RECURSIVELY.
 
         acs_lib became a package in MAR-522. A non-recursive listdir would skip
-        its seven modules entirely -- the guard would keep passing while the
+        its eight modules entirely -- the guard would keep passing while the
         literals it exists to catch moved into acs_lib/state.py."""
         found = []
         for root, _dirs, files in os.walk(PLUGIN_SCRIPTS):

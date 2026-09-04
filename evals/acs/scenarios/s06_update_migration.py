@@ -69,7 +69,12 @@ def _load_acs_lib(scripts_dir):
     try:
         spec.loader.exec_module(mod)
     finally:
-        sys.modules.pop(name, None)
+        # Pop the SUBMODULES too: leaving "<name>.state" cached means a second
+        # load re-execs only __init__.py, whose relative imports then resolve
+        # from the first build -- certifying a build it never loaded.
+        for cached in [n for n in sys.modules
+                       if n == name or n.startswith(name + ".")]:
+            sys.modules.pop(cached, None)
         if added:
             sys.path.remove(scripts_dir)
     return mod

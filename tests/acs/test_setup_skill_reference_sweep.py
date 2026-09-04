@@ -715,12 +715,21 @@ class GitignoredPathsNotSweptTest(unittest.TestCase):
             shutil.rmtree(os.path.dirname(planted), ignore_errors=True)
 
     def test_tracked_files_are_still_swept(self):
-        """The fix is subtractive: real repo content stays covered."""
+        """The fix is subtractive: real repo content stays covered.
+
+        The `isfile` guard below made this vacuous once MAR-522 deleted
+        acs_lib.py: neither entry was a file (the other is a directory), so the
+        per-file assertion ran zero times and only the count check remained.
+        The named files are asserted to exist first, so a rename cannot quietly
+        empty this test again."""
         swept = {os.path.realpath(p) for p in iter_repo_files()}
-        for rel in ("plugins/acs/hooks/scripts/acs_lib.py", "docs/adr"):
+        for rel in ("plugins/acs/hooks/scripts/acs_lib/_common.py",
+                    "plugins/acs/hooks/scripts/acs.py",
+                    "docs/adr/README.md"):
             path = os.path.realpath(os.path.join(REPO_ROOT, rel))
-            if os.path.isfile(path):
-                self.assertIn(path, swept, "%s must still be swept" % rel)
+            self.assertTrue(os.path.isfile(path),
+                            "%s must exist for this test to mean anything" % rel)
+            self.assertIn(path, swept, "%s must still be swept" % rel)
         self.assertGreater(
             len(swept), 100,
             "the sweep must still cover the repository, not collapse to nothing")

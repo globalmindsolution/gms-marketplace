@@ -12,9 +12,6 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
-# The scripts dir, one level up from this package -- sibling helpers
-# (claude_code_adapter, usage_reader, cost_sampler) are imported flat.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1, DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY
