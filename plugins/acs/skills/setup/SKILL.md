@@ -281,8 +281,7 @@ first-class setup decision. Present the choice with AskUserQuestion, offering:
    the faster/cheaper sonnet for the mechanical execution role). They are
    version-pinned ids (MAR-81), so a fresh init lands on a stable, explicit
    model rather than a runtime alias. Pick this and move on if unsure — a
-   repo that wants a stronger execution role can take **Custom** below, as
-   this one does.
+   repo that wants a stronger execution role can take **Custom** below.
 2. **Inherit the session model** — set nothing; every role runs on whatever
    model the user's Claude Code session is using (cheapest to reason about, no
    per-role split).

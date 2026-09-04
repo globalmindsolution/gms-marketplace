@@ -90,13 +90,28 @@ class SettingsModelsPinnedCase(unittest.TestCase):
 
     def test_recommended_models_are_well_shaped(self):
         """The recommendation is an object form with a real id and a valid effort
-        for every role — the property that must hold whatever the ids become."""
+        for every role — the property that must hold whatever the ids become.
+
+        Asserted against RECOMMENDED_MODELS itself, not the merged EXPECTED:
+        merging REPO_OVERRIDES over it removed the only shape check on the
+        SHIPPED recommendation for any overridden role. Verified by mutation —
+        with EXPECTED, setting the recommendation's executor to
+        `{"model": "", "effort": "bogus"}` left this module green, and
+        test_setup_offers could not catch it either (PINNED_IDS would hold ""
+        and `assertIn("", section)` is vacuously true)."""
         for role in lib.MODEL_ROLES:
-            entry = EXPECTED[role]
-            self.assertIsInstance(entry, dict, msg="%s must use the {model, effort} form" % role)
-            self.assertTrue(entry.get("model", "").strip(), msg="%s needs a model id" % role)
-            self.assertIn(entry.get("effort"), lib.MODEL_EFFORTS,
-                          msg="%s effort must be one of %s" % (role, ", ".join(lib.MODEL_EFFORTS)))
+            for label, table in (("recommendation", lib.RECOMMENDED_MODELS),
+                                 ("this repo's pin", EXPECTED)):
+                entry = table[role]
+                with self.subTest(role=role, table=label):
+                    self.assertIsInstance(entry, dict,
+                                          msg="%s %s must use the {model, effort} form"
+                                              % (label, role))
+                    self.assertTrue(entry.get("model", "").strip(),
+                                    msg="%s %s needs a model id" % (label, role))
+                    self.assertIn(entry.get("effort"), lib.MODEL_EFFORTS,
+                                  msg="%s %s effort must be one of %s"
+                                      % (label, role, ", ".join(lib.MODEL_EFFORTS)))
 
     def test_committed_settings_validate(self):
         """The committed models block passes the runtime validator, not just the schema."""
@@ -156,6 +171,20 @@ class SettingsModelsPinnedCase(unittest.TestCase):
                 entry, lib.RECOMMENDED_MODELS[role],
                 msg="REPO_OVERRIDES[%r] now equals the recommendation -- delete the "
                     "override and let the role mirror RECOMMENDED_MODELS again" % role,
+            )
+            # The direction that actually happens. The override encodes a
+            # literal id, but its INTENT is "the same strong model the planner
+            # and verifier get". Without this, moving RECOMMENDED_MODELS to a
+            # new generation leaves the executor pinned to the retired id with
+            # nothing failing — and no model-id validation at spawn time to
+            # catch it later.
+            in_use = {rec["model"] for rec in lib.RECOMMENDED_MODELS.values()}
+            self.assertIn(
+                entry["model"], in_use,
+                msg="REPO_OVERRIDES[%r] pins %r, which the recommendation no "
+                    "longer uses for any role (%s) -- the override has been left "
+                    "behind by a model generation" % (role, entry["model"],
+                                                      ", ".join(sorted(in_use))),
             )
 
     def test_coordinator_no_longer_shape_checked(self):
