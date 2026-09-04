@@ -101,7 +101,7 @@ class ShapeTest(unittest.TestCase):
 
     def test_dimensions_must_be_a_non_empty_list_of_known_ids(self):
         self.assertTrue(any("dimensions is required" in e
-                            for e in lib.validate_verdict(verdict(dimensions=[])))) 
+                            for e in lib.validate_verdict(verdict(dimensions=[]))))
         self.assertTrue(any("not one of 1-16" in e for e in lib.validate_verdict(
             verdict(dimensions=[{"id": 17, "result": "pass"}]))))
 
