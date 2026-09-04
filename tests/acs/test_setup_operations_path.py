@@ -51,7 +51,10 @@ class Mar113OperationsPathInitCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        cls.step4 = section(cls.body, "## Step 4")
+        # MAR-526 turned setup into a conversational skill: the optional-settings
+        # batch is its own `### Optional settings` section now, and the step
+        # numbering changed with it. The content these ACs pin is unmoved.
+        cls.step4 = section(cls.body, "### Optional settings")
 
     def test_step4_batch_documents_operations_path_default(self):
         """The Step 4 batch-default bullet list names operations_path with its

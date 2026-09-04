@@ -15,7 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package and `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py` and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 19 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package and `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py` and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 20 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
@@ -455,6 +455,33 @@ The numbers are deliberate rules of thumb for the planners' judgment, not
 hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
+
+## Bootstrap: `/acs:setup` is a conversation over a wizard
+
+`setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
+skill asks and explains; `setup_wizard.py` writes, reached as two commands:
+
+- **`acs.py setup detect`** — read-only. Which settings exist and **in which
+  scope**, the resolved workspace, whether both ignore layers are in place and
+  whether a broad rule is swallowing `.acs/settings.json` or `.acs/ci/`, the
+  toolchain, plausible test commands, and which optional installs (CI,
+  `CLAUDE.md`, status line) are already present.
+- **`acs.py setup apply --answers FILE`** — the settings split across scopes
+  (machine-specific keys always to the gitignored `settings.local.json`), both
+  ignore layers, the workspace create-and-probe, the CI copies, the `CLAUDE.md`
+  managed block, and the status-line settings.
+
+**Idempotence is the contract.** `/acs:setup` is re-run whenever a format
+changes, and a repo initialised by an older acs is expected to be *repaired* by
+a re-run. So every settings write is a read-update-write merge (unknown keys
+preserved for forward compatibility, nested objects merged rather than
+replaced), every ignore entry is added only when `git check-ignore` says it is
+missing — probed **with** its trailing slash, since a directory-only rule does
+not match a bare path that does not yet exist — and every CI copy is a refresh.
+The result splits into `changed` and `unchanged`, so a re-run is visibly a
+no-op rather than silently one; `warnings` is what setup must relay but must
+not fix (a `!.acs/` negation is the user's configuration to decide); and
+`--dry-run` reports without writing.
 
 ## Settings, formats, templates
 

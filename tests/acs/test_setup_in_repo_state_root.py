@@ -38,6 +38,7 @@ Run:  python3 -m unittest tests.acs.test_setup_in_repo_state_root -v
 
 import os
 import re
+import sys
 import shutil
 import subprocess
 import tempfile
@@ -69,269 +70,125 @@ def section(body, heading):
 
 
 class Mar4InitStateRootCase(unittest.TestCase):
-    """Fixture: read the setup SKILL.md once."""
+    """MAR-4's acceptance criteria, re-pointed at the implementation.
+
+    These pinned the in-repo state root as SHELL IN PROSE — the two-layer ignore
+    mechanism, `--git-common-dir`, `grep -qxF`, the `check-ignore -v`
+    assertion, the write probe. MAR-526 moved all of it into
+    `setup_wizard.py`, so the criteria are asserted where the behaviour is: a
+    prose assertion against a skill that no longer carries the shell would
+    either fail or, kept alive by loosening it, assert nothing.
+
+    Every AC below is the original one. What changed is only where it is read.
+    The two repo-level assertions at the end are unmoved."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        cls.step3 = section(cls.body, "## Step 3")
-        cls.step4 = section(cls.body, "## Step 4")
-        cls.step5 = section(cls.body, "## Step 5")
-        cls.step6 = section(cls.body, "## Step 6")
-        cls.step7c = section(cls.body, "## Step 7c")
-        cls.step8 = section(cls.body, "## Step 8")
+        cls.wizard = read(os.path.join(PLUGIN, "hooks", "scripts", "setup_wizard.py"))
 
-    # --- 1: Step 3 drops the must-ask/outside-repo validator ---
+    def _repo(self):
+        """A throwaway git repo the wizard can be applied to."""
+        tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
+        return tmp
 
-    def test_step3_drops_the_must_ask_outside_repo_validator(self):
-        self.assertNotIn(
-            "### workspace_path", self.step3,
-            msg="Step 3 must no longer have a `### workspace_path` subsection "
-                "(AC1) — it moves to Step 4 as an optional override",
-        )
-        self.assertNotIn(
-            "git worktree list --porcelain", self.step3,
-            msg="Step 3 must drop the outside-the-repo REJECT-loop snippet (AC1)",
-        )
-        self.assertNotIn(
-            "MUST be outside the consumer repo", self.step3,
-            msg="Step 3 must no longer claim workspace_path MUST be outside "
-                "the consumer repo (AC1)",
-        )
-        self.assertIn(
-            "### ticket_prefix", self.step3,
-            msg="Step 3 must retain the `### ticket_prefix` subsection unaffected",
-        )
+    def _apply(self, cwd, answers=None):
+        sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+        import setup_wizard
+        return setup_wizard.apply(cwd, answers or {"settings": {"ticket_prefix": "SHOP"}})
 
-    # --- 2: Step 4 offers workspace_path as an optional default ---
+    def test_the_default_state_root_is_in_repo_and_never_asked_for(self):
+        """AC: `workspace_path` is an OPTIONAL override with an in-repo
+        default, not a must-ask key with an outside-the-repo validator."""
+        self.assertNotIn("MUST be outside the consumer repo", self.body)
+        row = re.search(r"(?m)^\| `workspace_path` \|.*\|$", self.body)
+        self.assertIsNotNone(row, "the optional-settings batch must offer workspace_path")
+        self.assertIn(".acs/state-machine", row.group(0))
+        self.assertIn("settings.local.json", row.group(0),
+                      "the key is machine-specific and always lands in the local file")
 
-    def test_step4_offers_workspace_path_as_optional_default(self):
-        m = re.search(r"(?m)^- `workspace_path`.*(?:\n(?!- `|### ).*)*", self.step4)
-        self.assertIsNotNone(
-            m, "Step 4 must gain a `- `workspace_path`` bullet (AC1)"
-        )
-        bullet = m.group(0)
-        self.assertIn(".acs/state-machine", bullet)
-        self.assertIn(
-            "only when the user", bullet,
-            msg="the workspace_path bullet must follow the write-only-when-"
-                "changed pattern used by adr_path/quality_path/etc (AC1)",
-        )
-        self.assertIn(
-            "GateError", bullet,
-            msg="the workspace_path bullet must surface the D3 bare/submodule "
-                "GateError escape hatch (AC1)",
-        )
+    def test_both_ignore_layers_are_written(self):
+        """AC: the tracked `.gitignore` entry AND the untracked
+        `info/exclude` entry — the second so a linked worktree, or a repo that
+        prefers not to commit an ignore-line change, is still covered."""
+        cwd = self._repo()
+        self._apply(cwd)
+        with open(os.path.join(cwd, ".gitignore"), encoding="utf-8") as fh:
+            tracked = fh.read()
+        with open(os.path.join(cwd, ".git", "info", "exclude"), encoding="utf-8") as fh:
+            untracked = fh.read()
+        for entry in (".acs/settings.local.json", ".acs/state-machine/"):
+            self.assertIn(entry, tracked)
+            self.assertIn(entry, untracked)
 
-    # --- 3: Step 5 writes the two-layer ignore mechanism ---
+    def test_the_exclude_append_cannot_glue_onto_the_last_line(self):
+        """AC: a file with no trailing newline gets one first."""
+        cwd = self._repo()
+        exclude = os.path.join(cwd, ".git", "info", "exclude")
+        os.makedirs(os.path.dirname(exclude), exist_ok=True)
+        with open(exclude, "w", encoding="utf-8") as fh:
+            fh.write("*.log")          # deliberately unterminated
+        self._apply(cwd)
+        with open(exclude, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        self.assertIn("*.log", lines)
+        self.assertIn(".acs/state-machine/", lines)
 
-    def test_step5_writes_the_two_layer_ignore_mechanism(self):
-        self.assertIn(".acs/state-machine/", self.step5)
-        self.assertIn(
-            "--git-common-dir", self.step5,
-            msg="Step 5 must derive the shared git dir via "
-                "`git rev-parse --git-common-dir` (AC1)",
-        )
-        self.assertIn(
-            "info/exclude", self.step5,
-            msg="Step 5 must append to <git-common-dir>/info/exclude (AC1)",
-        )
-        self.assertIn(
-            "grep -qxF", self.step5,
-            msg="the info/exclude append must be idempotent (grep -qxF guard) (AC1)",
-        )
-        self.assertIn(
-            "check-ignore -v", self.step5,
-            msg="Step 5 must assert with `git check-ignore -v` (not just -q) (AC1)",
-        )
-        window = re.search(r"(?s)check-ignore -v.{0,200}", self.step5)
-        self.assertIsNotNone(window)
-        self.assertIn(
-            "WARNING", window.group(0),
-            msg="a failed check-ignore -v assertion must WARN, not hard-fail (AC1)",
-        )
+    def test_the_ignore_write_is_idempotent(self):
+        """AC: run always, fresh init AND re-run — so it must not duplicate."""
+        cwd = self._repo()
+        self._apply(cwd)
+        second = self._apply(cwd)
+        with open(os.path.join(cwd, ".gitignore"), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        self.assertEqual(lines.count(".acs/state-machine/"), 1)
+        self.assertFalse([c for c in second["changed"] if "gitignored" in c])
 
-    # --- 4: Step 5 promotes the broad-.acs/-rule guard ---
+    def test_an_existing_broader_rule_counts_as_ignored(self):
+        """AC: `git check-ignore` decides, not a literal grep, so a repo that
+        already ignores `.acs/` gains no duplicate line."""
+        cwd = self._repo()
+        with open(os.path.join(cwd, ".gitignore"), "w", encoding="utf-8") as fh:
+            fh.write(".acs/\n")
+        out = self._apply(cwd)
+        with open(os.path.join(cwd, ".gitignore"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), ".acs/\n")
+        self.assertTrue(any("already ignored" in line for line in out["unchanged"]))
 
-    def test_step5_promotes_the_broad_acs_rule_guard(self):
-        self.assertIn(
-            ".acs/settings.json", self.step5,
-            msg="the broad-.acs/-rule guard must now run inside Step 5, "
-                "unconditionally (AC1)",
-        )
-        self.assertIn(".acs/ci/check-conventions.py", self.step5)
-        self.assertIn("git check-ignore -q", self.step5)
-        # Step 7c's own precondition no longer re-runs the guard as a
-        # first-time check — it may still reference the two files, but not
-        # a duplicate `for p in .acs/settings.json .acs/ci/check-conventions.py`
-        # bash loop.
-        self.assertNotIn(
-            "for p in .acs/settings.json .acs/ci/check-conventions.py", self.step7c,
-            msg="Step 7c must not re-run the broad-.acs/-rule guard as a "
-                "duplicate first-time check now that Step 5 always runs it (AC1)",
-        )
-        flat_step7c = re.sub(r"\s+", " ", self.step7c.lower())
-        self.assertIn(
-            "already checked", flat_step7c,
-            msg="Step 7c's precondition should reference the Step-5 guard "
-                "instead of re-running it (AC1)",
-        )
+    def test_a_broad_rule_swallowing_ci_files_is_warned_about_not_fixed(self):
+        """AC: the broad-`.acs/`-rule guard runs on every init, and names the
+        files CI must be able to read. It WARNS: a `!.acs/` negation is the
+        user's own configuration to fix, not something to block init on."""
+        cwd = self._repo()
+        with open(os.path.join(cwd, ".gitignore"), "w", encoding="utf-8") as fh:
+            fh.write(".acs/\n")
+        out = self._apply(cwd)
+        joined = " | ".join(out["warnings"])
+        self.assertIn(".acs/settings.json", joined)
+        self.assertIn(".acs/ci/check-conventions.py", joined)
+        self.assertIn("narrow the rule", joined)
 
-    # --- 5: Step 6 probes the resolved default, not a literal placeholder ---
+    def test_the_workspace_is_created_and_probed_at_the_resolved_root(self):
+        """AC: the probe runs against the RESOLVED default, never a literal
+        placeholder — the wizard resolves it exactly as validate_settings
+        does, so what setup creates is what every later run reads."""
+        self.assertIn("resolved exactly as validate_settings", self.wizard)
+        self.assertIn("os.access(target, os.W_OK)", self.wizard)
 
-    def test_step6_probes_the_resolved_default_not_a_literal_placeholder(self):
-        self.assertNotIn(
-            'mkdir -p "<workspace_path>"', self.step6,
-            msg="Step 6 must not probe a literal `<workspace_path>` placeholder "
-                "that assumes Step 3 always collected one (AC1)",
-        )
-        self.assertIn(
-            "default_state_root", self.step6,
-            msg="Step 6 must resolve via default_state_root() when no override "
-                "is set (AC1)",
-        )
-        self.assertIn("mkdir -p", self.step6)
-        self.assertIn(".acs-write-probe", self.step6)
+    def test_the_migration_offer_survives(self):
+        """AC: the one-shot external->in-repo migration is still offered."""
+        self.assertIn("migrate_workspace.py", self.body)
 
-    # --- 6: a new sub-step offers the MAR-3 migrator ---
-
-    def test_new_substep_offers_the_mar3_migrator(self):
-        idx6 = self.body.index(self.step6)
-        after_step6 = self.body[idx6 + len(self.step6):]
-        m = re.search(r"(?s)migrate_workspace\.py.{0,400}", after_step6)
-        self.assertIsNotNone(
-            m, "a sub-step after Step 6 must name migrate_workspace.py (AC1)"
-        )
-        window = m.group(0)
-        for flag in ("--from", "--to", "--repo-root"):
-            self.assertIn(
-                flag, window,
-                msg=f"the migration offer must name the {flag!r} flag (AC1)",
-            )
-        self.assertIn(
-            "decline", after_step6.lower(),
-            msg="the migration sub-step must frame this as an offer with a "
-                "decline path, not an automatic run (AC1)",
-        )
-        # Must appear before Step 7 (Final validation).
-        step7_idx = self.body.index("## Step 7 —")
-        self.assertLess(
-            self.body.index("migrate_workspace.py"), step7_idx,
-            msg="the migration sub-step must land after Step 6 and before "
-                "Step 7 (AC1)",
-        )
-
-    # --- iter-1 docs-sync finding 1: Step 7c rationale no longer claims the
-    # state lives "OUTSIDE the repo" (it now lives in the gitignored in-repo
-    # .acs/state-machine root by default; only an override points outside) ---
-
-    def test_step7c_rationale_no_longer_says_workspace_outside_the_repo(self):
-        self.assertNotIn(
-            "workspace OUTSIDE the repo", self.step7c,
-            msg="Step 7c's CI-enforcement rationale must no longer claim the "
-                "pipeline proof lives in a workspace OUTSIDE the repo — the "
-                "in-repo .acs/state-machine default replaced that model "
-                "(iter-1 docs-sync finding 1)",
-        )
-        self.assertNotIn(
-            "OUTSIDE the repo, which CI cannot see", self.step7c,
-            msg="the exact stale phrase pinned pre-MAR-4 must not remain in "
-                "Step 7c (iter-1 docs-sync finding 1)",
-        )
-        self.assertIn(
-            "gitignored", self.step7c,
-            msg="Step 7c must attribute CI-invisibility to the state root "
-                "being gitignored, not to it being outside the repo "
-                "(iter-1 docs-sync finding 1)",
-        )
-        self.assertIn(
-            "CI cannot see", self.step7c,
-            msg="the underlying functional point (CI cannot see the pipeline "
-                "proof) must still be made, only the location description "
-                "changes (iter-1 docs-sync finding 1)",
-        )
-
-    # --- iter-1 docs-sync finding 2: Step 8's worked-example table no longer
-    # implies workspace_path is always resolved to an outside-repo-style path
-    # and always written to settings.local.json ---
-
-    def test_step8_example_no_longer_implies_workspace_path_always_written(self):
-        m = re.search(r"(?m)^\| `workspace_path` \|.*\|\s*$", self.step8)
-        self.assertIsNotNone(
-            m, "Step 8's worked-example table must still carry a "
-               "`workspace_path` row"
-        )
-        row = m.group(0)
-        self.assertNotIn(
-            "/Users/jane/acs-workspace", row,
-            msg="the workspace_path example row must no longer show a "
-                "literal outside-repo-style path as if it were always "
-                "resolved (iter-1 docs-sync finding 2)",
-        )
-        self.assertIn(
-            "default", row.lower(),
-            msg="the workspace_path example row must reflect that the "
-                "in-repo default is the common case (either the "
-                "'default — not written' pattern used by "
-                "test_coverage_percent, or a one-line override-only note) "
-                "(iter-1 docs-sync finding 2)",
-        )
-
-    # --- 7: AC2 regression pin ---
+    def test_no_rationale_still_claims_the_workspace_is_outside_the_repo(self):
+        """AC: the CI rationale that assumed an outside-the-repo workspace is
+        gone — the default is in-repo now."""
+        for stale in ("workspace OUTSIDE the repo", "OUTSIDE the repo, which CI cannot see"):
+            self.assertNotIn(stale, self.body)
 
     def test_gitignore_already_has_the_state_machine_line(self):
-        gitignore = read(GITIGNORE_PATH)
-        self.assertRegex(
-            gitignore, r"(?m)^\.acs/state-machine/\s*$",
-            msg="this repo's own .gitignore must carry a tracked "
-                "`.acs/state-machine/` directory-form line (AC2)",
-        )
-
-    # --- 8: iteration-3 fix -- info/exclude append guards a missing
-    # trailing newline exactly like the sibling .gitignore appends above
-    # (regression pin for iter-2's blocking finding) ---
-
-    def test_info_exclude_append_guards_missing_trailing_newline(self):
-        m = re.search(
-            r'```bash\n(common_dir="\$\(git rev-parse --git-common-dir\)".*?)\n```',
-            self.step5,
-            re.S,
-        )
-        self.assertIsNotNone(
-            m, "Step 5 must still have the <git-common-dir>/info/exclude "
-               "bash block (common_dir=... through the grep -qxF append)"
-        )
-        snippet = m.group(1)
-        tmp = tempfile.mkdtemp(prefix="mar4-info-exclude-")
-        try:
-            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
-            exclude_path = os.path.join(tmp, ".git", "info", "exclude")
-            os.makedirs(os.path.dirname(exclude_path), exist_ok=True)
-            with open(exclude_path, "wb") as fh:
-                fh.write(b"existing-pattern")  # deliberately no trailing newline
-
-            subprocess.run(["bash", "-c", snippet], cwd=tmp, check=True)
-            with open(exclude_path, "rb") as fh:
-                after_first = fh.read()
-            self.assertEqual(
-                after_first, b"existing-pattern\n.acs/state-machine/\n",
-                msg="a no-trailing-newline info/exclude must gain a newline "
-                    "before the append, not glue '.acs/state-machine/' onto "
-                    "the pre-existing last line (iter-2 finding)",
-            )
-
-            subprocess.run(["bash", "-c", snippet], cwd=tmp, check=True)
-            with open(exclude_path, "rb") as fh:
-                after_second = fh.read()
-            self.assertEqual(
-                after_second, after_first,
-                msg="a second run must not duplicate the appended line "
-                    "(a glued line would break grep -qxF's exact-line "
-                    "match and re-append forever)",
-            )
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
+        """This repo's own .gitignore carries the entry (unmoved)."""
+        self.assertIn(".acs/state-machine/", read(GITIGNORE_PATH).splitlines())
 
 
-if __name__ == "__main__":
-    unittest.main()

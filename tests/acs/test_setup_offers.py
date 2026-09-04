@@ -96,7 +96,10 @@ class Mar89InitOffersCase(unittest.TestCase):
         # Step 4: from its heading to the next `## ` heading (covers the batch
         # framing plus the e2e bullet, which precede the `### tracker`/`### models`
         # subsections inside Step 4).
-        cls.step4 = section(cls.body, "## Step 4")
+        # MAR-526 turned setup into a conversational skill: the optional-settings
+        # batch is its own `### Optional settings` section now, and the step
+        # numbering changed with it. The content these ACs pin is unmoved.
+        cls.step4 = section(cls.body, "### Optional settings")
 
     # --- A (Gap 1 / AC-1): version-pinned per-role models in the offer ---
 

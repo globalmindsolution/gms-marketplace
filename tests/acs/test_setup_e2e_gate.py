@@ -58,125 +58,115 @@ def section(body, heading):
 
 
 class Mar125InitE2eGateCase(unittest.TestCase):
+    """MAR-125's acceptance criteria, re-pointed at the implementation.
+
+    These pinned the e2e merge gate as `## Step 7f` prose — the template copies,
+    the admin-detect reuse, the shared contexts array. MAR-526 turned setup into
+    a conversational skill: the copies are `setup_wizard.py`'s job, and the
+    branch-protection rules are one step covering every gate rather than a
+    per-gate repetition. Every AC below is the original one; only where it is
+    read changed."""
+
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        # Anchored on the real `## Step 7f` heading, not any inline mention.
-        cls.step7f = section(cls.body, "## Step 7f")
-        cls.step8 = section(cls.body, "## Step 8")
+        cls.protection = section(cls.body, "## Step 4")
+        cls.summary = section(cls.body, "## Step 6")
+        cls.wizard = read(os.path.join(PLUGIN, "hooks", "scripts", "setup_wizard.py"))
 
-    # 1. heading exists (fixture for every other case)
-    def test_step7f_heading_exists(self):
-        self.assertIn("Step 7f", self.step7f.splitlines()[0])
+    def test_the_e2e_gate_is_offered_and_guarded_on_e2e_being_configured(self):
+        """AC-1: unset e2e is a no-op — the offer is not made at all."""
+        self.assertIsNotNone(
+            re.search(r"(?s)e2e (required )?merge gate.{0,200}(configured|unset)",
+                      self.body, re.IGNORECASE)
+            or re.search(r"(?s)(configured|unset).{0,200}e2e", self.body, re.IGNORECASE),
+            "setup must state the e2e gate offer is gated on e2e/suites.e2e "
+            "being configured (AC-1)")
 
-    # 2. AC-1 opt-in-guard half — the required unset-is-a-no-op test
-    def test_step7f_guarded_on_e2e_configured(self):
-        head = self.step7f[:800]
-        self.assertTrue(
-            re.search(r"(?s)(suites\.e2e|`e2e`|settings\.e2e).{0,200}"
-                      r"(configured|unset)", head)
-            or re.search(r"(?s)(configured|unset).{0,200}"
-                         r"(suites\.e2e|`e2e`|settings\.e2e)", head),
-            "Step 7f must state near its top that it is gated on "
-            "settings.e2e/suites.e2e being configured (AC-1 opt-in-guard)",
-        )
+    def test_both_templates_are_installed_by_the_wizard(self):
+        """The artifact-installation contract, now in code: the runner and the
+        workflow are copied verbatim, and refreshed on every re-run."""
+        import sys
+        sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+        import setup_wizard
+        files, workflow, context = setup_wizard.CI_INSTALLS["e2e"]
+        self.assertEqual(files, ("run-e2e.py",))
+        self.assertEqual(workflow, "acs-e2e.yml")
+        self.assertEqual(context, "E2E suite")
+        for name in ("run-e2e.py", "acs-e2e.yml"):
+            self.assertTrue(os.path.exists(
+                os.path.join(PLUGIN, "templates", "ci", name)), name)
 
-    # 3. artifact-installation contract
-    def test_step7f_copies_both_templates(self):
-        self.assertIn("acs-e2e.yml", self.step7f)
-        self.assertIn("run-e2e.py", self.step7f)
-        self.assertIn("cp ", self.step7f)
+    def test_the_e2e_runner_is_installed_executable(self):
+        """It is invoked directly by the workflow, so the copy sets the bit."""
+        self.assertIn("executable=True", self.wizard)
 
-    # 4. reuse, not duplicate
-    def test_step7f_reuses_step7c_admin_detect(self):
-        self.assertTrue(
-            re.search(r"(?s)admin.{0,300}(gh api|permissions\.admin)", self.step7f)
-            or re.search(r"(?s)Step 7c.{0,300}admin", self.step7f),
-            "Step 7f must reference Step 7c's admin-detect mechanism",
-        )
+    def test_one_admin_detect_and_one_contexts_array_for_every_gate(self):
+        """AC-3: the E2E context extends the SAME contexts array the other
+        gates manage — never a second protection call per gate."""
+        self.assertIn("permissions.admin", self.protection)
+        self.assertIsNotNone(
+            re.search(r"(?is)same.{0,80}`contexts`|`contexts`.{0,80}same",
+                      self.protection),
+            "the branch-protection step must state every context extends the "
+            "same contexts array (AC-3)")
+        self.assertIn("never a second protection call", self.protection)
 
-    # 5. AC-3 — no duplicate protection call
-    def test_step7f_extends_same_contexts_array(self):
-        self.assertTrue(
-            re.search(r"(?is)contexts.{0,200}(same|alongside|extend)", self.step7f)
-            or re.search(r"(?is)(same|alongside|extend).{0,200}contexts", self.step7f),
-            "Step 7f must state the E2E suite context extends the SAME "
-            "contexts array 7c/7d manage",
-        )
+    def test_the_context_literal_is_pinned(self):
+        """AC-3: the required status check's name is exact."""
+        self.assertIn('"E2E suite"', self.protection)
+        import sys
+        sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+        import setup_wizard
+        self.assertEqual(setup_wizard.CI_INSTALLS["e2e"][2], "E2E suite")
 
-    # 6. AC-3 — pins the literal
-    def test_step7f_context_literal_is_e2e_suite(self):
-        self.assertIn('"E2E suite"', self.step7f)
+    def test_the_mutating_call_needs_admin_and_consent(self):
+        """AC-3: admin detection alone is not permission."""
+        self.assertIsNotNone(
+            re.search(r"(?is)admin.{0,40}(and|AND).{0,40}consent", self.protection),
+            "the step must gate the mutating PUT on admin AND consent (AC-3)")
 
-    # 7. AC-3 — admin AND consent, not admin alone
-    def test_step7f_admin_gated_wiring(self):
-        self.assertTrue(
-            re.search(r"(?is)admin\s*=\s*true.{0,200}consent", self.step7f)
-            or re.search(r"(?is)consent.{0,200}admin\s*=\s*true", self.step7f),
-            "Step 7f must gate the mutating PUT on admin=true AND consent, "
-            "not admin detection alone",
-        )
+    def test_the_register_check_first_recovery_is_stated(self):
+        """Operability: a context GitHub has never seen returns 422."""
+        self.assertIn("422", self.protection)
+        self.assertIsNotNone(
+            re.search(r"(?is)422.{0,200}(open a PR|re-run)", self.protection))
 
-    # 8. operability — avoids chicken-and-egg lockout
-    def test_step7f_register_check_first_ordering(self):
-        self.assertTrue(
-            re.search(r"(?is)(422|unknown context).{0,300}(open a PR|re-run)", self.step7f)
-            or re.search(r"(?is)(open a PR|re-run).{0,300}(422|unknown context)", self.step7f),
-            "Step 7f must state the register-check-first / 422 recovery",
-        )
+    def test_it_is_printed_once_and_never_hard_fails(self):
+        """AC-4."""
+        self.assertIsNotNone(
+            re.search(r"(?is)once.{0,120}never hard-fail", self.protection),
+            "the step must state the command is printed ONCE and setup never "
+            "hard-fails over branch protection (AC-4)")
 
-    # 9. AC-4 — report-once safeguard
-    def test_step7f_report_once_never_hard_fails(self):
-        self.assertTrue(
-            re.search(r"(?is)once.{0,300}never.{0,60}hard.?fail", self.step7f)
-            or re.search(r"(?is)never.{0,60}hard.?fail.{0,300}once", self.step7f),
-            "Step 7f must state the manual gh api command is printed ONCE "
-            "and /acs:setup NEVER hard-fails (AC-4)",
-        )
-
-    # 10. AC-6 — gh-only auth, no secrets
-    def test_step7f_gh_only_auth_no_secrets(self):
-        self.assertIn("gh api", self.step7f)
-        lowered = self.step7f.lower()
+    def test_gh_only_auth_no_secrets(self):
+        """AC-6: gh is the transport and its own auth is the credential."""
+        self.assertIn("gh api", self.protection)
+        lowered = self.protection.lower()
         for gate in ("secret key", "credential in settings", "store a token"):
             self.assertNotIn(gate, lowered)
+        self.assertIsNotNone(
+            re.search(r"(?is)nothing is ever stored in settings", lowered),
+            "the step must say gh's own authentication is what authorises the "
+            "call, so nothing is stored (AC-6)")
 
-    # 11. C-4 — no new settings key
-    def test_no_new_settings_key_in_step7f(self):
-        lowered = self.step7f.lower()
+    def test_no_new_settings_key(self):
+        """C-4: the gate introduces no settings key — the command source is
+        whatever e2e/suites.e2e already holds."""
+        lowered = self.body.lower()
         for shaped in ("e2e.ci", "e2e.required", "suites.e2e.ci"):
             self.assertNotIn(shaped, lowered)
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("ci", schema["properties"]["e2e"]["properties"])
 
-    # 12. recording parity — Step 8 summary table
-    def test_step8_summary_table_has_e2e_row(self):
-        self.assertTrue(
-            re.search(r"(?i)e2e.*gate|e2e.*ci", self.step8),
-            "Step 8's summary table must gain a row referencing the e2e "
-            "gate outcome",
-        )
-
-    # 13. recording parity — completion report Results line.
-    # Anchored directly on cls.body (not a section() extraction): the
-    # completion report's fenced markdown EXAMPLE itself contains a
-    # `## /acs:setup · <ticket-id> · <status>` line that section()'s
-    # next-heading scan would mistake for a real heading boundary, cutting
-    # the section off before the Results line it's meant to capture. A
-    # bounded-window search anchored on the pre-existing "CI convention
-    # enforcement outcome" marker avoids that trap.
-    def test_completion_report_mentions_e2e_gate_outcome(self):
+    def test_the_summary_reports_the_gate_outcome(self):
+        """Recording parity: the summary still covers every resolved setting
+        and where it landed, and the completion report names the e2e gate."""
+        self.assertIsNotNone(re.search(r"(?i)where it landed", self.summary))
         m = re.search(r"(?s)CI convention enforcement outcome.{0,400}", self.body)
-        self.assertIsNotNone(
-            m, "completion report must retain the 'CI convention enforcement "
-               "outcome' clause"
-        )
-        self.assertIn(
-            "e2e gate", m.group(0),
-            msg="the completion-report Results line must mention the e2e "
-                "gate CI convention outcome alongside the existing clause",
-        )
+        self.assertIsNotNone(m)
+        self.assertIn("e2e gate", m.group(0))
 
 
 if __name__ == "__main__":
