@@ -41,12 +41,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib  # noqa: E402
+import claude_code_adapter as cc  # noqa: E402
 
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILES = 64
 
-_USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
-_BUCKET_KEYS = ("input", "output", "cache_creation", "cache_read")
+#: Claude Code's transcript field names and acs's bucket names live in the
+#: adapter (MAR-520); these aliases keep the local reads short.
+_USAGE_FIELDS = cc.USAGE_FIELDS
+_BUCKET_KEYS = cc.BUCKET_KEYS
 
 #: role bucket for same-window tokens with no attributionSkill/attributionAgent
 #: -- matches cost_sampler.UNATTRIBUTED_ROLE's own documented expectation.
@@ -58,7 +61,9 @@ class _CapExceeded(Exception):
 
 
 def _degraded(reason):
-    return {"degraded": True, "reason": reason, "model_usage": [], "role_usage": []}
+    """Degrade through the adapter's single switch, which logs the reason."""
+    return {"degraded": True, "reason": cc.unavailable(reason, source="usage_reader"),
+            "model_usage": [], "role_usage": []}
 
 
 def _empty_bucket():
@@ -70,7 +75,7 @@ def _normalize_skill(name):
     acs_lib.ATTRIBUTION_SKILL_MAP's override (e.g. "init" -> "setup")."""
     if not isinstance(name, str) or not name:
         return None
-    name = name[len("acs:"):] if name.startswith("acs:") else name
+    name = cc.strip_skill_prefix(name)
     return acs_lib.ATTRIBUTION_SKILL_MAP.get(name, name)
 
 
@@ -97,12 +102,7 @@ def _agent_role(attribution_agent):
     planner/executor/verifier vocabulary acs's reflection-subagent protocol
     uses throughout); a present-but-unmatched value (e.g. "Explore") still
     counts as "other" rather than being dropped."""
-    if not isinstance(attribution_agent, str) or not attribution_agent:
-        return None
-    for suffix, role in (("-planner", "planner"), ("-executor", "executor"), ("-verifier", "verifier")):
-        if attribution_agent.endswith(suffix):
-            return role
-    return "other"
+    return cc.agent_role(attribution_agent)
 
 
 def _usage_total(usage):
@@ -160,23 +160,19 @@ def _scan_file(path, start_dt, end_dt, cap_state, is_subagent, model_totals, rol
             continue
         if not isinstance(record, dict):
             continue
-        ts = acs_lib.parse_iso(record.get("timestamp"))
+        ts = acs_lib.parse_iso(cc.record_timestamp(record))
         if ts is None or ts < start_dt or (end_dt is not None and ts > end_dt):
             continue
-        message = record.get("message")
-        if not isinstance(message, dict):
-            continue
-        usage = message.get("usage")
-        if not isinstance(usage, dict):
+        usage = cc.record_usage(record)
+        if usage is None:
             continue
         total = _usage_total(usage)
         if total == 0:
             continue
-        model = message.get("model")
-        model_key = model if isinstance(model, str) and model else "unknown"
+        model_key = cc.record_model(record) or "unknown"
         _add_usage(model_totals.setdefault(model_key, _empty_bucket()), usage)
-        role = (_agent_role(record.get("attributionAgent")) if is_subagent
-                else _skill_role(record.get("attributionSkill"), own_skill))
+        role = (_agent_role(cc.record_attribution_agent(record)) if is_subagent
+                else _skill_role(cc.record_attribution_skill(record), own_skill))
         acc["total"] += total
         if role is None:
             role = UNATTRIBUTED_ROLE
@@ -188,12 +184,12 @@ def _walk_jsonl(root):
     """Recursive walk yielding only "*.jsonl" paths under root (P3 guard) --
     a "*.meta.json" sidecar never matches this suffix, so it is never yielded
     and therefore never opened (privacy boundary)."""
-    if not os.path.isdir(root):
+    if not root or not os.path.isdir(root):
         return
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
         for name in sorted(filenames):
-            if name.endswith(".jsonl"):
+            if cc.is_transcript_file(name):
                 yield os.path.join(dirpath, name)
 
 
@@ -239,9 +235,7 @@ def _read(transcript_path, started_at, ended_at, skill):
     except OSError:
         return _degraded("unreadable_transcript")
 
-    session_id = os.path.splitext(os.path.basename(transcript_path))[0]
-    subagents_dir = os.path.join(os.path.dirname(transcript_path), session_id, "subagents")
-    for file_path in _walk_jsonl(subagents_dir):
+    for file_path in _walk_jsonl(cc.subagents_dir(transcript_path)):
         try:
             _scan_file(file_path, start_dt, end_dt, cap_state, True, model_totals, role_totals, acc, skill)
         except _CapExceeded:

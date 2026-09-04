@@ -33,6 +33,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import claude_code_adapter as cc  # noqa: E402
 
 GLYPHS = {"completed": "✓", "in_progress": "▶", "failed": "✗",
           "interrupted": "⏸", "handed_off": "⏸"}
@@ -42,8 +43,8 @@ SHORT_STEPS = [("create-ticket", "ticket"), ("create-design", "design"),
 
 
 def fallback(payload):
-    model = ((payload.get("model") or {}).get("display_name")) or "Claude"
-    cwd = ((payload.get("workspace") or {}).get("current_dir")) or payload.get("cwd") or os.getcwd()
+    model = cc.status_model_display_name(payload)
+    cwd = cc.payload_cwd(payload)
     return "%s · %s" % (model, os.path.basename(cwd.rstrip("/")) or cwd)
 
 
@@ -65,7 +66,7 @@ def _display_cost(ctx, pipeline):
 def render(payload):
     import acs_lib as lib
 
-    cwd = ((payload.get("workspace") or {}).get("current_dir")) or payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     ctx = lib.build_context(cwd)  # raises GateError when not initialized
 
     pointer = lib.read_json(lib.pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
@@ -99,7 +100,7 @@ def render(payload):
 
     cost = _display_cost(ctx, pipeline)
     bits = [
-        ((payload.get("model") or {}).get("display_name")) or "Claude",
+        cc.status_model_display_name(payload),
         "%s%s%s" % (ticket_id,
                     " %s" % ticket.get("type") if ticket.get("type") else "",
                     " (archived)" if archived else ""),

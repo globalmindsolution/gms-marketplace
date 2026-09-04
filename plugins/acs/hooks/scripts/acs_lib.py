@@ -34,6 +34,9 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import claude_code_adapter as cc  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -1318,14 +1321,13 @@ def record_session_marker(ctx, payload):
     skill-start.py can thread them onto the new run entry without guessing.
     Fields come straight off the envelope; a missing one is written as null,
     never constructed (e.g. never a cwd-derived guess)."""
-    tool_input = payload.get("tool_input")
     marker = {
-        "session_id": payload.get("session_id"),
-        "transcript_path": payload.get("transcript_path"),
+        "session_id": cc.hook_session_id(payload),
+        "transcript_path": cc.hook_transcript_path(payload),
         "cwd": payload.get("cwd"),
         "checkout_id": ctx["checkout_id"],
-        "hook_event_name": payload.get("hook_event_name"),
-        "skill": tool_input.get("skill") if isinstance(tool_input, dict) else None,
+        "hook_event_name": cc.hook_event_name(payload),
+        "skill": cc.hook_tool_input(payload).get("skill"),
         "updated_at": now_iso(),
     }
     write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
