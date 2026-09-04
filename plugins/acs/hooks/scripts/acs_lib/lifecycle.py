@@ -512,3 +512,178 @@ def _note(message):
     subagent turn is noise in the transcript."""
     if os.environ.get("ACS_DEBUG"):
         sys.stderr.write("acs: %s\n" % message)
+
+
+# ---------------------------------------------------------------------------
+# The executor file map (MAR-529)
+# ---------------------------------------------------------------------------
+#
+# "Mutate ONLY the files in your task's file map" was a bullet in the executor
+# charter. Plugin agents cannot carry frontmatter hooks, so the enforcement
+# point is the plugin's own PreToolUse hook, keyed on the active agent that
+# SubagentStart recorded.
+#
+# SCOPE, STATED PLAINLY: the guard checks a write against the UNION of the
+# iteration's declared task file maps, not against the one task the running
+# executor was given. Per-task binding is not achievable with what Claude Code
+# provides -- neither SubagentStart nor PreToolUse carries a task index, and
+# parallel executors of the same agent_type run at once, so there is nothing to
+# bind an agent to its task by. What the union still enforces is the property
+# that actually goes wrong: an executor wandering outside the PLAN's scope.
+# Disjointness BETWEEN tasks stays the coordinator's job, which is what its
+# parallel-vs-sequential decision already exists to decide.
+
+#: The declared file map for one iteration, under phases/<skill>/.
+FILEMAP_FILENAME_FMT = "iter-%s-filemap.json"
+
+#: Tool -> the tool_input key naming the path it would write.
+WRITE_TOOL_PATH_KEYS = {
+    "Write": "file_path",
+    "Edit": "file_path",
+    "MultiEdit": "file_path",
+    "NotebookEdit": "notebook_path",
+}
+
+
+def filemap_path(tdir, skill, iteration):
+    return os.path.join(tdir, "phases", skill, FILEMAP_FILENAME_FMT % iteration)
+
+
+def load_filemap(tdir, skill, iteration):
+    doc = read_json(filemap_path(tdir, skill, iteration))
+    tasks = doc.get("tasks") if isinstance(doc, dict) else None
+    return tasks if isinstance(tasks, dict) else None
+
+
+def save_filemap_task(tdir, skill, iteration, task, files):
+    """Declare one executor task's file map. Returns the whole iteration's map.
+
+    Per task, and additive, because the coordinator declares them one at a time
+    as it decomposes the plan -- declaring task 2 must not erase task 1."""
+    path = filemap_path(tdir, skill, iteration)
+    doc = read_json(path)
+    if not isinstance(doc, dict) or not isinstance(doc.get("tasks"), dict):
+        doc = {"skill": skill, "iteration": str(iteration), "tasks": {}}
+    doc["tasks"][str(task)] = sorted({normalize_repo_path(f) for f in files if f})
+    doc["declared_at"] = now_iso()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_json(path, doc)
+    return doc["tasks"]
+
+
+def normalize_repo_path(path):
+    """A repo-relative POSIX path, however it was written.
+
+    The plan names repo-relative paths; a hook payload carries absolute ones.
+    Both have to compare equal, so both land here."""
+    text = str(path or "").strip().replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return text.lstrip("/")
+
+
+def path_in_filemap(target, tasks, checkout_root_path=None):
+    """Is `target` (a write path from a hook payload) inside the declared map?
+
+    A declared entry matches the file itself or anything under it when it names
+    a directory, so a plan that says `docs/api/` covers the files in it -- the
+    plans write both forms and the guard should not care which."""
+    candidate = normalize_repo_path(target)
+    if checkout_root_path and os.path.isabs(str(target)):
+        try:
+            candidate = normalize_repo_path(
+                os.path.relpath(os.path.realpath(str(target)),
+                                os.path.realpath(checkout_root_path)))
+        except (OSError, ValueError):
+            pass
+    if candidate.startswith("../"):
+        return False
+    for entry in {f for files in (tasks or {}).values() for f in files}:
+        if candidate == entry or candidate.startswith(entry.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def active_executor(tdir):
+    """The first recorded agent whose role is `executor`, or None.
+
+    "Is an acs executor running" is the whole condition: the guard must not
+    touch a planner (read-only by charter), a verifier, or the coordinator's own
+    writes, all of which legitimately go outside any task's file map."""
+    doc = read_json(active_agents_path(tdir))
+    for entry in ((doc or {}).get("agents") or {}).values():
+        if isinstance(entry, dict) and entry.get("role") == "executor":
+            return entry
+    return None
+
+
+def file_map_guard(payload):
+    """PreToolUse on the write tools: deny a write outside the declared map.
+
+    Fails OPEN at every step where the answer is not clearly "outside the map":
+    not an acs partition, no executor running, no map declared for this
+    iteration (a TRIVIAL lane runs no planner at all), or a tool whose payload
+    does not name a path. The rule exists to stop scope creep, not to stop work
+    the plan never had an opinion about.
+    """
+    key = WRITE_TOOL_PATH_KEYS.get(payload.get("tool_name"))
+    if not key:
+        return 0
+    target = (payload.get("tool_input") or {}).get(key)
+    if not target:
+        return 0
+    _ticket_id, tdir, ctx = resolve_partition(payload.get("cwd") or os.getcwd())
+    if not tdir:
+        return 0
+    if _under(target, ctx["workspace"]) or _under(target, tdir):
+        return 0  # the executor's own phase artifacts live in the partition
+    executor = active_executor(tdir)
+    if not executor:
+        return 0
+    iteration = _current_iteration(tdir, executor.get("skill"))
+    tasks = load_filemap(tdir, executor.get("skill"), iteration)
+    if not tasks:
+        return 0  # nothing declared: the plan has no opinion, so neither has this
+    if path_in_filemap(target, tasks, ctx.get("checkout_root")):
+        return 0
+    declared = sorted({f for files in tasks.values() for f in files})
+    _warn(
+        "%s is outside this task's file map.\n"
+        "Declared for /acs:%s iteration %s:\n  %s\n"
+        "Do not improvise scope: STOP and return `needs_input` naming the file, "
+        "so the coordinator can adjust the file map."
+        % (target, executor.get("skill"), iteration, "\n  ".join(declared)))
+    return 2
+
+
+def _under(target, directory):
+    """Is `target` inside `directory`? Absolute-path comparison, symlinks
+    resolved, and never true for a relative path (which is repo-relative and so
+    is never inside the workspace)."""
+    if not directory or not os.path.isabs(str(target)):
+        return False
+    try:
+        root = os.path.realpath(directory)
+        return os.path.realpath(str(target)).startswith(root.rstrip("/") + "/")
+    except (OSError, ValueError):
+        return False
+
+
+def _current_iteration(tdir, skill):
+    """The iteration whose file map applies: the highest one declared.
+
+    The coordinator declares a fresh map before each iteration's executors, so
+    the newest declaration is the one in force."""
+    directory = os.path.join(tdir, "phases", skill or "")
+    best = "1"
+    prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return best
+    for name in names:
+        if name.startswith(prefix) and name.endswith(suffix):
+            token = name[len(prefix):-len(suffix)]
+            if token.isdigit() and int(token) >= int(best):
+                best = token
+    return best

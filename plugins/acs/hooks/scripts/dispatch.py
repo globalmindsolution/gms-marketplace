@@ -6,6 +6,9 @@ Registered in hooks/hooks.json:
     gate in-process. Exit 2 blocks the skill; its stderr explains what to run first.
     The gate is bounded by GATE_TIMEOUT_SECONDS and fails closed on timeout or
     error, because any exit code other than 2 lets the skill run.
+  * `dispatch.py file-map`       on PreToolUse (matcher: the write tools) — exit 2
+    denies a write outside the declared executor file map, but ONLY while an acs
+    executor is active and a map has been declared.
   * `dispatch.py subagent-start` on SubagentStart (matcher: `^acs:`) — records which
     acs agent is running, for the file-map guard.
   * `dispatch.py subagent-stop`  on SubagentStop (matcher: `^acs:`) — validates the
@@ -123,6 +126,7 @@ LIFECYCLE_MODES = {
     "subagent-stop": "subagent_stop",
     "stop": "stop_hook",
     "pre-compact": "pre_compact",
+    "file-map": "file_map_guard",
 }
 
 
