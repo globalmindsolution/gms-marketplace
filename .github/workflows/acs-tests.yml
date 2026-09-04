@@ -29,7 +29,7 @@ jobs:
     name: Tests & coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Python is for the acs runner only; your suite uses the repo's own
       # toolchain (present on ubuntu-latest, deps installed by tests.setup).
