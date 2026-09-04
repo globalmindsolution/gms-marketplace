@@ -74,9 +74,9 @@ sidecar (Decision B / ADR 0064); the Anchor column here names the bare source fi
 | `dispatch.py` | `def skill_name_from_payload(payload)` | Line 27: `def skill_name_from_payload(payload):`; function ends at line 40 — confirmed |
 | `dispatch.py` | `def main()` — routes by skill, gate runs in-process, exit 2 on missing/blocked | Line 106: `def main():`; line 125: `sys.exit(run_gate(skill, payload))` — confirmed (MAR-514 replaced the `pre-<skill>.py` subprocess and its `sys.exit(proc.returncode)` with a bounded in-process call) |
 | `dispatch.py` | session-end branch → `acs_lib.session_end` | Line 114: `if mode == "session-end":`; line 116: `acs_lib.session_end(payload)`; line 119: `sys.exit(0)` — confirmed |
-| `acs_lib.py` | `HOOKED_SKILLS` allowlist | Line 44: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS` — confirmed |
-| `acs_lib.py` | `def resolve_role_model(settings, skill, role)` | Line 485: `def resolve_role_model(settings, skill, role):`; function ends at line 500 — confirmed |
-| `acs_lib.py` | `def session_end(payload)` | Line 1621: `def session_end(payload):` — confirmed |
+| `acs_lib/_common.py` | `HOOKED_SKILLS` allowlist | Line 31: `HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS` — confirmed |
+| `acs_lib/settings.py` | `def resolve_role_model(settings, skill, role)` | Line 284: `def resolve_role_model(settings, skill, role):`; function ends at line 299 — confirmed |
+| `acs_lib/gates.py` | `def session_end(payload)` | Line 539: `def session_end(payload):` — confirmed |
 | `contracts.md:6-14` | XML coordinator ↔ subagent contract, `acs-messages.xsd` reference | Line 6: `## Coordinator ↔ subagent (XML, ...acs-messages.xsd...)`; lines 8-12 table; line 14: `Validation:...` — confirmed |
 | `contracts.md:51-58` | Settings `models` block | Line 51: `## Settings (consumer repo)`; lines 52-58: `.acs/settings.json...models...` — confirmed |
 | `data-model.md:70-85` | RUN_ENTRY `tokens`/`cost_usd`/`cost_basis`/`cost_scope` fields (MAR-1) | Line 70: `RUN_ENTRY {`; line 76: `json tokens "input/output/cache_creation/cache_read ..."`; line 77: `number cost_usd`; line 78: `enum cost_basis`; line 79: `enum cost_scope`; line 85: `}` — confirmed |

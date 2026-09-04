@@ -35,8 +35,14 @@ class GuardDocstringHonestyTest(unittest.TestCase):
 
 
 class _GuardedWriterCaseMixin:
+
     """Shared arms for the O_EXCL guard around a repo-level read-modify-write.
     Subclasses set guard_name and implement _call()."""
+
+    #: The acs_lib submodule whose read_json/write_json binding the writer under
+    #: test calls. acs_lib is a package (MAR-522), and a name imported into a
+    #: sibling binds at import time -- patching the facade would not reach it.
+    MODULE = None
 
     guard_name = None
 
@@ -57,13 +63,13 @@ class _GuardedWriterCaseMixin:
 
     def test_guard_file_held_during_read_modify_write(self):
         seen = {}
-        original_write_json = lib.write_json
+        original_write_json = self.MODULE.write_json
 
         def shim(path, data):
             seen["guard_exists"] = os.path.exists(self._guard_path())
             return original_write_json(path, data)
 
-        with mock.patch.object(lib, "write_json", side_effect=shim):
+        with mock.patch.object(self.MODULE, "write_json", side_effect=shim):
             self._call()
         self.assertTrue(seen.get("guard_exists"))
         self.assertFalse(os.path.exists(self._guard_path()))
@@ -96,7 +102,7 @@ class _GuardedWriterCaseMixin:
 
     def test_swallows_oserror_releasing_own_guard(self):
         guard = self._guard_path()
-        original_write_json = lib.write_json
+        original_write_json = self.MODULE.write_json
 
         def shim(path, data):
             try:
@@ -105,7 +111,7 @@ class _GuardedWriterCaseMixin:
                 pass
             return original_write_json(path, data)
 
-        with mock.patch.object(lib, "write_json", side_effect=shim):
+        with mock.patch.object(self.MODULE, "write_json", side_effect=shim):
             self._call()  # must not raise
 
     def test_proceeds_unguarded_when_the_guard_cannot_be_acquired(self):
@@ -125,6 +131,7 @@ class _GuardedWriterCaseMixin:
 
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
+    MODULE = lib.state
     guard_name = "tickets-index.json.lock"
 
     def _call(self, n=1):
@@ -136,6 +143,7 @@ class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
 
 
 class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
+    MODULE = lib.metrics
     guard_name = "metrics.json.lock"
 
     def _call(self, n=1):
@@ -169,7 +177,7 @@ class ConcurrentWritersTest(unittest.TestCase):
         def _write(n):
             lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
 
-        with mock.patch.object(lib, "read_json", side_effect=slow_read):
+        with mock.patch.object(lib.state, "read_json", side_effect=slow_read):
             t1 = threading.Thread(target=_write, args=(1,))
             t2 = threading.Thread(target=_write, args=(2,))
             t1.start()

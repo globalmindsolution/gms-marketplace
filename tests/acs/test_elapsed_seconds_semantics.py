@@ -77,7 +77,7 @@ class TestSharedPrimitiveStructural(unittest.TestCase):
 
     def test_monkeypatched_primitive_changes_both_call_paths(self):
         sentinel = 424242
-        with mock.patch.object(acs_lib, "elapsed_seconds", return_value=sentinel):
+        with mock.patch.object(acs_lib.metrics, "elapsed_seconds", return_value=sentinel):
             self.assertEqual(
                 acs_lib.run_seconds({
                     "started_at": "2026-01-01T00:00:00Z",
@@ -92,7 +92,7 @@ class TestSharedPrimitiveStructural(unittest.TestCase):
             )
 
     def test_monkeypatched_none_changes_both_call_paths(self):
-        with mock.patch.object(acs_lib, "elapsed_seconds", return_value=None):
+        with mock.patch.object(acs_lib.metrics, "elapsed_seconds", return_value=None):
             self.assertIsNone(acs_lib.run_seconds({
                 "started_at": "2026-01-01T00:00:00Z",
                 "ended_at": "2026-01-01T00:05:00Z",

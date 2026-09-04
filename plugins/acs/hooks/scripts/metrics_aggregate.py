@@ -121,7 +121,7 @@ def _share_pct(value, total):
 def _elapsed_seconds(start_iso, end_iso):
     """Wall-clock elapsed `end - start` in whole seconds, or None (AC-2).
 
-    Thin delegate over acs_lib.elapsed_seconds, the single shared primitive both this
+    Thin delegate over acs_lib.metrics.elapsed_seconds, the single shared primitive both this
     function and acs_lib.run_seconds adapt (design D1-C) — so a missing/invalid anchor or
     an inverted interval is None, distinguishable from a true zero-length interval, with
     that guarantee enforced in exactly one place. Total function: never raises.
@@ -133,7 +133,10 @@ def _elapsed_seconds(start_iso, end_iso):
     ticket.created_at) and the cycle-inversion case (code.started_at > merge-pr.ended_at, e.g.
     a re-cycled ticket).
     """
-    return acs_lib.elapsed_seconds(start_iso, end_iso)
+    # Reached through the OWNING module, not the facade: acs_lib is a package
+    # (MAR-522) and acs_lib.run_seconds calls acs_lib.metrics.elapsed_seconds,
+    # so naming the same binding here keeps the two adapters over one primitive.
+    return acs_lib.metrics.elapsed_seconds(start_iso, end_iso)
 
 
 def _parse_due_date(value):

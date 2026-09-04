@@ -23,6 +23,7 @@ an undifferentiated run failure. Run:
 """
 
 import os
+import sys
 import re
 import unittest
 
@@ -32,7 +33,8 @@ SP_SKILL = os.path.join(PLUGIN, "skills", "standardize-project", "SKILL.md")
 SP_PLANNER = os.path.join(PLUGIN, "agents", "standardize-project-planner.md")
 SP_EXECUTOR = os.path.join(PLUGIN, "agents", "standardize-project-executor.md")
 SP_VERIFIER = os.path.join(PLUGIN, "agents", "standardize-project-verifier.md")
-ACS_LIB = os.path.join(PLUGIN, "hooks", "scripts", "acs_lib.py")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from acs_case import acs_lib_source  # noqa: E402
 
 
 def read(path):
@@ -165,7 +167,7 @@ class AdditiveOnlyGuaranteeUnchangedTest(unittest.TestCase):
             self.assertIn(token, body, "missing dimension name %r" % token)
 
     def test_classify_additive_diff_signature_unchanged(self):
-        body = read(ACS_LIB)
+        body = acs_lib_source()
         self.assertIn(
             "def classify_additive_diff(diff_output, allowlist_globs):", body)
 

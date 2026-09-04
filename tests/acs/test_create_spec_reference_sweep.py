@@ -333,7 +333,9 @@ class Dr1HandoffScanOrderTest(unittest.TestCase):
 
     def test_references_hooked_skills_constant(self):
         self.assertIn("acs_lib.HOOKED_SKILLS", self.bullet)
-        self.assertIn("acs_lib.py", self.bullet)
+        # The file the constant actually lives in: acs_lib is a package as of
+        # MAR-522, and HOOKED_SKILLS is defined in its _common module.
+        self.assertIn("acs_lib/_common.py", self.bullet)
 
     def test_no_create_spec_token(self):
         self.assertNotIn("create-spec", self.bullet)

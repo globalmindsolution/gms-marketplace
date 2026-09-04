@@ -90,7 +90,7 @@ Before creating any ticket, try to jump the pipeline:
 
 Validates: [README.md "How gating works"](../../../plugins/acs/README.md#how-gating-works),
 gate messages in
-[acs_lib.py](../../../plugins/acs/hooks/scripts/acs_lib.py) (`GateError`), G1.
+[acs_lib/_common.py](../../../plugins/acs/hooks/scripts/acs_lib/_common.py) (`GateError`), G1.
 
 ## Step 3 — `/acs:create-ticket`
 

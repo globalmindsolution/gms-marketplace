@@ -141,7 +141,10 @@ class TestDefaultStateRoot(unittest.TestCase):
         self.assertNotIn("bare", msg)
 
     def test_empty_git_common_dir_raises_gate_error(self):
-        with mock.patch.object(lib, "_git", side_effect=["false", ""]):
+        # acs_lib is a package (MAR-522): acs_lib.repo bound this name at import
+        # time, so patching the facade would leave the real one in place and
+        # this branch would go uncovered while the test still passed.
+        with mock.patch.object(lib.repo, "_git", side_effect=["false", ""]):
             with self.assertRaises(lib.GateError) as ctx:
                 lib.default_state_root(self.tmp)
         self.assertIn("workspace_path", str(ctx.exception))
@@ -343,7 +346,11 @@ class TestValidateSettings(unittest.TestCase):
             lib.validate_settings({"ticket_prefix": "SHOP"}, bare)
 
     def test_require_workspace_false_returns_none_and_never_derives(self):
-        with mock.patch.object(lib, "default_state_root", side_effect=AssertionError("must not derive")):
+        # acs_lib is a package (MAR-522): acs_lib.settings bound this name at import
+        # time, so patching the facade would leave the real one in place and
+        # this branch would go uncovered while the test still passed.
+        with mock.patch.object(lib.settings, "default_state_root",
+                               side_effect=AssertionError("must not derive")):
             result = lib.validate_settings({"ticket_prefix": "SHOP"}, self.repo, require_workspace=False)
         self.assertIsNone(result)
 

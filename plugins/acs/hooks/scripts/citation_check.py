@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Dependency-free corroboration checker for a plan's `Upstream inventory` citations.
 
+No third-party dependency, but it is not standalone: the heading scanner
+lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
+which must sit beside this file on sys.path.
+
 The 4 bootstrap-doc planners (create-quality, create-standards,
 create-operations, create-principles) record upstream-fact citations in an
 `Upstream inventory` section of `iter-<n>-plan.md`: one line per citation,
@@ -49,11 +53,12 @@ import re
 import sys
 from collections import namedtuple
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import markdown_headings  # noqa: E402
+
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 Citation = namedtuple("Citation", ["line", "claim", "path", "excerpt"])
 
-# Bounded line-prefix heading match — no nested quantifiers, ReDoS-safe.
-_HEADING = re.compile(r"^(#{1,6}) (.*)$")
 
 # "- <claim> — `<path>[:line[-line]]` — "<excerpt>"" — one line, non-greedy
 # claim so an em-dash inside the claim text does not confuse the boundary.
@@ -64,14 +69,8 @@ _PATH_LINE_REF = re.compile(r'^(.+?):\d+(?:-\d+)?$')
 _UPSTREAM_HEADING = "Upstream inventory"
 
 
-def _headings(lines):
-    """Return (line_no, level, text) for each heading line, in doc order."""
-    found = []
-    for idx, raw in enumerate(lines, start=1):
-        m = _HEADING.match(raw)
-        if m:
-            found.append((idx, len(m.group(1)), m.group(2).strip()))
-    return found
+# The one heading scanner (MAR-522) — see markdown_headings.py.
+_headings = markdown_headings.headings
 
 
 def _strip_line_ref(raw_path):

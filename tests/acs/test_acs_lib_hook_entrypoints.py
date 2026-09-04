@@ -291,7 +291,9 @@ class TestClearPointersForTicket(unittest.TestCase):
                     pass
             return data
 
-        lib.read_json = shim
+        # acs_lib.gates bound read_json at import time (MAR-522); patching the
+        # facade would leave _clear_pointers_for_ticket calling the real one.
+        lib.gates.read_json = shim
         try:
             # Non-raising completion IS the assertion for the OSError-swallow
             # branch: the shim already unlinked target, so if

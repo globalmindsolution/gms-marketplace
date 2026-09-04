@@ -274,6 +274,39 @@ def _unavailable_role_usage(role_usage, value_field="cost_usd", basis_field="cos
     return out
 
 
+def _apportion_by_tokens(usage, delta, value_key, basis_key, exclude_unattributed):
+    """The one token-share split the three apportioners below are made of.
+
+    Splits `delta` across `usage` in proportion to each entry's tokens, writing
+    `value_key`/`basis_key` per item. When `exclude_unattributed`, an entry whose
+    role is UNATTRIBUTED_ROLE still counts toward the denominator but receives
+    None + UNAVAILABLE instead of a share -- the rule that makes the cost and
+    duration splits agree by construction rather than by two matching copies.
+
+    Returns (items, excluded_tokens, total_tokens). `total_tokens <= 0` is the
+    degraded case: `items` is already the all-unavailable form, and the caller
+    supplies whatever else its own return contract owes.
+    """
+    total_tokens = sum(_tokens(entry) for entry in usage)
+    if total_tokens <= 0:
+        return _unavailable_role_usage(usage, value_key, basis_key), 0, total_tokens
+
+    out = []
+    excluded_tokens = 0
+    for entry in usage:
+        item = dict(entry)
+        tokens = _tokens(entry)
+        if exclude_unattributed and entry.get("role") == UNATTRIBUTED_ROLE:
+            excluded_tokens += tokens
+            item[value_key] = None
+            item[basis_key] = cc.UNAVAILABLE
+        else:
+            item[value_key] = delta * (tokens / total_tokens)
+            item[basis_key] = "apportioned"
+        out.append(item)
+    return out, excluded_tokens, total_tokens
+
+
 def _apportion(role_usage, delta):
     """Split `delta` across role_usage by token share, denominator = ALL
     in-window tokens (attributed + unattributed). Entries whose role is
@@ -285,57 +318,28 @@ def _apportion(role_usage, delta):
     of the accumulated per-role floats, which can drift marginally negative
     on an all-attributed input by float rounding, violating the schema's own
     minimum:0 constraint."""
-    total_tokens = sum(_tokens(entry) for entry in role_usage)
+    out, excluded_tokens, total_tokens = _apportion_by_tokens(
+        role_usage, delta, "cost_usd", "cost_basis", True)
     if total_tokens <= 0:
-        return _unavailable_role_usage(role_usage), delta, 1.0
-
-    out = []
-    excluded_tokens = 0
-    for entry in role_usage:
-        item = dict(entry)
-        tokens = _tokens(entry)
-        if entry.get("role") == UNATTRIBUTED_ROLE:
-            excluded_tokens += tokens
-            item["cost_usd"] = None
-            item["cost_basis"] = cc.UNAVAILABLE
-        else:
-            item["cost_usd"] = delta * (tokens / total_tokens)
-            item["cost_basis"] = "apportioned"
-        out.append(item)
-
+        return out, delta, 1.0
     excluded_token_share = excluded_tokens / total_tokens
-    excluded_cost_usd = max(0.0, delta * excluded_token_share)
-    return out, excluded_cost_usd, excluded_token_share
+    return out, max(0.0, delta * excluded_token_share), excluded_token_share
 
 
 def _apportion_duration(role_usage, duration_delta):
-    """Split `duration_delta` across role_usage by token share -- a
-    structural twin of _apportion: same total_tokens denominator (reuse
-    _tokens), same UNATTRIBUTED_ROLE exclusion, writes
-    api_duration_ms/api_duration_basis instead of cost_usd/cost_basis per
-    item (design.md C-6, "identical mechanism" as cost). The caller
+    """Split `duration_delta` across role_usage by token share -- the same
+    split as _apportion (same denominator, same UNATTRIBUTED_ROLE exclusion),
+    writing api_duration_ms/api_duration_basis instead of cost_usd/cost_basis
+    per item (design.md C-6, "identical mechanism" as cost). The caller
     (allocate_cost) derives the top-level attributed api_duration_ms from
     the excluded_token_share already computed by the cost-side _apportion
     call, not from summing this function's own per-item output. Callers must
     guarantee duration_delta >= 0 -- mirroring _apportion's own delta >= 0
     precondition, enforced by allocate_cost's guard before this function is
-    ever called; this function performs no internal clamp, exactly as
-    _apportion's own per-item cost_usd does not."""
-    total_tokens = sum(_tokens(entry) for entry in role_usage)
-    if total_tokens <= 0:
-        return _unavailable_role_usage(role_usage, "api_duration_ms", "api_duration_basis")
-
-    out = []
-    for entry in role_usage:
-        item = dict(entry)
-        if entry.get("role") == UNATTRIBUTED_ROLE:
-            item["api_duration_ms"] = None
-            item["api_duration_basis"] = cc.UNAVAILABLE
-        else:
-            tokens = _tokens(entry)
-            item["api_duration_ms"] = duration_delta * (tokens / total_tokens)
-            item["api_duration_basis"] = "apportioned"
-        out.append(item)
+    ever called; no internal clamp happens here, exactly as _apportion's own
+    per-item cost_usd does not clamp."""
+    out, _excluded, _total = _apportion_by_tokens(
+        role_usage, duration_delta, "api_duration_ms", "api_duration_basis", True)
     return out
 
 
@@ -345,17 +349,8 @@ def _apportion_models(model_usage, delta):
     _apportion's role-scoped split above. Denominator = all model_usage
     tokens; total_tokens <= 0 degrades every entry to unavailable, mirroring
     _apportion's own guard."""
-    total_tokens = sum(_tokens(entry) for entry in model_usage)
-    if total_tokens <= 0:
-        return _unavailable_role_usage(model_usage)
-
-    out = []
-    for entry in model_usage:
-        item = dict(entry)
-        tokens = _tokens(entry)
-        item["cost_usd"] = delta * (tokens / total_tokens)
-        item["cost_basis"] = "apportioned"
-        out.append(item)
+    out, _excluded, _total = _apportion_by_tokens(
+        model_usage, delta, "cost_usd", "cost_basis", False)
     return out
 
 

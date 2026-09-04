@@ -37,6 +37,7 @@ Run:  python3 -m unittest tests.acs.test_state_root_skill_surfaces -v
 
 import json
 import os
+import sys
 import re
 import subprocess
 import unittest
@@ -112,10 +113,11 @@ class HandoffLocatingWorkspaceCase(unittest.TestCase):
         """`workspace_path is not configured` is not a message acs_lib.py or
         handoff.py ever emits (grep confirms it does not exist in either
         source file) — the error-hint list must not reference it."""
-        for path in (
-            os.path.join(PLUGIN, "hooks", "scripts", "acs_lib.py"),
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from acs_case import acs_lib_paths
+        for path in acs_lib_paths() + [
             os.path.join(PLUGIN, "hooks", "scripts", "handoff.py"),
-        ):
+        ]:
             self.assertNotIn(
                 "workspace_path is not configured", read(path),
                 msg="grounding check: this message must not exist in %s "

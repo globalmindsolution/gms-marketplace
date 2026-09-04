@@ -152,7 +152,7 @@ rely on them for ordering or safety guarantees.
   `/acs:ship`, not `/ship`.
 - **Schema changes are additive.** State files tolerate unknown keys; never
   rename canonical `states` keys (INTERNALS.md table) without migrating every
-  reader (gates in `acs_lib.py`, downstream SKILL.mds, tests).
+  reader (gates in `acs_lib/gates.py`, downstream SKILL.mds, tests).
 - **Plan mode:** never instruct skills or agents to enter native plan mode —
   see INTERNALS.md "Why not Claude Code's native plan mode".
 - **Test the deterministic layer.** Any change to `hooks/scripts/*` needs a

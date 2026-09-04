@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Dependency-free linter for section/structure conformance in generated Markdown docs.
 
+No third-party dependency, but it is not standalone: the heading scanner
+lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
+which must sit beside this file on sys.path.
+
 The acs doc-producing skills (create-prd, create-architecture, create-design,
 create-principles, create-standards, create-quality, create-operations) each
 declare a required-section list in their SKILL.md. This linter is the
@@ -36,14 +40,15 @@ wants strict order checking. This asymmetry is intentional and not
 reconciled into one default.
 """
 
-import re
 import sys
+import os
 from collections import namedtuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import markdown_headings  # noqa: E402
 
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 
-# Bounded line-prefix heading match — no nested quantifiers, ReDoS-safe.
-_HEADING = re.compile(r"^(#{1,6}) (.*)$")
 
 
 def _parse_sections(raw):
@@ -51,14 +56,8 @@ def _parse_sections(raw):
     return [s.strip() for s in raw.split(";")]
 
 
-def _headings(lines):
-    """Return (line_no, level, text) for each heading line, in doc order."""
-    found = []
-    for idx, raw in enumerate(lines, start=1):
-        m = _HEADING.match(raw)
-        if m:
-            found.append((idx, len(m.group(1)), m.group(2).strip()))
-    return found
+# The one heading scanner (MAR-522) — see markdown_headings.py.
+_headings = markdown_headings.headings
 
 
 def lint_structure(text, sections, ordered=True, source="<text>"):

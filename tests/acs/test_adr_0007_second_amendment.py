@@ -14,6 +14,7 @@ Stdlib-only (os, re, unittest). Run:
 """
 
 import os
+import sys
 import re
 import unittest
 
@@ -23,7 +24,8 @@ ADR_0007 = os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction
 DOCS_SYNC_SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 README = os.path.join(PLUGIN, "README.md")
 INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
-ACS_LIB = os.path.join(PLUGIN, "hooks", "scripts", "acs_lib.py")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from acs_case import acs_lib_source  # noqa: E402
 
 # The MAR-65 amendment's original byte span (docs/adr/0007-…md:29-75 on
 # origin/main, before this ticket's append). Recorded here so a later diff
@@ -168,13 +170,13 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
                         "plugins/acs/skills/docs-sync/SKILL.md must exist")
 
     def test_workflow_skills_contains_docs_sync(self):
-        body = read(ACS_LIB)
+        body = acs_lib_source()
         match = re.search(r"WORKFLOW_SKILLS\s*=\s*\[([^\]]*)\]", body)
         self.assertIsNotNone(match, "acs_lib.py must define WORKFLOW_SKILLS")
         self.assertIn('"docs-sync"', match.group(1))
 
     def test_gate_create_pr_requires_docs_sync(self):
-        body = read(ACS_LIB)
+        body = acs_lib_source()
         gate = body[body.index("def gate_create_pr("):]
         gate = gate[:gate.index("\ndef ")]
         self.assertIn('"docs-sync"', gate,

@@ -273,9 +273,12 @@ jobs:
           while IFS= read -r plugin_dir; do
             [ -z "$plugin_dir" ] && continue
             py_files=()
+            # Recursive on purpose: acs_lib is a package (MAR-522), so -maxdepth 1
+            # would silently stop compiling the whole deterministic kernel while
+            # this step still printed "ok".
             while IFS= read -r -d '' f; do
               py_files+=("$f")
-            done < <(find "$plugin_dir/hooks/scripts" -maxdepth 1 -name '*.py' -print0 2>/dev/null | sort -z)
+            done < <(find "$plugin_dir/hooks/scripts" -name '*.py' -not -path '*/__pycache__/*' -print0 2>/dev/null | sort -z)
             if [ ${#py_files[@]} -eq 0 ]; then
               echo "skip: no *.py found under $plugin_dir/hooks/scripts/ (plugin has no hook scripts)"
               continue

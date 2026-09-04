@@ -23,6 +23,7 @@ build the way `/acs:update` actually calls it.
 
 import importlib.util
 import os
+import sys
 
 from harness import Sandbox, Check, _version_key
 
@@ -50,11 +51,32 @@ def _classify(installed, latest):
 
 
 def _load_acs_lib(scripts_dir):
-    """Import the *installed build's* acs_lib — the module /acs:update Step 6 uses."""
-    path = os.path.join(scripts_dir, "acs_lib.py")
-    spec = importlib.util.spec_from_file_location("acs_lib_under_test", path)
+    """Import the *installed build's* acs_lib — the module /acs:update Step 6 uses.
+
+    acs_lib is a package (MAR-522), so the spec needs the package's search
+    location, and the module must be in sys.modules before exec or its own
+    relative imports cannot resolve. Its submodules import flat siblings
+    (claude_code_adapter), so scripts_dir goes on sys.path for the load."""
+    name = "acs_lib_under_test"
+    pkg = os.path.join(scripts_dir, "acs_lib")
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(pkg, "__init__.py"), submodule_search_locations=[pkg])
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.modules[name] = mod
+    added = scripts_dir not in sys.path
+    if added:
+        sys.path.insert(0, scripts_dir)
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        # Pop the SUBMODULES too: leaving "<name>.state" cached means a second
+        # load re-execs only __init__.py, whose relative imports then resolve
+        # from the first build -- certifying a build it never loaded.
+        for cached in [n for n in sys.modules
+                       if n == name or n.startswith(name + ".")]:
+            sys.modules.pop(cached, None)
+        if added:
+            sys.path.remove(scripts_dir)
     return mod
 
 

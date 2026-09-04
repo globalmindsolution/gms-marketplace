@@ -219,5 +219,65 @@ class TestToolVersion(unittest.TestCase):
         self.assertIsNone(lib._tool_version("acs-definitely-not-a-real-binary-xyz"))
 
 
+class TestArchitectureDependentGateTable(unittest.TestCase):
+    """MAR-522: ARCHITECTURE_DEPENDENT_SKILLS is the declared set of producers
+    whose only precondition is the architecture doc set. Without this, the tuple
+    is a comment -- it can drift from GATES with nothing failing."""
+
+    def test_every_declared_skill_is_registered_and_shares_the_one_check(self):
+        for skill in lib.ARCHITECTURE_DEPENDENT_SKILLS:
+            with self.subTest(skill=skill):
+                gate = lib.GATES[skill]
+                self.assertEqual(gate.__name__, "gate_" + skill.replace("-", "_"))
+                # It delegates rather than re-implementing: calling it with a
+                # context whose checkout has no architecture set must raise the
+                # shared helper's own message, not a copy of it.
+                tmp = tempfile.mkdtemp()
+                self.addCleanup(shutil.rmtree, tmp, True)
+                ctx = {"checkout_root": tmp, "settings": {}}
+                with self.assertRaises(lib.GateError) as caught:
+                    gate(ctx, {})
+                self.assertIn("expected hld/tech-stack.md", str(caught.exception))
+
+    def test_the_two_inlining_gates_now_share_it_too(self):
+        """gate_create_project and gate_standardize_project each carried a
+        byte-identical copy of the check body before MAR-522."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        ctx = {"checkout_root": tmp, "settings": {}}
+        for gate in (lib.gate_create_project, lib.gate_standardize_project):
+            with self.subTest(gate=gate.__name__):
+                with self.assertRaises(lib.GateError) as caught:
+                    gate(ctx, {})
+                self.assertIn("expected hld/tech-stack.md", str(caught.exception))
+
+
+class TestPluginRoot(unittest.TestCase):
+    """plugin_root() is the ONE function body the MAR-522 split had to change
+    (three nested dirnames became four, since the code moved a directory
+    deeper). It feeds build_context()["plugin_root"], which resolve_template
+    uses to find every builtin template -- so a one-off returns a real-looking
+    path and every rendered PR body silently loses its template."""
+
+    def test_it_points_at_the_plugin_directory_that_contains_the_kernel(self):
+        root = lib.plugin_root()
+        self.assertTrue(os.path.isfile(os.path.join(root, ".claude-plugin", "plugin.json")),
+                        "plugin_root() must contain .claude-plugin/plugin.json, got %s" % root)
+        self.assertTrue(os.path.isdir(os.path.join(root, "hooks", "scripts", "acs_lib")),
+                        "plugin_root() must contain the acs_lib package, got %s" % root)
+        self.assertEqual(os.path.basename(root), "acs")
+
+    def test_a_builtin_template_resolves_from_it(self):
+        """The consequence a wrong plugin_root would produce, asserted directly."""
+        for name in sorted(lib.BUILTIN_TEMPLATES):
+            with self.subTest(template=name):
+                path = lib.resolve_template(name, None, lib.plugin_root())
+                self.assertIsNotNone(path, "%s must resolve under plugin_root()" % name)
+                # resolve_template returns the path unchecked for a builtin, so
+                # a wrong plugin_root yields a real-looking path to nothing.
+                self.assertTrue(os.path.isfile(path),
+                                "%s resolved to a non-existent file: %s" % (name, path))
+
+
 if __name__ == "__main__":
     unittest.main()

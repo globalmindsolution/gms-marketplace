@@ -100,8 +100,8 @@ relative to that root, so a run started from a repo subdirectory (or from a
 leg's own worktree on resume) would otherwise read an already-shipped doc set
 as absent. This is the same resolution every gate uses —
 `_require_architecture_doc_set` reads `ctx["checkout_root"]`
-(`acs_lib.py:2354`), which `build_context` fills with `checkout_root(cwd)`
-(`acs_lib.py:2139`).
+(`acs_lib/gates.py`), which `build_context` (same module) fills with
+`checkout_root(cwd)` (`acs_lib/repo.py`).
 
 **`--for` mechanism.** `lib.parse_fanout_for_arg($ARGUMENTS)` splits the
 request into `requested` (names inside `DOC_BOOTSTRAP_FANOUT_V1`, which is
