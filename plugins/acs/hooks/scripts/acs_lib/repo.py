@@ -42,6 +42,50 @@ def gh_failure_hint(stderr_text):
     return GH_GENERIC_HINT
 
 
+def gh_pr_view(number, fields):
+    """`gh pr view <number> --json <fields>`, parsed. Raises GateError with a
+    clean message when gh is missing, the lookup fails, or the output does not
+    parse -- callers surface that verbatim rather than a traceback.
+
+    The one gh-shell-out helper: skill-start.py's --pr mode and `acs.py
+    readiness` both need it, and a second copy would be a second place for the
+    missing-gh message and the failure classification to drift. Isolating the
+    call here is also what lets tests stub it with a fake gh on PATH.
+    """
+    try:
+        proc = subprocess.run(
+            ["gh", "pr", "view", str(number), "--json", fields],
+            capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        raise GateError(
+            "gh (the GitHub CLI) is required for --pr mode but was not found on PATH; "
+            "install and authenticate it (gh auth login) first.")
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip() or "gh pr view failed"
+        raise GateError("could not look up PR %s via gh: %s" % (number, detail))
+    try:
+        return json.loads(proc.stdout)
+    except (json.JSONDecodeError, ValueError):
+        raise GateError("gh pr view returned no parseable JSON for PR %s" % number)
+
+
+def gh_pr_required_checks_ok(number):
+    """`gh pr checks <number> --required` as a bool, or None when gh is absent.
+
+    The second, independent CI signal: GitHub's own answer to "are the REQUIRED
+    checks green", which does not depend on `isRequired` being populated in the
+    rollup. A missing gh yields None (unknown) rather than False, so a machine
+    without the CLI does not report a PR as CI-failing.
+    """
+    try:
+        proc = subprocess.run(["gh", "pr", "checks", str(number), "--required"],
+                              capture_output=True, text=True)
+    except FileNotFoundError:
+        return None
+    return proc.returncode == 0
+
+
 # ---------------------------------------------------------------------------
 # Repo identity & checkout identity
 # ---------------------------------------------------------------------------

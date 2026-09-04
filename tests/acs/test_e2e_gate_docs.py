@@ -10,7 +10,6 @@ Run:  python3 -m unittest discover -s tests -v
 
 import os
 import re
-import subprocess
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,21 +52,23 @@ class TestMergePrNote(unittest.TestCase):
             ["ci", "approvals", "conflicts", "protections"],
         )
 
-    def test_mergepr_skill_diff_is_doc_only(self):
-        out = subprocess.run(
-            ["git", "diff", "--unified=0", "--", MERGE_PR_PATH],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        added = [l for l in out.stdout.splitlines()
-                if l.startswith("+") and not l.startswith("+++")]
-        for line in added:
-            self.assertNotRegex(
-                line, r"```(bash|json)",
-                msg="merge-pr/SKILL.md diff must be doc-only prose — no "
-                    "fenced bash/json code-block change (AC-5)",
-            )
-            self.assertNotIn("gh api", line)
-            self.assertNotIn("gh pr", line)
+    def test_mergepr_gains_no_e2e_specific_github_read(self):
+        """AC-5's real invariant: the e2e gate rides on the EXISTING `ci`
+        dimension and adds no read of its own.
+
+        This replaces a `git diff -- SKILL.md` check (MAR-524). That form could
+        only ever see UNCOMMITTED work: once MAR-125 landed, its own diff was
+        empty and the test asserted nothing — while any later ticket touching
+        this file failed it for reasons MAR-125 never had an opinion about.
+        The property below holds against the committed file, forever."""
+        self.assertNotIn("gh api", self.body,
+                        "merge-pr must not reach GitHub through the raw API (AC-5)")
+        for number, line in enumerate(self.body.splitlines(), start=1):
+            if re.search(r"(?i)e2e", line):
+                self.assertNotIn(
+                    "gh ", line,
+                    msg="line %d couples e2e to its own gh call; e2e is enforced "
+                        "through the `ci` dimension's existing read (AC-5)" % number)
 
 
 class TestFlowFile(unittest.TestCase):

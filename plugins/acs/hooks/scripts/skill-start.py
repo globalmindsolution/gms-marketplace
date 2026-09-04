@@ -63,25 +63,10 @@ def _accepted_session_marker(ctx):
 
 
 def _pr_view(number):
-    """Look the PR up via `gh pr view`. Returns the parsed JSON object, or raises
-    GateError with a clean message when gh is missing or the lookup fails. The gh
-    shell-out is isolated here so unit tests stub it via a fake gh on PATH."""
-    try:
-        proc = subprocess.run(
-            ["gh", "pr", "view", str(number), "--json", _PR_VIEW_FIELDS],
-            capture_output=True, text=True,
-        )
-    except FileNotFoundError:
-        raise lib.GateError(
-            "gh (the GitHub CLI) is required for --pr mode but was not found on PATH; "
-            "install and authenticate it (gh auth login) first.")
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip() or "gh pr view failed"
-        raise lib.GateError("could not look up PR %s via gh: %s" % (number, detail))
-    try:
-        return json.loads(proc.stdout)
-    except (json.JSONDecodeError, ValueError):
-        raise lib.GateError("gh pr view returned no parseable JSON for PR %s" % number)
+    """This script's PR lookup: acs_lib.gh_pr_view with the fields the exempt-pr
+    validator reads. MAR-524 moved the shell-out into acs_lib so `acs.py
+    readiness` shares it instead of growing a second copy."""
+    return lib.gh_pr_view(number, _PR_VIEW_FIELDS)
 
 
 def _run_exempt_pr_mode(args, ctx):
