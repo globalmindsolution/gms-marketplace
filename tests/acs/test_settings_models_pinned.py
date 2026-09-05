@@ -15,8 +15,15 @@ REPO_OVERRIDES below -- the only place a literal id belongs, because a
 repo-local choice is not the plugin's recommendation and must not be pushed
 into RECOMMENDED_MODELS (that constant is what a fresh /acs:setup offers every
 other consumer repo). Every role absent from REPO_OVERRIDES still has to mirror
-the recommendation exactly, so the constant remains the single source for the
-rest and a new model generation is still a change to it, not to this file.
+the recommendation exactly, so the constant remains the single source for those.
+
+For an OVERRIDDEN role the picture is different, and saying so is the point: the
+guard below also requires the pinned id to still be one RECOMMENDED_MODELS uses,
+so moving the recommendation to a new generation makes this file fail until the
+override moves with it. That is deliberate -- an override left on a retired id
+is the failure this file exists to catch, and there is no model-id validation at
+spawn time to catch it later -- but it means a generation bump IS a change here
+as well as to the constant, for as long as an override exists.
 
 Uses the same stdlib-only approach as TestHighStakesPathsSettings /
 TestDueDateSchema in test_acs_plugin.py (no jsonschema import) -- the CI
@@ -50,7 +57,10 @@ import acs_lib as lib  # noqa: E402
 # recommends to anyone else. Each entry needs a reason, and must actually differ
 # from RECOMMENDED_MODELS -- test_overrides_are_live_divergences fails a stale
 # entry the recommendation has since caught up with, so the list cannot rot into
-# a silent copy of the mirror it is exempting.
+# a silent copy of the mirror it is exempting. That test enforces a SECOND
+# property too: the pinned id must still be one the recommendation uses
+# somewhere, so an override left behind by a model generation fails here rather
+# than silently pinning a retired id.
 #
 #   executor: the executor is the only role that WRITES the code planner and
 #   verifier merely reason about, and this repo would rather pay for one strong
@@ -158,9 +168,17 @@ class SettingsModelsPinnedCase(unittest.TestCase):
 
     def test_overrides_are_live_divergences(self):
         """Every REPO_OVERRIDES entry names a real role, is shaped like one, and
-        still DIFFERS from the recommendation. An override the recommendation has
-        caught up with is dead weight that would silently exempt a role from the
-        mirror, so it fails here until it is deleted."""
+        satisfies TWO properties -- both enforced below, so both are stated here:
+
+        1. It still DIFFERS from the recommendation. An override the
+           recommendation has caught up with is dead weight that would silently
+           exempt a role from the mirror, so it fails until it is deleted.
+        2. Its pinned id is still one RECOMMENDED_MODELS uses for some role. An
+           override the recommendation has moved PAST is a pin on a retired
+           model, and nothing validates model ids at spawn time.
+
+        The two point in opposite directions on purpose: (1) catches an override
+        that has become redundant, (2) catches one left behind."""
         for role, entry in REPO_OVERRIDES.items():
             self.assertIn(role, lib.MODEL_ROLES, msg="%s is not a model role" % role)
             self.assertIsInstance(entry, dict, msg="%s must use the {model, effort} form" % role)
@@ -178,12 +196,22 @@ class SettingsModelsPinnedCase(unittest.TestCase):
             # new generation leaves the executor pinned to the retired id with
             # nothing failing — and no model-id validation at spawn time to
             # catch it later.
+            # The set is every id the recommendation currently uses for ANY
+            # role -- deliberately weaker than "the same id the planner and
+            # verifier get". A partial generation bump (planner moves, verifier
+            # does not) therefore stays silent, and a pin AHEAD of the
+            # recommendation reports as "left behind". Both are acceptable: the
+            # remedy for either is a repo-local edit to REPO_OVERRIDES, and
+            # nothing here can reach RECOMMENDED_MODELS, which is what the
+            # decoupling requires.
             in_use = {rec["model"] for rec in lib.RECOMMENDED_MODELS.values()}
             self.assertIn(
                 entry["model"], in_use,
-                msg="REPO_OVERRIDES[%r] pins %r, which the recommendation no "
-                    "longer uses for any role (%s) -- the override has been left "
-                    "behind by a model generation" % (role, entry["model"],
+                msg="REPO_OVERRIDES[%r] pins %r, which the recommendation uses "
+                    "for no role (%s). Either the override was left behind by a "
+                    "model generation, or it is pinned ahead of one acs does not "
+                    "recommend yet -- update REPO_OVERRIDES either way"
+                    % (role, entry["model"],
                                                       ", ".join(sorted(in_use))),
             )
 
