@@ -70,6 +70,7 @@
     │   └── create-design-state.json
     └── SHOP-123/                       # a story/task: full pipeline
         ├── .lock                       # held by the session working this ticket
+        ├── lock-events.jsonl           # append-only audit of every `lock force-unlock` (who, why, what was broken)
         ├── ticket.json                 # output of /create-ticket (local source of truth); stores parent
         ├── pipeline-state.json         # compact step ledger for /ship and pre-hooks
         ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
@@ -265,7 +266,16 @@ worktree per ticket**:
   ([workflow.md](workflow.md#resuming-a-ticket)). **[ASSUMPTION]** A
   stale lock from a *different* checkout (no live process / very old
   timestamp) is reported to the user to clear manually rather than being
-  auto-stolen.
+  auto-stolen. **[RESOLVED — MAR-530]** Still never auto-stolen, and no longer
+  cleared by hand: `acs.py lock force-unlock` is the explicit path. It requires
+  a stated reason and appends an audited entry — who broke it, why, and the
+  lock document as it read at the time — to the partition's
+  `lock-events.jsonl` (`schemas/lock-events.schema.json`) *before* removing the
+  lock file, so a crash between the two leaves a recorded break with the lock
+  still in place rather than a broken lock nobody can trace. Staleness is
+  reported with the regime that produced it, because a pid from another
+  container is not probeable here: a same-host lock is judged by process
+  liveness, a cross-host one only by age.
 - Product-level skills lock their **delivery ticket's** partition like any
   other skill — no separate locking scheme.
 - **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
@@ -288,9 +298,19 @@ worktree per ticket**:
 - **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
   `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
   critical section that serializes two legs finishing concurrently on the
-  normal path. This is best-effort, not absolute: on a bounded spin timeout
-  the guard fails open and the write proceeds unguarded rather than blocking
-  forever, so the last-write-wins race is narrowed, not eliminated.
+  normal path. The spin is bounded, and exhausting it **fails closed**: the
+  guard raises `GuardTimeout` and the write does not happen. A refused write is
+  recoverable and visible; the fail-open write it replaced lost an update with
+  nothing recording that it had. Every caller reports the refusal as
+  `acs <command>: <reason>` with exit 2, releases any ticket lock it holds, and
+  names which half of its writes is already durable. The budget is operable via
+  `$ACS_GUARD_ATTEMPTS` (clamped to a ceiling, since only the pre-hook's own
+  25-second bound applies otherwise). A guard file left behind by a writer that
+  crashed is reclaimed automatically, but only once it is older than twice the
+  configured budget **and** its recorded holder is not a process still running
+  on this host — an age threshold alone cannot tell a crashed writer from a
+  slow one, and reclaiming a live holder's guard puts two writers inside the
+  critical section at once.
 
 ## Metrics
 

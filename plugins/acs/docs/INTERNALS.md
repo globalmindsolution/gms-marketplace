@@ -17,7 +17,7 @@ component follows.
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package and `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py` and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 19 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
-| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
+| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 11 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
@@ -306,15 +306,32 @@ Conventions:
 **Repo-level guards.** `tickets-index.json`, `metrics.json` and `counters.json`
 are read-modify-written by any session in any worktree, so each write holds an
 `O_EXCL` guard file beside it (`repo_guard`, a bounded spin: `ACS_GUARD_ATTEMPTS`
-× 0.05s, default 200 → 10s; a guard older than 30s is treated as abandoned by a
-crashed writer and removed). **Exhausting the budget raises `GuardTimeout` and
-writes nothing.** It used to write anyway, which meant the guard covered every
+× 0.05s, default 200 → 10s, clamped at `GUARD_ATTEMPTS_MAX` since a longer spin
+only outlives the 25-second bound Claude Code puts on the pre-hook). **Exhausting
+the budget raises `GuardTimeout` and writes nothing.** It used to write anyway, which meant the guard covered every
 case except the one it exists for. A refused write is recoverable; a clobbered
 one is invisible — and for `counters.json` it means two sessions holding the
 same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
 landed: the run, `ticket.json` and `pipeline-state.json` are already durable, the
 index self-heals on the next post hook, and that run's tokens and cost are lost
-from `metrics.json`.
+from `metrics.json` — except after **merge-pr**, the terminal post hook, where
+nothing runs afterwards and the message says so instead. Every other entry point
+reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that
+holds the ticket lock releases it first: a skill that did not start, a handoff
+that did not hand off, or a SessionEnd net that did not release would otherwise
+strand the lock under a pid that is about to exit — and a cross-host lock
+stranded that way does not read as stale for 24 hours.
+
+A guard file left behind by a writer that crashed is reclaimed, but the test is
+deliberately narrow. Age alone cannot tell a crashed writer from a slow one, so
+a reclaim requires **both** that the file outlive twice the configured budget
+(`guard_stale_seconds`, so raising `ACS_GUARD_ATTEMPTS` for slow storage widens
+the patience rather than the hole) **and** that its recorded holder — the guard
+file carries the writer's pid and hostname — is not a process still running on
+this host. Releasing is symmetric: a holder unlinks the guard only if it is
+still its own, so a writer whose guard was reclaimed cannot strip the guard off
+whoever reclaimed it. Both halves are what keep two writers out of the critical
+section at once.
 
 **The ticket lock.** `<ticket-id>/.lock` records the holder's `checkout_id`,
 path, pid, hostname and start time. `lock_staleness(lock)` returns a verdict

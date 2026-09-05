@@ -244,8 +244,17 @@ def cmd_lane_apply(args):
     ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    # The index is repo-level, so its guard can refuse. That must NOT skip the
+    # escalation event below: the index entry is rebuilt from ticket.json by
+    # the next write, while the audit event has no other source and the lane
+    # raise is already durable. Report the gap after the event is safe.
+    index_error = None
+    try:
+        lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    except lib.GuardTimeout as exc:
+        index_error = str(exc)
     result["escalated"] = True
+    result["index_updated"] = index_error is None
 
     event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
              "from_size": from_size, "from_stakes": from_stakes,
@@ -261,6 +270,15 @@ def cmd_lane_apply(args):
         die("lane apply",
             "axes and lane are applied but the escalation event was not recorded: %s" % exc)
     result.update({"event_recorded": True, "event": event})
+    if index_error:
+        result["error"] = index_error
+        emit(result)
+        die("lane apply",
+            "the lane raise (%s -> %s) and its escalation event ARE recorded, but "
+            "tickets-index.json was not updated: %s\nThe index entry is rebuilt "
+            "from ticket.json by the next write to it, so this self-heals; "
+            "re-running would be a no-op, since the raise is already applied."
+            % (from_lane, new_lane, index_error))
     emit(result)
 
 
@@ -606,7 +624,16 @@ def main(argv=None):
         # A group with no subcommand ("acs.py lane") — show that group's usage.
         parser.print_help(sys.stderr)
         sys.exit(2)
-    func(args)
+    try:
+        func(args)
+    except lib.GateError as exc:
+        # The documented contract of this CLI (see the module docstring) is
+        # `acs <command>: <reason>` on stderr and exit 2 for a blocked command.
+        # GuardTimeout is a GateError raised from deep inside a repo-level
+        # write, and without this it reached the operator as a Python traceback
+        # and exit 1 -- indistinguishable from a crash, at ten call sites.
+        verbs = [a for a in argv[:2] if not a.startswith("-")]
+        die(" ".join(verbs) or "command", str(exc))
 
 
 if __name__ == "__main__":

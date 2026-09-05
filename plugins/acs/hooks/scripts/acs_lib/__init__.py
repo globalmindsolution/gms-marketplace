@@ -37,8 +37,8 @@ from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS
     validate_settings)  # noqa: F401
 
 from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
-    GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_INTERVAL, GUARD_STALE_SECONDS,
-    GuardTimeout, guard_attempts,
+    GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
+    GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
     checkout_id, checkout_root, current_branch, default_state_root,
     find_ticket_partition, gh_failure_hint, index_path, lock_path, main_repo_root,

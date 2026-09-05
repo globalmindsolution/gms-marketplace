@@ -19,6 +19,7 @@ no guard, because it makes the loss invisible:
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -123,6 +124,155 @@ class GuardAttemptsOverrideTest(unittest.TestCase):
         self.assertEqual(slept.call_count, 2)
 
 
+class StaleGuardReclaimTest(unittest.TestCase):
+    """The reclaim arm, which used to fail OPEN while the docs said otherwise.
+
+    Removing a guard whose mtime is old and proceeding puts a SECOND writer
+    inside a body the first is still running, and the first one's `finally`
+    then unlinks the second one's guard. Both halves are covered here."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _age(self, path, seconds):
+        old = datetime.now(timezone.utc).timestamp() - seconds
+        os.utime(path, (old, old))
+
+    def test_a_live_holder_on_this_host_is_never_reclaimed(self):
+        """An age threshold alone cannot tell a crashed writer from a slow one.
+        A guard recording a pid that is still running here is a slow one."""
+        guard = os.path.join(self.tmp, "g.lock")
+        with open(guard, "w", encoding="utf-8") as fh:
+            json.dump({"pid": os.getpid(), "host": socket.gethostname()}, fh)
+        self._age(guard, 3600)
+        with mock.patch("time.sleep"):
+            with self.assertRaises(lib.GuardTimeout):
+                with lib.repo_guard(self.tmp, "g.lock", attempts=3, interval=0.01):
+                    self.fail("a live holder's guard must not be stolen")
+        self.assertTrue(os.path.exists(guard), "and it must still be there")
+
+    def test_a_guard_left_by_a_dead_writer_is_reclaimed(self):
+        """The case the reclaim exists for: the holder is gone, so waiting for
+        it is waiting forever."""
+        guard = os.path.join(self.tmp, "g.lock")
+        with open(guard, "w", encoding="utf-8") as fh:
+            json.dump({"pid": _dead_pid(), "host": socket.gethostname()}, fh)
+        self._age(guard, 3600)
+        with lib.repo_guard(self.tmp, "g.lock", attempts=3, interval=0.01):
+            pass
+        self.assertFalse(os.path.exists(guard))
+
+    def test_a_guard_from_another_host_is_reclaimed_on_age_alone(self):
+        """A pid from another container means nothing here, so the age
+        threshold is all there is -- which is why it now derives from the
+        budget rather than sitting at a fixed 30s."""
+        guard = os.path.join(self.tmp, "g.lock")
+        with open(guard, "w", encoding="utf-8") as fh:
+            json.dump({"pid": 1, "host": "some-other-container"}, fh)
+        self._age(guard, 3600)
+        with lib.repo_guard(self.tmp, "g.lock", attempts=3, interval=0.01):
+            pass
+        self.assertFalse(os.path.exists(guard))
+
+    def test_the_stale_threshold_moves_with_the_configured_budget(self):
+        """`$ACS_GUARD_ATTEMPTS` is documented as the remedy for slow shared
+        storage. With a fixed 30s threshold, raising it made things WORSE: a
+        100-second budget meant every waiter outlived the threshold and stole
+        the guard from a live writer, restoring the lost update this ticket
+        exists to close."""
+        self.assertEqual(lib.guard_stale_seconds(200, 0.05), lib.GUARD_STALE_SECONDS)
+        self.assertEqual(lib.guard_stale_seconds(2000, 0.05), 200.0,
+                         "twice the budget: no reclaim while a peer could still "
+                         "legitimately be holding on")
+        self.assertGreater(lib.guard_stale_seconds(2000, 0.05),
+                           2000 * 0.05, "and strictly past the budget itself")
+
+    def test_a_holder_whose_guard_was_reclaimed_does_not_unlink_the_new_one(self):
+        """The other half of the double-entry: the displaced holder's `finally`
+        used to strip the guard off whoever reclaimed it."""
+        guard = os.path.join(self.tmp, "g.lock")
+        with lib.repo_guard(self.tmp, "g.lock"):
+            os.unlink(guard)                       # a waiter reclaims it...
+            with open(guard, "w", encoding="utf-8") as fh:
+                json.dump({"pid": os.getpid() + 1, "host": "elsewhere"}, fh)
+        self.assertTrue(os.path.exists(guard),
+                        "the new holder's guard must survive our release")
+
+    def test_the_refusal_no_longer_tells_the_operator_to_delete_a_guard(self):
+        """Advice that invites deleting a LIVE writer's guard, for a file that
+        is reclaimed automatically."""
+        open(os.path.join(self.tmp, "g.lock"), "w").close()
+        with mock.patch("time.sleep"):
+            with self.assertRaises(lib.GuardTimeout) as caught:
+                with lib.repo_guard(self.tmp, "g.lock", attempts=2, interval=0.01):
+                    pass
+        self.assertNotIn("delete the guard file", str(caught.exception))
+        self.assertIn("reclaimed automatically", str(caught.exception))
+
+
+class GuardAttemptsCeilingTest(unittest.TestCase):
+    """The budget is operable, not unbounded."""
+
+    def test_an_absurd_override_is_clamped_rather_than_honoured(self):
+        """Only the lower bound was checked, so `ACS_GUARD_ATTEMPTS=20000`
+        bought a 17-minute spin inside a hook Claude Code kills at 25s."""
+        with mock.patch.dict(os.environ, {"ACS_GUARD_ATTEMPTS": "20000"}):
+            self.assertEqual(lib.guard_attempts(), lib.GUARD_ATTEMPTS_MAX)
+        self.assertGreater(lib.GUARD_ATTEMPTS_MAX, lib.GUARD_ATTEMPTS,
+                           "the ceiling must leave the documented remedy usable")
+
+
+class LockLedgerHasASchemaTest(unittest.TestCase):
+    """An append-only AUDIT artifact is the one whose shape most needs a
+    contract: its readers are future tooling and auditors, not this code."""
+
+    SCHEMAS = os.path.join(REPO_ROOT, "plugins", "acs", "schemas")
+
+    def _schema(self):
+        with open(os.path.join(self.SCHEMAS, "lock-events.schema.json"),
+                  encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_the_ledger_ships_with_a_schema_like_every_other_artifact(self):
+        schema = self._schema()
+        self.assertEqual(schema["required"], ["event", "at", "reason"])
+        self.assertEqual(schema["properties"]["event"]["enum"],
+                         ["lock_force_released", "lock_force_release_failed"],
+                         "the two kinds carry different keys, so `event` is the "
+                         "declared discriminator")
+
+    def test_a_real_break_validates_against_it(self):
+        """Written from the artifact the code actually produces, so the schema
+        cannot drift from it silently."""
+        tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        lib.write_json(lib.lock_path(tmp), {"checkout_id": "other", "pid": 4242,
+                                            "hostname": "elsewhere",
+                                            "created_at": _hours_ago(1)})
+        out = lib.force_release_lock(tmp, os.getcwd(), "container died", actor="dana")
+        with open(out["audit_path"], encoding="utf-8") as fh:
+            entry = json.loads(fh.readline())
+        schema = self._schema()
+        for key in schema["required"]:
+            self.assertIn(key, entry)
+        released = schema["allOf"][0]["then"]["required"]
+        for key in released:
+            self.assertIn(key, entry, "declared required for lock_force_released")
+        self.assertTrue(set(entry) <= set(schema["properties"]),
+                        "every key the writer emits must be declared: %s"
+                        % sorted(set(entry) - set(schema["properties"])))
+
+
+def _dead_pid():
+    """A pid that is certainly not running: fork a child and reap it."""
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+    os.waitpid(pid, 0)
+    return pid
+
+
 class AllocateTicketIdFailsClosedTest(AcsWorkspaceCase):
     """The allocator is the sharpest case: fail-open here mints a DUPLICATE id."""
 
@@ -142,14 +292,119 @@ class AllocateTicketIdFailsClosedTest(AcsWorkspaceCase):
     def test_new_ticket_cli_reports_the_refusal_instead_of_a_duplicate_id(self):
         """Out of process, so the refusal is proven where a coordinator meets
         it. $ACS_GUARD_ATTEMPTS collapses the 10s budget to one attempt --
-        the arm under test is exhaustion, not how long exhaustion takes."""
+        the arm under test is exhaustion, not how long exhaustion takes.
+
+        The assertions are on the SHAPE of the refusal, not merely on its
+        failure: `assertNotEqual(returncode, 0)` plus "the guard name appears
+        in stderr" is satisfied by an unhandled traceback, which is exactly the
+        behaviour this test exists to prevent -- so it could not have failed on
+        its own defect."""
         rdir = lib.repo_dir(self.ws, "acme-shop")
         open(os.path.join(rdir, "counters.json.lock"), "w").close()
         out = self.run_script("new-ticket.py", "--title", "T", "--type", "task",
                               env=dict(os.environ, ACS_GUARD_ATTEMPTS="1"))
-        self.assertNotEqual(out.returncode, 0)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("acs new-ticket:", out.stderr)
+        self.assertNotIn("Traceback", out.stderr)
         self.assertIn("counters.json.lock", out.stderr)
         self.assertEqual(lib.read_json(os.path.join(rdir, "counters.json"))["next"], 1)
+
+
+class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
+    """Every entry point that can hit a refused repo-level write reports it the
+    way the CLI contract documents -- `acs <command>: <reason>` and exit 2 --
+    and, where it holds the ticket lock, releases it on the way out.
+
+    Guard exhaustion used to be exercised at four call sites out of ten, which
+    is why a traceback and a stranded lock at the other six shipped green."""
+
+    def _hold(self, name):
+        """Hold a repo-level guard with a fresh mtime for the whole test."""
+        rdir = lib.repo_dir(self.ws, "acme-shop")
+        os.makedirs(rdir, exist_ok=True)
+        path = os.path.join(rdir, name)
+        open(path, "w").close()
+        self.addCleanup(lambda: os.path.exists(path) and os.unlink(path))
+        return path
+
+    def _env(self):
+        return dict(os.environ, ACS_GUARD_ATTEMPTS="1")
+
+    def _assert_clean_refusal(self, out, command):
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("acs %s:" % command, out.stderr)
+        self.assertNotIn("Traceback", out.stderr)
+
+    def test_skill_start_releases_the_lock_it_took_before_refusing(self):
+        """The lock is acquired BEFORE the repo-level writes, so a refusal
+        there left the ticket locked by a pid that immediately exits -- and a
+        cross-host lock stranded that way is not even reported stale for 24h."""
+        ticket = self.new_ticket("Audit", "task")
+        tdir = self.tdir(ticket)
+        self._hold("tickets-index.json.lock")
+        out = self.run_script("skill-start.py", "--skill", "code", "--ticket", ticket,
+                              env=self._env())
+        self._assert_clean_refusal(out, "skill-start")
+        self.assertFalse(os.path.exists(lib.lock_path(tdir)),
+                         "a skill that did not start must not hold the lock")
+
+    def test_skill_start_allocate_refuses_without_minting_an_id(self):
+        self._hold("counters.json.lock")
+        out = self.run_script("skill-start.py", "--skill", "create-ticket", "--allocate",
+                              "--title", "T", env=self._env())
+        self._assert_clean_refusal(out, "skill-start")
+        rdir = lib.repo_dir(self.ws, "acme-shop")
+        self.assertEqual(lib.read_json(os.path.join(rdir, "counters.json"))["next"], 1,
+                         "a refused allocation must not advance the counter")
+
+    def test_handoff_releases_the_lock_even_when_metrics_refuses(self):
+        """Releasing the lock IS the handoff. A refused metrics write that
+        finalizes the run `handed_off` and then keeps the lock leaves the
+        ticket unresumable by anyone, which is the one unrecoverable outcome."""
+        ticket = self.new_ticket("Audit", "task")
+        self.start("code", ticket)
+        tdir = self.tdir(ticket)
+        self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+        self._hold("metrics.json.lock")
+        out = self.run_script("handoff.py", "--summary", "stopping here",
+                              env=self._env())
+        self._assert_clean_refusal(out, "handoff")
+        self.assertFalse(os.path.exists(lib.lock_path(tdir)),
+                         "the lock must be released even when metrics is refused")
+        self.assertEqual(lib.last_run_status(tdir, "code"), "handed_off")
+
+    def test_session_end_releases_the_lock_even_when_metrics_refuses(self):
+        """The SessionEnd net's whole job is the release, and dispatch.py
+        swallows what it raises -- so a refusal here exited 0 with the lock
+        held and nothing said."""
+        ticket = self.new_ticket("Audit", "task")
+        self.start("code", ticket)
+        tdir = self.tdir(ticket)
+        self._hold("metrics.json.lock")
+        out = self.run_script("dispatch.py", "session-end",
+                              stdin=json.dumps({"cwd": self.repo}),
+                              env=self._env())
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertFalse(os.path.exists(lib.lock_path(tdir)),
+                         "the safety net must release the lock it came to release")
+        self.assertEqual(lib.last_run_status(tdir, "code"), "interrupted")
+
+    def test_lane_apply_records_the_escalation_event_even_when_the_index_refuses(self):
+        """The raise landed between the durable lane change and its audit
+        event, so a refusal produced a lane raise with no event and no index
+        row -- delivered as a traceback."""
+        ticket = self.new_ticket("Audit", "task")
+        self.start("code", ticket)
+        tdir = self.tdir(ticket)
+        self._hold("tickets-index.json.lock")
+        out = self.run_script("acs.py", "lane", "apply", "--ticket", ticket,
+                              "--skill", "code", "--proposed-size", "large",
+                              "--trigger", "verifier", env=self._env())
+        self._assert_clean_refusal(out, "lane apply")
+        doc = lib.load_ticket(tdir)
+        self.assertEqual((doc["size"], doc["lane"]), ("large", "COMPLEX"))
+        events = (lib.last_run(lib.load_state(tdir, "code", ticket)) or {}).get("escalations")
+        self.assertTrue(events, "the audit event has no other source; the index has one")
 
 
 class PostHookReportsGuardTimeoutTest(AcsWorkspaceCase):

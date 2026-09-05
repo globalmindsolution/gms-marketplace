@@ -295,8 +295,9 @@ GUARD_INTERVAL = 0.05
 #: slow writer and failing a phase, so it is operable: raise it for a workspace
 #: on slow shared storage, and drop it to make a test's refusal arm immediate.
 GUARD_ATTEMPTS_ENV = "ACS_GUARD_ATTEMPTS"
-#: A guard file whose mtime is older than this was left behind by a writer that
-#: crashed mid-update; it is removed and the spin retries immediately.
+#: The FLOOR for treating a guard file as abandoned by a crashed writer. The
+#: effective threshold is guard_stale_seconds(), which never lets a reclaim
+#: happen before the waiter's own budget would have expired -- see there.
 GUARD_STALE_SECONDS = 30
 
 
@@ -316,18 +317,77 @@ class GuardTimeout(GateError):
     """
 
 
+#: Ceiling on $ACS_GUARD_ATTEMPTS. The pre-hook is bounded at 25s by Claude
+#: Code, so a budget past that cannot be waited out there anyway; past this an
+#: operator has configured a hang, not a wait.
+GUARD_ATTEMPTS_MAX = 6000
+
+
 def guard_attempts():
     """GUARD_ATTEMPTS, or a positive integer from $ACS_GUARD_ATTEMPTS.
 
     Read per call, not at import: a hook process is short-lived, and a test or
     an operator setting the variable should not depend on import order. A
     missing, non-numeric or non-positive value falls back to the default rather
-    than producing a zero-attempt guard that refuses everything."""
+    than producing a zero-attempt guard that refuses everything, and a value
+    past GUARD_ATTEMPTS_MAX is clamped: only the lower bound used to be
+    checked, so `ACS_GUARD_ATTEMPTS=20000` bought a 17-minute spin inside a
+    hook Claude Code kills at 25 seconds."""
     try:
         override = int(os.environ.get(GUARD_ATTEMPTS_ENV, ""))
     except ValueError:
         return GUARD_ATTEMPTS
-    return override if override > 0 else GUARD_ATTEMPTS
+    if override <= 0:
+        return GUARD_ATTEMPTS
+    return min(override, GUARD_ATTEMPTS_MAX)
+
+
+def guard_stale_seconds(attempts, interval):
+    """How old a guard file must be before a waiter may reclaim it.
+
+    MAR-530 made the budget operable (`$ACS_GUARD_ATTEMPTS`) but left this
+    threshold fixed at 30s -- so raising the budget for slow shared storage
+    made things WORSE, not better: with a 100-second budget every waiter
+    outlived the threshold and stole the guard from a live holder, putting two
+    writers inside the body at once and restoring exactly the lost update this
+    ticket exists to close. The threshold now moves with the budget, and by
+    twice it, so a reclaim can never happen while any writer configured the
+    same way could still legitimately be holding on."""
+    return max(GUARD_STALE_SECONDS, 2 * attempts * interval)
+
+
+def _guard_owner(pid=None):
+    """The identity written into a guard file, so its holder is knowable."""
+    return {"pid": os.getpid() if pid is None else pid,
+            "host": socket.gethostname(), "at": now_iso()}
+
+
+def _read_guard_owner(guard):
+    doc = read_json(guard)
+    return doc if isinstance(doc, dict) else None
+
+
+def _guard_holder_is_alive(owner):
+    """True when the guard's recorded holder is a process still running HERE.
+
+    An age threshold alone cannot tell a crashed writer from a slow one, so a
+    long-but-live hold was reclaimed as if it had crashed. On this host that is
+    answerable exactly: signal 0 probes the pid without touching it. A holder
+    on another host is unknowable, so it falls back to the age threshold --
+    which is why that threshold now derives from the budget."""
+    if not owner or owner.get("host") != socket.gethostname():
+        return False
+    try:
+        pid = int(owner.get("pid"))
+    except (TypeError, ValueError):
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # EPERM: a process we may not signal is still a process
+    return True
 
 
 @contextmanager
@@ -345,19 +405,25 @@ def repo_guard(rdir, guard_name, attempts=None, interval=GUARD_INTERVAL):
     one filesystem, not against a writer that ignores it.
     """
     attempts = guard_attempts() if attempts is None else attempts
+    stale_after = guard_stale_seconds(attempts, interval)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, guard_name)
+    mine = _guard_owner()
     acquired = False
     for _ in range(attempts):
         try:
             fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
+            try:
+                os.write(fd, json.dumps(mine).encode("utf-8"))
+            finally:
+                os.close(fd)
             acquired = True
             break
         except FileExistsError:
             try:
-                if os.path.getmtime(guard) < datetime.now(timezone.utc).timestamp() - GUARD_STALE_SECONDS:
-                    os.unlink(guard)  # stale guard from a crashed writer
+                age = datetime.now(timezone.utc).timestamp() - os.path.getmtime(guard)
+                if age > stale_after and not _guard_holder_is_alive(_read_guard_owner(guard)):
+                    os.unlink(guard)  # abandoned by a writer that crashed
                     continue
             except OSError:
                 pass
@@ -366,13 +432,19 @@ def repo_guard(rdir, guard_name, attempts=None, interval=GUARD_INTERVAL):
         raise GuardTimeout(
             "could not acquire %s within %.1fs -- another writer is holding it. "
             "The write was REFUSED, not performed unguarded: retry once that writer "
-            "finishes, or delete the guard file if you are certain it is abandoned."
-            % (guard, attempts * interval))
+            "finishes. A guard left by a crashed writer is reclaimed automatically "
+            "after %.0fs, so deleting one by hand is never required."
+            % (guard, attempts * interval, stale_after))
     try:
         yield guard
     finally:
+        # Unlink only OUR guard. A waiter that reclaimed this file as abandoned
+        # now owns a NEW guard at the same path; unlinking blindly would strip
+        # the guard off a live writer -- the same double-entry the reclaim rule
+        # above exists to prevent, arriving from the other direction.
         try:
-            os.unlink(guard)
+            if _read_guard_owner(guard) == mine:
+                os.unlink(guard)
         except OSError:
             pass
 

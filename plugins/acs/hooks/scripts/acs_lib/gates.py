@@ -526,18 +526,19 @@ def run_post(skill):
         # MAR-530: the repo-level writers refuse rather than write unguarded, and
         # they sit AFTER the per-ticket writes, so this is a partial phase. Say
         # exactly which half is durable -- the operator is repairing a
-        # repo-level gap, not re-running the phase.
+        # repo-level gap, not re-running the phase. What "repair" means differs
+        # by hook, which is what _POST_GUARD_REPAIR carries.
         release_lock(tdir, cwd)
         sys.stderr.write(
             "acs post-%s: %s\n"
             "%s's run, ticket.json and pipeline-state.json ARE written and the lock "
             "is released; the repo-level writes (tickets-index.json, metrics.json%s) "
-            "are not. The index entry is rebuilt from ticket.json by the next post "
-            "hook, so it self-heals; this run's tokens and cost are lost from "
-            "metrics.json. Do NOT re-run this hook to repair it -- the run is "
-            "already finalized, so a second call appends a second run entry.\n"
+            "are not. %s This run's tokens and cost are lost from metrics.json. "
+            "Do NOT re-run this hook to repair it -- the run is already "
+            "finalized, so a second call appends a second run entry.\n"
             % (skill, exc, ticket_id,
-               ", and the partition archive" if skill == "merge-pr" else ""))
+               ", and the partition archive" if skill == "merge-pr" else "",
+               _POST_GUARD_REPAIR[skill == "merge-pr"]))
         sys.exit(1)
 
     out = {"ok": True, "skill": skill, "ticket_id": ticket_id, "status": status}
@@ -552,6 +553,27 @@ def run_post(skill):
 # ---------------------------------------------------------------------------
 # SessionEnd safety net
 # ---------------------------------------------------------------------------
+
+#: How the operator repairs the repo-level half of a post hook that hit a guard
+#: timeout, keyed by "is this merge-pr". EVERY other hook has a next post hook
+#: that rebuilds the index entry from ticket.json -- merge-pr is the terminal
+#: one, so nothing runs after it and the gap it leaves is durable until someone
+#: closes it. Telling a merge-pr operator "it self-heals" was worse than saying
+#: nothing: it named a mechanism that does not exist for the one hook where the
+#: consequences (partition never archived, pointer never cleared, parent epic
+#: never completed) are permanent.
+_POST_GUARD_REPAIR = {
+    False: ("The index entry is rebuilt from ticket.json by the next post hook, "
+            "so it self-heals."),
+    True: ("merge-pr is the TERMINAL post hook: nothing runs after it, so this "
+           "does NOT self-heal -- the index still reads in_review, the partition "
+           "is not archived, the session pointer is not cleared, and a parent "
+           "epic is not auto-completed. ticket.json already reads done, so the "
+           "merge itself IS recorded and no work is lost; what is missing is "
+           "repo-level bookkeeping. Surface this gap rather than repairing it "
+           "blind."),
+}
+
 
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
@@ -571,20 +593,33 @@ def session_end(payload):
     lock = read_lock(tdir)
     if not (isinstance(lock, dict) and lock.get("checkout_id") == ctx["checkout_id"]):
         return  # not our session's ticket anymore
-    for skill in HOOKED_SKILLS:
-        state = read_json(state_path(tdir, skill))
-        if not isinstance(state, dict):
-            continue
-        runs = state.get("runs") or []
-        if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
-            _state, entry = finalize_run(tdir, skill, ticket_id, {
-                "status": "interrupted",
-                "stop_reason": "session ended while the skill was in progress",
-            })
-            update_pipeline(tdir, ticket_id, skill, "interrupted",
-                            summary="session ended mid-skill",
-                            flow="product" if skill in PRODUCT_SKILLS else "ticket")
-            # keep repo-level metrics consistent with the ticket ledger:
-            # an interrupted run still spent time/tokens
-            update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
-    release_lock(tdir, cwd)
+    # The release is the POINT of this safety net, so it happens whatever the
+    # repo-level writes do. update_metrics is guarded and now refuses rather
+    # than writing unguarded; before this the raise skipped the release and
+    # dispatch.py swallowed it, so the net exited 0 having left the ticket
+    # locked by a process that no longer exists -- and a cross-host lock
+    # stranded that way does not read as stale for 24 hours.
+    try:
+        for skill in HOOKED_SKILLS:
+            state = read_json(state_path(tdir, skill))
+            if not isinstance(state, dict):
+                continue
+            runs = state.get("runs") or []
+            if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
+                _state, entry = finalize_run(tdir, skill, ticket_id, {
+                    "status": "interrupted",
+                    "stop_reason": "session ended while the skill was in progress",
+                })
+                update_pipeline(tdir, ticket_id, skill, "interrupted",
+                                summary="session ended mid-skill",
+                                flow="product" if skill in PRODUCT_SKILLS else "ticket")
+                # keep repo-level metrics consistent with the ticket ledger:
+                # an interrupted run still spent time/tokens
+                update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+    except GuardTimeout as exc:
+        sys.stderr.write(
+            "acs session-end: %s\n%s's run is finalized as interrupted and the "
+            "lock is released; metrics.json was not updated, so this run's tokens "
+            "and cost are lost from it.\n" % (exc, ticket_id))
+    finally:
+        release_lock(tdir, cwd)
