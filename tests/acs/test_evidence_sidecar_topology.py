@@ -161,7 +161,7 @@ class CoverageNotReducedTest(unittest.TestCase):
             "acs_lib/gates.py:539",
             # MAR-528 registered four more hook events, moving the SessionEnd
             # and dispatch.py ranges above and adding Surface #6's three.
-            "hooks.json:16-63", "dispatch.py:119-142", "acs_lib/lifecycle.py:333-486",
+            "hooks.json:16-63", "dispatch.py:119-142", "acs_lib/lifecycle.py:397-584",
         ]
         for anchor in anchors:
             with self.subTest(anchor=anchor):

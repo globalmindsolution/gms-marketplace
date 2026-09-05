@@ -32,6 +32,23 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import AcsWorkspaceCase  # noqa: E402
 
 
+def all_dimensions(overrides=None, lens=None):
+    """Every dimension this verdict owes, reported.
+
+    A verdict must now cover its whole owed set (MAR-527 review, F5): a
+    one-dimension document used to validate as a complete pass, which made an
+    unfinished review indistinguishable from a clean one. `n/a` is a valid
+    result, so a fixture saying so costs nothing."""
+    overrides = overrides or {}
+    rows = []
+    for ident in lib.owed_dimensions(lens):
+        row = {"id": ident, "name": lib.VERDICT_DIMENSIONS[ident], "result": "pass",
+               "evidence": "checked"}
+        row.update(overrides.get(ident, {}))
+        rows.append(row)
+    return rows
+
+
 def verdict(**over):
     """A well-formed passing verdict; each test spoils exactly one thing."""
     doc = {
@@ -40,9 +57,7 @@ def verdict(**over):
         "iteration": 1,
         "lens": None,
         "passed": True,
-        "dimensions": [{"id": 1, "name": "Acceptance-criteria conformance",
-                        "result": "pass", "evidence": "AC-1 traced to tests/test_a.py:12"},
-                       {"id": 14, "result": "n/a", "evidence": "light depth"}],
+        "dimensions": all_dimensions(),
         "findings": [],
     }
     doc.update(over)
@@ -61,7 +76,7 @@ class DerivedPassTest(unittest.TestCase):
 
     def test_a_pass_claimed_over_a_blocking_finding_is_rejected(self):
         errors = lib.validate_verdict(verdict(findings=[blocking()],
-                                              dimensions=[{"id": 3, "result": "fail"}]))
+                                              dimensions=all_dimensions({3: {"result": "fail"}})))
         self.assertTrue(any("passed is true but the verdict carries" in e for e in errors), errors)
 
     def test_a_failure_claimed_with_nothing_blocking_is_rejected(self):
@@ -82,7 +97,7 @@ class DerivedPassTest(unittest.TestCase):
         """Otherwise the per-dimension table and the findings list disagree
         about what happened, and only one of them gates."""
         errors = lib.validate_verdict(verdict(
-            passed=True, dimensions=[{"id": 3, "result": "fail"}]))
+            passed=True, dimensions=all_dimensions({3: {"result": "fail"}})))
         self.assertTrue(any("with no blocking finding to match" in e for e in errors), errors)
 
     def test_derived_passed_ignores_what_the_document_claims(self):
@@ -103,18 +118,18 @@ class ShapeTest(unittest.TestCase):
         self.assertTrue(any("dimensions is required" in e
                             for e in lib.validate_verdict(verdict(dimensions=[]))))
         self.assertTrue(any("not one of 1-16" in e for e in lib.validate_verdict(
-            verdict(dimensions=[{"id": 17, "result": "pass"}]))))
+            verdict(dimensions=all_dimensions() + [{"id": 17, "result": "pass"}]))))
 
     def test_a_dimension_reported_twice_is_rejected(self):
-        errors = lib.validate_verdict(verdict(dimensions=[{"id": 1, "result": "pass"},
+        errors = lib.validate_verdict(verdict(dimensions=all_dimensions() + [{"id": 1, "result": "pass"},
                                                           {"id": 1, "result": "fail"}]))
         self.assertTrue(any("reported twice" in e for e in errors), errors)
 
     def test_n_a_is_a_real_result_not_a_missing_one(self):
         self.assertEqual(lib.validate_verdict(
-            verdict(dimensions=[{"id": 14, "result": "n/a"}])), [])
+            verdict(dimensions=all_dimensions({11: {"result": "n/a"}}))), [])
         self.assertTrue(any("result" in e for e in lib.validate_verdict(
-            verdict(dimensions=[{"id": 14, "result": "skipped"}]))))
+            verdict(dimensions=all_dimensions({11: {"result": "skipped"}})))))
 
     def test_a_finding_needs_a_severity_and_a_detail(self):
         for finding in ({"severity": "loud", "detail": "x"},
@@ -157,10 +172,16 @@ class MergeTest(unittest.TestCase):
         self.assertIsNone(merged["lens"])
 
     def test_all_lenses_passing_merges_to_a_pass(self):
-        merged = lib.merge_lens_verdicts(
-            [self._lens(l, [{"id": i, "result": "pass"}]) for i, l in enumerate(lib.LENSES, 1)])
+        """Each lens reports ITS OWN subset; the union is all sixteen, which is
+        what makes the merged document a complete verdict."""
+        merged = lib.merge_lens_verdicts([
+            self._lens(l, [{"id": i, "result": "pass"}
+                           for i in lib.owed_dimensions(l)])
+            for l in lib.LENSES])
         self.assertTrue(merged["passed"])
         self.assertEqual(lib.validate_verdict(merged), [])
+        self.assertEqual(sorted(d["id"] for d in merged["dimensions"]),
+                         sorted(lib.VERDICT_DIMENSIONS))
 
     def test_the_worst_result_wins_when_two_lenses_report_one_dimension(self):
         merged = lib.merge_lens_verdicts([
@@ -248,7 +269,7 @@ class SubagentStopVerdictTest(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 0, out.stderr)
 
     def test_a_verdict_that_claims_a_pass_over_a_blocking_finding_is_refused(self):
-        self._write(verdict(findings=[blocking()], dimensions=[{"id": 3, "result": "fail"}]))
+        self._write(verdict(findings=[blocking()], dimensions=all_dimensions({3: {"result": "fail"}})))
         out = self._stop()
         self.assertEqual(out.returncode, 2)
         self.assertIn("passed is true but the verdict carries", out.stderr)
@@ -275,8 +296,10 @@ class SubagentStopVerdictTest(AcsWorkspaceCase):
 
     def test_it_stops_asking_after_the_block_limit(self):
         codes = [self._stop().returncode for _ in range(4)]
-        self.assertEqual(codes[0], 2)
-        self.assertEqual(codes[1:], [0, 0, 0])
+        # Refuses BLOCK_LIMIT times then lets it through, matching its sibling
+        # branches in the same hook (MAR-528 review: the `>=`/`>` split made
+        # this one refuse only once).
+        self.assertEqual(codes, [2] * lib.BLOCK_LIMIT + [0] * (4 - lib.BLOCK_LIMIT))
 
     def test_the_give_up_message_names_what_was_wrong(self):
         for _ in range(lib.BLOCK_LIMIT):
@@ -284,6 +307,61 @@ class SubagentStopVerdictTest(AcsWorkspaceCase):
         out = self._stop()
         self.assertEqual(out.returncode, 0)
         self.assertIn("verdict is still unusable", out.stderr)
+
+
+class SchemaAgreesWithValidatorTest(unittest.TestCase):
+    """AC-2 says the verdict is "validated against a schema", but SubagentStop
+    runs the hand-written validate_verdict and the shipped schema was applied
+    to no document by production code OR by any test -- a repo-wide grep for
+    `verdict.schema` left only its own $id and one import. Nothing stopped the
+    two drifting, and a document could satisfy one while violating the other.
+
+    A runtime jsonschema dependency would break validate_xml's stdlib-only
+    rule, so the binding is enforced here instead: every fixture is round-
+    tripped through BOTH validators and they must agree."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError:  # pragma: no cover - jsonschema is a test-only dep
+            raise unittest.SkipTest("jsonschema not installed")
+        with open(os.path.join(PLUGIN, "schemas", "verdict.schema.json"),
+                  encoding="utf-8") as fh:
+            cls.validator = Draft202012Validator(json.load(fh))
+
+    def _schema_errors(self, doc):
+        return [e.message for e in self.validator.iter_errors(doc)]
+
+    def test_a_well_formed_verdict_satisfies_both(self):
+        doc = verdict()
+        self.assertEqual(lib.validate_verdict(doc), [])
+        self.assertEqual(self._schema_errors(doc), [])
+
+    def test_every_shape_rule_the_schema_states_is_also_rejected_by_the_validator(self):
+        """One deliberately-bad document per shape keyword. The schema and the
+        validator may each catch MORE than the other -- validate_verdict owns
+        the rules JSON Schema cannot express -- but neither may ACCEPT what the
+        other rejects on shape."""
+        cases = {
+            "missing skill": dict(verdict(), skill=None),
+            "iteration below minimum": dict(verdict(), iteration=0),
+            "passed not a boolean": dict(verdict(), passed="yes"),
+            "unknown dimension id": verdict(
+                dimensions=all_dimensions() + [{"id": 99, "result": "pass"}]),
+            "bad dimension result": verdict(
+                dimensions=all_dimensions({1: {"result": "maybe"}})),
+            "bad finding severity": verdict(
+                passed=False, findings=[{"severity": "loud", "dimension": "x",
+                                         "detail": "d"}]),
+            "lens not one of A-D": dict(verdict(), lens="E"),
+        }
+        for name, doc in cases.items():
+            with self.subTest(name):
+                self.assertTrue(self._schema_errors(doc),
+                                "%s: the schema accepted it" % name)
+                self.assertTrue(lib.validate_verdict(doc),
+                                "%s: validate_verdict accepted it" % name)
 
 
 class VerdictCliTest(AcsWorkspaceCase):
@@ -305,14 +383,27 @@ class VerdictCliTest(AcsWorkspaceCase):
         self.assertTrue(body["passed"])
         self.assertEqual(body["blocking"], 0)
 
-    def test_show_surfaces_a_document_that_claims_more_than_it_supports(self):
-        self._write(verdict(findings=[blocking()], dimensions=[{"id": 3, "result": "fail"}]))
+    def test_show_refuses_a_document_that_claims_more_than_it_supports(self):
+        """It used to EMIT this document with ok:false beside passed:true.
+        `passed` is derived from the findings and an absent/short findings list
+        derives True, so a document the command itself called invalid was
+        reported as a pass -- to a coordinator whose instructions say to copy
+        `passed` and never mention `ok`."""
+        self._write(verdict(findings=[blocking()],
+                            dimensions=all_dimensions({3: {"result": "fail"}})))
         out = self.run_script("acs.py", "verdict", "show")
-        body = json.loads(out.stdout)
-        self.assertFalse(body["ok"])
-        self.assertTrue(body["claimed_passed"])
-        self.assertFalse(body["passed"], "the DERIVED verdict is what the caller reads")
-        self.assertEqual(body["blocking"], 1)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("not usable", out.stderr)
+        self.assertEqual(out.stdout.strip(), "")
+
+    def test_show_refuses_a_verdict_that_is_barely_a_document(self):
+        """derived_passed({}) is True, so the emptiest possible file used to
+        read as a pass all the way to the create-pr gate."""
+        lib.write_verdict(self.tdir_path, "code", 1,
+                          {"skill": "code", "ticket_id": self.ticket})
+        out = self.run_script("acs.py", "verdict", "show")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("not usable", out.stderr)
 
     def test_show_refuses_when_there_is_no_verdict(self):
         out = self.run_script("acs.py", "verdict", "show")
@@ -320,23 +411,48 @@ class VerdictCliTest(AcsWorkspaceCase):
         self.assertIn("no verdict at", out.stderr)
 
     def test_merge_writes_the_iteration_verdict_from_the_four_lenses(self):
-        for lens, dim in zip(lib.LENSES, (1, 6, 8, 14)):
-            self._write(verdict(lens=lens, dimensions=[{"id": dim, "result": "pass"}]), lens=lens)
+        for lens in lib.LENSES:
+            self._write(verdict(lens=lens, dimensions=all_dimensions(lens=lens)), lens=lens)
         body = json.loads(self.run_script("acs.py", "verdict", "merge").stdout)
         self.assertTrue(body["passed"])
         self.assertEqual(body["merged_from"], list(lib.LENSES))
         self.assertTrue(os.path.exists(lib.verdict_path(self.tdir_path, "code", 1)))
 
+    def test_merge_refuses_a_subset_of_the_lenses(self):
+        """--lens was an append flag with no completeness rule, so
+        `--lens A --lens C` merged a SUBSET: lens B's blocking findings were
+        dropped and the result reported ok/passed. A coordinator-run command
+        that silently discards a verifier's verdict is what AC-3 forbids."""
+        for lens in lib.LENSES:
+            self._write(verdict(lens=lens, dimensions=all_dimensions(lens=lens)), lens=lens)
+        out = self.run_script("acs.py", "verdict", "merge", "--lens", "A", "--lens", "C")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("all four lenses", out.stderr)
+
+    def test_merge_refuses_to_replace_a_blocking_verdict_with_a_passing_one(self):
+        """write_verdict overwrites silently, so a merge could destroy a
+        verifier's blocking verdict -- and MAR-523's derive_verifier_passed
+        reads exactly that file."""
+        self._write(verdict(findings=[blocking()], passed=False,
+                            dimensions=all_dimensions({3: {"result": "fail"}})))
+        for lens in lib.LENSES:
+            self._write(verdict(lens=lens, dimensions=all_dimensions(lens=lens)), lens=lens)
+        out = self.run_script("acs.py", "verdict", "merge")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("refusing to replace", out.stderr)
+
     def test_merge_refuses_when_a_lens_verdict_is_missing(self):
-        self._write(verdict(lens="A", dimensions=[{"id": 1, "result": "pass"}]), lens="A")
+        self._write(verdict(lens="A", dimensions=all_dimensions(lens="A")), lens="A")
         out = self.run_script("acs.py", "verdict", "merge")
         self.assertEqual(out.returncode, 2)
         self.assertIn("no verdict for lens B, C, D", out.stderr)
 
     def test_a_merged_failure_carries_the_blocking_finding_through(self):
-        for lens, dim in zip(lib.LENSES, (1, 6, 8, 14)):
+        for lens in lib.LENSES:
             findings = [blocking("quality", "dead code")] if lens == "B" else []
-            self._write(verdict(lens=lens, dimensions=[{"id": dim, "result": "pass"}],
+            dims = all_dimensions({6: {"result": "fail"}} if lens == "B" else None,
+                                  lens=lens)
+            self._write(verdict(lens=lens, dimensions=dims,
                                 findings=findings, passed=not findings), lens=lens)
         body = json.loads(self.run_script("acs.py", "verdict", "merge").stdout)
         self.assertFalse(body["passed"])

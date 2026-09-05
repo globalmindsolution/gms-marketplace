@@ -363,10 +363,18 @@ def cmd_verdict_show(args):
     path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
     if doc is None:
         die("verdict show", "no verdict at %s" % path)
-    errors = lib.validate_verdict(doc, lens=args.lens)
-    emit({"ok": not errors, "ticket_id": ticket_id, "path": path,
+    errors = lib.validate_verdict(doc, lens=args.lens, ticket_id=ticket_id)
+    if errors:
+        # `passed` is DERIVED from the findings, and an absent findings list
+        # derives True -- so emitting it beside ok:false told the coordinator
+        # (whose instructions say to copy `passed`, and never mention `ok`)
+        # that an unusable document was a pass. A document we cannot validate
+        # has no verdict to report.
+        die("verdict show", "the verdict at %s is not usable: %s"
+            % (path, "; ".join(errors)))
+    emit({"ok": True, "ticket_id": ticket_id, "path": path,
           "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
-          "blocking": len(lib.blocking_findings(doc)), "errors": errors,
+          "blocking": len(lib.blocking_findings(doc)), "errors": [],
           "verdict": doc})
 
 
@@ -378,6 +386,15 @@ def cmd_verdict_merge(args):
     rather than authoring a verdict it did not reach."""
     ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
     lenses = args.lens or list(lib.LENSES)
+    # All four, always. --lens was an append flag with no completeness rule, so
+    # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
+    # findings while reporting ok/passed -- a coordinator-run command that
+    # silently discards a verifier's verdict, which is what AC-3 forbids.
+    if sorted(set(lenses)) != sorted(lib.LENSES):
+        die("verdict merge",
+            "a merge covers all four lenses (%s); got %s. A subset drops the "
+            "findings of the lenses left out."
+            % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
     docs, missing = [], []
     for lens in lenses:
         doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
@@ -393,6 +410,14 @@ def cmd_verdict_merge(args):
     errors = lib.validate_verdict(merged)
     if errors:
         die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
+    existing = lib.load_verdict(tdir, args.skill, args.iteration)
+    if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
+        die("verdict merge",
+            "%s already holds a verdict with %d blocking finding(s); refusing to "
+            "replace it with a passing one. Fix the findings and re-run the "
+            "verifier rather than overwriting its verdict."
+            % (lib.verdict_path(tdir, args.skill, args.iteration),
+               len(lib.blocking_findings(existing))))
     path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
     emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
           "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),

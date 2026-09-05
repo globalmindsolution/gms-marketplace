@@ -23,7 +23,7 @@ distinct anchors (MAR-528 added Surface #6's three).
 - Surface #4 — Per-role model/effort — Verified entry points: `acs_lib/settings.py:284-299`
 - Surface #6 — Subagent & stop lifecycle — Verified entry points: `hooks.json:16-63`
 - Surface #6 — Subagent & stop lifecycle — Verified entry points: `dispatch.py:119-142`
-- Surface #6 — Subagent & stop lifecycle — Verified entry points: `acs_lib/lifecycle.py:333-486`
+- Surface #6 — Subagent & stop lifecycle — Verified entry points: `acs_lib/lifecycle.py:397-584`
 
 ## Entry-point anchor verification record
 
@@ -37,7 +37,7 @@ distinct anchors (MAR-528 added Surface #6's three).
 - Entry-point anchor verification record — `def session_end(payload)`: `acs_lib/gates.py:539`
 - Entry-point anchor verification record — SubagentStart/SubagentStop (matcher `^acs:`), Stop and PreCompact registrations: `hooks.json:16-63`
 - Entry-point anchor verification record — `LIFECYCLE_MODES` + `def run_lifecycle(mode, payload)` (fails OPEN): `dispatch.py:119-142`
-- Entry-point anchor verification record — `subagent_start` / `subagent_stop` / `stop` / `pre_compact`: `acs_lib/lifecycle.py:333-486`
+- Entry-point anchor verification record — `subagent_start` / `subagent_stop` / `stop` / `pre_compact`: `acs_lib/lifecycle.py:397-584`
 
 ## Runtime-coupled surfaces — Surface #5 (Cost/token sourcing, MAR-1)
 

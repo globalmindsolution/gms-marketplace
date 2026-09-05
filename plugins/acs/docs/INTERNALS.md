@@ -61,7 +61,7 @@ onto the plugin hooks API like this:
 
    | Event | Matcher | `dispatch.py` mode | What it does |
    |---|---|---|---|
-   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents.json`, keyed by `agent_id` so parallel executors of one type stay distinct |
+   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents/<agent_id>.json` — **one file per agent**, so the parallel executor fan-out this record exists for cannot lose an entry to a read-modify-write race |
    | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
    | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
    | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
