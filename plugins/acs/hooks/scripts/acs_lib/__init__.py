@@ -12,6 +12,7 @@ it always did. In dependency order:
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   gates          context resolution, the pre-hook gates, post-hook persistence
+  lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -19,7 +20,8 @@ that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import _common, settings, repo, lanes, state, metrics, setup_helpers, gates  # noqa: F401
+from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
+               gates, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -85,3 +87,12 @@ from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _cl
 # `acs_lib.subprocess.run` patches the shared module object every submodule sees.
 from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
     subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
+
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
+    ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
+    clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
+    in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
+    pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
+    result_document, stop, stop_counter_key, subagent_start, subagent_stop,
+    write_handoff_context, write_phase_snapshot)  # noqa: F401
+from .lifecycle import stop as stop_hook  # noqa: F401
