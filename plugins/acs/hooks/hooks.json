@@ -13,6 +13,54 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "matcher": "^acs:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.py\" subagent-start",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^acs:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.py\" subagent-stop",
+            "timeout": 25,
+            "statusMessage": "acs: validating the phase artifact"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.py\" stop",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.py\" pre-compact",
+            "timeout": 25,
+            "statusMessage": "acs: writing handoff context"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

@@ -9,7 +9,9 @@ places and each one degraded (or silently dropped records) its own way. Every
 assumption now lives here, once:
 
 1. **Hook envelope fields** -- the JSON a hook receives on stdin:
-   `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `tool_input`.
+   `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `tool_input`,
+   plus the subagent-lifecycle trio `agent_id`, `agent_type` and
+   `last_assistant_message` (SubagentStart/SubagentStop).
 2. **Transcript JSONL record shape** -- `timestamp`, `message.usage.*` (the
    four token classes), `message.model`.
 3. **Attribution fields** -- `attributionSkill` on main-session records,
@@ -60,6 +62,14 @@ HOOK_TOOL_INPUT = "tool_input"
 HOOK_WORKSPACE = "workspace"
 HOOK_WORKSPACE_DIR = "current_dir"
 
+#: SubagentStart / SubagentStop only. Undocumented like the rest of this
+#: section: the events are documented, these payload keys are not. They are
+#: named here rather than at their call sites so a rename upstream is one edit
+#: -- and so the blast radius of that rename is visible in one place.
+HOOK_AGENT_ID = "agent_id"
+HOOK_AGENT_TYPE = "agent_type"
+HOOK_LAST_ASSISTANT_MESSAGE = "last_assistant_message"
+
 
 def _dict(value):
     return value if isinstance(value, dict) else {}
@@ -87,6 +97,29 @@ def hook_event_name(payload):
 def hook_tool_input(payload):
     """The envelope's tool_input object, or {} when absent/malformed."""
     return _dict(_dict(payload).get(HOOK_TOOL_INPUT))
+
+
+def hook_agent_id(payload):
+    """The SubagentStart/SubagentStop agent id, or None.
+
+    Absence is a real case, not a malformed payload: a Claude Code that does
+    not send the field, and a subagent whose start event never reached us.
+    Callers must have an answer for None rather than assuming it."""
+    return _str_or_none(_dict(payload).get(HOOK_AGENT_ID))
+
+
+def hook_agent_type(payload):
+    """The SubagentStart/SubagentStop agent type (e.g. `acs:code-executor`)."""
+    return _str_or_none(_dict(payload).get(HOOK_AGENT_TYPE))
+
+
+def hook_last_assistant_message(payload):
+    """The subagent's final message text on SubagentStop, or None.
+
+    acs reads its `<result>`/`<handoff>` element out of this. If the key is
+    ever renamed upstream every acs subagent looks like it returned nothing,
+    so this accessor is the single place that assumption is written down."""
+    return _str_or_none(_dict(payload).get(HOOK_LAST_ASSISTANT_MESSAGE))
 
 
 #: Distinguishes "no default given" from an explicit default of None. Without
