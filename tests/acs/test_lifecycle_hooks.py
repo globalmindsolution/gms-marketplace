@@ -160,19 +160,23 @@ class SubagentStartTest(LifecycleCase):
         for agent_id in ("a-1", "a-2"):
             self.hook("subagent-start", self.payload(
                 agent_id=agent_id, agent_type="acs:code-executor"))
-        doc = lib.read_json(lib.active_agents_path(self.tdir_path))
-        self.assertEqual(sorted(doc["agents"]), ["a-1", "a-2"])
+        self.assertEqual(sorted(e["agent_id"] for e in lib.active_agents(self.tdir_path)),
+                         ["a-1", "a-2"])
+        # One file each: a shared document would make this a read-modify-write,
+        # and the fan-out is exactly when two of these hooks run at once.
+        self.assertNotEqual(lib.agent_record_path(self.tdir_path, "a-1"),
+                            lib.agent_record_path(self.tdir_path, "a-2"))
 
     def test_another_plugins_agent_is_not_recorded(self):
         out = self.hook("subagent-start", self.payload(
             agent_id="a-1", agent_type="Explore"))
         self.assertEqual(out.returncode, 0)
-        self.assertFalse(os.path.exists(lib.active_agents_path(self.tdir_path)))
+        self.assertEqual(lib.active_agents(self.tdir_path), [])
 
     def test_a_claude_code_without_agent_fields_is_a_no_op(self):
         out = self.hook("subagent-start", self.payload())
         self.assertEqual(out.returncode, 0)
-        self.assertFalse(os.path.exists(lib.active_agents_path(self.tdir_path)))
+        self.assertEqual(lib.active_agents(self.tdir_path), [])
 
 
 class SubagentStopTest(LifecycleCase):
@@ -262,8 +266,11 @@ class SubagentStopTest(LifecycleCase):
         payload = self.payload(agent_id="a-1", agent_type="acs:code-executor",
                                last_assistant_message="still nothing")
         codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
-        self.assertEqual(codes[0], 2)
-        self.assertEqual(codes[1:], [0, 0, 0])
+        # Refuses BLOCK_LIMIT times, then lets it through -- the number
+        # INTERNALS.md and the CHANGELOG both state. This hook used to compare
+        # with `>=` and so refused only ONCE, disagreeing with its sibling
+        # `stop` and with both documents.
+        self.assertEqual(codes, [2] * lib.BLOCK_LIMIT + [0] * (4 - lib.BLOCK_LIMIT))
         self.assertEqual(lib.BLOCK_LIMIT, 2)
 
     def test_the_cap_holds_without_a_subagent_start_record(self):
@@ -274,8 +281,31 @@ class SubagentStopTest(LifecycleCase):
         self.assertIsNone(lib.read_agent(self.tdir_path, "never-started"))
         payload = self.payload(agent_id="never-started", agent_type="acs:code-executor",
                                last_assistant_message="no xml at all")
-        codes = [self.hook("subagent-stop", payload).returncode for _ in range(3)]
-        self.assertEqual(codes, [2, 0, 0])
+        codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
+        self.assertEqual(codes, [2, 2, 0, 0])
+
+    def test_the_cap_holds_when_the_payload_carries_no_agent_id(self):
+        """The hole the cap actually had. `attempts` was hardcoded to 1 whenever
+        `agent_id` was absent, so it never reached BLOCK_LIMIT and the hook
+        refused EVERY time -- an unbounded refuse-retry loop, which is the hung
+        session the cap exists to prevent. subagent_start:348 explicitly
+        anticipates "a Claude Code without these fields", and `stop_hook_active`
+        (the runtime's own loop guard) is consulted nowhere, so nothing else
+        would have stopped it."""
+        payload = self.payload(agent_type="acs:code-executor",
+                               last_assistant_message="no xml at all")
+        payload.pop("agent_id", None)
+        codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
+        self.assertEqual(codes, [2, 2, 0, 0])
+
+    def test_the_counter_key_is_never_a_constant(self):
+        """The fallback key has to stay per-subagent. A constant would make
+        every refusal look like the first one for a DIFFERENT agent too."""
+        a = lib.stop_counter_key({"session_id": "s1", "agent_type": "acs:code-executor"})
+        b = lib.stop_counter_key({"session_id": "s2", "agent_type": "acs:code-executor"})
+        c = lib.stop_counter_key({"session_id": "s1", "agent_type": "acs:code-verifier"})
+        self.assertEqual(len({a, b, c}), 3)
+        self.assertEqual(lib.stop_counter_key({"agent_id": "a-1"}), "a-1")
 
     def test_the_give_up_message_names_the_validation_errors(self):
         """The coordinator has to record the failure, so the third refusal has
@@ -337,6 +367,42 @@ class StopTest(LifecycleCase):
     def test_an_in_progress_result_document_does_not_count(self):
         self.start_run("code")
         self.write_result("code", status="in_progress")
+        self.assertEqual(self.hook("stop", self.payload()).returncode, 2)
+
+    def test_an_open_clarification_is_a_pause_not_an_abandonment(self):
+        """The skill contract REQUIRES the coordinator to ask the user before
+        executing on an ambiguous spec (skills/code/SKILL.md:782-786), and a
+        turn has to end for the user to answer. Refusing here pushed the model
+        to invent a terminal status at exactly the boundary the contract says
+        not to guess at."""
+        self.start_run("code")
+        lib.write_json(os.path.join(self.tdir_path, "clarifications.json"),
+                       {"clarifications": [{"id": "C1", "status": "open",
+                                             "question": "which encoding?"}]})
+        self.assertEqual(self.hook("stop", self.payload()).returncode, 0)
+
+    def test_an_answered_clarification_is_not_a_pause(self):
+        """Only UNANSWERED questions excuse the stop; otherwise every run that
+        ever asked one would be exempt for the rest of its life."""
+        self.start_run("code")
+        lib.write_json(os.path.join(self.tdir_path, "clarifications.json"),
+                       {"clarifications": [{"id": "C1", "status": "answered",
+                                             "question": "which encoding?"}]})
+        self.assertEqual(self.hook("stop", self.payload()).returncode, 2)
+
+    def test_a_pause_does_not_spend_the_block_budget(self):
+        """The counter is keyed per ticket/skill and is only cleared when
+        nothing is in flight, so if pauses were counted, two legitimate ones
+        would exhaust the budget and a genuinely abandoned run later in the
+        SAME run would then stop unchallenged."""
+        self.start_run("code")
+        clar = os.path.join(self.tdir_path, "clarifications.json")
+        lib.write_json(clar, {"clarifications": [{"id": "C1", "status": "open",
+                                                   "question": "?"}]})
+        for _ in range(3):
+            self.assertEqual(self.hook("stop", self.payload()).returncode, 0)
+        lib.write_json(clar, {"clarifications": [{"id": "C1", "status": "answered",
+                                                   "question": "?"}]})
         self.assertEqual(self.hook("stop", self.payload()).returncode, 2)
 
     def test_no_run_in_progress_is_nothing_to_do(self):

@@ -286,8 +286,14 @@ def cmd_lane_deescalate(args):
 # ---------------------------------------------------------------------------
 
 def read_lines_arg(command, path):
-    """Lines from `path`, or from stdin when it is '-'."""
+    """Lines from `path`, or from stdin when it is '-'.
+
+    The isatty guard matches _paths_from below: without it, `--files-from -`
+    typed at a terminal blocks forever on a read that will never end, instead
+    of saying what it wanted."""
     if path == "-":
+        if sys.stdin.isatty():
+            die(command, "%s - expects one path per line on stdin" % command)
         return sys.stdin.read().splitlines()
     try:
         with open(path, encoding="utf-8") as handle:

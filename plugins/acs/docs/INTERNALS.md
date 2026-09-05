@@ -61,7 +61,7 @@ onto the plugin hooks API like this:
 
    | Event | Matcher | `dispatch.py` mode | What it does |
    |---|---|---|---|
-   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents.json`, keyed by `agent_id` so parallel executors of one type stay distinct |
+   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents/<agent_id>.json` — **one file per agent**, so the parallel executor fan-out this record exists for cannot lose an entry to a read-modify-write race |
    | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
    | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
    | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
@@ -88,12 +88,31 @@ onto the plugin hooks API like this:
    --task <k> --file …`** (additive, per task, written to
    `phases/<skill>/iter-<n>-filemap.json`); a write outside it is denied while
    an acs **executor** is running, with the executor told to return
-   `needs_input` for the file it needs. It fails open at every step where the
-   answer is not clearly "outside the map": not an acs partition, no executor
-   active (a planner, a verifier and the coordinator all write outside any task's
-   map legitimately), **no map declared** (a TRIVIAL lane runs no planner), or a
-   payload with no path — plus the partition itself, so the executor's own
-   report is always writable.
+   `needs_input` for the file it needs.
+
+   **Failure polarity is split, because the two questions carry opposite
+   risks.** Deciding *whether the guard applies* fails OPEN — not an acs
+   partition, no executor active (a planner, a verifier and the coordinator all
+   write outside any task's map legitimately), **no map declared** (a TRIVIAL
+   lane runs no planner), or a call that names no path. A bug there must not
+   deny every write on the machine. Deciding *whether this write is inside the
+   map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
+   read all deny, because a deny control that fails open is silently absent
+   while still installed — the failure ADR 0002 records for the other exit-2
+   `PreToolUse` hook. Exempt: this executor's own `phases/<skill>/` artifacts,
+   and only those. Explicitly NOT exempt, and denied outright: the guard's own
+   control inputs — the `active-agents/` record that arms it and any
+   `iter-*-filemap.json` — since an executor that can rewrite either can answer
+   the guard's own question.
+
+   **Known hole, stated rather than implied: `Bash` is not covered.** The
+   matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
+   `sed -i`, `python -c`, `cat >`, `tee`, `mv` or `git checkout --` is outside
+   this control entirely. That is not a small gap — an agent told to prefer
+   shell over the write tools would be almost invisible to the guard. Closing
+   it needs its own ticket (matching a path out of an arbitrary command line is
+   a different problem from reading one out of `tool_input`); what must not
+   happen is this list reading as exhaustive while omitting it.
 
    **What it checks is the UNION of the iteration's declared tasks, not the one
    task the running executor was given.** Per-task binding is not achievable

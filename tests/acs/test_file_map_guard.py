@@ -193,6 +193,84 @@ class GuardTest(FileMapGuardCase):
                                      "tool_input": {}})
         self.assertEqual(out.returncode, 0)
 
+    def test_the_guards_own_control_inputs_are_denied(self):
+        """B1: the exemption used to cover the whole workspace, and BOTH of the
+        guard's inputs live there -- the active-agents record that arms it and
+        the file map it checks against. One Write to either switched the guard
+        off from inside the very agent it constrains."""
+        self.declare("src/a.py")
+        self.spawn_executor()
+        record = lib.agent_record_path(self.tdir_path, "a-1")
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "tool_input": {"file_path": record}})
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("control input", out.stderr)
+
+        filemap = lib.filemap_path(self.tdir_path, "code", "1")
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "tool_input": {"file_path": filemap}})
+        self.assertEqual(out.returncode, 2, out.stderr)
+
+    def test_another_tickets_state_is_not_writable(self):
+        """The workspace-wide exemption also made every OTHER ticket's
+        code-state.json, plan-approval.json and counters.json writable by an
+        executor scoped to this one."""
+        self.declare("src/a.py")
+        self.spawn_executor()
+        sibling = os.path.join(os.path.dirname(self.tdir_path), "OTHER-9",
+                               "code-state.json")
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "tool_input": {"file_path": sibling}})
+        self.assertEqual(out.returncode, 2, out.stderr)
+
+    def test_a_stale_executor_record_stops_arming_the_guard(self):
+        """B2: nothing clears the record when a subagent dies mid-flight, so an
+        interrupted executor used to deny every later write in the partition
+        with no recovery short of hand-editing the partition."""
+        self.declare("src/a.py")
+        self.spawn_executor()
+        self.assertEqual(self.write_attempt("outside.py").returncode, 2)
+
+        record = lib.agent_record_path(self.tdir_path, "a-1")
+        entry = lib.read_json(record)
+        entry["started_at"] = "2020-01-01T00:00:00+00:00"
+        lib.write_json(record, entry)
+        self.assertEqual(self.write_attempt("outside.py").returncode, 0)
+
+    def test_another_sessions_executor_does_not_arm_this_one(self):
+        """A record carrying a different session_id cannot be describing a
+        subagent writing in THIS session."""
+        self.declare("src/a.py")
+        out = self.hook("subagent-start", {"cwd": self.repo, "agent_id": "a-9",
+                                           "agent_type": "acs:code-executor",
+                                           "session_id": "other-session"})
+        self.assertEqual(out.returncode, 0, out.stderr)
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "session_id": "this-session",
+                                     "tool_input": {"file_path": "outside.py"}})
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+    def test_a_declared_directory_is_not_a_tunnel_out_of_the_repo(self):
+        """B4: interior `..` segments survived normalisation, so the
+        anti-traversal check only ever caught a LEADING escape."""
+        self.declare("docs/")
+        self.spawn_executor()
+        self.assertFalse(lib.path_in_filemap("docs/../../../etc/passwd",
+                                             {"1": ["docs/"]}))
+        self.assertTrue(lib.path_in_filemap("docs/api/x.md", {"1": ["docs/"]}))
+
+    def test_an_unreadable_tool_input_is_denied_while_an_executor_runs(self):
+        """"No path named" and "a payload shape the guard cannot read" are
+        different answers. The first writes nothing for the map to cover; the
+        second is a write this guard could not check, and an unverifiable write
+        is exactly what a deny control exists to stop."""
+        self.declare("src/a.py")
+        self.spawn_executor()
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "tool_input": "file_path=evil.py"})
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("cannot be checked", out.stderr)
+
     def test_the_executors_own_phase_artifact_is_always_writable(self):
         """The charter says "plus your execute report", and that report lives in
         the partition — inside the workspace, never in the file map."""
@@ -215,19 +293,40 @@ class GuardTest(FileMapGuardCase):
         out = self.hook("file-map", {})
         self.assertEqual(out.returncode, 0, out.stderr)
 
-    def test_a_guard_bug_never_blocks_a_write(self):
-        """The guard rides on the lifecycle dispatcher, which fails OPEN. A
-        bookkeeping bug that stops an executor writing costs more than the
-        bookkeeping."""
+    def _dispatch_module(self):
         import importlib.util
-        from unittest import mock
         spec = importlib.util.spec_from_file_location(
             "dispatch_guard_under_test", os.path.join(SCRIPTS, "dispatch.py"))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        with mock.patch.object(module.acs_lib, "file_map_guard", side_effect=RuntimeError("x")):
+        return module
+
+    def test_a_guard_bug_denies_rather_than_waving_the_write_through(self):
+        """A DENY control that fails open is not a control: it is silently
+        absent while still installed, which is the exact failure ADR 0002
+        records for the other exit-2 PreToolUse hook. So an error the guard
+        cannot resolve blocks and says why."""
+        from unittest import mock
+        module = self._dispatch_module()
+        with mock.patch.object(module.acs_lib, "file_map_guard",
+                               side_effect=RuntimeError("x")):
             with mock.patch("sys.stderr"):
-                self.assertEqual(module.run_lifecycle("file-map", {}), 0)
+                self.assertEqual(module.run_file_map_guard({}), 2)
+
+    def test_the_guard_is_not_on_the_fail_open_lifecycle_path(self):
+        """The four bookkeeping hooks fail OPEN and must keep doing so; the
+        deny control must not be reachable through that runner at all, or its
+        polarity silently reverts."""
+        module = self._dispatch_module()
+        self.assertNotIn("file-map", module.LIFECYCLE_MODES)
+        self.assertEqual(module.FILE_MAP_MODE, "file-map")
+
+    def test_deciding_scope_still_fails_open(self):
+        """Only the DECISION half fails closed. A bug in "does this apply
+        here?" must not deny every write on the machine, so an unreadable
+        payload with no acs partition is still allowed."""
+        module = self._dispatch_module()
+        self.assertEqual(module.run_file_map_guard({"tool_name": "Write"}), 0)
 
 
 class FilemapCliTest(FileMapGuardCase):
