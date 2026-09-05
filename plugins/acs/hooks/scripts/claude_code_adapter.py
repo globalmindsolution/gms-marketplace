@@ -352,9 +352,17 @@ def claude_version(cache_path=None, ttl_seconds=CLAUDE_VERSION_TTL_SECONDS):
         # behind the old `elif` the memo was skipped whenever cache_path was
         # given, so an unwritable cache re-spawned the subprocess on every call,
         # on statusline.main's pre-print path (measured: 3 calls, 3 spawns).
-        if not _version_cache_is_stale(cache_path, ttl_seconds) and "version" in _VERSION_MEMO:
+        # ...and the memo may only answer with a SUCCESSFUL probe. A failed one
+        # writes no cache file, so `not stale` is trivially true for the absent
+        # file and the memoised None was returned for the life of the process:
+        # `claude` appearing on PATH a moment later never took effect, which is
+        # the opposite of the "a failure is no longer cached" this change
+        # claimed. Re-probing on a failure is cheap; being permanently wrong is
+        # not.
+        if (not _version_cache_is_stale(cache_path, ttl_seconds)
+                and _VERSION_MEMO.get("version") is not None):
             return _VERSION_MEMO["version"]
-    elif "version" in _VERSION_MEMO:
+    elif _VERSION_MEMO.get("version") is not None:
         return _VERSION_MEMO["version"]
 
     version = _probe_claude_version()

@@ -16,6 +16,35 @@ the notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Review follow-up on MAR-521's CLI defects.** Three corrections and the
+  coverage the original change lacked. (1) A failed `claude --version` probe
+  was negatively cached for the life of the process: the memo was consulted
+  whenever the disk cache was not stale, and a failed probe writes no cache
+  file, so `not stale` was trivially true for the absent file and the
+  memoised `None` came back forever — `claude` appearing on PATH a moment
+  later never took effect, the opposite of the "a failure is no longer cached"
+  the change claimed. The memo may now only answer with a successful probe.
+  (2) `/acs:code`'s stakes-recommend recipe wrote `<default-branch>` inside an
+  executable bash block, which bash parses as REDIRECTIONS: that command was
+  skipped, the other two still emitted, and the pipeline still exited 0 — so
+  `stakes recommend` saw a partial path set and could return `normal` where it
+  owed `high`, the exact silent under-trigger the recipe exists to prevent.
+  The anchor is now a shell variable with `:?`, so an unset value fails loudly.
+  (3) The headline caching fix had no test at all, and
+  `test_gate_does_not_touch_the_session_marker` passed against the defect it
+  named, because the root guard and `record_marker=False` shadow each other
+  whenever a marker already exists; the isolating case (no marker on disk) is
+  now covered, along with failed-probe recovery, an unwritable cache, and the
+  temp-file cleanup.
+  **Correction to MAR-521's own migration note:** it says "none", but
+  `ticket save` is now a MERGE (a caller can no longer remove a field by
+  omitting it) and the unknown-ticket refusal changed from "no active
+  partition for X" to "no partition for X", which breaks any external caller
+  matching that string. The `acs-cost-metering` flow doc is also corrected:
+  the marker write is no longer unconditional.
+
 - **The five undocumented Claude Code interfaces measurement rests on are isolated behind one adapter** (MAR-520, completing epic MAR-500/E0). Hook-envelope fields, the transcript JSONL record shape, `attributionSkill`/`attributionAgent`, the subagent transcript directory layout, and the statusLine payload keys were spelled out independently in `usage_reader.py`, `cost_sampler.py`, `acs_lib.py`, `statusline.py` and `subagent-statusline.py`; an upstream rename therefore broke measurement in five places, each degrading its own way. They now live once in `claude_code_adapter.py`, whose accessors are **total** — a malformed, absent, or wrong-typed value yields `None` or a documented default, never an exception, so callers measure instead of validating Claude Code's output. Degradation goes through a **single switch**, `unavailable(reason)`, which logs the reason (JSONL to `$ACS_DEGRADATION_LOG`, rotated at 256 KiB; stderr only under `$ACS_DEBUG`, so a status line stays quiet) and returns it — every `"unavailable"` in a metrics artifact now traces to one call site. Each cost sample additionally records **`claude_version`** (cached with a 24-hour TTL beside the sample log, probe bounded and failure-tolerant), so a future payload-shape change can be dated against the build that introduced it. `tests/acs/test_claude_code_adapter.py` pins the eight distinctive interface literals as adapter-exclusive by AST inspection, so the drift cannot silently return; ADR 0082 carries an append-only amendment. **Migration:** none — no settings key, schema, state-file shape, or artifact rename. One visible behavior change: a `statusLine` payload that is valid JSON but not an object now renders the ordinary fallback line (model + cwd basename) instead of `statusline.main`'s last-ditch `Claude` literal, which still stands for anything that genuinely raises.
 
 - **`acs.py` is the single deterministic entry point** (MAR-521, first child of epic MAR-501/E1). ADR 0001's rule is that a skill reaches Python through a CLI; the SKILL.md files broke it in one direction — they named `acs_lib` functions (`derive_lane`, `guard_axes`, `escalate_lane`, `save_ticket`, `update_pipeline`, `update_index`, `record_escalation_event`, `recommend_stakes`, `confirm_deescalation`) with no command to reach them, so a coordinator improvised heredoc Python. Each is now a subcommand that takes flags and prints one JSON object: `context`, `gate`, `lane derive|rank|escalate|apply|deescalate`, `stakes recommend|guard`, `ticket show|save`, `phase validate`, `slug`, `fanout batches`, `doctor`. **The persistence sequence is one command, not four.** `lane apply` performs guard → escalate → `save_ticket` → `update_pipeline` → `update_index` → `record_escalation_event` in exactly that order, so a caller cannot half-perform it; when the audit write fails the axes are already durable and the command says so and exits 2, which is the detectable state the ordering exists to produce. `ticket save` refuses to move `size`, `stakes` or `lane` — those go through `lane apply` / `lane deescalate`, which carry the guard and the event. `start`, `finish` and `plan check` forward argv to `skill-start.py`, `pipeline-step.py` and `plan-approval.py`, which stay the implementation and stay callable directly, so no behaviour was reimplemented and none could drift. **Migration:** none — every existing script, flag and exit code is unchanged; `acs.py` is an addition.

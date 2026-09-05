@@ -27,7 +27,7 @@ sequenceDiagram
     CC->>Disp: PreToolUse(Skill) envelope (session_id, transcript_path, cwd, tool_input.skill)
     Disp->>Pre: forward raw envelope, HOOKED_SKILLS only
     Pre->>Pre: build_context, GATES[skill] check
-    Pre->>Pre: record_session_marker(ctx, payload), own try/except Exception: pass
+    Pre->>Pre: record_session_marker(ctx, payload) -- only when record_marker and the root guard allow
     Pre->>WS: write sessions/<checkout_id>-session.json
     Pre-->>Disp: exit 0 (pass) or exit 2 (blocked) -- the marker write never affects this exit code
     Coord->>Start: skill-start.py --skill <skill>, coordinator's first action
@@ -124,11 +124,19 @@ function of workspace JSON already written by the measure/persist path above.
 
 ### Measure/persist — correlation capture (pre-hook)
 
-`record_session_marker` persists exactly the fields present on the
+`record_session_marker` persists the fields present on the
 `PreToolUse(Skill)` envelope — `session_id`, `transcript_path`, `cwd`,
 `checkout_id` (from `build_context`), `hook_event_name`, and the skill name
-read from `tool_input.skill` — never a constructed or guessed value; a
-missing field is written as `null`. The marker call sits **between**
+read from `tool_input.skill` — never a constructed or guessed value.
+
+**Two conditions gate it, and both were added after this diagram was drawn.**
+`run_pre_payload` takes `record_marker`, which `acs gate` passes as `False`:
+`gate` answers "would this pass?" and is not a `PreToolUse` event, so routing
+it through the hook path used to rewrite the marker with a null `session_id`
+and cost the NEXT run its attribution. And the root guard declines to
+overwrite a marker that already carries a `session_id` with a payload that
+does not. So a missing field is written as `null` only when the write happens
+at all; where either condition declines, nothing is written. The marker call sits **between**
 `build_context` and the skill's own `GATES[skill]` check inside `run_pre`,
 wrapped in its own `try/except Exception: pass`, so a bug in the marker path
 can never turn `run_pre`'s outer fail-closed handler (exit 2) into a blocked

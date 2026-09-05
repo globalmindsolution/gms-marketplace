@@ -549,6 +549,24 @@ class TestReviewFixes(AcsCliCase):
         self.assertEqual(lib.read_json(marker_path), real,
                          "gate must leave the real session marker untouched")
 
+    def test_gate_creates_no_session_marker_where_none_existed(self):
+        """The case record_marker=False actually changes, and the one the test
+        above cannot see.
+
+        Those two fixes shadow each other: with a marker already on disk, the
+        root guard alone keeps it byte-identical, so reverting record_marker
+        leaves the assertion above still passing. Only an ABSENT marker
+        isolates the flag -- the old path wrote a fresh all-null one there,
+        which is what cost the next run its attribution."""
+        ctx = lib.build_context(self.repo)
+        marker_path = lib.session_marker_path(self.ws, "acme-shop", ctx["checkout_id"])
+        if os.path.exists(marker_path):
+            os.unlink(marker_path)
+
+        self.ok_json(self.acs("gate", "--skill", "create-prd"))
+        self.assertFalse(os.path.exists(marker_path),
+                         "gate answers a question; it must not mint a marker")
+
     def test_ticket_save_is_a_patch_not_a_replacement(self):
         ticket = self.new_ticket("Add a widget", "task")
         before = lib.load_ticket(self.tdir(ticket))
@@ -586,6 +604,8 @@ class TestReviewFixes(AcsCliCase):
                                     "--proposed-stakes", "high", "--trigger", "b"))
         self.assertIsNone(out["size"])
         self.assertNotIn("size", lib.load_ticket(tpath))
+        self.assertTrue(out["escalated"], "the fixture must actually escalate, "
+                        "or the assertions below silently stop running")
         if out["escalated"]:
             event = lib.last_run(lib.load_state(tpath, "code"))["escalations"][-1]
             self.assertIsNone(event["to_size"])

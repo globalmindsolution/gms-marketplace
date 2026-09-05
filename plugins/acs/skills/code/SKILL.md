@@ -210,7 +210,11 @@ settings)` (`acs_lib/lanes.py`) over the iteration's changed file set — as
 set:
 
 ```bash
-{ git diff --name-only <default-branch>...HEAD
+# Bind the anchor first: a bare <default-branch> here is parsed by bash as a
+# REDIRECTION, so that command is skipped, the other two still emit, and the
+# pipeline still exits 0 -- a partial path set that can under-trigger.
+default_branch="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+{ git diff --name-only "${default_branch:?set it first}"...HEAD
   git diff --name-only HEAD
   git ls-files --others --exclude-standard; } \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" stakes recommend --paths-from -
