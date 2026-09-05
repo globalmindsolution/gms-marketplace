@@ -249,13 +249,31 @@ def main():
                     "skill-start.py --skill %s --allocate --seed-next <n>" % args.skill
                 ) + "\n")
                 sys.exit(2)
+            except lib.GuardTimeout as exc:
+                # No id was minted and no partition exists: nothing is durable,
+                # so this is a clean refusal. It reached the caller as a
+                # traceback and exit 1, which reads as a crash rather than as
+                # the blocked skill the contract documents.
+                sys.stderr.write(
+                    "acs skill-start: %s\nNo ticket id was minted and no state "
+                    "was written; re-run once the other writer finishes.\n" % exc)
+                sys.exit(2)
             tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
             os.makedirs(tdir, exist_ok=True)
             title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
             ttype = "task" if args.skill in lib.DELIVERY_TICKET_SKILLS else args.ttype
             ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
             lib.save_ticket(tdir, ticket)
-            lib.update_index(workspace, repo_id, ticket, archived=False)
+            try:
+                lib.update_index(workspace, repo_id, ticket, archived=False)
+            except lib.GuardTimeout as exc:
+                sys.stderr.write(
+                    "acs skill-start: %s\nThe id %s IS minted and its partition "
+                    "written, but tickets-index.json has no entry for it yet; the "
+                    "entry is rebuilt from ticket.json by the next write to the "
+                    "index, and re-running skill-start resumes this same id.\n"
+                    % (exc, ticket_id))
+                sys.exit(2)
     else:
         ticket_id, source = lib.resolve_ticket_id(cwd, ctx["settings"], workspace, repo_id,
                                                   explicit=args.ticket, args_text=args.args)
@@ -291,6 +309,27 @@ def main():
         "updated_at": lib.now_iso(),
     })
 
+    try:
+        _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
+                   session_marker)
+    except lib.GuardTimeout as exc:
+        # The lock is held by THIS process and the skill is not starting, so
+        # holding on would strand it under a pid that is about to exit -- and a
+        # cross-host lock stranded that way does not read as stale for 24h.
+        lib.release_lock(tdir, cwd)
+        sys.stderr.write(
+            "acs skill-start: %s\nThe skill did NOT start and the ticket lock is "
+            "released; re-run once the other writer finishes.\n" % exc)
+        sys.exit(2)
+
+
+def _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
+               session_marker):
+    """Everything the lock covers: the run entry, the pipeline row, the status
+    flips, and the payload the skill starts from.
+
+    Split out so the caller can release the lock on a refused repo-level write.
+    Every `return` below is the successful end of the hook."""
     # Reconcile / handoff detection BEFORE appending the new run entry.
     prior_status = lib.last_run_status(tdir, args.skill)
     prior_state = lib.load_state(tdir, args.skill, ticket_id)

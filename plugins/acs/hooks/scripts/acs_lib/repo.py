@@ -11,6 +11,8 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
@@ -284,38 +286,173 @@ def index_path(workspace, repo_id):
     return os.path.join(repo_dir(workspace, repo_id), "tickets-index.json")
 
 
-def _guarded_repo_write(workspace, repo_id, guard_name, fn):
-    """D5.1(a): run fn (a repo_id-keyed read-modify-write) under the same
-    O_EXCL spin-lock pattern as allocate_ticket_id's counters guard (bounded
-    spin, same 200 x 0.05s budget). Mirrors that pre-existing pattern's
-    fail-open fallback: if a live foreign guard is never released within the
-    budget, the loop gives up (acquired stays False) and still runs fn()
-    unguarded, leaving the foreign guard file untouched -- a best-effort lock,
-    not an absolute guarantee against a dropped concurrent update."""
-    rdir = repo_dir(workspace, repo_id)
+#: The repo-level write guard's bounded spin, unchanged from the pattern this
+#: replaces: 200 attempts 0.05s apart, a 10-second budget.
+GUARD_ATTEMPTS = 200
+GUARD_INTERVAL = 0.05
+#: Overrides GUARD_ATTEMPTS. Now that exhaustion REFUSES the write rather than
+#: performing it unguarded, the budget is the difference between waiting out a
+#: slow writer and failing a phase, so it is operable: raise it for a workspace
+#: on slow shared storage, and drop it to make a test's refusal arm immediate.
+GUARD_ATTEMPTS_ENV = "ACS_GUARD_ATTEMPTS"
+#: The FLOOR for treating a guard file as abandoned by a crashed writer. The
+#: effective threshold is guard_stale_seconds(), which never lets a reclaim
+#: happen before the waiter's own budget would have expired -- see there.
+GUARD_STALE_SECONDS = 30
+
+
+class GuardTimeout(GateError):
+    """A repo-level write guard was held by another writer for the whole budget.
+
+    MAR-530: until this ticket, exhausting the spin was SILENT. `acquired`
+    stayed False and the read-modify-write ran anyway, so the guard covered
+    every case except the one it exists for -- a concurrent writer holding it
+    -- and the update it was meant to protect could be clobbered with nothing
+    recording that it happened. Exhaustion now raises: the caller reports a
+    refused write, which is recoverable, instead of performing an unguarded one
+    whose loss is invisible.
+
+    A GateError subclass, so the pre-hook's existing handler reports it as a
+    blocked skill (exit 2) rather than a traceback.
+    """
+
+
+#: Ceiling on $ACS_GUARD_ATTEMPTS. The pre-hook is bounded at 25s by Claude
+#: Code, so a budget past that cannot be waited out there anyway; past this an
+#: operator has configured a hang, not a wait.
+GUARD_ATTEMPTS_MAX = 6000
+
+
+def guard_attempts():
+    """GUARD_ATTEMPTS, or a positive integer from $ACS_GUARD_ATTEMPTS.
+
+    Read per call, not at import: a hook process is short-lived, and a test or
+    an operator setting the variable should not depend on import order. A
+    missing, non-numeric or non-positive value falls back to the default rather
+    than producing a zero-attempt guard that refuses everything, and a value
+    past GUARD_ATTEMPTS_MAX is clamped: only the lower bound used to be
+    checked, so `ACS_GUARD_ATTEMPTS=20000` bought a 17-minute spin inside a
+    hook Claude Code kills at 25 seconds."""
+    try:
+        override = int(os.environ.get(GUARD_ATTEMPTS_ENV, ""))
+    except ValueError:
+        return GUARD_ATTEMPTS
+    if override <= 0:
+        return GUARD_ATTEMPTS
+    return min(override, GUARD_ATTEMPTS_MAX)
+
+
+def guard_stale_seconds(attempts, interval):
+    """How old a guard file must be before a waiter may reclaim it.
+
+    MAR-530 made the budget operable (`$ACS_GUARD_ATTEMPTS`) but left this
+    threshold fixed at 30s -- so raising the budget for slow shared storage
+    made things WORSE, not better: with a 100-second budget every waiter
+    outlived the threshold and stole the guard from a live holder, putting two
+    writers inside the body at once and restoring exactly the lost update this
+    ticket exists to close. The threshold now moves with the budget, and by
+    twice it, so a reclaim can never happen while any writer configured the
+    same way could still legitimately be holding on."""
+    return max(GUARD_STALE_SECONDS, 2 * attempts * interval)
+
+
+def _guard_owner(pid=None):
+    """The identity written into a guard file, so its holder is knowable."""
+    return {"pid": os.getpid() if pid is None else pid,
+            "host": socket.gethostname(), "at": now_iso()}
+
+
+def _read_guard_owner(guard):
+    doc = read_json(guard)
+    return doc if isinstance(doc, dict) else None
+
+
+def _guard_holder_is_alive(owner):
+    """True when the guard's recorded holder is a process still running HERE.
+
+    An age threshold alone cannot tell a crashed writer from a slow one, so a
+    long-but-live hold was reclaimed as if it had crashed. On this host that is
+    answerable exactly: signal 0 probes the pid without touching it. A holder
+    on another host is unknowable, so it falls back to the age threshold --
+    which is why that threshold now derives from the budget."""
+    if not owner or owner.get("host") != socket.gethostname():
+        return False
+    try:
+        pid = int(owner.get("pid"))
+    except (TypeError, ValueError):
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # EPERM: a process we may not signal is still a process
+    return True
+
+
+@contextmanager
+def repo_guard(rdir, guard_name, attempts=None, interval=GUARD_INTERVAL):
+    """Hold `<rdir>/<guard_name>` as an O_EXCL guard for the body (D5.1(a)).
+
+    The spin is bounded (`attempts`, defaulting to guard_attempts(), x
+    `interval`), and a guard file older than
+    GUARD_STALE_SECONDS is treated as abandoned by a crashed writer and removed.
+    If the guard is still held when the budget runs out this raises
+    GuardTimeout WITHOUT running the body and WITHOUT touching the foreign
+    guard file -- refusing the write is the whole point (see GuardTimeout).
+
+    The guard is a file, not an OS lock: it protects concurrent acs writers on
+    one filesystem, not against a writer that ignores it.
+    """
+    attempts = guard_attempts() if attempts is None else attempts
+    stale_after = guard_stale_seconds(attempts, interval)
     os.makedirs(rdir, exist_ok=True)
     guard = os.path.join(rdir, guard_name)
+    mine = _guard_owner()
     acquired = False
-    for _ in range(200):
+    for _ in range(attempts):
         try:
             fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
+            try:
+                os.write(fd, json.dumps(mine).encode("utf-8"))
+            finally:
+                os.close(fd)
             acquired = True
             break
         except FileExistsError:
             try:
-                if os.path.getmtime(guard) < datetime.now(timezone.utc).timestamp() - 30:
-                    os.unlink(guard)  # stale guard from a crashed writer
+                age = datetime.now(timezone.utc).timestamp() - os.path.getmtime(guard)
+                if age > stale_after and not _guard_holder_is_alive(_read_guard_owner(guard)):
+                    os.unlink(guard)  # abandoned by a writer that crashed
                     continue
             except OSError:
                 pass
-            import time
-            time.sleep(0.05)
+            time.sleep(interval)
+    if not acquired:
+        raise GuardTimeout(
+            "could not acquire %s within %.1fs -- another writer is holding it. "
+            "The write was REFUSED, not performed unguarded: retry once that writer "
+            "finishes. A guard left by a crashed writer is reclaimed automatically "
+            "after %.0fs, so deleting one by hand is never required."
+            % (guard, attempts * interval, stale_after))
     try:
-        return fn()
+        yield guard
     finally:
-        if acquired:
-            try:
+        # Unlink only OUR guard. A waiter that reclaimed this file as abandoned
+        # now owns a NEW guard at the same path; unlinking blindly would strip
+        # the guard off a live writer -- the same double-entry the reclaim rule
+        # above exists to prevent, arriving from the other direction.
+        try:
+            if _read_guard_owner(guard) == mine:
                 os.unlink(guard)
-            except OSError:
-                pass
+        except OSError:
+            pass
+
+
+def _guarded_repo_write(workspace, repo_id, guard_name, fn):
+    """D5.1(a): run fn (a repo_id-keyed read-modify-write) while holding the
+    repo-level guard `guard_name`. Raises GuardTimeout instead of running fn
+    when the guard cannot be acquired within the budget -- MAR-530 replaced the
+    fail-open fallback this and allocate_ticket_id both used."""
+    with repo_guard(repo_dir(workspace, repo_id), guard_name):
+        return fn()

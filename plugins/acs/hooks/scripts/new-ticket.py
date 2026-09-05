@@ -101,6 +101,15 @@ def main():
     except lib.ReconciliationRequired as exc:
         sys.stderr.write("acs new-ticket: " + exc.render("new-ticket.py --seed-next <n>") + "\n")
         sys.exit(2)
+    except lib.GuardTimeout as exc:
+        # A refused id allocation is the CLEAN failure: nothing is minted and
+        # nothing is written, so a retry is safe and complete. It reached the
+        # operator as a traceback and exit 1 -- which reads as a crash, and
+        # which the CLI contract (`acs <command>: <reason>`, exit 2) forbids.
+        sys.stderr.write(
+            "acs new-ticket: %s\nNo ticket id was minted and no partition was "
+            "written; re-run once the other writer finishes.\n" % exc)
+        sys.exit(2)
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)
 
@@ -123,7 +132,15 @@ def main():
         due_date=args.due_date,
     )
     lib.save_ticket(tdir, ticket)
-    lib.update_index(workspace, repo_id, ticket, archived=False)
+    try:
+        lib.update_index(workspace, repo_id, ticket, archived=False)
+    except lib.GuardTimeout as exc:
+        sys.stderr.write(
+            "acs new-ticket: %s\nThe ticket %s IS created and its partition "
+            "written, but tickets-index.json has no entry for it yet; the entry "
+            "is rebuilt from ticket.json by the next write to the index. Do NOT "
+            "re-run -- a second call mints a second id.\n" % (exc, ticket_id))
+        sys.exit(2)
 
     # Children of an epic (and remote imports finalized here) do not run
     # /create-ticket themselves — their pipeline starts at /acs:code, which
@@ -153,7 +170,16 @@ def main():
         lib.save_ticket(parent_dir, parent_ticket)
         lib.update_index(workspace, repo_id, parent_ticket)
 
-    lib.update_metrics(workspace, repo_id)
+    try:
+        lib.update_metrics(workspace, repo_id)
+    except lib.GuardTimeout as exc:
+        print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
+                          "metrics_updated": False, "error": str(exc)}, indent=2))
+        sys.stderr.write(
+            "acs new-ticket: %s\nThe ticket %s IS created and its partition "
+            "written; only metrics.json was not updated. Do NOT re-run -- a "
+            "second call mints a second id.\n" % (exc, ticket_id))
+        sys.exit(2)
     print(json.dumps({"ticket_id": ticket_id, "partition": tdir}, indent=2))
 
 
