@@ -9,8 +9,6 @@ calls once per ticket.
 import glob
 import json
 import os
-import re
-import sys
 import acs_lib  # noqa: E402
 
 from metrics_aggregate_common import _ITER_RE, _elapsed_seconds, _is_number, _read_text, _safe_avg, _to_int

@@ -8,11 +8,6 @@ the splitting ticket names.
 """
 
 
-import glob
-import json
-import os
-import re
-import sys
 import acs_lib  # noqa: E402
 
 from metrics_aggregate_common import _share_pct

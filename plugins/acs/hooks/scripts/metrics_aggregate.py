@@ -68,6 +68,12 @@ import json
 import os
 import re
 import sys
+# The scripts dir must be on sys.path BEFORE the first import that needs
+# it -- acs_lib and every sibling below. Inverting this (the insert after
+# the imports) leaves the statement dead and makes loading this file by
+# absolute path raise ModuleNotFoundError; every current caller happens to
+# have the dir on sys.path already, which is why CI stayed green.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib  # noqa: E402
 
 # The module split (MAR-531) is invisible to every caller: this file stays the
@@ -92,8 +98,6 @@ from metrics_aggregate_rows import (_accumulate_burn, _accumulate_funnel,
     _panel4_row, _panel5_row, _panel7, _panel7_row,
     _rework_count, _test_runs_source)  # noqa: F401
 
-# Reuse acs_lib (shared scripts dir) the same way the other hooks/scripts do.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def aggregate(workspace, repo_id, now=None):

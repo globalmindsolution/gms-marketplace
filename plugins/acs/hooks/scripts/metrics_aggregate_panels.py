@@ -6,11 +6,6 @@ already-loaded ticket rows into one panel value. None of them reads the disk.
 """
 
 
-import glob
-import json
-import os
-import re
-import sys
 import acs_lib  # noqa: E402
 
 from metrics_aggregate_common import _is_number, _parse_due_date, _safe_avg

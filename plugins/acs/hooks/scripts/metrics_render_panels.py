@@ -7,12 +7,6 @@ decision about how that panel reads, not two.
 """
 
 
-import argparse
-import html as _html
-import json
-import os
-import sys
-import acs_lib  # noqa: E402
 
 from metrics_render_common import NO_DATA, _bar, _bar_pct, _esc, _fmt_money, _html_bar_cell, _humanize_ms, _humanize_seconds, _is_no_data
 from metrics_render_terminal import _term_no_data_block
@@ -23,7 +17,7 @@ from metrics_render_html import _html_no_data
 # ---------------------------------------------------------------------------
 # MAR-14 spec 02 — New per-panel renderers for the five spec-01 keys
 # All values from panel dicts pass through _esc() before emission (NFR Security).
-# No new imports; no clock reads; all helpers reused from above.
+# No clock reads and no I/O: every helper is imported at the top of this file or passed in.
 # ---------------------------------------------------------------------------
 
 def _term_render_delivery_summary(panel):

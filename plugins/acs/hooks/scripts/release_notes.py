@@ -46,6 +46,9 @@ import tempfile
 # re-exports the whole pre-split surface -- private helpers included, because
 # the tests reach them by name. Import from the module that OWNS a name when
 # you add code; import from here only to keep an existing caller working.
+# The scripts dir must be on sys.path BEFORE the sibling imports below,
+# or loading this file by absolute path raises ModuleNotFoundError.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from release_notes_config import (ReleaseNotesError, _distinct_manifest_files,
     _find_selector_match, _is_list_index,
     _pointer_navigate_to_container, _pointer_segments,

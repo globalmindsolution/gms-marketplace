@@ -7,11 +7,7 @@ never an exception, so the aggregator degrades a cell instead of a run.
 """
 
 
-import glob
-import json
-import os
 import re
-import sys
 import acs_lib  # noqa: E402
 
 

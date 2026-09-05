@@ -6,11 +6,6 @@ verbatim. Every value from a panel dict passes through _esc().
 """
 
 
-import argparse
-import html as _html
-import json
-import os
-import sys
 import acs_lib  # noqa: E402
 
 from metrics_render_common import NO_DATA, PANEL_KEYS, PANEL_TITLES, ROLE_ORDER, UNAVAILABLE, _average_cells, _counts_items, _esc, _fmt_money, _fmt_pct, _html_bar_cell, _humanize_ms, _humanize_seconds, _is_no_data, _meta_lines, _panel6_extra_roles, _panel_max

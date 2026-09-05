@@ -7,14 +7,8 @@ This is the ticket-enumeration seam the splitting ticket names.
 """
 
 
-import argparse
-import datetime
-import json
 import os
 import re
-import subprocess
-import sys
-import tempfile
 
 from release_notes_config import _read_json_or_none
 from release_notes_git import _parse_iso, _run_git

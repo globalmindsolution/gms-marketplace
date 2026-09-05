@@ -2,19 +2,16 @@
 (extracted from release_notes.py by MAR-531).
 
 Every shell-out lives here: tag lookup and creation time, the release branch,
-and `gh pr list`. Isolating them is what lets the enumeration and rendering
-above be exercised from recorded output instead of a live repo.
+and `gh pr list`. Isolating them is what lets the enumeration
+(`release_notes_tickets`) and the rendering be exercised from recorded output
+instead of a live repo.
 """
 
 
-import argparse
 import datetime
 import json
-import os
 import re
 import subprocess
-import sys
-import tempfile
 
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")

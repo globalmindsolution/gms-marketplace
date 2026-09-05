@@ -48,6 +48,12 @@ import html as _html
 import json
 import os
 import sys
+# The scripts dir must be on sys.path BEFORE the first import that needs
+# it -- acs_lib and every sibling below. Inverting this (the insert after
+# the imports) leaves the statement dead and makes loading this file by
+# absolute path raise ModuleNotFoundError; every current caller happens to
+# have the dir on sys.path already, which is why CI stayed green.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib  # noqa: E402
 
 # The module split (MAR-531) is invisible to every caller: this file stays the
@@ -86,8 +92,6 @@ from metrics_render_tables import (_MODEL_ROW_FMT, _ROLE_ROW_FMT, _SKILL_ROW_FMT
     _term_render_usage_by_ticket, _term_role_table,
     _term_skill_table)  # noqa: F401
 
-# Reuse acs_lib (shared scripts dir) the same way the other hooks/scripts do.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +99,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # ---------------------------------------------------------------------------
 
 # PM-view dispatch maps: existing panel keys reuse _TERMINAL_PANELS/_HTML_PANELS;
-# new panel keys map to the new renderers defined above.
+# new panel keys map to the renderers imported from metrics_render_panels above.
 _PM_TERMINAL_PANELS = {
     "delivery_summary": _term_render_delivery_summary,
     "1": _term_panel1,

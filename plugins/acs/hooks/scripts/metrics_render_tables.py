@@ -7,12 +7,6 @@ sit together rather than inside the surface modules.
 """
 
 
-import argparse
-import html as _html
-import json
-import os
-import sys
-import acs_lib  # noqa: E402
 
 from metrics_render_common import NO_DATA, UNAVAILABLE, _esc, _fmt_money, _fmt_pct, _humanize_ms, _humanize_seconds, _is_no_data, _ticket_api_duration_str
 from metrics_render_terminal import _term_no_data_block

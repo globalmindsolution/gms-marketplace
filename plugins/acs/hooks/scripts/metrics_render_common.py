@@ -7,12 +7,7 @@ byte-deterministic for identical input.
 """
 
 
-import argparse
 import html as _html
-import json
-import os
-import sys
-import acs_lib  # noqa: E402
 
 
 PANEL_KEYS = ("1", "2", "3", "4", "5", "6", "7")
