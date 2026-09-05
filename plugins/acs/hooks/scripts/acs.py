@@ -13,6 +13,8 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
+    context, gate, lane, stakes, ticket, pr, tracker, phase, slug, fanout,
+    doctor.
     context, gate, lane, stakes, ticket, verdict, phase, slug, fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
@@ -42,6 +44,8 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py pr metadata fill --ticket MAR-1 --pr 42
+  acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py verdict show --iteration 2
   acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
@@ -353,6 +357,81 @@ def cmd_ticket_save(args):
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
 
 
+def _gh_runner(args, cwd):
+    """The gh runner a forge command uses: live, or a recorded fixture.
+
+    `--gh-replay FILE` maps a command PREFIX to a [returncode, stdout, stderr]
+    triple, so the whole flow -- including the arms that only fire when a board
+    is missing a field -- is reproducible with no forge."""
+    responses = None
+    if args.gh_replay:
+        recorded = read_json_arg("pr metadata fill", args.gh_replay)
+        responses = {k: tuple(v) for k, v in recorded.items()}
+    return lib.Gh(responses=responses, cwd=cwd)
+
+
+def cmd_pr_metadata_fill(args):
+    """create-pr step 6a as one command: assignee, type label, CODEOWNERS
+    reviewers, and the Project item with its Status and Group-B fields.
+
+    Non-critical throughout — the PR is already created, so every failure is an
+    `info` finding carrying the command, and exit 0 means the pass RAN, not
+    that every field landed. Read `findings`."""
+    ticket_id, tdir, ctx = partition_or_die("pr metadata fill", args.ticket)
+    ticket = load_ticket_or_die("pr metadata fill", tdir, ticket_id)
+    provider = ((ctx["settings"].get("tracker") or {}).get("provider") or "local")
+    if provider != "github" or not (ticket.get("external") or {}).get("key"):
+        emit({"ok": True, "ticket_id": ticket_id, "skipped": True,
+              "reason": "tracker.provider is %r and ticket.external.key is %r — the "
+                        "metadata-fill block does not apply"
+                        % (provider, (ticket.get("external") or {}).get("key")),
+              "findings": [], "applied": []})
+        return
+    gh = _gh_runner(args, ctx["checkout_root"])
+    pr = {"number": args.pr, "url": args.url or ""}
+    if not pr["url"]:
+        code, out, _err = gh(["gh", "pr", "view", str(args.pr), "--json", "url", "-q", ".url"])
+        pr["url"] = (out or "").strip() if code == 0 else ""
+    out = lib.pr_metadata_fill(gh, ctx["settings"], ticket, pr, ctx["checkout_root"],
+                               author=args.author)
+    out.update({"ok": True, "ticket_id": ticket_id, "pr": args.pr, "skipped": False})
+    emit(out)
+
+
+def cmd_tracker_sync(args):
+    """create-ticket step 5's batch as one command.
+
+    Critical per ticket, soft per batch: a ticket whose `gh issue create` fails
+    gets an `error` finding with the canonical hint and keeps `external` unset,
+    and the batch continues so the failure can be retried alone. Exit 0 means
+    the batch ran; read `failed`."""
+    ctx = context_or_die("tracker sync")
+    provider = ((ctx["settings"].get("tracker") or {}).get("provider") or "local")
+    if provider == "local":
+        emit({"ok": True, "skipped": True, "reason": "tracker.provider is 'local'",
+              "synced": {}, "failed": [], "findings": []})
+        return
+    tickets, bodies = [], {}
+    for ticket_id in args.ticket:
+        tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+        if archived or not os.path.isdir(tdir):
+            die("tracker sync", "no active partition for %s" % ticket_id)
+        ticket = lib.load_ticket(tdir)
+        if not isinstance(ticket, dict):
+            die("tracker sync", "no readable ticket.json for %s" % ticket_id)
+        tickets.append(ticket)
+        bodies[ticket_id] = os.path.join(tdir, "tracker-body.md")
+
+    candidates = lib.sync_candidates(tickets, tuple(lib.PRODUCT_TICKET_TITLES.values()))
+    excluded = [t["id"] for t in tickets if t not in candidates]
+    if args.dry_run:
+        emit({"ok": True, "dry_run": True, "would_sync": [t["id"] for t in candidates],
+              "excluded": excluded, "synced": {}, "failed": [], "findings": []})
+        return
+    gh = _gh_runner(args, ctx["checkout_root"])
+    out = lib.tracker_sync(gh, ctx["settings"], candidates, bodies)
+    out.update({"ok": True, "excluded": excluded, "dry_run": False})
+    emit(out)
 def cmd_verdict_show(args):
     """The verifier's verdict for one iteration — validated, not just printed.
 
@@ -565,6 +644,29 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
+    pr = sub.add_parser("pr", help="PR metadata the forge, not the model, decides")
+    pr_sub = pr.add_subparsers(dest="cmd")
+    metadata = pr_sub.add_parser("metadata", help="PR metadata fill")
+    metadata_sub = metadata.add_subparsers(dest="subcmd")
+    fill = metadata_sub.add_parser("fill", help="create-pr step 6a in one call")
+    fill.add_argument("--ticket")
+    fill.add_argument("--pr", required=True, help="the PR number")
+    fill.add_argument("--url", help="the PR url (looked up through gh when omitted)")
+    fill.add_argument("--author", help="the PR author's login, excluded from reviewers")
+    fill.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
+                      help="replay recorded gh output instead of calling gh")
+    fill.set_defaults(func=cmd_pr_metadata_fill)
+
+    tracker = sub.add_parser("tracker", help="tracker sync")
+    tracker_sub = tracker.add_subparsers(dest="cmd")
+    sync = tracker_sub.add_parser("sync", help="create-ticket step 5's batch in one call")
+    sync.add_argument("--ticket", action="append", default=[], required=True,
+                      help="a ticket to sync (repeatable); the batch order is preserved")
+    sync.add_argument("--dry-run", dest="dry_run", action="store_true",
+                      help="report which tickets the sync set covers, and write nothing")
+    sync.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
+                      help="replay recorded gh output instead of calling gh")
+    sync.set_defaults(func=cmd_tracker_sync)
     verdict = sub.add_parser("verdict", help="the verifier's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 

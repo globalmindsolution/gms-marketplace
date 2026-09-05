@@ -509,6 +509,70 @@ hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
 
+## Forge metadata: two commands, two failure policies
+
+`gh` is acs's only transport to GitHub, and everything acs writes through it
+beyond the PR or issue itself — labels, assignee, milestone, reviewers, Project
+membership and fields — goes through `acs_lib.forge` (MAR-525), reached as two
+commands:
+
+| Command | Performs | Policy |
+|---|---|---|
+| `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch: issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+
+Both resolve Project fields the same way: **the board's own spelling wins.** A
+field is matched case-insensitively against a fixed table of accepted names
+(`Story Points` / `Points` / `Estimate`; `Parent` / `Epic`), an option is matched
+case-insensitively against the ticket's value, and a board that defines neither
+the field nor the option gets **one info finding naming exactly what was skipped**
+— a schema-undefined field is surfaced, never silently ignored, and never a
+wrong-type write. A ticket value that is simply `null` is skipped silently: that
+is expected data, not a gap.
+
+The runner is injectable and the resolvers are pure, so every arm — including
+the ones that only fire when a board lacks a field, or when one call in five
+fails — is exercised from a recorded `gh` transcript with no forge. `--gh-replay
+FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
+through `acli`, not `gh`.
+
+Four rules keep the two flows honest about what they did:
+
+- **The issue body is a precondition, not an argument.** `tracker sync` posts
+  each partition's `tracker-body.md`, and the executor charter is what tells
+  the executor to write it. A partition without one is reported under `failed`
+  with an `error` finding naming the missing path — never a bodiless issue,
+  and never N opaque per-ticket gh errors for one missed step.
+- **A create that cannot be parsed is a failure.** `gh issue create` exiting 0
+  without printing an issue URL leaves the issue number unknown, so the ticket
+  fails and keeps `external` unset. Recording an empty key would have been
+  worse than failing: `sync_candidates` excludes any ticket that carries an
+  `external`, so the half-written ticket would never be retried.
+- **`command` is shell-quoted.** Every finding's command is documented as
+  ready to re-run, which means a human runs it. It is rendered with
+  `shlex.quote`, so a milestone of `Q3 2026; rm -rf /tmp/x` replays as one
+  `gh` call with one odd argument rather than two commands. The executed calls
+  were never affected — they are argv, never `shell=True`.
+- **Every degraded call carries its `hint`.** The finding shape is
+  `{severity, area, message, command, error, hint, replayable}`, and `hint` is
+  derived from `error` via `gh_failure_hint` when the call site does not pass
+  one (ADR-0088). Without it a 403 "GitHub access is not enabled for this
+  session" — the one failure with a specific remedy — reads like a mistyped
+  label name.
+
+The reviewer set is CODEOWNERS minus the author, and "minus the author" is a
+normalised comparison: a leading `@` is stripped and case is folded on both
+sides, because CODEOWNERS writes owners `@`-prefixed while `--author` is passed
+bare. `--author` is optional and `@me` is accepted; when it is absent the login
+is resolved with `gh api user`, and when even that fails the flow says so in one
+info finding rather than silently requesting the author as their own reviewer —
+the owners are comma-joined into ONE `gh pr edit --add-reviewer` call, so a set
+that names the author is rejected whole and nobody is requested.
+
+The milestone the sync writes comes from `ticket.milestone`, falling back to
+`settings.tracker.milestone`; **both are declared** in their schemas, which is
+what makes the arm reachable for a real ticket rather than only for a fixture.
+
 ## Settings, formats, templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user

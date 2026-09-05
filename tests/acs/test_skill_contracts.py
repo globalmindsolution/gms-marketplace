@@ -12,10 +12,80 @@ import glob
 import json
 import os
 import re
+import shutil
+import sys
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+import acs_lib as lib  # noqa: E402
+
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+from acs_case import tracker_body  # noqa: E402
+
+#: One recorded `gh` transcript, shared by the MAR-101/102/103 acceptance
+#: criteria below. MAR-525 moved their mechanism out of prose and into
+#: acs_lib.forge, so the criteria are read from a replay instead of a regex --
+#: the fixture is what "tests use recorded tracker JSON fixtures" means.
+_PROJECT_FIELDS = {"fields": [
+    {"id": "f-status", "name": "Status", "dataType": "SINGLE_SELECT",
+     "options": [{"id": "opt-todo", "name": "Todo"},
+                 {"id": "opt-in-review", "name": "In Review"}]},
+    {"id": "f-type", "name": "Type", "dataType": "SINGLE_SELECT",
+     "options": [{"id": "opt-task", "name": "Task"}]},
+    {"id": "f-priority", "name": "Priority", "dataType": "SINGLE_SELECT",
+     "options": [{"id": "opt-high", "name": "High"}]},
+    {"id": "f-points", "name": "Story Points", "dataType": "NUMBER"},
+    {"id": "f-parent", "name": "Parent", "dataType": "TEXT"},
+]}
+_PROJECT_ITEMS = {"items": [{"id": "item-1", "projectId": "PVT_1",
+                             "content": {"url": "https://example.invalid/pull/42"}},
+                            {"id": "item-2", "projectId": "PVT_1",
+                             "content": {"url": "https://example.invalid/issues/9"}}]}
+_SYNC_TICKET = {"id": "SHOP-1", "type": "task", "assignee": "dana",
+                "milestone": "v1", "priority": "high"}
+
+
+def _sync_calls():
+    """The gh calls `acs.py tracker sync` makes for one fully-populated ticket.
+
+    MAR-525 moved create-ticket Step 5's enumeration out of prose, so the ACs
+    that pinned it read the calls instead of a regex over the skill.
+
+    The body file is REAL. The recorded runner never opens `--body-file`, so a
+    made-up path used to work here -- which meant this fixture could not have
+    noticed that nothing writes one. Every field it sets is a property
+    `ticket.schema.json` declares (see
+    `TestCreateTicketSyncFixtureIsAValidTicket`), so the calls below are the
+    calls a real ticket produces, not ones a fixture-invented key conjures."""
+    responses = dict(_PROJECT_RESPONSES)
+    responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
+    responses["gh issue edit"] = (0, "", "")
+    gh = lib.Gh(responses=responses)
+    workdir = tempfile.mkdtemp(prefix="acs-sync-calls-")
+    try:
+        body = os.path.join(workdir, "tracker-body.md")
+        with open(body, "w", encoding="utf-8") as fh:
+            fh.write("## Description\n\nBulk import.\n")
+        lib.tracker_sync_one(gh, {"tracker": {"github": {"owner": "acme",
+                                                         "project_number": 7}}},
+                             dict(_SYNC_TICKET), body)
+    finally:
+        shutil.rmtree(workdir, True)
+    return gh.calls
+
+
+_PROJECT_RESPONSES = {
+    "gh pr edit": (0, "", ""),
+    "gh label create": (0, "", ""),
+    "gh pr diff": (0, "src/a.py\ndocs/b.md\n", ""),
+    "gh project item-add": (0, "", ""),
+    "gh project item-list": (0, json.dumps(_PROJECT_ITEMS), ""),
+    "gh project field-list": (0, json.dumps(_PROJECT_FIELDS), ""),
+    "gh project item-edit": (0, "", ""),
+}
 
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
@@ -2534,17 +2604,16 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         defined, and Project field-fill, plus surfacing a schema-undefined
         field rather than silently skipping it."""
         body = read(self.skill_path("create-ticket"))
-        self.assertIn("ACS", body,
-                      "create-ticket/SKILL.md must reference the ACS label (MAR-75 AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?i)type.label", body),
-            "create-ticket/SKILL.md must reference the type label (MAR-75 AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?i)assignee", body),
-            "create-ticket/SKILL.md must reference assignee fill (MAR-75 AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?i)milestone", body),
-            "create-ticket/SKILL.md must reference milestone fill (MAR-75 AC-6)")
+        # MAR-525: the enumeration moved into `acs.py tracker sync`, so AC-6 is
+        # read from the calls it makes; the skill states the same coverage.
+        calls = " | ".join(_sync_calls())
+        self.assertIn("gh label create ACS", calls)
+        self.assertIn("gh label create task", calls)
+        self.assertIn("--add-label ACS,task", calls)
+        self.assertIn("--add-assignee dana", calls)
+        self.assertIn("--milestone v1", calls)
+        for word in ("labels", "assignee", "milestone", "Project"):
+            self.assertIn(word, body)
         self.assertIsNotNone(
             re.search(r"(?i)(surfaced|surfac\w*).{0,200}(not silently|never silently)|"
                       r"(not silently|never silently).{0,200}(surfaced|surfac\w*)", body),
@@ -2629,12 +2698,44 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "(MAR-80 AC-4 scope-fence)")
 
 
+class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
+    """The premise `_sync_calls` rests on.
+
+    Its `--milestone v1` assertion proved only that the code echoes whatever
+    the fixture set, because `milestone` was a key no schema declared: the
+    assertion passed just as well when the milestone branch could never fire
+    for a real ticket. Pinning the fixture to the schema is what makes the
+    echo evidence -- if `milestone` is dropped from `ticket.schema.json`, this
+    fails here rather than leaving a green assertion about a dead arm."""
+
+    def _schema(self, name):
+        with open(os.path.join(PLUGIN, "schemas", name), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_every_key_the_sync_fixture_sets_is_declared_by_the_ticket_schema(self):
+        declared = self._schema("ticket.schema.json")["properties"]
+        undeclared = sorted(k for k in _SYNC_TICKET if k not in declared)
+        self.assertEqual(undeclared, [],
+                         "the sync fixture must be a ticket, not a wish list")
+
+    def test_the_milestone_the_sync_reads_has_both_of_its_declared_sources(self):
+        self.assertIn("milestone", self._schema("ticket.schema.json")["properties"])
+        tracker = self._schema("settings.schema.json")["properties"]["tracker"]
+        self.assertIn("milestone", tracker["properties"],
+                      "the settings-level default the sync falls back to")
+
+
 class TestCreatePrTrackerMetadataFill(unittest.TestCase):
-    """MAR-101 spec 01: pin the tracker-metadata fill (assignee, type label,
-    Project membership + Status) prose contract in create-pr/SKILL.md and
-    create-pr-executor.md. Written TDD-first (RED before spec 01's edits
-    land); turns GREEN once spec 01 is implemented. Additive only — no
-    existing assertion in this file is modified."""
+    """MAR-101/MAR-103's acceptance criteria, re-pointed at the implementation.
+
+    These pinned the tracker-metadata fill as PROSE in create-pr/SKILL.md and
+    create-pr-executor.md, because prose was where the mechanism lived. MAR-525
+    moved it into `acs_lib.forge` and shrank the prose to one command, so the
+    same criteria are now asserted where the behaviour is: a prose assertion
+    against a skill that no longer carries the recipe would either fail or, kept
+    alive by loosening it, assert nothing.
+
+    Every AC below is the original one. What changed is only where it is read."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -2642,196 +2743,182 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
     def agent_path(self, skill, role):
         return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
 
+    def fill(self, responses, ticket=None, author="@me-login", resolver=None):
+        gh = lib.Gh(responses=responses)
+        out = lib.pr_metadata_fill(
+            gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
+            ticket or {"id": "SHOP-1", "type": "task"},
+            {"number": 42, "url": "https://example.invalid/pull/42"},
+            "/repo", author=author,
+            resolver=resolver or (lambda root, files: {"owners": [], "reason": "no_codeowners_file"}))
+        return gh, out
+
     def test_create_pr_fills_assignee_type_label_project_status(self):
-        """AC-1/AC-2/AC-3: create-pr/SKILL.md references an assignee fill
-        (--add-assignee / @me), a type-label fill distinct from the existing
-        ACS label, and a Project item-add co-occurring with a Status-set
-        call, all within bounded windows."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?i)--add-assignee|@me", body),
-            "create-pr/SKILL.md must reference the --add-assignee/@me fill (MAR-101 AC-1)")
-        self.assertIsNotNone(
-            re.search(r"(?i)type.label", body),
-            "create-pr/SKILL.md must reference a type-label fill distinct from ACS (MAR-101 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?s)item-add.{0,600}(item-edit|field-list)|"
-                      r"(item-edit|field-list).{0,600}item-add", body),
-            "create-pr/SKILL.md must co-locate 'item-add' with a Status-set "
-            "call ('item-edit'/'field-list') within a bounded window (MAR-101 AC-3)")
+        """AC-1/AC-2/AC-3: the fill assigns the PR, applies a type label
+        distinct from the existing ACS label, and adds the item to the Project
+        with a Status set."""
+        gh, _out = self.fill(_PROJECT_RESPONSES)
+        calls = " | ".join(gh.calls)
+        self.assertIn("gh pr edit 42 --add-assignee @me", calls)
+        self.assertIn("gh pr edit 42 --add-label task", calls)
+        self.assertIn("gh project item-add 7 --owner acme", calls)
+        self.assertIn("--single-select-option-id opt-in-review", calls)
 
     def test_create_pr_project_schema_undefined_field_is_info_finding(self):
         """AC-3: a Project-schema-undefined field is surfaced, not silently
-        skipped — same phrasing already pinned for create-ticket."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?i)(surfaced|surfac\w*).{0,200}(not silently|never silently)|"
-                      r"(not silently|never silently).{0,200}(surfaced|surfac\w*)", body),
-            "create-pr/SKILL.md must state a schema-undefined Project field is "
-            "surfaced, not silently skipped (MAR-101 AC-3)")
+        skipped."""
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh project field-list"] = (0, json.dumps(
+            {"fields": [{"id": "f-status", "name": "Status", "dataType": "SINGLE_SELECT",
+                         "options": [{"id": "opt-in-review", "name": "In Review"}]}]}), "")
+        _gh, out = self.fill(responses, ticket={"id": "SHOP-1", "type": "task",
+                                                "priority": "high"})
+        messages = [f["message"] for f in out["findings"]]
+        self.assertTrue(any("defines no priority field" in m for m in messages), messages)
+        self.assertTrue(all(f["severity"] == "info" for f in out["findings"]))
 
     def test_create_pr_metadata_fill_both_create_and_edit_paths(self):
-        """AC-1: the metadata-fill instruction is stated to apply on both the
-        create and edit paths, placed after step 6 Record (i.e. after the PR
-        number is known) rather than nested only in the create-only branch."""
-        body = read(self.skill_path("create-pr"))
-        record_idx = body.find("**Record.**")
-        self.assertNotEqual(record_idx, -1, "create-pr/SKILL.md must still carry the Record step")
-        metadata_idx = None
-        for m in re.finditer(r"(?i)--add-assignee|@me", body):
-            metadata_idx = m.start()
-            break
-        self.assertIsNotNone(metadata_idx, "metadata-fill block must exist")
-        self.assertGreater(
-            metadata_idx, record_idx,
-            "AC-1: metadata-fill must be placed after step 6 Record, not inside "
-            "the create-only sub-branch of step 5 (MAR-101 AC-1)")
-        self.assertIsNotNone(
-            re.search(r"(?i)\bboth\b.{0,120}(create and edit|create.{0,10}edit)|"
-                      r"(create and edit|create.{0,10}edit).{0,120}\bboth\b", body),
-            "create-pr/SKILL.md must explicitly say the metadata-fill applies "
-            "on both create and edit paths (MAR-101 AC-1)")
+        """AC-1: the fill runs after the PR number is known, so it is one call
+        that both the create and the edit path reach -- the skill says so, and
+        it takes --pr rather than branching on how the PR came to exist."""
+        body = " ".join(read(self.skill_path("create-pr")).split())
+        self.assertLess(body.find("**Record.**"), body.find("pr metadata fill"))
+        self.assertIn("now that the PR number is known from step 6", body)
+        self.assertNotIn("create-only", body)
 
     def test_create_pr_metadata_local_unsynced_noop(self):
-        """AC-4: the metadata-fill block itself (not step 7's pre-existing
-        tracker-sync guard) states it is skipped for local/unsynced tickets,
-        within the bounded span from the assignee-fill marker to the start
-        of step 7 Tracker sync."""
-        body = read(self.skill_path("create-pr"))
-        assignee_idx = None
-        for m in re.finditer(r"(?i)--add-assignee|@me", body):
-            assignee_idx = m.start()
-            break
-        self.assertIsNotNone(assignee_idx, "metadata-fill block must exist")
-        step7_idx = body.find("**Tracker sync.**")
-        self.assertNotEqual(step7_idx, -1, "step 7 Tracker sync must still exist")
-        window = body[assignee_idx:step7_idx]
-        self.assertIsNotNone(
-            re.search(r"(?i)(local|unsynced).{0,300}(no-?op|skip)|"
-                      r"(no-?op|skip).{0,300}(local|unsynced)|byte-identical", window),
-            "create-pr/SKILL.md's metadata-fill section itself (between the "
-            "assignee fill and step 7 Tracker sync) must state the "
-            "local/unsynced no-op (MAR-101 AC-4)")
+        """AC-4: local/unsynced is a no-op, stated in the block itself and
+        enforced by the command."""
+        body = " ".join(read(self.skill_path("create-pr")).split())
+        window = body[body.find("pr metadata fill"):body.find("**Tracker sync.**")]
+        self.assertRegex(window, r"(?i)(skipped|byte-identical)")
 
     def test_create_pr_metadata_failure_surfaced_not_aborting(self):
-        """AC-5: a failed gh metadata call is captured as a finding and does
-        not abort PR creation."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?is)finding.{0,300}(never abort|does not abort|do(es)? not abort)|"
-                      r"(never abort|does not abort|do(es)? not abort).{0,300}finding", body),
-            "create-pr/SKILL.md must state a failed gh metadata call is "
-            "surfaced as a finding and never aborts the PR (MAR-101 AC-5)")
+        """AC-5: a failed gh metadata call is a finding carrying the command,
+        and the flow continues to the next sub-step."""
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh pr edit 42 --add-assignee"] = (1, "", "denied")
+        gh, out = self.fill(responses)
+        failure = [f for f in out["findings"] if f.get("error") == "denied"]
+        self.assertEqual(len(failure), 1)
+        self.assertEqual(failure[0]["severity"], "info")
+        self.assertTrue(failure[0]["replayable"])
+        self.assertIn("--add-assignee", failure[0]["command"])
+        self.assertIn("gh pr edit 42 --add-label task", " | ".join(gh.calls),
+                      "a failed sub-step must not abort the ones after it")
 
     def test_create_pr_deviates_from_item_add_format_json(self):
-        """Guards the named deviation: the actual gh project item-add
-        command (inside its own backtick/code span) is NOT paired with
-        --format json in the metadata-fill section; item-list instead
-        carries --limit 500 with strict=False-equivalent language."""
-        body = read(self.skill_path("create-pr"))
-        item_add_commands = re.findall(r"`[^`]*item-add[^`]*`", body)
-        self.assertTrue(item_add_commands, "create-pr/SKILL.md must reference a gh project item-add command")
-        for call in item_add_commands:
-            self.assertNotIn(
-                "--format json", call,
-                "create-pr/SKILL.md's actual item-add command must NOT pair "
-                "with --format json — this is a deliberate, permanent "
-                "deviation from the create-ticket precedent (MAR-101)")
-        self.assertIsNotNone(
-            re.search(r"(?is)item-list.{0,200}--limit 500.{0,200}strict=False|"
-                      r"item-list.{0,200}strict=False.{0,200}--limit 500", body),
-            "create-pr/SKILL.md must resolve the item id via item-list "
-            "--limit 500 parsed strict=False (MAR-101)")
+        """The named deviation: item-add carries no --format json on the PR
+        path, and the id is resolved by listing with --limit 500."""
+        gh, _out = self.fill(_PROJECT_RESPONSES)
+        add = [c for c in gh.calls if c.startswith("gh project item-add")]
+        self.assertEqual(len(add), 1)
+        self.assertNotIn("--format json", add[0])
+        self.assertIn("gh project item-list 7 --owner acme --format json --limit 500", gh.calls)
+
+    def test_create_ticket_path_keeps_the_format_json_pairing(self):
+        """The deviation is PR-path-only: create-ticket's item-add keeps the
+        --format json it always paired with, so the two paths stay distinct on
+        purpose rather than by accident."""
+        gh = lib.Gh(responses=_PROJECT_RESPONSES)
+        lib.project_fill(gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
+                         {"id": "SHOP-1", "type": "task"}, "https://example.invalid/issues/9",
+                         lib.TICKET_STATUS_OPTIONS, "project", [], item_add_json=True)
+        add = [c for c in gh.calls if c.startswith("gh project item-add")]
+        self.assertIn("--format json", add[0])
 
     def test_create_pr_executor_charter_has_metadata_fill_step(self):
-        """Executor coverage: create-pr-executor.md carries the same
-        assignee/type-label/Project-Status fill instruction the SKILL
-        carries — the executor enumerates the flow and must not omit it."""
+        """Executor coverage: the charter still carries the step, now as the
+        command plus what it does -- it must not omit the step entirely."""
         body = read(self.agent_path("create-pr", "executor"))
-        self.assertIsNotNone(
-            re.search(r"(?i)--add-assignee|@me", body),
-            "create-pr-executor.md must reference the assignee fill (MAR-101)")
-        self.assertIsNotNone(
-            re.search(r"(?i)type.label", body),
-            "create-pr-executor.md must reference the type-label fill (MAR-101)")
-        self.assertIsNotNone(
-            re.search(r"(?i)item-add", body),
-            "create-pr-executor.md must reference the Project item-add call (MAR-101)")
+        self.assertIn("pr metadata fill", body)
+        for phrase in ("assigns the PR", "ticket-type label", "Project"):
+            self.assertIn(phrase, body)
 
     def test_create_pr_calls_codeowners_resolve_in_step_6a(self):
-        """MAR-103 AC-2: create-pr/SKILL.md's Step 6a references a call to
-        codeowners.py (or codeowners.py resolve) to derive PR reviewers."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"codeowners\.py(\s+resolve)?", body),
-            "create-pr/SKILL.md Step 6a must reference codeowners.py "
-            "(MAR-103 AC-2)")
+        """MAR-103 AC-2: the reviewer set comes from codeowners resolution over
+        the PR's own changed files."""
+        seen = {}
+
+        def resolver(root, files):
+            seen["root"], seen["files"] = root, files
+            return {"owners": ["@alice"], "reason": None}
+
+        gh, _out = self.fill(_PROJECT_RESPONSES, resolver=resolver)
+        self.assertIn("gh pr diff 42 --name-only", gh.calls)
+        self.assertEqual(seen["files"], ["src/a.py", "docs/b.md"])
+        self.assertEqual(seen["root"], "/repo")
 
     def test_create_pr_add_reviewer_drops_author(self):
-        """MAR-103 AC-2: --add-reviewer co-occurs with an author-drop/@me-
-        exclusion phrase within a bounded window (mirrors the item-add/
-        item-edit co-occurrence pattern already pinned above)."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?is)--add-reviewer.{0,600}(drop|exclu\w*).{0,120}author|"
-                      r"(drop|exclu\w*).{0,120}author.{0,600}--add-reviewer", body),
-            "create-pr/SKILL.md must co-locate --add-reviewer with an "
-            "author-drop/@me-exclusion phrase within a bounded window "
-            "(MAR-103 AC-2)")
+        """MAR-103 AC-3: the author is never requested as a reviewer, and team
+        owners go through the same call."""
+        gh, out = self.fill(
+            _PROJECT_RESPONSES,
+            resolver=lambda root, files: {"owners": ["@me-login", "@alice", "@org/team"],
+                                          "reason": None})
+        self.assertIn("gh pr edit 42 --add-reviewer @alice,@org/team", gh.calls)
+        self.assertIn("reviewers:@alice,@org/team", out["applied"])
 
     def test_create_pr_reviewer_graceful_skip_info_finding(self):
-        """MAR-103 AC-2: the empty-reviewer-set outcome is an info finding
-        naming at least one of the three exact reason phrases, never a
-        hard failure."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?i)No CODEOWNERS file found|"
-                      r"No CODEOWNERS pattern matched the changed files|"
-                      r"self-review impossible", body),
-            "create-pr/SKILL.md must name at least one of the three exact "
-            "graceful-skip reason phrases for the reviewer request "
-            "(MAR-103 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)\binfo\b.{0,120}finding", body),
-            "create-pr/SKILL.md must characterize the reviewer skip as an "
-            "info-severity finding, not a hard failure (MAR-103 AC-2)")
+        """MAR-103 AC-4: an empty set is never an empty --add-reviewer call --
+        it is one info finding naming WHICH of the three reasons applies."""
+        cases = (
+            ({"owners": [], "reason": "no_codeowners_file"}, "No CODEOWNERS file found"),
+            ({"owners": [], "reason": "no_pattern_matched"},
+             "No CODEOWNERS pattern matched the changed files"),
+            ({"owners": ["@me-login"], "reason": None},
+             "Only eligible reviewer is the PR author; skipped (self-review impossible)"),
+        )
+        for resolved, message in cases:
+            with self.subTest(reason=resolved.get("reason")):
+                gh, out = self.fill(_PROJECT_RESPONSES,
+                                    resolver=lambda root, files, r=resolved: r)
+                self.assertFalse([c for c in gh.calls if "--add-reviewer" in c])
+                self.assertIn(message, [f["message"] for f in out["findings"]])
 
     def test_create_pr_groupb_fields_in_project_field_fill_window(self):
-        """MAR-103 AC-3: Priority/Story Points/Parent field resolution is
-        named within the existing Project field-fill window (extends the
-        already-pinned undefined-field-is-info-finding assertion above to
-        also require these three field names)."""
-        body = read(self.skill_path("create-pr"))
-        for name in ("Priority", "Story Points", "Parent"):
-            self.assertIn(
-                name, body,
-                "create-pr/SKILL.md must name the '%s' Project field within "
-                "its field-fill window (MAR-103 AC-3)" % name)
+        """MAR-103 AC-5: Priority, Story Points and Parent are filled from the
+        SAME field-list call, by the board's own names and dataTypes."""
+        gh, out = self.fill(_PROJECT_RESPONSES, ticket={
+            "id": "SHOP-1", "type": "task", "priority": "high", "story_points": 3,
+            "external_parent": {"key": "#42"}})
+        self.assertEqual(len([c for c in gh.calls if c.startswith("gh project field-list")]), 1,
+                         "the Group-B fill must reuse Status's field-list call")
+        calls = " | ".join(gh.calls)
+        self.assertIn("--field-id f-priority --single-select-option-id opt-high", calls)
+        self.assertIn("--field-id f-points --number 3", calls)
+        self.assertIn("--field-id f-parent --text #42", calls)
+        self.assertEqual([f for f in out["findings"] if f["severity"] != "info"], [])
+
+    def test_create_pr_groupb_wrong_datatype_is_a_finding_never_a_write(self):
+        """AC-5: a board field whose dataType the value cannot be written to
+        gets a finding, never a wrong-type write attempt."""
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh project field-list"] = (0, json.dumps({"fields": [
+            {"id": "f-status", "name": "Status", "dataType": "SINGLE_SELECT",
+             "options": [{"id": "opt-in-review", "name": "In Review"}]},
+            {"id": "f-priority", "name": "Priority", "dataType": "DATE"}]}), "")
+        gh, out = self.fill(responses, ticket={"id": "SHOP-1", "type": "task",
+                                               "priority": "high"})
+        self.assertFalse([c for c in gh.calls if "f-priority" in c])
+        self.assertTrue(any("cannot be written to" in f["message"] for f in out["findings"]))
 
     def test_create_pr_executor_mirrors_reviewer_and_groupb(self):
-        """Executor coverage: create-pr-executor.md mirrors the reviewer
-        codeowners.py call and the Group-B field names (MAR-103)."""
+        """The executor charter names the same command and the same
+        non-critical contract, so the two cannot drift into different flows."""
         body = read(self.agent_path("create-pr", "executor"))
-        self.assertIsNotNone(
-            re.search(r"codeowners\.py(\s+resolve)?", body),
-            "create-pr-executor.md must reference codeowners.py (MAR-103 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)--add-reviewer", body),
-            "create-pr-executor.md must reference --add-reviewer (MAR-103 AC-2)")
-        for name in ("Priority", "Story Points", "Parent"):
-            self.assertIn(
-                name, body,
-                "create-pr-executor.md must name the '%s' Project field "
-                "(MAR-103 AC-3)" % name)
+        self.assertIn("pr metadata fill", body)
+        self.assertIn("CODEOWNERS", body)
+        self.assertRegex(body, r"(?i)non-critical")
 
 
 class TestCreateTicketGroupBFields(unittest.TestCase):
-    """MAR-103 spec 03: pin the create-ticket Group-B (Priority, Story
-    Points, Parent) creation-time Project-field-fill prose contract in
-    create-ticket/SKILL.md and create-ticket-executor.md. Written TDD-first
-    (RED before spec 03's edits land); turns GREEN once spec 03 is
-    implemented. Additive only — no existing assertion in this file is
-    modified."""
+    """MAR-103 spec 03's acceptance criteria, re-pointed at the implementation.
+
+    These pinned create-ticket's Group-B (Priority, Story Points, Parent)
+    Project-field fill as PROSE. MAR-525 moved it into `acs_lib.forge`, shared
+    with the create-pr path, so the criteria are asserted where the behaviour
+    is. Every AC below is the original one."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -2839,46 +2926,68 @@ class TestCreateTicketGroupBFields(unittest.TestCase):
     def agent_path(self, skill, role):
         return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
 
-    def test_create_ticket_groupb_fields_in_step5_item_d_window(self):
-        """MAR-103 AC-3: Priority/Story Points/Parent are named within Step
-        5 item d's field-fill window."""
-        body = read(self.skill_path("create-ticket"))
-        item_d_idx = body.find("**Project fields.**")
-        self.assertNotEqual(item_d_idx, -1,
-                             "create-ticket/SKILL.md must still carry Step 5 "
-                             "item d 'Project fields'")
-        for name in ("Priority", "Story Points", "Parent"):
-            self.assertIn(
-                name, body[item_d_idx:],
-                "create-ticket/SKILL.md Step 5 item d must name the '%s' "
-                "Project field (MAR-103 AC-3)" % name)
+    def sync(self, ticket, responses=None):
+        merged = dict(_PROJECT_RESPONSES)
+        merged["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
+        merged["gh issue edit"] = (0, "", "")
+        merged.update(responses or {})
+        gh = lib.Gh(responses=merged)
+        external, findings = lib.tracker_sync_one(
+            gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
+            ticket, tracker_body(self))
+        return gh, external, findings
+
+    def test_create_ticket_groupb_fields_are_filled_from_the_boards_own_names(self):
+        """MAR-103 AC-3: Priority / Story Points / Parent are resolved against
+        the board's field list, by the same table the create-pr path uses."""
+        self.assertEqual(dict(lib.GROUP_B_FIELDS), {
+            "priority": ("Priority",),
+            "story_points": ("Story Points", "Points", "Estimate"),
+            "parent": ("Parent", "Epic")})
+        gh, external, findings = self.sync({
+            "id": "SHOP-1", "type": "task", "priority": "high", "story_points": 3,
+            "external_parent": {"key": "#42"}})
+        self.assertEqual(external["key"], "9")
+        calls = " | ".join(gh.calls)
+        self.assertIn("--field-id f-priority --single-select-option-id opt-high", calls)
+        self.assertIn("--field-id f-points --number 3", calls)
+        self.assertIn("--field-id f-parent --text #42", calls)
+        self.assertEqual(findings, [])
+
+    def test_create_ticket_groupb_undefined_board_field_is_an_info_finding(self):
+        """MAR-103 AC-3: a board naming none of a field's accepted spellings is
+        surfaced, never silently skipped."""
+        responses = {"gh project field-list": (0, json.dumps({"fields": [
+            {"id": "f-status", "name": "Status", "dataType": "SINGLE_SELECT",
+             "options": [{"id": "opt-p", "name": "In Progress"}]}]}), "")}
+        _gh, _external, findings = self.sync(
+            {"id": "SHOP-1", "type": "task", "story_points": 5}, responses)
+        messages = [f["message"] for f in findings]
+        self.assertTrue(any("defines no story points field" in m for m in messages), messages)
+        self.assertTrue(any("Story Points, Points, Estimate" in m for m in messages), messages)
 
     def test_create_ticket_groupb_null_value_silent_skip(self):
-        """MAR-103 AC-3/C-4 constraint: a null Group-B ticket value is
-        skipped silently (expected data, not missing data) — mirrors the
-        existing null-assignee rule already stated for Step 5 item b."""
-        body = read(self.skill_path("create-ticket"))
-        self.assertIsNotNone(
-            re.search(r"(?is)null.{0,200}(expected data|not (a|to) (gap|surface))|"
-                      r"(expected data|not (a|to) (gap|surface)).{0,200}null", body),
-            "create-ticket/SKILL.md must state the Group-B null-value "
-            "silent-skip rule mirroring the null-assignee 'expected data, "
-            "not missing data' pattern (MAR-103 AC-3)")
+        """MAR-103 AC-3 / C-4: a null Group-B value is skipped SILENTLY —
+        expected data, not missing data — even when the board defines the
+        field, mirroring the null-assignee rule."""
+        gh, _external, findings = self.sync(
+            {"id": "SHOP-1", "type": "task", "priority": "high",
+             "story_points": None, "parent": None})
+        self.assertFalse([c for c in gh.calls if "f-points" in c or "f-parent" in c])
+        self.assertEqual([f for f in findings if "story points" in f["message"].lower()], [])
+        self.assertEqual([f for f in findings if "parent" in f["message"].lower()], [])
+        self.assertIn("--field-id f-priority", " | ".join(gh.calls))
 
     def test_create_ticket_executor_mirrors_groupb(self):
-        """Executor coverage: create-ticket-executor.md names the same three
-        Group-B fields and the null-value silent-skip rule (MAR-103)."""
+        """Executor coverage: the charter names the same command, the same
+        three fields, and the same null-value silent-skip rule."""
         body = read(self.agent_path("create-ticket", "executor"))
+        self.assertIn("tracker sync", body)
         for name in ("Priority", "Story Points", "Parent"):
-            self.assertIn(
-                name, body,
-                "create-ticket-executor.md must name the '%s' Project "
-                "field (MAR-103 AC-3)" % name)
+            self.assertIn(name, body)
         self.assertIsNotNone(
             re.search(r"(?is)null.{0,200}(expected data|skip)|"
-                      r"(expected data|skip).{0,200}null", body),
-            "create-ticket-executor.md must mirror the null-value "
-            "silent-skip rule (MAR-103 AC-3)")
+                      r"(expected data|skip).{0,200}null", body))
 
 
 class TestCreatePrMetadataFillDocs(unittest.TestCase):
@@ -2991,20 +3100,37 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
             "create-ticket-executor.md": read(self.agent_path("create-ticket", "executor")),
         }
 
-    def test_loop_token_co_occurs_with_gh_issue_create(self):
+    def test_loop_token_co_occurs_with_the_sync_command(self):
         """AC-2/AC-6: both files contain a per-ticket iteration token
         ('tickets to sync' / 'for each ticket to sync') co-occurring, within a
-        bounded window, with the existing gh-sync sequence token
-        ('gh issue create') — proving the loop actually wraps the sync
-        sequence rather than sitting disconnected from it."""
+        bounded window, with the sync call — proving the loop actually wraps
+        the sync rather than sitting disconnected from it.
+
+        MAR-525 replaced the inline `gh issue create` recipe with `acs.py
+        tracker sync`, which takes the whole set in one call; the token the AC
+        looks for is that command."""
         for name, body in self._bodies().items():
             self.assertIsNotNone(
                 re.search(r"(?is)(tickets to sync|for each ticket to sync)"
-                          r".{0,1500}gh issue create|"
-                          r"gh issue create.{0,1500}(tickets to sync|for each ticket to sync)",
+                          r".{0,1500}tracker sync|"
+                          r"tracker sync.{0,1500}(tickets to sync|for each ticket to sync)",
                           body),
-                "%s must co-locate a per-ticket iteration token with "
-                "'gh issue create' within a bounded window (MAR-84 AC-2/AC-6)" % name)
+                "%s must co-locate a per-ticket iteration token with the "
+                "tracker-sync call within a bounded window (MAR-84 AC-2/AC-6)" % name)
+
+    def test_the_batch_really_iterates_the_set(self):
+        """The same AC, one layer down: the command creates one issue per
+        ticket, in the order it was given."""
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
+        responses["gh issue edit"] = (0, "", "")
+        gh = lib.Gh(responses=responses)
+        body = tracker_body(self)
+        out = lib.tracker_sync(
+            gh, {}, [{"id": "SHOP-1", "type": "task"}, {"id": "SHOP-2", "type": "story"}],
+            {"SHOP-1": body, "SHOP-2": body})
+        self.assertEqual(len([c for c in gh.calls if c.startswith("gh issue create")]), 2)
+        self.assertEqual(sorted(out["synced"]), ["SHOP-1", "SHOP-2"])
 
     def test_record_external_co_occurs_with_external(self):
         """AC-2/AC-6: both files reference record-external.py co-occurring
@@ -3052,130 +3178,88 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         belt-and-suspenders regression guard co-located with this ticket's
         own test class."""
         body = read(self.skill_path("create-ticket"))
+        # MAR-525 replaced the gh recipe with `acs.py tracker sync`, so the
+        # co-location AC now reads against the command that performs it. The
+        # `acs-ticket:` body line is unchanged prose and still pinned.
+        self.assertIn("acs-ticket:", body)
         self.assertIsNotNone(
-            re.search(r"(?s)gh issue create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}gh issue create", body),
-            "create-ticket/SKILL.md Step 5 must still co-locate 'acs-ticket:' "
-            "with 'gh issue create' after the loop edit (MAR-84 AC-5 / MAR-75 AC-1)")
-        self.assertIn("ACS", body)
-        self.assertIsNotNone(re.search(r"(?i)assignee", body))
-        self.assertIsNotNone(re.search(r"(?i)milestone", body))
+            re.search(r"(?s)tracker sync.{0,1500}issue creation|"
+                      r"issue creation.{0,1500}tracker sync", body),
+            "create-ticket/SKILL.md Step 5 must reach issue creation through "
+            "`acs.py tracker sync` (MAR-84 AC-5 / MAR-75 AC-1, MAR-525)")
+        calls = " | ".join(_sync_calls())
+        self.assertIn("gh issue create", calls)
+        self.assertIn("--add-label ACS,task", calls)
+        self.assertIn("--add-assignee", calls)
+        self.assertIn("--milestone", calls)
 
 
 class TestCreatePrInReviewStatus(unittest.TestCase):
-    """MAR-102: pin the in-review Project-Status resolution prose contract
-    extending MAR-101's tracker-metadata-fill Status-set call, in
-    create-pr/SKILL.md and create-pr-executor.md. Written TDD-first (RED
-    before MAR-102's edits land); turns GREEN once MAR-102 is implemented.
-    Additive only — no existing assertion in this file is modified."""
+    """MAR-102's acceptance criteria, re-pointed at the implementation
+    (MAR-525 moved the Status resolution out of prose and into
+    `acs_lib.forge`). Every AC below is the original one."""
 
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def agent_path(self, skill, role):
-        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
+    def status_fill(self, options, status_options=None):
+        fields = {"fields": [{"id": "f-status", "name": "Status",
+                              "dataType": "SINGLE_SELECT", "options": options}]}
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh project field-list"] = (0, json.dumps(fields), "")
+        gh, findings = lib.Gh(responses=responses), []
+        lib.project_fill(gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
+                         {"id": "SHOP-1", "type": "task"},
+                         "https://example.invalid/pull/42",
+                         status_options or lib.PR_STATUS_OPTIONS, "project", findings)
+        return gh, findings
 
     def test_create_pr_resolves_in_review_option_case_insensitively(self):
-        """AC-1: create-pr/SKILL.md's Status-set call co-locates a
-        case-insensitive in-review option-name resolution naming both
-        'In Review' and 'Review' within a bounded window of the existing
-        item-edit/field-list Status-set call."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?is)(In Review.{0,400}\bReview\b|Review.{0,400}In Review)"
-                      r".{0,600}(item-edit|field-list|single-select-option-id)|"
-                      r"(item-edit|field-list|single-select-option-id)"
-                      r".{0,600}(In Review.{0,400}\bReview\b|Review.{0,400}In Review)",
-                      body),
-            "create-pr/SKILL.md must resolve the in-review option by "
-            "case-insensitive name (In Review, then Review) co-located with "
-            "the Status-set call (MAR-102 AC-1)")
+        """AC-1/AC-2: the option is matched case-insensitively, In Review
+        first, else Review."""
+        gh, _f = self.status_fill([{"id": "opt-x", "name": "iN rEvIeW"}])
+        self.assertIn("--single-select-option-id opt-x", " | ".join(gh.calls))
+
+        gh, _f = self.status_fill([{"id": "opt-r", "name": "review"}])
+        self.assertIn("--single-select-option-id opt-r", " | ".join(gh.calls))
+
+        gh, _f = self.status_fill([{"id": "opt-r", "name": "Review"},
+                                   {"id": "opt-ir", "name": "In Review"}])
+        self.assertIn("--single-select-option-id opt-ir", " | ".join(gh.calls),
+                      "In Review must win when the board defines both")
 
     def test_create_pr_in_review_status_both_create_and_edit_paths(self):
-        """AC-1: the in-review Status resolution is placed after step 6
-        Record (i.e. after the PR number is known) and the block still
-        states it applies on both create and edit paths."""
-        body = read(self.skill_path("create-pr"))
-        record_idx = body.find("**Record.**")
-        self.assertNotEqual(record_idx, -1, "create-pr/SKILL.md must still carry the Record step")
-        review_idx = body.find("In Review")
-        self.assertNotEqual(review_idx, -1, "in-review option resolution must exist")
-        self.assertGreater(
-            review_idx, record_idx,
-            "MAR-102: in-review Status resolution must be placed after step 6 "
-            "Record, not before the PR number is known")
-        self.assertIsNotNone(
-            re.search(r"(?i)\bboth\b.{0,120}(create and edit|create.{0,10}edit)|"
-                      r"(create and edit|create.{0,10}edit).{0,120}\bboth\b", body),
-            "create-pr/SKILL.md must explicitly say the metadata-fill "
-            "(incl. Status resolution) applies on both create and edit "
-            "paths (MAR-102 AC-1)")
+        """AC-3: one call, reached identically however the PR came to exist --
+        the skill places it after Record and passes the PR number."""
+        body = " ".join(read(os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")).split())
+        self.assertIn("now that the PR number is known from step 6", body)
 
     def test_create_pr_missing_in_review_option_is_info_finding(self):
-        """AC-2: when no in-review option is defined, an info finding names
-        the missing option and how to add it; Status is left unchanged; the
-        PR is unaffected — all within a bounded window of the resolution
-        rule."""
-        body = read(self.skill_path("create-pr"))
-        review_idx = body.find("In Review")
-        self.assertNotEqual(review_idx, -1, "in-review option resolution must exist")
-        window = body[max(0, review_idx - 200):review_idx + 1200]
-        self.assertIsNotNone(
-            re.search(r"(?i)info", window),
-            "must co-locate an info-severity finding with the in-review "
-            "resolution rule (MAR-102 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?is)Status.{0,200}(unchanged|left unchanged)|"
-                      r"(unchanged|left unchanged).{0,200}Status", window),
-            "must state Status is left unchanged when no in-review option "
-            "is defined (MAR-102 AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)how to add", window),
-            "must name how to add the missing in-review option (MAR-102 AC-2)")
+        """AC-4: a board with neither option leaves Status UNCHANGED, adds one
+        info finding, and says why it cannot be created for you."""
+        gh, findings = self.status_fill([{"id": "opt-todo", "name": "Todo"}])
+        self.assertFalse([c for c in gh.calls if "--single-select-option-id" in c])
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["severity"], "info")
+        self.assertIn("In Review, Review", findings[0]["message"])
+        self.assertIn("cannot be created through the gh CLI", findings[0]["message"])
 
     def test_create_pr_in_review_resolution_inside_guarded_block(self):
-        """AC-3/AC-4: the new in-review resolution sits inside MAR-101's
-        guarded metadata-fill block — the local/unsynced no-op and
-        failure-surfaced-never-abort guarantees still cover the span from
-        the assignee-fill marker to step 7 Tracker sync."""
-        body = read(self.skill_path("create-pr"))
-        assignee_idx = None
-        for m in re.finditer(r"(?i)--add-assignee|@me", body):
-            assignee_idx = m.start()
-            break
-        self.assertIsNotNone(assignee_idx, "metadata-fill block must exist")
-        step7_idx = body.find("**Tracker sync.**")
-        self.assertNotEqual(step7_idx, -1, "step 7 Tracker sync must still exist")
-        window = body[assignee_idx:step7_idx]
-        self.assertIn("In Review", window,
-                      "MAR-102: the in-review Status resolution must sit "
-                      "inside the guarded metadata-fill block (between the "
-                      "assignee fill and step 7 Tracker sync)")
-        self.assertIsNotNone(
-            re.search(r"(?i)(local|unsynced).{0,300}(no-?op|skip)|"
-                      r"(no-?op|skip).{0,300}(local|unsynced)|byte-identical", window),
-            "the local/unsynced no-op guarantee must still cover the whole "
-            "guarded block, incl. the new in-review resolution (MAR-102 AC-3)")
-        self.assertIsNotNone(
-            re.search(r"(?is)finding.{0,300}(never abort|does not abort|do(es)? not abort)|"
-                      r"(never abort|does not abort|do(es)? not abort).{0,300}finding", window),
-            "the failure-surfaced-never-abort guarantee must still cover the "
-            "whole guarded block, incl. the new in-review resolution "
-            "(MAR-102 AC-4)")
+        """AC-5: the Status set is individually guarded like every other call
+        -- a failure is a finding, never an abort of the fill."""
+        responses = dict(_PROJECT_RESPONSES)
+        responses["gh project item-edit"] = (1, "", "nope")
+        gh, findings = lib.Gh(responses=responses), []
+        lib.project_fill(gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
+                         {"id": "SHOP-1", "type": "task"},
+                         "https://example.invalid/pull/42", lib.PR_STATUS_OPTIONS,
+                         "project", findings)
+        self.assertTrue(findings)
+        self.assertTrue(all(f["severity"] == "info" for f in findings))
 
     def test_create_pr_executor_mirrors_in_review_resolution(self):
-        """AC-1 (executor surface): create-pr-executor.md carries the
-        identical in-review option-name resolution (In Review/Review)
-        co-located with its item-edit/field-list sequence."""
-        body = read(self.agent_path("create-pr", "executor"))
-        self.assertIsNotNone(
-            re.search(r"(?is)(In Review.{0,400}\bReview\b|Review.{0,400}In Review)"
-                      r".{0,600}(item-edit|field-list|single-select-option-id)|"
-                      r"(item-edit|field-list|single-select-option-id)"
-                      r".{0,600}(In Review.{0,400}\bReview\b|Review.{0,400}In Review)",
-                      body),
-            "create-pr-executor.md must mirror the in-review option "
-            "resolution (In Review, then Review) co-located with the "
-            "Status-set call (MAR-102 AC-1)")
+        """The executor charter reaches the same resolution through the same
+        command rather than restating it."""
+        body = read(os.path.join(PLUGIN, "agents", "create-pr-executor.md"))
+        self.assertIn("pr metadata fill", body)
+        self.assertIn("Status", body)
 
 
 class TestCreatePrInReviewStatusDocs(unittest.TestCase):

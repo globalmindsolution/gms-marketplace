@@ -176,6 +176,11 @@
       "type": "object",
       "properties": {
         "provider": {"enum": ["local", "github", "jira"], "default": "local"},
+        "milestone": {
+          "description": "Default milestone title applied to every synced ticket that does not set its own. The milestone must already exist in the tracker -- creating one is a project decision, not a sync side effect -- so a title the forge does not know is one info finding, never a failed sync.",
+          "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
+          "default": null
+        },
         "github": {
           "type": "object",
           "properties": {

@@ -14,7 +14,9 @@ Run:  python3 -m unittest tests.acs.test_gh_call_criticality_prose -v
 import glob
 import os
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -434,8 +436,20 @@ class FrozenPayloadTest(unittest.TestCase):
 
 
 class RuleX1Test(unittest.TestCase):
-    """X-1: the three `2>/dev/null || true` label-create lines are
-    non-critical by shell construction and stay byte-identical."""
+    """X-1: a label-create never fails the flow around it.
+
+    ONE of the three lines is still shell in the prose and stays
+    byte-identical: create-pr's `ACS` label. The other two -- create-pr's
+    type-label create and create-ticket's per-ticket label creates -- moved
+    into `acs_lib.forge` with MAR-525, where the same property holds by CODE
+    construction: the call is made and its result deliberately not checked,
+    which is what `2>/dev/null || true` meant. Both are asserted below rather
+    than dropped, because X-1 is about the property, not about which language
+    expresses it -- and an unasserted arm is an unprotected one."""
+
+    def setUp(self):
+        self.workdir = tempfile.mkdtemp(prefix="acs-x1-")
+        self.addCleanup(shutil.rmtree, self.workdir, True)
 
     def test_rule_x1_label_create_lines_are_unchanged(self):
         create_pr_body = read(CREATE_PR_SKILL)
@@ -444,14 +458,48 @@ class RuleX1Test(unittest.TestCase):
             'gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true',
             create_pr_body,
         )
-        self.assertIn(
-            'gh label create <ticket.type> --description "Created by the acs pipeline" 2>/dev/null || true',
-            create_pr_body,
-        )
-        self.assertIn(
-            'gh label create <name> --description "..." 2>/dev/null || true',
-            create_ticket_body,
-        )
+        # create-ticket's own label-create moved into acs_lib.forge with
+        # MAR-525; the property is asserted below, in the language it now
+        # lives in, rather than as a shell line the skill no longer carries.
+        self.assertNotIn("gh label create", create_ticket_body)
+
+    def test_rule_x1_holds_for_create_prs_label_create_that_moved_into_code(self):
+        gh = acs_lib.Gh(responses={"gh label create": (1, "", "already exists"),
+                               "gh pr edit": (0, "", ""),
+                               "gh api user": (0, "me\n", ""),
+                               "gh pr diff": (0, "", "")})
+        out = acs_lib.pr_metadata_fill(
+            gh, {}, {"id": "SHOP-1", "type": "task"},
+            {"number": 42, "url": "u"}, "/repo", author="@me",
+            resolver=lambda root, files: {"owners": [], "reason": "no_codeowners_file"})
+        self.assertIn("gh label create task --description Created by the acs pipeline",
+                      gh.calls)
+        self.assertIn("label:task", out["applied"],
+                      "a failing label create must not stop the label from being applied")
+        self.assertFalse([f for f in out["findings"] if "label create" in (f.get("command") or "")],
+                         "a label create that fails is not a finding -- it is expected "
+                         "when the label already exists")
+
+    def test_rule_x1_holds_for_create_tickets_label_creates_that_moved_into_code(self):
+        """The arm the prose assertion above stopped covering when
+        create-ticket's shell lines were deleted. Both label creates fail; the
+        ticket still syncs and neither failure becomes a finding."""
+        body = os.path.join(self.workdir, "tracker-body.md")
+        with open(body, "w", encoding="utf-8") as fh:
+            fh.write("body\n")
+        gh = acs_lib.Gh(responses={
+            "gh label create": (1, "", "already exists"),
+            "gh issue create": (0, "https://example.invalid/issues/9\n", ""),
+            "gh issue edit": (0, "", "")})
+        external, findings = acs_lib.tracker_sync_one(gh, {}, {"id": "SHOP-1",
+                                                               "type": "task"}, body)
+        self.assertEqual(external["key"], "9",
+                         "a failing label create must not fail the ticket")
+        self.assertIn("gh label create ACS --description Created by the acs pipeline",
+                      gh.calls)
+        self.assertIn("gh issue edit 9 --add-label ACS,task", gh.calls,
+                      "the labels are applied even though creating them failed")
+        self.assertFalse([f for f in findings if "label create" in (f.get("command") or "")])
 
 
 if __name__ == "__main__":
