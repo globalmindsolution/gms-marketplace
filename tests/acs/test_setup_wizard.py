@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -120,10 +121,88 @@ class DetectTest(WizardCase):
 
     def test_a_directory_that_is_not_a_git_repo_still_answers(self):
         """The conversation has to be able to say "not a git repo" — which
-        means detect must return rather than raise."""
+        means detect must RETURN rather than raise, and must say so in a field
+        the skill can read.
+
+        `ok` used to be a hardcoded True on every path, so it meant "apply
+        succeeded" for one command and nothing at all for the other, and
+        SKILL.md's "No git repository, STOP" had nothing to key on."""
         out = setup_wizard.detect(self.tmp)
-        self.assertTrue(out["ok"])
+        self.assertFalse(out["ok"])
+        self.assertFalse(out["is_git_repo"])
         self.assertIsNone(out["repo_id"])
+
+    def test_detect_describes_the_file_apply_will_write(self):
+        """detect rooted on checkout_root while apply rooted on
+        main_repo_root; in a linked worktree those differ, so apply wrote to a
+        checkout detect never showed and a configured repo read as fresh."""
+        out = setup_wizard.detect(self.repo)
+        self.assertEqual(os.path.dirname(os.path.dirname(out["scopes"]["project"]["path"])),
+                         out["settings_root"])
+        self.assertIn("in_linked_worktree", out)
+
+
+class RefusalTest(WizardCase):
+    """What the wizard must REFUSE to do. Every one of these used to succeed
+    quietly, which on a consumer's repo is worse than failing loudly."""
+
+    def test_a_corrupt_settings_file_is_never_overwritten(self):
+        """read_json returns None for BOTH "absent" and "corrupt", and
+        collapsing that to {} turned the documented read-update-write merge
+        into a full overwrite: one stray comma destroyed every other key, with
+        no backup, no warning and ok:true."""
+        path = os.path.join(self.repo, ".acs", "settings.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        original = '{\n "ticket_prefix": "SHOP",\n "merge_strategy": "squash",\n}\n'
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(original)
+        out = setup_wizard.apply(self.repo, {"settings": {"ticket_prefix": "NEW"}})
+        with open(path, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), original, "the file was rewritten")
+        self.assertFalse(out["ok"])
+        self.assertTrue(any("not valid JSON" in e for e in out["errors"]), out["errors"])
+
+    def test_a_missing_template_is_an_error_not_unchanged(self):
+        """_copy returned False for a MISSING source -- the same value it
+        returns for "already identical" -- which apply_ci filed under
+        `unchanged`, documented as "already the way it asked for". The install
+        was then reported as present AND its required-check context was still
+        returned, so Step 4 would wire a required check for a workflow that
+        does not exist, blocking every future PR."""
+        changes = setup_wizard.Changes()
+        with mock.patch.object(setup_wizard, "plugin_templates",
+                               return_value=self.tmp):
+            staged, installed = setup_wizard.apply_ci(
+                self.repo, ["conventions"], changes)
+        self.assertEqual(installed, [], "nothing installed, so nothing to require")
+        self.assertTrue(changes.errors)
+        self.assertEqual(changes.unchanged, [])
+
+    def test_an_answers_document_with_the_wrong_types_is_refused(self):
+        """`{"ci": "conventions"}` iterated the STRING character by character,
+        warned nine times, installed nothing, and returned ok:true -- which the
+        skill's contract reads as success for a gate that never landed."""
+        self.assertTrue(setup_wizard.validate_answers({"ci": "conventions"}))
+        self.assertTrue(setup_wizard.validate_answers({"settings": "..."}))
+        self.assertTrue(setup_wizard.validate_answers({"status_line": "user"}))
+        self.assertTrue(setup_wizard.validate_answers({"scope": "PROJECT"}))
+        self.assertEqual(setup_wizard.validate_answers(
+            {"ci": ["conventions"], "scope": "project", "claude_md": True}), [])
+
+    def test_a_re_run_adds_no_duplicate_to_either_layer(self):
+        """The .gitignore write is guarded by git itself; the exclude append
+        was guarded only by an EXACT-STRING test, so a file already carrying
+        the equally valid rooted form got a second line every re-run."""
+        common = os.path.join(self.repo, ".git")
+        exclude = os.path.join(common, "info", "exclude")
+        os.makedirs(os.path.dirname(exclude), exist_ok=True)
+        with open(exclude, "w", encoding="utf-8") as fh:
+            for entry in setup_wizard.IGNORE_ENTRIES:
+                fh.write("/%s\n" % entry.lstrip("/"))
+        setup_wizard.apply_ignores(self.repo, self.repo, setup_wizard.Changes())
+        with open(exclude, encoding="utf-8") as fh:
+            lines = [l for l in fh.read().splitlines() if l.strip()]
+        self.assertEqual(len(lines), len(setup_wizard.IGNORE_ENTRIES), lines)
 
 
 class SettingsWriteTest(WizardCase):
@@ -430,17 +509,38 @@ class SkillShapeTest(unittest.TestCase):
                      "What declining costs", "Completion report (normative)"):
             self.assertIn(kept, self.body, kept)
 
-    def test_it_is_a_quarter_of_its_former_size(self):
-        """The ticket asked for <= 200 lines. This lands at 248 because ~90
-        lines of the remainder are conversation pinned by six earlier tickets'
-        acceptance criteria (MAR-89's models offer, MAR-112/113/117/118's doc
-        paths, MAR-114's suites + migration offer, MAR-125's branch-protection
-        rules) plus the normative completion report. Cutting to 200 would mean
-        deleting things a user is told, which is the opposite of the ticket.
-        Pinned here so the number is a decision on the record, not a drift."""
+    #: AC-2's number. The file does not meet it, and this test says so out loud
+    #: rather than pinning a threshold the AC never contained.
+    AC2_LINE_BUDGET = 200
+
+    #: What it actually is, after every piece of MECHANISM was moved into the
+    #: wizard. The review of this PR was right that the earlier overshoot was
+    #: mechanism, not conversation: branch protection, label creation and the
+    #: next-steps derivation are now `setup_wizard.py commands`, which also
+    #: removed the hand-written shell where a quoting regression had landed.
+    #: What remains above the budget is conversation OTHER acceptance criteria
+    #: require to exist -- the offers table and per-key defaults pinned by
+    #: MAR-89/112/113/114/117/118 and asserted by four sibling test modules --
+    #: plus the normative completion report. Cutting to 200 now means deleting
+    #: things a user is told, which is the opposite of the ticket.
+    CURRENT_CEILING = 230
+
+    def test_the_conversation_is_all_that_is_left_of_it(self):
+        """The size AC, stated honestly: the gap to 200 is named, not hidden.
+
+        Two assertions, because they mean different things. The ceiling stops
+        drift. The recorded gap makes the residual visible every time someone
+        reads this test, so closing it stays a live decision rather than a
+        number that quietly became the standard."""
         lines = self.body.count("\n") + 1
-        self.assertLessEqual(lines, 250)
+        self.assertLessEqual(lines, self.CURRENT_CEILING)
         self.assertLess(lines, 1003 // 3, "must stay under a third of the original")
+        if lines > self.AC2_LINE_BUDGET:
+            self.assertLessEqual(
+                lines - self.AC2_LINE_BUDGET, 32,
+                "the gap to AC-2's %d-line budget is %d lines; if it grows past 32 "
+                "the remainder is no longer just the pinned conversation"
+                % (self.AC2_LINE_BUDGET, lines - self.AC2_LINE_BUDGET))
 
 
 if __name__ == "__main__":

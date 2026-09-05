@@ -166,7 +166,7 @@ this skill owns the workflow around it.
   when the plugin's `version` bumps (semver; automated release tagging).
 - Runs post-update migration checks: settings valid against the new schema,
   status-line paths still resolve (they hold absolute install paths —
-  re-run `/setup` Step 7b when the install moved), workspace reachable.
+  re-run `/setup` Step 3 when the install moved), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.

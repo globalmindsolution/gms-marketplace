@@ -71,7 +71,7 @@ class Mar125InitE2eGateCase(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
         cls.protection = section(cls.body, "## Step 4")
-        cls.summary = section(cls.body, "## Step 6")
+        cls.summary = section(cls.body, "## Step 5")
         cls.wizard = read(os.path.join(PLUGIN, "hooks", "scripts", "setup_wizard.py"))
 
     def test_the_e2e_gate_is_offered_and_guarded_on_e2e_being_configured(self):
@@ -102,19 +102,30 @@ class Mar125InitE2eGateCase(unittest.TestCase):
         self.assertIn("executable=True", self.wizard)
 
     def test_one_admin_detect_and_one_contexts_array_for_every_gate(self):
-        """AC-3: the E2E context extends the SAME contexts array the other
-        gates manage — never a second protection call per gate."""
+        """AC-3, now enforced by CODE rather than by prose: the E2E context
+        extends the SAME contexts array the other gates manage — never a
+        second protection call per gate.
+
+        MAR-526's review moved the call out of the SKILL.md (a bare `<slug>`
+        in a bash block is parsed as a redirection), so the guarantee is no
+        longer "the prose says one array" but "the renderer can only produce
+        one". The admin-detect judgement stays prose, because it is a
+        judgement."""
+        import sys
+        sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+        import setup_wizard
+        rendered = setup_wizard.render_protect(
+            "acme/shop", "main", ["Branch / PR / commit conventions",
+                                  "Tests & coverage", "E2E suite"])
+        self.assertEqual(rendered.count("-X PUT"), 1, rendered)
+        self.assertEqual(rendered.count("/protection"), 1, rendered)
+        self.assertEqual(rendered.count("required_status_checks[contexts][]"), 3,
+                         rendered)
         self.assertIn("permissions.admin", self.protection)
-        self.assertIsNotNone(
-            re.search(r"(?is)same.{0,80}`contexts`|`contexts`.{0,80}same",
-                      self.protection),
-            "the branch-protection step must state every context extends the "
-            "same contexts array (AC-3)")
-        self.assertIn("never a second protection call", self.protection)
 
     def test_the_context_literal_is_pinned(self):
-        """AC-3: the required status check's name is exact."""
-        self.assertIn('"E2E suite"', self.protection)
+        """AC-3: the required status check's name is exact. Read from the
+        install table, which is what actually names it."""
         import sys
         sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
         import setup_wizard

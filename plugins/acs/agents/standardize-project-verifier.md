@@ -44,7 +44,7 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    change to satisfy this dimension. A branch-protection mutation is a repo-config
    change, not a file diff — it is invisible to this `git diff --name-status` check and
    is never performed within `/acs:standardize-project`; that stays exclusively with
-   `/acs:setup` Step 7f.
+   `/acs:setup` Step 3.
 2. **doc-set-authorship boundary** — no path under `<principles_path>/` or
    `<standards_path>/` appears anywhere in the diff, regardless of status (closes the gap
    the generic `A`-always-passes rule would otherwise leave open for these two specific

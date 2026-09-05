@@ -160,67 +160,48 @@ broad rule swallowing `.acs/settings.json`, is their configuration to decide.
 `stage_for_commit` lists what to stage (never commit unless asked);
 `required_check_contexts` names the checks for branch protection.
 
-## Step 4 — Branch protection (admin, one-time)
+## Step 4 — Branch protection and labels (admin, one-time)
 
 The CI workflows are **advisory** until a required status check makes them a
-gate — say that plainly: without it the workflow runs and can be ignored.
-Detect admin rights (`gh api repos/<slug> --jq .permissions.admin`); with them,
-offer to configure protection yourself; without them, print this for an admin to
-run once, with every `required_check_contexts` entry in one `contexts` array:
+gate — say that plainly: without it the workflow runs and can be ignored. Ask
+the wizard for the two one-time `gh` calls, already quoted, passing every
+`required_check_contexts` entry `apply` returned:
 
 ```bash
-gh api -X PUT repos/<slug>/branches/<branch>/protection \
-  -f "required_status_checks[strict]=true" \
-  -f "required_status_checks[contexts][]=<context>" ...
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/setup_wizard.py" commands \
+  --cwd . --slug <owner/repo> --branch <default-branch> --context "<each context>"
 ```
 
-Rules for this step, all of them user-facing:
+`protect` is one call extending one `contexts` array; `labels` creates `ACS`
+and `acs-exempt` and is harmless when they exist. Do not hand-write either:
+a bare `<slug>` in a bash block is parsed as a redirection, and a context like
+`Tests & coverage` backgrounds the shell at the `&`.
 
-- **One call, one array.** Every context — `Branch / PR / commit conventions`,
-  `Tests & coverage`, `"E2E suite"` — extends the **same** `contexts` array;
-  never a second protection call per gate. The e2e context is added only when
-  `e2e`/`suites.e2e` is configured; unset means the whole offer is a no-op.
-- **admin = true AND consent.** Admin detection alone is not permission: make
-  the mutating PUT only when the user says yes.
-- **Register the check first.** A context GitHub has never seen returns 422
-  (unknown context): open a PR (or re-run the workflow) once so the check
-  registers, then re-run the protection call.
-- **Print it once, never hard-fail.** Without admin, print the command once for
-  an admin to run and move on; `/acs:setup` never fails over branch protection.
-- **`gh` auth only.** Nothing is ever stored in settings for this: `gh` is the
-  transport and its own authentication is what authorises the call.
+The judgement left to you:
 
-## Step 5 — Labels and the tracker conventions
+- **admin = true AND consent.** Detect admin rights
+  (`gh api "repos/$slug" --jq .permissions.admin`); detection alone is not
+  permission, so make the mutating PUT only when the user says yes. Without
+  admin, print the command **once** for an admin to run and move on:
+  `/acs:setup` must never hard-fail over branch protection.
+- **Register the check first.** A context GitHub has never seen returns 422:
+  open a PR (or re-run the workflow) once so the check registers, then re-run.
+- **`gh` auth only.** Nothing is ever stored in settings for this.
 
-When the tracker is `github` (or the repo has a GitHub remote), ensure the two
-labels the pipeline uses. Best-effort, harmless when they exist:
-
-```bash
-gh label create ACS        --description "Created/validated by the acs pipeline" 2>/dev/null || true
-gh label create acs-exempt --description "Skip acs convention checks for this PR" 2>/dev/null || true
-```
-
-Name the two linkage conventions reconciliation relies on, so a hand-edited
-issue or PR does not break it: every synced issue body carries an
+Then name the two linkage conventions reconciliation relies on, so a
+hand-edited issue or PR does not break it: every synced issue body carries an
 `acs-ticket: <id>` line, and every PR body a `Closes #<n>` reference. Both are
 written for you; neither survives being deleted by hand.
 
-## Step 6 — Summary and next steps
+## Step 5 — Summary and next steps
 
 Print a table of every resolved setting, its value, and where it landed (or
-"default — not written"), then the next steps. `git ls-files` decides greenfield
-vs brownfield — an existing product codebase is brownfield, an empty or
-docs-only repo greenfield:
-
-- **Brownfield**: `/acs:create-prd`, then `/acs:create-architecture`, merging
-  each PR with `/acs:merge-pr <ticket-id>` after review. On a solo-maintainer
-  repo that skill cannot merge (it requires an APPROVED review and GitHub
-  forbids self-approval) — merge in the GitHub UI instead.
-- **Greenfield**: the same two, plus `/acs:create-project` to scaffold.
-- Then `/acs:ship <prompt>`, or step by step from `/acs:create-ticket <prompt>`.
+"default — not written"). The next steps come from `commands` above —
+`next_steps` carries the greenfield/brownfield call, the ordered pipeline and
+the solo-maintainer caveat, so you report them rather than re-deriving them.
 
 Repeat any unmet toolchain install hint so the gap stays explicit, and confirm
-the workflow is ready: `/acs:setup`, then the pipeline `/acs:create-prd` →
+the workflow is ready: `/acs:setup`, then `/acs:create-prd` →
 `/acs:create-architecture` → `/acs:create-project` → `/acs:create-ticket` →
 `/acs:create-design` → `/acs:code` → `/acs:test` (conditional) →
 `/acs:docs-sync` → `/acs:create-pr` → `/acs:merge-pr`, the umbrella
