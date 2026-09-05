@@ -175,7 +175,7 @@ records — what actually shipped under the M2 hardening banner. Delivers the PR
 Must-have convention-enforcement, `/acs:install-hooks`, and Step 0b preflight
 features.
 
-- **E5.1 — Step 7c repo-side CI convention check.** `/acs:setup` Step 7c scaffolds
+- **E5.1 — Step 3 repo-side CI convention check.** `/acs:setup` Step 3 (`setup_wizard.py apply`) scaffolds
   `.github/workflows/acs-conventions.yml` backed by a stdlib-only
   `.acs/ci/check-conventions.py` (fail-closed; modes `pr` / `pre-push` /
   `commit-msg`), config-driven local git hooks (`commit-msg` + `pre-push`), and a
@@ -209,7 +209,7 @@ features.
   branch/worktree cleanup as the ticket path, but resolving no ticket, writing no
   partition/state, and skipping tracker sync and archiving (bumping only the repo
   `pr_merged` metric); it refuses and redirects when the PR is actually ticket-backed.
-  `/acs:setup` Step 7e (opt-in, default-on) writes an idempotent, marker-delimited
+  `/acs:setup` Step 3 (opt-in, default-on) writes an idempotent, marker-delimited
   `CLAUDE.md` acs-managed block (from `templates/CLAUDE.acs.md`) steering in-repo
   Claude sessions to `/acs:ship` rather than a raw `gh pr create`. Pending merge in
   PR #50; targeted for a v0.2.x release.

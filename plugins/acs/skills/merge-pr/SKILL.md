@@ -302,7 +302,7 @@ Judge the four readiness dimensions, each as `"pass"` or
   check failing or pending; `gh pr checks --required` exits 0). Failing
   non-required checks are recorded as `info` findings, not blockers.
 
-  A repo that has run `/acs:setup` Step 7f and wired `"E2E suite"` as a
+  A repo that has run `/acs:setup` Step 3 and wired `"E2E suite"` as a
   required status check gets e2e enforcement for free through this same
   `ci` read — zero merge-pr code changes. This is not a fifth readiness
   dimension: `ci`/`approvals`/`conflicts`/`protections` remain the complete

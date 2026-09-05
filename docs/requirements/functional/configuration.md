@@ -37,25 +37,25 @@ folder.
 | `operations_path` | string (repo-relative path) or `null` | `"docs/operations"` | No | Location of the `operations/` doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by `/acs:create-operations`. Unset = acs does not maintain this set for this repo. |
 | `principles_path` | string (repo-relative path) or `null` | `"docs/principles"` | No | Location of the `principles/` doc set (engineering principles + rationale) bootstrapped and maintained by `/acs:create-principles`. Unset = acs does not maintain this set for this repo. |
 | `standards_path` | string (repo-relative path) or `null` | `"docs/standards"` | No | Location of the `standards/` doc set (coding standards & conventions — `coding-standards.md`, `conventions.md`, `review-checklist.md`) bootstrapped and maintained by `/acs:create-standards`, which also reads `principles_path` (when set) as an upstream grounding input. Unset = acs does not maintain this set for this repo. |
-| `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly; `/acs:setup` offers a one-time migration on re-run. Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and the `code-verifier` runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the `/acs:setup` Step 7f note below). |
+| `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly; `/acs:setup` offers a one-time migration on re-run. Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and the `code-verifier` runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the `/acs:setup` Step 3 note below). |
 | `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |
-| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 7d, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |
+| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |
 
-**e2e required merge gate (`/acs:setup` Step 7f, opt-in).** When `e2e`/
-`suites.e2e` is configured, `/acs:setup` Step 7f offers to scaffold
+**e2e required merge gate (`/acs:setup` Step 3, opt-in).** When `e2e`/
+`suites.e2e` is configured, `/acs:setup` Step 3 offers to scaffold
 `.github/workflows/acs-e2e.yml` + `.acs/ci/run-e2e.py` — the same
 committed-settings-reading pattern as the tests gate, independent of it (a
 repo can gate on one, both, or neither). **Opt-in invariant**: when
-`e2e`/`suites.e2e` is unset, Step 7f is never offered — no files copied, no
+`e2e`/`suites.e2e` is unset, Step 3 is never offered — no files copied, no
 `gh api` call, zero new behavior. `run-e2e.py` resolves the command from
 `suites["e2e"]` or the raw `e2e` alias, runs `setup` → `command` → `teardown`
 (teardown always, in a `finally`; a non-zero teardown is a logged warning and
 never flips a green `command` result to red), and exits with `command`'s
-status. On `admin=true` **and** explicit user consent, Step 7f extends the
+status. On `admin=true` **and** explicit user consent, Step 3 extends the
 SAME `required_status_checks.contexts` array Steps 7c/7d already manage with
 the literal `"E2E suite"` context — never a second, competing `PUT` — only
 after the check has reported a conclusion at least once (avoids the
-"unknown context" 422). Otherwise (no admin, or decline): Step 7f prints the
+"unknown context" 422). Otherwise (no admin, or decline): Step 3 prints the
 exact `gh api … /protection` command **once** and continues — never
 hard-fails `/acs:setup` (the report-once safeguard). No new settings key is
 introduced by any of this.
