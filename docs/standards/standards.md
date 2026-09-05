@@ -24,6 +24,22 @@ comments and docstrings to test filenames.
 The `MAR-<NNN>` reference that motivated a test still belongs in the module
 docstring — that is where the traceability lives.
 
+## Module size
+
+Every module under `plugins/acs/` stays **below 800 lines**. This is enforced,
+not aspirational: `tests/acs/test_module_line_budget.py` fails the suite on any
+file at or over the budget, so crossing it is a red build rather than a review
+comment.
+
+The number comes from epic MAR-501/E1's success criterion. It is a proxy for the
+thing actually wanted — a module a reader can hold in their head, and a diff a
+reviewer can judge — so the remedy for crossing it is a split along a real seam
+(render backends, accumulate/finalize, ticket enumeration), never a reshuffle to
+get under the line. Where a split is made, the entry point keeps its
+`__main__` and re-exports its whole pre-split surface, because three SKILL.md
+files invoke these by path and the golden tests reach them by name.
+
+
 ## Testing conventions
 
 New behavior is covered by a test that is named for the behavior it pins, so the
