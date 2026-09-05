@@ -142,6 +142,20 @@ findings, error details, and stop reasons into workspace files):
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
+**The verifier also writes a verdict** (MAR-527):
+`phases/<skill>/iter-<n>-verdict.json`, or `iter-<n>-verdict-lens-<A|B|C|D>.json`
+on full depth. It carries a per-dimension result table (by the numbers in
+`agents/code-verifier.md`, where `n/a` is a real answer), the findings, and
+`passed` — which is **derived, not asserted**: `passed` is true exactly when no
+finding is `blocking`. `acs_lib.verdict.validate_verdict` enforces that, and the
+SubagentStop hook runs it, so a verdict claiming a pass over a blocking finding
+is refused rather than believed. `verdict.schema.json` pins the shape; that
+function pins the meaning, and says so. On full depth the coordinator runs
+`acs.py verdict merge` — the conjunction of `passed`, the union of findings, the
+worst result per dimension — which is arithmetic over the lens files, not a
+second opinion. `states.verifier_passed` is copied from `acs.py verdict show`,
+never concluded from a findings count.
+
 **The XML snapshot is written by the SubagentStop hook** (MAR-528), not by the
 coordinator remembering to. The hook fires on `^acs:`-matched agents, validates
 the returned message against `acs-messages.xsd`, and files it at

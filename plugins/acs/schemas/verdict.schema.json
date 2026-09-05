@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/verdict.schema.json",
+  "title": "acs verifier verdict",
+  "description": "The verifier's verdict for one iteration (MAR-527), written by the verifier and validated by the SubagentStop hook. NOTE: the invariant that makes this a verdict rather than a self-report -- `passed` must equal \"no blocking finding\" -- is NOT expressible here and is enforced by acs_lib.verdict.validate_verdict, which is what the hook actually runs. This schema pins the shape; that function pins the meaning.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "skill",
+    "ticket_id",
+    "iteration",
+    "passed",
+    "dimensions",
+    "findings"
+  ],
+  "properties": {
+    "skill": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ticket_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "iteration": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "lens": {
+      "description": "The full-depth review lens this verdict covers, or null for a single-pass (light-depth) verdict and for the merged one.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        null
+      ]
+    },
+    "passed": {
+      "description": "DERIVED, never asserted: true exactly when `findings` carries no entry with severity `blocking`.",
+      "type": "boolean"
+    },
+    "merged_from": {
+      "description": "Present only on a merged verdict: the lenses it was built from.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ]
+      }
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "result"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "description": "The dimension number in plugins/acs/agents/code-verifier.md."
+          },
+          "name": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "n/a"
+            ],
+            "description": "`n/a` is a real answer: dimension 14 is full-depth only, 15 is inactive without an approved plan, 2 and 3 are n/a under docs_only."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "The command run and its relevant output, or the file:line the judgement rests on."
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "severity",
+          "detail"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "info"
+            ],
+            "description": "Only `blocking` decides the verdict; `info` is reported and carried, never gating."
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "written_at": {
+      "type": "string"
+    }
+  }
+}

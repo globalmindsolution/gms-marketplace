@@ -13,6 +13,7 @@ it always did. In dependency order:
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gates          context resolution, the pre-hook gates, post-hook persistence
+  verdict        the verifier's verdict document and its derived-pass rule
   lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
@@ -22,7 +23,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               forge, gates, lifecycle)  # noqa: F401
+               forge, gates, verdict, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -99,3 +100,7 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILE
     result_document, stop, stop_counter_key, subagent_start, subagent_stop,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
+
+from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
+    blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
+    validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
