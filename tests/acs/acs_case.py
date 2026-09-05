@@ -29,6 +29,22 @@ import acs_lib as lib  # noqa: E402
 ACS_LIB_PKG = os.path.join(SCRIPTS, "acs_lib")
 
 
+def tracker_body(case, text="## Description\n\nBulk import.\n"):
+    """A REAL `tracker-body.md` on disk, removed when `case` finishes.
+
+    `Gh(responses=...)` replays a transcript and never opens `--body-file`, so
+    every tracker-sync fixture used to pass a path that did not exist -- and so
+    none of them could notice that the file has to be written before the sync
+    runs. `tracker_sync_one` now refuses a missing body, and this is what the
+    fixtures hand it: the same file the executor writes, in the same shape."""
+    workdir = tempfile.mkdtemp(prefix="acs-tracker-body-")
+    case.addCleanup(shutil.rmtree, workdir, True)
+    path = os.path.join(workdir, "tracker-body.md")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
 def acs_lib_paths():
     """Every module file of the acs_lib package, sorted for stable output.
 

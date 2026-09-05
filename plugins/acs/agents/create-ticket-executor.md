@@ -117,7 +117,12 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
        ```
 
        It applies the exclusion rules itself and posts each partition's
-       `tracker-body.md`. Read the printed JSON: `synced` maps a ticket id to
+       `tracker-body.md` as the issue body — **write that file first**, from
+       the ticket's rendered description, for every ticket in the batch. The
+       body is what the issue is made of, so a partition without one is not
+       synced at all: the command reports that ticket under `failed` with an
+       `error` finding naming the missing path, and never creates a bodiless
+       issue. Read the printed JSON: `synced` maps a ticket id to
        its `external`, `failed` lists the ids whose issue creation failed. A
        board that defines none of a field's accepted names is one info finding
        naming the skipped field; a ticket whose own `priority`/`story_points`/

@@ -79,8 +79,13 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr metadata fill \
-     --pr <number> --author <the @me login>
+     --pr <number> [--author <login>]
    ```
+
+   `--author` is OPTIONAL and exists only so the author is dropped from their
+   own reviewer set; omit it and the command resolves the login itself with
+   `gh api user`. Any spelling works — `alice`, `@alice`, `@me`, `Alice` — the
+   comparison is `@`-stripped and case-folded on both sides.
 
    It assigns the PR, applies the ticket-type label alongside `ACS`, requests
    the CODEOWNERS-derived reviewers with the author dropped, adds the PR to the

@@ -12,13 +12,18 @@ import glob
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
+
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+from acs_case import tracker_body  # noqa: E402
 
 #: One recorded `gh` transcript, shared by the MAR-101/102/103 acceptance
 #: criteria below. MAR-525 moved their mechanism out of prose and into
@@ -39,18 +44,36 @@ _PROJECT_ITEMS = {"items": [{"id": "item-1", "projectId": "PVT_1",
                              "content": {"url": "https://example.invalid/pull/42"}},
                             {"id": "item-2", "projectId": "PVT_1",
                              "content": {"url": "https://example.invalid/issues/9"}}]}
+_SYNC_TICKET = {"id": "SHOP-1", "type": "task", "assignee": "dana",
+                "milestone": "v1", "priority": "high"}
+
+
 def _sync_calls():
     """The gh calls `acs.py tracker sync` makes for one fully-populated ticket.
 
     MAR-525 moved create-ticket Step 5's enumeration out of prose, so the ACs
-    that pinned it read the calls instead of a regex over the skill."""
+    that pinned it read the calls instead of a regex over the skill.
+
+    The body file is REAL. The recorded runner never opens `--body-file`, so a
+    made-up path used to work here -- which meant this fixture could not have
+    noticed that nothing writes one. Every field it sets is a property
+    `ticket.schema.json` declares (see
+    `TestCreateTicketSyncFixtureIsAValidTicket`), so the calls below are the
+    calls a real ticket produces, not ones a fixture-invented key conjures."""
     responses = dict(_PROJECT_RESPONSES)
     responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
     responses["gh issue edit"] = (0, "", "")
     gh = lib.Gh(responses=responses)
-    lib.tracker_sync_one(gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
-                         {"id": "SHOP-1", "type": "task", "assignee": "dana",
-                          "milestone": "v1", "priority": "high"}, "body.md")
+    workdir = tempfile.mkdtemp(prefix="acs-sync-calls-")
+    try:
+        body = os.path.join(workdir, "tracker-body.md")
+        with open(body, "w", encoding="utf-8") as fh:
+            fh.write("## Description\n\nBulk import.\n")
+        lib.tracker_sync_one(gh, {"tracker": {"github": {"owner": "acme",
+                                                         "project_number": 7}}},
+                             dict(_SYNC_TICKET), body)
+    finally:
+        shutil.rmtree(workdir, True)
     return gh.calls
 
 
@@ -2675,6 +2698,33 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "(MAR-80 AC-4 scope-fence)")
 
 
+class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
+    """The premise `_sync_calls` rests on.
+
+    Its `--milestone v1` assertion proved only that the code echoes whatever
+    the fixture set, because `milestone` was a key no schema declared: the
+    assertion passed just as well when the milestone branch could never fire
+    for a real ticket. Pinning the fixture to the schema is what makes the
+    echo evidence -- if `milestone` is dropped from `ticket.schema.json`, this
+    fails here rather than leaving a green assertion about a dead arm."""
+
+    def _schema(self, name):
+        with open(os.path.join(PLUGIN, "schemas", name), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_every_key_the_sync_fixture_sets_is_declared_by_the_ticket_schema(self):
+        declared = self._schema("ticket.schema.json")["properties"]
+        undeclared = sorted(k for k in _SYNC_TICKET if k not in declared)
+        self.assertEqual(undeclared, [],
+                         "the sync fixture must be a ticket, not a wish list")
+
+    def test_the_milestone_the_sync_reads_has_both_of_its_declared_sources(self):
+        self.assertIn("milestone", self._schema("ticket.schema.json")["properties"])
+        tracker = self._schema("settings.schema.json")["properties"]["tracker"]
+        self.assertIn("milestone", tracker["properties"],
+                      "the settings-level default the sync falls back to")
+
+
 class TestCreatePrTrackerMetadataFill(unittest.TestCase):
     """MAR-101/MAR-103's acceptance criteria, re-pointed at the implementation.
 
@@ -2884,7 +2934,7 @@ class TestCreateTicketGroupBFields(unittest.TestCase):
         gh = lib.Gh(responses=merged)
         external, findings = lib.tracker_sync_one(
             gh, {"tracker": {"github": {"owner": "acme", "project_number": 7}}},
-            ticket, "body.md")
+            ticket, tracker_body(self))
         return gh, external, findings
 
     def test_create_ticket_groupb_fields_are_filled_from_the_boards_own_names(self):
@@ -3075,8 +3125,10 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
         responses["gh issue edit"] = (0, "", "")
         gh = lib.Gh(responses=responses)
+        body = tracker_body(self)
         out = lib.tracker_sync(
-            gh, {}, [{"id": "SHOP-1", "type": "task"}, {"id": "SHOP-2", "type": "story"}], {})
+            gh, {}, [{"id": "SHOP-1", "type": "task"}, {"id": "SHOP-2", "type": "story"}],
+            {"SHOP-1": body, "SHOP-2": body})
         self.assertEqual(len([c for c in gh.calls if c.startswith("gh issue create")]), 2)
         self.assertEqual(sorted(out["synced"]), ["SHOP-1", "SHOP-2"])
 

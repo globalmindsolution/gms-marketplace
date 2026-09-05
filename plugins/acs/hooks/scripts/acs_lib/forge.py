@@ -28,6 +28,8 @@ output rather than a live forge.
 """
 
 import json
+import os
+import shlex
 import subprocess
 
 from ._common import read_json  # noqa: F401  (re-exported for callers' convenience)
@@ -82,16 +84,41 @@ class Gh(object):
         return proc.returncode, proc.stdout, proc.stderr
 
 
-def finding(severity, area, message, command=None, error=None, replayable=None):
-    """The finding shape both skills already document."""
+def finding(severity, area, message, command=None, error=None, replayable=None,
+            hint=None):
+    """The finding shape both skills already document.
+
+    `hint` is the classification ADR-0088 requires every degraded gh call to
+    carry. It was the one documented key the shipped shape omitted, and its
+    absence had a concrete cost: a 403 "GitHub access is not enabled for this
+    session" -- the one failure with a specific remedy -- came out
+    indistinguishable from a mistyped label name. It is derived from `error`
+    when the caller does not pass one, so no call site can forget it."""
     out = {"severity": severity, "area": area, "message": message}
     if command is not None:
         out["command"] = command
     if error is not None:
         out["error"] = error
+    if hint is None and error:
+        hint = gh_failure_hint(error)
+    if hint is not None:
+        out["hint"] = hint
     if replayable is not None:
         out["replayable"] = replayable
     return out
+
+
+def _render_command(argv):
+    """A replayable command line, SHELL-QUOTED.
+
+    The finding carries `replayable: true` and the skills tell the operator it
+    is "ready to re-run", so this string is executed by a human sooner or
+    later. A bare join made that unsafe with any tracker-controlled value: a
+    milestone of `Q3 2026; rm -rf /tmp/x` rendered a command that runs the
+    `rm` when replayed, and an ordinary multi-word value rendered one that is
+    simply wrong. The EXECUTED calls were always safe (argv, no shell=True);
+    only this rendering was not."""
+    return " ".join(shlex.quote(str(a)) for a in argv)
 
 
 def _guarded(gh, argv, area, findings, what):
@@ -100,7 +127,7 @@ def _guarded(gh, argv, area, findings, what):
     code, out, err = gh(argv)
     if code != 0:
         findings.append(finding(
-            "info", area, "%s failed" % what, command=" ".join(str(a) for a in argv),
+            "info", area, "%s failed" % what, command=_render_command(argv),
             error=(err or out or "").strip(), replayable=True))
         return False, out
     return True, out
@@ -306,6 +333,48 @@ def project_fill(gh, settings, ticket, url, status_options, area, findings,
     return item.get("id")
 
 
+def normalize_login(value):
+    """A GitHub login reduced to what two spellings of the same person share.
+
+    CODEOWNERS writes owners `@`-prefixed; `--author` is passed bare in one
+    document (`create-pr/SKILL.md`) and as "the @me login" in another
+    (`create-pr-executor.md`); GitHub itself is case-insensitive. Comparing the
+    raw strings therefore failed to drop the author from their own reviewer
+    set, and since the owners are comma-joined into ONE `gh pr edit
+    --add-reviewer` call, GitHub rejected the whole call and NOBODY was
+    requested. A team handle (`@org/team`) normalises the same way; it just
+    never equals a user login."""
+    text = str(value or "").strip()
+    while text.startswith("@"):
+        text = text[1:]
+    return text.lower()
+
+
+def resolve_author(gh, author, findings):
+    """The PR author's login, or "" when it cannot be established.
+
+    `--author` is optional at the CLI and was never defaulted, so the common
+    invocation compared every owner against None and dropped nobody. `@me` is
+    what `gh` accepts for a write but not something to compare against, so it
+    is resolved to the real login the same way `gh` would."""
+    normalized = normalize_login(author)
+    if normalized and normalized != "me":
+        return normalized
+    code, out, err = gh(["gh", "api", "user", "--jq", ".login"])
+    login = normalize_login((out or "").strip().splitlines()[-1] if (out or "").strip() else "")
+    if code == 0 and login:
+        return login
+    detail = (err or out or "").strip()
+    findings.append(finding(
+        "info", "reviewers",
+        "the PR author could not be resolved, so the author cannot be dropped from "
+        "their own reviewer set; pass --author <login> if GitHub rejects the request",
+        command=_render_command(["gh", "api", "user", "--jq", ".login"]),
+        error=detail or "no --author was passed and `gh api user` returned no login",
+        replayable=True))
+    return ""
+
+
 def reviewers_for(gh, pr_number, repo_root, author, findings, resolver=None):
     """The CODEOWNERS-derived reviewer set, minus the author.
 
@@ -318,7 +387,12 @@ def reviewers_for(gh, pr_number, repo_root, author, findings, resolver=None):
         return []
     changed = [line.strip() for line in (listed or "").splitlines() if line.strip()]
     resolved = (resolver or _codeowners_resolve)(repo_root, changed)
-    owners = [o for o in (resolved.get("owners") or []) if o != author]
+    candidates = resolved.get("owners") or []
+    # Only resolve the author when there is somebody to drop: a repo with no
+    # CODEOWNERS requests nobody either way, and a `gh api user` finding there
+    # would be noise about a comparison that changes nothing.
+    login = resolve_author(gh, author, findings) if candidates else ""
+    owners = [o for o in candidates if not login or normalize_login(o) != login]
     if owners:
         return sorted(set(owners))
     reason = resolved.get("reason")
@@ -385,6 +459,17 @@ def tracker_sync_one(gh, settings, ticket, body_path):
     documents."""
     findings = []
     title = ticket.get("rendered_title") or ticket.get("title") or ticket.get("id")
+    if not os.path.isfile(body_path):
+        findings.append(finding(
+            "error", "tracker",
+            "%s did not sync: the issue body %s does not exist. The executor "
+            "writes it from the rendered description before this command."
+            % (ticket.get("id"), body_path),
+            command=_render_command(["gh", "issue", "create", "--title", title,
+                                     "--body-file", body_path]),
+            error="missing body file", replayable=False))
+        return None, findings
+
     code, out, err = gh(["gh", "issue", "create", "--title", title,
                          "--body-file", body_path])
     if code != 0:
@@ -392,12 +477,30 @@ def tracker_sync_one(gh, settings, ticket, body_path):
         findings.append(finding(
             "error", "tracker",
             "%s did not sync: %s\n%s" % (ticket.get("id"), detail, gh_failure_hint(detail)),
-            command="gh issue create --title %r --body-file %s" % (title, body_path),
+            command=_render_command(["gh", "issue", "create", "--title", title,
+                                     "--body-file", body_path]),
             error=detail, replayable=False))
         return None, findings
 
     url = (out or "").strip().splitlines()[-1] if (out or "").strip() else ""
     number = url.rstrip("/").rsplit("/", 1)[-1] if url else ""
+    if not number.isdigit():
+        # A ZERO exit whose stdout does not carry an issue URL. Sliced blindly,
+        # this produced key "" and reported a SUCCESSFUL sync -- then issued
+        # `gh issue edit  --add-label ...` and `gh project item-add --url ` with
+        # empty arguments, and record-external persisted "" so sync_candidates
+        # excluded the ticket from every future retry. A half-written state with
+        # no record is worse than a failed one with a record.
+        findings.append(finding(
+            "error", "tracker",
+            "%s did not sync: `gh issue create` exited 0 but printed no issue "
+            "URL (got %r), so the issue number is unknown. Check the tracker "
+            "before re-running -- an issue may exist."
+            % (ticket.get("id"), (out or "").strip()[:200]),
+            command=_render_command(["gh", "issue", "create", "--title", title,
+                                     "--body-file", body_path]),
+            error="unparseable create output", replayable=False))
+        return None, findings
     external = {"provider": "github", "key": number, "url": url}
 
     labels = ["ACS"] + ([ticket["type"]] if ticket.get("type") else [])
@@ -420,6 +523,18 @@ def tracker_sync_one(gh, settings, ticket, body_path):
     return external, findings
 
 
+def _stamp(findings_list, ticket_id):
+    """Tag each finding with the ticket it came from.
+
+    tracker_sync returns ONE flat list, and its non-critical entries carried no
+    id -- so a two-ticket batch produced byte-identical entries ("applying
+    labels failed", same command) that could not be attributed, while the
+    executor charter told the coordinator to record them per synced ticket."""
+    for item in findings_list:
+        item.setdefault("ticket_id", ticket_id)
+    return findings_list
+
+
 def tracker_sync(gh, settings, tickets, body_paths):
     """create-ticket step 5's batch: critical per ticket, soft per batch.
 
@@ -429,9 +544,23 @@ def tracker_sync(gh, settings, tickets, body_paths):
     synced, failed, findings = {}, [], []
     for ticket in tickets:
         ident = ticket.get("id")
-        external, ticket_findings = tracker_sync_one(gh, settings, ticket,
-                                                     body_paths.get(ident, ""))
-        findings.extend(ticket_findings)
+        try:
+            external, ticket_findings = tracker_sync_one(gh, settings, ticket,
+                                                         body_paths.get(ident, ""))
+        except Exception as exc:  # noqa: BLE001 - AC-5 is about the BATCH surviving
+            # "A tracker failure is reported without aborting the batch" held
+            # only for a non-zero gh exit. Any OTHER failure -- a tracker
+            # answering with a shape the parser does not expect, for instance --
+            # propagated out of the loop, and `synced` is only emitted AFTER it:
+            # so an issue that HAD been created was never recorded, its external
+            # never written, and the next run created it again.
+            ticket_findings = [finding(
+                "error", "tracker",
+                "%s did not sync: %r. The batch continued; check the tracker "
+                "before re-running, since an issue may already exist." % (ident, exc),
+                command="", error=repr(exc), replayable=False)]
+            external = None
+        findings.extend(_stamp(ticket_findings, ident))
         if external is None:
             failed.append(ident)
         else:

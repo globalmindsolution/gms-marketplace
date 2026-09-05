@@ -414,7 +414,9 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   already-synced root as a duplicate). `--dry-run` prints the set it would
   sync and the ids it excluded, and writes nothing. The body it posts is each
   partition's `tracker-body.md`; write that file from the rendered description
-  before calling.
+  before calling. It is a **precondition**, not an argument: a partition with
+  no body is reported under `failed` with an `error` finding naming the
+  missing path, and no bodiless issue is created.
 
   **Read the printed JSON.** `synced` maps a ticket id to its `external`;
   `failed` lists the ids whose `gh issue create` failed. Those are
@@ -422,9 +424,11 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   canonical `gh_failure_hint`, `replayable: false` — surfaced in `errors` and
   the `<handoff>`, never silently swallowed, and **never aborting the batch**:
   the other tickets sync, and a failed one keeps `external` null so it can be
-  retried on its own. Everything after the issue is created — labels,
-  assignee, milestone, Projects — is **non-critical**: one `info` finding with
-  a replayable command, never a failed ticket. A board that does not define a
+  retried on its own. Every finding carries the `ticket_id` it came from, so a
+  batch's flat list stays attributable. Everything after the issue is created
+  — labels, assignee, milestone (from `ticket.milestone`, else
+  `settings.tracker.milestone`), Projects — is **non-critical**: one `info`
+  finding with a replayable, shell-quoted command, never a failed ticket. A board that does not define a
   field (`Type`, `Status`, `Priority`, `Story Points`, `Parent`) is one info
   finding naming exactly what was skipped: a schema-undefined field is
   surfaced, never silently ignored, and never a wrong-type write.

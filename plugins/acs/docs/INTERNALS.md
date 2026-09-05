@@ -483,6 +483,43 @@ fails — is exercised from a recorded `gh` transcript with no forge. `--gh-repl
 FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
 through `acli`, not `gh`.
 
+Four rules keep the two flows honest about what they did:
+
+- **The issue body is a precondition, not an argument.** `tracker sync` posts
+  each partition's `tracker-body.md`, and the executor charter is what tells
+  the executor to write it. A partition without one is reported under `failed`
+  with an `error` finding naming the missing path — never a bodiless issue,
+  and never N opaque per-ticket gh errors for one missed step.
+- **A create that cannot be parsed is a failure.** `gh issue create` exiting 0
+  without printing an issue URL leaves the issue number unknown, so the ticket
+  fails and keeps `external` unset. Recording an empty key would have been
+  worse than failing: `sync_candidates` excludes any ticket that carries an
+  `external`, so the half-written ticket would never be retried.
+- **`command` is shell-quoted.** Every finding's command is documented as
+  ready to re-run, which means a human runs it. It is rendered with
+  `shlex.quote`, so a milestone of `Q3 2026; rm -rf /tmp/x` replays as one
+  `gh` call with one odd argument rather than two commands. The executed calls
+  were never affected — they are argv, never `shell=True`.
+- **Every degraded call carries its `hint`.** The finding shape is
+  `{severity, area, message, command, error, hint, replayable}`, and `hint` is
+  derived from `error` via `gh_failure_hint` when the call site does not pass
+  one (ADR-0088). Without it a 403 "GitHub access is not enabled for this
+  session" — the one failure with a specific remedy — reads like a mistyped
+  label name.
+
+The reviewer set is CODEOWNERS minus the author, and "minus the author" is a
+normalised comparison: a leading `@` is stripped and case is folded on both
+sides, because CODEOWNERS writes owners `@`-prefixed while `--author` is passed
+bare. `--author` is optional and `@me` is accepted; when it is absent the login
+is resolved with `gh api user`, and when even that fails the flow says so in one
+info finding rather than silently requesting the author as their own reviewer —
+the owners are comma-joined into ONE `gh pr edit --add-reviewer` call, so a set
+that names the author is rejected whole and nobody is requested.
+
+The milestone the sync writes comes from `ticket.milestone`, falling back to
+`settings.tracker.milestone`; **both are declared** in their schemas, which is
+what makes the arm reachable for a real ticket rather than only for a fixture.
+
 ## Settings, formats, templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user

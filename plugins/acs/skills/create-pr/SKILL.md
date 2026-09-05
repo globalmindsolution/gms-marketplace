@@ -229,8 +229,14 @@ exact error — no silent fallback.
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr metadata fill \
-     --pr <number> --author <your gh login>
+     --pr <number> [--author <login>]
    ```
+
+   `--author` is optional; it only tells the command whom to drop from the
+   reviewer set, and omitting it makes the command resolve that login itself
+   with `gh api user`. `alice`, `@alice`, `@me` and `Alice` are all the same
+   login — the match strips a leading `@` and folds case on both sides,
+   because CODEOWNERS writes owners `@`-prefixed while a login is passed bare.
 
    It assigns the PR to the authenticated user, ensures and applies the
    ticket-type label alongside the `ACS` label from step 3, requests the
