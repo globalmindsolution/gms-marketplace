@@ -35,12 +35,27 @@ PASSING_CONCLUSIONS = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
 #: StatusContext states that mean "no answer yet", not "failed".
 PENDING_STATES = frozenset({"PENDING", "EXPECTED"})
 #: CheckRun statuses that mean the run has not finished.
+#: The non-terminal check states GitHub reports. `check_state` treats anything
+#: that is not COMPLETED as pending, which is the fail-closed reading and the
+#: one that matters; this set names the states that reading covers, and is
+#: asserted against it so the two cannot drift. (It was previously defined,
+#: re-exported, and read by nothing.)
 PENDING_STATUSES = frozenset({"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"})
 
 #: The `gh pr view --json` fields this module reads. The CLI asks for exactly
 #: these, so a fixture recorded by one is complete for the other.
 PR_VIEW_FIELDS = ("state", "isDraft", "mergeable", "mergeStateStatus", "reviewDecision",
                   "statusCheckRollup", "baseRefName", "headRefName", "url", "number")
+
+#: The fields a verdict actually rests on. A recording missing any of them
+#: cannot support a decision, and the module's own rule -- "an unreadable check
+#: is not a passing one" -- was applied to `mergeable` alone: a missing `state`,
+#: `isDraft` or `mergeStateStatus` passed OPEN, so a two-field document replayed
+#: through `--from` returned "ready" with every dimension "pass". That path is
+#: exactly the audit mechanism AC-2 designates, which makes a truncated fixture
+#: the most dangerous input this function takes.
+DECISION_FIELDS = ("state", "isDraft", "mergeable", "mergeStateStatus",
+                   "reviewDecision", "statusCheckRollup")
 
 
 def check_name(entry):
@@ -88,14 +103,35 @@ def classify_checks(rollup):
     return out
 
 
+#: What `gh pr checks --required` says when the --required filter selects
+#: nothing. Both strings are present in the shipped gh binary. A repo with no
+#: branch protection is explicitly supported (/acs:setup documents enforcement
+#: as advisory until an admin enables it, and ADR-0048 says
+#: /acs:standardize-project never wires protection itself), so treating this
+#: exit as a CI FAILURE made every PR on such a repo permanently unmergeable,
+#: with a reason naming no check and carrying no gh output.
+NO_REQUIRED_CHECKS_MARKERS = ("no required checks reported on the",
+                              "no checks reported on the")
+
+
 def _ci(pr, required_checks_ok):
     checks = classify_checks(pr.get("statusCheckRollup"))
     if checks["required"]["fail"]:
         return "fail: required check(s) failing: %s" % ", ".join(sorted(checks["required"]["fail"])), checks
     if checks["required"]["pending"]:
         return "fail: required check(s) still running: %s" % ", ".join(sorted(checks["required"]["pending"])), checks
-    if required_checks_ok is False:
-        return "fail: `gh pr checks --required` exited non-zero", checks
+    # required_checks_ok is a tri-state plus an explanation: True (green),
+    # None (not run / not applicable), or a (False, detail) pair.
+    if isinstance(required_checks_ok, tuple):
+        ok, detail = required_checks_ok
+    else:
+        ok, detail = required_checks_ok, ""
+    if ok is False:
+        lowered = (detail or "").lower()
+        if any(marker in lowered for marker in NO_REQUIRED_CHECKS_MARKERS):
+            return "pass", checks  # nothing required is not something failing
+        return ("fail: `gh pr checks --required` exited non-zero: %s"
+                % (detail.strip().splitlines()[0] if detail.strip() else "no output")), checks
     return "pass", checks
 
 
@@ -166,6 +202,20 @@ def merge_readiness(pr, required_checks_ok=None):
     `ready` is true only for "ready". `stop_reason` is the sentence merge-pr
     puts in its result document, and is None unless the verdict is "blocked".
     """
+    missing = [f for f in DECISION_FIELDS if f not in (pr or {})]
+    if missing:
+        # Fail closed, uniformly. Reporting "ready" from a document that never
+        # carried the evidence is worse than refusing: it merges on no evidence,
+        # which is the one outcome this module says it will not produce.
+        reason = ("the PR recording is missing %s, so readiness cannot be "
+                  "judged from it" % ", ".join(missing))
+        return {
+            "dimensions": {name: "fail: %s" % reason for name in DIMENSIONS},
+            "failed": list(DIMENSIONS), "verdict": "blocked", "ready": False,
+            "behind": False, "stop_reason": reason, "info_findings": [],
+            "checks": classify_checks(None),
+        }
+
     dimensions = {}
     dimensions["ci"], checks = _ci(pr, required_checks_ok)
     dimensions["approvals"] = _approvals(pr)

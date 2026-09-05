@@ -108,7 +108,8 @@ class CiDimensionTest(unittest.TestCase):
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=rollup), None)
                          ["dimensions"]["ci"], "pass")
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=rollup), False)
-                         ["dimensions"]["ci"], "fail: `gh pr checks --required` exited non-zero")
+                         ["dimensions"]["ci"],
+                         "fail: `gh pr checks --required` exited non-zero: no output")
 
     def test_neutral_and_skipped_conclusions_pass(self):
         for conclusion in ("NEUTRAL", "SKIPPED"):
@@ -141,7 +142,17 @@ class CiDimensionTest(unittest.TestCase):
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=None), True)
                          ["dimensions"]["ci"], "pass")
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=None), False)
-                         ["dimensions"]["ci"], "fail: `gh pr checks --required` exited non-zero")
+                         ["dimensions"]["ci"],
+                         "fail: `gh pr checks --required` exited non-zero: no output")
+
+    def test_every_pending_status_is_treated_as_pending(self):
+        """PENDING_STATUSES was defined, re-exported, and read by nothing.
+        check_state's rule (anything not COMPLETED is pending) is the
+        fail-closed one and stays; this pins that the named states are all
+        covered by it, so the constant documents real behaviour."""
+        for status in lib.PENDING_STATUSES:
+            with self.subTest(status=status):
+                self.assertEqual(lib.check_state({"status": status}), "pending")
 
     def test_check_name_falls_back_across_both_shapes(self):
         self.assertEqual(lib.check_name({"name": "a"}), "a")
@@ -316,12 +327,43 @@ class ReadinessCliTest(AcsWorkspaceCase):
         self.assertTrue(body["required_checks_ok"])
 
     def test_a_red_required_checks_exit_reaches_the_ci_dimension(self):
-        env = fake_gh(self.bin, 'if [ "$2" = "checks" ]; then exit 1; fi\n'
-                               'cat <<JSON\n%s\nJSON'
-                               % json.dumps(pr_view(statusCheckRollup=[])))
+        """A non-zero exit that names a failing check is a red gate."""
+        env = fake_gh(self.bin,
+                      'if [ "$2" = "checks" ]; then echo "build fail" >&2; exit 1; fi\n'
+                      'cat <<JSON\n%s\nJSON'
+                      % json.dumps(pr_view(statusCheckRollup=[])))
         body = json.loads(self._acs("readiness", "--pr", "42", env=env).stdout)
         self.assertEqual(body["required_checks_ok"], False)
         self.assertEqual(body["verdict"], "blocked")
+        self.assertIn("build", body["dimensions"]["ci"])
+
+    def test_an_unevaluable_checks_read_stops_rather_than_reporting_a_failure(self):
+        """ADR-0088 classifies this read as CRITICAL: an unevaluable gate is
+        never treated as passed -- and it is not reported as a red check
+        either. Discarding gh's stderr made expired auth, a 403 and a rate
+        limit indistinguishable from a failing build."""
+        env = fake_gh(self.bin,
+                      'if [ "$2" = "checks" ]; then '
+                      'echo "gh: HTTP 403: Resource not accessible" >&2; exit 1; fi\n'
+                      'cat <<JSON\n%s\nJSON'
+                      % json.dumps(pr_view(statusCheckRollup=[])))
+        res = self._acs("readiness", "--pr", "42", env=env)
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("could not be evaluated", res.stderr)
+        self.assertIn("403", res.stderr)
+
+    def test_a_repo_with_no_required_checks_is_not_a_ci_failure(self):
+        """gh exits non-zero when the --required filter selects nothing, and a
+        repo with no branch protection is explicitly supported. Treating that
+        exit as a CI failure made every PR on such a repo unmergeable."""
+        marker = "no required checks reported on the branch"
+        env = fake_gh(self.bin,
+                      'if [ "$2" = "checks" ]; then echo "%s" >&2; exit 1; fi\n'
+                      'cat <<JSON\n%s\nJSON'
+                      % (marker, json.dumps(pr_view(statusCheckRollup=[]))))
+        body = json.loads(self._acs("readiness", "--pr", "42", env=env).stdout)
+        self.assertEqual(body["dimensions"]["ci"], "pass")
+        self.assertEqual(body["verdict"], "ready")
 
     def test_a_gh_failure_is_the_documented_refusal_with_the_canonical_hint(self):
         env = fake_gh(self.bin, 'echo "gh: something broke" >&2; exit 1')

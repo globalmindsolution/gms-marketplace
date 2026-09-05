@@ -42,6 +42,35 @@ def gh_failure_hint(stderr_text):
     return GH_GENERIC_HINT
 
 
+def gh_read_is_unevaluable(stderr_text):
+    """Did this gh read FAIL TO HAPPEN, as opposed to reporting bad news?
+
+    ADR-0088's CRITICAL class is about the first: expired auth, a 403 session
+    restriction, a rate limit -- the gate could not be evaluated, so it is
+    never treated as passed. A red check is the SECOND kind: gh ran, answered,
+    and the answer was "failing". Collapsing both into `returncode != 0` is
+    what made an auth failure indistinguishable from a broken build.
+
+    Two things are explicitly NOT unevaluable: a `--required` filter that
+    selected nothing (a repo with no branch protection is supported), and an
+    empty message, which carries no evidence of an access problem."""
+    text = (stderr_text or "").lower()
+    if not text.strip():
+        return False
+    if any(marker in text for marker in
+           ("no required checks reported on the", "no checks reported on the")):
+        return False
+    return any(marker in text for marker in GH_UNEVALUABLE_MARKERS)
+
+
+#: Substrings that mean the READ failed, not that the checks did.
+GH_UNEVALUABLE_MARKERS = (
+    GH_ACCESS_DENIED_MARKER.lower(), "http 401", "http 403", "http 5",
+    "rate limit", "not logged in", "authentication", "could not resolve host",
+    "connection refused", "timeout", "gh auth login",
+)
+
+
 def gh_pr_view(number, fields):
     """`gh pr view <number> --json <fields>`, parsed. Raises GateError with a
     clean message when gh is missing, the lookup fails, or the output does not
@@ -71,7 +100,11 @@ def gh_pr_view(number, fields):
 
 
 def gh_pr_required_checks_ok(number):
-    """`gh pr checks <number> --required` as a bool, or None when gh is absent.
+    """`gh pr checks <number> --required` as a tri-state.
+
+    True (all required checks green), None (gh absent -- unknown, not failing),
+    or `(False, detail)` carrying gh's own output so the caller can tell an
+    unevaluable read from a red check.
 
     The second, independent CI signal: GitHub's own answer to "are the REQUIRED
     checks green", which does not depend on `isRequired` being populated in the
@@ -83,7 +116,16 @@ def gh_pr_required_checks_ok(number):
                               capture_output=True, text=True)
     except FileNotFoundError:
         return None
-    return proc.returncode == 0
+    if proc.returncode == 0:
+        return True
+    # The detail travels with the answer. Discarding stderr made an
+    # UNEVALUABLE read (expired auth, a 403 session restriction, a rate limit)
+    # indistinguishable from a red check: both became False, and readiness
+    # reported "fail: exited non-zero" naming no check and carrying no gh
+    # output. ADR-0088 classifies this read as CRITICAL -- an unevaluable gate
+    # is never treated as passed, and the caller needs the text to tell the two
+    # apart (and to recognise "no required checks reported", which is neither).
+    return (False, (proc.stderr or proc.stdout or "").strip())
 
 
 # ---------------------------------------------------------------------------

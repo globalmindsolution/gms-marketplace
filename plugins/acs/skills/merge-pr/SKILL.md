@@ -76,14 +76,22 @@ When `mode` is `exempt-pr`, run this trimmed flow yourself (no
 planner/executor/verifier subagents — there is no partition to persist phase
 artifacts to):
 
-1. **Readiness review** — judge the SAME four dimensions as the ticket path
-   (`ci`, `approvals`, `conflicts`, `protections`) against `pr.number`, using
-   the same `gh pr view` / `gh pr checks --required` reads described under
-   "Plan — readiness review" — **critical** gate-input reads (see "GitHub
-   call failure policy" above): a failed read is gh's verbatim stderr plus
-   the canonical hint, then stop before any merge is attempted. A failing
-   dimension is the same REPORT-ONLY stop:
-   do not merge, tell the user exactly what blocks, stop.
+1. **Readiness review** — the SAME command as the ticket path, so the two
+   cannot disagree about the same PR:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" readiness --pr <pr.number>
+   ```
+
+   Dispatch on `verdict` exactly as the ticket path does. This is not a
+   restatement of the four dimensions but the same decision table: when the
+   rules moved into `acs.py readiness` (MAR-524) this path was left describing
+   reads that no longer decide anything, so a `mergeable` of `UNKNOWN` failed
+   on one path and passed on the other for the same PR. The command classifies
+   its own gh failures — an unevaluable read exits 2 with gh's verbatim stderr
+   and the canonical hint (ADR-0088), before any merge is attempted. A
+   `blocked` verdict is the same REPORT-ONLY stop: do not merge, tell the user
+   exactly what blocks, stop.
 2. **Merge (only when all four pass, or after the BEHIND carve-out succeeds)**
    — when `mergeStateStatus == BEHIND` and all other three dimensions pass,
    apply the identical BEHIND carve-out as the ticket path (user-confirmed
@@ -236,9 +244,7 @@ Per-call classification:
   Projects Status→Done edit — see Step 2 below.
 
 **Not gh call sites (informational-only mentions, not covered by this
-policy):** the `ci` readiness dimension's descriptive mention of `gh pr
-checks --required exits 0` (explaining what "pass" means, not itself a
-call — the actual read is Step 0's own code block); the BEHIND carve-out's
+policy):** the BEHIND carve-out's
 recorded status string naming `gh pr update-branch`
 (`"pass (was BEHIND; auto-updated via gh pr update-branch)"`, prose
 describing the outcome, not a second call site); and the safety-model prose
@@ -247,6 +253,13 @@ never invokes /acs:merge-pr, and the rule that a raw `gh pr merge` outside
 this skill is never sanctioned — name `gh pr merge` without themselves
 calling it. Naming these keeps the classification above complete and
 falsifiable.
+
+Two entries were removed from this list when MAR-524 moved the readiness reads
+into `acs.py readiness`: the `ci` dimension no longer describes
+`gh pr checks --required exits 0`, and Step 0 is no longer a gh code block.
+The reads still happen — inside the command, which classifies its own failures
+per the policy above — so the list stays accurate by naming only what is still
+here.
 
 ## Inline merge-pr apply flow
 
@@ -296,10 +309,14 @@ JSON object. A non-zero exit is gh's verbatim stderr plus the canonical hint,
 then STOP — readiness cannot be judged, so the run never proceeds to a merge
 decision (see "GitHub call failure policy" above).
 
-Read the JSON; do not re-derive it. `dimensions` carries the four verdicts
-(`"pass"` or `"fail: <one-line reason>"`) to record in `states.readiness`,
-`info_findings` the non-required checks to report as `info` findings, and
-`verdict` the one decision that follows:
+Read the JSON; do not re-derive it. `dimensions` carries the four verdicts to
+record in `states.readiness` — `"pass"`, `"fail: <one-line reason>"`, or, for
+`protections` on the `update-branch` verdict only, `"behind: <reason>"`. Step
+1a overwrites that third form when the update succeeds, so it survives in
+`states.readiness` exactly when the sub-flow did not (a conflict, or a poll
+timeout) — which is the case worth being able to read back. `info_findings`
+carries the non-required checks to report as `info` findings, and `verdict`
+the one decision that follows:
 
 | `verdict` | Meaning | Next |
 |---|---|---|
