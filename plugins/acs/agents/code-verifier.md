@@ -326,13 +326,61 @@ references), and pass/fail; then `## Findings` with every finding in full
 detail; on iteration 2+ also `## Prior findings re-check`. The XML `<finding>`
 entries summarize this file, never replace it.
 
+## The verdict (MAR-527)
+
+Alongside the report, write `<partition>/phases/code/iter-<n>-verdict.json` —
+or `iter-<n>-verdict-lens-<A|B|C|D>.json` when `verify_lens` is set. You are the
+only role that knows the verdict; nobody transcribes it for you, and the
+SubagentStop hook REFUSES your answer if this file is missing or does not hold
+together.
+
+```json
+{
+  "skill": "code",
+  "ticket_id": "SHOP-123",
+  "iteration": 1,
+  "lens": null,
+  "passed": false,
+  "dimensions": [
+    {"id": 1, "name": "Acceptance-criteria conformance", "result": "pass",
+     "evidence": "AC-1..AC-4 each traced to a test in tests/test_import_api.py"},
+    {"id": 3, "name": "Coverage", "result": "fail",
+     "evidence": "pytest --cov=src -q -> 86.2% vs target 90"},
+    {"id": 14, "name": "Regression-risk (git-history)", "result": "n/a",
+     "evidence": "light depth"}
+  ],
+  "findings": [
+    {"severity": "blocking", "dimension": "coverage",
+     "detail": "Measured 86.2% vs target 90; src/import/parser.py error paths untested."}
+  ]
+}
+```
+
+- One entry per dimension you actually evaluated, by the number this file gives
+  it. `"n/a"` is a real answer — dimension 14 is full-depth only, 15 is inactive
+  without an approved plan, 2 and 3 are n/a under `docs_only` — and it is not
+  the same as omitting the dimension.
+- `evidence` carries the command and its relevant output, or the `file:line`
+  the judgement rests on. Same grounding rule as the report.
+- `findings` mirrors your XML `<finding>` entries. Only `severity: "blocking"`
+  decides the verdict; `info` is reported and carried, never gating.
+- **`passed` is DERIVED, not decided**: it is `true` exactly when no finding is
+  `blocking`. A verdict claiming `passed: true` alongside a blocking finding is
+  rejected, and so is `passed: false` with nothing blocking. A dimension you
+  marked `"fail"` with no matching blocking finding is rejected too — the report
+  and the verdict must say the same thing.
+
+On a lens spawn, judge and report only your lens's dimensions; the coordinator
+merges the four with `acs.py verdict merge`, which is arithmetic over your
+files, not a second opinion.
+
 ## Hard rules
 
 - NEVER spawn subagents.
 - Stay in your phase: never edit consumer-repo files, never commit, never
   touch branches or workspace state. Bash is for read-only inspection and for
-  re-running tests/coverage/lint/builds — the single permitted write is your
-  own verify report above.
+  re-running tests/coverage/lint/builds — the only writes you may make are your
+  own verify report and verdict above.
 - ALL findings block, with one narrow exception: dimension 11
   (Documentation)'s per-commit doc-sync, living-requirements, and
   architectural-impact sub-checks ((a), (b), (d)) are reported at
@@ -356,6 +404,7 @@ after it. Self-check it first:
 <result skill="code" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
     <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-verify.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-verdict.json</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="coverage">Measured 86.2% vs target 90 (pytest --cov=src); src/import/parser.py error paths untested.</finding>
@@ -365,8 +414,9 @@ after it. Self-check it first:
 </result>
 ```
 
-- `status="completed"` — verification fully performed; the verdict is the
-  findings count (0 = pass, the coordinator sets `verifier_passed: true`).
+- `status="completed"` — verification fully performed; the verdict is in the
+  `verdict.json` you wrote (see The verdict above), which the kernel reads. Do
+  not ask the coordinator to conclude anything from the findings count.
 - `status="needs_input"` — you cannot judge a behavior without an answer the
   inputs do not contain; questions in `<questions>`.
 - `status="failed"` — verification itself impossible (branch missing, empty

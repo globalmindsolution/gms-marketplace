@@ -13,7 +13,8 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, lock, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, lock, verdict, phase, slug, fanout,
+    doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -44,6 +45,8 @@ Usage:
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py lock status --ticket MAR-1
   acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
+  acs.py verdict show --iteration 2
+  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
@@ -421,6 +424,75 @@ def cmd_lock_force_unlock(args):
           "detail": result["detail"], "audit_path": result["audit_path"],
           "broken_lock": result["lock"], "was_stale": before["stale"],
           "staleness_basis": before["basis"]})
+def cmd_verdict_show(args):
+    """The verifier's verdict for one iteration — validated, not just printed.
+
+    `passed` in the output is DERIVED from the findings, so a document that
+    claims otherwise shows up as an error here rather than as a pass."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict show", args.ticket)
+    doc = lib.load_verdict(tdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
+    if doc is None:
+        die("verdict show", "no verdict at %s" % path)
+    errors = lib.validate_verdict(doc, lens=args.lens, ticket_id=ticket_id)
+    if errors:
+        # `passed` is DERIVED from the findings, and an absent findings list
+        # derives True -- so emitting it beside ok:false told the coordinator
+        # (whose instructions say to copy `passed`, and never mention `ok`)
+        # that an unusable document was a pass. A document we cannot validate
+        # has no verdict to report.
+        die("verdict show", "the verdict at %s is not usable: %s"
+            % (path, "; ".join(errors)))
+    emit({"ok": True, "ticket_id": ticket_id, "path": path,
+          "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
+          "blocking": len(lib.blocking_findings(doc)), "errors": [],
+          "verdict": doc})
+
+
+def cmd_verdict_merge(args):
+    """Merge the four full-depth lens verdicts into the iteration's verdict.
+
+    Mechanical — passed is the conjunction, findings the union, each dimension
+    the worst result any lens reported — so the coordinator INVOKES the merge
+    rather than authoring a verdict it did not reach."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
+    lenses = args.lens or list(lib.LENSES)
+    # All four, always. --lens was an append flag with no completeness rule, so
+    # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
+    # findings while reporting ok/passed -- a coordinator-run command that
+    # silently discards a verifier's verdict, which is what AC-3 forbids.
+    if sorted(set(lenses)) != sorted(lib.LENSES):
+        die("verdict merge",
+            "a merge covers all four lenses (%s); got %s. A subset drops the "
+            "findings of the lenses left out."
+            % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
+    docs, missing = [], []
+    for lens in lenses:
+        doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
+        if doc is None:
+            missing.append(lens)
+        else:
+            docs.append(doc)
+    if missing:
+        die("verdict merge", "no verdict for lens %s (iteration %s)"
+            % (", ".join(missing), args.iteration))
+    merged = lib.merge_lens_verdicts(docs)
+    merged["written_at"] = lib.now_iso()
+    errors = lib.validate_verdict(merged)
+    if errors:
+        die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
+    existing = lib.load_verdict(tdir, args.skill, args.iteration)
+    if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
+        die("verdict merge",
+            "%s already holds a verdict with %d blocking finding(s); refusing to "
+            "replace it with a passing one. Fix the findings and re-run the "
+            "verifier rather than overwriting its verdict."
+            % (lib.verdict_path(tdir, args.skill, args.iteration),
+               len(lib.blocking_findings(existing))))
+    path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
+    emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
+          "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
+          "verdict": merged})
 
 
 def cmd_phase_validate(args):
@@ -579,6 +651,23 @@ def build_parser():
     lforce.add_argument("--force", action="store_true",
                         help="break the lock even when this checkout is its holder")
     lforce.set_defaults(func=cmd_lock_force_unlock)
+    verdict = sub.add_parser("verdict", help="the verifier's verdict document")
+    verdict_sub = verdict.add_subparsers(dest="cmd")
+
+    vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
+    vshow.add_argument("--ticket")
+    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--iteration", type=int, default=1)
+    vshow.add_argument("--lens", choices=list(lib.LENSES))
+    vshow.set_defaults(func=cmd_verdict_show)
+
+    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
+    vmerge.add_argument("--ticket")
+    vmerge.add_argument("--skill", default="code")
+    vmerge.add_argument("--iteration", type=int, default=1)
+    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
+                        help="restrict the merge to these lenses (default: all four)")
+    vmerge.set_defaults(func=cmd_verdict_merge)
 
     phase = sub.add_parser("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")
