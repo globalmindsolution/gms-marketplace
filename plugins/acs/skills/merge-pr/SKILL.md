@@ -76,14 +76,22 @@ When `mode` is `exempt-pr`, run this trimmed flow yourself (no
 planner/executor/verifier subagents — there is no partition to persist phase
 artifacts to):
 
-1. **Readiness review** — judge the SAME four dimensions as the ticket path
-   (`ci`, `approvals`, `conflicts`, `protections`) against `pr.number`, using
-   the same `gh pr view` / `gh pr checks --required` reads described under
-   "Plan — readiness review" — **critical** gate-input reads (see "GitHub
-   call failure policy" above): a failed read is gh's verbatim stderr plus
-   the canonical hint, then stop before any merge is attempted. A failing
-   dimension is the same REPORT-ONLY stop:
-   do not merge, tell the user exactly what blocks, stop.
+1. **Readiness review** — the SAME command as the ticket path, so the two
+   cannot disagree about the same PR:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" readiness --pr <pr.number>
+   ```
+
+   Dispatch on `verdict` exactly as the ticket path does. This is not a
+   restatement of the four dimensions but the same decision table: when the
+   rules moved into `acs.py readiness` (MAR-524) this path was left describing
+   reads that no longer decide anything, so a `mergeable` of `UNKNOWN` failed
+   on one path and passed on the other for the same PR. The command classifies
+   its own gh failures — an unevaluable read exits 2 with gh's verbatim stderr
+   and the canonical hint (ADR-0088), before any merge is attempted. A
+   `blocked` verdict is the same REPORT-ONLY stop: do not merge, tell the user
+   exactly what blocks, stop.
 2. **Merge (only when all four pass, or after the BEHIND carve-out succeeds)**
    — when `mergeStateStatus == BEHIND` and all other three dimensions pass,
    apply the identical BEHIND carve-out as the ticket path (user-confirmed
@@ -236,9 +244,7 @@ Per-call classification:
   Projects Status→Done edit — see Step 2 below.
 
 **Not gh call sites (informational-only mentions, not covered by this
-policy):** the `ci` readiness dimension's descriptive mention of `gh pr
-checks --required exits 0` (explaining what "pass" means, not itself a
-call — the actual read is Step 0's own code block); the BEHIND carve-out's
+policy):** the BEHIND carve-out's
 recorded status string naming `gh pr update-branch`
 (`"pass (was BEHIND; auto-updated via gh pr update-branch)"`, prose
 describing the outcome, not a second call site); and the safety-model prose
@@ -247,6 +253,13 @@ never invokes /acs:merge-pr, and the rule that a raw `gh pr merge` outside
 this skill is never sanctioned — name `gh pr merge` without themselves
 calling it. Naming these keeps the classification above complete and
 falsifiable.
+
+Two entries were removed from this list when MAR-524 moved the readiness reads
+into `acs.py readiness`: the `ci` dimension no longer describes
+`gh pr checks --required exits 0`, and Step 0 is no longer a gh code block.
+The reads still happen — inside the command, which classifies its own failures
+per the policy above — so the list stays accurate by naming only what is still
+here.
 
 ## Inline merge-pr apply flow
 
@@ -286,62 +299,75 @@ needed (`settings.tracker.provider` != `local` and `ticket.external` set)?
 Run:
 
 ```bash
-gh pr view <number> --json state,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,headRefName,url
-gh pr checks <number> --required
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" readiness --pr <number>
 ```
 
-Both reads are **critical** gate inputs (see "GitHub call failure policy"
-above): a non-zero exit is gh's verbatim stderr plus the canonical hint,
+It performs both **critical** gate reads (`gh pr view --json state,isDraft,
+mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,
+headRefName,url,number` and `gh pr checks <number> --required`) and prints one
+JSON object. A non-zero exit is gh's verbatim stderr plus the canonical hint,
 then STOP — readiness cannot be judged, so the run never proceeds to a merge
-decision.
+decision (see "GitHub call failure policy" above).
 
-Judge the four readiness dimensions, each as `"pass"` or
-`"fail: <one-line reason>"`:
+Read the JSON; do not re-derive it. `dimensions` carries the four verdicts to
+record in `states.readiness` — `"pass"`, `"fail: <one-line reason>"`, or, for
+`protections` on the `update-branch` verdict only, `"behind: <reason>"`. Step
+1a overwrites that third form when the update succeeds, so it survives in
+`states.readiness` exactly when the sub-flow did not (a conflict, or a poll
+timeout) — which is the case worth being able to read back. `info_findings`
+carries the non-required checks to report as `info` findings, and `verdict`
+the one decision that follows:
 
-- **ci** — all REQUIRED checks pass (`statusCheckRollup` shows no required
-  check failing or pending; `gh pr checks --required` exits 0). Failing
-  non-required checks are recorded as `info` findings, not blockers.
+| `verdict` | Meaning | Next |
+|---|---|---|
+| `ready` | all four dimensions pass | Step 1 (merge) |
+| `update-branch` | only the base being ahead stands in the way, and ci/approvals/conflicts all pass | Step 1a (BEHIND carve-out) |
+| `blocked` | at least one dimension fails | REPORT-ONLY stop — see below |
 
-  A repo that has run `/acs:setup` Step 7f and wired `"E2E suite"` as a
-  required status check gets e2e enforcement for free through this same
-  `ci` read — zero merge-pr code changes. This is not a fifth readiness
-  dimension: `ci`/`approvals`/`conflicts`/`protections` remain the complete
-  set, and `merge-pr-state.json`'s shape is unchanged.
+**The four dimensions, and why they are what they are.** How each verdict is
+computed is `acs_lib.readiness.merge_readiness`, a pure function of the two
+reads, and is not restated here. What a coordinator cannot derive from the JSON
+is:
+
+- **ci** — all REQUIRED checks pass. A repo that has run `/acs:setup` Step 7f
+  and wired `"E2E suite"` as a required status check therefore gets e2e
+  enforcement for free through this same read, with zero merge-pr changes. That
+  is not a fifth readiness dimension: `ci`/`approvals`/`conflicts`/`protections`
+  remain the complete set and `merge-pr-state.json`'s shape is unchanged.
+  Failing NON-required checks arrive as `info_findings`, never as blockers.
 - **approvals** — `reviewDecision` is `APPROVED`. An approving review is
-  required for every merge: empty (repo requires no review), `REVIEW_REQUIRED`,
-  and `CHANGES_REQUESTED` all fail. Rationale: agent-invoked merges must carry
-  an approving review (mitigation m6); because the coordinator cannot reliably
-  distinguish an agent invocation from a direct human one, the requirement
-  applies to all invocations (the require-APPROVED-for-all fallback, ADR-0028).
-  This is stricter than the branch protection `/acs:setup` offers, which makes a
-  PR mandatory with `required_approving_review_count: 0`; the two are separate
-  brakes, not a contradiction. On a repo with no reviewer available — a solo
-  maintainer, since GitHub forbids self-approval — this skill cannot merge at
-  all, and the PR is merged by a human in the GitHub UI instead. That is a
-  known tooling gap, not the intended path: an out-of-band merge strands the
-  ticket at `in_review` (never archived, no tracker Status→Done transition,
-  metrics never bumped). Requiring APPROVED is unconditional **today**, with no
-  settings kill-switch (ADR-0028); the tracked resolution is PRD **G26**, which
-  narrows m6 to agent invocations so a human-invoked merge defers to the repo's
-  own branch protection. It is not relaxed by configuration in the meantime.
-- **conflicts** — `mergeable` is `MERGEABLE`. `CONFLICTING` (or
-  `mergeStateStatus == DIRTY`) is a fail.
-- **protections** — `mergeStateStatus` is not `BLOCKED` (unmet branch
-  protection rules that cannot be auto-resolved). `BLOCKED` is a flat fail and
-  a REPORT-ONLY stop. `BEHIND` (base is ahead of the branch) is NOT a flat
-  fail when all other three dimensions pass — it routes to step 1a (BEHIND
-  carve-out) below. A BEHIND PR where any other dimension also fails still
-  fails this dimension as `"fail: BEHIND"` — the carve-out fires only when ci,
-  approvals, and conflicts all pass. The PR must also be `OPEN` and not a draft.
+  required for **every** merge, which is stricter than the branch protection
+  `/acs:setup` offers (`required_approving_review_count: 0`); the two are
+  separate brakes, not a contradiction. Agent-invoked merges must carry an
+  approving review (mitigation m6), and because the coordinator cannot reliably
+  tell an agent invocation from a direct human one, the requirement applies to
+  all of them (the require-APPROVED-for-all fallback, ADR-0028). On a repo with
+  no reviewer available — a solo maintainer, since GitHub forbids
+  self-approval — this skill cannot merge at all, and a human merges in the
+  GitHub UI instead. That is a known tooling gap, not the intended path: an
+  out-of-band merge strands the ticket at `in_review` (never archived, no
+  tracker Status→Done transition, metrics never bumped). There is **no settings
+  kill-switch** (ADR-0028); the tracked resolution is PRD **G26**, which narrows
+  m6 to agent invocations so a human-invoked merge defers to the repo's own
+  branch protection. It is not relaxed by configuration in the meantime.
+- **conflicts** — the branch merges cleanly into its base. An
+  unresolved-yet-unknown mergeability answer fails rather than passing: merging
+  on no evidence is the one outcome worse than waiting.
+- **protections** — no unmet branch protection rule, the PR open and not a
+  draft. `BLOCKED` is a flat fail and a REPORT-ONLY stop. `BEHIND` is the single
+  non-flat case, and the command has already applied the rule that it routes to
+  the Step 1a carve-out only when ci, approvals and conflicts all pass —
+  a BEHIND PR with any other failing dimension is reported as `fail: BEHIND`.
 
-**Readiness verdict — coordinator decision.** If ANY dimension fails (ci red,
-changes-requested, conflicts, BLOCKED protections, or BEHIND while another
-dimension also fails): this is a REPORT-ONLY stop. Do not proceed to merge, do
-not retry, do not fix. Go straight to Finish with status `"failed"`,
-`states.merged: false`, the per-dimension verdicts in `states.readiness`, and
-a `stop_reason` listing exactly what blocks (e.g. "readiness failed: CI check
-'build' failing; changes requested by reviewer"). Tell the user what blocks and
-that resolving it (and re-invoking /acs:merge-pr) is theirs to do.
+**Readiness verdict — coordinator decision.** On `blocked`: this is a
+REPORT-ONLY stop. Do not proceed to merge, do not retry, do not fix. Go
+straight to Finish with status `"failed"`, `states.merged: false`, the
+per-dimension verdicts in `states.readiness`, and the command's own
+`stop_reason` (e.g. "readiness failed: ci required check(s) failing: build;
+approvals CHANGES_REQUESTED — a reviewer has requested changes"). Tell the user
+what blocks and that resolving it — and re-invoking /acs:merge-pr — is theirs
+to do.
+
 
 ### Step 1a — BEHIND carve-out (only when `mergeStateStatus == BEHIND` AND ci/approvals/conflicts all pass)
 

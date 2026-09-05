@@ -13,7 +13,8 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, verdict, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, readiness, verdict, phase, slug,
+    fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -42,6 +43,8 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py readiness --pr 42
+  acs.py readiness --from recorded-pr.json
   acs.py verdict show --iteration 2
   acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
@@ -353,6 +356,58 @@ def cmd_ticket_save(args):
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
 
 
+def cmd_readiness(args):
+    """merge-pr's four readiness dimensions and one verdict, as JSON.
+
+    Two input modes, deliberately interchangeable: `--pr N` reads GitHub
+    through gh, and `--from FILE` replays a recorded document of the same
+    shape. The decision itself is a pure function of that document
+    (lib.merge_readiness), so a verdict is reproducible offline — which is what
+    makes it reviewable, and what lets the tests cover every failing dimension
+    without a network.
+
+    Exit 0 means the check RAN. Read `verdict`: "ready" (merge), "update-branch"
+    (only the base is ahead — the BEHIND carve-out), or "blocked" (a
+    REPORT-ONLY stop, with `stop_reason` ready to drop into the result
+    document)."""
+    if bool(args.pr) == bool(args.source):
+        die("readiness", "pass exactly one of --pr N or --from FILE")
+    if args.source:
+        recorded = read_json_arg("readiness", args.source)
+        pr = recorded.get("pr_view", recorded)
+        required_ok = recorded.get("required_checks_ok")
+        if not isinstance(pr, dict):
+            die("readiness", "the recorded document has no `pr_view` object")
+    else:
+        try:
+            # Normalised the same way skill-start.py normalises the same
+            # user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
+            # `readiness --pr '#42'` reached `gh pr view '#42'`, which gh
+            # resolves as a BRANCH NAME.
+            pr = lib.gh_pr_view(lib.classify_merge_pr_arg(args.pr)[1] or args.pr,
+                                ",".join(lib.PR_VIEW_FIELDS))
+        except lib.GateError as exc:
+            die("readiness", "%s\n%s" % (exc, lib.gh_failure_hint(str(exc))))
+        required_ok = lib.gh_pr_required_checks_ok(args.pr)
+        # ADR-0088 classifies this read as CRITICAL: an unevaluable gate is
+        # never treated as passed. "No required checks configured" is NOT
+        # unevaluable -- it is a supported repo shape (/acs:setup documents
+        # enforcement as advisory until an admin enables it) -- so only a real
+        # failure to read stops here, with gh's own words and the canonical
+        # hint rather than a bare "exited non-zero".
+        if isinstance(required_ok, tuple):
+            _ok, detail = required_ok
+            if lib.gh_read_is_unevaluable(detail):
+                die("readiness", "gh pr checks --required could not be evaluated "
+                                 "for PR %s:\n%s\n%s"
+                    % (args.pr, detail or "(no output)", lib.gh_failure_hint(detail)))
+
+    out = lib.merge_readiness(pr, required_ok)
+    out["ok"] = True
+    out["pr"] = pr.get("number", args.pr)
+    out["required_checks_ok"] = (required_ok[0] if isinstance(required_ok, tuple)
+                                 else required_ok)
+    emit(out)
 def cmd_verdict_show(args):
     """The verifier's verdict for one iteration — validated, not just printed.
 
@@ -565,6 +620,11 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
+    ready = sub.add_parser("readiness", help="merge-pr's four readiness dimensions")
+    ready.add_argument("--pr", help="PR number to read through gh")
+    ready.add_argument("--from", dest="source", metavar="FILE",
+                       help="replay a recorded document instead ('-' reads stdin)")
+    ready.set_defaults(func=cmd_readiness)
     verdict = sub.add_parser("verdict", help="the verifier's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 
