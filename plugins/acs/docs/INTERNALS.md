@@ -153,8 +153,9 @@ is refused rather than believed. `verdict.schema.json` pins the shape; that
 function pins the meaning, and says so. On full depth the coordinator runs
 `acs.py verdict merge` — the conjunction of `passed`, the union of findings, the
 worst result per dimension — which is arithmetic over the lens files, not a
-second opinion. `states.verifier_passed` is copied from `acs.py verdict show`,
-never concluded from a findings count.
+second opinion. `states.verifier_passed` is **derived by the post hook** from
+the verifier's `verdict.json` (MAR-523) — never copied from the coordinator's
+result document, and never concluded from a findings count by hand.
 
 **The XML snapshot is written by the SubagentStop hook** (MAR-528), not by the
 coordinator remembering to. The hook fires on `^acs:`-matched agents, validates

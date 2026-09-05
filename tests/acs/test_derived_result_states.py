@@ -82,7 +82,7 @@ class VerifierPassedTest(DeriveCase):
         next step run", and the safe answer with no evidence is no."""
         value, why = lib.derive_verifier_passed(self.tdir_path, "code")
         self.assertFalse(value)
-        self.assertIn("no verdict.json in", why)
+        self.assertIn("no verdict.json for this run in", why)
         self.assertIn("phases/code", why)
 
     def test_a_malformed_verdict_is_false_and_names_the_errors(self):
@@ -92,13 +92,49 @@ class VerifierPassedTest(DeriveCase):
             "findings": [{"severity": "blocking", "dimension": "coverage", "detail": "86%"}]})
         value, why = lib.derive_verifier_passed(self.tdir_path, "code")
         self.assertFalse(value)
-        self.assertIn("not well formed", why)
+        self.assertIn("not usable", why)
 
     def test_the_highest_iteration_is_the_verdict_that_counts(self):
         self.seed_verdict(self.ticket, passed=False, iteration=1)
         self.seed_verdict(self.ticket, passed=True, iteration=2)
         self.assertTrue(lib.derive_verifier_passed(self.tdir_path, "code")[0])
         self.assertEqual(lib.latest_verdict(self.tdir_path, "code")[0], 2)
+
+    def test_a_verdict_from_a_previous_run_does_not_count(self):
+        """Nothing clears phase artifacts between runs and re-running
+        /acs:code is a documented flow, so a stale PASS at a higher iteration
+        number silently beat this run's FAIL and opened the create-pr gate on
+        a failed review."""
+        stale = self.seed_verdict(self.ticket, passed=True, iteration=2)
+        os.utime(stale, (1_600_000_000, 1_600_000_000))  # written long ago
+        self.seed_verdict(self.ticket, passed=False, iteration=1)
+        value, why = lib.derive_verifier_passed(
+            self.tdir_path, "code", since="2030-01-01T00:00:00+00:00")
+        self.assertFalse(value, why)
+
+    def test_a_verdict_about_another_ticket_is_not_this_ones(self):
+        """Only the PATH was ever checked, so a document naming another ticket,
+        skill or iteration was accepted as this run's verdict."""
+        lib.write_verdict(self.tdir_path, "code", 1, {
+            "skill": "docs-sync", "ticket_id": "OTHER-999", "iteration": 1,
+            "passed": True, "findings": [],
+            "dimensions": [{"id": i, "result": "pass"} for i in lib.owed_dimensions()]})
+        value, why = lib.derive_verifier_passed(self.tdir_path, "code",
+                                                ticket_id=self.ticket)
+        self.assertFalse(value)
+        self.assertIn("evidence only for the run that produced it", why)
+
+    def test_an_incomplete_verdict_does_not_derive_a_pass(self):
+        """A one-dimension document used to validate as a complete pass -- and
+        this suite's own fixture helper wrote exactly that shape."""
+        lib.write_verdict(self.tdir_path, "code", 1, {
+            "skill": "code", "ticket_id": self.ticket, "iteration": 1,
+            "passed": True, "findings": [],
+            "dimensions": [{"id": 1, "result": "pass"}]})
+        value, why = lib.derive_verifier_passed(self.tdir_path, "code",
+                                                ticket_id=self.ticket)
+        self.assertFalse(value)
+        self.assertIn("not reported", why)
 
 
 class TestsAndCoverageTest(DeriveCase):

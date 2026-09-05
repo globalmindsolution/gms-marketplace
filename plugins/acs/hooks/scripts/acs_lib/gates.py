@@ -17,7 +17,7 @@ import claude_code_adapter as cc  # noqa: E402
 from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
 from .settings import load_settings, validate_settings
 from .repo import archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
-from .state import check_lock, finalize_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
+from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
 from .derive import derive_states, disagreements
@@ -491,9 +491,21 @@ def run_post(skill):
     # not read from the document. Done before finalize_run so what is persisted
     # is the derived view; the disagreements ride on the run entry, which is
     # append-only and audited.
-    derived, notes = derive_states(
-        tdir, skill, result, settings=ctx["settings"],
-        branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+    # Wrapped: derivation runs BEFORE finalize_run, so anything it raises used
+    # to leave runs[-1].status == "in_progress" with the lock still held (the
+    # release is far below) -- the next gate then refuses with "crashed or
+    # still running elsewhere" and the coordinator's result document is lost.
+    # A derivation that cannot run must degrade to "not derived", never to a
+    # stranded run.
+    try:
+        derived, notes = derive_states(
+            tdir, skill, result, settings=ctx["settings"],
+            ticket_id=ticket_id,
+            since=(last_run(load_state(tdir, skill)) or {}).get("started_at"),
+            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+    except Exception as exc:  # noqa: BLE001 - see above
+        derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
+                                           "computed from artifacts" % exc}
     conflicts = disagreements(result.get("states") or {}, derived)
     if derived:
         result.setdefault("states", {}).update(derived)

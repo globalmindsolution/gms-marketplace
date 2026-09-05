@@ -30,8 +30,14 @@ import json
 import os
 import re
 import subprocess
+from datetime import datetime, timedelta, timezone
+
+#: A forge lookup on the post-hook critical path. Unbounded, a hung gh hung
+#: every skill's post hook; the repo's other probing call site uses 5s.
+GH_TIMEOUT_SECONDS = 10
 
 from ._common import read_json
+from .repo import gh_failure_hint
 from . import verdict as verdict_mod
 
 #: The keys this module owns. A coordinator may still write them -- SKILL.md
@@ -84,31 +90,73 @@ def review_iterations(tdir, skill):
     return len(seen)
 
 
-def latest_verdict(tdir, skill):
-    """(iteration, doc) for the highest iteration that has a verdict, or (None, None)."""
+def latest_verdict(tdir, skill, since=None):
+    """(iteration, doc) for the highest iteration that has a verdict, or (None, None).
+
+    `since` is an ISO timestamp -- the current run's `started_at`. Verdicts
+    written before it belong to a PREVIOUS run and are ignored: nothing clears
+    phase artifacts between runs, and re-running /acs:code is a documented
+    flow, so without this a stale pass at a higher iteration number silently
+    beat this run's fail."""
     best = None
     for name in _listdir(_phase_dir(tdir, skill)):
         match = re.match(r"^iter-(\d+)-verdict\.json$", name)
-        if match and (best is None or int(match.group(1)) > best):
-            best = int(match.group(1))
+        if not match:
+            continue
+        iteration = int(match.group(1))
+        if since and not _written_since(_phase_dir(tdir, skill), name, since):
+            continue
+        if best is None or iteration > best:
+            best = iteration
     if best is None:
         return None, None
     return best, verdict_mod.load_verdict(tdir, skill, best)
 
 
-def derive_verifier_passed(tdir, skill):
+def _written_since(directory, name, since):
+    """Was this artifact written at or after `since`? Unreadable mtime = no.
+
+    Fail-closed on purpose: an artifact we cannot date cannot be shown to
+    belong to this run, and this is the one derivation where "no evidence"
+    must mean "no"."""
+    try:
+        mtime = datetime.fromtimestamp(os.path.getmtime(os.path.join(directory, name)),
+                                       timezone.utc)
+    except OSError:
+        return False
+    try:
+        floor = datetime.fromisoformat(str(since).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return True  # no usable floor: do not silently discard every verdict
+    if floor.tzinfo is None:
+        floor = floor.replace(tzinfo=timezone.utc)
+    return mtime >= floor - timedelta(seconds=5)  # filesystem granularity
+
+
+def derive_verifier_passed(tdir, skill, ticket_id=None, since=None):
     """(value, why). Absence is an answer here: no passing verdict, no gate.
 
     This is the one derivation that refuses to fall back on the coordinator.
     Every other key answers "what happened"; this one answers "may the next
-    step run", and the safe answer to that with no evidence is no."""
-    iteration, doc = latest_verdict(tdir, skill)
+    step run", and the safe answer to that with no evidence is no.
+
+    Three things have to hold, and each was a way in before:
+      * the verdict belongs to THIS run (`since`), not one left behind by a
+        previous /acs:code on the same ticket;
+      * it is ABOUT this ticket and skill (`ticket_id`) -- only its path was
+        ever checked, so a document naming another ticket was accepted;
+      * it is COMPLETE -- validate_verdict now requires every owed dimension,
+        so a one-dimension document no longer reads as a clean review.
+    """
+    iteration, doc = latest_verdict(tdir, skill, since=since)
     if doc is None:
-        return False, ("no verdict.json in %s -- the verifier writes one per iteration "
-                       "(MAR-527); re-run /acs:%s" % (_phase_dir(tdir, skill), skill))
-    errors = verdict_mod.validate_verdict(doc)
+        return False, ("no verdict.json for this run in %s -- the verifier writes one "
+                       "per iteration (MAR-527); re-run /acs:%s"
+                       % (_phase_dir(tdir, skill), skill))
+    errors = verdict_mod.validate_verdict(doc, skill=skill, ticket_id=ticket_id,
+                                          iteration=iteration)
     if errors:
-        return False, ("the iteration-%s verdict is not well formed (%s)"
+        return False, ("the iteration-%s verdict is not usable (%s)"
                        % (iteration, "; ".join(errors)))
     passed = verdict_mod.derived_passed(doc)
     return passed, "iteration-%s verdict: %d blocking finding(s)" % (
@@ -132,25 +180,61 @@ def derive_tests(tdir, skill, settings=None):
     last = max(iteration for iteration, _path, _doc in reports)
     current = [(path, doc) for iteration, path, doc in reports if iteration == last]
 
-    passed = failed = percent = None
-    for _path, doc in current:
-        tests = doc.get("tests") if isinstance(doc.get("tests"), dict) else {}
-        coverage = doc.get("coverage") if isinstance(doc.get("coverage"), dict) else {}
-        for key, value in (("passed", tests.get("passed")), ("failed", tests.get("failed"))):
-            if isinstance(value, int):
-                if key == "passed":
-                    passed = value if passed is None else max(passed, value)
-                else:
-                    failed = value if failed is None else max(failed, value)
-        if isinstance(coverage.get("percent"), (int, float)):
-            percent = coverage["percent"] if percent is None else max(percent, coverage["percent"])
+    # ONE report supplies the numbers, as a coherent set. Taking the max of
+    # each field independently synthesised rows no single run produced (e.g.
+    # passed 84 alongside failed 2), and for coverage it simply recorded the
+    # most flattering observation -- coverage is not monotonic in time, so
+    # "the largest is the latest" does not follow.
+    def _sort_key(item):
+        path, _doc = item
+        try:
+            return (os.path.getmtime(path), path)
+        except OSError:
+            return (0.0, path)
 
-    if passed is None and failed is None and percent is None:
+    chosen_path, chosen = sorted(current, key=_sort_key)[-1]
+    tests = chosen.get("tests") if isinstance(chosen.get("tests"), dict) else {}
+    coverage = chosen.get("coverage") if isinstance(chosen.get("coverage"), dict) else {}
+
+    value, sources = {}, [os.path.basename(chosen_path)]
+    if isinstance(tests.get("passed"), int):
+        value["passed"] = tests["passed"]
+    if isinstance(tests.get("failed"), int):
+        value["failed"] = tests["failed"]
+    if isinstance(coverage.get("percent"), (int, float)):
+        value["coverage_percent"] = coverage["percent"]
+
+    # A suite that was red for ANY executor in this iteration was red, even if
+    # the report we took the rest from happened to be green. This is the one
+    # cross-report rule, and it can only ever make the answer worse.
+    for path, doc in current:
+        other = doc.get("tests") if isinstance(doc.get("tests"), dict) else {}
+        if isinstance(other.get("failed"), int) and other["failed"] > value.get("failed", 0):
+            value["failed"] = other["failed"]
+            if os.path.basename(path) not in sources:
+                sources.append(os.path.basename(path))
+
+    target = (settings or {}).get("test_coverage_percent")
+    if target is not None:
+        value["coverage_target"] = target
+
+    if not value:
         return None, "iteration-%d execute reports record no tests or coverage" % last
-    value = {"passed": passed, "failed": failed, "coverage_percent": percent,
-             "coverage_target": (settings or {}).get("test_coverage_percent")}
-    return value, "iteration-%d execute report(s): %s" % (
-        last, ", ".join(os.path.basename(path) for path, _doc in current))
+
+    # AC-2 asks for numbers from recorded COMMAND OUTPUT. Carrying the command
+    # into the provenance is what makes that checkable: a report with numbers
+    # and no command is not the same evidence as one backed by a real run.
+    commands = []
+    for key, holder in (("tests", tests), ("coverage", coverage)):
+        recorded = holder.get("commands") or holder.get("command")
+        if isinstance(recorded, str) and recorded.strip():
+            commands.append("%s: %s" % (key, recorded.strip()))
+        elif isinstance(recorded, list) and recorded:
+            commands.append("%s: %s" % (key, "; ".join(str(c) for c in recorded)))
+    provenance = "iteration-%d execute report(s): %s" % (last, ", ".join(sources))
+    provenance += (" [%s]" % " | ".join(commands)) if commands else \
+                  " [no command recorded -- numbers are unbacked]"
+    return value, provenance
 
 
 def gh_pr_for_branch(branch, runner=None):
@@ -159,28 +243,54 @@ def gh_pr_for_branch(branch, runner=None):
     `runner` exists for tests; production passes None and gets subprocess."""
     if not branch:
         return None, "no branch to look up"
-    run = runner or (lambda argv: subprocess.run(argv, capture_output=True, text=True))
+    run = runner or (lambda argv: subprocess.run(argv, capture_output=True, text=True,
+                                                 timeout=GH_TIMEOUT_SECONDS))
     try:
+        # baseRefName is requested because states.pr's documented shape is
+        # {number, url, branch, base} and this value REPLACES the coordinator's;
+        # without it, `base` was silently dropped. state is requested because
+        # rows[0] of a --state all answer can be a CLOSED PR.
         proc = run(["gh", "pr", "list", "--head", branch, "--state", "all",
-                    "--json", "number,url,headRefName"])
+                    "--json", "number,url,headRefName,baseRefName,state"])
     except FileNotFoundError:
         return None, "gh is not on PATH, so the PR reference could not be verified"
+    except (OSError, subprocess.SubprocessError) as exc:
+        # Every failure mode of the call, not just a missing binary: a
+        # non-executable gh raises PermissionError, and a hung one raises
+        # TimeoutExpired. Either used to propagate out of a derivation that
+        # runs BEFORE finalize_run, stranding the run in_progress with the lock
+        # still held and losing the coordinator's result document entirely.
+        return None, ("gh pr list could not run (%s), so the PR reference could not "
+                      "be verified" % type(exc).__name__)
     if proc.returncode != 0:
-        return None, ("gh pr list failed (%s), so the PR reference could not be verified"
-                      % (proc.stderr or proc.stdout or "").strip().splitlines()[:1])
+        detail = (proc.stderr or proc.stdout or "").strip()
+        first = detail.splitlines()[0] if detail else "no output"
+        hint = gh_failure_hint(detail)
+        return None, ("gh pr list failed (%s), so the PR reference could not be "
+                      "verified%s" % (first, ". %s" % hint if hint else ""))
     try:
         rows = json.loads(proc.stdout or "[]")
     except (ValueError, TypeError):
         return None, "gh pr list returned no parseable JSON"
-    if not rows:
+    if not isinstance(rows, list) or not rows:
         return None, "no PR on the forge for %s" % branch
-    row = rows[0]
-    return ({"number": row.get("number"), "url": row.get("url"),
-             "branch": row.get("headRefName") or branch},
-            "gh pr list --head %s" % branch)
+    # Prefer an OPEN PR. rows[0] of a --state all answer is whatever the forge
+    # listed first, which can be a closed PR from an earlier attempt on the
+    # same branch -- and that value flows into ticket.status, the pr_created
+    # metrics, and gate_merge_pr, which accepts any pr carrying a number.
+    open_rows = [r for r in rows if isinstance(r, dict)
+                 and str(r.get("state") or "").upper() == "OPEN"]
+    row = (open_rows or [r for r in rows if isinstance(r, dict)])[0]
+    value = {"number": row.get("number"), "url": row.get("url"),
+             "branch": row.get("headRefName") or branch}
+    if row.get("baseRefName"):
+        value["base"] = row["baseRefName"]
+    return value, "gh pr list --head %s (%s)" % (
+        branch, "open" if open_rows else "no open PR; reporting %s" % row.get("state"))
 
 
-def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=None):
+def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=None,
+                  ticket_id=None, since=None):
     """(derived, notes) for the four keys this module owns.
 
     `derived` holds only the keys that could actually be computed; `notes` maps
@@ -193,14 +303,21 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
     derived, notes = {}, {}
 
     if skill in VERDICT_SKILLS:
-        value, why = derive_verifier_passed(tdir, skill)
+        value, why = derive_verifier_passed(tdir, skill, ticket_id=ticket_id, since=since)
         derived["verifier_passed"] = value
         notes["verifier_passed"] = why
 
     tests, why = derive_tests(tdir, skill, settings)
     notes["tests"] = why
     if tests is not None:
-        derived["tests"] = tests
+        # MERGED over the supplied dict, not substituted for it. derive_tests
+        # returns only the keys it could actually compute, and run_post applies
+        # this with states.update(), so replacing wholesale nulled real numbers
+        # the coordinator had -- contradicting this module's own contract that
+        # a derivation which cannot run leaves the supplied value alone.
+        merged = dict(supplied.get("tests") or {})
+        merged.update(tests)
+        derived["tests"] = merged
 
     iterations = review_iterations(tdir, skill)
     if iterations:
@@ -214,7 +331,14 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
     pr, why = gh_pr_for_branch(branch, runner=pr_runner)
     notes["pr"] = why
     if pr is not None:
-        derived["pr"] = pr
+        # Merged, like `review` above and for the same reason: this value
+        # REPLACED the coordinator's dict, so any key the forge query does not
+        # return was silently dropped. The sibling review derivation already
+        # merges and has a test saying a key this module does not own must
+        # survive; `pr` had neither.
+        merged = dict(supplied.get("pr") or {})
+        merged.update(pr)
+        derived["pr"] = merged
 
     return derived, notes
 

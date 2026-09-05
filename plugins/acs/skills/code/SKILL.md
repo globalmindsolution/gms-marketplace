@@ -769,9 +769,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" verdict show  --iteration <
 
 `merge` is arithmetic over the lens files (conjunction of `passed`, union of
 findings, worst result per dimension), not a second opinion; on light depth
-there is one verdict and only `show` applies. `states.verifier_passed` in your
-result document is that command's `passed`, copied — not a judgement you make
-from the findings count.
+there is one verdict and only `show` applies. It merges all four lenses or
+none, and refuses to replace a verdict carrying blocking findings with a
+passing one.
+
+**`states.verifier_passed` is not yours to write.** Since MAR-523 the post
+hook DERIVES it from `iter-<n>-verdict.json` and ignores whatever the result
+document says, so `show` is for YOUR reading — to know whether to iterate —
+not a value to transcribe. The derivation refuses a verdict that belongs to a
+previous run, names another ticket or skill, or does not report every
+dimension it owed; in each case `verifier_passed` is false and the
+`/acs:create-pr` gate stays shut, with the reason recorded on the run entry.
 
 ALL findings block — zero findings = pass. On
 findings: persist the verify output, then AUTOMATICALLY re-execute, passing

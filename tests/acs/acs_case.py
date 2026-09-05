@@ -132,10 +132,19 @@ class AcsWorkspaceCase(unittest.TestCase):
         therefore asserting something the pipeline no longer believes."""
         finding = [] if passed else [{"severity": "blocking", "dimension": "tests",
                                       "detail": "seeded failing verdict"}]
+        # EVERY owed dimension, not one: a verdict must now cover its whole
+        # owed set (MAR-527 review), because a one-dimension document made an
+        # unfinished review indistinguishable from a clean one -- and this
+        # helper was writing exactly that shape.
+        dimensions = [{"id": ident, "name": lib.VERDICT_DIMENSIONS[ident],
+                       "result": "pass", "evidence": "seeded"}
+                      for ident in lib.owed_dimensions(lens)]
+        if not passed:
+            dimensions[1]["result"] = "fail"
         return lib.write_verdict(self.tdir(ticket), skill, iteration, {
             "skill": skill, "ticket_id": ticket, "iteration": iteration, "lens": lens,
             "passed": passed,
-            "dimensions": [{"id": 1, "result": "pass" if passed else "fail"}],
+            "dimensions": dimensions,
             "findings": finding,
         }, lens)
 
