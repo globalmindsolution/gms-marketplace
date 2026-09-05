@@ -574,6 +574,23 @@ ticket corrected before continuing.
 
 ### Execute (per iteration) — TDD
 
+**Declare each task's file map before you spawn its executor** (MAR-529) — the
+`<task>` names it for the executor to read, and this is what the PreToolUse
+guard enforces, so an undeclared map means no enforcement at all:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
+  --iteration <n> --task <k> --file src/a.py --file tests/test_a.py
+```
+
+One call per executor task, additive (declaring task 2 never erases task 1),
+with the exact paths the plan's `## Executor tasks & file map` lists for that
+task. A write outside the declared paths is then denied while an acs executor
+is running, with the executor told to return `needs_input` for the file it
+needs — you adjust the map, it does not improvise scope. Re-declare for the
+iteration before dispatching remediation executors; the guard reads the highest
+declared iteration.
+
 Send each executor a `<task phase="execute">` naming its spec file and its
 file map (include `<constraint name="docs_only">true</constraint>` when it
 applies). Each executor (artifact `<partition>/phases/code/iter-<n>-execute.json`,

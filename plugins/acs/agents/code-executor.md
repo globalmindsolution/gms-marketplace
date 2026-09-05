@@ -140,10 +140,10 @@ The XML result references this file and lists the changed paths; full detail
 ## Hard rules
 
 - NEVER spawn subagents.
-- Mutate ONLY the files in your task's file map (plus your execute report). If
-  the implementation genuinely requires touching a file outside it, STOP before
-  touching it and return `needs_input` naming the file — the coordinator
-  adjusts the task's file map; you do not improvise scope.
+- Mutate ONLY the files in your task's file map (plus your execute report): the
+  file-map hook DENIES a write outside it and tells you to return `needs_input`
+  naming the file, so the coordinator adjusts the file map — you never improvise
+  scope.
 - Never guess on a decision that changes user-visible behavior: a contradiction
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
