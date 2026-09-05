@@ -266,6 +266,26 @@ def write_json(path, data):
             os.unlink(tmp)
 
 
+def write_text(path, text):
+    """Atomic text write, for the same reason write_json is atomic.
+
+    A bare `open(path, "w")` truncates first, so a crash or a hook timeout
+    mid-write leaves a file that is neither the old content nor the new one.
+    That matters most for the artifacts written precisely so something survives
+    a failure -- `handoff-context.md` is written because compaction is about to
+    destroy the conversation, and truncating it is the one outcome worse than
+    not writing it at all."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".acs-tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def deep_merge(base, override):
     """Recursive per-key merge; override wins on leaves."""
     out = dict(base)

@@ -13,6 +13,7 @@ it always did. In dependency order:
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gates          context resolution, the pre-hook gates, post-hook persistence
+  lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -21,7 +22,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               forge, gates)  # noqa: F401
+               forge, gates, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -90,3 +91,11 @@ from .forge import (GROUP_B_FIELDS, PR_STATUS_OPTIONS, TICKET_STATUS_OPTIONS,
     match_field, match_option, pr_metadata_fill, project_fields, project_fill,
     project_items, reviewers_for, sync_candidates, tracker_sync,
     tracker_sync_one)  # noqa: F401
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
+    ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
+    clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
+    in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
+    pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
+    result_document, stop, stop_counter_key, subagent_start, subagent_stop,
+    write_handoff_context, write_phase_snapshot)  # noqa: F401
+from .lifecycle import stop as stop_hook  # noqa: F401

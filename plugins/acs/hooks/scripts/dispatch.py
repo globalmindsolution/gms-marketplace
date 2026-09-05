@@ -2,15 +2,28 @@
 """dispatch.py — single hook entry point for the acs plugin.
 
 Registered in hooks/hooks.json:
-  * `dispatch.py pre`         on PreToolUse (matcher: Skill) — runs the skill's gate
-    in-process. Exit 2 blocks the skill; its stderr explains what to run first. The
-    gate is bounded by GATE_TIMEOUT_SECONDS and fails closed on timeout or error,
-    because any exit code other than 2 lets the skill run.
-  * `dispatch.py session-end` on SessionEnd — finalizes runs left in_progress by this
-    checkout as `interrupted` and releases the ticket lock.
+  * `dispatch.py pre`            on PreToolUse (matcher: Skill) — runs the skill's
+    gate in-process. Exit 2 blocks the skill; its stderr explains what to run first.
+    The gate is bounded by GATE_TIMEOUT_SECONDS and fails closed on timeout or
+    error, because any exit code other than 2 lets the skill run.
+  * `dispatch.py subagent-start` on SubagentStart (matcher: `^acs:`) — records which
+    acs agent is running, for the file-map guard.
+  * `dispatch.py subagent-stop`  on SubagentStop (matcher: `^acs:`) — validates the
+    returned XML and writes the phase snapshot. Exit 2 sends the subagent back for
+    a corrected message, at most BLOCK_LIMIT times.
+  * `dispatch.py stop`           on Stop — exit 2 refuses to end a turn that left a
+    run `in_progress` with no result document, and names the finish step.
+  * `dispatch.py pre-compact`    on PreCompact — writes handoff-context.md from the
+    ticket ledger before the window shrinks.
+  * `dispatch.py session-end`    on SessionEnd — finalizes runs left in_progress by
+    this checkout as `interrupted` and releases the ticket lock.
 
 The dispatcher itself never gates: skills that are not part of the acs pipeline
 (or acs skills without hooks: setup, ship, handoff) pass through with exit 0.
+
+The gate (`pre`) is the only mode that fails CLOSED. The lifecycle modes fail
+OPEN — MAR-528: a bookkeeping hook that breaks a session over its own bug is
+worse than the bookkeeping it was doing, and only two of them can block at all.
 """
 
 import json
@@ -103,6 +116,32 @@ def run_gate(skill, payload):
         signal.signal(signal.SIGALRM, previous)
 
 
+#: mode -> the acs_lib entry point that implements it. Every one of these
+#: returns an exit code and must never raise past run_lifecycle (MAR-528).
+LIFECYCLE_MODES = {
+    "subagent-start": "subagent_start",
+    "subagent-stop": "subagent_stop",
+    "stop": "stop_hook",
+    "pre-compact": "pre_compact",
+}
+
+
+def run_lifecycle(mode, payload):
+    """Run a lifecycle hook, failing OPEN.
+
+    The gate fails closed because letting a skill run unchecked is the harm.
+    Here the harm runs the other way: these hooks do bookkeeping, and a
+    bookkeeping bug that ends a session or wedges a subagent costs more than
+    the bookkeeping is worth. So anything raised becomes exit 0 plus a line on
+    stderr, and only the two hooks that are *supposed* to block ever return 2.
+    """
+    try:
+        return getattr(acs_lib, LIFECYCLE_MODES[mode])(payload)
+    except BaseException as exc:  # noqa: BLE001 - see the docstring
+        sys.stderr.write("acs %s: %r (ignored)\n" % (mode, exc))
+        return 0
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "pre"
     raw = sys.stdin.read()
@@ -117,6 +156,9 @@ def main():
         except Exception as exc:  # cleanup must never break session teardown
             sys.stderr.write("acs session-end: %r\n" % exc)
         sys.exit(0)
+
+    if mode in LIFECYCLE_MODES:
+        sys.exit(run_lifecycle(mode, payload))
 
     skill = skill_name_from_payload(payload)
     if skill not in acs_lib.HOOKED_SKILLS:
