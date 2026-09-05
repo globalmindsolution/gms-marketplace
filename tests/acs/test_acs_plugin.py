@@ -348,7 +348,10 @@ class TestPipelineSequence(AcsWorkspaceCase):
         self.post("code", child, {"status": "completed", "states": {"verifier_passed": False}})
         self.assertEqual(self.pre("create-pr", child).returncode, 2)
         self.start("code", child)
-        self.post("code", child, {"status": "completed", "states": {"verifier_passed": True}})
+        # MAR-523: verifier_passed is DERIVED from the verifier's verdict, so
+        # the fixture seeds the verdict instead of asserting the conclusion.
+        self.seed_verdict(child)
+        self.post("code", child, {"status": "completed"})
         # create-pr gate also needs docs-sync completed (AC-4)
         self.start("docs-sync", child)
         self.post("docs-sync", child, {"status": "completed"})
@@ -408,7 +411,10 @@ class TestDocsSyncGates(AcsWorkspaceCase):
         super().setUp()
         self.ticket = self.new_ticket("Bulk import", "task")
         self.start("code", self.ticket)
-        self.post("code", self.ticket, {"status": "completed", "states": {"verifier_passed": True}})
+        # MAR-523: verifier_passed is DERIVED from the verifier's verdict, so
+        # the fixture seeds the verdict instead of asserting the conclusion.
+        self.seed_verdict(self.ticket)
+        self.post("code", self.ticket, {"status": "completed"})
 
     # ---------------------------------------------------------------- gate_docs_sync
 
@@ -2039,7 +2045,10 @@ class TestDistinctPRCount(AcsWorkspaceCase):
 
         # AC-4: gate_code needs no create-spec step or specs/ dir -- go straight to code.
         self.start("code", child)
-        self.post("code", child, {"status": "completed", "states": {"verifier_passed": True}})
+        # MAR-523: verifier_passed is DERIVED from the verifier's verdict, so
+        # the fixture seeds the verdict instead of asserting the conclusion.
+        self.seed_verdict(child)
+        self.post("code", child, {"status": "completed"})
 
         self.start("create-pr", child)
         self.post("create-pr", child, {
