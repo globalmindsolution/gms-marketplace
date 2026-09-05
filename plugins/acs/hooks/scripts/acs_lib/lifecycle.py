@@ -30,13 +30,16 @@ the specific condition they exist for. Both cap how often they block
 SessionEnd already finalizes an abandoned run as `interrupted`.
 """
 
+import hashlib
 import json
 import os
 import re
 import sys
 import xml.etree.ElementTree as ET
 
-from ._common import GateError, HOOKED_SKILLS, now_iso, read_json, write_json
+import claude_code_adapter as cc  # noqa: E402
+
+from ._common import GateError, HOOKED_SKILLS, now_iso, read_json, write_json, write_text
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
 from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
 
@@ -47,10 +50,26 @@ ROLE_PHASES = {"planner": "plan", "executor": "execute", "verifier": "verify"}
 #: letting it through with a warning. A hook that can block forever is a hung
 #: session; SessionEnd finalizes an abandoned run as `interrupted` regardless,
 #: so the worst case of giving up is a run the safety net already handles.
+#:
+#: Read it as "refuse at most this many times, then let it through": BOTH
+#: blocking hooks compare with `>` against a 1-based attempt count, so both
+#: refuse exactly twice and let the third through. They disagreed once --
+#: subagent_stop used `>=` and so refused only once -- which made the number in
+#: INTERNALS.md and the CHANGELOG wrong for one of the two hooks.
 BLOCK_LIMIT = 2
 
-#: Where SubagentStart's record lives, keyed by the payload's `agent_id`.
-ACTIVE_AGENTS_FILENAME = "active-agents.json"
+#: Where SubagentStart's records live: ONE FILE PER AGENT, under this directory
+#: in the partition, named from the payload's `agent_id`.
+#:
+#: A single shared JSON object was the obvious shape and the wrong one. Every
+#: writer would have had to read-modify-write it, and the case this record
+#: exists for -- a parallel executor fan-out (skills/code/SKILL.md) -- is
+#: exactly when two SubagentStart hooks run at once: both read the same
+#: pre-image and the second `os.replace` silently drops the first agent. Losing
+#: an entry loses that agent's `stop_attempts` too, which is the cap standing
+#: between a malformed message and an unbounded refuse-retry loop. Per-agent
+#: files remove the interleaving entirely -- each file has exactly one writer.
+ACTIVE_AGENTS_DIRNAME = "active-agents"
 
 #: What PreCompact writes, in the partition, for whoever picks the ticket up.
 HANDOFF_CONTEXT_FILENAME = "handoff-context.md"
@@ -81,8 +100,40 @@ def parse_agent_type(agent_type):
     return skill, role
 
 
-def active_agents_path(tdir):
-    return os.path.join(tdir, ACTIVE_AGENTS_FILENAME)
+def active_agents_dir(tdir):
+    return os.path.join(tdir, ACTIVE_AGENTS_DIRNAME)
+
+
+def agent_record_path(tdir, agent_id):
+    """The file holding one agent's record.
+
+    `agent_id` is an opaque upstream string, so it is never used as a path
+    component as-is: it is reduced to a safe stem and disambiguated with a
+    digest, which keeps the name readable while making `../` and friends
+    unrepresentable."""
+    stem = re.sub(r"[^A-Za-z0-9_-]", "_", agent_id or "")[:48] or "agent"
+    digest = hashlib.sha1((agent_id or "").encode("utf-8")).hexdigest()[:10]
+    return os.path.join(active_agents_dir(tdir), "%s-%s.json" % (stem, digest))
+
+
+def active_agents(tdir):
+    """Every recorded agent in this partition, newest first. [] when none."""
+    entries = []
+    try:
+        names = sorted(os.listdir(active_agents_dir(tdir)))
+    except OSError:
+        return entries
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        entry = read_json(os.path.join(active_agents_dir(tdir), name))
+        # `agent_type` separates a real SubagentStart record from the stub
+        # count_agent_stop_attempt writes when it has to invent its own key:
+        # the stub is a refusal counter, never a running agent.
+        if isinstance(entry, dict) and entry.get("agent_id") and entry.get("agent_type"):
+            entries.append(entry)
+    entries.sort(key=lambda e: e.get("started_at") or "", reverse=True)
+    return entries
 
 
 def record_agent_start(tdir, agent_id, agent_type, session_id=None, checkout_id=None):
@@ -102,19 +153,12 @@ def record_agent_start(tdir, agent_id, agent_type, session_id=None, checkout_id=
         "started_at": now_iso(),
         "stop_attempts": 0,
     }
-    path = active_agents_path(tdir)
-    doc = read_json(path)
-    if not isinstance(doc, dict) or not isinstance(doc.get("agents"), dict):
-        doc = {"agents": {}}
-    doc["agents"][agent_id] = entry
-    write_json(path, doc)
+    write_json(agent_record_path(tdir, agent_id), entry)
     return entry
 
 
 def read_agent(tdir, agent_id):
-    doc = read_json(active_agents_path(tdir))
-    agents = doc.get("agents") if isinstance(doc, dict) else None
-    entry = (agents or {}).get(agent_id)
+    entry = read_json(agent_record_path(tdir, agent_id))
     return entry if isinstance(entry, dict) else None
 
 
@@ -128,29 +172,46 @@ def count_agent_stop_attempt(tdir, agent_id):
     unbounded refuse-retry loop, so it must not depend on a sibling event
     having fired.
     """
-    path = active_agents_path(tdir)
-    doc = read_json(path)
-    if not isinstance(doc, dict) or not isinstance(doc.get("agents"), dict):
-        doc = {"agents": {}}
-    entry = doc["agents"].get(agent_id)
+    path = agent_record_path(tdir, agent_id)
+    entry = read_json(path)
     if not isinstance(entry, dict):
         entry = {"agent_id": agent_id, "stop_attempts": 0, "started_at": None}
-        doc["agents"][agent_id] = entry
     entry["stop_attempts"] = int(entry.get("stop_attempts") or 0) + 1
-    write_json(path, doc)
+    write_json(path, entry)
     return entry["stop_attempts"]
+
+
+def open_clarifications(tdir):
+    """The partition's unanswered clarifications. [] when there are none."""
+    doc = read_json(os.path.join(tdir, "clarifications.json"))
+    return [c for c in ((doc or {}).get("clarifications") or [])
+            if isinstance(c, dict) and c.get("status") != "answered"]
+
+
+def stop_counter_key(payload):
+    """The key SubagentStop counts refusals under. Never None.
+
+    `agent_id` when the payload carries one. When it does not -- a Claude Code
+    without the field, or a restart between start and stop -- falling back to a
+    CONSTANT would be the same bug as hardcoding the count: every refusal would
+    look like the first one and the cap would never be reached, which is an
+    unbounded refuse-retry loop rather than the bounded one the cap promises.
+    The fallback is therefore still per-subagent: the session and agent type
+    together, which is as narrow as the payload allows."""
+    agent_id = cc.hook_agent_id(payload)
+    if agent_id:
+        return agent_id
+    return "session:%s/%s" % (cc.hook_session_id(payload) or "-",
+                              cc.hook_agent_type(payload) or "-")
 
 
 def clear_agent(tdir, agent_id):
     """Drop an agent from the active record. Silent when it was never there."""
-    path = active_agents_path(tdir)
-    doc = read_json(path)
-    agents = doc.get("agents") if isinstance(doc, dict) else None
-    if isinstance(agents, dict) and agent_id in agents:
-        del agents[agent_id]
-        write_json(path, doc)
+    try:
+        os.unlink(agent_record_path(tdir, agent_id))
         return True
-    return False
+    except OSError:
+        return False
 
 
 def extract_message(text):
@@ -301,9 +362,7 @@ def render_handoff_context(tdir, ticket_id, skill):
         lines.append("- no run is in progress; the next step is whichever pipeline "
                      "step above is not yet `completed`")
 
-    clarifications = read_json(os.path.join(tdir, "clarifications.json"))
-    open_items = [c for c in ((clarifications or {}).get("clarifications") or [])
-                  if isinstance(c, dict) and c.get("status") != "answered"]
+    open_items = open_clarifications(tdir)
     if open_items:
         lines += ["", "## Open clarifications", ""]
         for item in open_items:
@@ -313,14 +372,14 @@ def render_handoff_context(tdir, ticket_id, skill):
 
 
 def write_handoff_context(tdir, ticket_id, skill):
-    # Render BEFORE opening: `open(..., "w")` truncates, so rendering inside the
-    # with-block would replace a previous handoff-context.md with an empty file
-    # the moment the renderer raised -- and PreCompact is exactly the moment
-    # there is nothing left to rebuild it from.
+    # Render BEFORE writing, and write atomically. Both halves guard the same
+    # thing from different directions: rendering first means a renderer that
+    # raises cannot destroy the previous handoff-context.md, and write_text
+    # means a crash or a hook timeout MID-WRITE cannot either. PreCompact is
+    # exactly the moment there is nothing left to rebuild this file from.
     body = render_handoff_context(tdir, ticket_id, skill)
     path = os.path.join(tdir, HANDOFF_CONTEXT_FILENAME)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(body)
+    write_text(path, body)
     return path
 
 
@@ -368,18 +427,18 @@ def subagent_stop(payload, validator=None):
     refuses forever is a hung session, and the skill contract already says a
     still-invalid message fails the run rather than looping.
     """
-    agent_id = payload.get("agent_id")
-    skill, role = parse_agent_type(payload.get("agent_type"))
+    agent_id = cc.hook_agent_id(payload)
+    skill, role = parse_agent_type(cc.hook_agent_type(payload))
     if not skill:
         return 0
-    _ticket_id, tdir, _ctx = resolve_partition(payload.get("cwd") or os.getcwd())
+    _ticket_id, tdir, _ctx = resolve_partition(cc.payload_cwd(payload))
     if not tdir:
         return 0
 
-    message = extract_message(payload.get("last_assistant_message"))
-    attempts = count_agent_stop_attempt(tdir, agent_id) if agent_id else 1
+    message = extract_message(cc.hook_last_assistant_message(payload))
+    attempts = count_agent_stop_attempt(tdir, stop_counter_key(payload))
     if message is None:
-        if attempts >= BLOCK_LIMIT:
+        if attempts > BLOCK_LIMIT:
             _warn("no <result>/<handoff> element in %s's final message after %d attempts; "
                   "the coordinator must record the failure in its own result document"
                   % (payload.get("agent_type"), attempts))
@@ -392,7 +451,7 @@ def subagent_stop(payload, validator=None):
         from validate_xml import validate_structurally as validator  # noqa: N813
     errors = validator(message)  # a LIST of error strings; empty means valid
     if errors:
-        if attempts >= BLOCK_LIMIT:
+        if attempts > BLOCK_LIMIT:
             _warn("%s's message is still invalid after %d attempts (%s); letting the "
                   "subagent stop — the coordinator must record the failure"
                   % (payload.get("agent_type"), attempts, "; ".join(errors)))
@@ -404,6 +463,7 @@ def subagent_stop(payload, validator=None):
     written = write_phase_snapshot(tdir, skill, role, message)
     if written:
         _note("wrote %s" % written)
+    clear_agent(tdir, stop_counter_key(payload))
     if agent_id:
         clear_agent(tdir, agent_id)
     return 0
@@ -435,9 +495,7 @@ def write_phase_snapshot(tdir, skill, role, message):
                 _warn("%s omitted `iteration`, which the schema reads as 1, and %s "
                       "already holds a different message. Echo the task's iteration "
                       "in the result." % (role or "the subagent", path))
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(message if message.endswith("\n") else message + "\n")
+    write_text(path, message if message.endswith("\n") else message + "\n")
     return path
 
 
@@ -458,14 +516,30 @@ def stop(payload):
     if not tdir:
         return 0
     skill = in_flight_skill(tdir, ctx, ticket_id)
-    key = "%s/%s" % (ticket_id, skill)
     if not skill:
         clear_stop_blocks(ctx)
         return 0
+    key = "%s/%s" % (ticket_id, skill)
     result = result_document(tdir, skill)
     if result and result.get("status") in ("completed", "failed", "interrupted", "handed_off"):
         # The document exists; only the post hook is outstanding, and its own
         # absence is what the next gate reports. Not this hook's call to make.
+        return 0
+
+    waiting = open_clarifications(tdir)
+    if waiting:
+        # A run stopped on an OPEN QUESTION is not an abandoned run. The skill
+        # contract requires the coordinator to ask before executing on an
+        # ambiguous spec (skills/code/SKILL.md), and a turn has to end for the
+        # user to answer. Refusing here would push the model to invent a
+        # terminal status at exactly the boundary the contract says not to
+        # guess at -- and because the counter is keyed per ticket/skill and is
+        # only cleared when nothing is in flight, two legitimate pauses would
+        # also burn the whole budget, letting a genuinely abandoned run later
+        # in the same run stop unchallenged.
+        _note("/acs:%s for %s is in_progress with %d open clarification(s); "
+              "ending the turn so they can be answered."
+              % (skill, ticket_id, len(waiting)))
         return 0
 
     blocks = count_stop_block(ctx, key)

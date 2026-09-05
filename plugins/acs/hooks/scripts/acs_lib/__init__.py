@@ -85,10 +85,11 @@ from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _cl
 from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
     subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
 
-from .lifecycle import (ACTIVE_AGENTS_FILENAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
-    ROLE_PHASES, active_agents_path, clear_agent, clear_stop_blocks, count_agent_stop_attempt,
-    count_stop_block, extract_message, in_flight_skill, parse_agent_type, phase_artifact_path,
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
+    ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
+    clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
+    in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
     pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
-    result_document, subagent_start, subagent_stop, write_handoff_context,
-    write_phase_snapshot)  # noqa: F401
+    result_document, stop, stop_counter_key, subagent_start, subagent_stop,
+    write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
