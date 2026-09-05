@@ -327,17 +327,25 @@ def run_pre(skill):
     sys.exit(run_pre_payload(skill, payload))
 
 
-def run_pre_payload(skill, payload):
+def run_pre_payload(skill, payload, record_marker=True):
     """Gate one skill from an already-parsed hook payload; return the exit code.
 
     Separate from run_pre so the dispatcher can gate in-process rather than
     spawning a forwarder: a subprocess that hangs or dies takes its exit code
-    with it, and anything other than 2 lets the skill run."""
-    cwd = payload.get("cwd") or os.getcwd()
+    with it, and anything other than 2 lets the skill run.
+
+    `record_marker=False` is for a caller that is NOT a hook event -- `acs.py
+    gate`, which answers "would this gate pass?" without a PreToolUse envelope.
+    Such a payload carries no session_id or transcript_path, and
+    record_session_marker faithfully persists those as null (deliberately: it
+    never guesses), which would overwrite the real marker and cost the next run
+    its usage attribution."""
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
         try:
-            record_session_marker(ctx, payload)
+            if record_marker:
+                record_session_marker(ctx, payload)
         except Exception:  # a marker-write bug must never block a gated skill
             pass
         warn = tracker_cli_warning(ctx["settings"])
@@ -539,7 +547,7 @@ def run_post(skill):
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
     its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:

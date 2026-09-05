@@ -216,16 +216,29 @@ def record_session_marker(ctx, payload):
     skill-start.py can thread them onto the new run entry without guessing.
     Fields come straight off the envelope; a missing one is written as null,
     never constructed (e.g. never a cwd-derived guess)."""
+    path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
     marker = {
         "session_id": cc.hook_session_id(payload),
         "transcript_path": cc.hook_transcript_path(payload),
-        "cwd": payload.get("cwd"),
+        # Same shared probe order, but default=None: this record never
+        # constructs a value, so an envelope with no cwd persists null
+        # rather than the process cwd.
+        "cwd": cc.payload_cwd(payload, default=None),
         "checkout_id": ctx["checkout_id"],
         "hook_event_name": cc.hook_event_name(payload),
         "skill": cc.hook_tool_input(payload).get("skill"),
         "updated_at": now_iso(),
     }
-    write_json(session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), marker)
+    # A payload with no session_id carries nothing to correlate, and writing its
+    # nulls OVER a marker that has a real one costs the next run its cost/usage
+    # attribution. Writing those nulls into a fresh marker is still correct (the
+    # field is genuinely absent and is never guessed) -- only clobbering a good
+    # one is refused, so no caller can destroy attribution by forgetting a flag.
+    if marker["session_id"] is None:
+        existing = read_json(path)
+        if isinstance(existing, dict) and existing.get("session_id") is not None:
+            return existing
+    write_json(path, marker)
     return marker
 
 
@@ -251,6 +264,30 @@ def find_ticket_partition(workspace, repo_id, ticket_id):
 # ---------------------------------------------------------------------------
 # Ticket id resolution (deterministic: argument -> pointer file -> branch name)
 # ---------------------------------------------------------------------------
+
+def resolve_active_partition(cwd, ctx, explicit=None, allow_archived=False):
+    """(ticket_id, tdir, archived) for a resolved partition, or raise GateError.
+
+    The resolve_ticket_id -> find_ticket_partition -> refuse-if-archived
+    sequence that clarify.py, plan-approval.py and acs.py each spelled out
+    independently, with their own slightly different refusal text (MAR-521
+    review). One implementation means the resolution order can change in one
+    place; the messages are the ones those callers already printed.
+
+    `allow_archived` is for a read-only command (clarify.py list) that may look
+    at a finished ticket; a writer must never take that path.
+    """
+    ticket_id, _source = resolve_ticket_id(
+        cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"], explicit=explicit)
+    if not ticket_id:
+        raise GateError("could not resolve the ticket id (pass --ticket)")
+    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    if not os.path.isdir(tdir):
+        raise GateError("no partition for %s" % ticket_id)
+    if archived and not allow_archived:
+        raise GateError("no active partition for %s" % ticket_id)
+    return ticket_id, tdir, archived
+
 
 def ticket_id_from_text(text, prefix=None):
     if not text:

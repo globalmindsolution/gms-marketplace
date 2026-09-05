@@ -206,7 +206,26 @@ applies judgment over finding text; the deterministic path is trigger (b).
 **(b) `high_stakes_paths` glob matched mid-implementation.** After the execute
 phase writes files, the coordinator calls `recommend_stakes(changed_paths,
 settings)` (`acs_lib/lanes.py`) over the iteration's changed file set — as
-`acs.py stakes recommend --paths-from -`, fed `git diff --name-only`. A return value
+`acs.py stakes recommend --paths-from -`, fed the iteration's full changed
+set:
+
+```bash
+# Bind the anchor first: a bare <default-branch> here is parsed by bash as a
+# REDIRECTION, so that command is skipped, the other two still emit, and the
+# pipeline still exits 0 -- a partial path set that can under-trigger.
+default_branch="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+{ git diff --name-only "${default_branch:?set it first}"...HEAD
+  git diff --name-only HEAD
+  git ls-files --others --exclude-standard; } \
+  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" stakes recommend --paths-from -
+```
+
+All three anchors, because the execute phase COMMITS its work (step 5 below) and
+the trigger is evaluated after it: `git diff --name-only HEAD` alone sees only
+uncommitted edits to tracked files, so by then a newly added `auth/session.py` —
+exactly the path the trigger exists to catch — is invisible in every one of the
+three states it can be in. The `<default-branch>...HEAD` form is the same anchor
+the verify step uses; the other two cover work not yet committed. A return value
 of `"high"` fires trigger (b). Stakes is then raised to `"high"` for the new
 axes. This is the deterministic, fully unit-testable trigger; it reuses the
 `high_stakes_paths` setting mechanism — no re-implementation.
@@ -229,8 +248,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" lane apply \
 ```
 
 It performs the steps below in exactly the order they are written, and prints
-`{escalated, event_recorded, lane, size, stakes, ceiling_before, ceiling_after,
-event}`. `escalated: false` means step 3's no-op fired and nothing was written.
+`{ticket_id, from_lane, lane, size, stakes, depth, ceiling_before,
+ceiling_after, escalated, event_recorded, event}`. On the no-op branch it adds
+`reason` plus `proposed_size`/`proposed_stakes`, and `lane`/`size`/`stakes` then
+report what is ON DISK — nothing was written, so a caller must not read the
+proposal back as a raise. `event` is always present, null when none was
+recorded.
 The prose that follows is the contract that command implements — read it to
 understand what the command guarantees, not as an instruction to hand-roll it.
 
@@ -249,6 +272,9 @@ understand what the command guarantees, not as an instruction to hand-roll it.
 3. If `new_lane == current_lane` (no raise needed): no-op, continue.
 4. If `new_lane` is strictly higher (per `lane_rank`):
    a. Update the in-memory ticket object's `size`, `stakes`, and `lane` fields.
+      An axis the ticket does not have and nobody proposed stays ABSENT: it is
+      not materialised at `guard_axes`'s floor, which would let a rigor-raising
+      path write the lowest possible value and anchor every later comparison.
    b. Persist to `ticket.json` via `save_ticket(tdir, ticket)` — writes the new
       axes and `lane`.
    c. Persist to `pipeline-state.json` via `update_pipeline(tdir, ticket_id,
@@ -313,8 +339,14 @@ confirmation sequence, in order, before any write:
 4. Call `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
    clarify_ref=C-<n>)` (`acs_lib/state.py`), passing the resolved `C-<n>` ledger id
    as `clarify_ref` — as `acs.py lane deescalate --ticket <id> --size <size>
-   --stakes <stakes> --clarify-ref C-<n>`, which refuses (exit 2, no write)
-   unless the ref resolves to an *answered* entry. This subsection references the writer by its exact name
+   --stakes <stakes> --clarify-ref C-<n>`, which refuses unless the ref resolves
+   to an *answered* entry.
+
+   **Exit 2 does not by itself mean nothing was written.** `confirm_deescalation`
+   persists `ticket.json`, `pipeline-state.json` and the index *before* recording
+   its audit event, so read stdout: an ordinary refusal prints nothing, while
+   `applied: true, event_recorded: false` means the lowering is durable and only
+   its audit event is missing. That state needs a human, not a retry. This subsection references the writer by its exact name
    and signature only — the writer's internal behavior (lane recompute,
    persistence order, event recording) is its own contract, unchanged here.
 

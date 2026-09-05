@@ -48,14 +48,13 @@ def resolve(args):
     except lib.GateError as exc:
         sys.stderr.write("acs clarify: %s\n" % exc)
         sys.exit(2)
-    ticket_id, _src = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"],
-                                            explicit=args.ticket)
-    if not ticket_id:
-        sys.stderr.write("acs clarify: could not resolve the ticket id (pass --ticket)\n")
-        sys.exit(2)
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if not os.path.isdir(tdir):
-        sys.stderr.write("acs clarify: no partition for %s\n" % ticket_id)
+    # Shared resolution (MAR-521 review): `list` may read a finished ticket, so
+    # it allows an archived partition; every writing subcommand does not.
+    try:
+        ticket_id, tdir, archived = lib.resolve_active_partition(
+            cwd, ctx, explicit=args.ticket, allow_archived=True)
+    except lib.GateError as exc:
+        sys.stderr.write("acs clarify: %s\n" % exc)
         sys.exit(2)
     if archived and args.cmd != "list":
         sys.stderr.write("acs clarify: %s is archived — ledger is read-only\n" % ticket_id)
