@@ -725,16 +725,30 @@ return, the coordinator itself performs the merge pass — never a subagent:
    `severity="info"` with the downgrade rationale recorded — never silently
    dropped (the cross-lens application of "if it is not worth blocking, it
    is not a finding — note it in the report only").
-4. The coordinator writes the single merged
+4. **The downgrade is recorded in the LENS VERDICT, before the merge.** A
+   finding the coordinator re-scrutinized and could not confirm is rewritten
+   to `severity="info"` in that lens's own `iter-<n>-verdict-<lens>.json`,
+   which the coordinator may edit for exactly this purpose and no other.
+   It must NOT be downgraded afterwards in the merged document:
+   `acs.py verdict merge` is a pure union with no downgrade step, so a
+   downgrade applied after it would make the report say "pass" while the
+   verdict says `passed: false` — and `verifier_passed` is read from the
+   VERDICT (MAR-523), not from the report. Order matters: re-scrutinize,
+   amend the lens verdict, then merge.
+5. The coordinator writes the single merged
    `<partition>/phases/code/iter-<n>-verify.md` itself: one section per
    corroborated/confirmed finding (blocking), one per downgraded finding
    (info-level, with rationale), and a short per-lens evidence summary.
-5. Zero surviving blocking findings after the merge = pass, identical to
+   `acs.py verdict merge` writes the merged verdict from the four lens
+   verdicts; it refuses a subset of lenses, and refuses to replace a verdict
+   that carries blocking findings with a passing one.
+6. Zero surviving blocking findings after the merge = pass, identical to
    the zero-findings rule below — the merge pass changes WHICH findings
-   count, never the pass/fail rule itself. The in-loop escalation check's
-   trigger (a) (`### In-loop escalation check` above) reads this FINAL
-   merged findings list — the merge write always happens before the next
-   iteration's trigger-(a) evaluation.
+   count, never the pass/fail rule itself. **`iter-<n>-verdict.json` governs
+   `verifier_passed`**; the report explains it. The in-loop escalation
+   check's trigger (a) (`### In-loop escalation check` above) reads this
+   FINAL merged findings list — the merge write always happens before the
+   next iteration's trigger-(a) evaluation.
 
 **`verify_depth=="light"` (unchanged).** Exactly one `acs:code-verifier`
 spawn — the single-pass shape already documented above, no lens

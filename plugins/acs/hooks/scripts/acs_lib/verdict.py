@@ -60,6 +60,25 @@ SEVERITIES = ("blocking", "info")
 #: The four full-depth review lenses.
 LENSES = ("A", "B", "C", "D")
 
+#: Which dimensions each lens owes, fixed literally in agents/code-verifier.md.
+#: A lens spawn checks ONLY its subset, so completeness is judged against the
+#: subset rather than all sixteen.
+LENS_DIMENSIONS = {
+    "A": (1, 2, 3, 4, 5),
+    "B": (6, 7, 10, 12, 16),
+    "C": (8, 9, 11, 13, 15),
+    "D": (14,),
+}
+
+#: A light-depth spawn checks the 15 base dimensions -- every one except 14,
+#: which is full-depth/lens-D only (agents/code-verifier.md).
+BASE_DIMENSIONS = tuple(i for i in sorted(VERDICT_DIMENSIONS) if i != 14)
+
+
+def owed_dimensions(lens=None):
+    """The dimension ids this verdict must report on, given its lens."""
+    return LENS_DIMENSIONS[lens] if lens in LENS_DIMENSIONS else BASE_DIMENSIONS
+
 
 def verdict_filename(iteration, lens=None):
     if lens:
@@ -86,12 +105,22 @@ def derived_passed(doc):
     return not blocking_findings(doc)
 
 
-def validate_verdict(doc, lens=None):
+def validate_verdict(doc, lens=None, skill=None, ticket_id=None, iteration=None):
     """Errors in a verdict document; an empty list means it is well formed.
 
-    The last check is the point of the module: `passed` must agree with the
-    findings. A verdict that claims to pass while carrying a blocking finding
-    is not a verdict, and believing it is exactly what MAR-527 removes.
+    Two checks are the point of the module, and neither is expressible in JSON
+    Schema -- which is why the shipped schema constrains shape only and this
+    function carries the rules:
+
+      * `passed` must agree with the findings. A verdict that claims to pass
+        while carrying a blocking finding is not a verdict, and believing it is
+        exactly what MAR-527 removes.
+      * The document must be ABOUT the run it was read for. `skill`,
+        `ticket_id` and `iteration` are checked against the caller's when the
+        caller supplies them, because a verdict is only evidence for the run
+        that produced it -- iteration 1's clean verdict copied onto iteration
+        3's path is not iteration 3's verdict, and the review loop's fixed
+        point depends on that freshness.
     """
     errors = []
     if not isinstance(doc, dict):
@@ -102,6 +131,23 @@ def validate_verdict(doc, lens=None):
             errors.append("%s is required and must be a non-empty string" % field)
     if not isinstance(doc.get("iteration"), int) or doc["iteration"] < 1:
         errors.append("iteration is required and must be a positive integer")
+
+    for field, expected in (("skill", skill), ("ticket_id", ticket_id),
+                            ("iteration", iteration)):
+        if expected is None:
+            continue
+        actual = doc.get(field)
+        if field == "iteration":
+            try:
+                same = int(actual) == int(expected)
+            except (TypeError, ValueError):
+                same = False
+        else:
+            same = actual == expected
+        if not same:
+            errors.append(
+                "verdict %s is %r but this is %r -- a verdict is evidence only "
+                "for the run that produced it" % (field, actual, expected))
     if not isinstance(doc.get("passed"), bool):
         errors.append("passed is required and must be a boolean")
 
@@ -132,6 +178,18 @@ def validate_verdict(doc, lens=None):
             if entry.get("result") not in DIMENSION_RESULTS:
                 errors.append("dimension %r result %r is not one of %s"
                               % (ident, entry.get("result"), ", ".join(DIMENSION_RESULTS)))
+
+        # Completeness. "Zero findings" only means a pass if every dimension
+        # the verifier OWED was actually reported -- otherwise an unfinished
+        # review is indistinguishable from a clean one, and `n/a` is already a
+        # valid result, so saying so costs an honest verifier nothing.
+        owed = set(owed_dimensions(declared_lens))
+        missing = sorted(owed - seen)
+        if missing:
+            errors.append(
+                "dimensions %s are not reported; a verdict must cover every "
+                "dimension it owed (use result \"n/a\" where one does not apply)"
+                % ", ".join(str(m) for m in missing))
 
     findings = doc.get("findings")
     if not isinstance(findings, list):
