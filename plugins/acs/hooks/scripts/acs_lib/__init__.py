@@ -103,9 +103,8 @@ from .forge import (GROUP_B_FIELDS, PR_STATUS_OPTIONS, TICKET_STATUS_OPTIONS,
     match_field, match_option, pr_metadata_fill, project_fields, project_fill,
     project_items, reviewers_for, sync_candidates, tracker_sync,
     tracker_sync_one)  # noqa: F401
-from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, FILEMAP_FILENAME_FMT,
-    HANDOFF_CONTEXT_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor, file_map_guard,
-    filemap_path, load_filemap, normalize_repo_path, path_in_filemap, save_filemap_task,
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
+    HANDOFF_CONTEXT_FILENAME,
     ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
     in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
@@ -113,6 +112,9 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, FILEMAP_FILENAME_FMT
     result_document, stop, stop_counter_key, subagent_start, subagent_stop,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
+from .filemap import (FILEMAP_FILENAME_FMT, WRITE_TOOL_PATH_KEYS, active_executor,
+    file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
+    save_filemap_task)  # noqa: F401
 
 from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
     blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,

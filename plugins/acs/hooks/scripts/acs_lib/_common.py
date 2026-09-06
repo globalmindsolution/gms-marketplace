@@ -311,3 +311,21 @@ def _git(args, cwd):
 
 def plugin_root():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+
+# ---------------------------------------------------------------------------
+# Hook chatter
+# ---------------------------------------------------------------------------
+#
+# Shared by lifecycle and filemap (MAR-572 split them apart); they live here
+# rather than in either one so neither has to import the other for a logger.
+
+def _warn(message):
+    sys.stderr.write("acs: %s\n" % message)
+
+
+def _note(message):
+    """Progress chatter, only under $ACS_DEBUG — a hook that prints on every
+    subagent turn is noise in the transcript."""
+    if os.environ.get("ACS_DEBUG"):
+        sys.stderr.write("acs: %s\n" % message)
