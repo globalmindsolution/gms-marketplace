@@ -417,7 +417,12 @@ def check_toolchain(settings=None):
     return rows
 
 
-def missing_tools(settings=None, kinds=("required", "recommended")):
-    """Names of not-present tools in the given kinds — what /setup should offer to install."""
-    return [r["name"] for r in check_toolchain(settings)
+def missing_tools(settings=None, kinds=("required", "recommended"), rows=None):
+    """Names of not-present tools in the given kinds — what /setup should offer to install.
+
+    `rows` reuses an already-probed check_toolchain() result. Without it, a
+    caller wanting both the table and the missing list either probes every tool
+    twice — each probe a subprocess with a 5s timeout — or re-implements this
+    predicate, and the two answers to "which tools are missing?" drift apart."""
+    return [r["name"] for r in (check_toolchain(settings) if rows is None else rows)
             if r["kind"] in kinds and not r["present"]]
