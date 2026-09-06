@@ -107,33 +107,29 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
      with a `<question>` stating both versions — the coordinator asks the user.
    - **For each ticket to sync in the set above**, run the sequence below,
      once per ticket:
-     - `github`: `gh issue create --title "<rendered title>" --body-file
-       <body.md>`, then `gh project item-add <project_number> --owner <owner>
-       --url <issue-url> --format json`, then set the `Type` and `Status`
-       single-select fields via `gh project field-list` + `gh project
-       item-edit`. Store `external = {"provider": "github", "key": "<issue
-       number>"}`.
+     - `github`: one command performs the whole batch — issue creation,
+       labels, assignee, milestone, Project membership, `Type`/`Status`, and
+       the Priority / Story Points / Parent fields the board defines:
 
-       After Type/Status, reuse the same `field-list` JSON — no new list
-       call — to loop over Priority/Story Points/Parent by a fixed
-       case-insensitive name table: `priority` → **Priority**; `story_points`
-       → **Story Points**/**Points**/**Estimate**; `parent` → **Parent**/
-       **Epic**. Board defines none of these names → info finding naming the
-       skipped field (mirrors the existing schema-undefined-field rule).
-       Board defines the field but this ticket's own value is `null` → skip
-       silently, no finding (mirrors the null-assignee rule; `story_points`
-       and `parent` are legitimately absent on many tickets, evaluated
-       per-field). Otherwise map by the resolved field's `dataType`:
-       Priority → `SINGLE_SELECT` via case-insensitive option-name match, no
-       match → info finding; Story Points → `NUMBER` via `--number
-       <ticket.story_points>` (or `SINGLE_SELECT` string-form option match);
-       Parent → `TEXT` via `--text <parent-tracker-key>` (the parent ticket's
-       external key), any other `dataType` → info finding — distinct from and
-       does not affect the existing issue-level parent link `new-ticket.py
-       --parent` already sets. Each `item-edit` call is individually guarded
-       like every other call in this step. Record the outcome as an additive
-       `project_fields` object (`{"priority": ..., "story_points": ...,
-       "parent": ..., "findings": []}`) per synced ticket.
+       ```bash
+       python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker sync \
+         --ticket <id> --ticket <id> ...
+       ```
+
+       It applies the exclusion rules itself and posts each partition's
+       `tracker-body.md` as the issue body — **write that file first**, from
+       the ticket's rendered description, for every ticket in the batch. The
+       body is what the issue is made of, so a partition without one is not
+       synced at all: the command reports that ticket under `failed` with an
+       `error` finding naming the missing path, and never creates a bodiless
+       issue. Read the printed JSON: `synced` maps a ticket id to
+       its `external`, `failed` lists the ids whose issue creation failed. A
+       board that defines none of a field's accepted names is one info finding
+       naming the skipped field; a ticket whose own `priority`/`story_points`/
+       `parent` value is `null` is skipped silently, no finding — a null value
+       is expected data, not a gap. Record the printed `findings` verbatim as
+       the `project_fields` object per synced ticket.
+
      - `jira`: `acli jira workitem create --project <project_key> --type
        "Epic" --summary "<rendered title>" --description "<description>"`
        (epic→Epic, story→Story, task→Task; children pass the epic's remote key
