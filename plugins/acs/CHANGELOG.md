@@ -44,6 +44,25 @@ the notes.
   partition for X" to "no partition for X", which breaks any external caller
   matching that string. The `acs-cost-metering` flow doc is also corrected:
   the marker write is no longer unconditional.
+- **The repo's model pin is guarded from both directions, and the guard says so
+  where it is read** (review follow-up to #509). This repo runs its executor on
+  a stronger model than `/acs:setup` recommends; that choice is a repo-local
+  entry in `tests/acs/test_settings_models_pinned.py`'s `REPO_OVERRIDES`, and
+  it must never be pushed into `RECOMMENDED_MODELS`, which is what a fresh
+  `/acs:setup` offers every other consumer repo. The override test already
+  failed an entry the recommendation had CAUGHT UP with; it now also fails one
+  the recommendation has moved PAST, since a pin on a retired id has nothing to
+  catch it at spawn time. The second property was enforced but undocumented,
+  and it falsified the file header's claim that a new model generation is "a
+  change to the constant, not to this file" -- for an overridden role it is
+  both, and the header now says which. Every remedy stays repo-local: nothing
+  here can reach `RECOMMENDED_MODELS`, which is the decoupling #509 existed to
+  make. One correction to that PR's stated reasoning: two paths were dropped
+  from the `RECOMMENDED_MODELS` comment as "paths a consumer install does not
+  have", which is true of `tests/acs/...` but NOT of `.acs/settings.json` --
+  every consumer has one; it is the file `/acs:setup` writes. The removal was
+  right on its other ground (one repo's choice is not the plugin's
+  recommendation); only the reason was wrong.
 
 - **The five undocumented Claude Code interfaces measurement rests on are isolated behind one adapter** (MAR-520, completing epic MAR-500/E0). Hook-envelope fields, the transcript JSONL record shape, `attributionSkill`/`attributionAgent`, the subagent transcript directory layout, and the statusLine payload keys were spelled out independently in `usage_reader.py`, `cost_sampler.py`, `acs_lib.py`, `statusline.py` and `subagent-statusline.py`; an upstream rename therefore broke measurement in five places, each degrading its own way. They now live once in `claude_code_adapter.py`, whose accessors are **total** — a malformed, absent, or wrong-typed value yields `None` or a documented default, never an exception, so callers measure instead of validating Claude Code's output. Degradation goes through a **single switch**, `unavailable(reason)`, which logs the reason (JSONL to `$ACS_DEGRADATION_LOG`, rotated at 256 KiB; stderr only under `$ACS_DEBUG`, so a status line stays quiet) and returns it — every `"unavailable"` in a metrics artifact now traces to one call site. Each cost sample additionally records **`claude_version`** (cached with a 24-hour TTL beside the sample log, probe bounded and failure-tolerant), so a future payload-shape change can be dated against the build that introduced it. `tests/acs/test_claude_code_adapter.py` pins the eight distinctive interface literals as adapter-exclusive by AST inspection, so the drift cannot silently return; ADR 0082 carries an append-only amendment. **Migration:** none — no settings key, schema, state-file shape, or artifact rename. One visible behavior change: a `statusLine` payload that is valid JSON but not an object now renders the ordinary fallback line (model + cwd basename) instead of `statusline.main`'s last-ditch `Claude` literal, which still stands for anything that genuinely raises.
 
