@@ -86,7 +86,9 @@ from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _cl
 from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
     subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
 
-from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, FILEMAP_FILENAME_FMT,
+    HANDOFF_CONTEXT_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor, file_map_guard,
+    filemap_path, load_filemap, normalize_repo_path, path_in_filemap, save_filemap_task,
     ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
     in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
