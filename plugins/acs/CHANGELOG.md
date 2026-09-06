@@ -16,6 +16,8 @@ the notes.
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-09-06
+
 ### Fixed
 
 - **`acs.py` and `acs_lib/lifecycle.py` come back under the 800-line budget**
