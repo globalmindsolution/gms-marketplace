@@ -64,34 +64,55 @@ def main():
     candidates += [s for s in lib.HOOKED_SKILLS if s not in candidates]
 
     handed = None
-    for skill in candidates:
-        if lib.last_run_status(tdir, skill) == "in_progress":
-            _state, entry = lib.finalize_run(tdir, skill, ticket_id, {
-                "status": "handed_off",
-                "stop_reason": "session handoff",
-                "handoff_summary": summary,
-            })
-            lib.update_pipeline(tdir, ticket_id, skill, "handed_off", summary=summary,
-                                flow="product" if skill in lib.PRODUCT_SKILLS else "ticket")
-            # a handed-off run still spent time/tokens — keep repo metrics
-            # consistent with the ticket ledger
-            lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
-            handed = skill
-            break
-
-    lib.release_lock(tdir, cwd)
+    metrics_error = None
+    # Releasing the lock IS the handoff (see this file's docstring): the next
+    # session cannot pick the ticket up while it is held. update_metrics is
+    # repo-guarded and now refuses rather than writing unguarded, so it runs
+    # inside a try -- a refused metrics write must not finalize the run
+    # `handed_off` and then strand the lock, which is the one outcome that
+    # makes the handoff undeliverable.
+    try:
+        for skill in candidates:
+            if lib.last_run_status(tdir, skill) == "in_progress":
+                _state, entry = lib.finalize_run(tdir, skill, ticket_id, {
+                    "status": "handed_off",
+                    "stop_reason": "session handoff",
+                    "handoff_summary": summary,
+                })
+                lib.update_pipeline(tdir, ticket_id, skill, "handed_off", summary=summary,
+                                    flow="product" if skill in lib.PRODUCT_SKILLS else "ticket")
+                # a handed-off run still spent time/tokens — keep repo metrics
+                # consistent with the ticket ledger
+                lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+                handed = skill
+                break
+    except lib.GuardTimeout as exc:
+        metrics_error = str(exc)
+        handed = handed or skill
+    finally:
+        lib.release_lock(tdir, cwd)
 
     if handed:
         resume = "/acs:%s %s" % (handed, ticket_id)
     else:
         resume = "/acs:ship %s" % ticket_id
-    print(json.dumps({
+    out = {
         "ok": True,
         "ticket_id": ticket_id,
         "skill": handed,
         "lock_released": True,
         "continue_with": resume,
-    }, indent=2))
+    }
+    if metrics_error:
+        out.update({"metrics_updated": False, "error": metrics_error})
+    print(json.dumps(out, indent=2))
+    if metrics_error:
+        sys.stderr.write(
+            "acs handoff: %s\nThe run is finalized as handed_off and the lock IS "
+            "released, so %s can be resumed; only metrics.json was not updated, "
+            "so this run's tokens and cost are lost from it.\n"
+            % (metrics_error, ticket_id))
+        sys.exit(2)
 
 
 if __name__ == "__main__":

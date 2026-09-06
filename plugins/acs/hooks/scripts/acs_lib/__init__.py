@@ -40,11 +40,13 @@ from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS
     validate_settings)  # noqa: F401
 
 from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+    GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
+    GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
     checkout_id, checkout_root, current_branch, default_state_root,
-    find_ticket_partition, gh_failure_hint, gh_read_is_unevaluable, gh_pr_required_checks_ok, gh_pr_view,
-    index_path, lock_path, main_repo_root,
-    pointer_path, record_session_marker, repo_dir, repo_partition_id,
+    find_ticket_partition, gh_failure_hint, gh_read_is_unevaluable,
+    gh_pr_required_checks_ok, gh_pr_view, index_path, lock_path, main_repo_root,
+    pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
     resolve_ticket_id, scan_local_ticket_evidence, session_marker_path, sessions_dir,
     state_path, ticket_dir, ticket_id_from_text)  # noqa: F401
 
@@ -59,11 +61,12 @@ from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     PENDING_STATUSES, PR_VIEW_FIELDS, VERDICTS, check_name, check_state,
     classify_checks, merge_readiness)  # noqa: F401
 
-from .state import (acquire_lock, allocate_ticket_id, append_in_progress_run,
-    check_lock, confirm_deescalation, empty_state, finalize_run, last_run,
-    last_run_status, load_pipeline, load_state, load_ticket, lock_is_stale,
-    new_ticket_doc, read_lock, record_escalation_event, release_lock, save_ticket,
-    skill_completed, update_index, update_pipeline)  # noqa: F401
+from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
+    acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
+    check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
+    last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
+    lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
+    release_lock, save_ticket, skill_completed, update_index, update_pipeline)  # noqa: F401
 
 from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
