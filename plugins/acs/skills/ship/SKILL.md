@@ -381,7 +381,11 @@ Branch strictly on `status`:
 Hook-blocked step: if the step's Skill call was denied (pre-hook exit 2),
 surface that stderr message verbatim and stop — it names exactly which skill
 must run first. Same for a partition `.lock` held by another session: surface
-the skill's message and stop; never delete a lock.
+the skill's message and stop; never delete a lock. That message now ends with
+`acs.py lock force-unlock` — surface it, **do not run it**. Breaking another
+session's lock is the operator's call, not yours: the command requires a stated
+reason and records who broke it in the partition's audit ledger, and nothing
+about being blocked tells you the other session is actually gone.
 
 ## Epic fan-out
 

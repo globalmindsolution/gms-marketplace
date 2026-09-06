@@ -2,6 +2,13 @@
 writers, update_index and update_metrics (D5.1(a)). Mirrors the arms already
 proven for the identical spin-lock pattern in
 tests/acs/test_acs_lib_state_locks.py::TestAllocateTicketId.
+
+MAR-530 inverted the exhaustion arm: the guard used to fail OPEN (give up and
+write anyway), so the one situation it exists for -- a concurrent writer
+holding it -- was the one situation it did not cover. It now raises
+GuardTimeout and writes nothing. The two tests that pinned the old behaviour
+are rewritten below rather than deleted, so the inversion is visible in the
+diff.
 """
 
 import os
@@ -25,13 +32,22 @@ def _ticket(tid):
 
 
 class GuardDocstringHonestyTest(unittest.TestCase):
-    """Finding 5: the docstring must name the bounded-spin fail-open fallback
-    rather than claim an absolute guarantee the mechanism does not provide."""
+    """Finding 5 asked the docstring to name the fail-OPEN fallback rather than
+    claim a guarantee the mechanism did not provide. MAR-530 removed the
+    fallback, so the honesty requirement inverts with it: the docstring must
+    now say the write is REFUSED, and must not still describe running the body
+    unguarded."""
 
-    def test_docstring_names_the_bounded_spin_fallback(self):
+    def test_docstring_says_the_write_is_refused_not_performed_unguarded(self):
         doc = lib._guarded_repo_write.__doc__ or ""
-        self.assertIn("unguarded", doc)
+        self.assertIn("GuardTimeout", doc)
         self.assertNotRegex(doc, r"never (drop|lose)")
+        self.assertNotIn("fail-open fallback:", doc)
+
+    def test_guard_timeout_explains_why_refusing_beats_writing(self):
+        doc = lib.GuardTimeout.__doc__ or ""
+        self.assertIn("unguarded", doc)
+        self.assertIn("MAR-530", doc)
 
 
 class _GuardedWriterCaseMixin:
@@ -59,6 +75,10 @@ class _GuardedWriterCaseMixin:
 
     def _landed(self, n=1):
         """Assert self._call(n)'s write actually reached its target file."""
+        raise NotImplementedError
+
+    def _did_not_land(self, n=1):
+        """Assert self._call(n)'s write reached nothing -- the refusal arm."""
         raise NotImplementedError
 
     def test_guard_file_held_during_read_modify_write(self):
@@ -114,20 +134,22 @@ class _GuardedWriterCaseMixin:
         with mock.patch.object(self.MODULE, "write_json", side_effect=shim):
             self._call()  # must not raise
 
-    def test_proceeds_unguarded_when_the_guard_cannot_be_acquired(self):
-        """Finding 5: mirrors allocate_ticket_id's pre-existing bounded-spin
-        fail-open fallback -- a live (never-stale) foreign guard held for the
-        whole call must not block the write forever, and the fallback must
-        not steal the foreign guard file out from under its owner."""
+    def test_refuses_the_write_when_the_guard_cannot_be_acquired(self):
+        """MAR-530: a live (never-stale) foreign guard held for the whole budget
+        makes the write RAISE. Nothing lands, and the foreign guard file is
+        left for its owner to release -- the refusal must not double as a
+        lock steal."""
         os.makedirs(self.rdir, exist_ok=True)
         guard = self._guard_path()
         open(guard, "w").close()  # fresh mtime -> never stale, held for the call
 
         with mock.patch("time.sleep"):
-            self._call()
+            with self.assertRaises(lib.GuardTimeout) as caught:
+                self._call()
 
-        self._landed()
-        self.assertTrue(os.path.exists(guard), "fail-open must not unlink a foreign guard")
+        self.assertIn(self.guard_name, str(caught.exception))
+        self._did_not_land()
+        self.assertTrue(os.path.exists(guard), "the refusal must not unlink a foreign guard")
 
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
@@ -141,6 +163,10 @@ class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
         data = lib.read_json(lib.index_path(self.workspace, "acme-shop")) or {}
         self.assertIn("SHOP-%d" % n, data.get("tickets", {}))
 
+    def _did_not_land(self, n=1):
+        data = lib.read_json(lib.index_path(self.workspace, "acme-shop")) or {}
+        self.assertNotIn("SHOP-%d" % n, data.get("tickets", {}))
+
 
 class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     MODULE = lib.metrics
@@ -152,6 +178,10 @@ class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     def _landed(self, n=1):
         data = lib.read_json(lib.metrics_path(self.workspace, "acme-shop")) or {}
         self.assertIn(n, data.get("prs", {}).get("created_pr_numbers", []))
+
+    def _did_not_land(self, n=1):
+        data = lib.read_json(lib.metrics_path(self.workspace, "acme-shop")) or {}
+        self.assertNotIn(n, data.get("prs", {}).get("created_pr_numbers", []))
 
 
 class ConcurrentWritersTest(unittest.TestCase):
