@@ -119,7 +119,7 @@ they do.
    `<repo>/.claude/settings.json`; for any `statusLine` /
    `subagentStatusLine` command containing `acs`, check the referenced
    script file exists. Missing → tell the user to re-run `/acs:setup`
-   (Step 7b) after reloading, which rewrites the paths.
+   (Step 3's statusline offer) after reloading, which rewrites the paths.
 
 3. **Workspace reachable** — resolve the workspace the same way item 1 does
    (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the

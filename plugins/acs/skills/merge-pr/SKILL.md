@@ -329,7 +329,7 @@ computed is `acs_lib.readiness.merge_readiness`, a pure function of the two
 reads, and is not restated here. What a coordinator cannot derive from the JSON
 is:
 
-- **ci** — all REQUIRED checks pass. A repo that has run `/acs:setup` Step 7f
+- **ci** — all REQUIRED checks pass. A repo that has run `/acs:setup` Step 3
   and wired `"E2E suite"` as a required status check therefore gets e2e
   enforcement for free through this same read, with zero merge-pr changes. That
   is not a fifth readiness dimension: `ci`/`approvals`/`conflicts`/`protections`

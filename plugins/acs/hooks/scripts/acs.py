@@ -17,7 +17,7 @@ Two kinds of subcommand live behind this front door:
     verdict, phase, slug, fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
-    (plan-approval.py). Those scripts stay the implementation and keep working
+    (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
     code unchanged. Nothing was reimplemented, so no behaviour could drift.
 
@@ -54,6 +54,8 @@ Usage:
   acs.py verdict show --iteration 2
   acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
+  acs.py setup detect
+  acs.py setup apply --answers answers.json
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
   acs.py doctor
@@ -77,6 +79,7 @@ DELEGATED = {
     "start": "skill-start.py",
     "finish": "pipeline-step.py",
     "plan": "plan-approval.py",
+    "setup": "setup_wizard.py",
 }
 
 SIZES = ("trivial", "small", "standard", "large")
