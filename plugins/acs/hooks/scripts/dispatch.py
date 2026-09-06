@@ -6,6 +6,9 @@ Registered in hooks/hooks.json:
     gate in-process. Exit 2 blocks the skill; its stderr explains what to run first.
     The gate is bounded by GATE_TIMEOUT_SECONDS and fails closed on timeout or
     error, because any exit code other than 2 lets the skill run.
+  * `dispatch.py file-map`       on PreToolUse (matcher: the write tools) — exit 2
+    denies a write outside the declared executor file map, but ONLY while an acs
+    executor is active and a map has been declared.
   * `dispatch.py subagent-start` on SubagentStart (matcher: `^acs:`) — records which
     acs agent is running, for the file-map guard.
   * `dispatch.py subagent-stop`  on SubagentStop (matcher: `^acs:`) — validates the
@@ -21,9 +24,19 @@ Registered in hooks/hooks.json:
 The dispatcher itself never gates: skills that are not part of the acs pipeline
 (or acs skills without hooks: setup, ship, handoff) pass through with exit 0.
 
-The gate (`pre`) is the only mode that fails CLOSED. The lifecycle modes fail
-OPEN — MAR-528: a bookkeeping hook that breaks a session over its own bug is
-worse than the bookkeeping it was doing, and only two of them can block at all.
+Failure polarity is not uniform, and the split is deliberate:
+
+  * `pre` (the Skill gate) fails CLOSED — letting a skill run unchecked is the
+    harm, so anything raised becomes exit 2 (ADR 0002).
+  * The four BOOKKEEPING lifecycle modes fail OPEN — MAR-528: a hook that
+    breaks a session over its own bug costs more than the bookkeeping it was
+    doing. Two of them (`subagent-stop`, `stop`) block deliberately, to force
+    an action; neither denies anything.
+  * `file-map` fails CLOSED once it is in scope — MAR-529. It is a DENY
+    control, and a deny that fails open is not a control at all; ADR 0002
+    records that exact lesson for the other exit-2 PreToolUse hook. Deciding
+    whether it applies is still fail-open, so a bug in "am I in scope" cannot
+    wedge every write in every session; see run_file_map_guard.
 """
 
 import json
@@ -125,21 +138,78 @@ LIFECYCLE_MODES = {
     "pre-compact": "pre_compact",
 }
 
+#: The DENY control. Not in LIFECYCLE_MODES because it does not share their
+#: failure polarity — see the module docstring and run_file_map_guard.
+FILE_MAP_MODE = "file-map"
+
+#: A file-map decision is a few JSON reads and some path arithmetic. Anything
+#: longer is stuck, and an unbounded deny control is one the runtime kills
+#: without an exit code of 2 -- which reads as "allowed".
+FILE_MAP_TIMEOUT_SECONDS = 10
+
 
 def run_lifecycle(mode, payload):
-    """Run a lifecycle hook, failing OPEN.
+    """Run a BOOKKEEPING lifecycle hook, failing OPEN.
 
     The gate fails closed because letting a skill run unchecked is the harm.
-    Here the harm runs the other way: these hooks do bookkeeping, and a
+    Here the harm runs the other way: these four hooks do bookkeeping, and a
     bookkeeping bug that ends a session or wedges a subagent costs more than
     the bookkeeping is worth. So anything raised becomes exit 0 plus a line on
-    stderr, and only the two hooks that are *supposed* to block ever return 2.
+    stderr. Two of them return 2 by design, to force an action; none of them
+    denies anything, which is why failing open here is safe and why the
+    file-map guard does NOT come through this function.
     """
     try:
         return getattr(acs_lib, LIFECYCLE_MODES[mode])(payload)
     except BaseException as exc:  # noqa: BLE001 - see the docstring
         sys.stderr.write("acs %s: %r (ignored)\n" % (mode, exc))
         return 0
+
+
+def run_file_map_guard(payload):
+    """Run the file-map deny control, failing CLOSED once it is in scope.
+
+    Split in two on purpose, because the two halves have opposite risks:
+
+      * "Does this guard apply here?" -- not an acs partition, no executor
+        running, no map declared. A bug in THAT half failing closed would deny
+        every write in every session on the machine, so it fails open.
+      * "Is this particular write inside the declared map?" -- the decision the
+        control exists to make. A bug in THAT half failing open silently
+        disables the guard while leaving it installed, which is the failure
+        mode ADR 0002 records for the other exit-2 PreToolUse hook. So it
+        denies, and says why.
+
+    acs_lib.file_map_guard performs the first half behind its own handler and
+    returns 0, so anything that reaches HERE came from the decision half.
+    """
+    def _decide():
+        return acs_lib.file_map_guard(payload)
+
+    if not hasattr(signal, "SIGALRM"):
+        try:
+            return _decide()
+        except BaseException as exc:  # noqa: BLE001 - a deny control must not fail open
+            sys.stderr.write(
+                "acs file-map: blocked — the guard could not decide (%r). "
+                "Re-run once the cause is fixed.\n" % exc)
+            return 2
+
+    def _on_timeout(_signum, _frame):
+        raise GateTimeout("file-map guard exceeded %ds" % FILE_MAP_TIMEOUT_SECONDS)
+
+    previous = signal.signal(signal.SIGALRM, _on_timeout)
+    signal.alarm(FILE_MAP_TIMEOUT_SECONDS)
+    try:
+        return _decide()
+    except BaseException as exc:  # noqa: BLE001 - a deny control must not fail open
+        sys.stderr.write(
+            "acs file-map: blocked — the guard could not decide (%r). "
+            "Re-run once the cause is fixed.\n" % exc)
+        return 2
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def main():
@@ -157,6 +227,8 @@ def main():
             sys.stderr.write("acs session-end: %r\n" % exc)
         sys.exit(0)
 
+    if mode == FILE_MAP_MODE:
+        sys.exit(run_file_map_guard(payload))
     if mode in LIFECYCLE_MODES:
         sys.exit(run_lifecycle(mode, payload))
 
