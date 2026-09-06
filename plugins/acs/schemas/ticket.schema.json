@@ -34,6 +34,11 @@
       ]
     },
     "assignee": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+    "milestone": {
+      "description": "Optional tracker milestone title this ticket belongs to; the tracker sync writes it verbatim (`gh issue edit --milestone`). Falls back to settings.tracker.milestone when null, and is skipped entirely when both are null. Declared because the sync reads it: an undeclared field is one no document can be validated against and no operator can be told to set.",
+      "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
+      "default": null
+    },
     "story_points": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
     "needs_design": {
       "description": "Always true for epics (stated, not asked); always false for stories and tasks — never offered or confirmed (MAR-76).",
