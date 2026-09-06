@@ -65,6 +65,7 @@ onto the plugin hooks API like this:
    | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
    | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
    | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
+   | `PreToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `file-map` | **exit 2** denies a write outside the declared executor file map (MAR-529) |
 
    The matchers are **anchored on the plugin scope** on purpose: unanchored,
    the subagent events would fire for every subagent in the session — `Explore`,
@@ -78,6 +79,49 @@ onto the plugin hooks API like this:
    `run_lifecycle` turns anything raised into exit 0 plus one line on stderr.
    Both blocking hooks also give up after `BLOCK_LIMIT`: a session that cannot
    stop is worse than a run SessionEnd will mark `interrupted`.
+
+   **The file-map guard (MAR-529).** "Mutate ONLY the files in your task's file
+   map" was a bullet in the executor charter, and plugin agents cannot carry
+   frontmatter hooks, so the enforcement point is the plugin's own `PreToolUse`
+   entry, keyed on the active agent `SubagentStart` recorded. The coordinator
+   declares each executor task's map with **`acs.py filemap set --iteration <n>
+   --task <k> --file …`** (additive, per task, written to
+   `phases/<skill>/iter-<n>-filemap.json`); a write outside it is denied while
+   an acs **executor** is running, with the executor told to return
+   `needs_input` for the file it needs.
+
+   **Failure polarity is split, because the two questions carry opposite
+   risks.** Deciding *whether the guard applies* fails OPEN — not an acs
+   partition, no executor active (a planner, a verifier and the coordinator all
+   write outside any task's map legitimately), **no map declared** (a TRIVIAL
+   lane runs no planner), or a call that names no path. A bug there must not
+   deny every write on the machine. Deciding *whether this write is inside the
+   map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
+   read all deny, because a deny control that fails open is silently absent
+   while still installed — the failure ADR 0002 records for the other exit-2
+   `PreToolUse` hook. Exempt: this executor's own `phases/<skill>/` artifacts,
+   and only those. Explicitly NOT exempt, and denied outright: the guard's own
+   control inputs — the `active-agents/` record that arms it and any
+   `iter-*-filemap.json` — since an executor that can rewrite either can answer
+   the guard's own question.
+
+   **Known hole, stated rather than implied: `Bash` is not covered.** The
+   matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
+   `sed -i`, `python -c`, `cat >`, `tee`, `mv` or `git checkout --` is outside
+   this control entirely. That is not a small gap — an agent told to prefer
+   shell over the write tools would be almost invisible to the guard. Closing
+   it needs its own ticket (matching a path out of an arbitrary command line is
+   a different problem from reading one out of `tool_input`); what must not
+   happen is this list reading as exhaustive while omitting it.
+
+   **What it checks is the UNION of the iteration's declared tasks, not the one
+   task the running executor was given.** Per-task binding is not achievable
+   with what Claude Code provides: neither `SubagentStart` nor `PreToolUse`
+   carries a task index, and parallel executors of one `agent_type` run at once,
+   so there is nothing to bind an agent to its task by. The union still enforces
+   the property that actually goes wrong — an executor wandering outside the
+   PLAN — while disjointness *between* tasks stays what the coordinator's
+   parallel-vs-sequential decision already exists to decide.
 
 ## Skill lifecycle (every hooked skill)
 
