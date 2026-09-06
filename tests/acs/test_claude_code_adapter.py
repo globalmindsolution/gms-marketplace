@@ -278,6 +278,49 @@ class TestClaudeVersion(unittest.TestCase):
     def test_a_missing_claude_binary_degrades_to_none(self):
         with mock.patch.object(cc.subprocess, "run", side_effect=OSError("no claude")):
             self.assertIsNone(cc.claude_version(self.cache))
+        self.assertFalse(os.path.exists(self.cache),
+                         "a failed probe must leave no cache file to age out of")
+
+    def test_a_failed_probe_is_not_cached_for_the_life_of_the_process(self):
+        """The headline fix, which had NO test: the memo was consulted whenever
+        the disk cache was not stale, and a FAILED probe writes no cache file --
+        so `not stale` was trivially true for the absent file and the memoised
+        None was returned forever. `claude` appearing on PATH a moment later
+        never took effect, which is the opposite of what the change claimed."""
+        with mock.patch.object(cc, "_probe_claude_version",
+                               side_effect=[None, "2.3.0", "2.3.0"]) as probe:
+            self.assertIsNone(cc.claude_version(self.cache))
+            self.assertEqual(cc.claude_version(self.cache), "2.3.0")
+            self.assertEqual(cc.claude_version(self.cache), "2.3.0")
+        self.assertEqual(probe.call_count, 2,
+                         "re-probe after the failure, then serve from cache")
+
+    def test_an_unwritable_cache_does_not_respawn_the_probe_every_call(self):
+        """The other half of the same fix, also untested: with the cache
+        unwritable the memo must still answer, or statusline.main's pre-print
+        path spawns a subprocess on every call."""
+        # mkstemp, not chmod: the suite runs as root in CI, where a read-only
+        # directory is still writable. _write_version_cache swallows this, so
+        # the call stays total and the cache simply never lands.
+        with mock.patch.object(cc.tempfile, "mkstemp", side_effect=OSError("ro")):
+            with mock.patch.object(cc, "_probe_claude_version",
+                                   return_value="2.4.0") as probe:
+                for _ in range(3):
+                    self.assertEqual(cc.claude_version(self.cache), "2.4.0")
+        self.assertFalse(os.path.exists(self.cache), "the cache really did not land")
+        self.assertEqual(probe.call_count, 1)
+
+    def test_a_failed_cache_write_leaves_no_temp_file_behind(self):
+        """mkstemp then os.replace: if the replace never happens the temp must
+        still be removed, or the sessions dir accretes .acs-version-* files."""
+        os.makedirs(os.path.dirname(self.cache), exist_ok=True)
+        with mock.patch.object(cc.os, "replace", side_effect=OSError("boom")):
+            with mock.patch.object(cc, "_probe_claude_version", return_value="2.5.0"):
+                # The writer is total, so this must not raise either.
+                self.assertEqual(cc.claude_version(self.cache), "2.5.0")
+        leftovers = [n for n in os.listdir(os.path.dirname(self.cache))
+                     if n.startswith(".acs-version-")]
+        self.assertEqual(leftovers, [], leftovers)
 
     def test_a_nonzero_exit_degrades_to_none(self):
         proc = mock.Mock(returncode=1, stdout=b"")

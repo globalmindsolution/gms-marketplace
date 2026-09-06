@@ -15,9 +15,9 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 45 files (15 × 3 roles); 39 reachable (12 triad-keeping skills × 3 + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py` and the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 19 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
-| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py` and the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 20 |
+| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 11 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
@@ -65,6 +65,7 @@ onto the plugin hooks API like this:
    | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
    | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
    | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
+   | `PreToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `file-map` | **exit 2** denies a write outside the declared executor file map (MAR-529) |
 
    The matchers are **anchored on the plugin scope** on purpose: unanchored,
    the subagent events would fire for every subagent in the session — `Explore`,
@@ -78,6 +79,49 @@ onto the plugin hooks API like this:
    `run_lifecycle` turns anything raised into exit 0 plus one line on stderr.
    Both blocking hooks also give up after `BLOCK_LIMIT`: a session that cannot
    stop is worse than a run SessionEnd will mark `interrupted`.
+
+   **The file-map guard (MAR-529).** "Mutate ONLY the files in your task's file
+   map" was a bullet in the executor charter, and plugin agents cannot carry
+   frontmatter hooks, so the enforcement point is the plugin's own `PreToolUse`
+   entry, keyed on the active agent `SubagentStart` recorded. The coordinator
+   declares each executor task's map with **`acs.py filemap set --iteration <n>
+   --task <k> --file …`** (additive, per task, written to
+   `phases/<skill>/iter-<n>-filemap.json`); a write outside it is denied while
+   an acs **executor** is running, with the executor told to return
+   `needs_input` for the file it needs.
+
+   **Failure polarity is split, because the two questions carry opposite
+   risks.** Deciding *whether the guard applies* fails OPEN — not an acs
+   partition, no executor active (a planner, a verifier and the coordinator all
+   write outside any task's map legitimately), **no map declared** (a TRIVIAL
+   lane runs no planner), or a call that names no path. A bug there must not
+   deny every write on the machine. Deciding *whether this write is inside the
+   map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
+   read all deny, because a deny control that fails open is silently absent
+   while still installed — the failure ADR 0002 records for the other exit-2
+   `PreToolUse` hook. Exempt: this executor's own `phases/<skill>/` artifacts,
+   and only those. Explicitly NOT exempt, and denied outright: the guard's own
+   control inputs — the `active-agents/` record that arms it and any
+   `iter-*-filemap.json` — since an executor that can rewrite either can answer
+   the guard's own question.
+
+   **Known hole, stated rather than implied: `Bash` is not covered.** The
+   matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
+   `sed -i`, `python -c`, `cat >`, `tee`, `mv` or `git checkout --` is outside
+   this control entirely. That is not a small gap — an agent told to prefer
+   shell over the write tools would be almost invisible to the guard. Closing
+   it needs its own ticket (matching a path out of an arbitrary command line is
+   a different problem from reading one out of `tool_input`); what must not
+   happen is this list reading as exhaustive while omitting it.
+
+   **What it checks is the UNION of the iteration's declared tasks, not the one
+   task the running executor was given.** Per-task binding is not achievable
+   with what Claude Code provides: neither `SubagentStart` nor `PreToolUse`
+   carries a task index, and parallel executors of one `agent_type` run at once,
+   so there is nothing to bind an agent to its task by. The union still enforces
+   the property that actually goes wrong — an executor wandering outside the
+   PLAN — while disjointness *between* tasks stays what the coordinator's
+   parallel-vs-sequential decision already exists to decide.
 
 ## Skill lifecycle (every hooked skill)
 
@@ -141,6 +185,21 @@ findings, error details, and stop reasons into workspace files):
 | plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+
+**The verifier also writes a verdict** (MAR-527):
+`phases/<skill>/iter-<n>-verdict.json`, or `iter-<n>-verdict-lens-<A|B|C|D>.json`
+on full depth. It carries a per-dimension result table (by the numbers in
+`agents/code-verifier.md`, where `n/a` is a real answer), the findings, and
+`passed` — which is **derived, not asserted**: `passed` is true exactly when no
+finding is `blocking`. `acs_lib.verdict.validate_verdict` enforces that, and the
+SubagentStop hook runs it, so a verdict claiming a pass over a blocking finding
+is refused rather than believed. `verdict.schema.json` pins the shape; that
+function pins the meaning, and says so. On full depth the coordinator runs
+`acs.py verdict merge` — the conjunction of `passed`, the union of findings, the
+worst result per dimension — which is arithmetic over the lens files, not a
+second opinion. `states.verifier_passed` is **derived by the post hook** from
+the verifier's `verdict.json` (MAR-523) — never copied from the coordinator's
+result document, and never concluded from a findings count by hand.
 
 **The XML snapshot is written by the SubagentStop hook** (MAR-528), not by the
 coordinator remembering to. The hook fires on `^acs:`-matched agents, validates
@@ -249,6 +308,24 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
+**Four `states` keys are DERIVED, not read (MAR-523).** `run_post` computes
+`verifier_passed`, `tests`, `pr` and `review.iterations` from the artifacts
+before persisting the document, and the computed value wins:
+
+| Key | Source | When it cannot be computed |
+|---|---|---|
+| `verifier_passed` | the verifier's `iter-<n>-verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
+| `tests` | the last iteration's `iter-<n>-execute*.json` reports (`coverage_target` from `settings.test_coverage_percent`) | the coordinator's value is kept |
+| `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
+| `review.iterations` | the verify artifacts on disk | the coordinator's value is kept |
+
+A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
+carries `values`, a one-line `provenance` for every key considered (including
+the ones it declined to compute, and why), and `overrode` — the
+supplied-vs-derived pairs — which is also printed on stderr. `verifier_passed`
+is derived only for `code`, the one skill whose verdict `/acs:create-pr` gates
+on. **A coordinator cannot open that gate by writing `true`.**
+
 `tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
 silently ignored since MAR-1 — `finalize_run` measures both itself (see the
 Token/cost usage exception noted above) rather than trusting a coordinator-supplied
@@ -334,11 +411,63 @@ Conventions:
   sessions/<checkout-id>.json           # per-worktree current-ticket pointer
   archive/<ticket-id>/                  # moved here by post-merge-pr
   <ticket-id>/
-    .lock  ticket.json  pipeline-state.json
+    .lock  lock-events.jsonl  ticket.json  pipeline-state.json
     design.md  specs/NN-slug.md
     phases/<skill>/iter-<n>-<phase>.xml  phases/<skill>/result.json
     <skill>-state.json ...
 ```
+
+### Concurrency: two mechanisms, both fail closed
+
+**Repo-level guards.** `tickets-index.json`, `metrics.json` and `counters.json`
+are read-modify-written by any session in any worktree, so each write holds an
+`O_EXCL` guard file beside it (`repo_guard`, a bounded spin: `ACS_GUARD_ATTEMPTS`
+× 0.05s, default 200 → 10s, clamped at `GUARD_ATTEMPTS_MAX` since a longer spin
+only outlives the 25-second bound Claude Code puts on the pre-hook). **Exhausting
+the budget raises `GuardTimeout` and writes nothing.** It used to write anyway, which meant the guard covered every
+case except the one it exists for. A refused write is recoverable; a clobbered
+one is invisible — and for `counters.json` it means two sessions holding the
+same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
+landed: the run, `ticket.json` and `pipeline-state.json` are already durable, the
+index self-heals on the next post hook, and that run's tokens and cost are lost
+from `metrics.json` — except after **merge-pr**, the terminal post hook, where
+nothing runs afterwards and the message says so instead. Every other entry point
+reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that
+holds the ticket lock releases it first: a skill that did not start, a handoff
+that did not hand off, or a SessionEnd net that did not release would otherwise
+strand the lock under a pid that is about to exit — and a cross-host lock
+stranded that way does not read as stale for 24 hours.
+
+A guard file left behind by a writer that crashed is reclaimed, but the test is
+deliberately narrow. Age alone cannot tell a crashed writer from a slow one, so
+a reclaim requires **both** that the file outlive twice the configured budget
+(`guard_stale_seconds`, so raising `ACS_GUARD_ATTEMPTS` for slow storage widens
+the patience rather than the hole) **and** that its recorded holder — the guard
+file carries the writer's pid and hostname — is not a process still running on
+this host. Releasing is symmetric: a holder unlinks the guard only if it is
+still its own, so a writer whose guard was reclaimed cannot strip the guard off
+whoever reclaimed it. Both halves are what keep two writers out of the critical
+section at once.
+
+**The ticket lock.** `<ticket-id>/.lock` records the holder's `checkout_id`,
+path, pid, hostname and start time. `lock_staleness(lock)` returns a verdict
+*and its basis*, because only one of its two regimes actually observes the
+holder:
+
+| Regime | Evidence | Verdict |
+|---|---|---|
+| Same hostname, integer pid | `os.kill(pid, 0)` — a real liveness probe | live → not stale; gone → stale; not ours to probe → not stale |
+| Anything else (foreign host, absent hostname, non-integer pid) | **none** — the pid names a process in another machine's namespace, so it is deliberately not probed | age only: stale after `LOCK_MAX_AGE_HOURS` (24h) |
+
+The second row is the ordinary case for containers, CI runners and worktrees on
+different machines, and it means a *live* holder elsewhere reads as stale once
+24h pass, while a *dead* one reads as live until then. Nothing is removed on the
+verdict alone: `check_lock` reports the basis and the operator decides.
+`release_lock` still refuses another checkout's lock; breaking one goes through
+**`acs.py lock force-unlock --reason "…"`**, which appends the break — who, from
+where, why, and the staleness verdict it did not obey — to the ticket's
+append-only `lock-events.jsonl` *before* removing the file. `acs.py lock status`
+prints the same view without changing anything.
 
 ## Conditional steps — skipping is data, never improvisation
 
@@ -495,6 +624,97 @@ hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
 
+## Forge metadata: two commands, two failure policies
+
+`gh` is acs's only transport to GitHub, and everything acs writes through it
+beyond the PR or issue itself — labels, assignee, milestone, reviewers, Project
+membership and fields — goes through `acs_lib.forge` (MAR-525), reached as two
+commands:
+
+| Command | Performs | Policy |
+|---|---|---|
+| `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch: issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+
+Both resolve Project fields the same way: **the board's own spelling wins.** A
+field is matched case-insensitively against a fixed table of accepted names
+(`Story Points` / `Points` / `Estimate`; `Parent` / `Epic`), an option is matched
+case-insensitively against the ticket's value, and a board that defines neither
+the field nor the option gets **one info finding naming exactly what was skipped**
+— a schema-undefined field is surfaced, never silently ignored, and never a
+wrong-type write. A ticket value that is simply `null` is skipped silently: that
+is expected data, not a gap.
+
+The runner is injectable and the resolvers are pure, so every arm — including
+the ones that only fire when a board lacks a field, or when one call in five
+fails — is exercised from a recorded `gh` transcript with no forge. `--gh-replay
+FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
+through `acli`, not `gh`.
+
+Four rules keep the two flows honest about what they did:
+
+- **The issue body is a precondition, not an argument.** `tracker sync` posts
+  each partition's `tracker-body.md`, and the executor charter is what tells
+  the executor to write it. A partition without one is reported under `failed`
+  with an `error` finding naming the missing path — never a bodiless issue,
+  and never N opaque per-ticket gh errors for one missed step.
+- **A create that cannot be parsed is a failure.** `gh issue create` exiting 0
+  without printing an issue URL leaves the issue number unknown, so the ticket
+  fails and keeps `external` unset. Recording an empty key would have been
+  worse than failing: `sync_candidates` excludes any ticket that carries an
+  `external`, so the half-written ticket would never be retried.
+- **`command` is shell-quoted.** Every finding's command is documented as
+  ready to re-run, which means a human runs it. It is rendered with
+  `shlex.quote`, so a milestone of `Q3 2026; rm -rf /tmp/x` replays as one
+  `gh` call with one odd argument rather than two commands. The executed calls
+  were never affected — they are argv, never `shell=True`.
+- **Every degraded call carries its `hint`.** The finding shape is
+  `{severity, area, message, command, error, hint, replayable}`, and `hint` is
+  derived from `error` via `gh_failure_hint` when the call site does not pass
+  one (ADR-0088). Without it a 403 "GitHub access is not enabled for this
+  session" — the one failure with a specific remedy — reads like a mistyped
+  label name.
+
+The reviewer set is CODEOWNERS minus the author, and "minus the author" is a
+normalised comparison: a leading `@` is stripped and case is folded on both
+sides, because CODEOWNERS writes owners `@`-prefixed while `--author` is passed
+bare. `--author` is optional and `@me` is accepted; when it is absent the login
+is resolved with `gh api user`, and when even that fails the flow says so in one
+info finding rather than silently requesting the author as their own reviewer —
+the owners are comma-joined into ONE `gh pr edit --add-reviewer` call, so a set
+that names the author is rejected whole and nobody is requested.
+
+The milestone the sync writes comes from `ticket.milestone`, falling back to
+`settings.tracker.milestone`; **both are declared** in their schemas, which is
+what makes the arm reachable for a real ticket rather than only for a fixture.
+
+## Bootstrap: `/acs:setup` is a conversation over a wizard
+
+`setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
+skill asks and explains; `setup_wizard.py` writes, reached as two commands:
+
+- **`acs.py setup detect`** — read-only. Which settings exist and **in which
+  scope**, the resolved workspace, whether both ignore layers are in place and
+  whether a broad rule is swallowing `.acs/settings.json` or `.acs/ci/`, the
+  toolchain, plausible test commands, and which optional installs (CI,
+  `CLAUDE.md`, status line) are already present.
+- **`acs.py setup apply --answers FILE`** — the settings split across scopes
+  (machine-specific keys always to the gitignored `settings.local.json`), both
+  ignore layers, the workspace create-and-probe, the CI copies, the `CLAUDE.md`
+  managed block, and the status-line settings.
+
+**Idempotence is the contract.** `/acs:setup` is re-run whenever a format
+changes, and a repo initialised by an older acs is expected to be *repaired* by
+a re-run. So every settings write is a read-update-write merge (unknown keys
+preserved for forward compatibility, nested objects merged rather than
+replaced), every ignore entry is added only when `git check-ignore` says it is
+missing — probed **with** its trailing slash, since a directory-only rule does
+not match a bare path that does not yet exist — and every CI copy is a refresh.
+The result splits into `changed` and `unchanged`, so a re-run is visibly a
+no-op rather than silently one; `warnings` is what setup must relay but must
+not fix (a `!.acs/` negation is the user's configuration to decide); and
+`--dry-run` reports without writing.
+
 ## Settings, formats, templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user
@@ -505,7 +725,7 @@ sanctioned way to keep children shippable when a slice alone would break.
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
-- `enforcement` (opt-in, /setup Step 7c): repo-side CI that holds *every* PR to
+- `enforcement` (opt-in, /setup Step 3): repo-side CI that holds *every* PR to
   the same conventions, so the pipeline can't be silently bypassed. /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
@@ -524,7 +744,7 @@ sanctioned way to keep children shippable when a slice alone would break.
   partition/state, and skips tracker sync and archiving — `skill-start.py --pr`
   validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
   refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. `/acs:setup` Step 7e injects the guidance **body** from
+  ticket-backed. `/acs:setup` Step 3 injects the guidance **body** from
   `templates/CLAUDE.acs.md` (the template's maintainer header and its own markers
   are dropped) into the repo's `CLAUDE.md`, wrapped by `upsert_managed_block` in
   exactly one acs-managed marker pair — idempotent (byte-identical re-runs) and

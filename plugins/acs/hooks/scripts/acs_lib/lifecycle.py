@@ -33,15 +33,19 @@ SessionEnd already finalizes an abandoned run as `interrupted`.
 import hashlib
 import json
 import os
+import posixpath
 import re
 import sys
 import xml.etree.ElementTree as ET
 
 import claude_code_adapter as cc  # noqa: E402
 
+from datetime import datetime, timezone
+
 from ._common import GateError, HOOKED_SKILLS, now_iso, read_json, write_json, write_text
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
 from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
+from . import verdict
 
 #: agent_type suffix -> the phase name its artifact is filed under.
 ROLE_PHASES = {"planner": "plan", "executor": "execute", "verifier": "verify"}
@@ -186,6 +190,22 @@ def open_clarifications(tdir):
     doc = read_json(os.path.join(tdir, "clarifications.json"))
     return [c for c in ((doc or {}).get("clarifications") or [])
             if isinstance(c, dict) and c.get("status") != "answered"]
+
+
+def _release_agent(tdir, payload):
+    """Drop this subagent's record and its refusal counter, whichever keys it
+    was tracked under.
+
+    Called only where the subagent stopped CLEANLY. On a give-up the record is
+    deliberately left in place: it carries the refusal count that reached the
+    cap, and deleting it would reset that count so the next attempt started
+    from zero and the cap never held. A given-up record stops arming MAR-529's
+    guard by a different route -- _record_is_current treats stop_attempts above
+    the cap as no longer running."""
+    clear_agent(tdir, stop_counter_key(payload))
+    agent_id = cc.hook_agent_id(payload)
+    if agent_id:
+        clear_agent(tdir, agent_id)
 
 
 def stop_counter_key(payload):
@@ -388,10 +408,13 @@ def write_handoff_context(tdir, ticket_id, skill):
 # Hook entry points — dispatch.py calls exactly these
 # ---------------------------------------------------------------------------
 #
-# Each returns an exit code. 0 always means "carry on"; only subagent_stop and
-# stop can return 2, and only for the one condition they exist for. Every one
-# of them treats "this is not an acs ticket" and "there is nothing to do" as
-# the same answer, because in most sessions they are.
+# Each returns an exit code. 0 always means "carry on". THREE of them can
+# return 2, for different reasons and with different failure polarity:
+# subagent_stop and stop block to FORCE an action (and fail open, via
+# dispatch.run_lifecycle), while file_map_guard DENIES one (and fails closed
+# once it is in scope, via dispatch.run_file_map_guard). Every one of them
+# treats "this is not an acs ticket" and "there is nothing to do" as the same
+# answer, because in most sessions they are.
 
 
 def subagent_start(payload):
@@ -441,8 +464,8 @@ def subagent_stop(payload, validator=None):
         if attempts > BLOCK_LIMIT:
             _warn("no <result>/<handoff> element in %s's final message after %d attempts; "
                   "the coordinator must record the failure in its own result document"
-                  % (payload.get("agent_type"), attempts))
-            return 0
+                  % (cc.hook_agent_type(payload), attempts))
+            return 0  # record kept: it carries the refusal count that got us here
         _warn("%s returned no <result> or <handoff> element. Return one, validated "
               "against acs-messages.xsd, as your final message." % payload.get("agent_type"))
         return 2
@@ -454,19 +477,87 @@ def subagent_stop(payload, validator=None):
         if attempts > BLOCK_LIMIT:
             _warn("%s's message is still invalid after %d attempts (%s); letting the "
                   "subagent stop — the coordinator must record the failure"
-                  % (payload.get("agent_type"), attempts, "; ".join(errors)))
-            return 0
+                  % (cc.hook_agent_type(payload), attempts, "; ".join(errors)))
+            return 0  # record kept: it carries the refusal count that got us here
         _warn("%s's message does not validate against acs-messages.xsd:\n  %s\n"
-              "Return a corrected message." % (payload.get("agent_type"), "\n  ".join(errors)))
+              "Return a corrected message." % (cc.hook_agent_type(payload), "\n  ".join(errors)))
         return 2
 
-    written = write_phase_snapshot(tdir, skill, role, message)
-    if written:
-        _note("wrote %s" % written)
-    clear_agent(tdir, stop_counter_key(payload))
-    if agent_id:
-        clear_agent(tdir, agent_id)
+    try:
+        written = write_phase_snapshot(tdir, skill, role, message)
+        if written:
+            _note("wrote %s" % written)
+    except BaseException:
+        # A snapshot write that raises must not leave the agent recorded, or
+        # MAR-529's guard stays armed against a subagent that has stopped. The
+        # release cannot go in a `finally` here: the verdict check below may
+        # legitimately send this subagent back, and that path must KEEP the
+        # record so its refusal count survives.
+        _release_agent(tdir, payload)
+        raise
+
+    verdict_errors = check_verifier_verdict(tdir, skill, role, message)
+    if verdict_errors:
+        if attempts > BLOCK_LIMIT:
+            _warn("%s's verdict is still unusable after %d attempts (%s); letting the "
+                  "subagent stop -- the coordinator must record the failure"
+                  % (cc.hook_agent_type(payload), attempts, "; ".join(verdict_errors)))
+            return 0  # record kept: it carries the refusal count that got us here
+        _warn("%s must write a valid verdict.json alongside its report:\n  %s\n"
+              "Write it and answer again." % (cc.hook_agent_type(payload),
+                                              "\n  ".join(verdict_errors)))
+        return 2
+
+    _release_agent(tdir, payload)
     return 0
+
+
+#: Skills whose verifier owes a verdict.json. ONLY /acs:code: MAR-527's
+#: contract is written in agents/code-verifier.md, and the other fourteen
+#: agents/*-verifier.md files were never given it. Gating on the ROLE alone
+#: held every one of them to a contract they had never been told about, so a
+#: docs-sync or create-pr run burnt BLOCK_LIMIT extra verifier turns and ended
+#: with a "verdict is still unusable" warning.
+VERDICT_SKILLS = ("code",)
+
+
+def check_verifier_verdict(tdir, skill, role, message,
+                           ticket_id=None, expect_iteration=None):
+    """Errors in the verdict a VERIFIER must have written, or [] for anyone else.
+
+    The verdict is the one thing only the verifier knows, and the coordinator
+    used to transcribe it. Validating it here is what makes it a finding rather
+    than a claim -- in particular `passed` must agree with the findings
+    (acs_lib.verdict), so a verdict that says it passed while carrying a
+    blocking finding is rejected instead of believed.
+    """
+    if role != "verifier" or skill not in VERDICT_SKILLS:
+        return []
+    try:
+        root = ET.fromstring(message)
+    except ET.ParseError:
+        return []
+    if root.tag != "result":
+        return []  # a handoff/needs_input answer reports no verdict
+    if root.get("status") != "completed":
+        return []  # verification did not finish; there is nothing to have judged
+    iteration = root.get("iteration") or "1"
+    lens = root.get("lens")
+    for constraint in root.iter("constraint"):
+        if constraint.get("name") == "verify_lens":
+            lens = (constraint.text or "").strip() or None
+    doc_skill = root.get("skill") or skill
+    path = verdict.verdict_path(tdir, doc_skill, iteration, lens)
+    doc = read_json(path)
+    if doc is None:
+        return ["no verdict at %s" % path]
+    # The document's own identity is checked against the message's, not just
+    # its shape: a verdict found at the right PATH can still be about another
+    # ticket, skill or iteration, and only the path was ever checked before.
+    return verdict.validate_verdict(
+        doc, lens=lens, skill=doc_skill,
+        ticket_id=ticket_id or root.get("ticket-id"),
+        iteration=expect_iteration or iteration)
 
 
 def write_phase_snapshot(tdir, skill, role, message):
@@ -586,3 +677,284 @@ def _note(message):
     subagent turn is noise in the transcript."""
     if os.environ.get("ACS_DEBUG"):
         sys.stderr.write("acs: %s\n" % message)
+
+
+# ---------------------------------------------------------------------------
+# The executor file map (MAR-529)
+# ---------------------------------------------------------------------------
+#
+# "Mutate ONLY the files in your task's file map" was a bullet in the executor
+# charter. Plugin agents cannot carry frontmatter hooks, so the enforcement
+# point is the plugin's own PreToolUse hook, keyed on the active agent that
+# SubagentStart recorded.
+#
+# SCOPE, STATED PLAINLY: the guard checks a write against the UNION of the
+# iteration's declared task file maps, not against the one task the running
+# executor was given. Per-task binding is not achievable with what Claude Code
+# provides -- neither SubagentStart nor PreToolUse carries a task index, and
+# parallel executors of the same agent_type run at once, so there is nothing to
+# bind an agent to its task by. What the union still enforces is the property
+# that actually goes wrong: an executor wandering outside the PLAN's scope.
+# Disjointness BETWEEN tasks stays the coordinator's job, which is what its
+# parallel-vs-sequential decision already exists to decide.
+
+#: The declared file map for one iteration, under phases/<skill>/.
+FILEMAP_FILENAME_FMT = "iter-%s-filemap.json"
+
+#: Tool -> the tool_input key naming the path it would write.
+WRITE_TOOL_PATH_KEYS = {
+    "Write": "file_path",
+    "Edit": "file_path",
+    "MultiEdit": "file_path",
+    "NotebookEdit": "notebook_path",
+}
+
+
+def filemap_path(tdir, skill, iteration):
+    return os.path.join(tdir, "phases", skill, FILEMAP_FILENAME_FMT % iteration)
+
+
+def load_filemap(tdir, skill, iteration):
+    doc = read_json(filemap_path(tdir, skill, iteration))
+    tasks = doc.get("tasks") if isinstance(doc, dict) else None
+    return tasks if isinstance(tasks, dict) else None
+
+
+def save_filemap_task(tdir, skill, iteration, task, files):
+    """Declare one executor task's file map. Returns the whole iteration's map.
+
+    Per task, and additive, because the coordinator declares them one at a time
+    as it decomposes the plan -- declaring task 2 must not erase task 1."""
+    path = filemap_path(tdir, skill, iteration)
+    doc = read_json(path)
+    if not isinstance(doc, dict) or not isinstance(doc.get("tasks"), dict):
+        doc = {"skill": skill, "iteration": str(iteration), "tasks": {}}
+    # An entry that normalises away ("/", ".", "./") can never match anything,
+    # so storing it would silently grant nothing while looking like a
+    # declaration. A coordinator typo should not read as a successful declare.
+    entries = sorted({normalize_repo_path(f) for f in files if f})
+    empties = [f for f in files if f and not normalize_repo_path(f)]
+    if empties:
+        raise GateError("file map entry %r names no path inside the repo" % empties[0])
+    doc["tasks"][str(task)] = [e for e in entries if e]
+    doc["declared_at"] = now_iso()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_json(path, doc)
+    return doc["tasks"]
+
+
+def normalize_repo_path(path):
+    """A repo-relative POSIX path, however it was written.
+
+    The plan names repo-relative paths; a hook payload carries absolute ones.
+    Both have to compare equal, so both land here."""
+    text = str(path or "").strip().replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    text = text.lstrip("/")
+    if not text:
+        return ""
+    # normpath collapses INTERIOR `..` segments. Without it `docs/../../../etc/
+    # passwd` normalises to itself, matches the declared entry `docs/`, and the
+    # anti-traversal check below only ever sees a LEADING escape -- so a
+    # declared directory became a tunnel out of the repo.
+    text = posixpath.normpath(text)
+    return "" if text in (".", "/") else text
+
+
+def path_in_filemap(target, tasks, checkout_root_path=None):
+    """Is `target` (a write path from a hook payload) inside the declared map?
+
+    A declared entry matches the file itself or anything under it when it names
+    a directory, so a plan that says `docs/api/` covers the files in it -- the
+    plans write both forms and the guard should not care which."""
+    candidate = normalize_repo_path(target)
+    if checkout_root_path and os.path.isabs(str(target)):
+        try:
+            candidate = normalize_repo_path(
+                os.path.relpath(os.path.realpath(str(target)),
+                                os.path.realpath(checkout_root_path)))
+        except (OSError, ValueError):
+            pass
+    if candidate.startswith("../"):
+        return False
+    for entry in {f for files in (tasks or {}).values() for f in files}:
+        if candidate == entry or candidate.startswith(entry.rstrip("/") + "/"):
+            return True
+    return False
+
+
+#: How long a SubagentStart record may still mean "running". Nothing clears
+#: the record when a subagent dies without a clean SubagentStop, so without a
+#: bound one interrupted executor would deny every later write in the partition
+#: for good -- fail-CLOSED forever, which is not what the guard promises.
+EXECUTOR_RECORD_TTL_SECONDS = 6 * 60 * 60
+
+
+def _record_is_current(entry, session_id=None, now=None):
+    """Is this SubagentStart record still describing a running executor?
+
+    Two independent reasons it may not be, both of which the record itself can
+    answer: it belongs to a DIFFERENT session (that session's subagent cannot
+    be writing in this one), or it is simply too old. `stop_attempts` above the
+    block cap is a third: SubagentStop already gave up on that agent."""
+    if session_id and entry.get("session_id") and entry["session_id"] != session_id:
+        return False
+    if int(entry.get("stop_attempts") or 0) > BLOCK_LIMIT:
+        return False
+    started = entry.get("started_at")
+    if not started:
+        return True
+    try:
+        age = (now or datetime.now(timezone.utc)) - datetime.fromisoformat(
+            str(started).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return True
+    return age.total_seconds() <= EXECUTOR_RECORD_TTL_SECONDS
+
+
+def active_executor(tdir, session_id=None):
+    """The most recent recorded agent whose role is `executor`, or None.
+
+    "Is an acs executor running" is the whole condition: the guard must not
+    touch a planner (read-only by charter), a verifier, or the coordinator's own
+    writes, all of which legitimately go outside any task's file map.
+
+    Records that cannot still be describing a running executor are skipped --
+    see _record_is_current. Nothing clears the record when a subagent dies
+    mid-flight, and a guard that denies every write in a partition until
+    someone hand-edits it is worse than the scope creep it prevents."""
+    for entry in active_agents(tdir):
+        if entry.get("role") == "executor" and _record_is_current(entry, session_id):
+            return entry
+    return None
+
+
+def file_map_guard(payload):
+    """PreToolUse on the write tools: deny a write outside the declared map.
+
+    Fails OPEN at every step where the answer is not clearly "outside the map":
+    not an acs partition, no executor running, no map declared for this
+    iteration (a TRIVIAL lane runs no planner at all), or a tool whose payload
+    does not name a path. The rule exists to stop scope creep, not to stop work
+    the plan never had an opinion about.
+    """
+    # ---- half one: does this guard apply at all? FAILS OPEN. ----------------
+    # A bug in deciding scope must not deny every write on the machine, so this
+    # half answers "no" on anything it cannot work out. Note it is only the
+    # SCOPE question that is forgiving; once we are past it, an error means the
+    # write could not be checked, and dispatch.run_file_map_guard denies.
+    try:
+        key = WRITE_TOOL_PATH_KEYS.get(payload.get("tool_name"))
+        if not key:
+            return 0
+        _ticket_id, tdir, ctx = resolve_partition(cc.payload_cwd(payload))
+        if not tdir:
+            return 0
+        executor = active_executor(tdir, cc.hook_session_id(payload))
+        if not executor:
+            return 0
+    except Exception as exc:  # noqa: BLE001 - scope questions fail open
+        _note("file-map guard not applied: %r" % exc)
+        return 0
+
+    # ---- half two: is THIS write inside the declared map? FAILS CLOSED. -----
+    # Reading the target lives here, not above: a write tool whose tool_input
+    # cannot be read WHILE AN EXECUTOR IS RUNNING is an unverifiable write, and
+    # the caller denies rather than waving it through.
+    tool_input = payload.get("tool_input")
+    if tool_input is not None and not isinstance(tool_input, dict):
+        # Not "no path" but "a payload shape this guard cannot read". While an
+        # executor is running that is an unverifiable write, not an absent one.
+        _warn("%s carried a %s tool_input, which the file map cannot be checked "
+              "against. STOP and return `needs_input`."
+              % (payload.get("tool_name"), type(tool_input).__name__))
+        return 2
+    target = (tool_input or {}).get(key)
+    if not target or not isinstance(target, str):
+        return 0  # no path named: this call writes nothing for the map to cover
+
+    # The guard's OWN control inputs are denied outright, never exempted. The
+    # exemption used to cover the whole workspace, and both inputs live in it:
+    # the active-agents record is what arms the guard, and the file map is what
+    # it checks against -- so one Write to either switched the guard off from
+    # inside the very agent it constrains. Workspace-wide also meant every
+    # OTHER ticket's code-state.json, plan-approval.json and counters.json were
+    # writable by an executor scoped to this one.
+    if _is_guard_control_input(target, tdir, ctx):
+        _warn(
+            "%s is the file-map guard's own control input.\n"
+            "An executor cannot widen or disarm its own scope. If the map is "
+            "wrong, STOP and return `needs_input` naming the file, so the "
+            "coordinator can adjust it." % target)
+        return 2
+
+    # What IS exempt: this executor's own phase artifacts, and only those.
+    phase_dir = os.path.join(tdir, "phases", executor.get("skill") or "")
+    if _under(target, phase_dir):
+        return 0
+
+    iteration = _current_iteration(tdir, executor.get("skill"))
+    tasks = load_filemap(tdir, executor.get("skill"), iteration)
+    if not tasks:
+        return 0  # nothing declared: the plan has no opinion, so neither has this
+    if path_in_filemap(target, tasks, ctx.get("checkout_root")):
+        return 0
+    declared = sorted({f for files in tasks.values() for f in files})
+    _warn(
+        "%s is outside this task's file map.\n"
+        "Declared for /acs:%s iteration %s:\n  %s\n"
+        "Do not improvise scope: STOP and return `needs_input` naming the file, "
+        "so the coordinator can adjust the file map."
+        % (target, executor.get("skill"), iteration, "\n  ".join(declared)))
+    return 2
+
+
+def _is_guard_control_input(target, tdir, ctx):
+    """Is this write aimed at something the guard itself reads to decide?
+
+    Two things: the active-agents record (which says an executor is running)
+    and any iteration's file map (which says what it may touch). Either one
+    lets an executor answer the guard's own question, so neither is writable
+    while the guard is armed."""
+    if _under(target, active_agents_dir(tdir)):
+        return True
+    normalized = normalize_repo_path(target)
+    prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
+    base = os.path.basename(normalized)
+    if base.startswith(prefix) and base.endswith(suffix):
+        return True
+    return False
+
+
+def _under(target, directory):
+    """Is `target` inside `directory`? Absolute-path comparison, symlinks
+    resolved, and never true for a relative path (which is repo-relative and so
+    is never inside the workspace)."""
+    if not directory or not os.path.isabs(str(target)):
+        return False
+    try:
+        root = os.path.realpath(directory)
+        return os.path.realpath(str(target)).startswith(root.rstrip("/") + "/")
+    except (OSError, ValueError):
+        return False
+
+
+def _current_iteration(tdir, skill):
+    """The iteration whose file map applies: the highest one declared.
+
+    The coordinator declares a fresh map before each iteration's executors, so
+    the newest declaration is the one in force."""
+    directory = os.path.join(tdir, "phases", skill or "")
+    best = "1"
+    prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return best
+    for name in names:
+        if name.startswith(prefix) and name.endswith(suffix):
+            token = name[len(prefix):-len(suffix)]
+            if token.isdigit() and int(token) >= int(best):
+                best = token
+    return best

@@ -200,9 +200,16 @@ class Mar126ExecutorE2eScaffoldCase(unittest.TestCase):
         self.assertIn('cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/run-e2e.py" .acs/ci/run-e2e.py', self.doing)
         self.assertIn("chmod +x .acs/ci/run-e2e.py", self.doing)
 
-    def test_cites_init_step7f_precedent(self):
+    def test_cites_the_setup_scaffold_precedent(self):
+        """Renamed from ..._step7f_precedent: MAR-526 flattened setup's steps
+        from 1-8 with 7a-7f substeps down to 1-5, so `Step 7f` names nothing.
+        The precedent this executor mirrors is the same one -- setup's own
+        verbatim cp/chmod of the two e2e CI files -- which now lives in
+        Step 3."""
         self.assertIn("setup/SKILL.md", self.doing)
-        self.assertIn("Step 7f", self.doing)
+        self.assertIn("Step 3", self.doing)
+        self.assertNotIn("Step 7", self.doing,
+                         "a step number that no longer exists in setup/SKILL.md")
 
     def test_never_mutates_branch_protection(self):
         self.assertIsNotNone(

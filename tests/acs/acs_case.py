@@ -29,6 +29,22 @@ import acs_lib as lib  # noqa: E402
 ACS_LIB_PKG = os.path.join(SCRIPTS, "acs_lib")
 
 
+def tracker_body(case, text="## Description\n\nBulk import.\n"):
+    """A REAL `tracker-body.md` on disk, removed when `case` finishes.
+
+    `Gh(responses=...)` replays a transcript and never opens `--body-file`, so
+    every tracker-sync fixture used to pass a path that did not exist -- and so
+    none of them could notice that the file has to be written before the sync
+    runs. `tracker_sync_one` now refuses a missing body, and this is what the
+    fixtures hand it: the same file the executor writes, in the same shape."""
+    workdir = tempfile.mkdtemp(prefix="acs-tracker-body-")
+    case.addCleanup(shutil.rmtree, workdir, True)
+    path = os.path.join(workdir, "tracker-body.md")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
 def acs_lib_paths():
     """Every module file of the acs_lib package, sorted for stable output.
 
@@ -121,6 +137,32 @@ class AcsWorkspaceCase(unittest.TestCase):
 
     def tdir(self, ticket):
         return lib.ticket_dir(self.ws, "acme-shop", ticket)
+
+    def seed_verdict(self, ticket, passed=True, skill="code", iteration=1, lens=None):
+        """Write the verifier verdict MAR-523 derives `states.verifier_passed`
+        from, so a fixture can reach /acs:create-pr the way a real run does.
+
+        Since MAR-523 the coordinator's `verifier_passed` is IGNORED: the
+        post-hook computes it from this file, and its absence means the gate
+        stays shut. A fixture that only posts `{"verifier_passed": true}` is
+        therefore asserting something the pipeline no longer believes."""
+        finding = [] if passed else [{"severity": "blocking", "dimension": "tests",
+                                      "detail": "seeded failing verdict"}]
+        # EVERY owed dimension, not one: a verdict must now cover its whole
+        # owed set (MAR-527 review), because a one-dimension document made an
+        # unfinished review indistinguishable from a clean one -- and this
+        # helper was writing exactly that shape.
+        dimensions = [{"id": ident, "name": lib.VERDICT_DIMENSIONS[ident],
+                       "result": "pass", "evidence": "seeded"}
+                      for ident in lib.owed_dimensions(lens)]
+        if not passed:
+            dimensions[1]["result"] = "fail"
+        return lib.write_verdict(self.tdir(ticket), skill, iteration, {
+            "skill": skill, "ticket_id": ticket, "iteration": iteration, "lens": lens,
+            "passed": passed,
+            "dimensions": dimensions,
+            "findings": finding,
+        }, lens)
 
 
 def load_module(script_filename, alias=None):

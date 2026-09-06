@@ -6,8 +6,10 @@ capability is reachable only by hand-editing `.acs/settings.json`. This module
 pins the three previously-gapped offers:
 
   Gap 1 (AC-1) — the `### models` offer names the version-pinned ids for all
-    three roles (read from acs_lib.RECOMMENDED_MODELS, aligned with
-    .acs/settings.json and MAR-81), not only coarse tiers.
+    three roles (read from acs_lib.RECOMMENDED_MODELS, the SHIPPED
+    recommendation — this repo's .acs/settings.json deliberately diverges from
+    it for the executor, see test_settings_models_pinned.REPO_OVERRIDES), not
+    only coarse tiers.
   Gap 2 (AC-2) — per-role reasoning effort is a first-class choice (not merely
     the {model, effort} shape note), and the presented enum stays consistent
     with settings.schema.json $defs.roleModel.
@@ -96,7 +98,10 @@ class Mar89InitOffersCase(unittest.TestCase):
         # Step 4: from its heading to the next `## ` heading (covers the batch
         # framing plus the e2e bullet, which precede the `### tracker`/`### models`
         # subsections inside Step 4).
-        cls.step4 = section(cls.body, "## Step 4")
+        # MAR-526 turned setup into a conversational skill: the optional-settings
+        # batch is its own `### Optional settings` section now, and the step
+        # numbering changed with it. The content these ACs pin is unmoved.
+        cls.step4 = section(cls.body, "### Optional settings")
 
     # --- A (Gap 1 / AC-1): version-pinned per-role models in the offer ---
 
