@@ -18,6 +18,29 @@ the notes.
 
 ### Fixed
 
+- **`acs.py` and `acs_lib/lifecycle.py` come back under the 800-line budget**
+  (MAR-572, follow-up to MAR-531). Both crossed E1's budget on `main` while
+  MAR-531's own PR waited: `acs.py` grew a command group per ticket
+  (`readiness`, then `pr` and `tracker`) to 1054, and `lifecycle.py` reached
+  960 as the MAR-528/529 hook work landed. MAR-531 splits
+  `metrics_render`/`metrics_aggregate`/`release_notes` and touches neither of
+  these, so its own `test_module_line_budget.py` failed on two modules outside
+  its scope. **Pure code motion, no behaviour change**, cut at seams the source
+  already marked: `lifecycle.py`'s "The executor file map (MAR-529)" section
+  becomes `acs_lib/filemap.py` (960 → 669), and `acs.py`'s 24 `cmd_*` handlers
+  become `acs_commands.py` with the helpers they share in `acs_cli.py`
+  (1054 → 350). The dependency runs one way in both cases — `filemap` reads the
+  active-agent records `lifecycle` writes and `lifecycle` reads nothing back;
+  `acs_commands` imports the helpers rather than the entry point — so neither
+  split needed a new abstraction to break a cycle. `_warn`/`_note` moved to
+  `_common.py` because both halves of `lifecycle` used them. **Every name stays
+  where callers already find it:** `acs_lib/__init__.py` re-exports the nine
+  file-map names from `.filemap`, and `acs.py` re-exports all 24 handlers plus
+  the six helpers, so `lib.file_map_guard`, `acs.cmd_context` and
+  `python3 .../acs.py <cmd>` all resolve unchanged. Siblings rather than
+  packages, as MAR-531 did, because three SKILL.md files invoke these by path.
+  **Migration:** none.
+
 - **Review follow-up on MAR-521's CLI defects.** Three corrections and the
   coverage the original change lacked. (1) A failed `claude --version` probe
   was negatively cached for the life of the process: the memo was consulted
