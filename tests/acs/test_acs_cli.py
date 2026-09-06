@@ -529,7 +529,8 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
     def test_help_lists_every_group(self):
         res = self.acs("--help")
         self.assertEqual(res.returncode, 0)
-        for group in ("context", "gate", "lane", "stakes", "ticket", "pr", "tracker",
+        for group in ("context", "gate", "lane", "stakes", "ticket", "pr",
+                      "tracker", "readiness",
                       "lock", "filemap", "verdict",
                       "phase", "slug", "fanout", "doctor", "start", "finish", "plan"):
             self.assertIn(group, res.stdout)
