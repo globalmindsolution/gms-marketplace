@@ -16,6 +16,8 @@ Two kinds of subcommand live behind this front door:
     context, gate, lane, stakes, ticket, pr, tracker, phase, slug, fanout,
     doctor.
     context, gate, lane, stakes, ticket, verdict, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, filemap, verdict, phase, slug, fanout,
+    doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -46,6 +48,8 @@ Usage:
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
+  acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
+  acs.py filemap show
   acs.py verdict show --iteration 2
   acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
@@ -289,6 +293,23 @@ def cmd_lane_deescalate(args):
 # stakes
 # ---------------------------------------------------------------------------
 
+def read_lines_arg(command, path):
+    """Lines from `path`, or from stdin when it is '-'.
+
+    The isatty guard matches _paths_from below: without it, `--files-from -`
+    typed at a terminal blocks forever on a read that will never end, instead
+    of saying what it wanted."""
+    if path == "-":
+        if sys.stdin.isatty():
+            die(command, "%s - expects one path per line on stdin" % command)
+        return sys.stdin.read().splitlines()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except OSError as exc:
+        die(command, "could not read %s: %s" % (path, exc))
+
+
 def _paths_from(args, command):
     paths = list(args.path or [])
     if args.paths_from:
@@ -432,6 +453,35 @@ def cmd_tracker_sync(args):
     out = lib.tracker_sync(gh, ctx["settings"], candidates, bodies)
     out.update({"ok": True, "excluded": excluded, "dry_run": False})
     emit(out)
+def cmd_filemap_set(args):
+    """Declare one executor task's file map, so the PreToolUse guard can enforce
+    the executor charter's "mutate ONLY the files in your task's file map".
+
+    Per task and additive: the coordinator declares them one at a time as it
+    decomposes the plan, and declaring task 2 must not erase task 1."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap set", args.ticket)
+    files = list(args.file)
+    if args.files_from:
+        files += [line.strip() for line in
+                  read_lines_arg("filemap set", args.files_from) if line.strip()]
+    if not files:
+        die("filemap set", "declare at least one file (--file, or --files-from FILE)")
+    tasks = lib.save_filemap_task(tdir, args.skill, args.iteration, args.task, files)
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "task": str(args.task),
+          "files": tasks[str(args.task)],
+          "path": lib.filemap_path(tdir, args.skill, args.iteration),
+          "tasks": tasks})
+
+
+def cmd_filemap_show(args):
+    """The declared map for an iteration, plus the union the guard enforces."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap show", args.ticket)
+    tasks = lib.load_filemap(tdir, args.skill, args.iteration) or {}
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
+          "union": sorted({f for files in tasks.values() for f in files}),
+          "path": lib.filemap_path(tdir, args.skill, args.iteration)})
 def cmd_verdict_show(args):
     """The verifier's verdict for one iteration — validated, not just printed.
 
@@ -667,6 +717,25 @@ def build_parser():
     sync.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     sync.set_defaults(func=cmd_tracker_sync)
+    filemap = sub.add_parser("filemap", help="the executor file map the write guard enforces")
+    filemap_sub = filemap.add_subparsers(dest="cmd")
+
+    fmset = filemap_sub.add_parser("set", help="declare one executor task's file map")
+    fmset.add_argument("--ticket")
+    fmset.add_argument("--skill", default="code")
+    fmset.add_argument("--iteration", type=int, default=1)
+    fmset.add_argument("--task", type=int, required=True, help="the executor task index")
+    fmset.add_argument("--file", action="append", default=[],
+                       help="a repo-relative path the task may write (repeatable)")
+    fmset.add_argument("--files-from", dest="files_from", metavar="FILE",
+                       help="read paths one per line ('-' for stdin)")
+    fmset.set_defaults(func=cmd_filemap_set)
+
+    fmshow = filemap_sub.add_parser("show", help="the declared map and the enforced union")
+    fmshow.add_argument("--ticket")
+    fmshow.add_argument("--skill", default="code")
+    fmshow.add_argument("--iteration", type=int, default=1)
+    fmshow.set_defaults(func=cmd_filemap_show)
     verdict = sub.add_parser("verdict", help="the verifier's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 
