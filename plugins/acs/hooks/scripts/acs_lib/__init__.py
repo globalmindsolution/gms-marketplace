@@ -45,7 +45,8 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
     checkout_id, checkout_root, current_branch, default_state_root,
-    find_ticket_partition, gh_failure_hint, index_path, lock_path, main_repo_root,
+    find_ticket_partition, gh_failure_hint, gh_read_is_unevaluable,
+    gh_pr_required_checks_ok, gh_pr_view, index_path, lock_path, main_repo_root,
     pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
     resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
     session_marker_path, sessions_dir, state_path, ticket_dir,
@@ -56,6 +57,11 @@ from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
     _STAKES_ORDER, _coverage_target_stated, _plan_headings, classify_additive_diff,
     derive_lane, escalate_lane, guard_axes, lane_rank, plan_approval_eligible,
     recommend_stakes, verify_depth)  # noqa: F401
+
+from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
+    DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
+    PENDING_STATUSES, PR_VIEW_FIELDS, VERDICTS, check_name, check_state,
+    classify_checks, merge_readiness)  # noqa: F401
 
 from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
     acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
