@@ -14,12 +14,13 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json
+from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
 from .settings import load_settings, validate_settings
-from .repo import archive_dir, checkout_id, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
-from .state import check_lock, finalize_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
+from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
+from .derive import derive_states, disagreements
 
 
 
@@ -327,17 +328,25 @@ def run_pre(skill):
     sys.exit(run_pre_payload(skill, payload))
 
 
-def run_pre_payload(skill, payload):
+def run_pre_payload(skill, payload, record_marker=True):
     """Gate one skill from an already-parsed hook payload; return the exit code.
 
     Separate from run_pre so the dispatcher can gate in-process rather than
     spawning a forwarder: a subprocess that hangs or dies takes its exit code
-    with it, and anything other than 2 lets the skill run."""
-    cwd = payload.get("cwd") or os.getcwd()
+    with it, and anything other than 2 lets the skill run.
+
+    `record_marker=False` is for a caller that is NOT a hook event -- `acs.py
+    gate`, which answers "would this gate pass?" without a PreToolUse envelope.
+    Such a payload carries no session_id or transcript_path, and
+    record_session_marker faithfully persists those as null (deliberately: it
+    never guesses), which would overwrite the real marker and cost the next run
+    its usage attribution."""
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
         try:
-            record_session_marker(ctx, payload)
+            if record_marker:
+                record_session_marker(ctx, payload)
         except Exception:  # a marker-write bug must never block a gated skill
             pass
         warn = tracker_cli_warning(ctx["settings"])
@@ -485,7 +494,40 @@ def run_post(skill):
         sys.exit(1)
 
     status = result["status"]  # guaranteed by _read_result_from_argv
+
+    # MAR-523: the gate-bearing states keys are COMPUTED from the artifacts,
+    # not read from the document. Done before finalize_run so what is persisted
+    # is the derived view; the disagreements ride on the run entry, which is
+    # append-only and audited.
+    # Wrapped: derivation runs BEFORE finalize_run, so anything it raises used
+    # to leave runs[-1].status == "in_progress" with the lock still held (the
+    # release is far below) -- the next gate then refuses with "crashed or
+    # still running elsewhere" and the coordinator's result document is lost.
+    # A derivation that cannot run must degrade to "not derived", never to a
+    # stranded run.
+    try:
+        derived, notes = derive_states(
+            tdir, skill, result, settings=ctx["settings"],
+            ticket_id=ticket_id,
+            since=(last_run(load_state(tdir, skill)) or {}).get("started_at"),
+            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+    except Exception as exc:  # noqa: BLE001 - see above
+        derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
+                                           "computed from artifacts" % exc}
+    conflicts = disagreements(result.get("states") or {}, derived)
+    if derived:
+        result.setdefault("states", {}).update(derived)
+
     state, entry = finalize_run(tdir, skill, ticket_id, result)
+    entry["derived_states"] = {"values": derived, "provenance": notes,
+                               "overrode": [{"key": key, "supplied": was, "derived": now}
+                                            for key, was, now in conflicts]}
+    write_json(state_path(tdir, skill), state)
+    for key, was, now in conflicts:
+        sys.stderr.write(
+            "acs post-%s: states.%s was %r in the result document; the artifacts say "
+            "%r (%s). The derived value is what was written.\n"
+            % (skill, key, was, now, notes.get(key, "derived")))
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")
     update_pipeline(tdir, ticket_id, skill, status, summary=summary, flow=flow)
@@ -493,35 +535,53 @@ def run_post(skill):
     ticket = load_ticket(tdir)
     epic_done = None
     archived_to = None
-    if ticket:
-        if status == "completed":
-            if skill == "create-pr" and ticket.get("status") != "done":
-                ticket["status"] = "in_review"
-                save_ticket(tdir, ticket)
-            if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
-                ticket["status"] = "in_review"
-                save_ticket(tdir, ticket)
-            if skill == "merge-pr":
-                ticket["status"] = "done"
-                save_ticket(tdir, ticket)
-        update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    try:
+        if ticket:
+            if status == "completed":
+                if skill == "create-pr" and ticket.get("status") != "done":
+                    ticket["status"] = "in_review"
+                    save_ticket(tdir, ticket)
+                if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
+                    ticket["status"] = "in_review"
+                    save_ticket(tdir, ticket)
+                if skill == "merge-pr":
+                    ticket["status"] = "done"
+                    save_ticket(tdir, ticket)
+            update_index(ctx["workspace"], ctx["repo_id"], ticket)
 
-    pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
-    update_metrics(
-        ctx["workspace"], ctx["repo_id"], run_entry=entry,
-        pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
-                    and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
-        pr_merged=(skill == "merge-pr" and status == "completed"),
-        pr_number=pr_number,
-    )
+        pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
+        update_metrics(
+            ctx["workspace"], ctx["repo_id"], run_entry=entry,
+            pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
+                        and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
+            pr_merged=(skill == "merge-pr" and status == "completed"),
+            pr_number=pr_number,
+        )
+        release_lock(tdir, cwd)
 
-    release_lock(tdir, cwd)
-
-    if skill == "merge-pr" and status == "completed" and ticket:
-        epic_done = _epic_auto_done(ctx, ticket)
-        update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
-        _clear_pointers_for_ticket(ctx, ticket_id)
-        archived_to = _archive_partition(ctx, tdir, ticket_id)
+        if skill == "merge-pr" and status == "completed" and ticket:
+            epic_done = _epic_auto_done(ctx, ticket)
+            update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
+            _clear_pointers_for_ticket(ctx, ticket_id)
+            archived_to = _archive_partition(ctx, tdir, ticket_id)
+    except GuardTimeout as exc:
+        # MAR-530: the repo-level writers refuse rather than write unguarded, and
+        # they sit AFTER the per-ticket writes, so this is a partial phase. Say
+        # exactly which half is durable -- the operator is repairing a
+        # repo-level gap, not re-running the phase. What "repair" means differs
+        # by hook, which is what _POST_GUARD_REPAIR carries.
+        release_lock(tdir, cwd)
+        sys.stderr.write(
+            "acs post-%s: %s\n"
+            "%s's run, ticket.json and pipeline-state.json ARE written and the lock "
+            "is released; the repo-level writes (tickets-index.json, metrics.json%s) "
+            "are not. %s This run's tokens and cost are lost from metrics.json. "
+            "Do NOT re-run this hook to repair it -- the run is already "
+            "finalized, so a second call appends a second run entry.\n"
+            % (skill, exc, ticket_id,
+               ", and the partition archive" if skill == "merge-pr" else "",
+               _POST_GUARD_REPAIR[skill == "merge-pr"]))
+        sys.exit(1)
 
     out = {"ok": True, "skill": skill, "ticket_id": ticket_id, "status": status}
     if archived_to:
@@ -536,10 +596,31 @@ def run_post(skill):
 # SessionEnd safety net
 # ---------------------------------------------------------------------------
 
+#: How the operator repairs the repo-level half of a post hook that hit a guard
+#: timeout, keyed by "is this merge-pr". EVERY other hook has a next post hook
+#: that rebuilds the index entry from ticket.json -- merge-pr is the terminal
+#: one, so nothing runs after it and the gap it leaves is durable until someone
+#: closes it. Telling a merge-pr operator "it self-heals" was worse than saying
+#: nothing: it named a mechanism that does not exist for the one hook where the
+#: consequences (partition never archived, pointer never cleared, parent epic
+#: never completed) are permanent.
+_POST_GUARD_REPAIR = {
+    False: ("The index entry is rebuilt from ticket.json by the next post hook, "
+            "so it self-heals."),
+    True: ("merge-pr is the TERMINAL post hook: nothing runs after it, so this "
+           "does NOT self-heal -- the index still reads in_review, the partition "
+           "is not archived, the session pointer is not cleared, and a parent "
+           "epic is not auto-completed. ticket.json already reads done, so the "
+           "merge itself IS recorded and no work is lost; what is missing is "
+           "repo-level bookkeeping. Surface this gap rather than repairing it "
+           "blind."),
+}
+
+
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
     its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:
@@ -554,20 +635,33 @@ def session_end(payload):
     lock = read_lock(tdir)
     if not (isinstance(lock, dict) and lock.get("checkout_id") == ctx["checkout_id"]):
         return  # not our session's ticket anymore
-    for skill in HOOKED_SKILLS:
-        state = read_json(state_path(tdir, skill))
-        if not isinstance(state, dict):
-            continue
-        runs = state.get("runs") or []
-        if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
-            _state, entry = finalize_run(tdir, skill, ticket_id, {
-                "status": "interrupted",
-                "stop_reason": "session ended while the skill was in progress",
-            })
-            update_pipeline(tdir, ticket_id, skill, "interrupted",
-                            summary="session ended mid-skill",
-                            flow="product" if skill in PRODUCT_SKILLS else "ticket")
-            # keep repo-level metrics consistent with the ticket ledger:
-            # an interrupted run still spent time/tokens
-            update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
-    release_lock(tdir, cwd)
+    # The release is the POINT of this safety net, so it happens whatever the
+    # repo-level writes do. update_metrics is guarded and now refuses rather
+    # than writing unguarded; before this the raise skipped the release and
+    # dispatch.py swallowed it, so the net exited 0 having left the ticket
+    # locked by a process that no longer exists -- and a cross-host lock
+    # stranded that way does not read as stale for 24 hours.
+    try:
+        for skill in HOOKED_SKILLS:
+            state = read_json(state_path(tdir, skill))
+            if not isinstance(state, dict):
+                continue
+            runs = state.get("runs") or []
+            if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
+                _state, entry = finalize_run(tdir, skill, ticket_id, {
+                    "status": "interrupted",
+                    "stop_reason": "session ended while the skill was in progress",
+                })
+                update_pipeline(tdir, ticket_id, skill, "interrupted",
+                                summary="session ended mid-skill",
+                                flow="product" if skill in PRODUCT_SKILLS else "ticket")
+                # keep repo-level metrics consistent with the ticket ledger:
+                # an interrupted run still spent time/tokens
+                update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+    except GuardTimeout as exc:
+        sys.stderr.write(
+            "acs session-end: %s\n%s's run is finalized as interrupted and the "
+            "lock is released; metrics.json was not updated, so this run's tokens "
+            "and cost are lost from it.\n" % (exc, ticket_id))
+    finally:
+        release_lock(tdir, cwd)

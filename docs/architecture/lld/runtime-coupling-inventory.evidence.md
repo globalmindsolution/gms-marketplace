@@ -8,30 +8,36 @@ The human body carries the bare source-file names only; this file is the
 machine-facing citation record. Coverage is relocated, never reduced: both
 pre-migration occurrence contexts (the surfaces table's "Verified entry
 points" column and the anchor-verification table's "Anchor" column) are
-preserved below as distinct entries — 16 total, never deduped to the 8
-distinct anchors.
+preserved below as distinct entries — 22 total, never deduped to the 11
+distinct anchors (MAR-528 added Surface #6's three).
 
 ## Runtime-coupled surfaces — "Verified entry points" column
 
 - Surface #1 — Hook gating — Verified entry points: `hooks.json:3-14`
-- Surface #1 — Hook gating — Verified entry points: `dispatch.py:27-40`
-- Surface #1 — Hook gating — Verified entry points: `dispatch.py:106-125`
+- Surface #1 — Hook gating — Verified entry points: `dispatch.py:40-53`
+- Surface #1 — Hook gating — Verified entry points: `dispatch.py:145-167`
 - Surface #1 — Hook gating — Verified entry points: `acs_lib/_common.py:31`
-- Surface #2 — Session termination — Verified entry points: `hooks.json:16-26`
-- Surface #2 — Session termination — Verified entry points: `dispatch.py:114-119`
+- Surface #2 — Session termination — Verified entry points: `hooks.json:64-74`
+- Surface #2 — Session termination — Verified entry points: `dispatch.py:153-158`
 - Surface #2 — Session termination — Verified entry points: `acs_lib/gates.py:539`
 - Surface #4 — Per-role model/effort — Verified entry points: `acs_lib/settings.py:284-299`
+- Surface #6 — Subagent & stop lifecycle — Verified entry points: `hooks.json:16-63`
+- Surface #6 — Subagent & stop lifecycle — Verified entry points: `dispatch.py:119-142`
+- Surface #6 — Subagent & stop lifecycle — Verified entry points: `acs_lib/lifecycle.py:397-584`
 
 ## Entry-point anchor verification record
 
 - Entry-point anchor verification record — PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30: `hooks.json:3-14`
-- Entry-point anchor verification record — SessionEnd hook, command `dispatch.py session-end`, timeout 30: `hooks.json:16-26`
-- Entry-point anchor verification record — `def skill_name_from_payload(payload)`: `dispatch.py:27-40`
-- Entry-point anchor verification record — `def main()` — routes by skill, exit 2 on missing/blocked: `dispatch.py:106-125`
-- Entry-point anchor verification record — session-end branch → `acs_lib.session_end`: `dispatch.py:114-119`
+- Entry-point anchor verification record — SessionEnd hook, command `dispatch.py session-end`, timeout 30: `hooks.json:64-74`
+- Entry-point anchor verification record — `def skill_name_from_payload(payload)`: `dispatch.py:40-53`
+- Entry-point anchor verification record — `def main()` — routes by skill, exit 2 on missing/blocked: `dispatch.py:145-167`
+- Entry-point anchor verification record — session-end branch → `acs_lib.session_end`: `dispatch.py:153-158`
 - Entry-point anchor verification record — `HOOKED_SKILLS` allowlist: `acs_lib/_common.py:31`
 - Entry-point anchor verification record — `def resolve_role_model(settings, skill, role)`: `acs_lib/settings.py:284-299`
 - Entry-point anchor verification record — `def session_end(payload)`: `acs_lib/gates.py:539`
+- Entry-point anchor verification record — SubagentStart/SubagentStop (matcher `^acs:`), Stop and PreCompact registrations: `hooks.json:16-63`
+- Entry-point anchor verification record — `LIFECYCLE_MODES` + `def run_lifecycle(mode, payload)` (fails OPEN): `dispatch.py:119-142`
+- Entry-point anchor verification record — `subagent_start` / `subagent_stop` / `stop` / `pre_compact`: `acs_lib/lifecycle.py:397-584`
 
 ## Runtime-coupled surfaces — Surface #5 (Cost/token sourcing, MAR-1)
 

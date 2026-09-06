@@ -58,8 +58,10 @@ import claude_code_adapter as cc  # noqa: E402
 
 MAX_LOG_BYTES = 64 * 1024
 
-_TOTAL_COST_KEY_RE = re.compile(r"total_cost(_usd)?$")
-_TOTAL_API_DURATION_KEY_RE = re.compile(r"total_api_duration(_ms)?$")
+# Owned by the adapter: these spell Claude Code's own key names, and a regex
+# source is invisible to the AST guard that keeps such literals in one place.
+_TOTAL_COST_KEY_RE = cc.TOTAL_COST_KEY_RE
+_TOTAL_API_DURATION_KEY_RE = cc.TOTAL_API_DURATION_KEY_RE
 _MAX_SCAN_DEPTH = 3
 
 _TOKEN_FIELDS = ("input", "output", "cache_creation", "cache_read")
@@ -145,8 +147,14 @@ def _extract_api_duration(payload):
 
 def _rotate_if_needed(path):
     """Once the log exceeds MAX_LOG_BYTES, keep only the most recent lines that
-    fit within half the budget -- a simple, bounded rotation (each line is
-    well under 200 B, so this keeps hundreds of recent samples)."""
+    fit within half the budget -- a simple, bounded rotation.
+
+    Measured: a sample line is ~180 B, of which `claude_version` (MAR-520) is
+    ~42 B, so half of a 64 KiB budget retains ~182 recent samples (~237 before
+    that field). Rotation drops the OLDEST lines and the cursor consumes the
+    newest, so the reduction does not make an unconsumed sample likelier; the
+    figure is recorded here because "well under 200 B" was an estimate that had
+    already drifted once."""
     try:
         size = os.path.getsize(path)
     except OSError:
@@ -418,16 +426,19 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
                 after, after_ts = sample, sample_ts
 
     if after is None or (cursor_ts is not None and after_ts <= cursor_ts):
+        scope = cc.unavailable("no_unconsumed_sample_in_window", source="cost_sampler")
         return {
             "role_usage": _unavailable_role_usage(
                 _unavailable_role_usage(role_usage), "api_duration_ms", "api_duration_basis"),
             "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
             "cost_usd": None, "cost_basis": cc.UNAVAILABLE,
-            "cost_scope": cc.unavailable("no_unconsumed_sample_in_window",
-                                          source="cost_sampler"),
+            "cost_scope": scope,
             "excluded_cost_usd": None, "excluded_token_share": None,
             "api_duration_ms": None, "api_duration_basis": cc.UNAVAILABLE,
-            "api_duration_scope": "no_unconsumed_sample_in_window",
+            # The same degradation, so the SAME switch result: a bare literal
+            # here left api_duration_scope untraceable in $ACS_DEGRADATION_LOG,
+            # and calling the switch twice would log one event as two.
+            "api_duration_scope": scope,
         }
 
     after_duration = after.get("total_api_duration_ms")
@@ -435,6 +446,7 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
 
     delta = float(after["total_cost_usd"]) - float(cursor_total)
     if delta < 0:
+        scope = cc.unavailable("cost_total_reset", source="cost_sampler")
         lib.write_json(cost_cursor_path(workspace, repo_id, checkout_id),
                         {"ts": after["ts"], "total_cost_usd": after["total_cost_usd"],
                          "total_api_duration_ms": after_duration})
@@ -443,10 +455,10 @@ def allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_us
                 _unavailable_role_usage(role_usage), "api_duration_ms", "api_duration_basis"),
             "model_usage": _unavailable_role_usage(model_usage) if model_usage is not None else None,
             "cost_usd": None, "cost_basis": cc.UNAVAILABLE,
-            "cost_scope": cc.unavailable("cost_total_reset", source="cost_sampler"),
+            "cost_scope": scope,
             "excluded_cost_usd": None, "excluded_token_share": None,
             "api_duration_ms": None, "api_duration_basis": cc.UNAVAILABLE,
-            "api_duration_scope": "cost_total_reset",
+            "api_duration_scope": scope,
         }
 
     role_usage_with_cost, excluded_cost_usd, excluded_token_share = _apportion(role_usage, delta)

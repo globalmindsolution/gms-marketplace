@@ -13,7 +13,8 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, lock, filemap, verdict, phase, slug,
+    fanout, doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py). Those scripts stay the implementation and keep working
@@ -38,10 +39,16 @@ Usage:
   acs.py lane escalate --current-lane SMALL --size large --stakes high --type task
   acs.py lane apply --ticket MAR-1 --proposed-stakes high --trigger high_stakes_paths
   acs.py lane deescalate --ticket MAR-1 --size small --stakes low --clarify-ref C-2
-  acs.py stakes recommend --path plugins/acs/hooks/scripts/acs_lib.py
+  acs.py stakes recommend --path plugins/acs/hooks/scripts/acs_lib/state.py
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py lock status --ticket MAR-1
+  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
+  acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
+  acs.py filemap show
+  acs.py verdict show --iteration 2
+  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
@@ -96,16 +103,15 @@ def context_or_die(command):
 def partition_or_die(command, explicit):
     """Resolve (ticket_id, tdir, ctx) for an ACTIVE partition, or exit 2.
 
-    Same resolution order as clarify.py / plan-approval.py: explicit --ticket
-    wins, else the pointer/branch resolution in resolve_ticket_id."""
+    The resolution itself lives in acs_lib.resolve_active_partition, shared with
+    clarify.py and plan-approval.py — this only turns its GateError into the
+    CLI's `acs <command>: <reason>` + exit 2."""
     ctx = context_or_die(command)
-    ticket_id, _src = lib.resolve_ticket_id(
-        os.getcwd(), ctx["settings"], ctx["workspace"], ctx["repo_id"], explicit=explicit)
-    if not ticket_id:
-        die(command, "could not resolve the ticket id (pass --ticket)")
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        die(command, "no active partition for %s" % ticket_id)
+    try:
+        ticket_id, tdir, _archived = lib.resolve_active_partition(
+            os.getcwd(), ctx, explicit=explicit)
+    except lib.GateError as exc:
+        die(command, str(exc))
     return ticket_id, tdir, ctx
 
 
@@ -141,23 +147,34 @@ def read_json_arg(command, path):
 # context / gate
 # ---------------------------------------------------------------------------
 
+#: Keys build_context actually returns that a coordinator needs by name. Copied
+#: explicitly rather than passing ctx through, so a new internal key never
+#: leaks into this command's contract by accident.
+CONTEXT_KEYS = ("checkout_root", "main_repo_root", "workspace", "repo_id",
+                "checkout_id", "plugin_root", "settings", "settings_sources")
+
+
 def cmd_context(args):
     """The resolved workspace view: what checkout_root, main_repo_root,
-    default_state_root, repo_dir, repo_partition_id, index_path and
-    load_settings each answer, in one call."""
+    repo_partition_id, index_path, repo_dir and load_settings each answer, in
+    one call, plus checkout_id (which names this checkout's pointer and
+    cost-sample files)."""
     ctx = context_or_die("context")
-    out = {"ok": True, "checkout_root": ctx.get("checkout_root"),
-           "workspace": ctx.get("workspace"), "repo_id": ctx.get("repo_id"),
-           "settings": ctx.get("settings")}
-    for key in ("main_repo_root", "worktree", "state_root"):
+    out = {"ok": True}
+    for key in CONTEXT_KEYS:
         if key in ctx:
             out[key] = ctx[key]
     out["index_path"] = lib.index_path(ctx["workspace"], ctx["repo_id"])
+    out["repo_dir"] = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
     if args.ticket:
         tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], args.ticket)
+        # find_ticket_partition returns the ACTIVE path for a ticket that exists
+        # nowhere, so the path alone cannot be read as "this ticket exists" --
+        # every other partition-taking subcommand refuses that case outright.
         out["ticket_id"] = args.ticket
         out["partition"] = tdir
         out["archived"] = bool(archived)
+        out["exists"] = os.path.isdir(tdir)
     emit(out)
 
 
@@ -167,11 +184,14 @@ def cmd_gate(args):
     if args.skill not in lib.GATES:
         die("gate", "unknown skill %r (expected one of %s)"
             % (args.skill, ", ".join(sorted(lib.GATES))))
-    payload = {"cwd": os.getcwd(), "hook_event_name": "PreToolUse",
-               "tool_input": {"skill": args.skill}}
+    payload = {"cwd": os.getcwd(), "tool_input": {"skill": args.skill}}
     if args.ticket:
         payload["tool_input"]["args"] = args.ticket
-    code = lib.run_pre_payload(args.skill, payload)
+    # record_marker=False: this is NOT a PreToolUse event. The payload has no
+    # session_id or transcript_path, and record_session_marker persists those
+    # faithfully as null -- overwriting the real marker and costing the next run
+    # its cost/usage attribution. Asking "would this gate pass?" must not.
+    code = lib.run_pre_payload(args.skill, payload, record_marker=False)
     emit({"ok": code == 0, "skill": args.skill, "exit_code": code})
     sys.exit(code)
 
@@ -223,31 +243,62 @@ def cmd_lane_apply(args):
     from_size, from_stakes = ticket.get("size"), ticket.get("stakes")
     eff_size, eff_stakes = lib.guard_axes(from_size, from_stakes,
                                           args.proposed_size, args.proposed_stakes)
+    # The lane is derived from the GUARDED axes, unchanged: guard_axes floors an
+    # absent axis at the lowest rank, and derive_lane must see that floor. Null
+    # them here instead and derive_lane(None, ...) returns its STANDARD default,
+    # so a call carrying no signal at all would escalate and raise the ceiling.
     new_lane, depth, ceiling_after = lib.escalate_lane(
         from_lane, eff_size, eff_stakes, ticket.get("needs_design"), ticket.get("type"))
+
+    # PERSISTENCE guard, applied after the derivation and only to what is
+    # written: an axis nobody has stated must not be materialised at the guard's
+    # floor by a rigor-RAISING path, where it would anchor every later
+    # comparison. Computed here, so it cannot influence the lane above.
+    write_size = None if (from_size is None and args.proposed_size is None) else eff_size
+    write_stakes = None if (from_stakes is None and args.proposed_stakes is None) else eff_stakes
 
     ceiling_before = (args.ceiling_before if args.ceiling_before is not None
                       else lib.VERIFY_ITERATION_CAP[lib.verify_depth(from_lane, from_stakes)])
     result = {"ticket_id": ticket_id, "from_lane": from_lane, "lane": new_lane,
-              "size": eff_size, "stakes": eff_stakes, "depth": depth,
-              "ceiling_before": ceiling_before,
+              "depth": depth, "ceiling_before": ceiling_before,
               "ceiling_after": max(ceiling_before, ceiling_after)}
 
     if lib.lane_rank(new_lane) <= lib.lane_rank(from_lane):
-        result.update({"escalated": False, "event_recorded": False,
+        # Report what is ON DISK, not the computed effective axes: nothing was
+        # written, and a caller branching on out["stakes"] must not read a raise
+        # that never happened. What was asked for is reported separately.
+        result.update({"lane": from_lane, "size": from_size, "stakes": from_stakes,
+                       "proposed_size": args.proposed_size,
+                       "proposed_stakes": args.proposed_stakes,
+                       "escalated": False, "event_recorded": False, "event": None,
                        "reason": "candidate lane is not strictly higher — no write"})
         emit(result)
         return
 
-    ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
+    result["size"], result["stakes"] = write_size, write_stakes
+
+    if write_size is not None:
+        ticket["size"] = write_size
+    if write_stakes is not None:
+        ticket["stakes"] = write_stakes
+    ticket["lane"] = new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    # The index is repo-level, so its guard can refuse. That must NOT skip the
+    # escalation event below: the index entry is rebuilt from ticket.json by
+    # the next write, while the audit event has no other source and the lane
+    # raise is already durable. Report the gap after the event is safe.
+    index_error = None
+    try:
+        lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    except lib.GuardTimeout as exc:
+        index_error = str(exc)
     result["escalated"] = True
+    result["index_updated"] = index_error is None
 
     event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
              "from_size": from_size, "from_stakes": from_stakes,
-             "to_size": eff_size, "to_stakes": eff_stakes,
+             "to_size": write_size, "to_stakes": write_stakes,
              "trigger": args.trigger, "source": args.source or args.trigger,
              "ceiling_before": ceiling_before, "ceiling_after": result["ceiling_after"],
              "direction": "up", "confirmation_ref": None}
@@ -259,12 +310,29 @@ def cmd_lane_apply(args):
         die("lane apply",
             "axes and lane are applied but the escalation event was not recorded: %s" % exc)
     result.update({"event_recorded": True, "event": event})
+    if index_error:
+        result["error"] = index_error
+        emit(result)
+        die("lane apply",
+            "the lane raise (%s -> %s) and its escalation event ARE recorded, but "
+            "tickets-index.json was not updated: %s\nThe index entry is rebuilt "
+            "from ticket.json by the next write to it, so this self-heals; "
+            "re-running would be a no-op, since the raise is already applied."
+            % (from_lane, new_lane, index_error))
     emit(result)
 
 
 def cmd_lane_deescalate(args):
     """confirm_deescalation — the only sanctioned lane-lowering path, and it
-    refuses without an answered clarify.py ledger id."""
+    refuses without an answered clarify.py ledger id.
+
+    confirm_deescalation persists ticket.json, pipeline-state.json and the index
+    BEFORE recording its audit event, exactly like the upward path. So a failure
+    is not automatically "nothing happened": on any error this re-reads the
+    ticket and reports what actually landed, the way `lane apply` does. Exit 2
+    with `applied: true` means a rigor-LOWERING write is durable with no
+    matching event — the loudest case in the system, and previously reported as
+    a bare refusal with empty stdout."""
     ticket_id, tdir, _ctx = partition_or_die("lane deescalate", args.ticket)
     ticket = load_ticket_or_die("lane deescalate", tdir, ticket_id)
     before = {"lane": ticket.get("lane"), "size": ticket.get("size"),
@@ -272,16 +340,58 @@ def cmd_lane_deescalate(args):
     try:
         updated = lib.confirm_deescalation(tdir, ticket, args.size, args.stakes,
                                            args.clarify_ref)
-    except (ValueError, KeyError) as exc:
-        die("lane deescalate", str(exc))
+    except (ValueError, KeyError, OSError) as exc:
+        # "Did anything actually change on disk?" -- NOT "does the ticket now
+        # hold the requested values?", which is also true when the ticket
+        # already sat at them and the call refused before writing a byte.
+        # OSError is caught because the failure this handler exists for is the
+        # audit write, which fails that way on a full or read-only disk.
+        on_disk = lib.load_ticket(tdir) or {}
+        applied = any(on_disk.get(k) != before[k] for k in ("lane", "size", "stakes"))
+        if not applied:
+            if isinstance(exc, KeyError):
+                die("lane deescalate", "ticket.json for %s has no %s field to lower"
+                    % (ticket_id, exc))
+            die("lane deescalate", str(exc))
+        emit({"ok": False, "ticket_id": ticket_id, "from": before,
+              "lane": on_disk.get("lane"), "size": on_disk.get("size"),
+              "stakes": on_disk.get("stakes"), "applied": True,
+              "event_recorded": False, "error": str(exc),
+              "confirmation_ref": args.clarify_ref})
+        die("lane deescalate",
+            "axes and lane are LOWERED but the de-escalation event was not "
+            "recorded: %s" % exc)
+    recorded = lib.last_run(lib.load_state(tdir, "code")) or {}
+    events = recorded.get("escalations") or []
     emit({"ok": True, "ticket_id": ticket_id, "from": before,
           "lane": updated["lane"], "size": updated["size"], "stakes": updated["stakes"],
+          "applied": True, "event_recorded": True,
+          # Both audited lane-writing paths report `event`, so a coordinator can
+          # branch on it uniformly instead of only on the upward one.
+          "event": events[-1] if events else None,
           "confirmation_ref": args.clarify_ref})
 
 
 # ---------------------------------------------------------------------------
 # stakes
 # ---------------------------------------------------------------------------
+
+def read_lines_arg(command, path):
+    """Lines from `path`, or from stdin when it is '-'.
+
+    The isatty guard matches _paths_from below: without it, `--files-from -`
+    typed at a terminal blocks forever on a read that will never end, instead
+    of saying what it wanted."""
+    if path == "-":
+        if sys.stdin.isatty():
+            die(command, "%s - expects one path per line on stdin" % command)
+        return sys.stdin.read().splitlines()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except OSError as exc:
+        die(command, "could not read %s: %s" % (path, exc))
+
 
 def _paths_from(args, command):
     paths = list(args.path or [])
@@ -332,23 +442,186 @@ def cmd_ticket_save(args):
     """save_ticket + update_index in one call — SKILL.md never pairs them any
     other way, and a save without the re-index leaves the index stale.
 
+    The document is a PATCH, not a replacement: incoming keys are merged over
+    the stored ticket. A caller that hand-builds a document — the model-driven
+    caller this CLI exists to serve — would otherwise wipe every field it did
+    not think to include, taking title, type, status, parent and children with
+    it and blanking the index row, which `gate_code`, `_epic_auto_done` and
+    `fanout_batches` all read.
+
     Refuses to write axes or lane: those move only through `lane apply` /
     `lane deescalate`, which carry the guard and the audit event."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
 
-    if incoming.get("id") != current.get("id"):
+    if not current.get("id"):
+        die("ticket save", "the stored ticket.json for %s has no id" % ticket_id)
+    if "id" in incoming and incoming["id"] != current["id"]:
         die("ticket save", "document id %r does not match the partition's %r"
             % (incoming.get("id"), current.get("id")))
-    guarded = [k for k in ("size", "stakes", "lane") if incoming.get(k) != current.get(k)]
+    guarded = [k for k in ("size", "stakes", "lane")
+               if k in incoming and incoming[k] != current.get(k)]
     if guarded:
         die("ticket save", "%s move only through `acs.py lane apply` / `lane deescalate`"
             % ", ".join(guarded))
 
-    lib.save_ticket(tdir, incoming)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], incoming)
-    emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
+    updated = dict(current)
+    updated.update(incoming)
+    lib.save_ticket(tdir, updated)
+    lib.update_index(ctx["workspace"], ctx["repo_id"], updated)
+    emit({"ok": True, "ticket_id": ticket_id, "indexed": True,
+          "fields_written": sorted(incoming)})
+
+
+def _lock_view(tdir, ticket_id, ctx):
+    lock = lib.read_lock(tdir)
+    if not isinstance(lock, dict):
+        return {"ok": True, "ticket_id": ticket_id, "held": False, "lock": None,
+                "stale": None, "basis": None, "basis_detail": None, "held_by_me": False}
+    stale, basis = lib.lock_staleness(lock)
+    return {"ok": True, "ticket_id": ticket_id, "held": True, "lock": lock,
+            "stale": stale, "basis": basis,
+            "basis_detail": lib.LOCK_STALENESS_REASONS[basis],
+            "held_by_me": lock.get("checkout_id") == ctx["checkout_id"]}
+
+
+def cmd_lock_status(args):
+    """What holds this ticket's lock, and on what evidence.
+
+    `stale` is a verdict, `basis` is how it was reached — a lock held on
+    another host has no liveness signal at all and degrades to an age timeout
+    (lib.lock_staleness). Read both before breaking anything."""
+    ticket_id, tdir, ctx = partition_or_die("lock status", args.ticket)
+    view = _lock_view(tdir, ticket_id, ctx)
+    view["lock_path"] = lib.lock_path(tdir)
+    view["audit_path"] = lib.lock_audit_path(tdir)
+    emit(view)
+
+
+def cmd_lock_force_unlock(args):
+    """Break a lock this checkout does not hold, recording who and why.
+
+    The audited escape hatch for the case release_lock refuses by design: the
+    holding session is gone but its lock is not (and, cross-host, will not read
+    as stale for 24 hours). --reason is required and lands in the ticket's
+    append-only lock-events.jsonl before the lock file is removed."""
+    ticket_id, tdir, ctx = partition_or_die("lock force-unlock", args.ticket)
+    before = _lock_view(tdir, ticket_id, ctx)
+    if not before["held"]:
+        emit({"ok": True, "ticket_id": ticket_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(tdir)})
+        return
+    if before["held_by_me"] and not args.force:
+        die("lock force-unlock",
+            "this checkout holds the lock — the post hook releases it; pass --force "
+            "to break your own lock anyway")
+    try:
+        result = lib.force_release_lock(tdir, os.getcwd(), args.reason, actor=args.actor)
+    except (ValueError, lib.GateError) as exc:
+        die("lock force-unlock", str(exc))
+    emit({"ok": True, "ticket_id": ticket_id, "forced": result["forced"],
+          "detail": result["detail"], "audit_path": result["audit_path"],
+          "broken_lock": result["lock"], "was_stale": before["stale"],
+          "staleness_basis": before["basis"]})
+def cmd_filemap_set(args):
+    """Declare one executor task's file map, so the PreToolUse guard can enforce
+    the executor charter's "mutate ONLY the files in your task's file map".
+
+    Per task and additive: the coordinator declares them one at a time as it
+    decomposes the plan, and declaring task 2 must not erase task 1."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap set", args.ticket)
+    files = list(args.file)
+    if args.files_from:
+        files += [line.strip() for line in
+                  read_lines_arg("filemap set", args.files_from) if line.strip()]
+    if not files:
+        die("filemap set", "declare at least one file (--file, or --files-from FILE)")
+    tasks = lib.save_filemap_task(tdir, args.skill, args.iteration, args.task, files)
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "task": str(args.task),
+          "files": tasks[str(args.task)],
+          "path": lib.filemap_path(tdir, args.skill, args.iteration),
+          "tasks": tasks})
+
+
+def cmd_filemap_show(args):
+    """The declared map for an iteration, plus the union the guard enforces."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap show", args.ticket)
+    tasks = lib.load_filemap(tdir, args.skill, args.iteration) or {}
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
+          "union": sorted({f for files in tasks.values() for f in files}),
+          "path": lib.filemap_path(tdir, args.skill, args.iteration)})
+def cmd_verdict_show(args):
+    """The verifier's verdict for one iteration — validated, not just printed.
+
+    `passed` in the output is DERIVED from the findings, so a document that
+    claims otherwise shows up as an error here rather than as a pass."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict show", args.ticket)
+    doc = lib.load_verdict(tdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
+    if doc is None:
+        die("verdict show", "no verdict at %s" % path)
+    errors = lib.validate_verdict(doc, lens=args.lens, ticket_id=ticket_id)
+    if errors:
+        # `passed` is DERIVED from the findings, and an absent findings list
+        # derives True -- so emitting it beside ok:false told the coordinator
+        # (whose instructions say to copy `passed`, and never mention `ok`)
+        # that an unusable document was a pass. A document we cannot validate
+        # has no verdict to report.
+        die("verdict show", "the verdict at %s is not usable: %s"
+            % (path, "; ".join(errors)))
+    emit({"ok": True, "ticket_id": ticket_id, "path": path,
+          "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
+          "blocking": len(lib.blocking_findings(doc)), "errors": [],
+          "verdict": doc})
+
+
+def cmd_verdict_merge(args):
+    """Merge the four full-depth lens verdicts into the iteration's verdict.
+
+    Mechanical — passed is the conjunction, findings the union, each dimension
+    the worst result any lens reported — so the coordinator INVOKES the merge
+    rather than authoring a verdict it did not reach."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
+    lenses = args.lens or list(lib.LENSES)
+    # All four, always. --lens was an append flag with no completeness rule, so
+    # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
+    # findings while reporting ok/passed -- a coordinator-run command that
+    # silently discards a verifier's verdict, which is what AC-3 forbids.
+    if sorted(set(lenses)) != sorted(lib.LENSES):
+        die("verdict merge",
+            "a merge covers all four lenses (%s); got %s. A subset drops the "
+            "findings of the lenses left out."
+            % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
+    docs, missing = [], []
+    for lens in lenses:
+        doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
+        if doc is None:
+            missing.append(lens)
+        else:
+            docs.append(doc)
+    if missing:
+        die("verdict merge", "no verdict for lens %s (iteration %s)"
+            % (", ".join(missing), args.iteration))
+    merged = lib.merge_lens_verdicts(docs)
+    merged["written_at"] = lib.now_iso()
+    errors = lib.validate_verdict(merged)
+    if errors:
+        die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
+    existing = lib.load_verdict(tdir, args.skill, args.iteration)
+    if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
+        die("verdict merge",
+            "%s already holds a verdict with %d blocking finding(s); refusing to "
+            "replace it with a passing one. Fix the findings and re-run the "
+            "verifier rather than overwriting its verdict."
+            % (lib.verdict_path(tdir, args.skill, args.iteration),
+               len(lib.blocking_findings(existing))))
+    path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
+    emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
+          "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
+          "verdict": merged})
 
 
 def cmd_phase_validate(args):
@@ -385,9 +658,17 @@ def cmd_doctor(args):
     except lib.GateError:
         pass  # the toolchain report is useful precisely when the context is not
     settings = ctx["settings"] if ctx else None
-    emit({"ok": True, "context": ctx is not None,
-          "toolchain": lib.check_toolchain(settings),
-          "missing": lib.missing_tools(settings)})
+    # Probed ONCE: missing_tools() re-runs check_toolchain internally, so calling
+    # both spawned every `<tool> --version` subprocess twice, each with a 5s
+    # timeout.
+    rows = lib.check_toolchain(settings)
+    missing = lib.missing_tools(settings, rows=rows)
+    required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
+    # `ok` is the verdict the module contract tells callers to read, so it must
+    # answer "is the toolchain usable?" — not be a constant.
+    emit({"ok": not required_missing, "context": ctx is not None,
+          "toolchain": rows, "missing": missing,
+          "missing_required": required_missing})
 
 
 # ---------------------------------------------------------------------------
@@ -410,19 +691,25 @@ def delegate(command, argv):
 # ---------------------------------------------------------------------------
 
 def build_parser():
+    """Return (parser, groups) where `groups` maps a group name to its parser.
+
+    That map is argparse's own `sub.choices` -- keeping a module-level copy
+    would go stale the moment build_parser() ran twice, pointing at the newest
+    parser's children while main() held an older one."""
     parser = argparse.ArgumentParser(prog="acs.py", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="group")
+    group = sub.add_parser
 
-    ctx = sub.add_parser("context", help="resolved settings, workspace and paths")
+    ctx = group("context", help="resolved settings, workspace and paths")
     ctx.add_argument("--ticket", help="also resolve this ticket's partition")
     ctx.set_defaults(func=cmd_context)
 
-    gate = sub.add_parser("gate", help="run a skill's pre-gate without the skill")
+    gate = group("gate", help="run a skill's pre-gate without the skill")
     gate.add_argument("--skill", required=True)
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)
 
-    lane = sub.add_parser("lane", help="lane derivation, escalation and the audited apply")
+    lane = group("lane", help="lane derivation, escalation and the audited apply")
     lane_sub = lane.add_subparsers(dest="cmd")
 
     derive = lane_sub.add_parser("derive", help="derive_lane")
@@ -463,7 +750,7 @@ def build_parser():
     deesc.add_argument("--clarify-ref", dest="clarify_ref", required=True)
     deesc.set_defaults(func=cmd_lane_deescalate)
 
-    stakes = sub.add_parser("stakes", help="stakes recommendation and the axis guard")
+    stakes = group("stakes", help="stakes recommendation and the axis guard")
     stakes_sub = stakes.add_subparsers(dest="cmd")
 
     rec = stakes_sub.add_parser("recommend", help="recommend_stakes over changed paths")
@@ -479,7 +766,7 @@ def build_parser():
     guard.add_argument("--proposed-stakes", dest="proposed_stakes", choices=STAKES)
     guard.set_defaults(func=cmd_stakes_guard)
 
-    ticket = sub.add_parser("ticket", help="read and write ticket.json")
+    ticket = group("ticket", help="read and write ticket.json")
     ticket_sub = ticket.add_subparsers(dest="cmd")
 
     show = ticket_sub.add_parser("show", help="load_ticket")
@@ -492,30 +779,82 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
-    phase = sub.add_parser("phase", help="phase artifacts")
+    lock = group("lock", help="inspect and (audited) break a ticket lock")
+    lock_sub = lock.add_subparsers(dest="cmd")
+
+    lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
+    lstatus.add_argument("--ticket")
+    lstatus.set_defaults(func=cmd_lock_status)
+
+    lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
+    lforce.add_argument("--ticket")
+    lforce.add_argument("--reason", required=True,
+                        help="why the lock is being broken; recorded in the audit ledger")
+    lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
+    lforce.add_argument("--force", action="store_true",
+                        help="break the lock even when this checkout is its holder")
+    lforce.set_defaults(func=cmd_lock_force_unlock)
+    filemap = group("filemap", help="the executor file map the write guard enforces")
+    filemap_sub = filemap.add_subparsers(dest="cmd")
+
+    fmset = filemap_sub.add_parser("set", help="declare one executor task's file map")
+    fmset.add_argument("--ticket")
+    fmset.add_argument("--skill", default="code")
+    fmset.add_argument("--iteration", type=int, default=1)
+    fmset.add_argument("--task", type=int, required=True, help="the executor task index")
+    fmset.add_argument("--file", action="append", default=[],
+                       help="a repo-relative path the task may write (repeatable)")
+    fmset.add_argument("--files-from", dest="files_from", metavar="FILE",
+                       help="read paths one per line ('-' for stdin)")
+    fmset.set_defaults(func=cmd_filemap_set)
+
+    fmshow = filemap_sub.add_parser("show", help="the declared map and the enforced union")
+    fmshow.add_argument("--ticket")
+    fmshow.add_argument("--skill", default="code")
+    fmshow.add_argument("--iteration", type=int, default=1)
+    fmshow.set_defaults(func=cmd_filemap_show)
+    verdict = group("verdict", help="the verifier's verdict document")
+    verdict_sub = verdict.add_subparsers(dest="cmd")
+
+    vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
+    vshow.add_argument("--ticket")
+    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--iteration", type=int, default=1)
+    vshow.add_argument("--lens", choices=list(lib.LENSES))
+    vshow.set_defaults(func=cmd_verdict_show)
+
+    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
+    vmerge.add_argument("--ticket")
+    vmerge.add_argument("--skill", default="code")
+    vmerge.add_argument("--iteration", type=int, default=1)
+    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
+                        help="restrict the merge to these lenses (default: all four)")
+    vmerge.set_defaults(func=cmd_verdict_merge)
+
+    phase = group("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")
     pval = phase_sub.add_parser("validate", help="check a result document before the post-hook")
     pval.add_argument("--skill", required=True)
     pval.add_argument("--result-file", dest="result_file", metavar="FILE")
     pval.set_defaults(func=cmd_phase_validate)
 
-    slug = sub.add_parser("slug", help="slugify (branch and file naming)")
+    slug = group("slug", help="slugify (branch and file naming)")
     slug.add_argument("--text", required=True)
     slug.add_argument("--max-len", dest="max_len", type=int, default=40)
     slug.set_defaults(func=cmd_slug)
 
-    fanout = sub.add_parser("fanout", help="epic fan-out helpers")
+    fanout = group("fanout", help="epic fan-out helpers")
     fanout_sub = fanout.add_subparsers(dest="cmd")
     batches = fanout_sub.add_parser("batches", help="fanout_batches")
     batches.set_defaults(func=cmd_fanout_batches)
 
-    doctor = sub.add_parser("doctor", help="check_toolchain / missing_tools")
+    doctor = group("doctor", help="check_toolchain / missing_tools")
     doctor.set_defaults(func=cmd_doctor)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
                        help="delegated to %s" % DELEGATED[name])
-    return parser
+    return parser, sub.choices
 
 
 def main(argv=None):
@@ -529,14 +868,24 @@ def main(argv=None):
             rest = rest[1:]
         sys.exit(delegate(argv[0], rest))
 
-    parser = build_parser()
+    parser, groups = build_parser()
     args = parser.parse_args(argv)
     func = getattr(args, "func", None)
     if func is None:
-        # A group with no subcommand ("acs.py lane") — show that group's usage.
-        parser.print_help(sys.stderr)
+        # A group with no subcommand ("acs.py lane") — show THAT group's usage,
+        # which is what names its subcommands; the root help does not.
+        (groups.get(getattr(args, "group", None)) or parser).print_help(sys.stderr)
         sys.exit(2)
-    func(args)
+    try:
+        func(args)
+    except lib.GateError as exc:
+        # The documented contract of this CLI (see the module docstring) is
+        # `acs <command>: <reason>` on stderr and exit 2 for a blocked command.
+        # GuardTimeout is a GateError raised from deep inside a repo-level
+        # write, and without this it reached the operator as a Python traceback
+        # and exit 1 -- indistinguishable from a crash, at ten call sites.
+        verbs = [a for a in argv[:2] if not a.startswith("-")]
+        die(" ".join(verbs) or "command", str(exc))
 
 
 if __name__ == "__main__":

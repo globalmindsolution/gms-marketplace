@@ -9,7 +9,9 @@ places and each one degraded (or silently dropped records) its own way. Every
 assumption now lives here, once:
 
 1. **Hook envelope fields** -- the JSON a hook receives on stdin:
-   `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `tool_input`.
+   `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `tool_input`,
+   plus the subagent-lifecycle trio `agent_id`, `agent_type` and
+   `last_assistant_message` (SubagentStart/SubagentStop).
 2. **Transcript JSONL record shape** -- `timestamp`, `message.usage.*` (the
    four token classes), `message.model`.
 3. **Attribution fields** -- `attributionSkill` on main-session records,
@@ -43,7 +45,9 @@ Claude Code's output.
 import datetime
 import json
 import os
+import re
 import subprocess
+import tempfile
 import sys
 
 # ---------------------------------------------------------------------------
@@ -57,6 +61,14 @@ HOOK_EVENT_NAME = "hook_event_name"
 HOOK_TOOL_INPUT = "tool_input"
 HOOK_WORKSPACE = "workspace"
 HOOK_WORKSPACE_DIR = "current_dir"
+
+#: SubagentStart / SubagentStop only. Undocumented like the rest of this
+#: section: the events are documented, these payload keys are not. They are
+#: named here rather than at their call sites so a rename upstream is one edit
+#: -- and so the blast radius of that rename is visible in one place.
+HOOK_AGENT_ID = "agent_id"
+HOOK_AGENT_TYPE = "agent_type"
+HOOK_LAST_ASSISTANT_MESSAGE = "last_assistant_message"
 
 
 def _dict(value):
@@ -87,12 +99,45 @@ def hook_tool_input(payload):
     return _dict(_dict(payload).get(HOOK_TOOL_INPUT))
 
 
-def payload_cwd(payload, default=None):
+def hook_agent_id(payload):
+    """The SubagentStart/SubagentStop agent id, or None.
+
+    Absence is a real case, not a malformed payload: a Claude Code that does
+    not send the field, and a subagent whose start event never reached us.
+    Callers must have an answer for None rather than assuming it."""
+    return _str_or_none(_dict(payload).get(HOOK_AGENT_ID))
+
+
+def hook_agent_type(payload):
+    """The SubagentStart/SubagentStop agent type (e.g. `acs:code-executor`)."""
+    return _str_or_none(_dict(payload).get(HOOK_AGENT_TYPE))
+
+
+def hook_last_assistant_message(payload):
+    """The subagent's final message text on SubagentStop, or None.
+
+    acs reads its `<result>`/`<handoff>` element out of this. If the key is
+    ever renamed upstream every acs subagent looks like it returned nothing,
+    so this accessor is the single place that assumption is written down."""
+    return _str_or_none(_dict(payload).get(HOOK_LAST_ASSISTANT_MESSAGE))
+
+
+#: Distinguishes "no default given" from an explicit default of None. Without
+#: it, `payload_cwd(p, default=None)` returned the process cwd -- the opposite
+#: of what a caller asking for None means, and how record_session_marker came
+#: to invent a cwd for an envelope that carried none.
+_NO_DEFAULT = object()
+
+
+def payload_cwd(payload, default=_NO_DEFAULT):
     """The working directory a payload resolves to.
 
     One probe order shared by hook envelopes and statusLine payloads:
-    `workspace.current_dir`, then top-level `cwd`, then `default` (when None,
-    the process cwd -- what every caller wanted anyway)."""
+    `workspace.current_dir`, then top-level `cwd`, then `default` -- which
+    defaults to the process cwd, what most callers want. Pass `default=None`
+    to get None instead: a caller that must never construct a value (the
+    session marker records envelope fields verbatim) needs the probe order
+    without the fallback."""
     payload = _dict(payload)
     value = _str_or_none(_dict(payload.get(HOOK_WORKSPACE)).get(HOOK_WORKSPACE_DIR))
     if value:
@@ -100,7 +145,7 @@ def payload_cwd(payload, default=None):
     value = _str_or_none(payload.get(HOOK_CWD))
     if value:
         return value
-    return default if default is not None else os.getcwd()
+    return os.getcwd() if default is _NO_DEFAULT else default
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +278,14 @@ STATUS_MODEL_DISPLAY_NAME = "display_name"
 
 #: Cost probe order: (container key or None, key). A None container means the
 #: payload's own top level. Tried in order, then a bounded recursive scan.
+#: The key names a session payload spells its running totals with, as patterns
+#: for a nested scan. They live here because they are Claude Code's spellings,
+#: not ours -- the same reason COST_PROBE_ORDER does. A regex source is not a
+#: string constant the AST guard can match, so keeping them at the call site
+#: left an unwatched drift door.
+TOTAL_COST_KEY_RE = re.compile(r"total_cost(_usd)?$")
+TOTAL_API_DURATION_KEY_RE = re.compile(r"total_api_duration(_ms)?$")
+
 COST_PROBE_ORDER = (("cost", "total_cost_usd"),
                     ("cost", "total_cost"),
                     (None, "total_cost_usd"))
@@ -321,14 +374,33 @@ def claude_version(cache_path=None, ttl_seconds=CLAUDE_VERSION_TTL_SECONDS):
     longer than the subprocess timeout."""
     if cache_path:
         cached = _read_version_cache(cache_path, ttl_seconds)
-        if cached is not None:
-            return cached.get("version")
-    elif "version" in _VERSION_MEMO:
+        # A cached null is a FAILED probe, not an answer. Treating it as a hit
+        # negatively cached the failure for the whole TTL, so a probe that failed
+        # once (claude not yet on PATH) reported no version for 24 hours.
+        if cached is not None and cached.get("version") is not None:
+            _VERSION_MEMO["version"] = cached["version"]
+            return cached["version"]
+        # The disk cache did not answer. An EXPIRED one must re-probe -- that is
+        # what the TTL is for. One that is merely absent or unwritable must not:
+        # behind the old `elif` the memo was skipped whenever cache_path was
+        # given, so an unwritable cache re-spawned the subprocess on every call,
+        # on statusline.main's pre-print path (measured: 3 calls, 3 spawns).
+        # ...and the memo may only answer with a SUCCESSFUL probe. A failed one
+        # writes no cache file, so `not stale` is trivially true for the absent
+        # file and the memoised None was returned for the life of the process:
+        # `claude` appearing on PATH a moment later never took effect, which is
+        # the opposite of the "a failure is no longer cached" this change
+        # claimed. Re-probing on a failure is cheap; being permanently wrong is
+        # not.
+        if (not _version_cache_is_stale(cache_path, ttl_seconds)
+                and _VERSION_MEMO.get("version") is not None):
+            return _VERSION_MEMO["version"]
+    elif _VERSION_MEMO.get("version") is not None:
         return _VERSION_MEMO["version"]
 
     version = _probe_claude_version()
     _VERSION_MEMO["version"] = version
-    if cache_path:
+    if cache_path and version is not None:
         _write_version_cache(cache_path, version)
     return version
 
@@ -345,6 +417,17 @@ def _probe_claude_version():
         return proc.stdout.decode("utf-8", errors="replace").strip() or None
     except Exception:
         return None
+
+
+def _version_cache_is_stale(path, ttl_seconds):
+    """True only when the cache EXISTS and has aged out.
+
+    Absent, unreadable or unwritable is not stale: there is nothing to refresh,
+    so the in-process memo may answer instead of re-probing."""
+    try:
+        return (_now_epoch() - os.path.getmtime(path)) > ttl_seconds
+    except OSError:
+        return False
 
 
 def _read_version_cache(path, ttl_seconds):
@@ -364,10 +447,20 @@ def _write_version_cache(path, version):
         parent = os.path.dirname(path)
         if parent and not os.path.isdir(parent):
             os.makedirs(parent, exist_ok=True)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"version": version, "probed_at": _now_iso()}, fh, sort_keys=True)
-        os.replace(tmp, path)
+        # mkstemp, not a fixed "<path>.tmp": two sessions in the same checkout
+        # write this concurrently, and a fixed name lets one truncate the
+        # other's partial file. The unlink keeps a failed write from leaking it.
+        fd, tmp = tempfile.mkstemp(dir=parent or ".", prefix=".acs-version-")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump({"version": version, "probed_at": _now_iso()}, fh, sort_keys=True)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         pass
 

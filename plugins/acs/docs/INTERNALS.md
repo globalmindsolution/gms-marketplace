@@ -17,7 +17,7 @@ component follows.
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 15 pre + 15 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 15 pre + 15 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package and `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py` and `consistency_findings.py` are importable libraries with no CLI entry point and are excluded) | 19 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 7b; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
-| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 8 |
+| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 11 |
 | XML schema | `plugins/acs/schemas/acs-messages.xsd` | 1 |
 | Description templates | `plugins/acs/templates/*.md` | 4 |
 
@@ -56,6 +56,72 @@ onto the plugin hooks API like this:
    abnormal endings still write state. A hard kill that skips even SessionEnd
    still leaves `in_progress` + a stale lock — downstream gates read "not
    completed" and the next run reconciles.
+4. **Lifecycle hooks (MAR-528).** Four more events are bound, each replacing an
+   instruction a coordinator had to remember:
+
+   | Event | Matcher | `dispatch.py` mode | What it does |
+   |---|---|---|---|
+   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent in `<partition>/active-agents/<agent_id>.json` — **one file per agent**, so the parallel executor fan-out this record exists for cannot lose an entry to a read-modify-write race |
+   | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
+   | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
+   | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
+   | `PreToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `file-map` | **exit 2** denies a write outside the declared executor file map (MAR-529) |
+
+   The matchers are **anchored on the plugin scope** on purpose: unanchored,
+   the subagent events would fire for every subagent in the session — `Explore`,
+   `Plan`, another plugin's agents — and try to file their output as an acs
+   phase artifact.
+
+   These four fail **OPEN**, which is the opposite of the gate. The gate fails
+   closed because letting a skill run unchecked is the harm; here the harm runs
+   the other way — a bookkeeping bug that ends a session or wedges a subagent
+   costs more than the bookkeeping is worth — so `dispatch.py`'s
+   `run_lifecycle` turns anything raised into exit 0 plus one line on stderr.
+   Both blocking hooks also give up after `BLOCK_LIMIT`: a session that cannot
+   stop is worse than a run SessionEnd will mark `interrupted`.
+
+   **The file-map guard (MAR-529).** "Mutate ONLY the files in your task's file
+   map" was a bullet in the executor charter, and plugin agents cannot carry
+   frontmatter hooks, so the enforcement point is the plugin's own `PreToolUse`
+   entry, keyed on the active agent `SubagentStart` recorded. The coordinator
+   declares each executor task's map with **`acs.py filemap set --iteration <n>
+   --task <k> --file …`** (additive, per task, written to
+   `phases/<skill>/iter-<n>-filemap.json`); a write outside it is denied while
+   an acs **executor** is running, with the executor told to return
+   `needs_input` for the file it needs.
+
+   **Failure polarity is split, because the two questions carry opposite
+   risks.** Deciding *whether the guard applies* fails OPEN — not an acs
+   partition, no executor active (a planner, a verifier and the coordinator all
+   write outside any task's map legitimately), **no map declared** (a TRIVIAL
+   lane runs no planner), or a call that names no path. A bug there must not
+   deny every write on the machine. Deciding *whether this write is inside the
+   map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
+   read all deny, because a deny control that fails open is silently absent
+   while still installed — the failure ADR 0002 records for the other exit-2
+   `PreToolUse` hook. Exempt: this executor's own `phases/<skill>/` artifacts,
+   and only those. Explicitly NOT exempt, and denied outright: the guard's own
+   control inputs — the `active-agents/` record that arms it and any
+   `iter-*-filemap.json` — since an executor that can rewrite either can answer
+   the guard's own question.
+
+   **Known hole, stated rather than implied: `Bash` is not covered.** The
+   matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
+   `sed -i`, `python -c`, `cat >`, `tee`, `mv` or `git checkout --` is outside
+   this control entirely. That is not a small gap — an agent told to prefer
+   shell over the write tools would be almost invisible to the guard. Closing
+   it needs its own ticket (matching a path out of an arbitrary command line is
+   a different problem from reading one out of `tool_input`); what must not
+   happen is this list reading as exhaustive while omitting it.
+
+   **What it checks is the UNION of the iteration's declared tasks, not the one
+   task the running executor was given.** Per-task binding is not achievable
+   with what Claude Code provides: neither `SubagentStart` nor `PreToolUse`
+   carries a task index, and parallel executors of one `agent_type` run at once,
+   so there is nothing to bind an agent to its task by. The union still enforces
+   the property that actually goes wrong — an executor wandering outside the
+   PLAN — while disjointness *between* tasks stays what the coordinator's
+   parallel-vs-sequential decision already exists to decide.
 
 ## Skill lifecycle (every hooked skill)
 
@@ -119,6 +185,38 @@ findings, error details, and stop reasons into workspace files):
 | plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+
+**The verifier also writes a verdict** (MAR-527):
+`phases/<skill>/iter-<n>-verdict.json`, or `iter-<n>-verdict-lens-<A|B|C|D>.json`
+on full depth. It carries a per-dimension result table (by the numbers in
+`agents/code-verifier.md`, where `n/a` is a real answer), the findings, and
+`passed` — which is **derived, not asserted**: `passed` is true exactly when no
+finding is `blocking`. `acs_lib.verdict.validate_verdict` enforces that, and the
+SubagentStop hook runs it, so a verdict claiming a pass over a blocking finding
+is refused rather than believed. `verdict.schema.json` pins the shape; that
+function pins the meaning, and says so. On full depth the coordinator runs
+`acs.py verdict merge` — the conjunction of `passed`, the union of findings, the
+worst result per dimension — which is arithmetic over the lens files, not a
+second opinion. `states.verifier_passed` is **derived by the post hook** from
+the verifier's `verdict.json` (MAR-523) — never copied from the coordinator's
+result document, and never concluded from a findings count by hand.
+
+**The XML snapshot is written by the SubagentStop hook** (MAR-528), not by the
+coordinator remembering to. The hook fires on `^acs:`-matched agents, validates
+the returned message against `acs-messages.xsd`, and files it at
+`phases/<skill>/iter-<iteration>-<phase>.xml` — a path taken entirely from the
+message's own `skill`, `phase` and `iteration` attributes, so nothing about it
+has to be carried in the coordinator's head. An invalid message sends the
+subagent back with the errors, at most twice (`BLOCK_LIMIT`); a still-invalid
+third message is let through and the coordinator records the failure, because a
+hook that can refuse forever is a hung session. Two consequences worth knowing:
+a `<handoff>` is the run's outcome, not a phase artifact, so it validates but
+files nothing; and since the schema reads an *absent* `iteration` as `1`, a
+subagent must echo its task's `iteration` — one that omits it on iteration 3 is
+claiming to be iteration 1, and the hook says so on stderr rather than guessing
+at a counter it cannot see. The coordinator still writes the snapshot itself for
+work it performs **inline** (TRIVIAL/SMALL lanes, `/acs:merge-pr`), where no
+subagent runs and therefore no SubagentStop fires.
 
 **Every statement in a phase artifact must be grounded**: decisions and
 analysis cite the file (path + line/section) they are based on; claims about
@@ -210,6 +308,24 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
+**Four `states` keys are DERIVED, not read (MAR-523).** `run_post` computes
+`verifier_passed`, `tests`, `pr` and `review.iterations` from the artifacts
+before persisting the document, and the computed value wins:
+
+| Key | Source | When it cannot be computed |
+|---|---|---|
+| `verifier_passed` | the verifier's `iter-<n>-verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
+| `tests` | the last iteration's `iter-<n>-execute*.json` reports (`coverage_target` from `settings.test_coverage_percent`) | the coordinator's value is kept |
+| `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
+| `review.iterations` | the verify artifacts on disk | the coordinator's value is kept |
+
+A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
+carries `values`, a one-line `provenance` for every key considered (including
+the ones it declined to compute, and why), and `overrode` — the
+supplied-vs-derived pairs — which is also printed on stderr. `verifier_passed`
+is derived only for `code`, the one skill whose verdict `/acs:create-pr` gates
+on. **A coordinator cannot open that gate by writing `true`.**
+
 `tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
 silently ignored since MAR-1 — `finalize_run` measures both itself (see the
 Token/cost usage exception noted above) rather than trusting a coordinator-supplied
@@ -295,11 +411,63 @@ Conventions:
   sessions/<checkout-id>.json           # per-worktree current-ticket pointer
   archive/<ticket-id>/                  # moved here by post-merge-pr
   <ticket-id>/
-    .lock  ticket.json  pipeline-state.json
+    .lock  lock-events.jsonl  ticket.json  pipeline-state.json
     design.md  specs/NN-slug.md
     phases/<skill>/iter-<n>-<phase>.xml  phases/<skill>/result.json
     <skill>-state.json ...
 ```
+
+### Concurrency: two mechanisms, both fail closed
+
+**Repo-level guards.** `tickets-index.json`, `metrics.json` and `counters.json`
+are read-modify-written by any session in any worktree, so each write holds an
+`O_EXCL` guard file beside it (`repo_guard`, a bounded spin: `ACS_GUARD_ATTEMPTS`
+× 0.05s, default 200 → 10s, clamped at `GUARD_ATTEMPTS_MAX` since a longer spin
+only outlives the 25-second bound Claude Code puts on the pre-hook). **Exhausting
+the budget raises `GuardTimeout` and writes nothing.** It used to write anyway, which meant the guard covered every
+case except the one it exists for. A refused write is recoverable; a clobbered
+one is invisible — and for `counters.json` it means two sessions holding the
+same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
+landed: the run, `ticket.json` and `pipeline-state.json` are already durable, the
+index self-heals on the next post hook, and that run's tokens and cost are lost
+from `metrics.json` — except after **merge-pr**, the terminal post hook, where
+nothing runs afterwards and the message says so instead. Every other entry point
+reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that
+holds the ticket lock releases it first: a skill that did not start, a handoff
+that did not hand off, or a SessionEnd net that did not release would otherwise
+strand the lock under a pid that is about to exit — and a cross-host lock
+stranded that way does not read as stale for 24 hours.
+
+A guard file left behind by a writer that crashed is reclaimed, but the test is
+deliberately narrow. Age alone cannot tell a crashed writer from a slow one, so
+a reclaim requires **both** that the file outlive twice the configured budget
+(`guard_stale_seconds`, so raising `ACS_GUARD_ATTEMPTS` for slow storage widens
+the patience rather than the hole) **and** that its recorded holder — the guard
+file carries the writer's pid and hostname — is not a process still running on
+this host. Releasing is symmetric: a holder unlinks the guard only if it is
+still its own, so a writer whose guard was reclaimed cannot strip the guard off
+whoever reclaimed it. Both halves are what keep two writers out of the critical
+section at once.
+
+**The ticket lock.** `<ticket-id>/.lock` records the holder's `checkout_id`,
+path, pid, hostname and start time. `lock_staleness(lock)` returns a verdict
+*and its basis*, because only one of its two regimes actually observes the
+holder:
+
+| Regime | Evidence | Verdict |
+|---|---|---|
+| Same hostname, integer pid | `os.kill(pid, 0)` — a real liveness probe | live → not stale; gone → stale; not ours to probe → not stale |
+| Anything else (foreign host, absent hostname, non-integer pid) | **none** — the pid names a process in another machine's namespace, so it is deliberately not probed | age only: stale after `LOCK_MAX_AGE_HOURS` (24h) |
+
+The second row is the ordinary case for containers, CI runners and worktrees on
+different machines, and it means a *live* holder elsewhere reads as stale once
+24h pass, while a *dead* one reads as live until then. Nothing is removed on the
+verdict alone: `check_lock` reports the basis and the operator decides.
+`release_lock` still refuses another checkout's lock; breaking one goes through
+**`acs.py lock force-unlock --reason "…"`**, which appends the break — who, from
+where, why, and the staleness verdict it did not obey — to the ticket's
+append-only `lock-events.jsonl` *before* removing the file. `acs.py lock status`
+prints the same view without changing anything.
 
 ## Conditional steps — skipping is data, never improvisation
 
