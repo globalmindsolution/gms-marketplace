@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/lock.schema.json",
   "title": "acs .lock",
-  "description": "Ticket-partition lock held by the session working the ticket. Re-entrant for the same checkout id; other sessions are blocked (pre-hooks exit 2). Released by the post-hook or a session handoff. A stale lock from a different checkout is reported for manual removal, never auto-stolen.",
+  "description": "Ticket-partition lock held by the session working the ticket. Re-entrant for the same checkout id; other sessions are blocked (pre-hooks exit 2). Released by the post-hook or a session handoff. A stale lock from a different checkout is never auto-stolen: it is reported, and broken only by the explicit `acs.py lock force-unlock`, which requires a reason and records who broke it in the partition's lock-events.jsonl (lock-events.schema.json) before removing this file.",
   "type": "object",
   "required": ["checkout_id", "created_at"],
   "properties": {

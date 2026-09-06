@@ -62,6 +62,21 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <!-- Which of the four full-depth review lenses a verify result belongs to
+       (agents/code-verifier.md). Declared here because the SubagentStop hook
+       reads it to find that lens's verdict file: without a carrier the hook
+       could never recover the lens, so every lens spawn was refused and all
+       four lenses raced to write the one shared verdict filename the lens
+       naming exists to prevent them sharing. -->
+  <xs:simpleType name="verifyLens">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="A"/>
+      <xs:enumeration value="B"/>
+      <xs:enumeration value="C"/>
+      <xs:enumeration value="D"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="resultStatus">
     <xs:restriction base="xs:string">
       <xs:enumeration value="completed"/>
@@ -164,6 +179,7 @@
       <xs:attribute name="ticket-id" type="ticketId" use="required"/>
       <xs:attribute name="iteration" type="xs:positiveInteger" default="1"/>
       <xs:attribute name="status" type="resultStatus" use="required"/>
+      <xs:attribute name="lens" type="verifyLens"/>
     </xs:complexType>
   </xs:element>
 

@@ -12,6 +12,7 @@ it always did. In dependency order:
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   gates          context resolution, the pre-hook gates, post-hook persistence
+  verdict        the verifier's verdict document and its derived-pass rule
   lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
@@ -21,7 +22,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               gates, lifecycle)  # noqa: F401
+               gates, verdict, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -39,10 +40,12 @@ from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS
     validate_settings)  # noqa: F401
 
 from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+    GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
+    GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
     checkout_id, checkout_root, current_branch, default_state_root,
     find_ticket_partition, gh_failure_hint, index_path, lock_path, main_repo_root,
-    pointer_path, record_session_marker, repo_dir, repo_partition_id,
+    pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
     resolve_ticket_id, scan_local_ticket_evidence, session_marker_path, sessions_dir,
     state_path, ticket_dir, ticket_id_from_text)  # noqa: F401
 
@@ -52,11 +55,12 @@ from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
     derive_lane, escalate_lane, guard_axes, lane_rank, plan_approval_eligible,
     recommend_stakes, verify_depth)  # noqa: F401
 
-from .state import (acquire_lock, allocate_ticket_id, append_in_progress_run,
-    check_lock, confirm_deescalation, empty_state, finalize_run, last_run,
-    last_run_status, load_pipeline, load_state, load_ticket, lock_is_stale,
-    new_ticket_doc, read_lock, record_escalation_event, release_lock, save_ticket,
-    skill_completed, update_index, update_pipeline)  # noqa: F401
+from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
+    acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
+    check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
+    last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
+    lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
+    release_lock, save_ticket, skill_completed, update_index, update_pipeline)  # noqa: F401
 
 from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
@@ -85,7 +89,9 @@ from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _cl
 from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
     subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
 
-from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILENAME,
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, FILEMAP_FILENAME_FMT,
+    HANDOFF_CONTEXT_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor, file_map_guard,
+    filemap_path, load_filemap, normalize_repo_path, path_in_filemap, save_filemap_task,
     ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
     in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
@@ -93,3 +99,7 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT, HANDOFF_CONTEXT_FILE
     result_document, stop, stop_counter_key, subagent_start, subagent_stop,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
+
+from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
+    blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
+    validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401

@@ -81,8 +81,11 @@ becomes invalid.
 | `plan-approval.py --ticket T [--plan P]` | stdout JSON — `{ok, eligible, plan_approved, lane, failures[]}`, or `{ok, skipped:"lane", …}` on TRIVIAL/SMALL, or `{ok, skipped:"already-approved", …}` on an unchanged approved digest; writes `<partition>/phases/code/plan-approval.json` (sole writer; consumers are `plan-approval.py`'s own idempotency check and, since MAR-74, `code-verifier`'s dimension 15 activation, which reads the file itself and never accepts a relayed value — the record is still not a gate input) and mirrors `code-state.json` `states.plan_approved`; **exit 0 on every data outcome including ineligible**; **exit 2** on an unresolvable ticket/partition, an unreadable `ticket.json`, or a `--plan` whose realpath escapes `<partition>/phases/code/` (MAR-73, slice 3 of MAR-69) |
 
 Exit codes: 0 ok; **2 blocked/invalid** — a failed gate, an unresolvable
-ticket/partition, an archived ticket, a held lock, or a malformed invocation —
-**unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
+ticket/partition, an archived ticket, a held lock, a repo-level write refused
+because its `O_EXCL` guard was held for the whole budget (`GuardTimeout`, a
+`GateError`: the stderr names which of the command's writes are already durable,
+and any ticket lock the command took is released first), or a malformed
+invocation — **unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
 failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_check.py`/
 `prd_conformance_check.py` exit 1 on findings). Always with actionable stderr.
 

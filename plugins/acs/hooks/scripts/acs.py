@@ -13,7 +13,9 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, phase, slug, fanout, doctor.
+    context, gate, lane, stakes, ticket, lock, filemap, verdict, phase, slug,
+    fanout, .
+    doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
@@ -42,6 +44,12 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py lock status --ticket MAR-1
+  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
+  acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
+  acs.py filemap show
+  acs.py verdict show --iteration 2
+  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py setup detect
   acs.py setup apply --answers answers.json
@@ -245,8 +253,17 @@ def cmd_lane_apply(args):
     ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    # The index is repo-level, so its guard can refuse. That must NOT skip the
+    # escalation event below: the index entry is rebuilt from ticket.json by
+    # the next write, while the audit event has no other source and the lane
+    # raise is already durable. Report the gap after the event is safe.
+    index_error = None
+    try:
+        lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    except lib.GuardTimeout as exc:
+        index_error = str(exc)
     result["escalated"] = True
+    result["index_updated"] = index_error is None
 
     event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
              "from_size": from_size, "from_stakes": from_stakes,
@@ -262,6 +279,15 @@ def cmd_lane_apply(args):
         die("lane apply",
             "axes and lane are applied but the escalation event was not recorded: %s" % exc)
     result.update({"event_recorded": True, "event": event})
+    if index_error:
+        result["error"] = index_error
+        emit(result)
+        die("lane apply",
+            "the lane raise (%s -> %s) and its escalation event ARE recorded, but "
+            "tickets-index.json was not updated: %s\nThe index entry is rebuilt "
+            "from ticket.json by the next write to it, so this self-heals; "
+            "re-running would be a no-op, since the raise is already applied."
+            % (from_lane, new_lane, index_error))
     emit(result)
 
 
@@ -285,6 +311,23 @@ def cmd_lane_deescalate(args):
 # ---------------------------------------------------------------------------
 # stakes
 # ---------------------------------------------------------------------------
+
+def read_lines_arg(command, path):
+    """Lines from `path`, or from stdin when it is '-'.
+
+    The isatty guard matches _paths_from below: without it, `--files-from -`
+    typed at a terminal blocks forever on a read that will never end, instead
+    of saying what it wanted."""
+    if path == "-":
+        if sys.stdin.isatty():
+            die(command, "%s - expects one path per line on stdin" % command)
+        return sys.stdin.read().splitlines()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except OSError as exc:
+        die(command, "could not read %s: %s" % (path, exc))
+
 
 def _paths_from(args, command):
     paths = list(args.path or [])
@@ -352,6 +395,156 @@ def cmd_ticket_save(args):
     lib.save_ticket(tdir, incoming)
     lib.update_index(ctx["workspace"], ctx["repo_id"], incoming)
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
+
+
+def _lock_view(tdir, ticket_id, ctx):
+    lock = lib.read_lock(tdir)
+    if not isinstance(lock, dict):
+        return {"ok": True, "ticket_id": ticket_id, "held": False, "lock": None,
+                "stale": None, "basis": None, "basis_detail": None, "held_by_me": False}
+    stale, basis = lib.lock_staleness(lock)
+    return {"ok": True, "ticket_id": ticket_id, "held": True, "lock": lock,
+            "stale": stale, "basis": basis,
+            "basis_detail": lib.LOCK_STALENESS_REASONS[basis],
+            "held_by_me": lock.get("checkout_id") == ctx["checkout_id"]}
+
+
+def cmd_lock_status(args):
+    """What holds this ticket's lock, and on what evidence.
+
+    `stale` is a verdict, `basis` is how it was reached — a lock held on
+    another host has no liveness signal at all and degrades to an age timeout
+    (lib.lock_staleness). Read both before breaking anything."""
+    ticket_id, tdir, ctx = partition_or_die("lock status", args.ticket)
+    view = _lock_view(tdir, ticket_id, ctx)
+    view["lock_path"] = lib.lock_path(tdir)
+    view["audit_path"] = lib.lock_audit_path(tdir)
+    emit(view)
+
+
+def cmd_lock_force_unlock(args):
+    """Break a lock this checkout does not hold, recording who and why.
+
+    The audited escape hatch for the case release_lock refuses by design: the
+    holding session is gone but its lock is not (and, cross-host, will not read
+    as stale for 24 hours). --reason is required and lands in the ticket's
+    append-only lock-events.jsonl before the lock file is removed."""
+    ticket_id, tdir, ctx = partition_or_die("lock force-unlock", args.ticket)
+    before = _lock_view(tdir, ticket_id, ctx)
+    if not before["held"]:
+        emit({"ok": True, "ticket_id": ticket_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(tdir)})
+        return
+    if before["held_by_me"] and not args.force:
+        die("lock force-unlock",
+            "this checkout holds the lock — the post hook releases it; pass --force "
+            "to break your own lock anyway")
+    try:
+        result = lib.force_release_lock(tdir, os.getcwd(), args.reason, actor=args.actor)
+    except (ValueError, lib.GateError) as exc:
+        die("lock force-unlock", str(exc))
+    emit({"ok": True, "ticket_id": ticket_id, "forced": result["forced"],
+          "detail": result["detail"], "audit_path": result["audit_path"],
+          "broken_lock": result["lock"], "was_stale": before["stale"],
+          "staleness_basis": before["basis"]})
+def cmd_filemap_set(args):
+    """Declare one executor task's file map, so the PreToolUse guard can enforce
+    the executor charter's "mutate ONLY the files in your task's file map".
+
+    Per task and additive: the coordinator declares them one at a time as it
+    decomposes the plan, and declaring task 2 must not erase task 1."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap set", args.ticket)
+    files = list(args.file)
+    if args.files_from:
+        files += [line.strip() for line in
+                  read_lines_arg("filemap set", args.files_from) if line.strip()]
+    if not files:
+        die("filemap set", "declare at least one file (--file, or --files-from FILE)")
+    tasks = lib.save_filemap_task(tdir, args.skill, args.iteration, args.task, files)
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "task": str(args.task),
+          "files": tasks[str(args.task)],
+          "path": lib.filemap_path(tdir, args.skill, args.iteration),
+          "tasks": tasks})
+
+
+def cmd_filemap_show(args):
+    """The declared map for an iteration, plus the union the guard enforces."""
+    ticket_id, tdir, _ctx = partition_or_die("filemap show", args.ticket)
+    tasks = lib.load_filemap(tdir, args.skill, args.iteration) or {}
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
+          "union": sorted({f for files in tasks.values() for f in files}),
+          "path": lib.filemap_path(tdir, args.skill, args.iteration)})
+def cmd_verdict_show(args):
+    """The verifier's verdict for one iteration — validated, not just printed.
+
+    `passed` in the output is DERIVED from the findings, so a document that
+    claims otherwise shows up as an error here rather than as a pass."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict show", args.ticket)
+    doc = lib.load_verdict(tdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
+    if doc is None:
+        die("verdict show", "no verdict at %s" % path)
+    errors = lib.validate_verdict(doc, lens=args.lens, ticket_id=ticket_id)
+    if errors:
+        # `passed` is DERIVED from the findings, and an absent findings list
+        # derives True -- so emitting it beside ok:false told the coordinator
+        # (whose instructions say to copy `passed`, and never mention `ok`)
+        # that an unusable document was a pass. A document we cannot validate
+        # has no verdict to report.
+        die("verdict show", "the verdict at %s is not usable: %s"
+            % (path, "; ".join(errors)))
+    emit({"ok": True, "ticket_id": ticket_id, "path": path,
+          "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
+          "blocking": len(lib.blocking_findings(doc)), "errors": [],
+          "verdict": doc})
+
+
+def cmd_verdict_merge(args):
+    """Merge the four full-depth lens verdicts into the iteration's verdict.
+
+    Mechanical — passed is the conjunction, findings the union, each dimension
+    the worst result any lens reported — so the coordinator INVOKES the merge
+    rather than authoring a verdict it did not reach."""
+    ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
+    lenses = args.lens or list(lib.LENSES)
+    # All four, always. --lens was an append flag with no completeness rule, so
+    # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
+    # findings while reporting ok/passed -- a coordinator-run command that
+    # silently discards a verifier's verdict, which is what AC-3 forbids.
+    if sorted(set(lenses)) != sorted(lib.LENSES):
+        die("verdict merge",
+            "a merge covers all four lenses (%s); got %s. A subset drops the "
+            "findings of the lenses left out."
+            % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
+    docs, missing = [], []
+    for lens in lenses:
+        doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
+        if doc is None:
+            missing.append(lens)
+        else:
+            docs.append(doc)
+    if missing:
+        die("verdict merge", "no verdict for lens %s (iteration %s)"
+            % (", ".join(missing), args.iteration))
+    merged = lib.merge_lens_verdicts(docs)
+    merged["written_at"] = lib.now_iso()
+    errors = lib.validate_verdict(merged)
+    if errors:
+        die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
+    existing = lib.load_verdict(tdir, args.skill, args.iteration)
+    if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
+        die("verdict merge",
+            "%s already holds a verdict with %d blocking finding(s); refusing to "
+            "replace it with a passing one. Fix the findings and re-run the "
+            "verifier rather than overwriting its verdict."
+            % (lib.verdict_path(tdir, args.skill, args.iteration),
+               len(lib.blocking_findings(existing))))
+    path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
+    emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
+          "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
+          "verdict": merged})
 
 
 def cmd_phase_validate(args):
@@ -495,6 +688,58 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
+    lock = sub.add_parser("lock", help="inspect and (audited) break a ticket lock")
+    lock_sub = lock.add_subparsers(dest="cmd")
+
+    lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
+    lstatus.add_argument("--ticket")
+    lstatus.set_defaults(func=cmd_lock_status)
+
+    lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
+    lforce.add_argument("--ticket")
+    lforce.add_argument("--reason", required=True,
+                        help="why the lock is being broken; recorded in the audit ledger")
+    lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
+    lforce.add_argument("--force", action="store_true",
+                        help="break the lock even when this checkout is its holder")
+    lforce.set_defaults(func=cmd_lock_force_unlock)
+    filemap = sub.add_parser("filemap", help="the executor file map the write guard enforces")
+    filemap_sub = filemap.add_subparsers(dest="cmd")
+
+    fmset = filemap_sub.add_parser("set", help="declare one executor task's file map")
+    fmset.add_argument("--ticket")
+    fmset.add_argument("--skill", default="code")
+    fmset.add_argument("--iteration", type=int, default=1)
+    fmset.add_argument("--task", type=int, required=True, help="the executor task index")
+    fmset.add_argument("--file", action="append", default=[],
+                       help="a repo-relative path the task may write (repeatable)")
+    fmset.add_argument("--files-from", dest="files_from", metavar="FILE",
+                       help="read paths one per line ('-' for stdin)")
+    fmset.set_defaults(func=cmd_filemap_set)
+
+    fmshow = filemap_sub.add_parser("show", help="the declared map and the enforced union")
+    fmshow.add_argument("--ticket")
+    fmshow.add_argument("--skill", default="code")
+    fmshow.add_argument("--iteration", type=int, default=1)
+    fmshow.set_defaults(func=cmd_filemap_show)
+    verdict = sub.add_parser("verdict", help="the verifier's verdict document")
+    verdict_sub = verdict.add_subparsers(dest="cmd")
+
+    vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
+    vshow.add_argument("--ticket")
+    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--iteration", type=int, default=1)
+    vshow.add_argument("--lens", choices=list(lib.LENSES))
+    vshow.set_defaults(func=cmd_verdict_show)
+
+    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
+    vmerge.add_argument("--ticket")
+    vmerge.add_argument("--skill", default="code")
+    vmerge.add_argument("--iteration", type=int, default=1)
+    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
+                        help="restrict the merge to these lenses (default: all four)")
+    vmerge.set_defaults(func=cmd_verdict_merge)
+
     phase = sub.add_parser("phase", help="phase artifacts")
     phase_sub = phase.add_subparsers(dest="cmd")
     pval = phase_sub.add_parser("validate", help="check a result document before the post-hook")
@@ -539,7 +784,16 @@ def main(argv=None):
         # A group with no subcommand ("acs.py lane") — show that group's usage.
         parser.print_help(sys.stderr)
         sys.exit(2)
-    func(args)
+    try:
+        func(args)
+    except lib.GateError as exc:
+        # The documented contract of this CLI (see the module docstring) is
+        # `acs <command>: <reason>` on stderr and exit 2 for a blocked command.
+        # GuardTimeout is a GateError raised from deep inside a repo-level
+        # write, and without this it reached the operator as a Python traceback
+        # and exit 1 -- indistinguishable from a crash, at ten call sites.
+        verbs = [a for a in argv[:2] if not a.startswith("-")]
+        die(" ".join(verbs) or "command", str(exc))
 
 
 if __name__ == "__main__":
