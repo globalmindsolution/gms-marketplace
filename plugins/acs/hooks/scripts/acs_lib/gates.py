@@ -14,12 +14,13 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json
+from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
 from .settings import load_settings, validate_settings
-from .repo import GuardTimeout, archive_dir, checkout_id, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
-from .state import check_lock, finalize_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
+from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
+from .derive import derive_states, disagreements
 
 
 
@@ -327,17 +328,25 @@ def run_pre(skill):
     sys.exit(run_pre_payload(skill, payload))
 
 
-def run_pre_payload(skill, payload):
+def run_pre_payload(skill, payload, record_marker=True):
     """Gate one skill from an already-parsed hook payload; return the exit code.
 
     Separate from run_pre so the dispatcher can gate in-process rather than
     spawning a forwarder: a subprocess that hangs or dies takes its exit code
-    with it, and anything other than 2 lets the skill run."""
-    cwd = payload.get("cwd") or os.getcwd()
+    with it, and anything other than 2 lets the skill run.
+
+    `record_marker=False` is for a caller that is NOT a hook event -- `acs.py
+    gate`, which answers "would this gate pass?" without a PreToolUse envelope.
+    Such a payload carries no session_id or transcript_path, and
+    record_session_marker faithfully persists those as null (deliberately: it
+    never guesses), which would overwrite the real marker and cost the next run
+    its usage attribution."""
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
         try:
-            record_session_marker(ctx, payload)
+            if record_marker:
+                record_session_marker(ctx, payload)
         except Exception:  # a marker-write bug must never block a gated skill
             pass
         warn = tracker_cli_warning(ctx["settings"])
@@ -485,7 +494,40 @@ def run_post(skill):
         sys.exit(1)
 
     status = result["status"]  # guaranteed by _read_result_from_argv
+
+    # MAR-523: the gate-bearing states keys are COMPUTED from the artifacts,
+    # not read from the document. Done before finalize_run so what is persisted
+    # is the derived view; the disagreements ride on the run entry, which is
+    # append-only and audited.
+    # Wrapped: derivation runs BEFORE finalize_run, so anything it raises used
+    # to leave runs[-1].status == "in_progress" with the lock still held (the
+    # release is far below) -- the next gate then refuses with "crashed or
+    # still running elsewhere" and the coordinator's result document is lost.
+    # A derivation that cannot run must degrade to "not derived", never to a
+    # stranded run.
+    try:
+        derived, notes = derive_states(
+            tdir, skill, result, settings=ctx["settings"],
+            ticket_id=ticket_id,
+            since=(last_run(load_state(tdir, skill)) or {}).get("started_at"),
+            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+    except Exception as exc:  # noqa: BLE001 - see above
+        derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
+                                           "computed from artifacts" % exc}
+    conflicts = disagreements(result.get("states") or {}, derived)
+    if derived:
+        result.setdefault("states", {}).update(derived)
+
     state, entry = finalize_run(tdir, skill, ticket_id, result)
+    entry["derived_states"] = {"values": derived, "provenance": notes,
+                               "overrode": [{"key": key, "supplied": was, "derived": now}
+                                            for key, was, now in conflicts]}
+    write_json(state_path(tdir, skill), state)
+    for key, was, now in conflicts:
+        sys.stderr.write(
+            "acs post-%s: states.%s was %r in the result document; the artifacts say "
+            "%r (%s). The derived value is what was written.\n"
+            % (skill, key, was, now, notes.get(key, "derived")))
     flow = "product" if skill in PRODUCT_SKILLS else "ticket"
     summary = result.get("handoff_summary") or result.get("stop_reason")
     update_pipeline(tdir, ticket_id, skill, status, summary=summary, flow=flow)
@@ -578,7 +620,7 @@ _POST_GUARD_REPAIR = {
 def session_end(payload):
     """Finalize any run this checkout left in_progress as `interrupted` and release
     its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
-    cwd = payload.get("cwd") or os.getcwd()
+    cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:

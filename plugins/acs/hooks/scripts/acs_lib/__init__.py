@@ -13,6 +13,7 @@ it always did. In dependency order:
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   gates          context resolution, the pre-hook gates, post-hook persistence
   verdict        the verifier's verdict document and its derived-pass rule
+  derive         the result-document fields the kernel computes from artifacts
   lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
@@ -22,7 +23,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               gates, verdict, lifecycle)  # noqa: F401
+               verdict, derive, gates, lifecycle)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -46,8 +47,9 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     checkout_id, checkout_root, current_branch, default_state_root,
     find_ticket_partition, gh_failure_hint, index_path, lock_path, main_repo_root,
     pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
-    resolve_ticket_id, scan_local_ticket_evidence, session_marker_path, sessions_dir,
-    state_path, ticket_dir, ticket_id_from_text)  # noqa: F401
+    resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
+    session_marker_path, sessions_dir, state_path, ticket_dir,
+    ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
 from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
     PLAN_REQUIRED_SECTIONS, VERIFY_ITERATION_CAP, _PLAN_HEADING_RE, _SIZE_ORDER,
@@ -74,7 +76,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, TOOLCHAIN, _BARE_INT
     parse_fanout_for_arg, render_managed_block, tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
-from .gates import (ARCHITECTURE_DEPENDENT_SKILLS,GATES, _archive_partition, _clear_pointers_for_ticket,
+from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATES, _archive_partition, _clear_pointers_for_ticket,
     _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
     _require_architecture_doc_set, _require_completed, _resolve_ticket_for_gate,
     build_context, design_requirement, gate_code, gate_create_architecture,
@@ -103,3 +105,7 @@ from .lifecycle import stop as stop_hook  # noqa: F401
 from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
     blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
     validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
+
+from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
+    derive_verifier_passed, disagreements, execute_reports, gh_pr_for_branch,
+    latest_verdict, review_iterations)  # noqa: F401
