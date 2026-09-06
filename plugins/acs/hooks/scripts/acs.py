@@ -13,7 +13,8 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, filemap, verdict, phase, slug, fanout,
+    context, gate, lane, stakes, ticket, lock, filemap, verdict, phase, slug,
+    fanout, .
     doctor.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
@@ -43,6 +44,8 @@ Usage:
   acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py lock status --ticket MAR-1
+  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
   acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
   acs.py filemap show
   acs.py verdict show --iteration 2
@@ -247,8 +250,17 @@ def cmd_lane_apply(args):
     ticket["size"], ticket["stakes"], ticket["lane"] = eff_size, eff_stakes, new_lane
     lib.save_ticket(tdir, ticket)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
-    lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    # The index is repo-level, so its guard can refuse. That must NOT skip the
+    # escalation event below: the index entry is rebuilt from ticket.json by
+    # the next write, while the audit event has no other source and the lane
+    # raise is already durable. Report the gap after the event is safe.
+    index_error = None
+    try:
+        lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
+    except lib.GuardTimeout as exc:
+        index_error = str(exc)
     result["escalated"] = True
+    result["index_updated"] = index_error is None
 
     event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
              "from_size": from_size, "from_stakes": from_stakes,
@@ -264,6 +276,15 @@ def cmd_lane_apply(args):
         die("lane apply",
             "axes and lane are applied but the escalation event was not recorded: %s" % exc)
     result.update({"event_recorded": True, "event": event})
+    if index_error:
+        result["error"] = index_error
+        emit(result)
+        die("lane apply",
+            "the lane raise (%s -> %s) and its escalation event ARE recorded, but "
+            "tickets-index.json was not updated: %s\nThe index entry is rebuilt "
+            "from ticket.json by the next write to it, so this self-heals; "
+            "re-running would be a no-op, since the raise is already applied."
+            % (from_lane, new_lane, index_error))
     emit(result)
 
 
@@ -373,6 +394,56 @@ def cmd_ticket_save(args):
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True})
 
 
+def _lock_view(tdir, ticket_id, ctx):
+    lock = lib.read_lock(tdir)
+    if not isinstance(lock, dict):
+        return {"ok": True, "ticket_id": ticket_id, "held": False, "lock": None,
+                "stale": None, "basis": None, "basis_detail": None, "held_by_me": False}
+    stale, basis = lib.lock_staleness(lock)
+    return {"ok": True, "ticket_id": ticket_id, "held": True, "lock": lock,
+            "stale": stale, "basis": basis,
+            "basis_detail": lib.LOCK_STALENESS_REASONS[basis],
+            "held_by_me": lock.get("checkout_id") == ctx["checkout_id"]}
+
+
+def cmd_lock_status(args):
+    """What holds this ticket's lock, and on what evidence.
+
+    `stale` is a verdict, `basis` is how it was reached — a lock held on
+    another host has no liveness signal at all and degrades to an age timeout
+    (lib.lock_staleness). Read both before breaking anything."""
+    ticket_id, tdir, ctx = partition_or_die("lock status", args.ticket)
+    view = _lock_view(tdir, ticket_id, ctx)
+    view["lock_path"] = lib.lock_path(tdir)
+    view["audit_path"] = lib.lock_audit_path(tdir)
+    emit(view)
+
+
+def cmd_lock_force_unlock(args):
+    """Break a lock this checkout does not hold, recording who and why.
+
+    The audited escape hatch for the case release_lock refuses by design: the
+    holding session is gone but its lock is not (and, cross-host, will not read
+    as stale for 24 hours). --reason is required and lands in the ticket's
+    append-only lock-events.jsonl before the lock file is removed."""
+    ticket_id, tdir, ctx = partition_or_die("lock force-unlock", args.ticket)
+    before = _lock_view(tdir, ticket_id, ctx)
+    if not before["held"]:
+        emit({"ok": True, "ticket_id": ticket_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(tdir)})
+        return
+    if before["held_by_me"] and not args.force:
+        die("lock force-unlock",
+            "this checkout holds the lock — the post hook releases it; pass --force "
+            "to break your own lock anyway")
+    try:
+        result = lib.force_release_lock(tdir, os.getcwd(), args.reason, actor=args.actor)
+    except (ValueError, lib.GateError) as exc:
+        die("lock force-unlock", str(exc))
+    emit({"ok": True, "ticket_id": ticket_id, "forced": result["forced"],
+          "detail": result["detail"], "audit_path": result["audit_path"],
+          "broken_lock": result["lock"], "was_stale": before["stale"],
+          "staleness_basis": before["basis"]})
 def cmd_filemap_set(args):
     """Declare one executor task's file map, so the PreToolUse guard can enforce
     the executor charter's "mutate ONLY the files in your task's file map".
@@ -614,6 +685,21 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
+    lock = sub.add_parser("lock", help="inspect and (audited) break a ticket lock")
+    lock_sub = lock.add_subparsers(dest="cmd")
+
+    lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
+    lstatus.add_argument("--ticket")
+    lstatus.set_defaults(func=cmd_lock_status)
+
+    lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
+    lforce.add_argument("--ticket")
+    lforce.add_argument("--reason", required=True,
+                        help="why the lock is being broken; recorded in the audit ledger")
+    lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
+    lforce.add_argument("--force", action="store_true",
+                        help="break the lock even when this checkout is its holder")
+    lforce.set_defaults(func=cmd_lock_force_unlock)
     filemap = sub.add_parser("filemap", help="the executor file map the write guard enforces")
     filemap_sub = filemap.add_subparsers(dest="cmd")
 
@@ -695,7 +781,16 @@ def main(argv=None):
         # A group with no subcommand ("acs.py lane") — show that group's usage.
         parser.print_help(sys.stderr)
         sys.exit(2)
-    func(args)
+    try:
+        func(args)
+    except lib.GateError as exc:
+        # The documented contract of this CLI (see the module docstring) is
+        # `acs <command>: <reason>` on stderr and exit 2 for a blocked command.
+        # GuardTimeout is a GateError raised from deep inside a repo-level
+        # write, and without this it reached the operator as a Python traceback
+        # and exit 1 -- indistinguishable from a crash, at ten call sites.
+        verbs = [a for a in argv[:2] if not a.startswith("-")]
+        die(" ".join(verbs) or "command", str(exc))
 
 
 if __name__ == "__main__":

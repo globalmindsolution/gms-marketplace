@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/lock-events.schema.json",
+  "title": "acs lock-events.jsonl entry",
+  "description": "One line of a ticket partition's append-only lock ledger (lock-events.jsonl, JSONL: one object per line, never rewritten). Written only by `acs.py lock force-unlock`, which breaks a lock this checkout does not hold. The ledger is what makes that break reviewable, so this schema pins the entry shape its readers -- future tooling and auditors -- depend on. `event` is the discriminator: the two kinds carry different key sets, and the entry recording the break is always appended BEFORE the lock file is removed, so a crash between the two leaves a recorded break with the lock still in place rather than a broken lock nobody can trace.",
+  "type": "object",
+  "required": ["event", "at", "reason"],
+  "properties": {
+    "event": {
+      "description": "lock_force_released: the break was recorded (and, unless a lock_force_release_failed line follows, performed). lock_force_release_failed: the audit entry landed but removing the lock file then failed, so the lock is still held.",
+      "enum": ["lock_force_released", "lock_force_release_failed"]
+    },
+    "at": {"type": "string", "format": "date-time"},
+    "reason": {
+      "description": "The operator's stated reason. Required and non-empty: force_release_lock refuses without one.",
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "description": "Who asked for the break, when the caller named one (--actor). null when unattributed.",
+      "oneOf": [{"type": "string"}, {"type": "null"}]
+    },
+    "by_checkout_id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+    "by_checkout_path": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+    "by_pid": {"type": "integer", "minimum": 1},
+    "by_hostname": {"type": "string"},
+    "broken_lock": {
+      "description": "The .lock document as it read at the moment of the break, verbatim (lock.schema.json).",
+      "type": "object"
+    },
+    "staleness_verdict": {
+      "description": "What lock_staleness said at the time. RECORDED, not consulted for permission: breaking a lock is an operator's call, and this is the evidence of what was known when it was made.",
+      "type": "boolean"
+    },
+    "staleness_basis": {"type": "string"},
+    "error": {
+      "description": "lock_force_release_failed only: why the unlink failed.",
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event": {"const": "lock_force_released"}}, "required": ["event"]},
+      "then": {"required": ["by_pid", "by_hostname", "broken_lock",
+                            "staleness_verdict", "staleness_basis"]}
+    },
+    {
+      "if": {"properties": {"event": {"const": "lock_force_release_failed"}}, "required": ["event"]},
+      "then": {"required": ["error"]}
+    }
+  ],
+  "additionalProperties": true
+}
