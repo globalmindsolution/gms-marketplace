@@ -568,7 +568,8 @@ def cmd_verdict_show(args):
     path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
     if doc is None:
         die("verdict show", "no verdict at %s" % path)
-    errors = lib.validate_verdict(doc, lens=args.lens, ticket_id=ticket_id)
+    errors = lib.validate_verdict(doc, lens=args.lens, skill=args.skill,
+                                  ticket_id=ticket_id, iteration=args.iteration)
     if errors:
         # `passed` is DERIVED from the findings, and an absent findings list
         # derives True -- so emitting it beside ok:false told the coordinator

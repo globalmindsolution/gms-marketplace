@@ -410,6 +410,39 @@ class VerdictCliTest(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 2)
         self.assertIn("no verdict at", out.stderr)
 
+    def test_show_refuses_a_verdict_from_another_iteration(self):
+        """A verdict is evidence only for the run that produced it: iteration
+        1's clean verdict sitting on iteration 3's path is not iteration 3's
+        verdict, and reading it as a pass makes the audit surface lie."""
+        self._write(verdict(), iteration=3)
+        out = self.run_script("acs.py", "verdict", "show", "--iteration", "3")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("not usable", out.stderr)
+        self.assertIn("verdict iteration is 1 but this is 3", out.stderr)
+        self.assertEqual(out.stdout.strip(), "")
+
+    def test_show_refuses_a_verdict_from_another_skill(self):
+        """The same freshness rule on the other axis: a docs-sync verdict read
+        at the code path is not code's verdict."""
+        self._write(verdict(skill="docs-sync"))
+        out = self.run_script("acs.py", "verdict", "show", "--skill", "code")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("not usable", out.stderr)
+        self.assertIn("docs-sync", out.stderr)
+        self.assertIn("evidence only", out.stderr)
+        self.assertEqual(out.stdout.strip(), "")
+
+    def test_show_reports_a_verdict_whose_iteration_matches(self):
+        """Freshness refuses a mismatch, not a match: a document about the run
+        that was asked for still reports its derived verdict."""
+        self._write(verdict(iteration=3), iteration=3)
+        out = self.run_script("acs.py", "verdict", "show", "--iteration", "3")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["passed"])
+        self.assertEqual(body["blocking"], 0)
+
     def test_merge_writes_the_iteration_verdict_from_the_four_lenses(self):
         for lens in lib.LENSES:
             self._write(verdict(lens=lens, dimensions=all_dimensions(lens=lens)), lens=lens)
