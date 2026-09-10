@@ -1,0 +1,60 @@
+# acs-evals tier 1 — the golden dataset in globalmindsolution/acs-evals replayed
+# against this checkout's plugin build. Free and deterministic: it runs no model,
+# so it gates every PR like the unit tests do. Kept separate from ci.yml so a
+# dataset red is distinguishable from a unit-test red.
+name: acs-evals tier 1
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer commit supersedes an in-flight run for the same PR; `|| github.sha`
+# keeps push runs from sharing one group.
+concurrency:
+  group: acs-evals-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+# Bump protocol: a plugin behaviour change that alters a golden turns this job
+# red until acs-evals re-records the case (`make record` there) and the SHA
+# below is bumped in the SAME PR. That coupling is the gate's purpose — never
+# make the job non-blocking to hide it. The pin is the head of acs-evals PR #1
+# (branch claude/acs-evals-review-az3x51); commits are immutable, so it stays
+# valid once that PR lands.
+env:
+  ACS_EVALS_REF: 25dacd9d9417a442998e848469468a3f720b6e4e
+
+jobs:
+  tier1:
+    name: acs-evals tier 1 (356 golden cases)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # actions/checkout cannot write outside GITHUB_WORKSPACE, so the dataset
+      # lands beside this checkout rather than above it.
+      - uses: actions/checkout@v7
+        with:
+          repository: globalmindsolution/acs-evals
+          ref: ${{ env.ACS_EVALS_REF }}
+          path: acs-evals
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Replay the golden dataset against this checkout's plugin
+        working-directory: acs-evals
+        env:
+          ACS_PLUGIN_ROOT: ${{ github.workspace }}/plugins/acs
+        run: python3 runner/run_golden.py --json results/latest.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acs-evals-results
+          path: acs-evals/results/latest.json
