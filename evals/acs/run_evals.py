@@ -93,14 +93,32 @@ def preflight_verdict(routed_to, detection):
     return True, "acs:setup is registered in the probe session"
 
 
+def will_spend(mod):
+    """Whether a selected spending-tier scenario will actually spawn `claude`.
+
+    A scenario that skips itself when its target is unconfigured (no forge
+    repo, no GitHub test project) declares that with a module-level
+    `will_spend()`; the pre-flight guards spending, so a run in which nothing
+    will spend runs no probe — CI has no `claude`, and the unconfigured skip
+    must stay a clean exit 0 there. A scenario without the hook is assumed to
+    spend.
+    """
+    hook = getattr(mod, "will_spend", None)
+    return True if hook is None else bool(hook())
+
+
 def run_preflight():
     """Probe a throwaway sandbox for plugin registration; returns (ok, message).
 
     Free: the probe is decided at the session's init event and killed there, so
-    no model turn runs.
+    no model turn runs. A `claude` that cannot be started at all is the same
+    verdict as a sandbox that cannot see the plugin — stated, never a traceback.
     """
-    with Sandbox(prefix="EVAL", slug="preflight", init=False) as sb:
-        routed_to, detection = sb.trigger_detail(PREFLIGHT_PROBE)
+    try:
+        with Sandbox(prefix="EVAL", slug="preflight", init=False) as sb:
+            routed_to, detection = sb.trigger_detail(PREFLIGHT_PROBE)
+    except OSError as exc:
+        return False, "the claude CLI could not be started (%s)" % exc
     return preflight_verdict(routed_to, detection)
 
 
@@ -147,7 +165,7 @@ def main():
     # routing failure. Prove registration first, and spend nothing when it fails.
     spending = [mod for mod in chosen if mod.META["tier"] in SPENDING_TIERS]
     preflight_failed = False
-    if spending:
+    if any(will_spend(mod) for mod in spending):
         ok, detail = run_preflight()
         if not ok:
             preflight_failed = True

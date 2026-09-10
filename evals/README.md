@@ -101,9 +101,11 @@ python3 evals/run_evals.py --plugin acs --paid --keep   # keep sandbox dirs to i
 Exit code is non-zero if any selected scenario has a failing assertion — and
 also when the paid/forge pre-flight fails. A `--paid`/`--forge` run first spends
 nothing on a free `/acs:setup` registration probe in a fresh sandbox; if that
-sandbox cannot see the plugin the runner drops every spending scenario, still
-runs the free tier, and exits 1 with **no** failing scenario (MAR-575). A
-passing pre-flight prints nothing.
+sandbox cannot see the plugin (or `claude` cannot be started) the runner drops
+every spending scenario, still runs the free tier, and exits 1 with **no**
+failing scenario (MAR-575). A passing pre-flight prints nothing, and a run in
+which no selected spending scenario will actually spend (an unconfigured forge
+scenario skips itself) runs no probe.
 
 ## Pre-commit and CI
 

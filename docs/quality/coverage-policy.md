@@ -14,7 +14,7 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **93%** (9344 statements, 631
+for its sequence diagram. Repo-wide TOTAL is **93%** (9358 statements, 630
 missed) — above the 90 floor. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
@@ -46,13 +46,13 @@ and added **no** omit entry for the eval scenario drivers.
 `post-merge-pr.py` is deliberately **not** omitted: it has a real `--pr`
 branch and is measured, currently at 21 statements / 100%.
 
-`evals/` contributes 1105 of the 9344 measured statements and 301 of the 631
-missed. Split by each scenario module's declared `META["tier"]`, those 301 are
+`evals/` contributes 1119 of the 9358 measured statements and 300 of the 630
+missed. Split by each scenario module's declared `META["tier"]`, those 300 are
 **115** in paid- and forge-tier scenario drivers (85 of them in `evals/tabp`'s
 `screen_cvs_eval.py`), **76** in free-tier acs drivers — deterministic, and
 run by the `acs-free-evals` pre-commit hook whenever `evals/` or `plugins/`
 change, just never in-process under the unit suite — **59** in
-`evals/acs/harness.py` itself and **51** in the two per-plugin `run_evals.py`
+`evals/acs/harness.py` itself and **50** in the two per-plugin `run_evals.py`
 runners; the headroom is the eval layer as a whole, not the paid tier alone.
 If that headroom ever puts TOTAL under the floor, the remedy is a
 unit path for those drivers, not an `omit`:

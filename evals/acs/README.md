@@ -62,10 +62,15 @@ ACS_EVAL_SOURCE=1 python3 evals/acs/run_evals.py
 Exit code is non-zero if any selected scenario has a failing assertion — and
 also when the paid/forge pre-flight fails. Before the first spending scenario, a
 `--paid`/`--forge` run spends nothing on a free `/acs:setup` registration probe
-in a fresh sandbox; if that sandbox cannot see the plugin the runner prints
+in a fresh sandbox; if that sandbox cannot see the plugin (or `claude` cannot
+be started at all) the runner prints
 `PRE-FLIGHT FAILED — the sandbox cannot see the plugin`, drops every spending
 scenario, still runs the free tier, and exits 1 with **no** failing scenario
-(MAR-575). A passing pre-flight prints nothing.
+(MAR-575). A passing pre-flight prints nothing. The probe runs only when a
+selected spending scenario will actually spend: a forge scenario whose target
+is unconfigured declares `will_spend()` false, records its one skipped result,
+and triggers no probe — which is why the unconfigured skip stays a clean exit 0
+in CI, where there is no `claude`.
 
 ## The acs Sandbox seam
 

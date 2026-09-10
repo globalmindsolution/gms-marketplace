@@ -140,6 +140,17 @@ def _assert_pr_facts(check, sb, tid, pr):
         check.ok("PR body has the '## %s' section" % section, ("## %s" % section) in body)
 
 
+def will_spend():
+    """Tell the runner whether this scenario would spawn `claude` at all: with
+    no forge target it records one skipped result and spends nothing, so the
+    paid-tier pre-flight has nothing to guard."""
+    try:
+        resolve_forge_target()
+    except ForgeConfigError:
+        return False
+    return True
+
+
 def run():
     check = Check(META["name"])
 

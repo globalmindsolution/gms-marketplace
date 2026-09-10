@@ -183,5 +183,77 @@ class PaidTierIsGatedTest(unittest.TestCase):
         self.assertEqual(code, 0)
 
 
+class SelfSkippingSpendingScenariosTest(unittest.TestCase):
+    """A spending-tier scenario that will skip itself (no forge target, no
+    GitHub test project) spends nothing, so it must not trigger the pre-flight
+    either — CI has no `claude`, and the unconfigured forge skip ran green
+    there before MAR-575."""
+
+    def _main(self, scenarios, argv):
+        out = io.StringIO()
+        with mock.patch.object(run_evals, "load_scenarios", lambda *a, **k: scenarios), \
+             mock.patch.object(run_evals, "installed_scripts_dir", lambda: ("", "test")), \
+             mock.patch.object(sys, "argv", ["run_evals.py"] + argv), \
+             contextlib.redirect_stdout(out):
+            code = run_evals.main()
+        return code, out.getvalue()
+
+    def test_a_scenario_that_declares_it_will_not_spend_runs_no_preflight(self):
+        forge = _FakeScenario("create_pr_forge", "forge")
+        forge.will_spend = lambda: False
+        with mock.patch.object(run_evals, "run_preflight",
+                               side_effect=AssertionError("pre-flight must not run")):
+            code, out = self._main([forge], ["--only", "create_pr_forge"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(forge.runs, 1)
+        self.assertNotIn("PRE-FLIGHT", out)
+
+    def test_a_spending_scenario_without_the_hook_is_assumed_to_spend(self):
+        forge = _FakeScenario("create_pr_forge", "forge")
+        with mock.patch.object(run_evals, "run_preflight", return_value=(False, "blind")):
+            code, out = self._main([forge], ["--only", "create_pr_forge"])
+        self.assertEqual(code, 1)
+        self.assertEqual(forge.runs, 0)
+        self.assertIn("PRE-FLIGHT FAILED", out)
+
+    def test_one_spending_scenario_is_enough_to_run_the_preflight(self):
+        quiet = _FakeScenario("create_pr_forge", "forge")
+        quiet.will_spend = lambda: False
+        loud = _FakeScenario("fanout_tracker_sync", "forge")
+        with mock.patch.object(run_evals, "run_preflight", return_value=(False, "blind")):
+            code, out = self._main([quiet, loud], ["--forge"])
+        self.assertEqual(code, 1)
+        self.assertEqual((quiet.runs, loud.runs), (0, 0))
+        self.assertIn("PRE-FLIGHT FAILED", out)
+
+    def test_the_shipped_forge_scenarios_declare_it(self):
+        import importlib
+        s07 = importlib.import_module("scenarios.s07_fanout_tracker_sync")
+        s08 = importlib.import_module("scenarios.s08_create_pr_forge")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ACS_EVAL_GH_PROJECT", None)
+            self.assertFalse(s07.will_spend())
+            os.environ["ACS_EVAL_GH_PROJECT"] = "1"
+            self.assertTrue(s07.will_spend())
+        with mock.patch.object(s08, "resolve_forge_target",
+                               side_effect=harness.ForgeConfigError("no target")):
+            self.assertFalse(s08.will_spend())
+        with mock.patch.object(s08, "resolve_forge_target", return_value="owner/repo"):
+            self.assertTrue(s08.will_spend())
+
+
+class MissingClaudeTest(unittest.TestCase):
+    """No `claude` on PATH is a pre-flight failure, stated in one line — never a
+    traceback out of the runner."""
+
+    def test_a_missing_claude_cli_fails_the_preflight_cleanly(self):
+        sandbox = _FakeSandbox(("acs:setup", "registered"))
+        sandbox.trigger_detail = mock.Mock(side_effect=FileNotFoundError(2, "No such file", "claude"))
+        with mock.patch.object(run_evals, "Sandbox", sandbox):
+            ok, msg = run_evals.run_preflight()
+        self.assertFalse(ok)
+        self.assertIn("claude", msg)
+
+
 if __name__ == "__main__":
     unittest.main()
