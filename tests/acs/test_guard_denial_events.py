@@ -369,10 +369,24 @@ class GuardEventsCliTest(GuardEventsCase):
         self.assertIn("acs guard events:", out.stderr)
         self.assertIn("docs-sync-state.json", out.stderr)
 
-    def test_help_lists_the_guard_group(self):
-        out = self.acs("--help")
-        self.assertEqual(out.returncode, 0)
-        self.assertIn("guard", out.stdout)
+    def test_the_guard_group_is_registered_as_a_group_of_its_own(self):
+        """Asserting the word "guard" in `--help` proves nothing: the untouched
+        tree already prints "the axis guard" and "the write guard enforces".
+        Assert what only this group can emit -- its own help line, a `--help`
+        that names its subcommand, and the usage a subcommand-less group owes
+        (the shape at tests/acs/test_acs_cli.py:521-527)."""
+        top = self.acs("--help")
+        self.assertEqual(top.returncode, 0)
+        self.assertIn("what the executor file-map guard denied", top.stdout)
+
+        group = self.acs("guard", "--help")
+        self.assertEqual(group.returncode, 0, group.stderr)
+        self.assertIn("events", group.stdout)
+
+        bare = self.acs("guard")
+        self.assertEqual(bare.returncode, 2)
+        self.assertIn("usage", bare.stderr.lower())
+        self.assertEqual(bare.stdout, "")
 
 
 class DerivedGuardDenialsCase(AcsWorkspaceCase):

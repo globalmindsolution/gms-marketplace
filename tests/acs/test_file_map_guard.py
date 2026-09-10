@@ -369,12 +369,20 @@ class FilemapCliTest(FileMapGuardCase):
 
 
 class RefusalTextTest(FileMapGuardCase):
-    """The three refusals are byte-identical to what they have always been.
+    """The whole stderr of each of the three refusals, in both partition shapes.
 
-    acs-evals' GUARD-* golden cases pin the guard's exit code and stderr and
-    capture no state file, so the recording MAR-578 added is invisible to them
-    -- but only for as long as a successful append stays silent. That is what
-    this asserts: the whole stderr, not a fragment of it."""
+    acs-evals' GUARD-* golden cases capture no state file and match their
+    `stderr_contains` fragments by CONTAINMENT (`runner/run_golden.py:163`), so
+    what actually keeps them green is two things, and neither is "the stderr is
+    unchanged". First, the three refusal texts themselves are untouched by
+    MAR-578 -- the arms below pin them whole. Second, the recording is allowed
+    to ADD exactly one line, the AC-3 "not recorded" note, and only when the
+    append does not land; a containment match tolerates it, and nothing else
+    would tell us if it grew. The goldens' `ticketed` sandbox is precisely that
+    case: it never runs `acs start code`, so there is no run entry to append to
+    -- no `code-state.json` in the partition at all -- and every deny there
+    carries the note. The `with_no_run_entry` arms pin that stderr whole too, so
+    the one line the goldens tolerate cannot drift unnoticed."""
 
     def deny(self, payload):
         """dispatch.py with ACS_DEBUG cleared, so stderr carries the refusal
@@ -383,6 +391,18 @@ class RefusalTextTest(FileMapGuardCase):
             [sys.executable, os.path.join(SCRIPTS, "dispatch.py"), "file-map"],
             input=json.dumps(payload), capture_output=True, text=True, cwd=self.repo,
             env=dict(os.environ, ACS_DEBUG=""))
+
+    #: The one line a deny adds when the partition has no run entry to append to.
+    NOT_RECORDED = ("acs: file-map guard denial not recorded: "
+                    "no run entry on code-state.json\n")
+
+    def clear_runs(self):
+        """Reproduce the goldens' sandbox: an acs partition whose state file
+        carries no run entry, because nothing there ever ran `acs start code`."""
+        path = lib.state_path(self.tdir_path, "code")
+        state = lib.read_json(path)
+        state["runs"] = []
+        lib.write_json(path, state)
 
     def test_an_out_of_map_write_prints_exactly_its_existing_warning(self):
         self.declare("src/a.py", "tests/test_a.py")
@@ -420,6 +440,50 @@ class RefusalTextTest(FileMapGuardCase):
         self.assertEqual(out.stderr,
             "acs: Write carried a str tool_input, which the file map cannot be "
             "checked against. STOP and return `needs_input`.\n")
+
+    def test_with_no_run_entry_an_out_of_map_write_prints_the_refusal_and_the_note(self):
+        self.declare("src/a.py", "tests/test_a.py")
+        self.spawn_executor()
+        self.clear_runs()
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": {"file_path": "src/somewhere_else.py"}})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: src/somewhere_else.py is outside this task's file map.\n"
+            "Declared for /acs:code iteration 1:\n"
+            "  src/a.py\n"
+            "  tests/test_a.py\n"
+            "Do not improvise scope: STOP and return `needs_input` naming the file, "
+            "so the coordinator can adjust the file map.\n"
+            + self.NOT_RECORDED)
+
+    def test_with_no_run_entry_a_control_input_write_prints_the_refusal_and_the_note(self):
+        self.declare("src/a.py")
+        self.spawn_executor()
+        record = lib.agent_record_path(self.tdir_path, "a-1")
+        self.clear_runs()
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": {"file_path": record}})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: %s is the file-map guard's own control input.\n"
+            "An executor cannot widen or disarm its own scope. If the map is "
+            "wrong, STOP and return `needs_input` naming the file, so the "
+            "coordinator can adjust it.\n" % record
+            + self.NOT_RECORDED)
+
+    def test_with_no_run_entry_an_unreadable_payload_prints_the_refusal_and_the_note(self):
+        self.declare("src/a.py")
+        self.spawn_executor()
+        self.clear_runs()
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": "file_path=evil.py"})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: Write carried a str tool_input, which the file map cannot be "
+            "checked against. STOP and return `needs_input`.\n"
+            + self.NOT_RECORDED)
+
 
 class RegistrationAndProseTest(unittest.TestCase):
 

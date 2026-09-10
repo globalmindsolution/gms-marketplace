@@ -121,11 +121,21 @@ onto the plugin hooks API like this:
    verdict**: a failed append is one extra stderr note, the exit code and the
    warning text stay byte-identical, and there are no retries, waits or lock
    acquisitions, so the append stays well inside the guard's timeout budget.
-   Like `record_escalation_event`, it is an unlocked read-modify-write — two
-   executors denied in the same instant can lose one event, which is the price
-   of keeping a lock off a deny path. Read the trail with **`acs.py guard events
-   --ticket <id> [--skill code]`**; `post-code.py` derives
-   `states.review.guard_denials` from its length.
+   One caveat, stated plainly rather than by analogy: this is the FIRST
+   hook-process writer of the shared `<skill>-state.json`. MAR-528 gave every
+   other hook writer a file of its own — per agent, per checkout — precisely
+   because the parallel executor fan-out is when two of them run at once, and
+   this one opts back into the shared document. No corruption is reachable:
+   `write_json` is atomic (`mkstemp` + `os.replace`), so a torn or truncated
+   state file cannot result. A lost event can: the append is an unlocked
+   read-modify-write, so of N executors denied inside the same window — the
+   correlated case, since a wrong file map denies them all at once — one can
+   overwrite another's event. `record_escalation_event` has the same shape but
+   not the same exposure, having one writer at a time (the coordinator). Keeping
+   a lock off a deny path is the rule above; the price is that the trail is a
+   floor on how often the guard fired, not a guaranteed count. Read the trail
+   with **`acs.py guard events --ticket <id> [--skill code]`**; `post-code.py`
+   derives `states.review.guard_denials` from its length.
 
    **Known hole, stated rather than implied: `Bash` is not covered.** The
    matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
