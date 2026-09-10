@@ -99,6 +99,27 @@
               "additionalProperties": true
             }
           },
+          "guard_events": {
+            "description": "File-map guard denials recorded on this run (MAR-578): one entry per deny, in occurrence order, appended by acs_lib.filemap. Never written on a fail-open branch, and never able to change the deny it describes. Optional and forward-only: a run finalized before it shipped carries none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["ts", "skill", "iteration", "tool", "target", "reason", "declared_count"],
+              "properties": {
+                "ts": {"type": "string"},
+                "skill": {"type": "string"},
+                "iteration": {"type": "string"},
+                "tool": {"type": "string"},
+                "target": {
+                  "description": "Repo-relative when the denied path is under checkout_root, else as given; null for unreadable_payload, where no path is nameable.",
+                  "oneOf": [{"type": "string"}, {"type": "null"}]
+                },
+                "reason": {"enum": ["outside_map", "control_input", "unreadable_payload"]},
+                "declared_count": {"type": "integer", "minimum": 0}
+              },
+              "additionalProperties": true
+            }
+          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {

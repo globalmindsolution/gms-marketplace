@@ -105,6 +105,28 @@ onto the plugin hooks API like this:
    `iter-*-filemap.json` — since an executor that can rewrite either can answer
    the guard's own question.
 
+   **Every deny is recorded: `runs[-1].guard_events` (MAR-578).** A denial used
+   to exist only as a line of stderr in a transcript, so "how often does the
+   guard actually fire, and on what?" had no answer. Each deny now appends one
+   event to the executor's `<skill>-state.json` run entry — `ts`, `skill`,
+   `iteration`, `tool`, `target` (repo-relative when the path is under
+   `checkout_root`, else as given; `null` for an unreadable payload, which names
+   no path), `reason` (`outside_map` | `control_input` | `unreadable_payload`)
+   and `declared_count` (the size of the declared union the guard enforced; `0`
+   for the other two reasons). It is written through
+   `acs_lib.state.record_guard_event`, the sibling of `record_escalation_event`
+   that returns `False` instead of raising when there is no run entry. Two rules
+   bound the trail. It is written **never on a fail-open branch** — a write the
+   guard waves through leaves no trace at all. And it **never changes the
+   verdict**: a failed append is one extra stderr note, the exit code and the
+   warning text stay byte-identical, and there are no retries, waits or lock
+   acquisitions, so the append stays well inside the guard's timeout budget.
+   Like `record_escalation_event`, it is an unlocked read-modify-write — two
+   executors denied in the same instant can lose one event, which is the price
+   of keeping a lock off a deny path. Read the trail with **`acs.py guard events
+   --ticket <id> [--skill code]`**; `post-code.py` derives
+   `states.review.guard_denials` from its length.
+
    **Known hole, stated rather than implied: `Bash` is not covered.** The
    matcher is `Write|Edit|MultiEdit|NotebookEdit`, so a mutation made with
    `sed -i`, `python -c`, `cat >`, `tee`, `mv` or `git checkout --` is outside
@@ -308,9 +330,10 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
-**Four `states` keys are DERIVED, not read (MAR-523).** `run_post` computes
-`verifier_passed`, `tests`, `pr` and `review.iterations` from the artifacts
-before persisting the document, and the computed value wins:
+**Five `states` keys are DERIVED, not read (MAR-523, MAR-578).** `run_post`
+computes `verifier_passed`, `tests`, `pr`, `review.iterations` and
+`review.guard_denials` from the artifacts before persisting the document, and
+the computed value wins:
 
 | Key | Source | When it cannot be computed |
 |---|---|---|
@@ -318,6 +341,7 @@ before persisting the document, and the computed value wins:
 | `tests` | the last iteration's `iter-<n>-execute*.json` reports (`coverage_target` from `settings.test_coverage_percent`) | the coordinator's value is kept |
 | `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | the verify artifacts on disk | the coordinator's value is kept |
+| `review.guard_denials` | the length of `runs[-1].guard_events` on `<skill>-state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
 
 A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
 carries `values`, a one-line `provenance` for every key considered (including
@@ -348,7 +372,7 @@ The next skill reads these — keep the names exact:
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (partition-relative `design.md`), `decision` (one line) |
-| code | `verifier_passed: true/false` (the /create-pr gate), `plan_approved: true/false` (written by `plan-approval.py`; not a gate this release), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` |
+| code | `verifier_passed: true/false` (the /create-pr gate), `plan_approved: true/false` (written by `plan-approval.py`; not a gate this release), `branch`, `specs_implemented: [...]`, `tests` `{passed, failed, coverage_percent, coverage_target}`, `docs_updated: [paths]`, `review` `{iterations, findings_open}` (plus `guard_denials`, derived, only when the file-map guard denied a write) |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr gate) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
 

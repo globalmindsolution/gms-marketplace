@@ -130,6 +130,21 @@ def record_escalation_event(tdir, skill, event):
     return state
 
 
+def record_guard_event(tdir, skill, event):
+    """Append `event` (one file-map guard denial) to runs[-1].guard_events on
+    <skill>-state.json, creating the list if absent. Returns True when the
+    event landed and False when there is no run entry to carry it — unlike
+    record_escalation_event, which raises: the sole caller is a deny path whose
+    verdict must not depend on whether the recording succeeded."""
+    state = load_state(tdir, skill)
+    entry = last_run(state)
+    if entry is None:
+        return False
+    entry.setdefault("guard_events", []).append(event)
+    write_json(state_path(tdir, skill), state)
+    return True
+
+
 def confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes, clarify_ref):
     """The ONLY function in acs_lib capable of writing a size/stakes value
     lower than the ticket's current confirmed value. REQUIRES clarify_ref

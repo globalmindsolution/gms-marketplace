@@ -79,7 +79,7 @@
         ├── specs/                      # legacy input: pre-existing specs (1..n, conform to the design) read by /code when present; new tickets have none — /code self-authors the fold content instead
         │   ├── 01-data-model.md
         │   └── 02-api-endpoints.md
-        ├── code-state.json             # written by post-code.py; incl. verifier review findings + runs[-1].escalations audit trail
+        ├── code-state.json             # written by post-code.py; incl. verifier review findings + runs[-1].escalations audit trail + runs[-1].guard_events, the file-map guard's denial audit trail (MAR-578)
         ├── docs-sync-state.json        # written by post-docs-sync.py; the /docs-sync run ledger
         ├── create-pr-state.json        # incl. PR number/URL
         └── merge-pr-state.json

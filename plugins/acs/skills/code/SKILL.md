@@ -972,7 +972,9 @@ MANDATORY final step — never skipped, also on failure:
    - `docs_updated`: repo-relative paths of every doc file changed.
    - `review`: `{iterations, findings_open}` — `iterations` is **derived** by
      counting the verify artifacts on disk; `findings_open` is yours (findings
-     still open, 0 on success).
+     still open, 0 on success). `guard_denials` is **derived** too, from
+     `runs[-1].guard_events` (the file-map guard's denial trail): never write
+     it, and expect the key to be absent, not 0, when the guard never fired.
 
    Advisory documentation findings (`severity="info" dimension="documentation"`,
    from code-verifier's demoted per-commit doc-sync, living-requirements, and

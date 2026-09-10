@@ -367,6 +367,60 @@ class FilemapCliTest(FileMapGuardCase):
         self.assertEqual(body["files"], ["src/a.py"])
 
 
+
+class RefusalTextTest(FileMapGuardCase):
+    """The three refusals are byte-identical to what they have always been.
+
+    acs-evals' GUARD-* golden cases pin the guard's exit code and stderr and
+    capture no state file, so the recording MAR-578 added is invisible to them
+    -- but only for as long as a successful append stays silent. That is what
+    this asserts: the whole stderr, not a fragment of it."""
+
+    def deny(self, payload):
+        """dispatch.py with ACS_DEBUG cleared, so stderr carries the refusal
+        and nothing else."""
+        return subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS, "dispatch.py"), "file-map"],
+            input=json.dumps(payload), capture_output=True, text=True, cwd=self.repo,
+            env=dict(os.environ, ACS_DEBUG=""))
+
+    def test_an_out_of_map_write_prints_exactly_its_existing_warning(self):
+        self.declare("src/a.py", "tests/test_a.py")
+        self.spawn_executor()
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": {"file_path": "src/somewhere_else.py"}})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: src/somewhere_else.py is outside this task's file map.\n"
+            "Declared for /acs:code iteration 1:\n"
+            "  src/a.py\n"
+            "  tests/test_a.py\n"
+            "Do not improvise scope: STOP and return `needs_input` naming the file, "
+            "so the coordinator can adjust the file map.\n")
+
+    def test_a_control_input_write_prints_exactly_its_existing_warning(self):
+        self.declare("src/a.py")
+        self.spawn_executor()
+        record = lib.agent_record_path(self.tdir_path, "a-1")
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": {"file_path": record}})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: %s is the file-map guard's own control input.\n"
+            "An executor cannot widen or disarm its own scope. If the map is "
+            "wrong, STOP and return `needs_input` naming the file, so the "
+            "coordinator can adjust it.\n" % record)
+
+    def test_an_unreadable_payload_prints_exactly_its_existing_warning(self):
+        self.declare("src/a.py")
+        self.spawn_executor()
+        out = self.deny({"cwd": self.repo, "tool_name": "Write",
+                         "tool_input": "file_path=evil.py"})
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stderr,
+            "acs: Write carried a str tool_input, which the file map cannot be "
+            "checked against. STOP and return `needs_input`.\n")
+
 class RegistrationAndProseTest(unittest.TestCase):
 
     @classmethod

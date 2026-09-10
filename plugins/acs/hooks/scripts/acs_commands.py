@@ -558,6 +558,21 @@ def cmd_filemap_show(args):
           "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
           "union": sorted({f for files in tasks.values() for f in files}),
           "path": lib.filemap_path(tdir, args.skill, args.iteration)})
+def cmd_guard_events(args):
+    """The file-map guard denials the latest run recorded.
+
+    The audit trail /acs:metrics and external tooling read without knowing the
+    state-file layout: one object, `events` in the order they were denied."""
+    ticket_id, tdir, _ctx = partition_or_die("guard events", args.ticket)
+    path = lib.state_path(tdir, args.skill)
+    if not os.path.exists(path):
+        die("guard events", "no %s state file at %s" % (args.skill, path))
+    entry = lib.last_run(lib.load_state(tdir, args.skill, ticket_id)) or {}
+    events = entry.get("guard_events") or []
+    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+          "count": len(events), "events": events, "path": path})
+
+
 def cmd_verdict_show(args):
     """The verifier's verdict for one iteration — validated, not just printed.
 
