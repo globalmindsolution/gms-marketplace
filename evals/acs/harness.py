@@ -224,6 +224,8 @@ class Sandbox:
         self.coverage = coverage
         self.tracker = tracker
         self.scripts, self.build = installed_scripts_dir()
+        self._isolated_config_path = None
+        self._isolated_home_path = None
         # Scrub inherited GIT_* vars (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, …):
         # when the harness runs inside a git hook (pre-commit), git exports them
         # and they would override `git -C <sandbox>`, making every subprocess
@@ -233,9 +235,6 @@ class Sandbox:
 
     def __enter__(self):
         self.tmp = tempfile.mkdtemp(prefix="acs-eval-")
-        # Override HOME so sandbox git processes do not pick up the user global
-        # .gitignore (which may ignore .acs/, blocking git add .acs/settings.json).
-        self.env["HOME"] = self.tmp
         self.repo = os.path.join(self.tmp, self.slug)
         self.ws = os.path.join(self.tmp, "workspace")
         os.makedirs(self.repo)
@@ -258,7 +257,8 @@ class Sandbox:
         # repos; settings.local.json stays gitignored).
         self.seed_sha = subprocess.run(
             ["git", "-C", self.repo, "rev-parse", "HEAD"],
-            capture_output=True, text=True, env=self.env).stdout.strip()
+            capture_output=True, text=True,
+            env=self._isolated_git_env()).stdout.strip()
         return self
 
     def __exit__(self, *exc):
@@ -271,8 +271,35 @@ class Sandbox:
     # -- setup helpers ----------------------------------------------------- #
 
     def _git(self, *args):
+        """Repo-scoped git call, always under the isolated git env."""
         subprocess.run(["git", "-C", self.repo, *args], check=True,
-                       capture_output=True, env=self.env)
+                       capture_output=True, env=self._isolated_git_env())
+
+    def _isolated_git_env(self):
+        """A per-call copy of self.env for this sandbox's own git subprocesses,
+        with the operator's global/system git surfaces neutralized exactly as
+        ForgeSandbox._isolated_git_env neutralizes them (see its docstring for
+        why each variable is needed): no global/system config, no excludes
+        fallback, no system gitattributes. Scoping the isolation to this copy
+        is the point: self.env keeps the operator's real HOME, so the
+        `claude -p` sessions trigger()/run_skill() spawn still resolve the real
+        $HOME/.claude/plugins/cache and can see installed plugins. Both temp
+        paths live under self.tmp, so __exit__ cleans them up."""
+        if self._isolated_config_path is None:
+            path = os.path.join(self.tmp, ".acs-eval-isolated-gitconfig")
+            open(path, "a").close()
+            self._isolated_config_path = path
+        if self._isolated_home_path is None:
+            home = os.path.join(self.tmp, ".acs-eval-isolated-home")
+            os.makedirs(home, exist_ok=True)
+            self._isolated_home_path = home
+        env = dict(self.env)
+        env["GIT_CONFIG_GLOBAL"] = self._isolated_config_path
+        env["GIT_CONFIG_SYSTEM"] = self._isolated_config_path
+        env["HOME"] = self._isolated_home_path
+        env["XDG_CONFIG_HOME"] = self._isolated_home_path
+        env["GIT_ATTR_NOSYSTEM"] = "1"
+        return env
 
     def _seed_settings(self):
         os.makedirs(os.path.join(self.repo, ".acs"))
@@ -400,7 +427,8 @@ class Sandbox:
         self._git("add", "-A")
         out = subprocess.run(
             ["git", "-C", self.repo, "diff", "--numstat", "--cached",
-             self.seed_sha], capture_output=True, text=True, env=self.env).stdout
+             self.seed_sha], capture_output=True, text=True,
+            env=self._isolated_git_env()).stdout
         total = 0
         for line in out.splitlines():
             cols = line.split("\t")

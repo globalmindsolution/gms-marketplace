@@ -110,6 +110,33 @@ afterwards, not on the model's text output.
 **`sb.session_end()`** — runs the installed `dispatch.py session-end` hook.
 Tests the abnormal-ending cleanup path.
 
+`self.env` — the env every `claude -p` the sandbox spawns inherits — keeps the
+operator's **real `HOME`** (MAR-574). `run_skill` and `trigger` both pass it, so
+a paid session resolves the operator's own `~/.claude/plugins/cache`, the same
+cache `installed_scripts_dir()` reads, which is what lets it see the installed
+acs plugin at all — and, as the accepted consequence, it reads and writes the
+operator's real `~/.claude`. `gate`, `run_script` and `session_end` spawn the
+*installed* hook scripts with `self.env` too, so they run under the real `HOME`
+as well; that is deliberate, since those scripts are the code under test and a
+consumer runs them under their own `HOME` — with one caveat: a user-scope
+`~/.acs/settings.json` is the **least-specific** settings scope, listed first by
+`settings_files()` and deep-merged **per key** beneath the sandbox repo's own
+`.acs/settings.json` and `.acs/settings.local.json`, so it is in scope for
+**every** sandbox rather than only `init=False` ones. An `init=False` sandbox
+inherits it wholly, nothing being seeded above it; an `init=True` sandbox
+inherits it for every key the seed does not set, and `_seed_settings` writes
+only `ticket_prefix`, `test_coverage_percent`, `merge_strategy` and
+`tracker.provider` to `.acs/settings.json` plus `workspace_path` to
+`.acs/settings.local.json` — so an operator's user-scope `formats.branch_name`
+or `high_stakes_paths`, to name two examples, still reaches the hook scripts a
+scenario drives. Git isolation narrowed rather than vanished:
+`Sandbox`'s own git subprocesses take a per-call env from
+`Sandbox._isolated_git_env()` with the operator's global/system git config,
+HOME/XDG-derived config paths and system gitattributes neutralized, which is
+why a global `core.excludesFile` ignoring `.acs/` still cannot stop the seeding
+`git add .acs/settings.json` — the isolation is per git call, not a
+process-wide `HOME` override.
+
 ### `Check`
 
 `Check` collects named assertions into a pass/fail report. It is
