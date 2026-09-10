@@ -110,6 +110,24 @@ afterwards, not on the model's text output.
 **`sb.session_end()`** — runs the installed `dispatch.py session-end` hook.
 Tests the abnormal-ending cleanup path.
 
+`self.env` — the env every `claude -p` the sandbox spawns inherits — keeps the
+operator's **real `HOME`** (MAR-574). `run_skill` and `trigger` both pass it, so
+a paid session resolves the operator's own `~/.claude/plugins/cache`, the same
+cache `installed_scripts_dir()` reads, which is what lets it see the installed
+acs plugin at all — and, as the accepted consequence, it reads and writes the
+operator's real `~/.claude`. `gate`, `run_script` and `session_end` spawn the
+*installed* hook scripts with `self.env` too, so they run under the real `HOME`
+as well; that is deliberate, since those scripts are the code under test and a
+consumer runs them under their own `HOME` — with the one caveat that a
+user-scope `~/.acs/settings.json` on the operator's machine is now in scope for
+an `init=False` sandbox. Git isolation narrowed rather than vanished:
+`Sandbox`'s own git subprocesses take a per-call env from
+`Sandbox._isolated_git_env()` with the operator's global/system git config,
+HOME/XDG-derived config paths and system gitattributes neutralized, which is
+why a global `core.excludesFile` ignoring `.acs/` still cannot stop the seeding
+`git add .acs/settings.json` — the isolation is per git call, not a
+process-wide `HOME` override.
+
 ### `Check`
 
 `Check` collects named assertions into a pass/fail report. It is
