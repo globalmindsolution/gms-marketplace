@@ -127,9 +127,12 @@ configured and have not yet been validated against a live remote.
   `acs-free-evals` hook (gate + SessionEnd smoke, `$0`, no `claude`), running on
   every commit that touches the plugin or harness — locally and in the
   *Pre-commit hooks* CI job (`ACS_EVAL_SOURCE=1`, so it tests the committed
-  source). The **paid** tier is a local, on-demand developer action; there is no
-  dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
-  paid path runs green in CI before paid was moved local-only.)
+  source). The **paid** tier is a local, on-demand developer action. (A
+  2026-06-14 CI dispatch had confirmed the full paid path runs green in CI
+  before paid was moved local-only.) The behavioral harness itself has no CI
+  workflow; the sibling `acs-evals` dataset's deterministic tier does run per
+  PR, in [`.github/workflows/acs-evals.yml`](../../.github/workflows/acs-evals.yml)
+  at a pinned SHA (MAR-576).
 
 #### Epic E2 — Tracker-sync depth *(parallel, lower priority)*
 

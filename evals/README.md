@@ -102,19 +102,29 @@ Exit code is non-zero if any selected scenario has a failing assertion.
 
 ## Pre-commit and CI
 
-**Local-only policy (C-4):** behavioral/LLM evals for **all** plugins run
-**locally** — never in CI. The `evals/` directory is excluded from all CI
-workflows; `grep -rn "run_evals\|evals/" .github/workflows/` returns nothing
-and must continue to return nothing. CI is responsible only for per-plugin
-deterministic tests (`tests/<plugin>/`) and static shape checks; it never
-executes evals.
+**Local-only policy (C-4):** behavioral/LLM evals — the scenarios in **this**
+directory, for **all** plugins — run **locally**, never in CI. No workflow
+invokes this runner: `grep -rn "run_evals" .github/workflows/` returns nothing
+and must continue to return nothing. CI runs only what a model never touches:
+per-plugin deterministic tests (`tests/<plugin>/`), static shape checks, and the
+deterministic dataset replay described below.
 
 The **free** tier of the acs eval runs automatically as the `acs-free-evals`
 pre-commit hook whenever `evals/` or `plugins/acs/` change — locally on
 `git commit` (run `pre-commit install` once per clone) and in the *Pre-commit
 hooks* CI job — with `ACS_EVAL_SOURCE=1` so it tests the source being
-committed. There is **no dedicated eval CI workflow**; the **paid** tier is
-never automated and is run locally on demand.
+committed. The **paid** tier is never automated and is run locally on demand.
+
+**Two harnesses, one plugin.** This directory holds the *behavioral* evals —
+real `claude -p` sessions (paid) or free deterministic smoke — and stays local
+per C-4. The sibling repo `globalmindsolution/acs-evals` holds the *golden
+contract dataset* (deterministic tier 1) and the tier-3 measurement work; its
+tier 1 runs no model, so it does gate CI:
+[`.github/workflows/acs-evals.yml`](../.github/workflows/acs-evals.yml) replays
+356 recorded cases against this checkout's `plugins/acs` on every PR and on
+push to `main`, at a commit SHA pinned in that workflow (MAR-576). A plugin
+change that moves a recorded contract turns that job red until acs-evals
+re-records and the pin is bumped in the same PR.
 
 ## Before a release
 
@@ -209,8 +219,10 @@ scenario loop — it simply peels `--plugin` and delegates.
   or harness — locally and in the *Pre-commit hooks* CI job, `$0`, no `claude`.
   The **paid** tier stays a local, on-demand developer action (see
   [Run](#run)); flake handling is per-scenario (e.g. `skill_triggers` re-probes
-  a missed case). There is no dedicated eval CI workflow — the deterministic
-  free smoke at commit time replaces it.
+  a missed case). This harness has no CI workflow of its own — the deterministic
+  free smoke at commit time covers it; the only eval-shaped CI job is the
+  sibling dataset's deterministic tier (`.github/workflows/acs-evals.yml`,
+  MAR-576).
 - **MAR-28 (done)** — scenarios relocated to `evals/acs/scenarios/`; harness
   generalized with `--plugin` selector; skills-only plugin tolerance added;
   README updated.

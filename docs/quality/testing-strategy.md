@@ -23,10 +23,13 @@ deterministic at the base, most expensive and least deterministic at the top.
 | 7 | Runtime reflection verifier | each individual run's output is correct (in-band, per-run) | part of normal use | the plan→execute→verify cycle inside every skill | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
 | 9 | LLM-as-judge *(not built)* | subjective quality — is the PRD/design *sound*? | paid + noisy | future | pre-release for product skills |
+| 10 | acs-evals tier 1 — golden dataset | 356 recorded cases pinning the plugin's hook gates, CLI decision code, schema constraints, file-map guard and lock regimes | free, deterministic | [acs-evals.yml](../../.github/workflows/acs-evals.yml) → `globalmindsolution/acs-evals` at the pinned SHA | every PR |
 
-Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
-`acs-free-evals` pre-commit hook). Layers 5–6 are the paid
+Layers 1–4 and 10 are free and gate every PR (and, for layer 4, every commit
+via the `acs-free-evals` pre-commit hook). Layers 5–6 are the paid
 [eval harness](../../evals/README.md). Layer 7 is a *runtime control*, not a test.
+Layer 10 lives in a sibling repo and is replayed against this checkout's plugin
+at a pinned commit, so a contract it recorded cannot move unnoticed.
 
 ## Coverage today (per skill)
 
