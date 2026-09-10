@@ -18,6 +18,33 @@ the notes.
 
 ### Fixed
 
+- **`acs verdict show` refuses a verdict that is not about the run it was
+  asked for** (MAR-573). `cmd_verdict_show` called `validate_verdict` with
+  only `lens` and `ticket_id`, so the `skill` and `iteration` freshness
+  comparisons were dead at that call site — the validator skips a check whose
+  expectation is `None` — and a document whose own fields named another skill
+  or another iteration came back as `{"ok": true, "passed": true}`. That
+  contradicted the rule the validator's own docstring states: iteration 1's
+  clean verdict copied onto iteration 3's path is not iteration 3's verdict.
+  The command now passes `skill=args.skill` and `iteration=args.iteration` —
+  the same two values it already used a line earlier to choose the file — so
+  the document is validated against the path it was read from. **No new
+  branch and no new error path:** the existing `die("verdict show", "the
+  verdict at %s is not usable: %s" …)` carries the two newly-enabled checks,
+  so a mismatch now exits 2 with `verdict iteration is 1 but this is 3 -- a
+  verdict is evidence only for the run that produced it` and an empty stdout,
+  in place of exit 0 and a `passed: true` body. **The blast radius was
+  read-only:** the two call sites that decide anything — `acs_lib/derive.py`'s
+  `verifier_passed`, which the `/acs:create-pr` gate reads, and
+  `acs_lib/lifecycle.py`'s SubagentStop hook — already passed all three
+  arguments, so no gate was ever bypassed, and any document this command
+  newly refuses was already refused by both of them. **The one behaviour
+  change worth a reviewer's attention:** because `--skill` defaults to `code`
+  and `--iteration` to `1`, a bare `acs verdict show` is now strict too — a
+  document sitting at the iteration-1 code path whose own `skill` or
+  `iteration` disagrees is refused rather than reported as a clean pass. That
+  is the defect being fixed, not a regression. **Migration:** none.
+
 - **`acs.py` and `acs_lib/lifecycle.py` come back under the 800-line budget**
   (MAR-572, follow-up to MAR-531). Both crossed E1's budget on `main` while
   MAR-531's own PR waited: `acs.py` grew a command group per ticket
