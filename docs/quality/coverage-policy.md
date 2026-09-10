@@ -47,8 +47,14 @@ and added **no** omit entry for the eval scenario drivers.
 branch and is measured, currently at 21 statements / 100%.
 
 `evals/` contributes 1105 of the 9344 measured statements and 301 of the 631
-missed — mostly paid- and forge-tier scenario drivers no deterministic test
-can execute. If that headroom ever puts TOTAL under the floor, the remedy is a
+missed. Split by each scenario module's declared `META["tier"]`, those 301 are
+**115** in paid- and forge-tier scenario drivers (85 of them in `evals/tabp`'s
+`screen_cvs_eval.py`), **76** in free-tier acs drivers — deterministic, and
+run by the `acs-free-evals` pre-commit hook whenever `evals/` or `plugins/`
+change, just never in-process under the unit suite — **59** in
+`evals/acs/harness.py` itself and **51** in the two per-plugin `run_evals.py`
+runners; the headroom is the eval layer as a whole, not the paid tier alone.
+If that headroom ever puts TOTAL under the floor, the remedy is a
 unit path for those drivers, not an `omit`:
 [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md) restricts
 `omit` to true argument-forwarder shims, and PRD **G3** requires the target be
