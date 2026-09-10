@@ -121,19 +121,22 @@ onto the plugin hooks API like this:
    verdict**: a failed append is one extra stderr note, the exit code and the
    warning text stay byte-identical, and there are no retries, waits or lock
    acquisitions, so the append stays well inside the guard's timeout budget.
-   One caveat, stated plainly rather than by analogy: this is the FIRST
-   hook-process writer of the shared `<skill>-state.json`. MAR-528 gave every
-   other hook writer a file of its own — per agent, per checkout — precisely
-   because the parallel executor fan-out is when two of them run at once, and
-   this one opts back into the shared document. No corruption is reachable:
-   `write_json` is atomic (`mkstemp` + `os.replace`), so a torn or truncated
-   state file cannot result. A lost event can: the append is an unlocked
-   read-modify-write, so of N executors denied inside the same window — the
-   correlated case, since a wrong file map denies them all at once — one can
-   overwrite another's event. `record_escalation_event` has the same shape but
-   not the same exposure, having one writer at a time (the coordinator). Keeping
-   a lock off a deny path is the rule above; the price is that the trail is a
-   floor on how often the guard fired, not a guaranteed count. Read the trail
+   One caveat, stated plainly rather than by analogy: this is the first writer
+   of the shared `<skill>-state.json` from a `PreToolUse` deny path, and so the
+   first that can run while the parallel executor fan-out is in flight.
+   `SessionEnd`'s `finalize_run` writes the same file from a hook process too,
+   but only at teardown, never alongside running executors. No corruption is
+   reachable: `write_json` is atomic (`mkstemp` + `os.replace`), so a torn or
+   truncated state file cannot result. A lost update can: the append is an
+   unlocked read-modify-write of the whole document, so when two writes to that
+   file overlap — N executors denied inside the same window, the correlated case
+   since a wrong file map denies them all at once — the one that lands second
+   replaces the other wholesale, and what it drops can be either side's: a guard
+   event, or a concurrent finalization. `record_escalation_event` has the same
+   shape but not the same exposure, having one writer at a time (the
+   coordinator). Keeping a lock off a deny path is the rule above; the price
+   is that the trail is a floor on how often the guard fired, not a
+   guaranteed count. Read the trail
    with **`acs.py guard events --ticket <id> [--skill code]`**; `post-code.py`
    derives `states.review.guard_denials` from its length.
 
