@@ -70,10 +70,14 @@ never hand-picked:
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
-  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 22 of 25;
-  `create-requirements`, `docs-sync` and `create-docs` have none (no `CASES`
-  entry in `evals/acs/scenarios/s04_skill_triggers.py` names any of the
-  three).
+  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 25 of 25 (MAR-575
+  added the last three, `create-requirements`, `docs-sync` and `create-docs`).
+  A case is decided one of two ways: the 23 model-invocable skills by the first
+  `Skill` tool_use their description probe provokes, and the 2 user-only skills
+  (`install-hooks`, `update`, both `disable-model-invocation: true`) by the
+  session's registration list for the explicit `/acs:<skill>` command they are
+  probed with — which is why they carry a ✅ in a column otherwise defined by
+  model routing.
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
   artifacts → 3 of 25: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),
@@ -98,11 +102,11 @@ never hand-picked:
 | `create-operations` | ✅ | ✅ | ✅ | — |
 | `create-principles` | ✅ | ✅ | ✅ | — |
 | `create-standards` | ✅ | ✅ | ✅ | — |
-| `create-requirements` | ✅ | ✅ | — | — |
+| `create-requirements` | ✅ | ✅ | ✅ | — |
 | `create-ticket` | ✅ | ✅ | ✅ | ✅ |
 | `create-design` | ✅ | ✅ | ✅ | — |
 | `code` | ✅ | ✅ | ✅ | ✅ |
-| `docs-sync` | ✅ | ✅ | — | — |
+| `docs-sync` | ✅ | ✅ | ✅ | — |
 | `create-pr` | ✅ | ✅ | ✅ | ✅* |
 | `merge-pr` | ✅ | ✅ | ✅ | — |
 | `standardize-project` | ✅ | ✅ | ✅ | — |
@@ -124,7 +128,7 @@ target, so this repo's own run of it is a skip, not live coverage (see
 | `usage` | ✅ | n/a (unhooked) | ✅ | — |
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
-| `create-docs` | ✅ | n/a (unhooked) | — | — |
+| `create-docs` | ✅ | n/a (unhooked) | ✅ | — |
 
 The `create-pr` Artifact cell above is `✅*` and the remaining `merge-pr`
 Artifact `—` cell carries a specific reason rather than being open gap; both
@@ -144,9 +148,9 @@ on-disk set against the `ALL_SKILLS` literal at
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 15 of 15 hooked skills**; the other
 10 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 22 of 25** — the three exceptions,
-`create-requirements`, `docs-sync` and `create-docs`, all shipped with no
-trigger eval. **The gap is behavioral (artifact) coverage: only 3 of 25
+none should. **Routing is complete: 25 of 25** — 27 probes in all (23 by
+description, 2 by explicit command, 2 negative), the last three skills closed
+by MAR-575. **The gap is behavioral (artifact) coverage: only 3 of 25
 skills** (`create-ticket`,
 `code`, `create-pr`) are verified at the output level (`create-pr`'s eval
 skips without a configured forge target) — so the *common* skill bugs (a
@@ -203,10 +207,9 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    output good?" into "is it well-formed and complete?" — deterministically.
 2. **Coverage matrix + guardrail** *(cheap).* Keep the table above current and
    add a contract test that fails if a new skill ships without at least a
-   trigger eval, so coverage cannot silently regress — the guardrail already
-   has three live instances to close: `create-requirements`, `docs-sync` and
-   `create-docs` all shipped with no trigger eval (see the Trigger column
-   above).
+   trigger eval, so coverage cannot silently regress — the Trigger column is
+   complete today (MAR-575 closed its last three gaps), which is exactly the
+   state a guardrail exists to hold.
 3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
    `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
    (throwaway GitHub repo — foundation delivered by MAR-67: harness + config +
