@@ -18,7 +18,13 @@ the step-by-step the maintainer follows.
    ```
    Treat a clean run as the gate. Investigate any failing scenario before
    continuing — do not tag on red. (The free smoke already ran on every commit
-   via pre-commit; this adds the agentic G1–G4 + cleanup coverage.)
+   via pre-commit; this adds the agentic G1–G4 + cleanup coverage.) A `--paid`
+   run can also exit non-zero with **no** failing scenario, printing
+   `PRE-FLIGHT FAILED — the sandbox cannot see the plugin` and
+   `PRE-FLIGHT FAILED — the paid tier did not run.`; that is not a plugin
+   regression — the gate never ran and nothing was spent. Fix the environment so
+   the `acs` plugin is visible to a fresh sandbox session, then re-run
+   (MAR-575).
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive
