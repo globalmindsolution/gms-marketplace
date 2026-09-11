@@ -88,19 +88,24 @@ stays null, so the post-code test step resolves OFF by the shipped
 e2e-presence rule.
 
 The instrument is superseded, not abandoned. Quality signal moves to the
-`globalmindsolution/acs-evals` repository: its **tier 1** runs deterministic
-golden cases against the plugin on every PR in CI (no LLM calls, no per-PR
-cost), and its **paid tier** — routing measurement across every shipped skill
-(30 probes × 5 runs against a promoted baseline) plus the PIPE-* fixture-app
-scenarios that drive `/acs:code` and `/acs:docs-sync` — runs at **release
-cadence**. That is a per-PR brake this repo never had, plus a
-strictly stronger release measurement than a per-ticket single sample.
+`globalmindsolution/acs-evals` repository: its **tier 1** is a deterministic
+golden suite (356 cases, no LLM calls, no per-PR cost) run today from a local
+acs-evals checkout with `ACS_PLUGIN_ROOT` pointed at this plugin, and its
+**paid tier** — routing measurement across every shipped skill (30 probes × 5
+runs against a promoted baseline) plus the PIPE-* fixture-app scenarios that
+drive `/acs:code` and `/acs:docs-sync` — runs at **release cadence**. That is
+already a strictly stronger release measurement than a per-ticket single
+sample. The tier-1 suite becomes this repo's per-PR CI brake when the
+acs-evals suite is imported into this repository — decided, not yet landed.
+Until then PRs here are gated by the plugin's unit suite, the coverage
+hard-fail and the free pre-commit eval tier; `.github/workflows/` carries no
+eval job.
 
 Unchanged by this amendment:
 
 - The Decision above stands as written: behavioral and LLM evals stay
   **local-only** and CI runs no LLM calls. acs-evals' tier 1 is deterministic,
-  so running it in CI does not touch that rule.
+  so running it in CI, once that import lands, will not touch that rule.
 - The plugin's e2e layer is untouched and stays **opt-in** for consumer repos
   (PRD G13: a repo with `settings.e2e` unset has no e2e suite and no e2e
   gate). This is a repo-local configuration choice, not a product change.

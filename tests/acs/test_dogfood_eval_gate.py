@@ -14,9 +14,11 @@ Two guards over committed artifacts, both deterministic and stdlib-only:
    repo-local configuration choice, not plugin behaviour: the plugin's e2e
    layer is unchanged and stays opt-in for consumer repos (PRD G13).
 
-2. `DocsPolicyTest` pins the policy the documents now state — the per-PR brake
-   is acs-evals' deterministic tier in CI and paid measurement runs at release
-   cadence in acs-evals, with the in-repo paid suite kept as an on-demand tool
+2. `DocsPolicyTest` pins the policy the documents now state — acs-evals' tier-1
+   deterministic suite becomes the per-PR brake when that suite is imported
+   here, paid measurement runs at release cadence from it, and until then PRs
+   are gated by the unit suite, the coverage hard-fail and the free pre-commit
+   eval tier, with the in-repo paid suite kept as an on-demand tool
    for the forge scenarios (`s07_fanout_tracker_sync`, `s08_create_pr_forge`) —
    one test per changed document, each asserting both the new wording and the
    absence of the retired claim.
@@ -221,7 +223,7 @@ class DocsPolicyTest(unittest.TestCase):
         self.assertIn("s08", before_release)
         pre_commit = section(readme, "## Pre-commit and CI")
         self.assertRegex(pre_commit, r"(?i)not a gate")
-        # C-4's grep invariant is MAR-576's to narrow, not this ticket's to touch.
+        # C-4's grep invariant is not this ticket's to narrow.
         self.assertIn('grep -rn "run_evals\\|evals/" .github/workflows/', pre_commit)
 
         strategy = read(TESTING_STRATEGY_PATH)
@@ -241,6 +243,26 @@ class DocsPolicyTest(unittest.TestCase):
             self.assertIn(command, step_one)
         self.assertNotIn("**Run the pre-release quality gate** — the paid eval suite", runbook)
         self.assertRegex(step_one, r"(?i)on-demand")
+
+    def test_ci_brake_is_stated_as_a_plan_not_current_fact(self):
+        """No document claims this repo already runs acs-evals in CI."""
+        planned = "imported into this repository"
+        documents = (
+            ("prd G13", line_containing(read(PRD_PATH), "G13 — Enforceable e2e integrity")),
+            ("roadmap E1.4", list_item(read(ROADMAP_PATH), "**E1.4 (done)**")),
+            ("ADR 0022 amendment", section(read(ADR_PATH), AMENDMENT_HEADING)),
+        )
+        for name, text in documents:
+            self.assertIn(planned, text, "%s must state the CI brake as a plan" % name)
+            self.assertNotIn("MAR-576", text, "%s names a retired ticket" % name)
+        # Neither release doc may send a maintainer to a ref no workflow pins.
+        for path in (RUNBOOK_PATH, EVALS_README_PATH):
+            self.assertNotIn("the ref this repo's CI workflow pins", read(path))
+        workflows = os.path.join(REPO_ROOT, ".github", "workflows")
+        self.assertEqual(
+            [name for name in sorted(os.listdir(workflows)) if "eval" in name], [],
+            "an eval workflow landed — the planned-brake wording above is now stale",
+        )
 
     def test_adr_0022_carries_the_amendment(self):
         body = read(ADR_PATH)

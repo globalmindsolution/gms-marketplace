@@ -121,8 +121,8 @@ gate).
 ## Before a release
 
 The **release gate is acs-evals** (`globalmindsolution/acs-evals`), not this
-in-repo suite. In an acs-evals checkout at the ref this repo's CI workflow pins,
-point it at the release candidate and run:
+in-repo suite. In an acs-evals checkout, point it at the release candidate
+(`ACS_PLUGIN_ROOT` at this plugin) and run:
 
 ```bash
 make eval        # deterministic golden cases — the gate

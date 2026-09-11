@@ -137,9 +137,12 @@ configured and have not yet been validated against a live remote.
   dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
   paid path runs green in CI before paid was moved local-only.) Since **MAR-579**
   it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
-  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off; the
-  per-PR brake is acs-evals' deterministic tier in CI (MAR-576) and paid
-  measurement runs at release cadence in acs-evals.
+  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
+  here are gated by the plugin's unit suite, the coverage hard-fail and the free
+  pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic, run today
+  from a local acs-evals checkout) becomes this repo's per-PR CI brake when the
+  acs-evals suite is imported into this repository — decided, not yet landed —
+  and paid measurement runs at release cadence from the acs-evals suite.
 
 #### Epic E2 — Tracker-sync depth *(parallel, lower priority)*
 

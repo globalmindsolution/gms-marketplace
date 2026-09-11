@@ -12,8 +12,8 @@ the step-by-step the maintainer follows.
 ## Steps
 
 1. **Run the pre-release quality gate — acs-evals.** In an
-   [acs-evals](https://github.com/globalmindsolution/acs-evals) checkout at the
-   ref this repo's CI workflow pins, point it at the release candidate and run:
+   [acs-evals](https://github.com/globalmindsolution/acs-evals) checkout, point
+   it at the release candidate (`ACS_PLUGIN_ROOT` at this plugin) and run:
    ```bash
    make eval      # deterministic golden cases — the gate
    make measure   # routing / behavioral measurement vs the promoted baseline
