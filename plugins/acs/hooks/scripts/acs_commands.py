@@ -745,3 +745,34 @@ def cmd_workflow_next(args):
         die("workflow next", str(exc))
     out["ok"] = True
     emit(out)
+
+
+# ---------------------------------------------------------------------------
+# artifacts — the ticket documents in the repo docs tree
+# ---------------------------------------------------------------------------
+
+def cmd_artifacts_migrate(args):
+    """Move every live partition's ticket.json (plus design.md and the legacy
+    plan) into <tickets_path>/<ID>/ once -- idempotent, archive untouched, a
+    ticket.json.moved pointer left behind. --dry-run lists the moves only."""
+    ctx = context_or_die("artifacts migrate")
+    try:
+        report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["settings"],
+                                       ctx["checkout_root"], dry_run=args.dry_run)
+    except lib.GateError as exc:
+        die("artifacts migrate", str(exc))
+    emit(dict(report, ok=True))
+
+
+def cmd_artifacts_show(args):
+    """Where one ticket's documents live (docs folder, partition or legacy
+    location), whether the tree is active, and the derived status. Read-only,
+    so an archived ticket is answered too."""
+    ctx = context_or_die("artifacts show")
+    try:
+        ticket_id, tdir, _archived = lib.resolve_active_partition(
+            os.getcwd(), ctx, explicit=args.ticket, allow_archived=True)
+        out = lib.artifacts.describe(ctx, ticket_id, tdir)
+    except lib.GateError as exc:
+        die("artifacts show", str(exc))
+    emit(dict(out, ok=True))

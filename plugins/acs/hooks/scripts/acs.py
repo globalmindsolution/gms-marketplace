@@ -14,7 +14,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, lane, stakes, ticket, pr, tracker, readiness, lock, filemap,
-    verdict, phase, slug, fanout, doctor, workflow.
+    verdict, phase, slug, fanout, doctor, workflow, artifacts.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
@@ -62,6 +62,8 @@ Usage:
   acs.py workflow show
   acs.py workflow validate [--file PATH]
   acs.py workflow next --ticket MAR-1 [--dry-run]
+  acs.py artifacts migrate [--dry-run]
+  acs.py artifacts show --ticket MAR-1
 """
 
 import argparse
@@ -87,7 +89,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F
     cmd_pr_metadata_fill, cmd_readiness, cmd_slug, cmd_stakes_guard,
     cmd_stakes_recommend, cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
     cmd_verdict_merge, cmd_verdict_show, cmd_workflow_next, cmd_workflow_show,
-    cmd_workflow_validate)
+    cmd_workflow_validate, cmd_artifacts_migrate, cmd_artifacts_show)
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -329,6 +331,19 @@ def build_parser():
     wnext.add_argument("--dry-run", dest="dry_run", action="store_true",
                        help="evaluate without recording skipped steps in the ledger")
     wnext.set_defaults(func=cmd_workflow_next)
+
+    artifacts = group("artifacts", help="the ticket documents in the repo docs tree")
+    artifacts_sub = artifacts.add_subparsers(dest="cmd")
+
+    amigrate = artifacts_sub.add_parser(
+        "migrate", help="move ticket.json, design.md and the legacy plan into <tickets_path>/<ID>/ once")
+    amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
+                          help="list the moves and write nothing")
+    amigrate.set_defaults(func=cmd_artifacts_migrate)
+
+    ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
+    ashow.add_argument("--ticket")
+    ashow.set_defaults(func=cmd_artifacts_show)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

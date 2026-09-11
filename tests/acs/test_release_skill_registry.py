@@ -83,9 +83,12 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # MAR-160: docs-sync registered, 14 -> 15) — /acs:release itself adds none.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), 15)
 
-    def test_gates_count_unchanged_fifteen(self):
-        # See test_hooked_skills_count_unchanged_fifteen: advances in lockstep.
-        self.assertEqual(len(acs_lib.GATES), 15)
+    def test_gates_count_is_twenty(self):
+        # See test_hooked_skills_count_unchanged_fifteen, plus the five
+        # Build/Test gates the skills-independence refactor registered
+        # (analyze-ticket, create-impl-plan, create-api-contract,
+        # create-test-docs, create-e2e-tests) — /acs:release itself adds none.
+        self.assertEqual(len(acs_lib.GATES), 20)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

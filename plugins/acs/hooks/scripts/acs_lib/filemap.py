@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, _note, _warn, now_iso, read_json, write_json
+from .artifacts import ticket_docs_root, tickets_path
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
 
@@ -219,13 +220,15 @@ def file_map_guard(payload):
     # it checks against -- so one Write to either switched the guard off from
     # inside the very agent it constrains. Workspace-wide also meant every
     # OTHER ticket's code-state.json, plan-approval.json and counters.json were
-    # writable by an executor scoped to this one.
-    if _is_guard_control_input(target, tdir, ctx):
+    # writable by an executor scoped to this one. The ticket docs tree joins
+    # them: the plan an executor is checked against lives there.
+    reason = _guard_control_input(target, tdir, ctx)
+    if reason:
         _warn(
-            "%s is the file-map guard's own control input.\n"
+            "%s is %s.\n"
             "An executor cannot widen or disarm its own scope. If the map is "
             "wrong, STOP and return `needs_input` naming the file, so the "
-            "coordinator can adjust it." % target)
+            "coordinator can adjust it." % (target, reason))
         return 2
 
     # What IS exempt: this executor's own phase artifacts, and only those.
@@ -249,21 +252,39 @@ def file_map_guard(payload):
     return 2
 
 
-def _is_guard_control_input(target, tdir, ctx):
-    """Is this write aimed at something the guard itself reads to decide?
+def _guard_control_input(target, tdir, ctx):
+    """Why this write is aimed at a control input the guard denies outright
+    -- a reason for the denial message -- or None.
 
-    Two things: the active-agents record (which says an executor is running)
-    and any iteration's file map (which says what it may touch). Either one
+    Three things. The active-agents record (which says an executor is running)
+    and any iteration's file map (which says what it may touch): either one
     lets an executor answer the guard's own question, so neither is writable
-    while the guard is armed."""
+    while the guard is armed. And the ticket docs tree,
+    <settings.artifacts.tickets_path>/<ID>/ (ticket.md, design.md, plan.md,
+    test-cases.md ...), which the coordinator and the ticket skills own: an
+    executor rewriting the plan it is being checked against is the same move
+    as rewriting the map. Opting out of the tree (tickets_path null) lifts
+    that third case, since the folder then means nothing to acs."""
+    own = "the file-map guard's own control input"
     if _under(target, active_agents_dir(tdir)):
-        return True
+        return own
     normalized = normalize_repo_path(target)
     prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
     base = os.path.basename(normalized)
     if base.startswith(prefix) and base.endswith(suffix):
-        return True
-    return False
+        return own
+    settings = (ctx or {}).get("settings")
+    docs_root = ticket_docs_root(settings, (ctx or {}).get("checkout_root"))
+    if docs_root:
+        rel = normalize_repo_path(tickets_path(settings))
+        if _under(target, docs_root) or normalized == rel or normalized.startswith(rel + "/"):
+            return ("the ticket docs tree (%s/), a control input only the coordinator "
+                    "and the ticket skills write" % rel)
+    return None
+
+
+def _is_guard_control_input(target, tdir, ctx):
+    return _guard_control_input(target, tdir, ctx) is not None
 
 
 def _under(target, directory):

@@ -85,7 +85,10 @@ class RegistryShapeCase(unittest.TestCase):
 
     def test_gates_still_carries_create_design(self):
         self.assertIn("create-design", acs_lib.GATES)
-        self.assertEqual(len(acs_lib.GATES), 15)
+        # 15 hooked skills plus the five Build/Test gates the skills-independence
+        # refactor registered (analyze-ticket, create-impl-plan,
+        # create-api-contract, create-test-docs, create-e2e-tests).
+        self.assertEqual(len(acs_lib.GATES), 20)
 
 
 class DispatchRoutingCase(acs_case.AcsWorkspaceCase):

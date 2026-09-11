@@ -89,9 +89,9 @@ class PipelineStepCliTest(AcsWorkspaceCase):
         self.assertNotIn("fix_loops", self._pipeline()["steps"]["test"])
 
     def test_only_if_present_does_not_open_a_new_gate(self):
-        """A direct `/acs:test --for-ticket` run — what the docs-sync gate's own
-        error tells a user to run — must not create a steps.test entry by
-        failing: that would newly shut the gate they ran it to open."""
+        """A direct `/acs:test --for-ticket` run must not create a steps.test
+        entry by failing: `workflow next` would then read a post-code test
+        step as pending on a pipeline that never activated one."""
         result = self.run_script("pipeline-step.py",
             "--ticket", self.ticket_id, "--skill", "test", "--status", "failed",
             "--only-if-present")
@@ -219,32 +219,40 @@ class ShipProseContractTest(unittest.TestCase):
         assert_invocations_are_runnable(self, self.body)
 
 
-class DocsSyncGateRemedyTest(AcsWorkspaceCase):
-    """The gate's own error message must name a command that can open it."""
+class DocsSyncGateIsNotAnOrderGateTest(AcsWorkspaceCase):
+    """Since the skills-independence refactor gate_docs_sync checks the
+    partition and the lock only: a failed post-code test step recorded here
+    is `workflow next`'s to route (ship.yaml's on_fail relay), never the
+    gate's to refuse -- so pipeline-step.py is no longer a gate remedy."""
 
     @property
     def repo_id(self):
         return lib.build_context(self.repo)["repo_id"]
 
-    def test_recording_the_test_step_completed_opens_the_gate(self):
+    def test_a_failed_test_step_does_not_shut_the_docs_sync_gate(self):
         ticket_id = "SHOP-1"
         tdir = lib.ticket_dir(self.ws, self.repo_id, ticket_id)
         os.makedirs(tdir, exist_ok=True)
         lib.save_ticket(tdir, lib.new_ticket_doc(ticket_id, "A ticket", "task"))
         lib.append_in_progress_run(tdir, "code", ticket_id)
         lib.finalize_run(tdir, "code", ticket_id, {"status": "completed"})
+        # what post-code.py records: the run AND the pipeline step
+        lib.update_pipeline(tdir, ticket_id, "code", "completed")
         lib.update_pipeline(tdir, ticket_id, "test", "failed", summary="cap reached")
 
         ctx = lib.build_context(self.repo)
         payload = {"cwd": self.repo, "tool_name": "Skill",
                    "tool_input": {"skill": "acs:docs-sync", "args": ticket_id}}
-        with self.assertRaises(lib.GateError) as blocked:
-            lib.gate_docs_sync(ctx, payload)
-        self.assertIn("/acs:test --for-ticket", str(blocked.exception))
+        self.assertEqual(lib.gate_docs_sync(ctx, payload), ticket_id)
+        # And through the hook: exit 0, no advisory either -- docs-sync needs
+        # only code in ship.yaml, and the ledger records code completed.
+        result = self.pre("docs-sync", ticket_id)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("normally follows", result.stderr)
 
         self.run_script("pipeline-step.py",
             "--ticket", ticket_id, "--skill", "test", "--status", "completed")
-        lib.gate_docs_sync(ctx, payload)  # no longer blocked
+        self.assertEqual(lib.gate_docs_sync(ctx, payload), ticket_id)
 
 
 if __name__ == "__main__":

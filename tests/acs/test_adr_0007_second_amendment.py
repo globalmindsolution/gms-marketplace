@@ -175,12 +175,18 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
         self.assertIsNotNone(match, "acs_lib.py must define WORKFLOW_SKILLS")
         self.assertIn('"docs-sync"', match.group(1))
 
-    def test_gate_create_pr_requires_docs_sync(self):
+    def test_gate_create_pr_no_longer_requires_docs_sync(self):
+        """The docs-sync-before-create-pr ORDER this amendment introduced as a
+        gate now lives in workflows/ship.yaml (create-pr `needs: [docs-sync,
+        run-e2e-tests]`); the gate keeps only the verifier_passed brake."""
         body = acs_lib_source()
         gate = body[body.index("def gate_create_pr("):]
         gate = gate[:gate.index("\ndef ")]
-        self.assertIn('"docs-sync"', gate,
-                      "gate_create_pr must require docs-sync completed before /acs:create-pr")
+        self.assertNotIn('"docs-sync"', gate,
+                         "gate_create_pr must not read the docs-sync ledger; the order is ship.yaml's")
+        self.assertIn("verifier_passed", gate)
+        workflow = read(os.path.join(REPO_ROOT, "plugins", "acs", "workflows", "ship.yaml"))
+        self.assertRegex(workflow, r"id: create-pr\n\s+skill: create-pr\n\s+needs: \[docs-sync, run-e2e-tests\]")
 
 
 class PluginInternalDocReconciliationTest(unittest.TestCase):

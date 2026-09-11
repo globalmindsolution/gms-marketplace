@@ -356,8 +356,8 @@ class FannedOutChildNeverRerunsCreateTicketCase(acs_case.AcsWorkspaceCase):
 class FanOutRunLeavesEpicCreateTicketStepCompletedCase(acs_case.AcsWorkspaceCase):
     """AC-1: after a second skill-start + post-create-ticket.py cycle on the
     epic (the fan-out run), skill_completed(epic_tdir, "create-ticket") is
-    still True -- _require_completed consumers such as gate_create_design
-    keep passing."""
+    still True -- the ledger the `workflow next` walk and /acs:metrics read
+    (no gate consults it since the skills-independence refactor)."""
 
     def test_fan_out_run_leaves_the_epic_create_ticket_step_completed(self):
         epic = self.new_ticket("Wishlist epic", "epic")
