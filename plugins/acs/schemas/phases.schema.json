@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/phases.schema.json",
+  "title": "acs phases registry (workflows/phases.yaml)",
+  "description": "Every plugin skill grouped into exactly one of five phases, plus alias directories that forward to a registered skill. acs_lib.workflow.load_phases additionally checks that no skill is listed twice and that every alias targets a registered skill.",
+  "type": "object",
+  "required": ["version", "phases"],
+  "properties": {
+    "version": {"const": 1},
+    "phases": {
+      "type": "object",
+      "required": ["design", "build", "test", "ship", "utility"],
+      "properties": {
+        "design": {"$ref": "#/$defs/skillList"},
+        "build": {"$ref": "#/$defs/skillList"},
+        "test": {"$ref": "#/$defs/skillList"},
+        "ship": {"$ref": "#/$defs/skillList"},
+        "utility": {"$ref": "#/$defs/skillList"}
+      },
+      "additionalProperties": false
+    },
+    "aliases": {
+      "description": "{alias-dir: registered-skill}; the alias directory forwards to the skill.",
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/skillName"},
+      "additionalProperties": {"$ref": "#/$defs/skillName"},
+      "default": {}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "skillName": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "skillList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/skillName"}
+    }
+  }
+}

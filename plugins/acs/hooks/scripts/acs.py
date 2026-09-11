@@ -14,7 +14,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, lane, stakes, ticket, pr, tracker, readiness, lock, filemap,
-    verdict, phase, slug, fanout, doctor.
+    verdict, phase, slug, fanout, doctor, workflow.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
@@ -59,6 +59,9 @@ Usage:
   acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
   acs.py doctor
+  acs.py workflow show
+  acs.py workflow validate [--file PATH]
+  acs.py workflow next --ticket MAR-1 [--dry-run]
 """
 
 import argparse
@@ -83,7 +86,8 @@ from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F
     cmd_lane_rank, cmd_lock_force_unlock, cmd_lock_status, cmd_phase_validate,
     cmd_pr_metadata_fill, cmd_readiness, cmd_slug, cmd_stakes_guard,
     cmd_stakes_recommend, cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
-    cmd_verdict_merge, cmd_verdict_show)
+    cmd_verdict_merge, cmd_verdict_show, cmd_workflow_next, cmd_workflow_show,
+    cmd_workflow_validate)
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -308,6 +312,23 @@ def build_parser():
 
     doctor = group("doctor", help="check_toolchain / missing_tools")
     doctor.set_defaults(func=cmd_doctor)
+
+    workflow = group("workflow", help="the declarative ship pipeline (workflows/ship.yaml)")
+    workflow_sub = workflow.add_subparsers(dest="cmd")
+
+    wshow = workflow_sub.add_parser("show", help="the resolved workflow: consumer override or plugin default")
+    wshow.set_defaults(func=cmd_workflow_show)
+
+    wvalidate = workflow_sub.add_parser("validate", help="schema + semantic checks; exit 2 names the line")
+    wvalidate.add_argument("--file", metavar="PATH",
+                           help="validate this file instead of the resolved workflow")
+    wvalidate.set_defaults(func=cmd_workflow_validate)
+
+    wnext = workflow_sub.add_parser("next", help="the READY steps for a ticket, per pipeline-state.json")
+    wnext.add_argument("--ticket")
+    wnext.add_argument("--dry-run", dest="dry_run", action="store_true",
+                       help="evaluate without recording skipped steps in the ledger")
+    wnext.set_defaults(func=cmd_workflow_next)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

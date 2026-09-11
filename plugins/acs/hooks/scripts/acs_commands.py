@@ -675,3 +675,73 @@ def cmd_doctor(args):
     emit({"ok": not required_missing, "context": ctx is not None,
           "toolchain": rows, "missing": missing,
           "missing_required": required_missing})
+
+
+# ---------------------------------------------------------------------------
+# workflow — the declarative ship pipeline (workflows/ship.yaml)
+# ---------------------------------------------------------------------------
+
+def _checkout_root_or_die(command):
+    """`show` and `validate` are about FILES: they need the checkout (where
+    the override would live), not a configured workspace, so `validate
+    --file` works on a repo that has not run /acs:setup yet."""
+    root = lib.checkout_root(os.getcwd())
+    if not root:
+        die(command, "acs requires a git repository; %s is not inside one." % os.getcwd())
+    return root
+
+
+def cmd_workflow_show(args):
+    """The resolved workflow: the consumer's .acs/workflows/ship.yaml when
+    present, else the plugin default. Parsed, not validated -- `validate`
+    is the check; `show` answers "which file, and what does it say"."""
+    root = _checkout_root_or_die("workflow show")
+    try:
+        resolved = lib.resolve_workflow(root)
+    except lib.WorkflowError as exc:
+        die("workflow show", str(exc))
+    emit({"ok": True, "source": resolved["source"], "path": resolved["path"],
+          "workflow": resolved["workflow"]})
+
+
+def cmd_workflow_validate(args):
+    """Schema plus semantic checks over the resolved workflow (or --file).
+    Exit 0 with the step list; exit 2 with `<path>:<line>: <reason>` on
+    stderr, echoed as `{ok: false, line, reason}` on stdout."""
+    if args.file:
+        source, path = "file", args.file
+    else:
+        root = _checkout_root_or_die("workflow validate")
+        try:
+            resolved = lib.resolve_workflow(root)
+        except lib.WorkflowError as exc:
+            die("workflow validate", str(exc))
+        source, path = resolved["source"], resolved["path"]
+    try:
+        doc = lib.validate_workflow_file(path)
+    except lib.WorkflowError as exc:
+        emit({"ok": False, "source": source, "path": path, "line": exc.line,
+              "reason": exc.reason})
+        die("workflow validate", str(exc))
+    emit({"ok": True, "source": source, "path": path, "name": doc.get("name"),
+          "stop_after": doc.get("stop_after", lib.DEFAULT_STOP_AFTER),
+          "max_parallel": doc.get("max_parallel", lib.DEFAULT_MAX_PARALLEL),
+          "steps": [step["id"] for step in doc["steps"]]})
+
+
+def cmd_workflow_next(args):
+    """The READY steps for a ticket, evaluated against pipeline-state.json
+    (see acs_lib.workflow.next_steps for the walk). Records a step whose
+    `when` is false as `skipped` unless --dry-run. An epic is refused with
+    `{error: "epic", pointer}` on stdout and exit 2; an unknown ticket exits
+    2 the way every partition-taking command does."""
+    ticket_id, tdir, ctx = partition_or_die("workflow next", args.ticket)
+    try:
+        wctx = lib.ticket_context(ctx, ticket_id, tdir=tdir)
+        out = lib.next_steps(wctx, record_skips=not args.dry_run)
+    except lib.WorkflowError as exc:
+        if exc.payload:
+            emit(exc.payload)
+        die("workflow next", str(exc))
+    out["ok"] = True
+    emit(out)

@@ -1,0 +1,49 @@
+# workflows/ship.yaml — the delivery pipeline /acs:ship drives.
+# Order and conditions live here; each skill keeps its own input and safety checks.
+# Only Build, Test and Ship skills may appear (workflows/phases.yaml is the registry).
+# Entry is a ticket id: create-ticket and create-design are Design work, run before ship.
+# Steps whose `needs` are all satisfied are READY together and run in parallel (up to
+# max_parallel), each as a leg in its own worktree; `exclusive: true` runs a step alone.
+version: 1
+name: ship
+stop_after: create-pr
+max_parallel: 2
+
+steps:
+  - id: analyze-ticket
+    skill: analyze-ticket
+  - id: create-impl-plan
+    skill: create-impl-plan
+    needs: [analyze-ticket]
+    requires: design_approved
+  - id: create-api-contract
+    skill: create-api-contract
+    needs: [create-impl-plan]
+    when: api_surface_changed
+  - id: create-test-docs
+    skill: create-test-docs
+    needs: [create-impl-plan, create-api-contract]
+  - id: code
+    skill: code
+    needs: [create-test-docs]
+    exclusive: true
+    boundary: full_verify_stop
+    on_replan: create-impl-plan
+  - id: create-e2e-tests          # runs in parallel with docs-sync (both need only code)
+    skill: create-e2e-tests
+    needs: [code]
+    when: e2e_configured
+  - id: docs-sync
+    skill: docs-sync
+    needs: [code]
+  - id: run-e2e-tests
+    skill: run-e2e-tests
+    args: "--for-ticket {ticket_id}"
+    needs: [create-e2e-tests]
+    when: post_code_test_active
+    on_fail:
+      relay_to: code
+      max_loops: post_code_test_fix_loops_cap
+  - id: create-pr
+    skill: create-pr
+    needs: [docs-sync, run-e2e-tests]
