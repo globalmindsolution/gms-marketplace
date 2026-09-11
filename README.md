@@ -80,19 +80,27 @@ resolves reproducibly regardless of which marketplace commit is fetched. The
 per-entry CI validator checks each entry's `name` (always) and `version` (only
 when the entry declares one) against the plugin's own `plugin.json`.
 
-**Before cutting a release** (before bumping `version`), run the behavioral eval
-suite locally as a release gate — including the **paid** tier that the pre-commit
-hook and CI deliberately skip (it spawns real `claude -p` sessions and costs a
-few dollars):
+**Before cutting a release** (before bumping `version`), run the pre-release
+quality gate — **[acs-evals](https://github.com/globalmindsolution/acs-evals)**
+(`globalmindsolution/acs-evals`), not this repo's in-repo suite. In an acs-evals
+checkout, point it at the release candidate (`ACS_PLUGIN_ROOT` at this plugin)
+and run:
 
 ```bash
-python3 evals/run_evals.py --plugin acs --paid   # free + paid; needs an authenticated
-                                                 # claude CLI with the acs plugin installed
+make eval      # deterministic golden cases — the gate
+make measure   # routing / behavioral measurement vs the promoted baseline
+make perf      # performance measurement
 ```
 
-Treat a clean run as the gate; investigate any failing scenario before tagging.
-The free tier alone (gate + cleanup smoke) already runs on every commit via the
-`acs-free-evals` pre-commit hook — see [evals/README.md](evals/README.md).
+Treat a clean `make eval` as the gate; investigate any failing case, and any
+regression `make measure` / `make perf` reports, before tagging — the
+step-by-step is the [release runbook](docs/operations/release-runbook.md). The
+in-repo **paid** tier (`python3 evals/run_evals.py --plugin acs --paid`, which
+spawns real `claude -p` sessions and needs an authenticated claude CLI) is an
+**on-demand tool** kept for the forge-tier scenarios — not a gate on any ticket,
+PR or release. The free tier alone (gate + cleanup smoke) already runs on every
+commit via the `acs-free-evals` pre-commit hook — see
+[evals/README.md](evals/README.md).
 
 - **Pinned consumers** (recommended) never receive an update without an
   explicit re-pin: upgrade by re-pinning `ref` to a newer `v<version>` tag,
