@@ -74,3 +74,36 @@ behavioral correctness is not enforced on every PR merge; it relies on developer
 discipline to run evals before shipping behavioral-signal changes. The existing
 `ACS_EVAL_SOURCE=1` pre-commit hook continues to provide a lightweight
 deterministic smoke check for acs without CI LLM cost.
+
+## Amendment — MAR-579
+
+**Date**: 2026-09-11 · **Status**: Accepted (instrument superseded on the dogfood repo)
+
+This repo's own per-ticket paid gate is retired. `.acs/settings.json` carried
+`e2e` (and its `suites.e2e` twin) set to
+`python3 evals/run_evals.py --plugin acs --paid`, so every `/acs:ship` ran the
+paid tier once after `/acs:code` — roughly $7 and ~30 `claude` sessions per
+ticket for a **single sample**. Both keys are removed and `post_code_test`
+stays null, so the post-code test step resolves OFF by the shipped
+e2e-presence rule.
+
+The instrument is superseded, not abandoned. Quality signal moves to the
+`globalmindsolution/acs-evals` repository: its **tier 1** runs deterministic
+golden cases against the plugin on every PR in CI (no LLM calls, no per-PR
+cost), and its **paid tier** — routing measurement across every shipped skill
+(30 probes × 5 runs against a promoted baseline) plus the PIPE-* fixture-app
+scenarios that drive `/acs:code` and `/acs:docs-sync` — runs at **release
+cadence**. That is a per-PR brake this repo never had, plus a
+strictly stronger release measurement than a per-ticket single sample.
+
+Unchanged by this amendment:
+
+- The Decision above stands as written: behavioral and LLM evals stay
+  **local-only** and CI runs no LLM calls. acs-evals' tier 1 is deterministic,
+  so running it in CI does not touch that rule.
+- The plugin's e2e layer is untouched and stays **opt-in** for consumer repos
+  (PRD G13: a repo with `settings.e2e` unset has no e2e suite and no e2e
+  gate). This is a repo-local configuration choice, not a product change.
+- The in-repo harness remains as an **on-demand tool**, kept in particular for
+  the forge-tier scenarios (`s07_fanout_tracker_sync`, `s08_create_pr_forge`),
+  which have no acs-evals counterpart.

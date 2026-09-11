@@ -11,14 +11,20 @@ the step-by-step the maintainer follows.
 
 ## Steps
 
-1. **Run the pre-release quality gate** — the paid eval suite (real `claude`
-   sessions; a few dollars):
+1. **Run the pre-release quality gate — acs-evals.** In an
+   [acs-evals](https://github.com/globalmindsolution/acs-evals) checkout at the
+   ref this repo's CI workflow pins, point it at the release candidate and run:
    ```bash
-   python3 evals/run_evals.py --paid
+   make eval      # deterministic golden cases — the gate
+   make measure   # routing / behavioral measurement vs the promoted baseline
+   make perf      # performance measurement
    ```
-   Treat a clean run as the gate. Investigate any failing scenario before
-   continuing — do not tag on red. (The free smoke already ran on every commit
-   via pre-commit; this adds the agentic G1–G4 + cleanup coverage.)
+   Treat a clean `make eval` as the gate. Investigate any failing case, and any
+   regression `make measure` / `make perf` reports, before continuing — do not
+   tag on red. (The free in-repo smoke already ran on every commit via
+   pre-commit. The in-repo paid suite,
+   `python3 evals/run_evals.py --plugin acs --paid`, is an on-demand tool kept
+   for the forge-tier scenarios, not the gate.)
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive

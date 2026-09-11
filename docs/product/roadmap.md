@@ -118,10 +118,16 @@ configured and have not yet been validated against a live remote.
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
   routes to the right skill; all 22 green (matches `s04_skill_triggers.py`'s
-  22-skill routing coverage, up from the original 12).
+  22-skill routing coverage, up from the original 12). Superseded as the
+  routing instrument by acs-evals, whose `routing.json` measurement covers
+  every shipped skill with 30 probes × 5 runs against a promoted baseline —
+  strictly stronger than `s04`'s single sample, which is kept on demand only.
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
-  diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.
+  diff); `session_end_safety_net` (free) covers the SessionEnd cleanup. `s03`
+  (`resume_and_verify`) and `s02` (`create_ticket_artifacts`) are superseded by
+  acs-evals' PIPE-* scenarios, which drive `/acs:code` and `/acs:docs-sync`
+  end-to-end against a real fixture app; the free SessionEnd smoke stays here.
 - **E1.4 (done)** — the **free** tier is wired into
   [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml) as the
   `acs-free-evals` hook (gate + SessionEnd smoke, `$0`, no `claude`), running on
@@ -129,7 +135,11 @@ configured and have not yet been validated against a live remote.
   *Pre-commit hooks* CI job (`ACS_EVAL_SOURCE=1`, so it tests the committed
   source). The **paid** tier is a local, on-demand developer action; there is no
   dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
-  paid path runs green in CI before paid was moved local-only.)
+  paid path runs green in CI before paid was moved local-only.) Since **MAR-579**
+  it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
+  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off; the
+  per-PR brake is acs-evals' deterministic tier in CI (MAR-576) and paid
+  measurement runs at release cadence in acs-evals.
 
 #### Epic E2 — Tracker-sync depth *(parallel, lower priority)*
 
