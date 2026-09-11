@@ -179,7 +179,8 @@ depend on its immutability.
 ## See also
 
 - [root README — Releasing & updating](../../README.md#releasing--updating)
-- [quality/testing-strategy.md](../quality/testing-strategy.md) — why the paid
-  evals are the gate
+- [quality/testing-strategy.md](../quality/testing-strategy.md) — the layered
+  test pyramid, and why acs-evals is the pre-release gate while the in-repo
+  paid suite is an on-demand tool
 - [m2-0-validation-spike.md](../product/m2-0-validation-spike.md) — the
   end-to-end install/run validation runbook
