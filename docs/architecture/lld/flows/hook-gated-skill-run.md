@@ -139,6 +139,16 @@ counts from the run's recorded transcript and apportions a real dollar
 figure sampled off the opt-in statusLine hook, both fail-open to
 `cost_basis="unavailable"` rather than a fabricated number.
 
+**File-map guard denials (MAR-578).** The `PreToolUse` write-tool guard is not
+a participant in this diagram at all — it runs per write tool call inside the
+executor's own step, not at a skill boundary — and it carries one further
+undrawn responsibility, detailed in full in the dedicated
+`file-map-guard-deny.md` flow: since MAR-578 each write it denies also appends
+one entry to that executor's `runs[-1].guard_events`, which `post-<skill>.py`
+then derives into `states.review.guard_denials`. It records on a deny only —
+never on any of the guard's fail-open branches — and never changes the deny it
+describes, so no gate, exit code or warning in the flow above moves.
+
 ## Verify-depth scaling (MAR-58 / D4)
 
 The iteration ceiling for the reflection loop is **lane-driven**:
