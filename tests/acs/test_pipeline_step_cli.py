@@ -1,9 +1,11 @@
 """pipeline-step.py — the CLI unhooked skills use to record a step transition.
 
-MAR-511. /acs:test has no post-hook, so without this it would have to embed
-Python in its prose to reach acs_lib.update_pipeline — the pattern ADR 0001
-exists to prevent. The gate remedy depends on it: docs-sync blocks while
-steps.test exists and is not completed, and before this nothing could set it.
+MAR-511. The suite runner (/acs:run-e2e-tests, `test` before the
+skills-independence refactor renamed it) has no post-hook, so without this it
+would have to embed Python in its prose to reach acs_lib.update_pipeline — the
+pattern ADR 0001 exists to prevent. What reads the step it writes is now
+`acs.py workflow next`, which decides whether ship.yaml's run-e2e-tests step is
+satisfied; no gate blocks on it (see DocsSyncGateIsNotAnOrderGateTest below).
 
 Also pins the two prose contracts that carry AC-1, since the deliverable there
 is instructions rather than code and would otherwise be silently reword-able.
@@ -166,13 +168,14 @@ class ArgumentsAreValidatedBeforeAnyWriteTest(PipelineStepCliTest):
         self.assertIn("non-negative", result.stderr)
 
 
-class TestSkillProseContractTest(unittest.TestCase):
-    """AC-1 ships as prose in test/SKILL.md; without these it could be deleted
-    or reworded with the suite still green (repo precedent:
+class RunE2eTestsProseContractTest(unittest.TestCase):
+    """The ledger write ships as prose in run-e2e-tests/SKILL.md (the suite
+    runner the skills-independence refactor renamed from `test`); without these
+    it could be deleted or reworded with the suite still green (repo precedent:
     tests/acs/test_ship_fix_retest_loop.py)."""
 
     def setUp(self):
-        self.body = read(os.path.join(PLUGIN, "skills", "test", "SKILL.md"))
+        self.body = read(os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md"))
 
     def test_the_green_path_records_the_step_via_the_cli(self):
         window = re.search(r"(?s)Every suite in the run-set green.*?```bash(.*?)```", self.body)

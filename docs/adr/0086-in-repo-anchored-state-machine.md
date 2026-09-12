@@ -49,3 +49,35 @@ workspace. Replicating state outside the repo to guard against this would
 defeat the point of this decision (the workspace would no longer be "the"
 state, just a cache of it), so no in-scope mitigation is provided; this is
 recorded here as a documented, accepted consequence.
+
+## Amendment — skills-independence refactor (ADR-0090)
+
+This ADR decided **where** the workspace lives. ADR-0090 decides **what stays
+in it**, and narrows this one accordingly: the workspace at
+`<main_repo_root(cwd)>/.acs/state-machine` now holds the **run ledger only** —
+`<skill>-state.json`, `pipeline-state.json`, `phases/<skill>/` artifacts,
+verdicts, `.lock`, `lock-events.jsonl`, `clarifications.json`, and the
+repo-level `tickets-index.json` / `counters.json` / `metrics.json` /
+`sessions/`. The ticket's human-facing documents — `ticket.md`, `design.md`,
+`analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` — move to the
+**tracked** repo tree at `<settings.artifacts.tickets_path>/<ID>/` (default
+`docs/tickets/<ID>/`), where they are committed on the ticket branch and
+reviewed in the PR. Context, Decision and Consequences above are otherwise
+unedited.
+
+Every guarantee this ADR rests on is unaffected, because none of them was
+about the documents. The 4-step `git rev-parse --git-common-dir` derivation,
+the hard failure on bare-repo/submodule layouts, the optional `workspace_path`
+override, and ADR-0003's worktree-sharing invariant (every worktree resolves
+to the same physical state root) all apply unchanged to the ledger. The
+two-layer gitignore this ADR introduced also still covers exactly what it
+covered: the state root. The docs tree is deliberately **not** gitignored —
+being committed is its entire purpose — so the "accidental commits are now
+structurally possible" cost recorded above does not extend to it; a document
+landing in a commit there is the intended outcome, not an accident.
+
+One consequence of this ADR is strengthened rather than weakened: "state is
+now easy to find and grep alongside the repo it belongs to". The half a human
+actually reads is now not merely beside the repo but **in** it, under version
+control. `artifacts.tickets_path: null` keeps the previous single-store
+layout for any repo that does not want its ticket documents in its history.

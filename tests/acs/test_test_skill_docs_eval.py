@@ -121,18 +121,24 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
         self.assertNotIn("Eighteen skills", intro,
                          "skills.md intro must NOT still read 'Eighteen skills'")
 
-    def test_acs_test_section_exists_with_expected_content(self):
+    def test_suite_runner_section_exists_with_expected_content(self):
+        # The skills-independence refactor renamed `/acs:test` to
+        # `/acs:run-e2e-tests`, keeping the old directory as a forwarding
+        # alias for one release; skills.md's section moved with the skill.
+        # Either heading satisfies this pin — what it asserts is the section's
+        # CONTENT, not which of the two names carries it.
         body = self._skills_req()
-        m = re.search(r"(?m)^## .*/acs:test.*$", body)
-        self.assertIsNotNone(m, "skills.md must have a '## /acs:test' section")
+        m = re.search(r"(?m)^## .*/acs:(?:run-e2e-tests|test).*$", body)
+        self.assertIsNotNone(
+            m, "skills.md must have a '## /acs:run-e2e-tests' (or '/acs:test') section")
         window = section(body, m.group(0))
         self.assertIn("--suite", window,
-                      "the /acs:test section must state the --suite argument contract")
+                      "the suite-runner section must state the --suite argument contract")
         self.assertIsNotNone(
             re.search(r"(?i)unhooked|no planner", window),
-            "the /acs:test section must state it is unhooked / has no planner triad")
+            "the suite-runner section must state it is unhooked / has no planner triad")
         self.assertIn("suites", window,
-                      "the /acs:test section must reference the suites map")
+                      "the suite-runner section must reference the suites map")
 
 
 class S04SkillTriggersCaseTest(unittest.TestCase):

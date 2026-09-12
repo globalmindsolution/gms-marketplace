@@ -173,33 +173,36 @@ class HandoffScanOrderCase(acs_case.AcsWorkspaceCase):
 
 
 class ShipPipelineOrderTableCase(unittest.TestCase):
-    """AC-3: the numbered implementation-step rows no longer list
-    create-design, while the design-step rules and the "Picking the next
-    step" walk still name it (over-deletion guard, R7)."""
+    """AC-3 restated for the skills-independence refactor: /acs:ship no longer
+    carries an implementation-step table at all, and create-design is not one
+    of its steps -- create-design is Design-phase work that runs BEFORE ship,
+    which workflows/ship.yaml enforces by admitting build/test/ship skills
+    only. What survives is the guarantee the AC was really about: ship never
+    presents create-design as one of its own numbered steps, and the design
+    requirement still reaches the user -- now as ship.yaml's
+    `requires: design_approved` predicate, whose pointer /acs:ship surfaces."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = _read_ship_skill()
 
-    def test_numbered_pipeline_order_rows_omit_create_design(self):
-        table = _section(self.body, "## Pipeline order")
-        rows = re.findall(r"(?m)^\|\s*\d+\s*\|\s*(\S[^|]*?)\s*\|", table)
-        self.assertNotIn("create-design", rows,
-                         "numbered Pipeline order rows must not list create-design: %r" % rows)
+    def test_no_numbered_pipeline_order_table_survives(self):
+        self.assertNotIn("## Pipeline order", self.body)
 
-    def test_design_step_rules_still_name_create_design(self):
-        section_start = self.body.index("Design step rules")
-        next_heading = re.search(r"\n## ", self.body[section_start:])
-        rules = self.body[section_start:section_start + next_heading.start()] \
-            if next_heading else self.body[section_start:]
-        self.assertIn("create-design", rules)
+    def test_create_design_is_not_a_ship_workflow_step(self):
+        doc = acs_lib.load_workflow(acs_lib.default_workflow_path())[0]
+        skills = {step["skill"] for step in doc["steps"]}
+        self.assertNotIn("create-design", skills)
 
-    def test_picking_next_step_walk_still_names_create_design(self):
-        section_start = self.body.index("## Picking the next step")
-        next_heading = re.search(r"\n## ", self.body[section_start + 1:])
-        walk = self.body[section_start:section_start + 1 + next_heading.start()] \
-            if next_heading else self.body[section_start:]
-        self.assertIn("create-design", walk)
+    def test_a_blocked_requires_predicate_is_surfaced_to_the_user(self):
+        """The design pointer ("run /acs:create-design <id> first") comes back
+        as `blocked_by.pointer`; the skill must stop and surface it verbatim
+        rather than deciding for itself that design is needed."""
+        loop = _section(self.body, "## The loop")
+        self.assertIn("blocked_by", loop)
+        self.assertIsNotNone(
+            re.search(r"(?s)blocked_by.{0,600}verbatim", loop),
+            "the loop must surface blocked_by.pointer verbatim")
 
 
 if __name__ == "__main__":

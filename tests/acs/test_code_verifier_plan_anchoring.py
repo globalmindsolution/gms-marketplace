@@ -3,9 +3,9 @@ ADR-0004; plan-revocation escape hatch (MAR-74, slice 4 of epic MAR-69).
 
 Prose-contract tests over `plugins/acs/agents/code-verifier.md` (new
 dimensions 15 "Plan conformance" and 16 "Approval-audit"),
-`plugins/acs/skills/code/SKILL.md` (the mirrored dimension bullets plus the
-new `### Plan revocation` subsection), and the `docs/adr/0073-*.md` +
-`docs/adr/README.md` deliverables.
+`plugins/acs/skills/create-impl-plan/SKILL.md` (the `### Plan revocation`
+subsection, which moved there with the plan phase), and the
+`docs/adr/0073-*.md` + `docs/adr/README.md` deliverables.
 
 Stdlib-only (os, re, unittest). Every prose assertion is by file plus
 whitespace-normalized substring/regex, never by line number -- the house
@@ -29,6 +29,7 @@ ADR_README = os.path.join(ADR_DIR, "README.md")
 ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 MULTI_LENS_TEST = os.path.join(REPO_ROOT, "tests", "acs", "test_code_verifier_multi_lens.py")
 
 # Pinned at plan time from `main` (af0a11b), before any edit in this ticket --
@@ -77,7 +78,9 @@ def code_verifier_body():
 
 
 def skill_body():
-    return read(CODE_SKILL)
+    """The skill that owns the plan phase — /acs:create-impl-plan since the
+    skills-independence refactor carved it out of /acs:code."""
+    return read(IMPL_PLAN_SKILL)
 
 
 class Dimension15PlanConformanceTest(unittest.TestCase):

@@ -1,7 +1,8 @@
-"""MAR-114 spec 03 — /acs:test failure-path closed loop (AC-9 triage half, AC-10, R1).
+"""/acs:run-e2e-tests failure-path closed loop (triage, dedup/recurrence, R1).
 
-Prose-contract unit test for `plugins/acs/skills/test/SKILL.md`'s failure-path
-section (layered by spec 03 onto spec 02's deterministic-run body). Uses the
+Prose-contract unit test for the failure-path section of
+`plugins/acs/skills/run-e2e-tests/SKILL.md` — the suite-runner prose that
+shipped as `/acs:test` before the skills-independence refactor renamed it. Uses the
 same bounded-window `section()` technique as
 `tests/acs/test_setup_quality_path.py:29-40` so a stray mention
 elsewhere in the file cannot satisfy an assertion.
@@ -15,7 +16,7 @@ Asserts, within the failure-path section:
     new-linked-on-closed) with the required guard phrases;
   - the R1 no-interpolation rule.
 
-Run:  python3 -m unittest tests.acs.test_mar114_test_skill_closed_loop -v
+Run:  python3 -m unittest tests.acs.test_run_e2e_tests_closed_loop -v
 """
 
 import os
@@ -23,7 +24,8 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILL_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "test", "SKILL.md")
+SKILL_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "skills",
+                          "run-e2e-tests", "SKILL.md")
 
 
 def read(path):
@@ -46,15 +48,10 @@ def section(body, heading):
 
 
 def failure_path_window(body):
-    """The failure-path steps live after spec 02's all-green short-circuit
-    boundary (## Step 4) and before Step 5's report / scheduling / completion
-    sections that spec 02 already owns. Concatenate every section from the
-    first failure-path heading onward so the assertions are bounded to
-    spec-03 content, not the whole file."""
-    # Spec 03 adds one or more "## Step" / "### " headings after Step 4's
-    # all-green short-circuit. We scan every top-level heading from Step 4
-    # onward and keep the ones that are not Step 5/Scheduling/Completion
-    # (spec 02's own sections), which is exactly the failure-path material.
+    """The failure-path steps live after the all-green short-circuit
+    boundary (## Step 4). Everything from that heading onward is the
+    failure-path material these assertions are bounded to, rather than the
+    whole file."""
     idx = body.find("## Step 4")
     if idx == -1:
         raise AssertionError("Step 4 (all-green short-circuit) heading not found")
@@ -62,8 +59,8 @@ def failure_path_window(body):
     return tail
 
 
-class Mar114ClosedLoopCase(unittest.TestCase):
-    """Fixture: read the /acs:test SKILL.md once, isolate the failure-path window."""
+class RunE2eTestsClosedLoopCase(unittest.TestCase):
+    """Fixture: read the SKILL.md once, isolate the failure-path window."""
 
     @classmethod
     def setUpClass(cls):

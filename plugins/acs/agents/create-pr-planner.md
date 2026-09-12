@@ -31,7 +31,11 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 
 1. **Branch reality check.** Resolve the ticket branch from `code-state.json`
    `runs[-1].states.branch` — /acs:code created it per `formats.branch_name`; you
-   never invent a branch name. Record the checks the executor confirms first and run
+   never invent a branch name. Since the skills-independence refactor the
+   create-pr gate no longer requires a recorded /acs:code run, so
+   `code-state.json` may be absent: fall back to the `branch` recorded in
+   `pipeline-state.json`, and when neither names one, surface it as a question
+   via `needs_input` — still never invent a branch name. Record the checks the executor confirms first and run
    them yourself now: exists locally (`git rev-parse --verify <branch>`), exists on
    origin (`git ls-remote origin refs/heads/<branch>`), local tip vs remote tip
    (push needed, already current, or remote-only). Uncommitted/unrecorded work on

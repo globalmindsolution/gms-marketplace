@@ -12,11 +12,14 @@ rationale, the architecture of the change, risks, and rollout — verified by a 
 verifier before it gates `/acs:code`. You orchestrate planner/executor/verifier
 subagents over XML; you never write the design content yourself.
 
-The pre-hook (`pre-create-design.py`) has already verified: settings exist,
-`/acs:create-ticket` completed for this ticket, and the ticket carries
-`needs_design: true`. Epic children inherit the EPIC's design — this skill runs on
-the epic (or a design-flagged story/task), never on a child; the gate blocks
-children automatically.
+The pre-hook (`pre-create-design.py`) checks this skill's INPUTS, not its place in
+any order: settings exist, the ticket resolves to a live, unlocked partition, and
+the ticket carries `needs_design: true`. It does NOT check that a
+`/acs:create-ticket` run is recorded completed — the partition existing IS the
+ticket having been created, and pipeline order lives in
+`workflows/ship.yaml`, not in the gate. Epic children inherit the EPIC's design —
+this skill runs on the epic (or a design-flagged story/task), never on a child;
+a child carries `needs_design: false`, so the flag check blocks it automatically.
 
 ## Start
 

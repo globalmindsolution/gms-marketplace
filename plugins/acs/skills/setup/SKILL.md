@@ -71,7 +71,8 @@ not choose — a default the user did not pick is a default, not a value to reco
 | `operations_path` | `docs/operations` | `/acs:create-operations` |
 | `principles_path` | `docs/principles` | `/acs:create-principles` |
 | `standards_path` | `docs/standards` | `/acs:create-standards` |
-| `suites` | `{}` | `/acs:test` runs each named suite; the reserved name `e2e` is auto-populated from the `e2e` key below — never hand-duplicate it |
+| `suites` | `{}` | `/acs:run-e2e-tests` runs each named suite; the reserved name `e2e` is auto-populated from the `e2e` key below — never hand-duplicate it |
+| `artifacts.tickets_path`, `contracts_path`, `workflow.advisories` | `docs/tickets`, `docs/api`, `true` | where the ticket's own documents (`ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`) and the machine-readable API contracts live IN THE REPO — `null` on either keeps them in the workspace partition / the ticket folder, and an existing repo moves its artifacts across once with `acs.py artifacts migrate` — plus whether a pre-hook prints the one-line "normally follows … in ship.yaml" notice when a skill runs out of the declared order (`false` silences it; it never blocks either way) |
 | `tracker` | `{"provider": "local"}` | `/acs:create-ticket`, `/acs:create-pr`; `github`/`jira` need their own block and a working CLI (`detect`'s `toolchain`) |
 | `formats` | built-ins | branch / PR title / commit naming, and the CI conventions gate. `pr_title` is provider-aware: it renders the **tracker's native reference when synced**, and the local id when unsynced. `branch_name` and `commit_message` stay id-based and unconditional in every case. |
 
@@ -200,14 +201,13 @@ Print a table of every resolved setting, its value, and where it landed (or
 `next_steps` carries the greenfield/brownfield call, the ordered pipeline and
 the solo-maintainer caveat, so you report them rather than re-deriving them.
 
-Repeat any unmet toolchain install hint so the gap stays explicit, and confirm
-the workflow is ready: `/acs:setup`, then `/acs:create-prd` →
-`/acs:create-architecture` → `/acs:create-project` → `/acs:create-ticket` →
-`/acs:create-design` → `/acs:code` → `/acs:test` (conditional) →
-`/acs:docs-sync` → `/acs:create-pr` → `/acs:merge-pr`, the umbrella
-`/acs:ship`, and `/acs:handoff`, `/acs:update`, `/acs:install-hooks`. Offer the
-one-shot workspace migration when `detect` shows an external `workspace_path`
-the user wants moved in-repo (`migrate_workspace.py --help`).
+Repeat any unmet toolchain install hint, and confirm the workflow is ready:
+`/acs:setup`, then Design — `/acs:create-prd` → `/acs:create-architecture` →
+`/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` → `/acs:code`
+is no longer one fixed chain: Build/Test/Ship order is declared in
+`workflows/ship.yaml` (`acs.py workflow show` prints it) and walked by
+`/acs:ship <ticket-id>` to the PR, then `/acs:merge-pr <id>`. Offer the workspace
+migration when `detect` shows an external `workspace_path` moved in-repo (`migrate_workspace.py --help`).
 
 ## Completion report (normative)
 

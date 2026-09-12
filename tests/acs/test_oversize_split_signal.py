@@ -1,7 +1,9 @@
 """MAR-164 spec 01 — oversize signal + split-answer termination (Gap 1,
 Decision 1, Option C).
 
-Covers AC-1 (a non-blocking, plan-time oversize signal in code-planner.md
+Covers AC-1 (a non-blocking, plan-time oversize signal in the plan
+phase's planner — create-impl-plan-planner.md since the skills-independence
+refactor carved that phase out of /acs:code
 plus the honest rewrite of create-ticket/SKILL.md's split path), the Gap-1
 half of AC-4 (cross-file consistency of the split-path evidence contract and
 the split-answer termination, including both Finish-step-3 sub-sites), and
@@ -29,7 +31,8 @@ sys.path.insert(0, TESTS_ACS)
 
 import evidence_sidecar  # noqa: E402
 
-CODE_PLANNER = os.path.join(PLUGIN, "agents", "code-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
+IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
@@ -67,13 +70,13 @@ def _req_tree_bodies():
     return bodies
 
 
-class CodePlannerOversizeSignalTest(unittest.TestCase):
-    """AC-1 half 1: code-planner.md's charter item 2 gains a non-blocking
+class PlanPlannerOversizeSignalTest(unittest.TestCase):
+    """AC-1 half 1: the plan planner's charter item 2 carries a non-blocking
     oversize-signal clause."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_PLANNER)
+        cls.body = read(IMPL_PLAN_PLANNER)
         start = cls.body.index("2. **Executor decomposition with a file map.**")
         end = cls.body.index("3. **Test strategy per spec")
         cls.item2 = cls.body[start:end]
@@ -118,7 +121,7 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        planner_body = read(CODE_PLANNER)
+        planner_body = read(IMPL_PLAN_PLANNER)
         start = planner_body.index("2. **Executor decomposition with a file map.**")
         end = planner_body.index("3. **Test strategy per spec")
         cls.item2 = planner_body[start:end]
@@ -129,12 +132,17 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
         cls.split_section = ticket_body[start:end]
 
     def test_planner_clause_names_plan_artifact_path_token(self):
-        self.assertIn("phases/code/plan.md", self.item2)
+        self.assertIn("phases/create-impl-plan/plan.md", self.item2)
 
     def test_split_section_names_same_artifact(self):
+        """Both sites name the ticket's plan artifact as the evidence source.
+        Site 1 names the draft path the coordinator publishes from; site 2
+        names the published plan — the same document, so the assertion is on
+        `plan.md` rather than on one of its two paths."""
+        self.assertIn("plan.md", self.item2)
         self.assertTrue(
             "`/code` plan artifact" in self.split_section
-            or "phases/code/plan.md" in self.split_section,
+            or "plan.md" in self.split_section,
             "create-ticket/SKILL.md's split section must name the same "
             "plan-artifact evidence source Site 1 names")
 
@@ -171,20 +179,20 @@ class CreateTicketSplitPathRewriteTest(unittest.TestCase):
             "get the user's confirmation first", normalized)
 
 
-class CodeSkillFoldPointerTest(unittest.TestCase):
+class PlanSkillFoldPointerTest(unittest.TestCase):
     """Assertion 10: the fold section gains a pointer to the new oversize
     signal, without disturbing the test-pinned provenance clauses."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = read(IMPL_PLAN_SKILL)
         start = cls.body.index("**Spec authoring fold")
-        end = cls.body.index("### Docs-only tickets")
+        end = cls.body.index("### Execute (per iteration)")
         cls.fold = cls.body[start:end]
 
     def test_fold_slice_points_at_planner_charter_item_2(self):
         self.assertIn("oversize", self.fold.lower())
-        self.assertIn("code-planner.md", self.fold)
+        self.assertIn("create-impl-plan-planner.md", self.fold)
         self.assertIn("charter item 2", self.fold)
 
     def test_provenance_clauses_survive_verbatim_in_slice(self):
@@ -195,13 +203,13 @@ class CodeSkillFoldPointerTest(unittest.TestCase):
             "create-spec planner", self.fold)
 
 
-class CodeSkillUserInteractionSplitTest(unittest.TestCase):
+class PlanSkillUserInteractionSplitTest(unittest.TestCase):
     """Assertion 3 + 13: '## User interaction' states the split-answer
     termination contract in full."""
 
     @classmethod
     def setUpClass(cls):
-        body = read(CODE_SKILL)
+        body = read(IMPL_PLAN_SKILL)
         start = body.index("## User interaction")
         end = body.index("## Context pressure")
         cls.section = body[start:end]
@@ -252,14 +260,14 @@ class CodeSkillUserInteractionSplitTest(unittest.TestCase):
         self.assertIn("No new XML element and no new status value", normalized)
 
 
-class CodeSkillFinishStep3BothSitesTest(unittest.TestCase):
+class PlanSkillFinishStep3BothSitesTest(unittest.TestCase):
     """Assertion 4 + 12 (R11): Finish step 3 carries the split exception at
     BOTH sub-sites — the direct-run summary line and the /ship sentence —
     asserted independently so a half-landed edit fails."""
 
     @classmethod
     def setUpClass(cls):
-        body = read(CODE_SKILL)
+        body = read(IMPL_PLAN_SKILL)
         start = body.index("3. Report a compact summary")
         end = body.index("## Completion report")
         cls.step3 = body[start:end]
@@ -268,11 +276,11 @@ class CodeSkillFinishStep3BothSitesTest(unittest.TestCase):
         cls.ship_part = ship_part
 
     def test_direct_run_sentence_carries_split_exception(self):
-        self.assertIn("/acs:create-pr", self.direct_run)
+        self.assertIn("/acs:code", self.direct_run)
         self.assertIn("create-ticket split", self.direct_run)
 
     def test_ship_sentence_carries_split_exception(self):
-        self.assertIn("/acs:create-pr", self.ship_part)
+        self.assertIn("/acs:code", self.ship_part)
         self.assertIn("create-ticket split", self.ship_part)
 
 
@@ -371,18 +379,22 @@ class NegativeGuardsTest(unittest.TestCase):
     provenance lines; no create-spec-triad token; no new settings key;
     ship/SKILL.md untouched."""
 
-    def test_code_skill_create_spec_lines_unchanged(self):
-        body = read(CODE_SKILL)
+    def test_plan_skill_create_spec_lines_unchanged(self):
+        """The two provenance lines moved with the fold; code/SKILL.md keeps
+        none, since the fold prose left it entirely."""
+        body = read(IMPL_PLAN_SKILL)
         lines = [ln for ln in body.splitlines() if "create-spec" in ln]
         self.assertEqual(len(lines), 2,
-                         "code/SKILL.md must still carry exactly the two "
+                         "create-impl-plan/SKILL.md must carry exactly the two "
                          "pre-existing create-spec provenance lines: %r" % lines)
+        self.assertNotIn("create-spec", read(CODE_SKILL))
 
     def test_no_create_spec_triad_token(self):
-        body = read(CODE_SKILL)
-        for token in ("acs:create-spec-planner", "acs:create-spec-executor",
-                      "acs:create-spec-verifier"):
-            self.assertNotIn(token, body)
+        for path in (CODE_SKILL, IMPL_PLAN_SKILL):
+            body = read(path)
+            for token in ("acs:create-spec-planner", "acs:create-spec-executor",
+                          "acs:create-spec-verifier"):
+                self.assertNotIn(token, body, path)
 
     def test_settings_schema_unchanged(self):
         body = read(SETTINGS_SCHEMA)

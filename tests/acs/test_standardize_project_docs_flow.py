@@ -114,13 +114,16 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
-    def test_intro_reads_twentyfive_not_twentythree(self):
+    def test_intro_reads_thirtyone_not_older_counts(self):
+        # 25 -> 31 with the skills-independence refactor (five new hooked
+        # Build/Test skills + the `test` -> `run-e2e-tests` alias directory).
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-five skills", intro,
-                      "skills.md intro must read 'Twenty-five skills'")
-        self.assertNotIn("Twenty-three skills", intro,
-                         "skills.md intro must NOT still read 'Twenty-three skills'")
+        self.assertIn("Thirty-one skills", intro,
+                      "skills.md intro must read 'Thirty-one skills'")
+        for stale in ("Twenty-three skills", "Twenty-five skills"):
+            self.assertNotIn(stale, intro,
+                             "skills.md intro must NOT still read %r" % stale)
 
     def test_standardize_project_section_exists_not_product_level(self):
         body = self._skills_req()

@@ -70,3 +70,33 @@ separate slices of the same epic (MAR-75, MAR-77, MAR-78); no single
 pre-merge tree contains all three simultaneously; that is a property of how
 the epic's slices were sequenced and reviewed, not of the decision itself,
 which is settled and accepted as a whole once the three slices land.
+
+## Amendment — skills-independence refactor (ADR-0089)
+
+The split this ADR records — a **planning** phase (`create-ticket(epic)` →
+`create-design` → fan-out) and an **implementation** phase per child, with
+epics never implemented — is unchanged, and is now expressed in two data files
+rather than in gate code and prose. `workflows/phases.yaml` puts
+`create-ticket` and `create-design` in the **design** phase;
+`workflows/ship.yaml` (the implementation walk `/acs:ship` drives) may name
+build/test/ship skills **only**, so neither design skill — nor `merge-pr`, nor
+`release` — can appear in it. `/acs:ship` takes a ticket id and refuses an
+epic with the same design-and-fan-out pointer this ADR established.
+
+The implementation walk itself gained four steps and a branch:
+`analyze-ticket` → `create-impl-plan` → `create-api-contract` (only when the
+analysis found an API surface change) → `create-test-docs` → `code` →
+`create-e2e-tests` ∥ `docs-sync` → `run-e2e-tests` → `create-pr`. What did
+**not** change is the boundary this ADR drew: the epic's own ticket still
+never enters that walk, and the epic refusal survives as a **safety brake** in
+`gate_code`, `gate_analyze_ticket` and `gate_create_impl_plan` — one of the
+few refusals kept when the order gates were deleted, precisely because it
+protects correctness rather than sequence. Context, Decision and Consequences
+above are otherwise unedited.
+
+The child's inheritance of its parent epic's design is now a named predicate,
+`design_approved`, evaluated by `acs.py workflow next` against the parent's
+`design.md` and the ledger's `create-design` entry, rather than a special case
+inside a gate. A child whose parent design is missing is reported as
+`blocked_by` with the pointer "run /acs:create-design <epic> (the parent epic)
+first" — a block on the walk, not a refusal by the hook.

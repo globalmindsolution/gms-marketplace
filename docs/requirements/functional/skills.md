@@ -1,18 +1,35 @@
 # Skill Requirements
 
-Twenty-five skills in total: the bootstrap skill (`/setup`), the umbrella
-command (`/ship`), the utility skills — the session-handoff helper
-(`/handoff`), the update assistant (`/update`), the local-hooks installer
-(`/install-hooks`), the read-only PM metrics dashboard (`/metrics`), the
-read-only usage dashboard (`/usage`), the standing suite runner
-(`/acs:test`), `/acs:release`, and `/acs:create-docs` — the product-level
-`/create-prd`, `/create-architecture`,
-`/create-project`, `/create-quality`, `/create-operations`,
-`/create-principles`, `/create-standards`, and `/create-requirements`, `/acs:standardize-project`
-(its own triad-keeping workflow skill with its own delivery ticket — **not**
-one of the product-level `<set>_path` doc-set producers just listed, and
-adds no new settings key), five workflow skills, and one planning skill
-(`/create-design`, conditional).
+Thirty-one skills in total, grouped into five phases by the registry
+`plugins/acs/workflows/phases.yaml` — every skill directory appears in
+exactly one group, or under `aliases`:
+
+- **Design** — `/create-prd`, `/create-requirements`, `/create-architecture`,
+  `/create-project`, `/create-principles`, `/create-standards`,
+  `/create-quality`, `/create-operations`, `/acs:create-docs`,
+  `/acs:standardize-project`, `/create-ticket`, `/create-design`.
+- **Build** — `/analyze-ticket`, `/create-api-contract`,
+  `/create-impl-plan`, `/create-test-docs`, `/code`, `/docs-sync`.
+- **Test** — `/create-e2e-tests`, `/run-e2e-tests`.
+- **Ship** — `/create-pr`, `/merge-pr`, `/acs:release`.
+- **Utility** — `/setup`, `/install-hooks`, `/update`, `/handoff`,
+  `/metrics`, `/usage`, `/ship`.
+- **Alias** — `/acs:test`, kept for one release as a forwarding directory
+  for `/run-e2e-tests`; it is listed under `aliases`, never in a phase.
+
+The phase a skill sits in is a grouping, not an order. The order the Build,
+Test and Ship steps run in for a ticket is declared in
+`plugins/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
+**every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
+because another skill has not run ([hooks.md](hooks.md)).
+
+Twenty of the thirty-one are **hooked** (a pre-hook and a post-hook each):
+the twelve Design-phase skills except `/acs:create-docs`, all six Build-phase
+skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The other eleven
+(`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`, `/metrics`,
+`/usage`, `/acs:release`, `/acs:create-docs`, `/run-e2e-tests`, `/acs:test`)
+are unhooked and record what they need through `pipeline-step.py`.
+
 Every **workflow** skill MUST:
 
 - Twelve **workflow/product skills** (docs-sync, code, create-prd,
@@ -24,12 +41,22 @@ Every **workflow** skill MUST:
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
   per MAR-55 invariant (b): the coordinator, optionally delegating to at
   most one executor subagent, performs the apply-work directly — no planner
-  subagent, no verifier subagent, in every lane.
-- be gated by a pre-hook and persisted by a post-hook
-  ([hooks.md](hooks.md));
-- read and write **only** inside `<workspace>/<repo>/<ticket-id>/` for state
-  (the consumer repo is touched only where the skill's job requires it,
-  e.g. `/code` edits source files);
+  subagent, no verifier subagent, in every lane. The skills-independence
+  refactor changed exactly two things about that split and nothing else:
+  `/code`'s plan phase moved out into `/create-impl-plan`, so `/code` now
+  runs **execute → verify** with no planner of its own; and the five new
+  Build/Test skills (analyze-ticket, create-impl-plan, create-api-contract,
+  create-test-docs, create-e2e-tests) each ship their own
+  planner/executor/verifier triad. Sixteen hooked skills therefore run the
+  full plan → execute → verify cycle today — the twelve above minus `code`,
+  plus those five.
+- have its inputs checked by a pre-hook and its outcome persisted by a
+  post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order;
+- write state **only** inside `<workspace>/<repo>/<ticket-id>/`, and write
+  the ticket's human-facing documents only under
+  `<settings.artifacts.tickets_path>/<ticket-id>/` (the consumer repo is
+  otherwise touched only where the skill's job requires it, e.g. `/code`
+  edits source files);
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn its
   planner/executor/verifier on the models and effort levels configured there
@@ -102,31 +129,41 @@ configuration.
 
 ## `/ship` (umbrella)
 
-Purpose: drive the whole pipeline from one command.
+Purpose: drive the declared pipeline for one existing ticket, from one
+command.
 
-- `/ship <prompt>` MUST run the workflow skills in the SAME order on every
-  lane and stop before `/merge-pr`, which a reviewer lands as a separate step
-  ([workflow.md](workflow.md#umbrella-command-ship)):
-  `/create-ticket` → `/create-design` (when the ticket needs design) →
-  `/code` → `/test` (when e2e is configured) → `/docs-sync` →
-  `/create-pr`. No lane branches the walk — spec
-  authoring is folded into `/code`'s plan phase on every lane
-  (`ship/SKILL.md` "Pipeline order" / "Picking the next step": "Walk the
-  SAME order on every lane — the fold is universal now, so no lane branches
-  the walk").
-- MUST NOT bypass any pre/post hook; it adds orchestration only.
-- SHOULD be resumable: re-running it for a ticket continues from the first
-  incomplete step recorded in workspace state.
+- `/ship <ticket-id>` takes a **ticket id only**. A non-id argument MUST be
+  refused with a pointer at the Design phase ("ship takes a ticket id; run
+  /acs:create-ticket \"<prompt>\" and then /acs:ship <id>"); an epic id MUST
+  be refused with the design-and-fan-out pointer. There is no
+  create-a-ticket-from-a-prompt entry path.
+- `/ship` MUST NOT hard-code the step order. It MUST derive every step from
+  the resolved workflow file — `<repo>/.acs/workflows/ship.yaml` when the
+  consumer ships one, else the plugin default — by looping over
+  `acs.py workflow next` until it reports `done`
+  ([workflow.md](workflow.md#umbrella-command-ship)).
+- In `single` mode it invokes the one ready skill with that step's declared
+  `args`; in `parallel` mode it MUST run the ready steps as **legs**, one
+  subagent and one git worktree each, on leg branches cut from the ticket
+  branch head, merging them back in file order when every leg returns. A
+  failed leg MUST NOT cancel its siblings — it is simply ready again on the
+  next `workflow next`.
+- MUST stop before `/merge-pr` (which may not appear in a workflow file at
+  all), and MUST NOT bypass any pre/post hook; it adds orchestration only.
+- SHOULD be resumable: re-running it for a ticket re-evaluates
+  `workflow next` against `pipeline-state.json` and continues from whatever
+  is ready.
 - MUST stop after `/code` completes and before the post-code test gate when
   the ticket's resolved verify depth is `full` (`verify_depth(lane,
-  stakes)`), re-read from `ticket.json` after `/code` returns because
+  stakes)`), re-read from the ticket document after `/code` returns because
   `/code` may escalate the lane mid-flight and write it back durably. The
   stop is a designed boundary, not a failure: no step is marked `failed`,
   no run entry is written (`/ship` is unhooked and owns none),
   `pipeline-state.json` records `code` completed, and the run ends with
-  status `handed_off`. The tail (`test` when the gate is active ->
-  `/docs-sync` -> `/create-pr`) runs in a fresh session resumed with
-  `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
+  status `handed_off`. The remaining steps — whatever `workflow next` reports
+  ready after `code`, which in the default workflow is `docs-sync` alongside
+  `create-e2e-tests`, then `run-e2e-tests`, then `create-pr` — run in a fresh
+  session resumed with `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
   through, unchanged
   (`ship/SKILL.md` "Full-verify pipeline boundary"; workflow.md#context-handoff-between-steps).
 - No planner/executor/verifier of its own; each step skill is **invoked
@@ -227,7 +264,7 @@ existing workspace state — no network, no new config key, nothing written.
   config key beyond the `.acs/settings.json` the helper already reads.
 - Not part of the gated pipeline; no planner/executor/verifier subagents.
 
-## /acs:test (utility)
+## /acs:run-e2e-tests (test)
 
 Purpose: the standing, schedulable **suite runner** over the `suites`
 settings map — runs the product's configured test commands (unit,
@@ -239,19 +276,25 @@ closing the loop on failures with a regression ticket.
   suite, or check whether anything broke routes here.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
-- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`, `/acs:test` has
-  no planner/executor/verifier triad and no `test-state.json` skill-start
-  ticket allocation. It is not part of the gated pipeline.
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
+  `/acs:run-e2e-tests` has no planner/executor/verifier triad, no pre- or
+  post-hook, and no skill-start ticket allocation.
+- **`/acs:test` is a deprecated alias** kept for one release: the directory
+  survives and forwards to `/acs:run-e2e-tests`.
+  `plugins/acs/workflows/phases.yaml` lists it under `aliases`, never in a
+  phase, and `pipeline-state.json` still accepts a `steps.test` entry so a
+  pre-rename ledger validates and the workflow walk still finds it.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
 - **Records its own pipeline step** in ticket-scoped mode: a
-  `--for-ticket` run writes the ticket's `steps.test` entry itself, since
-  the skill is unhooked and has no post-hook to do it. A green run
-  recording `completed` is what opens `/acs:docs-sync`'s gate — the remedy
-  that gate's own error message names. A failing run updates the entry only
-  when it already exists, so a direct user-initiated run cannot newly shut a
-  gate that was not blocking them.
+  `--for-ticket` run writes the ticket's own step entry itself, since the
+  skill is unhooked and has no post-hook to do it. That entry is what
+  `acs.py workflow next` reads to decide whether the `run-e2e-tests` step is
+  satisfied; it no longer opens or shuts anyone's gate, because no gate
+  depends on it. A failing run updates the entry only when it already
+  exists, so a direct user-initiated run cannot newly mark a step failed for
+  a ticket that was not running one.
 - **All-green determinism:** when every suite passes, the run makes zero
   model calls and mints no tickets — triage only runs on the failure path.
 - **Failure-path triage:** on a failing suite, the skill derives a stable
@@ -266,10 +309,12 @@ closing the loop on failures with a regression ticket.
 - **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
   suite-execution core (Steps 1-3: setup→command→teardown, the
   results-artifact write) scoped to the reserved `e2e` suite plus the
-  ticket's own folded Test-plan suites, but skips the regression-ticket
-  triage/mint-or-bump loop entirely and instead returns a `{status,
-  failure_output}` verdict — invoked as one step inside `/acs:ship`'s
-  pipeline walk. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+  ticket's own suites — read from `test-cases.md` when the ticket has one,
+  falling back to the folded Test-plan section — but skips the
+  regression-ticket triage/mint-or-bump loop entirely and instead returns a
+  `{status, failure_output}` verdict. It is the `run-e2e-tests` step of
+  `ship.yaml`, whose `on_fail` relays a failure back into `code` under the
+  `post_code_test_fix_loops_cap` bound. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
 
 ## /acs:release (utility)
 
@@ -315,10 +360,11 @@ runs them in parallel instead of one after another; each leg keeps its own
 hooks, reflection cycle, and gating unchanged, and delivers as its own
 docs-only PR on its own delivery ticket.
 
-- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`/`/acs:release`,
+- **Unhooked** — like
+  `/setup`/`/update`/`/metrics`/`/usage`/`/run-e2e-tests`/`/acs:release`,
   `/acs:create-docs` has no planner/executor/verifier triad of its own and no
   `create-docs-state.json` skill-start ticket allocation; it is not one of
-  the twelve triad-keeping skills. Like `/acs:ship`, it adopts
+  the triad-keeping skills. Like `/acs:ship`, it adopts
   `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
 - **Eligibility**: `fanout_batches()` (`acs_lib.py`) computes the eligible
   batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
@@ -1058,21 +1104,134 @@ tickets where the change is architecturally significant.
   the design's accepted decision records are committed into the consumer
   repo by `/code` as part of its documentation updates.
 
+> **Section numbering.** The numbers below are stable identifiers for these
+> per-skill blocks, not the run order. The order the Build/Test/Ship steps
+> run in is declared in `plugins/acs/workflows/ship.yaml`
+> ([workflow.md](workflow.md#pipeline)); the lettered sections (2a–2d, 3a)
+> are the Build/Test skills added by the skills-independence refactor, which
+> land between the originally-numbered ones.
+
+## 2a. `/analyze-ticket`
+
+Purpose: the first Build step — understand the ticket against the product
+docs and the codebase before anything is planned, and say plainly whether it
+is ready to plan.
+
+- Input: the ticket, the PRD / requirements / architecture doc sets, and the
+  codebase. Pre-hook input check: the ticket resolves. Brake: an **epic** is
+  refused (epics are designed and fanned out, never implemented).
+- MUST write `analysis.md` to the ticket's docs folder with front matter
+  `{ticket, ready_for_planning, api_surface, stakes_recommendation,
+  needs_design_recommendation}` and the sections: Problem restated; Impact
+  map (components/files/tests likely touched); Questions; Assumptions;
+  Risks; Refined acceptance criteria; Verdict.
+- Every question MUST go through the clarification ledger — asked with
+  AskUserQuestion when the user is reachable, else recorded
+  `--source assumption` with a rationale. Refined acceptance criteria are
+  **proposals** recorded in the ledger; the ticket's own criteria are
+  amended only on user confirmation.
+- MUST run the stakes recommendation over the impact paths and, on `high`,
+  apply the existing lane-apply path, so stakes rise **before** code rather
+  than mid-flight.
+- A not-ready analysis MUST return `needs_input` rather than a completed run.
+- `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
+  apply to this ticket; `api_surface: false` skips it.
+- Subagents: `analyze-ticket-planner`, `-executor`, `-verifier`.
+- State file: `analyze-ticket-state.json`; states `ready_for_planning`,
+  `api_surface`, `questions_open`.
+
+## 2b. `/create-impl-plan`
+
+Purpose: `/code`'s plan phase, carved out whole into its own skill, ending in
+an approved `plan.md`.
+
+- Input: the ticket, `analysis.md` and `design.md` when present (the API
+  contract comes *after* the plan — the plan is what names the API surface
+  to build). Pre-hook input check: the ticket resolves. Brake: an epic is
+  refused.
+- MUST keep every mechanism the phase had inside `/code`, unchanged: the
+  planner agent, the spec fold, the executor file map, plan approval
+  (STANDARD/COMPLEX only) and the plan-revocation path
+  (`plan-superseded-<k>.md` in the workspace).
+- MUST write `plan.md` to the ticket's docs folder (the partition when
+  `artifacts.tickets_path` is `null`). On TRIVIAL/SMALL the coordinator
+  authors it with no planner spawn and no approval step, exactly as before
+  (ADR-0074).
+- Subagents: `create-impl-plan-planner`, `-executor`, `-verifier`.
+- State file: `create-impl-plan-state.json`; states `plan_path`,
+  `plan_approved`, `file_map`.
+
+## 2c. `/create-api-contract`
+
+Purpose: pin the API surface a ticket changes before it is implemented, so
+`/code` builds against a contract and `/create-test-docs` derives cases from
+it.
+
+- Input: `plan.md`, `analysis.md`, the ticket, the architecture doc set, and
+  the repo's existing contract files under `contracts_path` (default
+  `docs/api`; `null` = the ticket folder only). Pre-hook input checks:
+  `plan.md` exists **and** `analysis.md` declares `api_surface: true` —
+  otherwise the skill is refused with a pointer at `/create-impl-plan` or
+  `/analyze-ticket`.
+- MUST write `api-contract.md`: every endpoint/command/message the plan adds
+  or changes, request/response shapes, error codes, compatibility and
+  versioning notes, and examples — each traced to an acceptance criterion
+  **and** to a plan item.
+- MUST update the repo's machine-readable contract files under
+  `contracts_path` when the repo keeps them, committed on the ticket branch.
+- Subagents: `create-api-contract-planner`, `-executor`, `-verifier`.
+- State file: `create-api-contract-state.json`; states `contract_path`,
+  `items`, `traced_acs`.
+
+## 2d. `/create-test-docs`
+
+Purpose: turn the ticket's acceptance criteria (plus the plan and the API
+contract when they exist) into an explicit, traceable set of test cases,
+before any test is written.
+
+- Input: the ticket's acceptance criteria; `plan.md` when present;
+  `api-contract.md` when present. Pre-hook input check: the ticket resolves.
+- MUST write `test-cases.md` with front matter `{ticket, cases}` and a
+  table/list of cases: id `TC-n`, traced acceptance criterion, type
+  `unit | integration | e2e`, preconditions, steps, expected result, target
+  suite/module.
+- **Every acceptance criterion MUST be traced by at least one case**; a
+  completed run leaves `untraced_acs` empty.
+- The e2e-typed rows are the input `/create-e2e-tests` reads, and the count
+  of them is what decides whether that step has anything to do.
+- Subagents: `create-test-docs-planner`, `-executor`, `-verifier`.
+- State file: `create-test-docs-state.json`; states `cases`, `e2e_cases`,
+  `untraced_acs` (MUST be empty on a completed run).
+
 ## 3. `/code`
 
-Purpose: author the ticket's implementation specs when none exist, then
-implement them in the consumer repo using TDD.
+Purpose: implement the ticket's approved plan in the consumer repo using TDD.
+
+> **The plan phase left `/code` (skills-independence refactor).** `/code`
+> REQUIRES an approved `plan.md` and no longer produces one: the Plan, Plan
+> approval, Plan revocation and Plan-artifact-resolution steps — and
+> `code-planner.md` with them — are now `/create-impl-plan`'s (§2b). Every
+> plan-phase obligation stated in this section therefore binds
+> `/create-impl-plan` and its planner; they are stated here because `/code`'s
+> execute and verify phases anchor on their outputs, and because the
+> requirements they encode (spec fold, spec-simplicity, ADR-0012 doc-graph
+> gap, oversize signal, plan conformance) did not change — only which skill
+> discharges them. `/code` keeps execute → verify, the escalation triggers,
+> the coverage gate and the full-verify boundary; its executor writes tests
+> from `test-cases.md` when the ticket has one, and its verifier gains a
+> contract-conformance check when `api-contract.md` exists. When execution
+> finds the plan itself wrong, `/code` ends `failed` with
+> `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back
+> to `/create-impl-plan`.
 
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
-`<partition>/specs/` is absent or empty the plan's author (the `code-planner`
-on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72) authors the
-spec content itself inside the plan artifact
-(`<partition>/phases/code/plan.md`), on EVERY lane with no lane
-check; when specs are already present it reads them unchanged
-(`code/SKILL.md`'s "Spec authoring fold" section). The obligations below —
-from ticket clarification through the oversized-ticket escalation — moved
-here from the retired spec-authoring section (MAR-161, ADR 0066) and now
-bind `/code`'s plan phase:
+`<partition>/specs/` is absent or empty the plan's author (the planner on
+STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72) authors the
+spec content itself inside the plan artifact `plan.md`, on EVERY lane with no
+lane check; when specs are already present it reads them unchanged. The
+obligations below — from ticket clarification through the oversized-ticket
+escalation — moved here from the retired spec-authoring section (MAR-161,
+ADR 0066) and now bind the plan phase, wherever it runs:
 
 - MUST analyze and clarify the ticket (asking the user where ambiguous).
 - MUST produce **one or more** implementation specs ("different
@@ -1265,13 +1424,16 @@ bind `/code`'s plan phase:
   against reality (e.g. re-run tests for specs marked implemented) and
   resume from the first unfinished spec/phase
   ([workflow.md](workflow.md#resuming-a-ticket)).
-- Pre-hook (`pre-code.py`) MUST verify that `/create-ticket` has completed
-  **and** that the ticket's own `type` is not `epic`: the gate is
-  unconditional on lane and has no `specs/` or predecessor-decomposition
+- Pre-hook (`pre-code.py`) MUST verify that the ticket's partition resolves,
+  that an approved **`plan.md` exists** for it (the input `/code` now
+  consumes rather than produces — a ticket without one is refused with a
+  pointer at `/acs:create-impl-plan <id>`), and that the ticket's own `type`
+  is not `epic`: the check is unconditional on lane and has no `specs/`
   precondition, but an epic ticket is refused outright with a `GateError`
   directing the user to `/acs:create-design` (if the epic has no design yet)
   then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
-  otherwise it exits 2 to stop the skill (`gate_code` in `acs_lib.py`).
+  otherwise it exits 2 to stop the skill. It MUST NOT require that
+  `/create-ticket`, `/analyze-ticket` or any other skill has completed.
   Whether `<partition>/specs/` already has
   content is discovered by the plan's author (the `code-planner` on
   STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72), not asserted
@@ -1281,11 +1443,13 @@ bind `/code`'s plan phase:
   into `/code`'s plan phase by the plan's author, on EVERY lane. The
   TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
   gate) are preserved unchanged in every lane.
-- Subagents: `code-planner`, `code-executor`, `code-verifier` (the planner is
-  spawned on STANDARD/COMPLEX only — MAR-72).
+- Subagents: `code-executor`, `code-verifier`. `/code` ships **no planner**:
+  the plan phase and `code-planner.md` moved to `/create-impl-plan` (§2b),
+  which keeps the STANDARD/COMPLEX-only planner spawn (MAR-72).
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
-  stop, record the achieved coverage and reason in `code-state.json`, and
-  leave the `/create-pr` gate closed.
+  stop, record the achieved coverage and reason in `code-state.json`. A
+  failed run leaves `verifier_passed` unset, which is what `/create-pr`'s
+  brake refuses.
 - On a **`docs_only`** ticket the TDD steps relax (no new tests, no coverage
   measurement) but the guarantees do not: the full suite still runs once and
   must stay green, and executable-code diffs under the flag are blocking
@@ -1375,11 +1539,30 @@ run. The following contract governs all automatic mid-flight lane changes:
    inlining (MAR-60: `create-pr` → `merge-pr` → `create-ticket`) is also
    unchanged.
 
+## 3a. `/create-e2e-tests`
+
+Purpose: write the ticket's end-to-end suites from the e2e-typed rows of its
+test cases, so the post-code e2e run has something ticket-specific to run.
+
+- Input: the e2e-typed rows of `test-cases.md` and the repo's e2e
+  configuration (`settings.e2e` / `settings.suites.e2e`). Pre-hook input
+  checks: an e2e suite is configured **and** `test-cases.md` lists at least
+  one e2e case — a repo with no e2e layer is refused with a pointer at
+  `/acs:setup`, and `ship.yaml` skips the step for it entirely
+  (`when: e2e_configured`).
+- MUST write the suites at the repo's configured e2e location, named after
+  the ticket, committed on the ticket branch.
+- Runs **in parallel with `/docs-sync`** in the default workflow — both need
+  only `code` — as two legs in two worktrees
+  ([workflow.md](workflow.md#parallel-work)).
+- Subagents: `create-e2e-tests-planner`, `-executor`, `-verifier`.
+- State file: `create-e2e-tests-state.json`; states `suites_written`,
+  `cases_covered`.
+
 ## 4. `/docs-sync`
 
 Purpose: re-verify and complete the doc updates a ticket's changeset
-requires, after `/code` (and `/test`, when it ran) and before `/create-pr`
-— independently re-derived from `git diff <default_branch>...HEAD`, `/code`'s
+requires — independently re-derived from `git diff <default_branch>...HEAD`, `/code`'s
 `result.json`, and the final code-verify artifact, never from a hand-off
 summary alone.
 
@@ -1394,9 +1577,12 @@ summary alone.
 - Subagents: `docs-sync-planner`, `docs-sync-executor`, `docs-sync-verifier`.
 - State file: `docs-sync-state.json`, written by the post-hook
   ([workspace-and-state.md](workspace-and-state.md)).
-- Gate position: runs after `/code` (and `/test`, when the post-code gate is
-  active) and before `/create-pr`, whose own gate additionally requires
-  `/docs-sync` to have completed.
+- Declared position: in the default `ship.yaml`, `docs-sync` needs only
+  `code` and runs in parallel with `create-e2e-tests`; `create-pr` needs
+  `docs-sync` and `run-e2e-tests`. That position is **declared, not gated** —
+  `/docs-sync`'s own pre-hook checks the partition and the lock and nothing
+  else, so a hand-run `/docs-sync` proceeds (after one advisory line) even
+  when `/code` has not completed ([hooks.md](hooks.md)).
 
 ## 5. `/create-pr`
 

@@ -96,3 +96,29 @@ only its author may change.
   (light = 1, full = 3) are unchanged.
 - `docs/requirements/functional/reflection.md` records `/acs:code` as a
   conditional triad-keeping skill going forward.
+
+## Amendment — skills-independence refactor (ADR-0089)
+
+The lane-conditional rule this ADR decided is unchanged and now belongs to a
+different skill. `/acs:code`'s plan phase became `/acs:create-impl-plan`, and
+`agents/code-planner.md` moved with it as
+`agents/create-impl-plan-planner.md`; `/acs:code` ships **no planner file at
+all** and runs execute → verify. Inside `/acs:create-impl-plan` the decision
+holds verbatim: the planner subagent is spawned on STANDARD/COMPLEX only, and
+on TRIVIAL/SMALL the coordinator authors `plan.md` itself with zero planner
+spawns, no plan XML to validate and no `iter-<n>-plan.xml` snapshot to
+persist. D-3 (no retro-spawn of a planner when a run escalates mid-flight) and
+D-4 (no plan XML on fast lanes) apply to that skill unchanged.
+
+The plan artifact's path moved too: `plan.md` is a human-facing document and
+is written to `<settings.artifacts.tickets_path>/<ID>/plan.md` (default
+`docs/tickets/<ID>/plan.md`), falling back to the partition's
+`phases/code/plan.md` for an unmigrated ticket or when `tickets_path` is
+`null` (ADR-0090). Context, Decision and Consequences above are otherwise
+unedited.
+
+One thing this amendment does **not** do is make the fast lane cheaper again
+by skipping the new skill. `/acs:create-impl-plan` runs on every lane, because
+`/acs:code` now refuses without a plan; on TRIVIAL/SMALL it is the same
+coordinator-authored plan it always was, just recorded as its own step in the
+ledger instead of as a phase inside `/code`.

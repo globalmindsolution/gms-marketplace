@@ -79,3 +79,34 @@ inside `/acs:test`'s own Steps 1-3.
 **No change to standing-mode behavior:** the default `/acs:test` invocation
 (no `--for-ticket`) is byte-for-byte unchanged — same suite selection, same
 Step 4a-4b triage/dedup policy, same completion report shape.
+
+## Amendment — skills-independence refactor (ADR-0089)
+
+Both halves of this ADR survive; both are now declared rather than coded into
+`/acs:ship`'s prose.
+
+**The skill is renamed.** `/acs:test` becomes `/acs:run-e2e-tests`. The old
+directory is kept for one release as an alias that forwards to it, listed
+under `aliases` in `workflows/phases.yaml` and never in a phase; both are
+unhooked. `pipeline-state.json` retains `test` beside `run-e2e-tests` in its
+step enum so a pre-rename ledger still validates and the workflow walk still
+finds a `steps.test` entry when resolving the renamed step.
+
+**The post-code fix-and-retest loop is a `ship.yaml` declaration.** The
+`run-e2e-tests` step carries `args: "--for-ticket {ticket_id}"`,
+`when: post_code_test_active` and
+`on_fail: {relay_to: code, max_loops: post_code_test_fix_loops_cap}`. The
+semantics are the ones this ADR decided, unchanged: the gate is OFF only when
+neither `settings.e2e` nor `suites.e2e` is configured, ON otherwise, with
+`post_code_test.enabled` overriding explicitly; a failure increments the step's
+`fix_loops` counter, capped by `post_code_test.fix_loops_cap` (default 2), and
+relays back into `/acs:code`. What changed is that a reader learns this by
+reading one file instead of inferring it from a skill's prose, and that a
+consumer can retune it in its own `.acs/workflows/ship.yaml` without forking
+the skill.
+
+**The ticket-scoped mode's suite scoping gained a first source.** A
+`--for-ticket` run now reads the ticket's suites from `test-cases.md` when the
+ticket has one, falling back to today's folded Test-plan section; the triage
+skip and the `{status, failure_output}` verdict are unchanged. Context,
+Decision and Consequences above are otherwise unedited.

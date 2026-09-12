@@ -98,8 +98,12 @@ class PrdAiProductBuilderRowTest(unittest.TestCase):
         self.assertNotIn("/acs:create-spec", row)
 
     def test_skill_count_cross_pin(self):
-        self.assertEqual(len(os.listdir(SKILLS_DIR)), 25)
-        self.assertIn("**25**", read(PRD))
+        # Derived from disk instead of a literal (25 before the
+        # skills-independence refactor, 31 after it), so prd.md's count is
+        # pinned to the plugin rather than to a number this file has to chase.
+        on_disk = len([d for d in os.listdir(SKILLS_DIR)
+                       if os.path.isdir(os.path.join(SKILLS_DIR, d))])
+        self.assertIn("**%d**" % on_disk, read(PRD))
 
 
 class PrdDeliveryLanesTest(unittest.TestCase):
