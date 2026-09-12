@@ -73,21 +73,23 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
                 "predecessor gate for an unhooked utility skill (AC-1)",
         )
 
-    def test_unhooked_skills_count_is_ten(self):
-        # MAR-1: /acs:create-docs registers in UNHOOKED_SKILLS, 9 -> 10.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 10)
+    def test_unhooked_skills_count_is_eleven(self):
+        # MAR-1: /acs:create-docs registers in UNHOOKED_SKILLS, 9 -> 10. The
+        # skills-independence refactor adds run-e2e-tests (today's `test`
+        # renamed) beside the retained `test` alias, 10 -> 11.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 11)
 
-    def test_hooked_skills_count_unchanged_fifteen(self):
+    def test_hooked_skills_count_is_twenty(self):
         # Literal advances as later producer children register (MAR-143:
         # create-requirements, 14 -> 15; MAR-156: create-spec deleted, 15 -> 14;
-        # MAR-160: docs-sync registered, 14 -> 15) — /acs:release itself adds none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 15)
+        # MAR-160: docs-sync registered, 14 -> 15; the skills-independence
+        # refactor hooks the five Build/Test skills, 15 -> 20) — /acs:release
+        # itself adds none.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 20)
 
     def test_gates_count_is_twenty(self):
-        # See test_hooked_skills_count_unchanged_fifteen, plus the five
-        # Build/Test gates the skills-independence refactor registered
-        # (analyze-ticket, create-impl-plan, create-api-contract,
-        # create-test-docs, create-e2e-tests) — /acs:release itself adds none.
+        # One gate per hooked skill; see test_hooked_skills_count_is_twenty —
+        # /acs:release itself adds none.
         self.assertEqual(len(acs_lib.GATES), 20)
 
     def test_no_pre_or_post_release_script_on_disk(self):

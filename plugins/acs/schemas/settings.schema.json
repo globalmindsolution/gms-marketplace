@@ -180,7 +180,7 @@
         "overrides": {
           "type": "object",
           "propertyNames": {
-            "enum": ["code", "create-architecture", "create-design", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
+            "enum": ["analyze-ticket", "code", "create-api-contract", "create-architecture", "create-design", "create-e2e-tests", "create-impl-plan", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
           },
           "additionalProperties": {
             "type": "object",

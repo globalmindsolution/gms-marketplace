@@ -34,10 +34,12 @@ import acs_lib  # noqa: E402
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
-    "code", "create-architecture", "create-design", "create-operations",
+    "analyze-ticket", "code", "create-api-contract", "create-architecture",
+    "create-design", "create-e2e-tests", "create-impl-plan", "create-operations",
     "create-pr", "create-prd", "create-principles", "create-project",
     "create-quality", "create-requirements", "create-standards",
-    "create-ticket", "docs-sync", "merge-pr", "standardize-project",
+    "create-test-docs", "create-ticket", "docs-sync", "merge-pr",
+    "standardize-project",
 ]
 
 
@@ -76,8 +78,11 @@ class RegistryShapeCase(unittest.TestCase):
             acs_lib.PRODUCT_SKILLS + acs_lib.WORKFLOW_SKILLS + acs_lib.PLANNING_SKILLS,
         )
 
-    def test_hooked_skills_count_unchanged_fifteen(self):
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 15)
+    def test_hooked_skills_count_is_twenty(self):
+        # 15 through MAR-160; the skills-independence refactor hooks the five
+        # Build/Test skills (analyze-ticket, create-impl-plan,
+        # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 20)
 
     def test_sorted_hooked_skills_membership_pinned(self):
         # Count alone cannot catch a silent membership swap -- pin the names.
@@ -85,9 +90,9 @@ class RegistryShapeCase(unittest.TestCase):
 
     def test_gates_still_carries_create_design(self):
         self.assertIn("create-design", acs_lib.GATES)
-        # 15 hooked skills plus the five Build/Test gates the skills-independence
-        # refactor registered (analyze-ticket, create-impl-plan,
-        # create-api-contract, create-test-docs, create-e2e-tests).
+        # One gate per hooked skill: the dispatch table and the registry are
+        # the same list seen from two sides (test_producer_skill_gates asserts
+        # the membership direction).
         self.assertEqual(len(acs_lib.GATES), 20)
 
 
