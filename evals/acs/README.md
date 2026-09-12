@@ -18,7 +18,9 @@ python3 evals/run_evals.py
 # explicit plugin name
 python3 evals/run_evals.py --plugin acs
 
-# paid tier (spawns claude -p; costs money)
+# paid tier (spawns claude -p; costs money). A free /acs:setup registration
+# pre-flight runs first and aborts the spending tier -- spending nothing -- if a
+# fresh sandbox cannot see the plugin (MAR-575)
 python3 evals/run_evals.py --plugin acs --paid
 
 # forge tier (drives the real pipeline against a configured target repo;
@@ -57,7 +59,18 @@ ACS_EVAL_SOURCE=1 python3 evals/run_evals.py
 ACS_EVAL_SOURCE=1 python3 evals/acs/run_evals.py
 ```
 
-Exit code is non-zero if any selected scenario has a failing assertion.
+Exit code is non-zero if any selected scenario has a failing assertion — and
+also when the paid/forge pre-flight fails. Before the first spending scenario, a
+`--paid`/`--forge` run spends nothing on a free `/acs:setup` registration probe
+in a fresh sandbox; if that sandbox cannot see the plugin (or `claude` cannot
+be started at all) the runner prints
+`PRE-FLIGHT FAILED — the sandbox cannot see the plugin`, drops every spending
+scenario, still runs the free tier, and exits 1 with **no** failing scenario
+(MAR-575). A passing pre-flight prints nothing. The probe runs only when a
+selected spending scenario will actually spend: a forge scenario whose target
+is unconfigured declares `will_spend()` false, records its one skipped result,
+and triggers no probe — which is why the unconfigured skip stays a clean exit 0
+in CI, where there is no `claude`.
 
 ## The acs Sandbox seam
 
@@ -107,13 +120,25 @@ message says what must run first. No `claude` needed.
 returns `{ok, result, cost_usd, num_turns, ...}`. Assert on workspace artifacts
 afterwards, not on the model's text output.
 
+**`sb.trigger_detail(request)`** — drives one routing probe and returns
+`(routed_to, detection)`, killing the session the instant a value is decided so
+no skill body runs. `detection` names the rule that decided it, three ways
+(MAR-575): `skill_tool_use` for a description probe, routed by the model's first
+`Skill` tool_use; `registered` for an explicit `/acs:<skill>` probe, routed by
+the CLI and read off the `init` event's `slash_commands` list before any model
+turn; and `unmeasured` when an explicit probe's stream reports no registration
+list at all, which returns `routed_to=None` and so scores as a miss, never as a
+pass. **`sb.trigger(request)`** is the single-value wrapper — `routed_to` only —
+for scenarios that do not care which rule decided.
+
 **`sb.session_end()`** — runs the installed `dispatch.py session-end` hook.
 Tests the abnormal-ending cleanup path.
 
 `self.env` — the env every `claude -p` the sandbox spawns inherits — keeps the
-operator's **real `HOME`** (MAR-574). `run_skill` and `trigger` both pass it, so
-a paid session resolves the operator's own `~/.claude/plugins/cache`, the same
-cache `installed_scripts_dir()` reads, which is what lets it see the installed
+operator's **real `HOME`** (MAR-574). `run_skill` and `trigger_detail` both pass
+it (and `trigger` transitively, through the wrapper), so a paid session resolves
+the operator's own `~/.claude/plugins/cache`, the same cache
+`installed_scripts_dir()` reads, which is what lets it see the installed
 acs plugin at all — and, as the accepted consequence, it reads and writes the
 operator's real `~/.claude`. `gate`, `run_script` and `session_end` spawn the
 *installed* hook scripts with `self.env` too, so they run under the real `HOME`
@@ -175,7 +200,7 @@ of scenario modules the runner iterates. Each module exposes:
 | `install_gate_smoke` | free | G1 | Drive the installed dispatch hook through each gate's input checks and safety brakes |
 | `create_ticket_artifacts` | paid | G1 | Run `/acs:create-ticket`; assert on ticket.json and pipeline-state.json |
 | `resume_and_verify` | paid | G2–G4 | Seed code-ready state; one fresh code session must resume, pass verifier, stay under PR cap |
-| `skill_triggers` | paid | routing | One NL request per skill must route to that skill (24 probes covering all 22 skills) |
+| `skill_triggers` | paid | routing | Routing must hold for every probed skill — 27 probes over 25 of the 31 skill directories: 23 NL descriptions, 2 explicit commands (the user-only skills), 2 negatives; the `test` alias and the five Build/Test skills the skills-independence refactor added carry no probe yet |
 | `session_end_safety_net` | free | cleanup | Abnormal-ending SessionEnd hook finalizes in_progress runs correctly |
 | `update_migration` | free | update | `/acs:update` semver compare + Step-6 migration checks |
 | `fanout_tracker_sync` | forge | G11 | `/acs:create-ticket` syncs every epic fan-out child's external via GitHub |
@@ -249,14 +274,14 @@ for tests, not operators.
 `ForgeSandbox` has four public methods total: `run_script` and `run_skill`,
 which share their names and shapes with `Sandbox`, plus two forge-only
 helpers, `gh_json` and `commit_file`. That is the entire driving/seeding
-surface — not parity with `Sandbox`'s fourteen public methods. `Sandbox`'s
+surface — not parity with `Sandbox`'s fifteen public methods. `Sandbox`'s
 other workspace helpers (`gate`, `repo_json`, `ticket_json`,
 `changed_lines`, `session_end`, `mint_ticket`, `start_run`, `complete_run`,
-`write_repo_file`, `trigger`, `partition_root`, `ticket_path`) simply are
-not implemented on `ForgeSandbox` — the run's workspace partition does
-exist (`sb.ws`/`sb.partition_id`, wiped per run), but nothing reads it back
-the way `Sandbox`'s helpers do. A forge scenario asserts through `gh_json`
-and files under `sb.repo` instead:
+`write_repo_file`, `trigger`, `trigger_detail`, `partition_root`,
+`ticket_path`) simply are not implemented on `ForgeSandbox` — the run's
+workspace partition does exist (`sb.ws`/`sb.partition_id`, wiped per run), but
+nothing reads it back the way `Sandbox`'s helpers do. A forge scenario asserts
+through `gh_json` and files under `sb.repo` instead:
 
 - **`run_script(script, *args, stdin=None)`** — run an installed helper CLI
   (`new-ticket.py`, `skill-start.py`, `post-<skill>.py`, `pr-conventions.py`,

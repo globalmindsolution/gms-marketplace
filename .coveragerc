@@ -12,6 +12,13 @@
 [run]
 parallel = true
 source = ${ACS_COV_ROOT}/plugins/acs/hooks/scripts
+# evals/ is measured too: the eval harness decides whether a paid run's misses are
+# real findings, and it has deterministic unit tests under tests/acs/ that must not
+# be allowed to rot. It is a source_dirs entry rather than a second `source` line so
+# the hook-scripts source stays the single pinned path it has always been; the
+# absolute-via-${ACS_COV_ROOT} rule above applies to it just the same. Measured TOTAL
+# with evals/ in: 93% (9344 stmts) -- no scenario omit needed to clear the 90 gate.
+source_dirs = ${ACS_COV_ROOT}/evals
 data_file = ${ACS_COV_ROOT}/.coverage
 # The 39 true pre-*/post-* argument forwarders (~6 stmts each: sys.path insert, import, run_pre/
 # run_post call — e.g. plugins/acs/hooks/scripts/pre-code.py, 10 lines, no def main()).

@@ -120,11 +120,17 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill; all 22 green (matches `s04_skill_triggers.py`'s
-  22-skill routing coverage, up from the original 12). Superseded as the
-  routing instrument by acs-evals, whose `routing.json` measurement covers
-  every shipped skill with 30 probes × 5 runs against a promoted baseline —
-  strictly stronger than `s04`'s single sample, which is kept on demand only.
+  routes to the right skill — target all 25 green across 27 probes (matches
+  `s04_skill_triggers.py`'s 25-skill routing coverage, up from the original 12,
+  which is 25 of the 31 shipped skill directories: the five Build/Test skills
+  the skills-independence refactor added carry no probe yet). The 20
+  description probes measured so far are green; the 2 explicit probes became
+  measurable only with the harness's registration-based detection rule and,
+  together with the 3 new description probes, are first measured by the next
+  paid run. Superseded as the routing instrument by acs-evals, whose
+  `routing.json` measurement covers every shipped skill with 30 probes × 5 runs
+  against a promoted baseline — strictly stronger than `s04`'s single sample,
+  which is kept on demand only.
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
   diff); `session_end_safety_net` (free) covers the SessionEnd cleanup. `s03`

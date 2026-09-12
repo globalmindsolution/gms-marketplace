@@ -98,7 +98,14 @@ python3 evals/run_evals.py --plugin acs --list
 python3 evals/run_evals.py --plugin acs --paid --keep   # keep sandbox dirs to inspect
 ```
 
-Exit code is non-zero if any selected scenario has a failing assertion.
+Exit code is non-zero if any selected scenario has a failing assertion — and
+also when the paid/forge pre-flight fails. A `--paid`/`--forge` run first spends
+nothing on a free `/acs:setup` registration probe in a fresh sandbox; if that
+sandbox cannot see the plugin (or `claude` cannot be started) the runner drops
+every spending scenario, still runs the free tier, and exits 1 with **no**
+failing scenario (MAR-575). A passing pre-flight prints nothing, and a run in
+which no selected spending scenario will actually spend (an unconfigured forge
+scenario skips itself) runs no probe.
 
 ## Pre-commit and CI
 
@@ -142,6 +149,11 @@ python3 evals/run_evals.py --plugin acs --paid
 ```
 
 See the release steps in the [root README](../README.md#releasing--updating).
+
+Read a non-zero exit carefully: the run opens with a free `/acs:setup`
+registration pre-flight, and an abort there (`PRE-FLIGHT FAILED`, exit 1, no
+failing scenario) means **the gate did not run and nothing was spent** — an
+environment problem to fix and re-run, not a red release gate.
 
 ## Adding a scenario
 
@@ -198,15 +210,18 @@ scenario loop — it simply peels `--plugin` and delegates.
 
 - **E1.1 (done)** — scenario runner + sandbox + artifact assertions. Seeded
   with `install_gate_smoke` (free, G1) and `create_ticket_artifacts` (paid, G1).
-- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **all 22**
-  skills. The 20 model-invocable skills each get a natural-language request
-  (never naming the skill) that must route to it. The 2 user-only skills
-  (`install-hooks`, `update`, which set `disable-model-invocation: true`) get
-  a pair of probes instead: an explicit `/acs:<skill>` invocation that must
-  route, plus a negative probe — a bare description of their intent that must
-  NOT auto-route to them (proving the no-auto-invoke guarantee). The
-  `trigger()` helper captures the first `Skill` call and kills the run, so the
-  body never executes — each probe costs only the time-to-route.
+- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **25 of the
+  31** skills, 27 probes in all. The 23 model-invocable skills each get a
+  natural-language request (never naming the skill) that must route to it. The
+  2 user-only skills (`install-hooks`, `update`, which set
+  `disable-model-invocation: true`) get a pair of probes instead: an explicit
+  `/acs:<skill>` invocation that must route, plus a negative probe — a bare
+  description of their intent that must NOT auto-route to them (proving the
+  no-auto-invoke guarantee); 23 + 2 + 2 = 27. Each probe is decided by one of
+  two rules and the run is killed the instant it is, so the body never executes
+  and a probe costs only the time-to-route: a description probe by the first
+  `Skill` call the model makes, and an explicit probe by the session's
+  registration list at the `init` event, before any model turn (MAR-575).
 - **E1.3 (done)** — per-goal scenarios. `resume_and_verify` (paid) seeds a
   code-ready pipeline for free, then one fresh `claude -p` `code` session — told
   only the ticket id — must resume from the workspace specs (G2), pass the

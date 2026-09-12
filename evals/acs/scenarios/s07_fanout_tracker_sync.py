@@ -60,6 +60,12 @@ PROMPT_FAN_OUT = (
 )
 
 
+def will_spend():
+    """Tell the runner whether this scenario would spawn `claude` at all: with
+    no GitHub test project it records one skipped result and spends nothing."""
+    return bool(os.environ.get("ACS_EVAL_GH_PROJECT"))
+
+
 def run():
     check = Check(META["name"])
 

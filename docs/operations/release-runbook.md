@@ -24,7 +24,13 @@ the step-by-step the maintainer follows.
    tag on red. (The free in-repo smoke already ran on every commit via
    pre-commit. The in-repo paid suite,
    `python3 evals/run_evals.py --plugin acs --paid`, is an on-demand tool kept
-   for the forge-tier scenarios, not the gate.)
+   for the forge-tier scenarios, not the gate.) When you do run that on-demand
+   suite, note that it can exit non-zero with **no** failing scenario, printing
+   `PRE-FLIGHT FAILED — the sandbox cannot see the plugin` and
+   `PRE-FLIGHT FAILED — the paid tier did not run.`; that is not a plugin
+   regression — the suite never ran and nothing was spent. Fix the environment
+   so the `acs` plugin is visible to a fresh sandbox session, then re-run
+   (MAR-575).
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive

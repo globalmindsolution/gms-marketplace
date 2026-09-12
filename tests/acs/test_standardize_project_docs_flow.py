@@ -314,20 +314,33 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
         user_only = len(self._negative())
         described = total - user_only
 
+        shipped = len([
+            name for name in os.listdir(os.path.join(PLUGIN, "skills"))
+            if os.path.isfile(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
+        ])
+
         header = source.split("\n")[0]
-        m = re.search(r"all (\d+) skills", header)
-        self.assertIsNotNone(m, "s04 header must state 'all N skills'")
+        m = re.search(r"for (\d+) of the (\d+) skills", header)
+        self.assertIsNotNone(
+            m, "s04 header must state 'for N of the M skills' — the probe set "
+               "no longer covers every skill directory, so the header states "
+               "both counts rather than claiming all of them")
         self.assertEqual(int(m.group(1)), total)
+        self.assertEqual(
+            int(m.group(2)), shipped,
+            "the header's second count must be the number of shipped skill "
+            "directories, so adding a skill without a probe shows up here")
 
         m = re.search(r'"summary":\s*"([^"]*)"', source)
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
-        m2 = re.search(r"all (\d+) \((\d+) by description, (\d+) user-only", summary)
+        m2 = re.search(
+            r"(\d+) of (\d+) \((\d+) by description, (\d+) user-only", summary)
         self.assertIsNotNone(
-            m2, "summary must state 'all N (M by description, K user-only'")
+            m2, "summary must state 'N of M (D by description, K user-only'")
         self.assertEqual(
-            (int(m2.group(1)), int(m2.group(2)), int(m2.group(3))),
-            (total, described, user_only))
+            (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
+            (total, shipped, described, user_only))
 
     def test_docstring_prose_counts_match_case_lists(self):
         source = self._source()

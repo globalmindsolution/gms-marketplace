@@ -198,6 +198,63 @@ def _owner_name_from_remote_url(url):
 
 
 # --------------------------------------------------------------------------- #
+# Routing detection: where a probe went, and which rule decided it
+# --------------------------------------------------------------------------- #
+
+def explicit_skill(prompt):
+    """The command an explicit `/acs:<skill>` prompt names, else None.
+
+    A user-typed slash command is expanded into the prompt by the CLI and never
+    dispatched through the `Skill` tool, so a probe whose prompt *is* the
+    command cannot be observed as a tool_use.
+    """
+    text = (prompt or "").strip()
+    if not text.startswith("/"):
+        return None
+    parts = text[1:].split(None, 1)
+    return parts[0] if parts else None
+
+
+def classify(lines, prompt):
+    """Decide where a stream-json session routed, from its raw event lines.
+
+    Returns `(routed_to, detection)`. Pure: `lines` is any iterable of
+    stream-json lines, so the rule is testable without a `claude`, and the
+    caller may stop reading the moment a value comes back.
+
+    * A description prompt is routed by the model: `routed_to` is the `skill`
+      of the first `Skill` tool_use, `detection` is `skill_tool_use`.
+    * An explicit `/acs:<skill>` prompt is routed by the CLI: the `init` event
+      lists every registered command in `slash_commands`, so `routed_to` is the
+      named command when it is registered there (exact match) and `detection`
+      is `registered` — decided before any model turn.
+    * An explicit probe whose stream never reports a registration list — an
+      `init` without `slash_commands`, or no `init` at all — is `unmeasured`:
+      `routed_to` is None, which scores as a miss, never as a pass.
+    """
+    want = explicit_skill(prompt)
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("type")
+        if (want is not None and kind == "system"
+                and event.get("subtype") == "init"):
+            if "slash_commands" not in event:
+                return None, "unmeasured"
+            registered = event.get("slash_commands") or []
+            return (want if want in registered else None), "registered"
+        if kind == "assistant":
+            for block in (event.get("message") or {}).get("content") or []:
+                if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                    return (block.get("input") or {}).get("skill"), "skill_tool_use"
+    return None, ("unmeasured" if want is not None else "skill_tool_use")
+
+
+# --------------------------------------------------------------------------- #
 # Sandbox: a throwaway consumer repo + workspace + valid .acs settings
 # --------------------------------------------------------------------------- #
 
@@ -475,15 +532,21 @@ class Sandbox:
         return out
 
     def trigger(self, request, allow=("Skill",), timeout=120):
-        """Return the first skill the model picks for a natural-language request.
+        """The skill a probe routed to (None when nothing routed)."""
+        routed_to, _detection = self.trigger_detail(request, allow, timeout)
+        return routed_to
+
+    def trigger_detail(self, request, allow=("Skill",), timeout=120):
+        """Return `(routed_to, detection)` for one routing probe.
 
         Drives `claude -p <request>` with stream-json and only the `Skill` tool
-        allowed, and returns the `skill` of the first `Skill` tool_use (e.g.
-        "acs:create-ticket"), or None if no skill was invoked before the model
-        stopped or `timeout` elapsed. This is the description-trigger test
-        (E1.2): does the right skill fire for a request? The process is killed
-        the instant the first Skill call appears, so each probe costs only the
-        time-to-route — the skill body never executes.
+        allowed, and hands the event stream to `classify`, which decides a
+        description probe from the first `Skill` tool_use and an explicit
+        `/acs:<skill>` probe from the session's registration list. `detection`
+        says which rule decided it, so a caller never reports an unmeasured
+        probe as routing evidence. The process is killed the instant a value is
+        decided, so each probe costs only the time-to-route — the skill body
+        never executes, and an explicit probe never reaches a model turn.
         """
         cmd = [
             "claude", "-p", request,
@@ -494,31 +557,22 @@ class Sandbox:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, text=True,
                                 cwd=self.repo, env=self.env)
-        found = None
         deadline = time.time() + timeout
-        try:
-            for line in proc.stdout:
+
+        def until_deadline(stream):
+            for line in stream:
                 if time.time() > deadline:
-                    break
-                try:
-                    ev = json.loads(line)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                if ev.get("type") != "assistant":
-                    continue
-                for block in ev.get("message", {}).get("content", []):
-                    if block.get("type") == "tool_use" and block.get("name") == "Skill":
-                        found = (block.get("input") or {}).get("skill")
-                        break
-                if found:
-                    break
+                    return
+                yield line
+
+        try:
+            return classify(until_deadline(proc.stdout), request)
         finally:
             proc.terminate()
             try:
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        return found
 
     # -- artifact assertions ---------------------------------------------- #
 

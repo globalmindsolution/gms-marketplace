@@ -205,7 +205,10 @@ class DocsPolicyTest(unittest.TestCase):
         for item in (e12, e13):
             self.assertRegex(item, r"(?i)supersed")
             self.assertIn("acs-evals", item)
-        self.assertIn("22-skill routing coverage", e12)  # PR #526 owns this count
+        # MAR-575 (this branch, formerly PR #526) added the create-docs,
+        # create-requirements and docs-sync probes, taking the count to 25;
+        # MAR-579 pinned 22 and named that PR as the owner of the change.
+        self.assertIn("25-skill routing coverage", e12)
         self.assertIn("PIPE-", e13)
         self.assertIn("MAR-579", e14)
         self.assertRegex(e14, r"(?i)no longer .{0,40}per-ticket")

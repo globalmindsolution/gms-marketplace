@@ -28,10 +28,13 @@ import traceback
 _acs_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _acs_dir)
 
-# The banner import resolves via the sys.path insertion above.
-from harness import installed_scripts_dir  # noqa: E402
+# The banner and pre-flight imports resolve via the sys.path insertion above.
+from harness import Sandbox, installed_scripts_dir  # noqa: E402
 
 TIERS_DEFAULT = {"free"}
+# Tiers whose scenarios spawn `claude` — what the pre-flight guards.
+SPENDING_TIERS = ("paid", "forge")
+PREFLIGHT_PROBE = "/acs:setup"
 
 
 def load_scenarios(plugin_name="acs"):
@@ -73,6 +76,52 @@ def selected(scenarios, args):
         yield mod
 
 
+def preflight_verdict(routed_to, detection):
+    """Whether one `/acs:setup` probe proves the sandbox can see the plugin.
+
+    Only a registration decision counts: `registered` means the session's init
+    event listed the command, which is exactly what a sandbox blind to the
+    plugin cannot produce. Anything else — an unmeasured session, or a model
+    that happened to pick the skill — is not that evidence.
+    """
+    if detection != "registered":
+        return False, ("the probe session reported no command registration "
+                       "(detection=%s)" % detection)
+    if routed_to != "acs:setup":
+        return False, ("acs:setup is not registered in the probe session "
+                       "(routed_to=%r)" % routed_to)
+    return True, "acs:setup is registered in the probe session"
+
+
+def will_spend(mod):
+    """Whether a selected spending-tier scenario will actually spawn `claude`.
+
+    A scenario that skips itself when its target is unconfigured (no forge
+    repo, no GitHub test project) declares that with a module-level
+    `will_spend()`; the pre-flight guards spending, so a run in which nothing
+    will spend runs no probe — CI has no `claude`, and the unconfigured skip
+    must stay a clean exit 0 there. A scenario without the hook is assumed to
+    spend.
+    """
+    hook = getattr(mod, "will_spend", None)
+    return True if hook is None else bool(hook())
+
+
+def run_preflight():
+    """Probe a throwaway sandbox for plugin registration; returns (ok, message).
+
+    Free: the probe is decided at the session's init event and killed there, so
+    no model turn runs. A `claude` that cannot be started at all is the same
+    verdict as a sandbox that cannot see the plugin — stated, never a traceback.
+    """
+    try:
+        with Sandbox(prefix="EVAL", slug="preflight", init=False) as sb:
+            routed_to, detection = sb.trigger_detail(PREFLIGHT_PROBE)
+    except OSError as exc:
+        return False, "the claude CLI could not be started (%s)" % exc
+    return preflight_verdict(routed_to, detection)
+
+
 def main():
     ap = argparse.ArgumentParser(description="acs behavioral eval runner")
     ap.add_argument(
@@ -112,6 +161,19 @@ def main():
         print("no scenarios selected (free tier is default; use --paid).")
         return 0
 
+    # A sandbox that cannot see the plugin would report every paid scenario as a
+    # routing failure. Prove registration first, and spend nothing when it fails.
+    spending = [mod for mod in chosen if mod.META["tier"] in SPENDING_TIERS]
+    preflight_failed = False
+    if any(will_spend(mod) for mod in spending):
+        ok, detail = run_preflight()
+        if not ok:
+            preflight_failed = True
+            print("PRE-FLIGHT FAILED — the sandbox cannot see the plugin: %s" % detail)
+            print("    not run (no session spent): %s\n"
+                  % ", ".join(mod.META["name"] for mod in spending))
+            chosen = [mod for mod in chosen if mod not in spending]
+
     total_cost = 0.0
     failed = []
     for mod in chosen:
@@ -139,6 +201,9 @@ def main():
         print("total claude cost: ~$%.2f" % total_cost)
     if failed:
         print("FAILED: " + ", ".join(failed))
+    if preflight_failed:
+        print("PRE-FLIGHT FAILED — the paid tier did not run.")
+    if failed or preflight_failed:
         return 1
     print("all passed.")
     return 0
