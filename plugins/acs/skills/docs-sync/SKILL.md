@@ -235,7 +235,11 @@ MANDATORY final step — never skipped, including on failure or handoff:
    `docs_committed`: repo-relative paths of every doc file docs-sync itself
    changed, mirroring `/code`'s `docs_updated` naming. `commits`: short SHA +
    message list of the additional commits docs-sync made. `review`:
-   `{iterations, findings_open}`. On `failed`: keep whatever is true, put the
+   `{iterations, findings_open}` — to which the post-hook's derivation may add
+   `guard_denials` when the file-map guard denied a write during THIS run
+   (the derivation reads `<skill>-state.json` for every skill, docs-sync's
+   own included); never write that key yourself, and a run that tripped
+   nothing carries no key at all. On `failed`: keep whatever is true, put the
    verifier's blocking findings in `findings`, and the reason in
    `stop_reason`.
 

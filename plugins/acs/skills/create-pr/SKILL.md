@@ -65,7 +65,11 @@ State inputs (read these; conversation history is NOT an input):
 - `<partition>/code-state.json` — `runs[-1].states`: `branch` (the ticket
   branch /acs:code created per `formats.branch_name`), `specs_implemented`,
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
-  `docs_updated`, `review` `{iterations, findings_open}`.
+  `docs_updated`, `review` `{iterations, findings_open}` (plus `guard_denials`,
+  derived, only when the file-map guard denied a write during the /acs:code
+  run — read it if you report it, never write or gate on it: this skill's
+  gate stays `verifier_passed` and the body's review tick stays
+  `review.findings_open == 0`).
 - `<partition>/specs/*.md` — scope and API/data changes per spec.
 - `<design_doc>` — the decision, when `design.required`.
 
