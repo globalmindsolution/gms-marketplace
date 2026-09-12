@@ -11,11 +11,11 @@ listed twice, an alias pointing nowhere, or an internal leg that collides with
 a registered name, has no directory, points outside the phase lists or points
 at another leg -- each refusal names the line.
 
-The `project` umbrella's directory arrives in a later phase of the design-phase
-fold, so it is listed in PENDING_SKILL_DIRS: the "every registry name has a
-directory" direction allows exactly that name, and a second test fails the
-moment the directory lands so the allowance cannot outlive it. The registry is
-the contract that directory is built to.
+Every registry name now has a `skills/<dir>`: the `project` umbrella's own
+directory landed with brief section 3, so the PENDING_SKILL_DIRS allowance that
+carried it between phases -- and the test that kept the allowance honest -- are
+gone, and the "every registry name has a directory" direction is unconditional
+again.
 
 Run:  python3 -m unittest tests.acs.test_phases_registry -v
 """
@@ -60,12 +60,6 @@ EXPECTED_INTERNAL = {
     "create-project": "project",
     "standardize-project": "project",
 }
-
-#: Registry names whose skills/<dir> is minted by a LATER phase of this fold:
-#: `project` is the new umbrella of brief section 3. Delete this tuple (and the
-#: test that keeps it honest) with that phase.
-PENDING_SKILL_DIRS = ("project",)
-
 
 def skill_dirs():
     return sorted(name for name in os.listdir(SKILLS_DIR)
@@ -121,17 +115,18 @@ class TestPhasesRegistry(unittest.TestCase):
         self.assertEqual(missing, [], "skill dirs not registered exactly once: %s" % missing)
 
     def test_every_registry_name_has_a_skill_directory(self):
-        """PENDING_SKILL_DIRS is the one documented exception: the registry is
-        the contract the `project` umbrella is built to, and it lands next."""
+        """No exceptions: every phase entry, alias key and internal leg has its
+        own plugins/acs/skills/<dir> on disk."""
         dirs = set(skill_dirs())
-        missing = [n for n in self.names if n not in dirs and n not in PENDING_SKILL_DIRS]
+        missing = [n for n in self.names if n not in dirs]
         self.assertEqual(missing, [], "registered without a skills/<dir>: %s" % missing)
 
-    def test_the_pending_skill_directories_are_still_pending(self):
-        """Fails the moment `project` gets its directory -- delete
-        PENDING_SKILL_DIRS and this test together when that phase lands."""
-        landed = [n for n in PENDING_SKILL_DIRS if n in set(skill_dirs())]
-        self.assertEqual(landed, [], "landed; drop it from PENDING_SKILL_DIRS: %s" % landed)
+    def test_the_project_umbrella_has_its_own_directory(self):
+        """The name PENDING_SKILL_DIRS used to excuse: the umbrella that the
+        `internal` map points both project legs at now ships its own SKILL.md."""
+        self.assertIn("project", skill_dirs())
+        self.assertIn("project", lib.registered_skills(self.phases))
+        self.assertTrue(os.path.isfile(os.path.join(SKILLS_DIR, "project", "SKILL.md")))
 
     def test_hooked_and_unhooked_skill_lists_are_registered(self):
         for skill in list(lib.HOOKED_SKILLS) + list(lib.UNHOOKED_SKILLS):

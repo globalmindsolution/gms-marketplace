@@ -109,7 +109,7 @@ not need, or drive the whole thing yourself. The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 31 skills
+## The 32 skills
 
 Skills are grouped into five phases by `workflows/phases.yaml` — the registry
 every other surface derives from (this table, the ship-workflow schema's
@@ -136,6 +136,7 @@ the pre-hook prints a one-line advisory on stderr and the skill runs anyway.
 | `/acs:create-quality` | Architecture doc set exists | Bootstraps or maintains the quality/ doc set (test strategy, coverage policy) at `quality_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
 | `/acs:create-operations` | Architecture doc set exists | Bootstraps or maintains the operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) at `operations_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
 | `/acs:create-docs` | — (unhooked fan-out) | Cross-skill doc-bootstrap fan-out: detects independent doc-bootstrap skills (currently `create-quality` and `create-operations`) whose upstream inputs exist, and runs them in parallel instead of sequentially — each leg keeps its own hooks, reflection cycle, and gating, and delivers as its own docs-only PR on its own delivery ticket. |
+| `/acs:project` | — (unhooked umbrella) | Repository structure and tooling: detects from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL`) whether this repo is greenfield or an existing codebase, states the mode and the evidence it rests on, then dispatches to the matching internal leg — `create-project` (greenfield scaffold) or `standardize-project` (additive brownfield audit) — as a real Skill-tool call, so that leg's own hooks, gate, delivery ticket and PR are unchanged. |
 | `/acs:standardize-project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |

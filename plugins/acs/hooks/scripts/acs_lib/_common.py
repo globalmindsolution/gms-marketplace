@@ -44,8 +44,15 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # retained beside it for one release as the alias directory that forwards
 # there (workflows/phases.yaml `aliases`), so an existing /acs:test invocation
 # keeps working.
+# `project` is the design-phase fold's umbrella over create-project and
+# standardize-project: like create-docs it owns no agents, no gate and no hook
+# scripts -- it picks a mode (project_mode, below) and invokes that leg's own
+# Start as a Skill-tool call -- so it is UNHOOKED and must never join
+# HOOKED_SKILLS (dispatch.py would then look for a pre-project.py that does
+# not exist, and skill-start.py would offer --skill project, which allocates
+# nothing).
 UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage",
-                   "test", "run-e2e-tests", "release", "create-docs"]
+                   "test", "run-e2e-tests", "release", "create-docs", "project"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. A schema-mirror equality test is what stops this list from drifting.
@@ -120,11 +127,16 @@ DOC_BOOTSTRAP_SENTINEL = {
     "create-standards": "coding-standards.md",
 }
 
-# D7-A: v1 fans out exactly this pair. A third doc-bootstrap skill becomes
-# fan-out-eligible by being added here AND to DOC_BOOTSTRAP_DEPENDENCIES AND
-# DOC_BOOTSTRAP_SETTINGS_KEY AND DOC_BOOTSTRAP_SENTINEL (fanout_batches also
-# indexes those two, unguarded) -- all four are data changes, no code change.
-DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations")
+# The declared fan-out set: every doc-bootstrap leg /acs:create-docs may fan
+# out. D7-A shipped this as the create-quality + create-operations pair; the
+# design-phase consolidation made /acs:create-docs <set|all> the only
+# user-facing doc command, so the set is now all four legs -- ONE constant
+# edit, because DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_SETTINGS_KEY and
+# DOC_BOOTSTRAP_SENTINEL already covered four. A fifth doc-bootstrap skill
+# becomes fan-out-eligible by being added here AND to those three
+# (fanout_batches indexes them unguarded) -- all data changes, no code change.
+DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations",
+                           "create-principles", "create-standards")
 """Iteration cap keyed by verify depth (AC-3: light=1; AC-4: full=3).
 
 Used by the /acs:code coordinator to bound the reflection loop:
@@ -141,6 +153,77 @@ a lane value — derive_lane() is the single authoritative producer (ADR 0030:56
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""
 """The two mandatory verbatim clauses the fold requires (code/SKILL.md:398-401)."""
+
+
+# ---------------------------------------------------------------------------
+# /acs:project mode detection (the design-phase entry-point fold)
+# ---------------------------------------------------------------------------
+#
+# /acs:project is an unhooked umbrella over two internal legs -- create-project
+# (greenfield scaffold) and standardize-project (brownfield audit) -- and picks
+# between them from DECLARED data plus a disk read, exactly as create-docs picks
+# its fan-out set from the DOC_BOOTSTRAP_* tables above. The mechanism is the
+# same settings-path + sentinel-file pair, read through the same presence
+# primitive (`setup_helpers._sentinel_present`): each row below names one piece
+# of evidence that this repo ALREADY has a project, its settings key resolves
+# the directory that evidence lives in (None = the checkout root itself), and
+# its sentinel is the file whose existence IS the evidence.
+#
+# Every shipped row is checkout-root-relative because a build manifest lives at
+# the repo root and acs has no source-layout settings key; the settings-key
+# column is kept because it is the shared mechanism, so evidence under a
+# configured path stays a data row rather than a code change.
+#
+# The rows are the build manifests setup_wizard.TEST_COMMAND_CANDIDATES already
+# declares as stack markers (widened to the JVM pair), plus two of
+# create-project's own scaffold outputs -- its pre-commit config and its
+# coverage config -- which are the evidence on a repo that keeps its sources
+# without a package manifest. CI workflow files are deliberately NOT rows even
+# though standardize-project audits them: /acs:setup writes acs-conventions.yml
+# / acs-tests.yml / acs-e2e.yml onto a repo with no source at all, which would
+# misread a greenfield repo as brownfield. The pre-commit row is safe from that
+# same objection -- /acs:install-hooks only ever EDITS a .pre-commit-config.yaml
+# that is already present (install-hooks/SKILL.md's Step 3 branches to raw git
+# hooks when it is absent), and /acs:setup never writes one.
+#
+# Adding a marker (another stack's manifest, another scaffold output) is a row
+# in both maps -- a data change, never an edit to project/SKILL.md.
+PROJECT_MODE_SETTINGS_KEY = {
+    "python-packaging": None,
+    "python-setup": None,
+    "node-packaging": None,
+    "go-modules": None,
+    "rust-packaging": None,
+    "maven-build": None,
+    "gradle-build": None,
+    "gradle-kotlin-build": None,
+    "pre-commit-config": None,
+    "coverage-config": None,
+}
+
+PROJECT_MODE_SENTINEL = {
+    "python-packaging": "pyproject.toml",
+    "python-setup": "setup.py",
+    "node-packaging": "package.json",
+    "go-modules": "go.mod",
+    "rust-packaging": "Cargo.toml",
+    "maven-build": "pom.xml",
+    "gradle-build": "build.gradle",
+    "gradle-kotlin-build": "build.gradle.kts",
+    "pre-commit-config": ".pre-commit-config.yaml",
+    "coverage-config": ".coveragerc",
+}
+
+#: The two modes /acs:project dispatches on, in escalation order: no evidence
+#: at all -> bootstrap; any evidence -> standardize.
+PROJECT_MODES = ("bootstrap", "standardize")
+
+#: Which internal leg each mode dispatches to. The umbrella invokes it as a
+#: genuine Skill-tool call, so that leg's own hooks and gate fire unchanged.
+PROJECT_MODE_LEG = {
+    "bootstrap": "create-project",
+    "standardize": "standardize-project",
+}
 
 
 TICKET_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]*-\d+)\b")

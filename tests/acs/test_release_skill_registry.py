@@ -73,11 +73,12 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
                 "predecessor gate for an unhooked utility skill (AC-1)",
         )
 
-    def test_unhooked_skills_count_is_eleven(self):
+    def test_unhooked_skills_count_is_twelve(self):
         # MAR-1: /acs:create-docs registers in UNHOOKED_SKILLS, 9 -> 10. The
         # skills-independence refactor adds run-e2e-tests (today's `test`
-        # renamed) beside the retained `test` alias, 10 -> 11.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 11)
+        # renamed) beside the retained `test` alias, 10 -> 11. The design-phase
+        # entry-point fold adds the `project` umbrella, 11 -> 12.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 12)
 
     def test_hooked_skills_count_is_twenty(self):
         # Literal advances as later producer children register (MAR-143:

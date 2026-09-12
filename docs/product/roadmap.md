@@ -58,7 +58,7 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 31 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 31,
+- 32 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 32,
   `ls plugins/acs/agents` = 59); the reflection (plan→execute→verify) protocol is
   active on the sixteen triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is

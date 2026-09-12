@@ -72,7 +72,7 @@ never hand-picked:
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
-  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 25 of 31 (MAR-575
+  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 25 of 32 (MAR-575
   added `create-requirements`, `docs-sync` and `create-docs`; the five
   Build/Test skills the skills-independence refactor added and the
   `run-e2e-tests` alias carry no probe yet, each recorded with its reason in
@@ -153,7 +153,7 @@ on-disk set against the `ALL_SKILLS` literal at
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 15 of 15 hooked skills**; the other
 10 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 25 of 31** — 27 probes in all (23 by
+none should. **Routing covers 25 of 32** — 27 probes in all (23 by
 description, 2 by explicit command, 2 negative), three of them closed
 by MAR-575. **The gap is behavioral (artifact) coverage: only 3 of 25
 skills** (`create-ticket`,

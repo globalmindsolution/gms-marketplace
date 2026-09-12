@@ -1,6 +1,7 @@
 ---
 name: create-project
-description: Scaffold a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Use exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase.
+description: Internal leg of /acs:project (bootstrap mode), not a user-facing entry point — invoke /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here. Scaffolds a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
+disable-model-invocation: true
 argument-hint: "(no arguments)"
 disallowed-tools: Edit, NotebookEdit
 ---

@@ -240,8 +240,12 @@ class S04ProbeSetTest(unittest.TestCase):
     # added with a fresh paid measurement rather than alongside the refactor,
     # and the alias is deliberately unprobed because its own probe targets the
     # new name. Anything else missing a probe is a defect this test catches.
+    # `project` joins them for the same reason: the design-phase entry-point
+    # fold mints it as a new user-facing umbrella, and probing it moves the
+    # measured routing-coverage claim, so its probe lands with the next paid
+    # measurement rather than alongside the fold.
     UNPROBED = {"analyze-ticket", "create-api-contract", "create-impl-plan",
-                "create-test-docs", "create-e2e-tests", "test"}
+                "create-test-docs", "create-e2e-tests", "test", "project"}
 
     def test_every_shipped_skill_has_a_probe_or_a_recorded_reason(self):
         probed = {expected for _, _, _, expected in s04.CASES}

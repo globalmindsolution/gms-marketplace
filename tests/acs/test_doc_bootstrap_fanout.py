@@ -190,13 +190,23 @@ class V1FanoutGateTest(unittest.TestCase):
         self.root = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.root, True)
 
-    def test_declared_v1_set_is_exactly_the_pair(self):
-        self.assertEqual(lib.DOC_BOOTSTRAP_FANOUT_V1, ("create-quality", "create-operations"))
+    def test_declared_fanout_set_is_all_four_doc_legs(self):
+        # The design-phase consolidation widened the declared eligible set to
+        # every doc-bootstrap leg (ONE constant edit; the other three tables
+        # already covered four). The v1 pair assertion this replaces was true
+        # only while /acs:create-quality and /acs:create-operations were the
+        # sole user-facing doc commands.
+        self.assertEqual(
+            lib.DOC_BOOTSTRAP_FANOUT_V1,
+            ("create-quality", "create-operations", "create-principles", "create-standards"))
+        self.assertEqual(sorted(lib.DOC_BOOTSTRAP_FANOUT_V1),
+                         sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
 
-    def test_default_batch_excludes_non_v1_skills_even_when_configured_and_unshipped(self):
+    def test_default_batch_covers_every_configured_unshipped_leg(self):
         batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertEqual(sorted(flat), ["create-operations", "create-quality"])
+        self.assertEqual(sorted(flat), ["create-operations", "create-principles",
+                                        "create-quality", "create-standards"])
 
     def test_explicit_candidates_argument_covers_the_general_case(self):
         batches = lib.fanout_batches(
@@ -213,11 +223,12 @@ class V1FanoutGateTest(unittest.TestCase):
 
 
 class ForFlagParsingTest(unittest.TestCase):
-    """Finding 1: parse_fanout_for_arg partitions /acs:create-docs's `--for`
-    argument against the declared v1 fan-out gate BEFORE fanout_batches ever
-    sees the request, so a name outside DOC_BOOTSTRAP_FANOUT_V1 -- unknown, or
-    a real but non-v1 doc-bootstrap skill -- is rejected, never silently
-    skipped."""
+    """Finding 1: parse_fanout_for_arg partitions /acs:create-docs's legacy
+    `--for` argument against the declared fan-out set BEFORE fanout_batches
+    ever sees the request, so a name outside DOC_BOOTSTRAP_FANOUT_V1 is
+    rejected, never silently skipped. Since the design-phase consolidation the
+    declared set is all four legs, so only a name that is no doc set at all is
+    rejected here."""
 
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="acs-test-")
@@ -237,12 +248,18 @@ class ForFlagParsingTest(unittest.TestCase):
             lib.parse_fanout_for_arg("--for create-quality,create-operations"),
             (["create-quality", "create-operations"], []))
 
-    def test_non_v1_doc_bootstrap_skill_is_rejected(self):
-        # The finding's core case: create-principles is a real doc-bootstrap
-        # skill, just not in v1's fan-out set -- it must be rejected, not
-        # silently skipped like an unknown name would be inside fanout_batches.
+    def test_every_doc_leg_is_now_an_accepted_for_name(self):
+        # Was: create-principles is rejected as "not in v1's fan-out set".
+        # The consolidation widened the declared set to all four legs, so each
+        # one is accepted -- the rejection path below now only fires for a
+        # name that is no doc set at all.
+        for skill in lib.DOC_BOOTSTRAP_FANOUT_V1:
+            with self.subTest(skill=skill):
+                self.assertEqual(lib.parse_fanout_for_arg("--for %s" % skill), ([skill], []))
+
+    def test_short_set_spelling_is_canonicalized(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-principles"), ([], ["create-principles"]))
+            lib.parse_fanout_for_arg("--for principles"), (["create-principles"], []))
 
     def test_unknown_name_is_rejected(self):
         self.assertEqual(
@@ -280,14 +297,169 @@ class ForFlagParsingTest(unittest.TestCase):
 
     def test_rejected_names_never_reach_fanout_batches(self):
         candidates, rejected = lib.parse_fanout_for_arg(
-            "--for create-quality,create-principles,not-a-skill")
-        self.assertEqual(rejected, ["create-principles", "not-a-skill"])
+            "--for create-quality,not-a-skill")
+        self.assertEqual(rejected, ["not-a-skill"])
         batches = lib.fanout_batches(
             PAIR_SETTINGS, {"tickets": {}}, self.root, candidates=candidates)
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("create-quality", flat)
-        self.assertNotIn("create-principles", flat)
         self.assertNotIn("not-a-skill", flat)
+
+
+class PositionalDocSetArgTest(unittest.TestCase):
+    """The design-phase consolidation's argument contract for
+    /acs:create-docs: a positional, comma-separated `<set|all>` selector,
+    parsed in acs_lib beside parse_fanout_for_arg (never in skill prose). Both
+    the short spelling (`quality`) and the full skill name (`create-quality`)
+    resolve; an unknown set refuses the whole run with a message naming the
+    accepted spellings; the legacy `--for` form still parses, once, with a
+    deprecation notice for stderr."""
+
+    ALL_LEGS = ["create-quality", "create-operations",
+                "create-principles", "create-standards"]
+
+    def test_no_argument_defers_to_the_declared_default(self):
+        for args_text in ("", "   ", None):
+            with self.subTest(args_text=args_text):
+                request = lib.parse_doc_set_arg(args_text)
+                self.assertIsNone(request.candidates)
+                self.assertEqual(request.rejected, [])
+                self.assertEqual(request.notices, [])
+
+    def test_all_selects_every_declared_leg_in_declared_order(self):
+        request = lib.parse_doc_set_arg("all")
+        self.assertEqual(request.candidates, list(lib.DOC_BOOTSTRAP_FANOUT_V1))
+        self.assertEqual(request.candidates, self.ALL_LEGS)
+        self.assertEqual((request.rejected, request.notices), ([], []))
+
+    def test_single_set(self):
+        request = lib.parse_doc_set_arg("quality")
+        self.assertEqual(request.candidates, ["create-quality"])
+        self.assertEqual((request.rejected, request.notices), ([], []))
+
+    def test_several_sets_comma_separated_order_preserved(self):
+        request = lib.parse_doc_set_arg("standards,quality,operations")
+        self.assertEqual(request.candidates,
+                         ["create-standards", "create-quality", "create-operations"])
+        self.assertEqual(request.rejected, [])
+
+    def test_whitespace_and_duplicates_never_break_the_list(self):
+        request = lib.parse_doc_set_arg(" quality , quality ,operations ")
+        self.assertEqual(request.candidates, ["create-quality", "create-operations"])
+
+    def test_create_prefixed_spelling_resolves_to_the_same_leg(self):
+        for token in ("create-quality", "create-operations",
+                      "create-principles", "create-standards"):
+            with self.subTest(token=token):
+                self.assertEqual(lib.parse_doc_set_arg(token).candidates, [token])
+        mixed = lib.parse_doc_set_arg("create-principles,standards")
+        self.assertEqual(mixed.candidates, ["create-principles", "create-standards"])
+
+    def test_unknown_set_is_refused_with_a_message_naming_the_spellings(self):
+        request = lib.parse_doc_set_arg("qualtiy")
+        self.assertEqual(request.rejected, ["qualtiy"])
+        self.assertEqual(request.candidates, [],
+                         "an unknown set refuses the whole run -- never a partial fan-out")
+        joined = " ".join(request.notices)
+        self.assertIn("qualtiy", joined)
+        for spelling in ("all", "quality", "operations", "principles", "standards"):
+            self.assertIn(spelling, joined,
+                          "the refusal must name every accepted spelling")
+
+    def test_an_unknown_set_beside_a_known_one_refuses_the_whole_run(self):
+        request = lib.parse_doc_set_arg("quality,nope")
+        self.assertEqual(request.rejected, ["nope"])
+        self.assertEqual(request.candidates, [])
+
+    def test_all_may_not_be_combined_with_a_set(self):
+        request = lib.parse_doc_set_arg("all,quality")
+        self.assertEqual(request.candidates, [])
+        self.assertRegex(" ".join(request.notices), r"(?i)all.{0,40}(cannot|never) be combined")
+
+    def test_legacy_for_form_still_parses_and_says_the_new_spelling_once(self):
+        request = lib.parse_doc_set_arg("--for create-quality,create-operations")
+        self.assertEqual(request.candidates, ["create-quality", "create-operations"])
+        self.assertEqual(request.rejected, [])
+        self.assertEqual(len(request.notices), 1,
+                         "the deprecation note is said once, not per name")
+        note = request.notices[0]
+        self.assertIn("--for", note)
+        self.assertRegex(note, r"(?i)deprecat|spelling now")
+
+    def test_legacy_for_form_accepts_the_short_spelling_too(self):
+        request = lib.parse_doc_set_arg("--for principles")
+        self.assertEqual(request.candidates, ["create-principles"])
+        self.assertEqual(len(request.notices), 1)
+
+    def test_legacy_for_form_rejects_a_non_doc_set_name(self):
+        request = lib.parse_doc_set_arg("--for not-a-skill")
+        self.assertEqual(request.rejected, ["not-a-skill"])
+        self.assertEqual(request.candidates, [])
+
+    def test_bare_legacy_flag_selects_nothing_and_says_so(self):
+        request = lib.parse_doc_set_arg("--for")
+        self.assertEqual((request.candidates, request.rejected), ([], []))
+        self.assertRegex(" ".join(request.notices), r"(?i)at least one")
+
+    def test_candidates_feed_fanout_batches_unchanged(self):
+        request = lib.parse_doc_set_arg("all")
+        batches = lib.fanout_batches(
+            ALL_SETTINGS, {"tickets": {}}, self.root, candidates=request.candidates)
+        flat = [skill for batch in batches for skill in batch]
+        self.assertEqual(sorted(flat), sorted(self.ALL_LEGS))
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+
+class DeclaredBatchOrderTest(unittest.TestCase):
+    """The widened fan-out set must still batch `create-principles` before
+    `create-standards`, and that ordering must come from the declared soft
+    edge in DOC_BOOTSTRAP_DEPENDENCIES -- not from a hard-coded name pair
+    inside fanout_batches or from the skill's prose."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _batches(self, **kwargs):
+        return lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root, **kwargs)
+
+    def test_principles_batches_before_standards_on_the_default_set(self):
+        batches = self._batches()
+        index = {skill: n for n, batch in enumerate(batches) for skill in batch}
+        self.assertLess(index["create-principles"], index["create-standards"])
+
+    def test_dropping_the_declared_soft_edge_puts_all_four_in_one_batch(self):
+        # The anti-hard-code probe: with no soft edge declared, nothing may
+        # keep principles and standards apart. A fanout_batches that special-
+        # cased the pair (or an order baked into DOC_BOOTSTRAP_FANOUT_V1's
+        # consumers) would still split them here and fail.
+        edgeless = {skill: {"hard": [], "soft": []}
+                    for skill in lib.DOC_BOOTSTRAP_DEPENDENCIES}
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, edgeless, clear=True):
+            batches = self._batches()
+        self.assertEqual(len(batches), 1, batches)
+        self.assertEqual(sorted(batches[0]), sorted(lib.DOC_BOOTSTRAP_FANOUT_V1))
+
+    def test_a_declared_edge_between_any_other_pair_splits_that_pair_instead(self):
+        # Same probe from the other side: move the edge to quality/operations
+        # and the split follows the table there, while principles/standards
+        # -- no longer edged -- are free to share a batch.
+        moved = {
+            "create-quality": {"hard": [], "soft": ["create-operations"]},
+            "create-operations": {"hard": [], "soft": []},
+            "create-principles": {"hard": [], "soft": []},
+            "create-standards": {"hard": [], "soft": []},
+        }
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, moved, clear=True):
+            batches = self._batches()
+        for batch in batches:
+            self.assertFalse({"create-quality", "create-operations"} <= set(batch))
+        shared = [batch for batch in batches
+                  if {"create-principles", "create-standards"} <= set(batch)]
+        self.assertTrue(shared, batches)
 
 
 class CheckoutRootResolutionTest(unittest.TestCase):

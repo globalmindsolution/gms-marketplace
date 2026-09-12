@@ -1,6 +1,6 @@
-"""s04 — routing evals for 25 of the 31 skills (paid, E1.2).
+"""s04 — routing evals for 25 of the 32 skills (paid, E1.2).
 
-Three kinds of probe, 27 in all, covering 25 of the 31 skill directories:
+Three kinds of probe, 27 in all, covering 25 of the 32 skill directories:
 
 1. Description-trigger (23 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
@@ -32,10 +32,11 @@ intent that used to route to `test` must now route to `run-e2e-tests`.
 The 25 probed skills are not every skill directory on disk. The `test` alias is
 deliberately unprobed (see above), and the five Build/Test skills the
 skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
-`create-api-contract`, `create-test-docs`, `create-e2e-tests`) have no probe
-yet: adding probes moves the measured "all N green" routing-coverage claim the
-PRD and roadmap carry, so they are added together with a fresh paid
-measurement, not alongside the refactor that created the skills. The
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`) plus the
+design-phase fold's `project` umbrella have no probe yet: adding probes moves
+the measured "all N green" routing-coverage claim the PRD and roadmap carry, so
+they are added together with a fresh paid measurement, not alongside the
+refactor that created the skills. The
 create-docs, create-requirements and docs-sync probes below are new here and
 are likewise unmeasured until the next paid run.
 """
@@ -46,7 +47,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 25 of 31 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for 25 of 32 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
