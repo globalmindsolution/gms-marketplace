@@ -14,7 +14,7 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **96%** (3850 statements, 151
+for its sequence diagram. Repo-wide TOTAL is **96%** (9700 statements, 390
 missed) — comfortably above the 90 floor. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
@@ -31,7 +31,7 @@ python3 -m coverage report
 Coverage is measured only over `plugins/acs/hooks/scripts` — the hook/CLI
 layer. `plugins/acs/skills/**` prose and the `tests/**` tree themselves are
 not measured. Within that source, `.coveragerc`'s `omit` list excludes the
-**29** pre-`*`/post-`*` argument-forwarder scripts (15 `pre-*`, 14 `post-*`
+**39** pre-`*`/post-`*` argument-forwarder scripts (20 `pre-*`, 19 `post-*`
 — e.g. `pre-code.py`, each about 6 statements: a `sys.path` insert, an
 import, and a `run_pre`/`run_post` call, no `def main()` of their own).
 `post-merge-pr.py` is deliberately **not** omitted: it has a real `--pr`
