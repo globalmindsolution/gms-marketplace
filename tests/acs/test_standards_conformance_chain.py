@@ -87,10 +87,17 @@ BASELINE_FLOWS = {
 # own sequence (per-call success/critical/non-critical dispatch plus the post-merge
 # loud-but-non-reverting arm) is a distinct runtime flow that no existing flow doc
 # covered.
+# MAR-578 legitimately added file-map-guard-deny.md — the durable guard-denial trail
+# runs per write tool call inside an executor's step, so it is the one hook that
+# WRITES workspace state from a PreToolUse deny. hook-gated-skill-run.md says in its
+# own prose that this guard is not a participant in its skill-boundary diagram, so
+# the deny path with its recording is a distinct runtime flow no existing flow doc
+# covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
                           "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
-                          "ticket-id-reconciliation.md", "github-call-failure-policy.md"}
+                          "ticket-id-reconciliation.md", "github-call-failure-policy.md",
+                          "file-map-guard-deny.md"}
 
 
 def read(path):

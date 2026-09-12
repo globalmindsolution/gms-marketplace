@@ -17,6 +17,7 @@ from ._common import GateError, _note, _warn, now_iso, read_json, write_json
 from .artifacts import ticket_docs_root, tickets_path
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
+from .state import record_guard_event
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +210,8 @@ def file_map_guard(payload):
         _warn("%s carried a %s tool_input, which the file map cannot be checked "
               "against. STOP and return `needs_input`."
               % (payload.get("tool_name"), type(tool_input).__name__))
+        _record_guard_denial(payload, tdir, ctx, executor.get("skill"),
+                             "unreadable_payload")
         return 2
     target = (tool_input or {}).get(key)
     if not target or not isinstance(target, str):
@@ -229,6 +232,8 @@ def file_map_guard(payload):
             "An executor cannot widen or disarm its own scope. If the map is "
             "wrong, STOP and return `needs_input` naming the file, so the "
             "coordinator can adjust it." % (target, reason))
+        _record_guard_denial(payload, tdir, ctx, executor.get("skill"),
+                             "control_input", target=target)
         return 2
 
     # What IS exempt: this executor's own phase artifacts, and only those.
@@ -249,7 +254,56 @@ def file_map_guard(payload):
         "Do not improvise scope: STOP and return `needs_input` naming the file, "
         "so the coordinator can adjust the file map."
         % (target, executor.get("skill"), iteration, "\n  ".join(declared)))
+    _record_guard_denial(payload, tdir, ctx, executor.get("skill"), "outside_map",
+                         target=target, declared_count=len(declared),
+                         iteration=iteration)
     return 2
+
+
+def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
+                         declared_count=0, iteration=None):
+    """Record one denial on the executor's run entry, never changing its verdict.
+
+    Only a deny reaches here: a fail-open branch records nothing. A failure to
+    append is one note on stderr and nothing else -- the exit code, the warning
+    and the guard's time budget are exactly what they were without it. The
+    handler is `Exception`, never `BaseException`, so dispatch.GateTimeout
+    still reaches run_file_map_guard instead of being swallowed at a deny."""
+    try:
+        landed = record_guard_event(tdir, skill, {
+            "ts": now_iso(),
+            "skill": skill,
+            "iteration": (iteration if iteration is not None
+                          else _current_iteration(tdir, skill)),
+            "tool": payload.get("tool_name"),
+            "target": _recorded_target(target, ctx),
+            "reason": reason,
+            "declared_count": declared_count,
+        })
+        if not landed:
+            _warn("file-map guard denial not recorded: no run entry on "
+                  "%s-state.json" % skill)
+    except Exception as exc:  # noqa: BLE001 - recording never changes the verdict
+        _warn("file-map guard denial not recorded: %r" % exc)
+
+
+def _recorded_target(target, ctx):
+    """The denied path as the record carries it: repo-relative when it is under
+    the checkout, otherwise exactly as it was given (a control input lives in
+    the workspace, which has no repo-relative form)."""
+    if target is None:
+        return None
+    root = (ctx or {}).get("checkout_root")
+    if root and os.path.isabs(str(target)):
+        try:
+            candidate = normalize_repo_path(
+                os.path.relpath(os.path.realpath(str(target)),
+                                os.path.realpath(root)))
+        except (OSError, ValueError):
+            candidate = ""
+        if candidate and not candidate.startswith("../"):
+            return candidate
+    return str(target)
 
 
 def _guard_control_input(target, tdir, ctx):

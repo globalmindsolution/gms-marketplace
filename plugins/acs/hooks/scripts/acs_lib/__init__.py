@@ -74,7 +74,8 @@ from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REAS
     check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
     last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
     lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
-    release_lock, save_ticket, skill_completed, update_index, update_pipeline)  # noqa: F401
+    record_guard_event, release_lock, save_ticket, skill_completed, update_index,
+    update_pipeline)  # noqa: F401
 
 from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
@@ -132,7 +133,7 @@ from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_
 
 from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
     derive_verifier_passed, disagreements, execute_reports, gh_pr_for_branch,
-    latest_verdict, review_iterations)  # noqa: F401
+    guard_denials, latest_verdict, review_iterations)  # noqa: F401
 
 from . import yamlsubset, workflow  # noqa: F401,E402
 from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
