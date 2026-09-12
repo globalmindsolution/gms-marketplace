@@ -1,8 +1,9 @@
 # workflows/phases.yaml — the skill registry, grouped by phase.
 #
 # Rules (asserted by tests/acs/test_phases_registry.py):
-#   * every plugins/acs/skills/<dir> appears exactly once — either in a phase
-#     list or as a key under `aliases` (a directory that forwards to a skill);
+#   * every plugins/acs/skills/<dir> appears exactly once — in a phase list, as
+#     a key under `aliases` (a directory that forwards to a skill), or as a key
+#     under `internal` (a leg that only its entry point invokes);
 #   * only these five groups exist;
 #   * workflows/ship.yaml may name build, test and ship skills only, and never
 #     merge-pr or release (a human always drives those).
@@ -14,13 +15,8 @@ phases:
     - create-prd
     - create-requirements
     - create-architecture
-    - create-project
-    - create-principles
-    - create-standards
-    - create-quality
-    - create-operations
     - create-docs
-    - standardize-project
+    - project
     - create-ticket
     - create-design
   build:
@@ -48,3 +44,13 @@ phases:
 # Alias directories: `test` forwards to run-e2e-tests for one release.
 aliases:
   test: run-e2e-tests
+# Internal legs: each keeps its SKILL.md, agents, hooks, gate and sentinels and
+# stays Skill-invocable, but the entry point named here is the only user-facing
+# command for it — an entry-point fold, not a collapse.
+internal:
+  create-quality: create-docs
+  create-operations: create-docs
+  create-principles: create-docs
+  create-standards: create-docs
+  create-project: project
+  standardize-project: project

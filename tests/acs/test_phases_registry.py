@@ -1,18 +1,21 @@
 """workflows/phases.yaml is the skill registry: every plugins/acs/skills/<dir>
-appears exactly once (counting the `aliases` key, which lists a directory
-that forwards to a registered skill), only the five groups exist, and the
+appears exactly once -- in a phase list, as an `aliases` key (a directory that
+forwards to a registered skill) or as an `internal` key (a leg that stays
+Skill-invocable but is not user-facing) -- only the five groups exist, and the
 ship-eligible subset (build + test + ship minus merge-pr and release) is what
 ship.yaml may name.
 
 The registry is read through acs_lib.workflow.load_phases, which also
 schema-checks the file (schemas/phases.schema.json) and refuses a skill
-listed twice or an alias pointing nowhere -- each refusal names the line.
+listed twice, an alias pointing nowhere, or an internal leg that collides with
+a registered name, has no directory, points outside the phase lists or points
+at another leg -- each refusal names the line.
 
-The six Build/Test skill directories (analyze-ticket, create-api-contract,
-create-impl-plan, create-test-docs, create-e2e-tests, run-e2e-tests) arrive in
-a later phase of the refactor, so the "every registry name has a directory"
-direction is RED until they land. It is written anyway: the registry is the
-contract those directories are built to.
+The `project` umbrella's directory arrives in a later phase of the design-phase
+fold, so it is listed in PENDING_SKILL_DIRS: the "every registry name has a
+directory" direction allows exactly that name, and a second test fails the
+moment the directory lands so the allowance cannot outlive it. The registry is
+the contract that directory is built to.
 
 Run:  python3 -m unittest tests.acs.test_phases_registry -v
 """
@@ -36,15 +39,32 @@ from acs_lib import workflow  # noqa: E402
 
 #: The grouping the refactor brief fixes (brief section 1).
 EXPECTED_GROUPS = {
-    "design": ["create-prd", "create-requirements", "create-architecture", "create-project",
-               "create-principles", "create-standards", "create-quality", "create-operations",
-               "create-docs", "standardize-project", "create-ticket", "create-design"],
+    "design": ["create-prd", "create-requirements", "create-architecture", "create-docs",
+               "project", "create-ticket", "create-design"],
     "build": ["analyze-ticket", "create-api-contract", "create-impl-plan", "create-test-docs",
               "code", "docs-sync"],
     "test": ["create-e2e-tests", "run-e2e-tests"],
     "ship": ["create-pr", "merge-pr", "release"],
     "utility": ["setup", "install-hooks", "update", "handoff", "metrics", "usage", "ship"],
 }
+
+
+#: The entry-point fold (brief section 1): each internal leg keeps its SKILL.md,
+#: agents, hooks and gate and stays Skill-invocable, but only the entry point it
+#: maps to is user-facing.
+EXPECTED_INTERNAL = {
+    "create-quality": "create-docs",
+    "create-operations": "create-docs",
+    "create-principles": "create-docs",
+    "create-standards": "create-docs",
+    "create-project": "project",
+    "standardize-project": "project",
+}
+
+#: Registry names whose skills/<dir> is minted by a LATER phase of this fold:
+#: `project` is the new umbrella of brief section 3. Delete this tuple (and the
+#: test that keeps it honest) with that phase.
+PENDING_SKILL_DIRS = ("project",)
 
 
 def skill_dirs():
@@ -57,7 +77,9 @@ class TestPhasesRegistry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.phases = lib.load_phases()
-        cls.names = lib.registered_skills(cls.phases) + sorted(lib.skill_aliases(cls.phases))
+        cls.names = (lib.registered_skills(cls.phases)
+                     + sorted(lib.skill_aliases(cls.phases))
+                     + sorted(lib.skill_legs(cls.phases)))
 
     def test_the_file_lives_where_the_resolver_expects(self):
         self.assertEqual(lib.phases_path(), os.path.join(PLUGIN, "workflows", "phases.yaml"))
@@ -73,6 +95,21 @@ class TestPhasesRegistry(unittest.TestCase):
     def test_the_alias_key_maps_test_to_run_e2e_tests(self):
         self.assertEqual(lib.skill_aliases(self.phases), {"test": "run-e2e-tests"})
 
+    def test_the_internal_map_matches_the_brief(self):
+        self.assertEqual(lib.skill_legs(self.phases), EXPECTED_INTERNAL)
+
+    def test_every_internal_leg_serves_a_phase_listed_entry_point(self):
+        for leg, entry in EXPECTED_INTERNAL.items():
+            with self.subTest(leg=leg):
+                self.assertIn(entry, lib.registered_skills(self.phases))
+                self.assertNotIn(leg, lib.registered_skills(self.phases))
+
+    def test_entry_point_of_names_the_entry_point_or_none(self):
+        self.assertEqual(lib.entry_point_of("create-quality", self.phases), "create-docs")
+        self.assertEqual(lib.entry_point_of("standardize-project", self.phases), "project")
+        self.assertIsNone(lib.entry_point_of("create-docs", self.phases))
+        self.assertIsNone(lib.entry_point_of("not-a-skill", self.phases))
+
     def test_every_registry_name_appears_exactly_once(self):
         counts = collections.Counter(self.names)
         self.assertEqual([n for n, c in counts.items() if c != 1], [])
@@ -84,10 +121,17 @@ class TestPhasesRegistry(unittest.TestCase):
         self.assertEqual(missing, [], "skill dirs not registered exactly once: %s" % missing)
 
     def test_every_registry_name_has_a_skill_directory(self):
-        """RED until the six Build/Test skill directories land (see the module docstring)."""
+        """PENDING_SKILL_DIRS is the one documented exception: the registry is
+        the contract the `project` umbrella is built to, and it lands next."""
         dirs = set(skill_dirs())
-        missing = [n for n in self.names if n not in dirs]
+        missing = [n for n in self.names if n not in dirs and n not in PENDING_SKILL_DIRS]
         self.assertEqual(missing, [], "registered without a skills/<dir>: %s" % missing)
+
+    def test_the_pending_skill_directories_are_still_pending(self):
+        """Fails the moment `project` gets its directory -- delete
+        PENDING_SKILL_DIRS and this test together when that phase lands."""
+        landed = [n for n in PENDING_SKILL_DIRS if n in set(skill_dirs())]
+        self.assertEqual(landed, [], "landed; drop it from PENDING_SKILL_DIRS: %s" % landed)
 
     def test_hooked_and_unhooked_skill_lists_are_registered(self):
         for skill in list(lib.HOOKED_SKILLS) + list(lib.UNHOOKED_SKILLS):
@@ -109,9 +153,26 @@ class TestPhasesRegistry(unittest.TestCase):
         self.assertEqual(lib.phase_of("ship", self.phases), "utility")
         self.assertIsNone(lib.phase_of("not-a-skill", self.phases))
 
-    def test_registered_skills_excludes_aliases(self):
+    def test_phase_of_resolves_an_internal_leg_through_its_entry_point(self):
+        for leg, entry in EXPECTED_INTERNAL.items():
+            with self.subTest(leg=leg):
+                self.assertEqual(lib.phase_of(leg, self.phases),
+                                 lib.phase_of(entry, self.phases))
+        self.assertEqual(lib.phase_of("create-quality", self.phases), "design")
+        self.assertEqual(lib.phase_of("standardize-project", self.phases), "design")
+
+    def test_no_internal_leg_is_ship_eligible(self):
+        """allowed_ship_skills is build + test + ship: the legs are design."""
+        allowed = lib.allowed_ship_skills(self.phases)
+        for leg in EXPECTED_INTERNAL:
+            with self.subTest(leg=leg):
+                self.assertNotIn(leg, allowed)
+
+    def test_registered_skills_excludes_aliases_and_internal_legs(self):
         self.assertNotIn("test", lib.registered_skills(self.phases))
         self.assertIn("run-e2e-tests", lib.registered_skills(self.phases))
+        self.assertNotIn("create-quality", lib.registered_skills(self.phases))
+        self.assertIn("create-docs", lib.registered_skills(self.phases))
 
     def test_the_registry_validates_against_its_schema_with_jsonschema(self):
         """The stdlib subset validator in acs_lib.workflow is cross-checked
@@ -154,6 +215,10 @@ class TestLoadPhasesRefusals(unittest.TestCase):
     def test_a_minimal_registry_loads_with_empty_aliases(self):
         self.assertEqual(self._load(self.BASE)["aliases"], {})
 
+    def test_a_minimal_registry_loads_with_an_empty_internal_map(self):
+        self.assertEqual(self._load(self.BASE)["internal"], {})
+        self.assertEqual(lib.skill_legs(self._load(self.BASE)), {})
+
     def test_a_skill_listed_twice_names_the_second_group(self):
         self.assertRefuses(self.BASE.replace("build: [b]", "build: [b, a]"), 4, "listed under both")
 
@@ -171,6 +236,26 @@ class TestLoadPhasesRefusals(unittest.TestCase):
 
     def test_an_alias_that_is_also_a_skill_is_refused(self):
         self.assertRefuses(self.BASE + "aliases:\n  a: b\n", 9, "also a registered skill")
+
+    def test_an_internal_leg_without_a_skill_directory_is_refused(self):
+        """`zzz` has no plugins/acs/skills/zzz, so it cannot be a leg."""
+        self.assertRefuses(self.BASE + "internal:\n  zzz: a\n", 9, "has no skills/zzz directory")
+
+    def test_an_internal_leg_pointing_outside_the_phase_lists_is_refused(self):
+        self.assertRefuses(self.BASE + "internal:\n  zzz: nope\n", 9,
+                           "points at unregistered entry point")
+
+    def test_an_internal_leg_that_is_also_a_registered_skill_is_refused(self):
+        self.assertRefuses(self.BASE + "internal:\n  a: b\n", 9,
+                           "internal leg 'a' is also a registered skill")
+
+    def test_an_internal_leg_that_is_also_an_alias_is_refused(self):
+        self.assertRefuses(self.BASE + "aliases:\n  z: a\n" + "internal:\n  z: a\n", 11,
+                           "internal leg 'z' is also an alias")
+
+    def test_a_leg_of_a_leg_is_refused(self):
+        self.assertRefuses(self.BASE + "internal:\n  y: a\n  z: y\n", 10,
+                           "which is itself an internal leg")
 
     def test_a_wrong_version_is_refused(self):
         self.assertRefuses(self.BASE.replace("version: 1", "version: 2"), 1, "must be 1")

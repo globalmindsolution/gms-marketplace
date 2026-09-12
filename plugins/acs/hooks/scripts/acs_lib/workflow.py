@@ -7,7 +7,8 @@ wholesale with `<repo>/.acs/workflows/ship.yaml`), skills are grouped into
 phases by `workflows/phases.yaml`, and /acs:ship is a loop over `acs.py
 workflow next`. This module owns all of that:
 
-  load_phases / allowed_ship_skills   the registry and the ship-eligible subset
+  load_phases / allowed_ship_skills   the registry (phases, aliases, internal
+                                      legs) and the ship-eligible subset
   resolve / load_workflow / validate  override-or-default resolution, schema
                                       (a stdlib subset of JSON Schema, since
                                       hooks may not import jsonschema) and the
@@ -39,6 +40,7 @@ from . import yamlsubset
 from .yamlsubset import YamlSubsetError
 
 WORKFLOWS_DIRNAME = "workflows"
+SKILLS_DIRNAME = "skills"
 PHASES_FILENAME = "phases.yaml"
 SHIP_FILENAME = "ship.yaml"
 #: The consumer override, relative to the checkout root; replaces the default wholesale.
@@ -98,6 +100,13 @@ def workflows_dir(root=None):
 
 def phases_path(root=None):
     return os.path.join(workflows_dir(root), PHASES_FILENAME)
+
+
+def skills_dir(root=None):
+    """The plugin's skills/ tree -- where an `internal` leg must have its
+    directory. Always the plugin's own, never a consumer override: phases.yaml
+    has no override (only ship.yaml does), like _load_schema below."""
+    return os.path.join(root or plugin_root(), SKILLS_DIRNAME)
 
 
 def default_workflow_path(root=None):
@@ -229,8 +238,11 @@ def _load_schema(name):
 
 def load_phases(path=None):
     """workflows/phases.yaml, schema-checked, with every skill listed exactly
-    once across the five groups and every alias pointing at a registered skill.
-    `aliases` is always present (an empty mapping when the file has none)."""
+    once across the five groups, the `aliases` keys and the `internal` keys,
+    every alias pointing at a registered skill, and every internal leg owning a
+    skills/<dir> and pointing at a phase-listed skill that is not itself a leg.
+    `aliases` and `internal` are always present (an empty mapping when the file
+    has none)."""
     path = path or phases_path()
     try:
         doc, lines = yamlsubset.parse_file(path)
@@ -257,6 +269,24 @@ def load_phases(path=None):
             raise WorkflowError("alias %r points at unregistered skill %r" % (alias, target), path=path,
                                 line=yamlsubset.line_for(lines, ("aliases", alias)))
     doc["aliases"] = aliases
+    internal = doc.get("internal") or {}
+    for leg, entry in internal.items():
+        line = yamlsubset.line_for(lines, ("internal", leg))
+        if leg in seen:
+            raise WorkflowError("internal leg %r is also a registered skill" % leg, path=path, line=line)
+        if leg in aliases:
+            raise WorkflowError("internal leg %r is also an alias" % leg, path=path, line=line)
+        if entry in internal:
+            raise WorkflowError("internal leg %r points at %r, which is itself an internal leg" % (leg, entry),
+                                path=path, line=line)
+        if entry not in seen:
+            raise WorkflowError("internal leg %r points at unregistered entry point %r" % (leg, entry),
+                                path=path, line=line)
+    for leg in internal:
+        if not os.path.isdir(os.path.join(skills_dir(), leg)):
+            raise WorkflowError("internal leg %r has no skills/%s directory" % (leg, leg), path=path,
+                                line=yamlsubset.line_for(lines, ("internal", leg)))
+    doc["internal"] = internal
     return doc
 
 
@@ -271,10 +301,26 @@ def skill_aliases(phases=None):
     return dict((phases or load_phases())["aliases"])
 
 
+def skill_legs(phases=None):
+    """{internal-leg: entry-point} -- a skill that keeps its SKILL.md, agents,
+    hooks and gate and stays Skill-invocable, but whose only user-facing
+    command is the entry point it serves. `{}` when the registry declares none."""
+    return dict((phases or load_phases())["internal"])
+
+
+def entry_point_of(skill, phases=None):
+    """The entry point an internal leg serves, else None (a user-facing skill
+    is nobody's leg)."""
+    return (phases or load_phases())["internal"].get(skill)
+
+
 def phase_of(skill, phases=None):
-    """The group a skill (or an alias's target) belongs to, else None."""
+    """The group a skill belongs to, else None. An alias resolves to its
+    target and an internal leg to its entry point, so an internal leg reports
+    the group of the command a user actually runs."""
     phases = phases or load_phases()
     skill = phases["aliases"].get(skill, skill)
+    skill = phases["internal"].get(skill, skill)
     for group in PHASE_GROUPS:
         if skill in phases["phases"][group]:
             return group

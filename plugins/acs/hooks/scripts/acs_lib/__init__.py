@@ -142,9 +142,10 @@ from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # 
     SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WorkflowError,
     allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
     e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
-    pending_needs, phase_of, phases_path, post_code_test_active,
+    entry_point_of, pending_needs, phase_of, phases_path, post_code_test_active,
     post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_aliases,
-    ticket_artifact_path, ticket_context, validate_workflow, validate_workflow_file)
+    skill_legs, ticket_artifact_path, ticket_context, validate_workflow,
+    validate_workflow_file)
 
 from . import artifacts  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401

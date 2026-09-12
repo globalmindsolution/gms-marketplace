@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/phases.schema.json",
   "title": "acs phases registry (workflows/phases.yaml)",
-  "description": "Every plugin skill grouped into exactly one of five phases, plus alias directories that forward to a registered skill. acs_lib.workflow.load_phases additionally checks that no skill is listed twice and that every alias targets a registered skill.",
+  "description": "Every plugin skill grouped into exactly one of five phases, plus alias directories that forward to a registered skill and internal legs that map to the user-facing entry point they serve. acs_lib.workflow.load_phases additionally checks that no skill is listed twice across the phase lists, the alias keys and the internal keys, that every alias targets a registered skill, and that every internal leg has a skills/<dir> and points at a phase-listed skill that is not itself a leg.",
   "type": "object",
   "required": ["version", "phases"],
   "properties": {
@@ -21,6 +21,13 @@
     },
     "aliases": {
       "description": "{alias-dir: registered-skill}; the alias directory forwards to the skill.",
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/skillName"},
+      "additionalProperties": {"$ref": "#/$defs/skillName"},
+      "default": {}
+    },
+    "internal": {
+      "description": "{internal-leg: entry-point}; the leg keeps its SKILL.md, agents, hooks and gate and stays Skill-invocable, but the entry point is the only user-facing command for it.",
       "type": "object",
       "propertyNames": {"$ref": "#/$defs/skillName"},
       "additionalProperties": {"$ref": "#/$defs/skillName"},
