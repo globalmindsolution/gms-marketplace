@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 GH_TIMEOUT_SECONDS = 10
 
 from ._common import read_json
-from .repo import gh_failure_hint
+from .repo import gh_failure_hint, state_path
 from . import verdict as verdict_mod
 
 #: The keys this module owns. A coordinator may still write them -- SKILL.md
@@ -88,6 +88,19 @@ def review_iterations(tdir, skill):
         if match:
             seen.add(int(match.group(1)))
     return len(seen)
+
+
+def guard_denials(tdir, skill):
+    """How many file-map guard denials this run recorded, from the state file.
+
+    Zero when nothing was denied, when the run entry predates the trail, and
+    when there is no state file to read -- absence is not a reason to fail a
+    derivation that only ever reports a count."""
+    state = read_json(state_path(tdir, skill))
+    runs = state.get("runs") if isinstance(state, dict) else None
+    entry = runs[-1] if isinstance(runs, list) and runs else None
+    events = entry.get("guard_events") if isinstance(entry, dict) else None
+    return len(events) if isinstance(events, list) else 0
 
 
 def latest_verdict(tdir, skill, since=None):
@@ -320,13 +333,23 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
         derived["tests"] = merged
 
     iterations = review_iterations(tdir, skill)
-    if iterations:
+    denials = guard_denials(tdir, skill)
+    if iterations or denials:
         review = dict(supplied.get("review") or {})
-        review["iterations"] = iterations
+        if iterations:
+            review["iterations"] = iterations
+        # Set only when non-zero: the key answers "did the guard fire?", and a
+        # run that never tripped it should carry no key rather than a 0 the
+        # reader cannot distinguish from a run that predates the trail.
+        if denials:
+            review["guard_denials"] = denials
         derived["review"] = review
+    if iterations:
         notes["review"] = "%d iteration(s) with a verify artifact on disk" % iterations
     else:
         notes["review"] = "no verify artifact on disk"
+    if denials:
+        notes["review"] += "; %d guard denial(s) on runs[-1].guard_events" % denials
 
     pr, why = gh_pr_for_branch(branch, runner=pr_runner)
     notes["pr"] = why

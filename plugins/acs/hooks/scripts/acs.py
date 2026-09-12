@@ -14,7 +14,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, lane, stakes, ticket, pr, tracker, readiness, lock, filemap,
-    verdict, phase, slug, fanout, doctor, workflow, artifacts.
+    guard, verdict, phase, slug, fanout, doctor, workflow, artifacts.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
@@ -51,6 +51,7 @@ Usage:
   acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
   acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
   acs.py filemap show
+  acs.py guard events --ticket MAR-1
   acs.py verdict show --iteration 2
   acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
@@ -84,7 +85,8 @@ from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E40
     partition_or_die, read_json_arg)
 from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F401
     cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show, cmd_gate,
-    cmd_lane_apply, cmd_lane_deescalate, cmd_lane_derive, cmd_lane_escalate,
+    cmd_guard_events, cmd_lane_apply, cmd_lane_deescalate, cmd_lane_derive,
+    cmd_lane_escalate,
     cmd_lane_rank, cmd_lock_force_unlock, cmd_lock_status, cmd_phase_validate,
     cmd_pr_metadata_fill, cmd_readiness, cmd_slug, cmd_stakes_guard,
     cmd_stakes_recommend, cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
@@ -277,6 +279,14 @@ def build_parser():
     fmshow.add_argument("--skill", default="code")
     fmshow.add_argument("--iteration", type=int, default=1)
     fmshow.set_defaults(func=cmd_filemap_show)
+
+    guard = group("guard", help="what the executor file-map guard denied")
+    guard_sub = guard.add_subparsers(dest="cmd")
+
+    gevents = guard_sub.add_parser("events", help="the denials the latest run recorded")
+    gevents.add_argument("--ticket")
+    gevents.add_argument("--skill", default="code")
+    gevents.set_defaults(func=cmd_guard_events)
     verdict = group("verdict", help="the verifier's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 

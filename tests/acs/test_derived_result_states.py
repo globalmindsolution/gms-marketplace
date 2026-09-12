@@ -324,6 +324,21 @@ class PostHookDerivationTest(DeriveCase):
         self.assertEqual(review["findings_open"], 0,
                          "a key this module does not own must survive the derivation")
 
+    def test_guard_denials_join_review_without_evicting_its_neighbours(self):
+        """MAR-578 added a second derived key to the same merged dict, so the
+        merge -- not just the number -- is what needs pinning."""
+        self.seed_verdict(self.ticket, iteration=1)
+        path = lib.state_path(self.tdir_path, "code")
+        state = lib.load_state(self.tdir_path, "code", self.ticket)
+        state["runs"][-1]["guard_events"] = [
+            {"ts": lib.now_iso(), "skill": "code", "iteration": "1", "tool": "Write",
+             "target": "src/a.py", "reason": "outside_map", "declared_count": 1}]
+        lib.write_json(path, state)
+        self.post("code", self.ticket, {"status": "completed",
+                                        "states": {"review": {"findings_open": 2}}})
+        review = self._states()["review"]
+        self.assertEqual(review, {"iterations": 1, "findings_open": 2, "guard_denials": 1})
+
     def test_a_derivation_that_cannot_run_leaves_the_coordinators_value(self):
         """No execute report means no recorded run to read; inventing a number
         would be worse than keeping the one the coordinator wrote."""

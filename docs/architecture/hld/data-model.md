@@ -89,6 +89,7 @@ erDiagram
         number api_duration_ms "null means api_duration_basis=unavailable, never a fabricated 0 (MAR-6)"
         enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
         enum api_duration_scope "session_total|main_session_only|no_unconsumed_sample_in_window|cost_total_reset|duration_unavailable_on_cursor -- the last value has no cost_scope analogue (MAR-6)"
+        array guard_events "file-map guard denials appended by acs_lib/filemap.py on a deny only -- reasons outside_map/control_input/unreadable_payload, optional and forward-only (MAR-578)"
         enum status "in_progress|completed|failed|interrupted|handed_off"
         string stop_reason
         string handoff_summary "when handed_off"
@@ -323,6 +324,18 @@ gitignored, anchored to the repo's main checkout (`git rev-parse
 tree — or an explicit `workspace_path` override pointing elsewhere. No
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
+
+**Amendment (MAR-578).** The file-map guard's denial trail: the `RUN_ENTRY`
+entity above gains `guard_events`, one entry per denied write in occurrence
+order, appended by `acs_lib/filemap.py` on a deny only. No new entity block —
+like `escalations`, the array is documented by field rather than promoted to a
+`ROLE_USAGE`-style entity. Additive and forward-only: `guard_events` is simply
+absent on any run entry finalized before this shipped (no backfill, the
+same forward-only pattern as every amendment above). `skill-state.schema.json`
+declares the item shape (seven required fields, `iteration` a string, `target`
+nullable) even though run entries already allow additional properties, so the
+declaration documents the entry rather than tightening what a run entry may
+carry.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 

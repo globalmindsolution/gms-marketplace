@@ -109,7 +109,7 @@ in-process under a bounded alarm that fails closed (exit 2 blocks);
 
 `code-state.json` run entries carry an additive, optional `escalations` array
 (`runs[-1].escalations: [{...}]`), appended by `record_escalation_event(tdir,
-skill, event)` (`acs_lib.py`) — creates the list when absent, persists via the
+skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists via the
 existing pretty-printed `write_json`. Each event is a fixed 13-field dict:
 `ts, from_lane, to_lane, from_size, from_stakes, to_size, to_stakes, trigger,
 source, ceiling_before, ceiling_after, direction, confirmation_ref` —
@@ -137,6 +137,44 @@ writers as the upward path (`save_ticket` / `update_pipeline` /
 `record_escalation_event` with `trigger:"user_confirmed_deescalation"` and
 `confirmation_ref` set to the resolved `C-<n>` id — persist-then-record,
 mirroring the upward on-trigger sequence's ordering (design.md:506-518).
+
+## Guard-denial audit trail (MAR-578)
+
+`<skill>-state.json` run entries carry an additive, optional `guard_events`
+array (`runs[-1].guard_events: [{...}]`), appended by `record_guard_event(tdir,
+skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists via
+the same pretty-printed `write_json`. The state file is the denied executor's
+own (`code-state.json` is the common case, not the only one): the guard records
+under the active executor's skill, and the derivation below is skill-agnostic.
+Unlike `record_escalation_event`, it returns `False` instead of raising when
+there is no run entry to carry the event — its sole caller is a deny path whose
+verdict must not depend on the recording.
+
+Each event is a fixed 7-field dict: `ts, skill, iteration, tool, target, reason,
+declared_count` — `iteration` is a **string** (the highest declared file-map
+iteration); `target` is repo-relative when the denied path sits under
+`checkout_root`, else as given, and `null` for `unreadable_payload`, where no
+path is nameable; `reason` is `"outside_map"`, `"control_input"`, or
+`"unreadable_payload"`; `declared_count` is the declared union's size for
+`outside_map` and `0` for the other two.
+
+Two bounds hold at every deny site. An event is recorded **only on a deny** —
+every fail-open branch (not a write tool, no partition, no active executor)
+records nothing — and recording **never changes the verdict**: a failed append
+is one extra stderr note beside the unchanged warning, with no retry, wait or
+lock. Unlike `escalations`, the item shape **is** declared in
+`plugins/acs/schemas/skill-state.schema.json`; run-entry items already declare
+`additionalProperties: true`, so that declaration documents the entry rather
+than tightening what a run entry may carry.
+
+Read path: `acs.py guard events --ticket <id> [--skill code]` prints one
+pretty-printed object, `{ok, ticket_id, skill, count, events, path}`, with
+`events` in the order they were denied; it exits non-zero with a message when
+the partition or that skill's state file is absent. Derived surface:
+`states.review.guard_denials` = `len(runs[-1].guard_events)`, computed by
+`post-<skill>.py` through `acs_lib/derive.py` and **absent, not `0`**, when
+nothing was denied — a run that never tripped the guard carries no key rather
+than a `0` the reader cannot distinguish from a run predating the trail.
 
 ## Inter-step contract (state files)
 
