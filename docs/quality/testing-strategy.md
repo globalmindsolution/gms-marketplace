@@ -49,26 +49,28 @@ and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
 the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
-[`acs_lib/_common.py:28-32`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
-into **15 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
+[`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
+into **20 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
-**10 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of MAR-1** (the `/acs:create-docs` fan-out change);
-re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `25`) and a Python one-liner
+**12 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of the design-phase
+entry-point fold** (ADR 0091, which added the `/acs:project` umbrella);
+re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `32`) and a Python one-liner
 importing `acs_lib` and printing `len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)`
-(→ `15 10`).
+(→ `20 12`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
-  `test_skill_contracts.py` (`:46-47`) → 25 of 25.
+  `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
+  the skills directory at `:141`) → 32 of 32.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
-  → 15 of 15 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
+  → 20 of 20 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 10 unhooked have none by
-  construction, closed by `tests/acs/test_release_skill_registry.py:87`
-  (`assertEqual(len(acs_lib.GATES), 15)` — with the loop above proving
-  `GATES` ⊇ the 15 hooked skills, an equal count pins it to exactly that
+  `assertIn(skill, acs_lib.GATES)` loop); the 12 unhooked have none by
+  construction, closed by `tests/acs/test_release_skill_registry.py:94`
+  (`assertEqual(len(acs_lib.GATES), 20)` — with the loop above proving
+  `GATES` ⊇ the 20 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
@@ -107,7 +109,7 @@ never hand-picked:
   deliberately left to a fresh paid measurement rather than done blind here —
   it is a known open item, not a silent one.
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
-  artifacts → 3 of 25: `create-ticket`
+  artifacts → 3 of 32: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),
   forge-tier
   [`s07_fanout_tracker_sync.py`](../../evals/acs/scenarios/s07_fanout_tracker_sync.py)),
@@ -170,15 +172,15 @@ blocked on both its scenario (`merge_pr_forge`, MAR-69) *and* the onboarded
 target repo — see "Roadmap to close the gap" item 3. The other 21 `—` cells
 are the gap itself.
 
-**Structure is complete: 25 of 25** (`test_skill_contracts.py:44-47` pins the
+**Structure is complete: 32 of 32** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
-`test_skill_contracts.py:20-25`, not against `acs_lib` — and no test pins this
+`test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
-**Gating is complete for what can be gated: 15 of 15 hooked skills**; the other
-10 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
+**Gating is complete for what can be gated: 20 of 20 hooked skills**; the other
+12 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
 none should. **Routing covers 25 of 32** — 27 probes in all (23 by
 description, 2 by explicit command, 2 negative), three of them closed
-by MAR-575. **The gap is behavioral (artifact) coverage: only 3 of 25
+by MAR-575. **The gap is behavioral (artifact) coverage: only 3 of 32
 skills** (`create-ticket`,
 `code`, `create-pr`) are verified at the output level (`create-pr`'s eval
 skips without a configured forge target) — so the *common* skill bugs (a
