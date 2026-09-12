@@ -24,14 +24,19 @@ run day to day:
 ```bash
 python3 -m unittest discover -s tests -v   # deterministic + contract suites (free)
 python3 evals/run_evals.py                 # free behavioral smoke (gate + cleanup)
-python3 evals/run_evals.py --paid          # full agentic suite — PRE-RELEASE gate ($)
+python3 evals/run_evals.py --paid          # full agentic suite — on demand, not a gate ($)
 ```
 
 - The **free** layers gate every commit (pre-commit) and every PR (CI). Keep
   them green — a red `acs-free-evals` hook means a gate or cleanup regression.
-- The **paid** evals are a **pre-release gate**, run locally on demand (they
-  cost money and are non-deterministic). Run them before bumping `version` —
-  see the [release runbook](docs/operations/release-runbook.md).
+- The **paid** evals are an **on-demand tool**, run locally when you need them
+  (they cost money and are non-deterministic) — kept for the forge-tier
+  scenarios, and not a gate on any ticket, PR or release.
+- The **pre-release gate is acs-evals**
+  ([globalmindsolution/acs-evals](https://github.com/globalmindsolution/acs-evals)):
+  `make eval`, then `make measure` / `make perf` against the release candidate,
+  run from an acs-evals checkout pointed at this plugin. Run it before bumping
+  `version` — see the [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally
 

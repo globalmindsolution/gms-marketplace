@@ -114,20 +114,34 @@ pre-commit hook whenever `evals/` or `plugins/acs/` change — locally on
 `git commit` (run `pre-commit install` once per clone) and in the *Pre-commit
 hooks* CI job — with `ACS_EVAL_SOURCE=1` so it tests the source being
 committed. There is **no dedicated eval CI workflow**; the **paid** tier is
-never automated and is run locally on demand.
+never automated and is run locally on demand as a diagnostic — it is not a gate
+on any PR or ticket (MAR-579 retired this repo's per-ticket `settings.e2e`
+gate).
 
 ## Before a release
 
-The paid tier is the **release gate**. Before bumping the plugin `version`, run
-the full suite locally and treat a clean run as a precondition for tagging:
+The **release gate is acs-evals** (`globalmindsolution/acs-evals`), not this
+in-repo suite. In an acs-evals checkout, point it at the release candidate
+(`ACS_PLUGIN_ROOT` at this plugin) and run:
+
+```bash
+make eval        # deterministic golden cases — the gate
+make measure     # routing / behavioral measurement vs the promoted baseline
+make perf        # performance measurement
+```
+
+Treat a clean `make eval` as the precondition for tagging, and investigate any
+regression `make measure` / `make perf` reports before continuing.
+
+The in-repo paid tier is an **on-demand tool**, not a gate — kept for the
+forge-tier scenarios (`s07_fanout_tracker_sync`, `s08_create_pr_forge`), which
+have no acs-evals counterpart:
 
 ```bash
 python3 evals/run_evals.py --plugin acs --paid
 ```
 
-This is the on-demand counterpart to the per-commit free smoke — it exercises
-the real agentic behavior (G1–G4) that CI deliberately doesn't pay for. See the
-release steps in the [root README](../README.md#releasing--updating).
+See the release steps in the [root README](../README.md#releasing--updating).
 
 ## Adding a scenario
 
