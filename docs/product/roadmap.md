@@ -58,7 +58,7 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 31 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 31,
+- 32 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 32,
   `ls plugins/acs/agents` = 59); the reflection (plan→execute→verify) protocol is
   active on the sixteen triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
@@ -122,8 +122,9 @@ configured and have not yet been validated against a live remote.
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
   routes to the right skill — target all 25 green across 27 probes (matches
   `s04_skill_triggers.py`'s 25-skill routing coverage, up from the original 12,
-  which is 25 of the 31 shipped skill directories: the five Build/Test skills
-  the skills-independence refactor added carry no probe yet). The 20
+  which is 25 of the 32 shipped skill directories: the five Build/Test skills
+  the skills-independence refactor added and the design-phase fold's
+  `/acs:project` umbrella carry no probe yet). The 20
   description probes measured so far are green; the 2 explicit probes became
   measurable only with the harness's registration-based detection rule and,
   together with the 3 new description probes, are first measured by the next
@@ -364,6 +365,20 @@ consumer repo's own CD — no acs deploy skill). **G35 (operating-model role
 accountability)** is a documentation artifact **satisfied at this amendment's
 landing release** — no separate epic; re-checked each release the skill set
 changes.
+
+**Amendment — design-phase entry-point fold (ADR 0091).** The phase coverage
+above is unchanged, but the **commands** that reach three of those phases are
+not what the wave notes say. `create-quality`, `create-operations`,
+`create-principles`, `create-standards`, `create-project` and
+`standardize-project` are now internal legs: quality/operate and
+standards/principles are reached through `/acs:create-docs <set|all>`, and
+bootstrap/standardization through `/acs:project`, which picks its mode from
+declared on-disk evidence rather than making the user choose greenfield vs
+brownfield. Every leg kept its own gate, triad, delivery ticket and PR, so no
+wave's delivered scope moved and no phase lost its operating skill — read the
+`/acs:create-quality`-style spellings in the wave notes below as skill names,
+not as commands. `/acs:test` likewise reads as `/acs:run-e2e-tests` since the
+skills-independence refactor left `test` behind as a one-release alias.
 
 #### Wave 1 — v0.3.8 (shipped)
 

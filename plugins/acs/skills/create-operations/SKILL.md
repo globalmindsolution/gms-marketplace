@@ -1,6 +1,7 @@
 ---
 name: create-operations
-description: Bootstrap or maintain the consumer operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) from templates, reading the PRD non-functional requirements and the architecture/ set as upstream, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-architecture (or alongside /acs:create-quality), or to refresh the operations doc set after a release-process or on-call change.
+description: Internal leg of /acs:create-docs, not a user-facing command: bootstrap or maintain the consumer operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) from templates, reading the PRD non-functional requirements and the architecture/ set as upstream, delivered as a docs-only PR on its own delivery ticket. Run /acs:create-docs operations (or /acs:create-docs all) instead — that umbrella invokes this leg, with every hook, gate and reflection cycle unchanged; a bare delivery-ticket id resumes an interrupted leg.
+disable-model-invocation: true
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

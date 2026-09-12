@@ -30,7 +30,7 @@ plugins distributed from this repository. Plugins differ in shape:
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
 | Verification independence | Separate planner/executor/verifier contexts on the twelve triad-keeping skills (create-prd, create-architecture, create-project, create-quality, create-operations, create-principles, create-standards, create-design, code, docs-sync, standardize-project, create-requirements) — for `code`, the planner context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the executor and verifier contexts stay separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
-| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus cross-skill, phase-level fan-out from a single unhooked coordinator (e.g. `/acs:create-docs`) spawning independent delivery tickets in parallel worktrees. |
+| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus cross-skill, phase-level fan-out from a single unhooked coordinator (e.g. `/acs:create-docs`, over its four internal legs) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most `max_parallel` legs (default 2), so concurrency is bounded by the same knob the ship pipeline uses. |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; per-run metrics. |
 
@@ -58,6 +58,17 @@ plugins distributed from this repository. Plugins differ in shape:
    exception is a user-confirmed de-escalation, offered only at an iteration/run
    boundary and applied by a dedicated writer unreachable without an explicit
    confirmation (`confirm_deescalation`, ADR 0042 D3).
+6. **Entry-point folds over skill collapses**: where several skills form one
+   user-facing job, the surface is narrowed by declaring an entry point, not by
+   merging the skills. `workflows/phases.yaml`'s `internal` map names each
+   **leg** and the entry point that owns it (six legs today: four doc-bootstrap
+   behind `/acs:create-docs`, two project-scaffold behind `/acs:project`), and
+   the entry point invokes a leg as a genuine Skill-tool call, so the leg's own
+   gate, hooks, triad and delivery ticket are untouched. The consequence that
+   matters architecturally: a narrower surface costs no verification
+   independence and no gate integrity, because no gate moved. The entry point
+   itself stays unhooked — it owns no agents and no gate of its own, exactly
+   like `/acs:ship` (ADR 0091).
 
 ## Document map
 

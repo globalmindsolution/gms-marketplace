@@ -39,6 +39,7 @@
       <xs:enumeration value="install-hooks"/>
       <xs:enumeration value="merge-pr"/>
       <xs:enumeration value="metrics"/>
+      <xs:enumeration value="project"/>
       <xs:enumeration value="release"/>
       <xs:enumeration value="run-e2e-tests"/>
       <xs:enumeration value="setup"/>

@@ -81,7 +81,15 @@ The PM delivery view renders exactly nine panels:
   count, and silent-reversal count (always 0 on well-formed state).
 1. **Throughput** — ticket counts by status and by type.
 2. **Pipeline funnel** — how many tickets reached each pipeline step, with
-   distinct PRs created/merged as the terminus.
+   distinct PRs created/merged as the terminus. One row per hooked skill
+   (`acs_lib.HOOKED_SKILLS`, in that canonical order), so the six **internal
+   legs** of `/acs:create-docs` and `/acs:project` each keep their own row —
+   a leg still runs as its own gated skill with its own delivery ticket, and
+   the entry-point fold changed nothing about that. Where a run is grouped by
+   PHASE, `workflows/phases.yaml` is the source and `acs_lib.phase_of`
+   resolves a leg **through** its entry point, so a leg reports under its
+   entry point's phase (`phase_of("create-quality")` is `design`, via
+   `create-docs`) rather than falling outside the five groups.
 4. **Coverage achieved vs target** — per ticket; a `null`/`"n/a"` coverage
    renders as "no data" for that ticket, never a crash or a fabricated number.
 5. **Review iterations before the verifier passed** — per-ticket integer.

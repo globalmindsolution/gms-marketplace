@@ -2,6 +2,15 @@
 
 **Status**: Accepted · **Date**: 2026-06-14
 
+> **Forward pointer — ADR-0091 (2026-09-12).** The one-skill-per-doc-set
+> decision below is **unamended**: each set still has its own skill, its own
+> triad and its own gate. What ADR-0091 narrows is this ADR's unstated
+> premise that one skill per set also means one *command* per set —
+> `create-quality` and `create-operations` (and later `create-principles` /
+> `create-standards`) are now **internal legs** whose only user-facing
+> command is `/acs:create-docs <set|all>`. Read the `/acs:create-quality`
+> spellings below as skill names, not as commands a user types.
+
 ## Context
 
 acs maintains a set of living docs for every consumer repo, each produced by a

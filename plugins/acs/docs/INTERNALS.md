@@ -12,7 +12,7 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 31 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 32 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 59 files (20 hooked skills: 19 × 3 roles, plus `code` × 2 — its planner moved to `/acs:create-impl-plan`); 53 reachable (16 triad-keeping skills × 3 + code's executor and verifier + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
@@ -220,15 +220,58 @@ not the place to have an opinion about that.
 
 ### `workflows/phases.yaml` — the skill registry
 
-Every `plugins/acs/skills/<dir>` appears exactly once: in one of the five phase
-groups (`design`, `build`, `test`, `ship`, `utility`) or as a key under
-`aliases` (a directory that forwards to another skill — currently
-`test: run-e2e-tests`, kept for one release). The registry is the single source
-for the ship-workflow schema's allowed-skill enum, the README skill table,
-this document, and `/acs:metrics` grouping. `acs_lib/workflow.py` reads it:
-`load_phases()`, `registered_skills()`, `skill_aliases()`, `phase_of(skill)`,
-and `allowed_ship_skills()` — build + test + ship minus `merge-pr` and
-`release`, which a human always drives.
+Every `plugins/acs/skills/<dir>` appears exactly once, in exactly one of three
+places:
+
+| Where | Meaning | Today |
+|---|---|---|
+| a phase list | a user-facing skill, in one of the five groups `design`, `build`, `test`, `ship`, `utility` | 25 skills |
+| a key under `aliases` | a directory that forwards to another skill, kept for one release | 1 — `test: run-e2e-tests` |
+| a key under `internal` | an **internal leg**: the value names the one user-facing entry point it serves | 6 — see below |
+
+The `internal` map is the design-phase **entry-point fold**, and it is a fold,
+not a collapse. A leg keeps everything that makes it a skill — its SKILL.md,
+its planner/executor/verifier trio, its `pre-`/`post-` hook scripts, its
+registered `GATES` entry, its settings key and its sentinel — and its entry
+point invokes it as a genuine Skill-tool call, so every one of those fires
+exactly as it would on a standalone run. What the map declares is narrower:
+who may invoke it. A leg is not a command a user runs, it carries
+`disable-model-invocation: true`, and it is absent from every phase list:
+
+```yaml
+internal:
+  create-quality: create-docs
+  create-operations: create-docs
+  create-principles: create-docs
+  create-standards: create-docs
+  create-project: project
+  standardize-project: project
+```
+
+`load_phases()` refuses, each refusal naming the line that caused it: an
+`internal` key with no `skills/<dir>`; an `internal` value that is not a
+phase-listed skill; an `internal` key that is also phase-listed or an
+`aliases` key; and an `internal` value that is itself an `internal` key —
+there is no leg of a leg.
+
+The registry is the single source for the ship-workflow schema's allowed-skill
+enum, the README skill table, this document, and `/acs:metrics` grouping.
+`acs_lib/workflow.py` reads it: `load_phases()`, `registered_skills()`,
+`skill_aliases()`, `skill_legs()` (the `internal` map, `{}` when the key is
+absent), `entry_point_of(skill)` (a leg's entry point, else `None`),
+`phase_of(skill)`, and `allowed_ship_skills()` — build + test + ship minus
+`merge-pr` and `release`, which a human always drives. No leg is
+ship-eligible, and `allowed_ship_skills()` is unaffected by the fold.
+
+**Grouping a leg's run.** `phase_of` resolves an internal leg **through** its
+entry point, so `phase_of("create-quality")` is `"design"` (via `create-docs`)
+and `phase_of("standardize-project")` is `"design"` (via `project`). That is
+what keeps a leg's run inside a phase for any consumer that groups by phase —
+`/acs:metrics` above all — instead of falling outside the five groups the
+moment a skill leaves the phase lists. It does not merge a leg into its entry
+point anywhere else: a leg still runs as its own gated skill with its own
+delivery ticket, so `/acs:metrics`' pipeline funnel still keys on
+`acs_lib.HOOKED_SKILLS` and still shows each leg as its own row.
 
 ### `workflows/ship.yaml` — the pipeline `/acs:ship` drives
 
@@ -633,7 +676,11 @@ reachable. The sixteen **triad-keeping skills** (`analyze-ticket`,
 `create-e2e-tests`, `create-prd`, `create-design`, `create-architecture`,
 `create-project`, `create-quality`, `create-operations`, `create-principles`,
 `create-standards`, `docs-sync`, `standardize-project`, `create-requirements`)
-spawn all three roles. **`/acs:code` is planner-less**: its plan phase became
+spawn all three roles. Six of those sixteen are the registry's **internal
+legs** (`create-quality`, `create-operations`, `create-principles`,
+`create-standards`, `create-project`, `standardize-project`): the entry-point
+fold left their trios untouched, which is exactly why it is a fold and not a
+collapse — the agent count did not move. **`/acs:code` is planner-less**: its plan phase became
 `/acs:create-impl-plan`, `code-planner.md` moved with it, and code ships only
 an executor and a verifier — 2 files, not 3, and no orphan. The three
 **apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and

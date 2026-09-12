@@ -14,8 +14,8 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **93%** (10840 statements,
-707 missed) — above the 90 floor. Re-derive it directly — the same
+for its sequence diagram. Repo-wide TOTAL is **94%** (10925 statements,
+702 missed) — above the 90 floor. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
 
@@ -46,7 +46,7 @@ and added **no** omit entry for the eval scenario drivers.
 `post-merge-pr.py` is deliberately **not** omitted: it has a real `--pr`
 branch and is measured, currently at 21 statements / 100%.
 
-`evals/` contributes 1140 of the 10840 measured statements and 317 of the 707
+`evals/` contributes 1140 of the 10925 measured statements and 317 of the 702
 missed. Split by each scenario module's declared `META["tier"]`, those 317 are
 **118** in paid- and forge-tier scenario drivers (85 of them in `evals/tabp`'s
 `screen_cvs_eval.py`), **90** in free-tier acs drivers — deterministic, and

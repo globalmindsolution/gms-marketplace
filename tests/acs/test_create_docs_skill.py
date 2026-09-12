@@ -42,6 +42,14 @@ def _body():
     return read(SKILL_PATH)
 
 
+def _frontmatter():
+    """The SKILL.md front-matter block, without its --- fences."""
+    text = _body()
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    assert m, "create-docs/SKILL.md must open with a front-matter block"
+    return m.group(1)
+
+
 class HookIntegrityTest(unittest.TestCase):
     """AC-2: every fanned-out skill's own hooks/reflection/gating fire
     unchanged; create-docs itself carries no hook surface of its own."""
@@ -112,12 +120,15 @@ class ParallelBatchTest(unittest.TestCase):
         self.assertLess(exec_idx, verify_idx,
                         "the executor batch must be described before the verifier batch")
         body_norm = norm(body)
+        # Was "both executors"/"both verifiers": with the entry-point fold the
+        # eligible set is four legs wide and the concurrency cap slices it, so
+        # the batch is "the slice's" executors/verifiers, not always a pair.
         self.assertIsNotNone(
-            re.search(r"(?i)both executors", body_norm),
-            "must name 'both executors' as a batch")
+            re.search(r"(?i)(both|each|every|the slice.s) executors", body_norm),
+            "must name the slice's executors as one batch")
         self.assertIsNotNone(
-            re.search(r"(?i)both verifiers", body_norm),
-            "must name 'both verifiers' as a batch")
+            re.search(r"(?i)(both|each|every|the slice.s) verifiers", body_norm),
+            "must name the slice's verifiers as one batch")
 
     def test_cites_code_skill_parallel_spawn_mechanism_as_precedent(self):
         body_norm = norm(_body())
@@ -197,16 +208,18 @@ class DocumentationTest(unittest.TestCase):
     """AC-6: the new orchestration behavior is documented -- which skills are
     eligible for fan-out, and why."""
 
-    def test_prose_names_v1_eligible_pair_and_why(self):
+    def test_prose_names_the_declared_eligible_set_and_why(self):
+        # Was: names the v1 pair and the "v1" framing. The entry-point fold
+        # made /acs:create-docs the only user-facing doc command, so the
+        # declared set is every doc-bootstrap leg and the prose must name all
+        # four -- the v1-pair scoping is history, not the current contract.
         body_norm = norm(_body())
-        self.assertIn("create-quality", body_norm)
-        self.assertIn("create-operations", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)v1", body_norm),
-            "must name the v1-scoped eligible set")
+        for leg in ("create-quality", "create-operations",
+                    "create-principles", "create-standards"):
+            self.assertIn(leg, body_norm, leg)
         self.assertIsNotNone(
             re.search(r"(?i)disjoint|neither reads the other", body_norm),
-            "must state why the v1 pair is independent")
+            "must state why the legs can run independently")
 
     def test_prose_states_new_skill_is_a_table_data_change(self):
         body_norm = norm(_body())
@@ -216,23 +229,86 @@ class DocumentationTest(unittest.TestCase):
     def test_completion_report_section_present(self):
         self.assertIn("## Completion report (normative)", _body())
 
-    def test_prose_states_the_v1_gate_is_a_declared_constant(self):
-        # finding 2 (prose half): the v1 fan-out set is named as the
-        # declared acs_lib constant, not a bare "the pair" claim.
+    def test_prose_states_the_fanout_gate_is_a_declared_constant(self):
+        # finding 2 (prose half): the fan-out set is named as the declared
+        # acs_lib constant, not a bare "the pair" claim.
         body_norm = norm(_body())
         self.assertIn("DOC_BOOTSTRAP_FANOUT_V1", body_norm)
         self.assertIsNotNone(
             re.search(r"(?i)declared", body_norm),
-            "must state the v1 gate is declared (data), not inferred/hardcoded prose")
+            "must state the fan-out gate is declared (data), not inferred/hardcoded prose")
 
-    def test_for_flag_reports_a_non_v1_name_as_ineligible(self):
-        # finding 2 (prose half): a --for name outside v1's set is reported
-        # as ineligible, never silently fanned out.
+    def test_legacy_for_flag_is_accepted_for_one_release_with_a_stderr_note(self):
+        # Was: a --for name outside v1's set is reported "not in v1's fan-out
+        # set". Every leg is in the declared set now, so what --for carries is
+        # a deprecation notice pointing at the positional spelling.
         body_norm = norm(_body())
         self.assertIn("--for", body_norm)
         self.assertIsNotNone(
-            re.search(r"(?i)not in v1.s fan-out set", body_norm),
-            "must report a non-v1 --for name as \"not in v1's fan-out set\"")
+            re.search(r"(?i)--for.{0,200}(one release|deprecat)", body_norm),
+            "must state --for is still accepted for one release")
+        self.assertIsNotNone(
+            re.search(r"(?i)stderr", body_norm),
+            "must state the deprecation note goes to stderr")
+
+
+class PositionalArgumentContractTest(unittest.TestCase):
+    """The design-phase consolidation's argument contract: /acs:create-docs
+    <set|all> is the only user-facing doc-bootstrap command, its argument is
+    parsed in acs_lib (never in prose), and the concurrency cap is stated."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fm = _frontmatter()
+        cls.norm = norm(_body())
+
+    def test_argument_hint_is_the_positional_set_or_all_form(self):
+        self.assertRegex(
+            self.fm, r"(?m)^argument-hint: \"\[?(all|<set>)",
+            "argument-hint must lead with the positional <set|all> form")
+        self.assertIn("all", self.fm)
+        self.assertNotRegex(
+            self.fm, r"(?m)^argument-hint: \"\[--for",
+            "the legacy --for form must no longer be the advertised spelling")
+
+    def test_description_names_the_entry_point_role_and_the_four_sets(self):
+        description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
+        for word in ("quality", "operations", "principles", "standards"):
+            self.assertIn(word, description, word)
+        self.assertIsNotNone(
+            re.search(r"(?i)only user-facing|entry point", description),
+            "the description must say this is the entry point for the doc sets")
+
+    def test_prose_states_the_positional_comma_separated_contract(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)comma-separated", self.norm),
+            "must state the argument is comma-separated")
+        self.assertIsNotNone(
+            re.search(r"(?i)`?all`?[^.]{0,120}(every|all four|each) declared", self.norm)
+            or re.search(r"(?i)(every|all four) declared[^.]{0,80}`?all`?", self.norm),
+            "must state what `all` selects")
+
+    def test_prose_accepts_both_spellings(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)`?quality`?[^.]{0,80}`?create-quality`?", self.norm),
+            "must state both the short and the create-<set> spelling resolve")
+
+    def test_argument_parsing_lives_in_acs_lib_not_in_prose(self):
+        self.assertIn("parse_doc_set_arg", self.norm)
+        self.assertIsNotNone(
+            re.search(r"(?i)unknown|names no doc set", self.norm),
+            "must state what an unknown set does")
+
+    def test_prose_states_the_concurrency_cap(self):
+        self.assertIsNotNone(
+            re.search(r"(?i)max_parallel", self.norm),
+            "must name max_parallel as the cap's source")
+        self.assertIsNotNone(
+            re.search(r"(?i)(cap|at most|no more than)[^.]{0,120}(2|two)", self.norm),
+            "must state the cap's value (2 by default)")
+        self.assertIsNotNone(
+            re.search(r"(?i)DEFAULT_MAX_PARALLEL|ship workflow", self.norm),
+            "must cite where the default 2 comes from")
 
 
 class LoopTopologyTest(unittest.TestCase):
@@ -285,6 +361,63 @@ class LoopTopologyTest(unittest.TestCase):
             "the per-leg iteration cap (max 3 execute-verify rounds) must be pinned")
 
 
+class InternalLegFrontmatterTest(unittest.TestCase):
+    """The entry-point fold, leg side: each of the four doc-bootstrap legs
+    stops being user-facing (`disable-model-invocation: true`) and says in its
+    description that /acs:create-docs is the way in. Everything else about the
+    leg -- body, agents, hooks, gate, sentinel, settings key -- is untouched,
+    which is why the umbrella can still invoke it as a real Skill-tool call."""
+
+    LEGS = ("create-quality", "create-operations",
+            "create-principles", "create-standards")
+
+    @staticmethod
+    def _fm(skill):
+        text = read(os.path.join(PLUGIN, "skills", skill, "SKILL.md"))
+        m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+        assert m, "%s/SKILL.md must open with a front-matter block" % skill
+        return m.group(1)
+
+    def test_each_leg_is_no_longer_model_invocable(self):
+        for skill in self.LEGS:
+            with self.subTest(skill=skill):
+                self.assertRegex(self._fm(skill),
+                                 r"(?m)^disable-model-invocation: true$")
+
+    def test_each_leg_description_names_its_entry_point(self):
+        for skill in self.LEGS:
+            with self.subTest(skill=skill):
+                description = re.search(r"(?m)^description: (.*)$", self._fm(skill)).group(1)
+                self.assertIn("/acs:create-docs", description,
+                              "the description must point the reader at the entry point")
+                self.assertIsNotNone(
+                    re.search(r"(?i)internal leg", description),
+                    "the description must name the skill as an internal leg")
+
+    def test_each_leg_keeps_the_rest_of_its_frontmatter(self):
+        for skill in self.LEGS:
+            with self.subTest(skill=skill):
+                fm = self._fm(skill)
+                self.assertRegex(fm, r"(?m)^name: %s$" % skill)
+                self.assertRegex(fm, r"(?m)^argument-hint: \"\[delivery-ticket-id to resume")
+                self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
+
+    def test_each_leg_is_still_registered_as_an_internal_leg_of_create_docs(self):
+        for skill in self.LEGS:
+            with self.subTest(skill=skill):
+                self.assertEqual(acs_lib.entry_point_of(skill), "create-docs")
+                self.assertIn(skill, acs_lib.HOOKED_SKILLS)
+                self.assertIn(skill, acs_lib.GATES)
+                self.assertTrue(
+                    os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % skill)))
+                self.assertTrue(
+                    os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % skill)))
+                for role in ("planner", "executor", "verifier"):
+                    self.assertTrue(
+                        os.path.isfile(os.path.join(AGENTS_DIR, "%s-%s.md" % (skill, role))),
+                        "%s-%s.md must survive the fold" % (skill, role))
+
+
 def _start_section():
     """Slice the '## Start' section (up to the next '\n## ' heading)."""
     body = _body()
@@ -315,12 +448,17 @@ class StartSnippetContractTest(unittest.TestCase):
         self.assertIn('python3 - "$ARGUMENTS" <<\'PY\'', self.block)
         self.assertIn("sys.argv", self.block)
 
-    def test_for_argument_is_parsed_and_v1_gated(self):
-        self.assertIn("parse_fanout_for_arg", self.block)
+    def test_argument_is_parsed_through_the_declared_acs_lib_parser(self):
+        # Was: parse_fanout_for_arg. The positional <set|all> contract is
+        # parsed by parse_doc_set_arg, which still calls parse_fanout_for_arg
+        # for the legacy --for form -- the skill calls only the entry point.
+        self.assertIn("parse_doc_set_arg", self.block)
         self.assertIn("candidates=", self.block)
         self.assertIsNotNone(
             re.search(r"fanout_batches\([^)]*candidates=", self.block, re.DOTALL),
             "fanout_batches call must pass candidates=")
+        self.assertIn("notices", self.block,
+                      "the snippet must surface the parser's stderr notices")
 
     def test_fanout_batches_receives_the_resolved_checkout_root(self):
         self.assertIn("lib.checkout_root(cwd)", self.block)
@@ -335,11 +473,16 @@ class StartSnippetContractTest(unittest.TestCase):
         self.assertIn("% exc", self.block)
 
     def test_rejection_is_reported_never_silently_dropped(self):
+        # Was "not in v1's fan-out set": every leg is in the declared set now,
+        # so the only rejection left is a token that names no doc set at all,
+        # and it refuses the whole run rather than fanning out the remainder.
         self.assertIsNotNone(
-            re.search(r"(?i)not in v1.s fan-out set", self.section_norm))
+            re.search(r"(?i)names no doc set|unknown (doc )?set", self.section_norm),
+            "the Start section must state what an unrecognized set does")
         self.assertIsNotNone(
-            re.search(r"(?i)(never silently|never fanned out).{0,120}rejected"
-                      r"|rejected.{0,120}(never silently|never fanned out)", self.section_norm))
+            re.search(r"(?i)(never silently|never fanned out|refuse).{0,160}rejected"
+                      r"|rejected.{0,160}(never silently|never fanned out|refuse)",
+                      self.section_norm))
 
     def test_exit_2_instruction_present(self):
         self.assertIsNotNone(

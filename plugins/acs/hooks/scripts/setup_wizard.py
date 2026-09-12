@@ -621,8 +621,11 @@ def render_protect(slug, branch, contexts):
     return " ".join(shlex.quote(a) for a in argv)
 
 
-#: The pipeline, in order, for the completion report's Next line.
-PIPELINE_ORDER = ("create-prd", "create-architecture", "create-project",
+#: The pipeline, in order, for the completion report's Next line. Entry
+#: points only: `project` is the design-phase umbrella, and `create-project`
+#: is one of the two internal legs it dispatches to (workflows/phases.yaml's
+#: `internal` map) -- a user runs the entry point, never the leg.
+PIPELINE_ORDER = ("create-prd", "create-architecture", "project",
                   "create-ticket", "create-design", "code", "test",
                   "docs-sync", "create-pr", "merge-pr")
 
@@ -632,7 +635,10 @@ def render_next_steps(greenfield):
     skill should not be re-deriving a branch it can be handed."""
     steps = ["/acs:create-prd", "/acs:create-architecture"]
     if greenfield:
-        steps.append("/acs:create-project")
+        # The entry point, not its `create-project` leg: /acs:project reads the
+        # same greenfield evidence off disk (acs_lib.project_mode) and
+        # dispatches to that leg itself.
+        steps.append("/acs:project")
     return {
         "kind": "greenfield" if greenfield else "brownfield",
         "first": steps,

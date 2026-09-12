@@ -1,21 +1,34 @@
-"""s04 — routing evals for 25 of the 31 skills (paid, E1.2).
+"""s04 — routing evals for 25 of the 32 skills (paid, E1.2).
 
-Three kinds of probe, 27 in all, covering 25 of the 31 skill directories:
+Three kinds of probe, 27 in all, covering 25 of the 32 skill directories:
 
 1. Description-trigger (23 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
    skill. A miss is a real finding — the skill's `description` frontmatter
    isn't discriminating that request from its neighbors.
 
-2. Explicit-invocation (the 2 user-only skills `install-hooks` and `update`,
-   which set `disable-model-invocation: true`): the explicit `/acs:<skill>`
-   command must still route to the skill. The model is forbidden from
-   auto-routing to these, so a description probe can't reach them — but the
-   explicit path the user types must work.
+2. Explicit-invocation (the 2 user-only skills `install-hooks` and `update`):
+   the explicit `/acs:<skill>` command must still route to the skill. The
+   model is forbidden from auto-routing to these, so a description probe
+   can't reach them — but the explicit path the user types must work.
 
 3. Negative-routing (same 2 user-only skills): a bare description of their
    intent must NOT auto-route to them, proving `disable-model-invocation` is
    honored — the model should pick a different skill or no skill at all.
+
+OPEN ITEM — `disable-model-invocation` is no longer just those two skills.
+The design-phase entry-point fold (ADR 0091) gave the flag to all six internal
+legs as well (`create-quality`, `create-operations`, `create-principles`,
+`create-standards`, `create-project`, `standardize-project`), so eight skills
+carry it, not two — re-derive with
+`grep -l 'disable-model-invocation: true' plugins/acs/skills/*/SKILL.md`. Those
+six still have DESCRIPTION probes below, which by rule 2 above can no longer
+reach them: they are expected to miss on the next paid run and need moving to
+the explicit-invocation + negative-routing pair. That reclassification changes
+the measured routing-coverage claim the PRD and roadmap carry, so it is
+deliberately left to a fresh paid measurement rather than done blind — the
+probe set below is unchanged by the fold, on purpose. Tracked in
+docs/quality/testing-strategy.md's Trigger bullet.
 
 A description probe is decided by the first `Skill` tool_use the model makes; an
 explicit probe is decided by the session's registration list, before any model
@@ -32,10 +45,11 @@ intent that used to route to `test` must now route to `run-e2e-tests`.
 The 25 probed skills are not every skill directory on disk. The `test` alias is
 deliberately unprobed (see above), and the five Build/Test skills the
 skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
-`create-api-contract`, `create-test-docs`, `create-e2e-tests`) have no probe
-yet: adding probes moves the measured "all N green" routing-coverage claim the
-PRD and roadmap carry, so they are added together with a fresh paid
-measurement, not alongside the refactor that created the skills. The
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`) plus the
+design-phase fold's `project` umbrella have no probe yet: adding probes moves
+the measured "all N green" routing-coverage claim the PRD and roadmap carry, so
+they are added together with a fresh paid measurement, not alongside the
+refactor that created the skills. The
 create-docs, create-requirements and docs-sync probes below are new here and
 are likewise unmeasured until the next paid run.
 """
@@ -46,7 +60,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 25 of 31 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for 25 of 32 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.

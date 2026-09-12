@@ -1,6 +1,7 @@
 ---
 name: create-standards
-description: Bootstrap or maintain the consumer standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) from templates, reading the PRD, the architecture/ set, and the principles/ set (when present) as upstream, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-principles, or to refresh the standards doc set after a coding-standard or convention change.
+description: Internal leg of /acs:create-docs, not a user-facing command: bootstrap or maintain the consumer standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) from templates, reading the PRD, the architecture/ set, and the principles/ set (when present) as upstream, delivered as a docs-only PR on its own delivery ticket. Run /acs:create-docs standards (or /acs:create-docs all) instead — that umbrella invokes this leg after principles, with every hook, gate and reflection cycle unchanged; a bare delivery-ticket id resumes an interrupted leg.
+disable-model-invocation: true
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

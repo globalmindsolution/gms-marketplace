@@ -1,19 +1,52 @@
 # Flow — /acs:create-docs cross-skill fan-out
 
 `/acs:create-docs` is an unhooked coordinator (like `/acs:ship`) that spawns
-**two or more existing doc-bootstrap skills as ordinary delivery tickets**,
-running each one's own plan→execute→verify phases in a **parallel worktree**,
-one delivery ticket per leg. It reuses the worktree-per-ticket primitive that
-already exists for cross-*ticket* parallelism; what is new is the cross-*skill*,
-phase-level fan-out from a single coordinator: each phase batch (both
-planners, then both executors, then both verifiers) runs in parallel before
-the next batch starts. `fanout_batches()` (`acs_lib.py`) computes the eligible
-batch from `DOC_BOOTSTRAP_DEPENDENCIES` and `DOC_BOOTSTRAP_SETTINGS_KEY`
-against the consumer repo's settings and on-disk doc state
-(`doc_set_present_on_disk()`), gated on the declared v1 set
-`DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
+**existing doc-bootstrap skills as ordinary delivery tickets**, running each
+one's own plan→execute→verify phases in a **parallel worktree**, one delivery
+ticket per leg. It reuses the worktree-per-ticket primitive that already exists
+for cross-*ticket* parallelism; what is new is the cross-*skill*, phase-level
+fan-out from a single coordinator: each phase batch (the slice's planners, then
+its executors, then its verifiers) runs in parallel before the next batch
+starts. `fanout_batches()` (`acs_lib`, in `acs_lib/setup_helpers.py`) computes
+the eligible batches from `DOC_BOOTSTRAP_DEPENDENCIES` and
+`DOC_BOOTSTRAP_SETTINGS_KEY` against the consumer repo's settings and on-disk
+doc state (`doc_set_present_on_disk()`), gated on the declared set
+`DOC_BOOTSTRAP_FANOUT_V1` — today all **four** doc-bootstrap legs:
+`create-quality`, `create-operations`, `create-principles`,
+`create-standards`.
 
-## Sequence — happy path (both legs succeed)
+## The entry-point fold
+
+`/acs:create-docs` is the **only user-facing command** for those four doc
+sets. Each leg is an `internal` entry in `workflows/phases.yaml`, carries
+`disable-model-invocation: true`, and is absent from every phase list. That is
+an entry-point fold, not a collapse — a leg keeps its own SKILL.md, agent
+trio, `pre-`/`post-` hook scripts, registered gate, settings key and sentinel,
+and the umbrella invokes it as a genuine Skill-tool call, which is precisely
+what makes the rest of this flow (every hook firing "for real" below) true.
+`phase_of` resolves a leg through `create-docs`, so all four still report under
+`design`.
+
+## Batches, slices and the concurrency cap
+
+The coordinator never launches all four legs at once. It walks the batches
+`fanout_batches` returns in **slices of at most `max_parallel` legs** —
+`DEFAULT_MAX_PARALLEL` is 2, and the resolved `workflows/ship.yaml` (or the
+consumer's `.acs/workflows/ship.yaml`) wins when it declares its own value.
+
+The batch split is data, never prose: `create-standards` declares a **soft**
+edge on `create-principles` in `DOC_BOOTSTRAP_DEPENDENCIES`, which excludes
+the two from sharing a batch. On a fully configured repo with nothing shipped
+yet, `fanout_batches` therefore returns
+`[[create-quality, create-operations, create-principles], [create-standards]]`,
+which the cap walks as three slices: `create-quality` + `create-operations`,
+then `create-principles`, then `create-standards`. Nothing here re-derives or
+hard-codes that order.
+
+## Sequence — happy path (one slice, both its legs succeed)
+
+The diagram below is the **first slice** of that default run — two legs, the
+cap's width. A later slice is the identical shape with its own legs.
 
 ```mermaid
 sequenceDiagram
@@ -27,9 +60,9 @@ sequenceDiagram
     participant VFQ as create-quality-verifier
     participant VFO as create-operations-verifier
 
-    Dev->>CD: /acs:create-docs
-    CD->>WS: read settings + DOC_BOOTSTRAP_DEPENDENCIES + tickets-index.json
-    CD->>CD: fanout_batches -> eligible batch = create-quality, create-operations
+    Dev->>CD: /acs:create-docs (all, or a comma-separated set list)
+    CD->>WS: read settings + DOC_BOOTSTRAP_DEPENDENCIES + tickets-index.json + max_parallel
+    CD->>CD: fanout_batches -> batches, first slice (max_parallel=2) = create-quality, create-operations
     CD->>CD: create worktree-Q and worktree-O outside the consumer repo
 
     CD->>CD: Skill acs:create-quality
@@ -100,7 +133,7 @@ sequenceDiagram
     note over CD: no shared failure state, MAR-101's run/PR/ledger are untouched by MAR-102's failure
 
     Dev->>Dev: address the verifier findings
-    Dev->>CD: /acs:create-operations MAR-102
+    Dev->>CD: /acs:create-operations MAR-102 (the leg's own internal entry point, resume only)
     note over CD: standalone resume, unchanged contract, create-operations/SKILL.md Resume & reconcile section, reconcile=true, no re-invocation of the umbrella
     CD-->>Dev: create-operations completes, MAR-102 PR B in_review
 ```
@@ -111,10 +144,17 @@ shared failure state across legs, so one leg's iteration-cap failure never
 blocks or rolls back a sibling leg's success. A crashed or failed leg resumes
 exactly the way a standalone run already does, via its own skill's Resume &
 reconcile path — `/acs:create-docs` is never re-invoked for a single-leg
-resume. Each leg's worktree is entered at that leg's own Delivery step's
-Branch sub-step, before that leg's Execute phase; that Branch entry point
-precedes the later Delivery commit/push/PR steps, which run in the same
-worktree once entered. The shared session checkout is used for both
-legs' Starts and `skill-start.py --allocate` calls (D3.2-ii); each leg's
-execute and verify phases, and Delivery steps 2-4, then run in that leg's
-own worktree on its own branch.
+resume. Resuming a leg directly is the one thing a leg's own
+`/acs:<leg> <ticket-id>` form is still for after the entry-point fold: the
+fold removed the leg from the user-facing surface, not from the Skill tool,
+and the entry point never resumes a leg on its behalf.
+
+Each leg's worktree is entered at that leg's own Delivery step's Branch
+sub-step, before that leg's Execute phase; that Branch entry point precedes
+the later Delivery commit/push/PR steps, which run in the same worktree once
+entered. The shared session checkout is used for every leg's Start and
+`skill-start.py --allocate` call (D3.2-ii); each leg's execute and verify
+phases, and Delivery steps 2-4, then run in that leg's own worktree on its own
+branch. None of this is per-slice state: a slice is only how many legs are in
+flight at once, so the properties above hold across the whole run, not just
+within one slice.

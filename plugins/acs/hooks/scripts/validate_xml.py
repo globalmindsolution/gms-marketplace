@@ -78,7 +78,7 @@ SKILLS = {"analyze-ticket", "code", "create-api-contract", "create-architecture"
           "create-operations", "create-pr", "create-prd", "create-principles",
           "create-project", "create-quality", "create-requirements",
           "create-standards", "create-test-docs", "create-ticket", "docs-sync",
-          "handoff", "install-hooks", "merge-pr", "metrics", "release",
+          "handoff", "install-hooks", "merge-pr", "metrics", "project", "release",
           "run-e2e-tests", "setup", "ship", "standardize-project", "test",
           "update", "usage", "create-spec"}
 PHASES = {"plan", "execute", "verify", "coordinate"}

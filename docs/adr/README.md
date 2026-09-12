@@ -97,6 +97,7 @@ context and consequences.
 | [0088](0088-gh-only-github-transport-and-criticality-classification.md) | gh is acs's only GitHub transport; failures are classified, not routed around | Accepted |
 | [0089](0089-pipeline-order-declared-in-ship-yaml.md) | Pipeline order is declared in `workflows/ship.yaml`; every skill is independently runnable; hooks keep input checks and safety brakes, and `_require_completed` is deleted | Accepted |
 | [0090](0090-ticket-artifacts-in-repo-docs-tree.md) | Ticket and design artifacts live in the repo docs tree (`docs/tickets/<ID>/`) with a derived status; the workspace keeps the run ledger | Accepted |
+| [0091](0091-design-phase-entry-point-fold.md) | The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas (`/acs:create-docs`, `/acs:project`), and an auto-detected project mode | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

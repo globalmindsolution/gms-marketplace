@@ -99,7 +99,11 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-api-contract", "create-test-docs", "code",
                  "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "standardize-project"]
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs"]
+# The unhooked skills, mirroring acs_lib.UNHOOKED_SKILLS (a second,
+# separately maintained copy by design -- this module never imports the
+# registry for it). `project` is the design-phase fold's umbrella over the
+# two project legs: no agents, no gate, no hook scripts.
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs", "project"]
 ROLES = ["planner", "executor", "verifier"]
 
 # Which agent roles each hooked skill actually owns. Every skill is a triad
@@ -181,15 +185,25 @@ class TestSkillContracts(unittest.TestCase):
         self.assertNotIn("one subagent per step", body)
         self.assertIsNone(re.search(r"spawn a fresh subagent", body, re.IGNORECASE))
 
-    def test_user_action_only_skills(self):
-        # update + install-hooks change the environment; merge-pr is now
-        # agent/model-invocable (MAR-42), so it is NOT in this set.
+    def test_non_model_invocable_skills(self):
+        # Two classes set disable-model-invocation, and only these two:
+        #   * user-action-only: update + install-hooks change the environment
+        #     (merge-pr is agent/model-invocable since MAR-42, so it is NOT
+        #     in this set);
+        #   * internal legs: the design-phase entry-point fold left each leg
+        #     in the registry's `internal` map Skill-invocable by its own
+        #     entry point but no longer user-facing, so a description can
+        #     never route to it. Read the legs from the registry rather than
+        #     re-listing them: phases.yaml is the single source, and
+        #     test_phases_registry.py pins the map itself.
         user_action = ("update", "install-hooks")
-        for name in user_action:
+        legs = tuple(sorted(lib.skill_legs()))
+        self.assertTrue(legs, "the registry must declare the internal legs")
+        for name in user_action + legs:
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertRegex(fm, r"(?m)^disable-model-invocation: true$", name)
         for name in ALL_SKILLS:
-            if name in user_action:
+            if name in user_action or name in legs:
                 continue
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disable-model-invocation: true", fm, name)

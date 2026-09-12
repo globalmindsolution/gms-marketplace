@@ -1,6 +1,7 @@
 ---
 name: create-principles
-description: Bootstrap or maintain the consumer principles/ doc set (engineering principles + rationale) from templates, reading the PRD and the architecture/ set as upstream, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-architecture, or to refresh the principles doc set after an engineering-principle change.
+description: Internal leg of /acs:create-docs, not a user-facing command: bootstrap or maintain the consumer principles/ doc set (engineering principles + rationale) from templates, reading the PRD and the architecture/ set as upstream, delivered as a docs-only PR on its own delivery ticket. Run /acs:create-docs principles (or /acs:create-docs all) instead — that umbrella invokes this leg, with every hook, gate and reflection cycle unchanged; a bare delivery-ticket id resumes an interrupted leg.
+disable-model-invocation: true
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

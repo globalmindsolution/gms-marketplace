@@ -1,18 +1,23 @@
 ---
 name: create-docs
-description: Detect independent doc-bootstrap skills (currently create-quality and create-operations) whose upstream prerequisites are already satisfied, and fan them out in parallel instead of running them one after another — each leg keeps its own hooks, reflection cycle, and gating unchanged, and delivers as its own docs-only PR on its own delivery ticket. Use instead of running /acs:create-quality and /acs:create-operations sequentially.
-argument-hint: "[--for <skill>[,<skill>...]]"
+description: Bootstrap or maintain the product doc sets — quality, operations, principles, standards — as the only user-facing entry point for them: detect which requested sets are eligible this pass and fan them out in capped parallel instead of running them one after another, each leg keeping its own hooks, reflection cycle and gating unchanged and delivering its own docs-only PR on its own delivery ticket. Use for any of those doc sets, with `all` or a comma-separated list, instead of invoking /acs:create-quality, /acs:create-operations, /acs:create-principles or /acs:create-standards directly.
+argument-hint: "[all | <set>[,<set>...]]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-docs — an unhooked umbrella, exactly
 like `/acs:ship`, `/acs:test`, and `/acs:release`: you have no
 planner/executor/verifier of your own, and you never write a doc file
-yourself. You detect which doc-bootstrap skills are eligible for parallel
-fan-out this pass, run each eligible skill's own Start **sequentially** as a
-genuine Skill-tool call (so every existing hook fires exactly as it would
-standalone), and then drive both legs' reflection loops together from your
-own context by spawning each phase's subagents in parallel batches.
+yourself. You are also the **only user-facing command** for the four product
+doc sets: `create-quality`, `create-operations`, `create-principles` and
+`create-standards` are internal legs of this skill (an entry-point fold, not a
+collapse — each keeps its own SKILL.md, agent trio, `pre-`/`post-` hooks, gate
+and sentinel, and each stays Skill-invocable exactly as before). You detect
+which requested doc sets are eligible for parallel fan-out this pass, run each
+eligible leg's own Start **sequentially** as a genuine Skill-tool call (so
+every existing hook fires exactly as it would standalone), and then drive the
+running legs' reflection loops together from your own context by spawning each
+phase's subagents in parallel batches, capped (`## Concurrency cap` below).
 
 Ground rules, non-negotiable:
 
@@ -22,22 +27,61 @@ Ground rules, non-negotiable:
 - You have no planner/executor/verifier of your own. Each fanned-out skill
   runs its OWN reflection cycle via its OWN existing agent files
   (`acs:create-quality-planner/-executor/-verifier`,
-  `acs:create-operations-planner/-executor/-verifier`), which you spawn
+  `acs:create-operations-planner/-executor/-verifier`, and the matching
+  `acs:create-principles-*` / `acs:create-standards-*` trios), which you spawn
   directly with the Agent tool — you never do a leg's work yourself.
-- v1's eligible set is exactly `create-quality` + `create-operations`
-  (D7-A) — a third doc-bootstrap skill becoming fan-out-eligible later is a
-  data change, not a code change: it must be added to ALL FOUR of
-  `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES`, `acs_lib.DOC_BOOTSTRAP_FANOUT_V1`,
-  `acs_lib.DOC_BOOTSTRAP_SETTINGS_KEY`, and `acs_lib.DOC_BOOTSTRAP_SENTINEL`,
-  never an edit to this skill.
+- The eligible set is `acs_lib.DOC_BOOTSTRAP_FANOUT_V1`, today every one of
+  the four doc-bootstrap legs. A fifth doc-bootstrap skill becoming
+  fan-out-eligible later is a data change, not a code change: it must be
+  added to ALL FOUR of `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES`,
+  `acs_lib.DOC_BOOTSTRAP_FANOUT_V1`, `acs_lib.DOC_BOOTSTRAP_SETTINGS_KEY`,
+  and `acs_lib.DOC_BOOTSTRAP_SENTINEL`, never an edit to this skill.
 - This is not epic-child fan-out (`ship/SKILL.md`'s "Epic fan-out" section,
   unchanged) — that mechanism parallelizes *tickets* sharing one design;
   this skill parallelizes independent *product-level doc-bootstrap skills*
   that share no ticket and no design step.
 
+## Argument — `<set|all>`, positional and comma-separated
+
+`/acs:create-docs <set>[,<set>...]` or `/acs:create-docs all`. A `<set>` is
+`quality`, `operations`, `principles` or `standards`; the full skill name is
+accepted for each, so `quality` and `create-quality` resolve to the same leg.
+`all` selects every declared leg (`acs_lib.DOC_BOOTSTRAP_FANOUT_V1`) and must
+be passed on its own — `all,quality` is refused, never guessed at. No
+argument at all keeps the previous behaviour: the declared default set, now
+four sets wide.
+
+You never parse this yourself. `acs_lib.parse_doc_set_arg` (beside
+`acs_lib.parse_fanout_for_arg`) is the declared parser and the Start snippet
+below calls it: it returns `candidates` (canonical leg names, or `None` for
+"no argument"), `rejected`, and `notices` — the exact one-line messages to
+write to stderr, in order. A token that **names no doc set** is rejected and
+refuses the WHOLE run (exit 2, with a notice naming every accepted spelling);
+the recognized remainder is never quietly fanned out instead, and no rejected
+name is ever silently dropped.
+
+`--for <skill>[,<skill>...]` stays accepted for **one release**. It parses to
+the same canonical names and adds exactly one deprecated-form note on stderr
+saying the positional form is the spelling now — the same one-release
+courtesy the `test` → `run-e2e-tests` alias gets. Bare `--for`, with no names,
+selects nothing: report the notice and stop.
+
+## Concurrency cap
+
+Never launch all four legs at once: run **at most 2** legs concurrently. That
+cap is the ship workflow's `max_parallel` default (`DEFAULT_MAX_PARALLEL` in
+`acs_lib`), and this repo's `workflows/ship.yaml` — or its
+`.acs/workflows/ship.yaml` override — wins when it declares its own value,
+which the Start snippet resolves and prints as `max_parallel`.
+Walk each batch `fanout_batches` returns in **slices of at most
+`max_parallel`** legs, finishing one slice's legs before starting the next.
+Everything below that says "this slice" means those at-most-`max_parallel`
+legs; the batch order itself is never re-derived by you (Start section below).
+
 ## Start — eligibility detection
 
-MANDATORY first action — resolve settings and the eligible batch:
+MANDATORY first action — resolve settings, the argument, and the eligible
+batch:
 
 ```bash
 python3 - "$ARGUMENTS" <<'PY'
@@ -55,10 +99,21 @@ except lib.GateError as exc:
 root = lib.checkout_root(cwd) or cwd
 repo_id = lib.repo_partition_id(cwd)
 tickets_index = lib.read_json(lib.index_path(workspace, repo_id)) or {}
-requested, rejected = lib.parse_fanout_for_arg(args_text)
-batches = lib.fanout_batches(settings, tickets_index, root, candidates=requested)
+request = lib.parse_doc_set_arg(args_text)
+for note in request.notices:
+    sys.stderr.write(note + "\n")
+if request.rejected or request.candidates == []:
+    sys.exit(2)
+try:
+    max_parallel = lib.resolve_workflow(root)["workflow"].get(
+        "max_parallel", lib.DEFAULT_MAX_PARALLEL)
+except lib.WorkflowError:
+    max_parallel = lib.DEFAULT_MAX_PARALLEL
+batches = lib.fanout_batches(settings, tickets_index, root, candidates=request.candidates)
 print(json.dumps({"workspace": workspace, "repo_id": repo_id, "checkout_root": root,
-                  "requested": requested, "rejected": rejected, "batches": batches}, indent=2))
+                  "requested": request.candidates, "rejected": request.rejected,
+                  "notices": request.notices, "max_parallel": max_parallel,
+                  "batches": batches}, indent=2))
 PY
 ```
 
@@ -66,8 +121,8 @@ PY
 **declared, not inferred** eligibility predicate (AC-5): each doc-bootstrap
 skill's dependency edges live in `acs_lib.DOC_BOOTSTRAP_DEPENDENCIES`
 (`{"hard": [...], "soft": [...]}` per skill) — never a prose guess. With no
-`candidates` argument, `fanout_batches` defaults to the declared v1 gate,
-`acs_lib.DOC_BOOTSTRAP_FANOUT_V1` — the v1 fan-out set is that constant, a
+`candidates` argument, `fanout_batches` defaults to the declared gate,
+`acs_lib.DOC_BOOTSTRAP_FANOUT_V1` — the fan-out set is that constant, a
 data declaration, not a hardcoded prose claim. A candidate is eligible only
 when its settings path is configured, its doc set has not already shipped
 on disk (`doc_set_present_on_disk`, the D4.2(a) sentinel-file predicate —
@@ -78,16 +133,17 @@ flight, and every **hard** dependency is unconfigured or already shipped. A
 never makes a candidate ineligible on its own — it only ever excludes that
 candidate from sharing the **same batch** as an eligible soft peer;
 `create-standards` and `create-principles` are never started in parallel
-with each other, even though neither is in the v1 pair.
+with each other. That is why `create-principles` lands in an earlier batch
+than `create-standards` on the default set: the split comes from that
+declared edge through `fanout_batches`, never from an order written down
+here — do not reorder, re-derive or hard-code the batches you are handed.
 
 No arguments: fan out whatever `fanout_batches` returns for the declared
-`DOC_BOOTSTRAP_FANOUT_V1` set. `--for <skill>[,<skill>...]`: fan out exactly
-the named skills, still filtered through this same eligibility predicate —
-an explicitly named but ineligible skill is reported (why: already shipped
-/ already in flight / unconfigured / blocked by an unshipped hard
-dependency), never silently dropped. A `--for` name that is not in v1's
-declared set at all is reported as ineligible — "not in v1's fan-out set" —
-and is likewise never fanned out.
+`DOC_BOOTSTRAP_FANOUT_V1` set. `<set>[,<set>...]` or `all` (`## Argument`
+above): fan out exactly the named sets, still filtered through this same
+eligibility predicate — a named but ineligible set is reported (why: already
+shipped / already in flight / unconfigured / blocked by an unshipped hard
+dependency), never silently dropped.
 
 **Exit 2.** When `lib.validate_settings` raises `GateError`, the snippet
 catches it, writes the error to stderr, and exits 2: surface stderr verbatim
@@ -103,17 +159,22 @@ as absent. This is the same resolution every gate uses —
 (`acs_lib/gates.py`), which `build_context` (same module) fills with
 `checkout_root(cwd)` (`acs_lib/repo.py`).
 
-**`--for` mechanism.** `lib.parse_fanout_for_arg($ARGUMENTS)` splits the
-request into `requested` (names inside `DOC_BOOTSTRAP_FANOUT_V1`, which is
-what `fanout_batches` is called with) and `rejected` (every name outside it).
-Report EVERY rejected name explicitly, with the reason **not in v1's fan-out
-set**, and never fan it out — a rejected name is never silently dropped and
-never silently no-ops. With no `--for` flag, `requested` is `None` and
-`fanout_batches` applies the declared v1 default.
+**Argument mechanism.** `lib.parse_doc_set_arg($ARGUMENTS)` splits the request
+into `candidates` (canonical leg names, which is what `fanout_batches` is
+called with), `rejected` (every token that **names no doc set**) and
+`notices`. Write every notice to stderr in order. Report EVERY rejected name
+explicitly, with the reason the notice gives — it names each unrecognized
+token and every accepted spelling — and refuse the whole run (exit 2): a
+rejected name is never silently dropped, never silently no-ops, and never
+leaves the recognized remainder fanning out behind it. With no argument at
+all, `candidates` is `None` and `fanout_batches` applies the declared
+default. `lib.parse_fanout_for_arg` is the legacy `--for` half of the same
+parser and is what emits the deprecated-form note; you call
+`parse_doc_set_arg` only.
 
 **Bare `--for`.** `--for` given with no names at all selects nothing
-(`requested == []`, `rejected == []`): report that `--for` requires at least
-one skill name, and stop.
+(`candidates == []`, `rejected == []`): report its notices — the deprecated-
+form note plus "requires at least one doc set name" — and stop.
 
 If the eligible batch is empty: report why, per candidate, and stop —
 nothing to fan out.
@@ -180,30 +241,39 @@ job):
 ```
 Skill(acs:create-quality)
 Skill(acs:create-operations)
+Skill(acs:create-principles)
+Skill(acs:create-standards)
 ```
+
+Only the legs in the current slice (`## Concurrency cap`), in the order
+`fanout_batches` handed them to you — the four lines above are the declared
+order, not an instruction to start all four.
 
 Each of these is a genuine Skill-tool call, so the real `PreToolUse(Skill)`
 hook fires per leg exactly as it would standalone — the same precedent
 `/acs:ship` already relies on: "/acs:ship is NOT a hooked skill, but every
 step it invokes IS gated by pre/post hooks" (`ship/SKILL.md`, Ground
-rules). You never bypass, simulate, or duplicate either leg's hook — each
-leg's own `pre-create-quality.py` / `pre-create-operations.py` gate runs
-for real, and each leg's own `post-create-quality.py` /
-`post-create-operations.py` finalizes it for real.
+rules). You never bypass, simulate, or duplicate any leg's hook — each
+leg's own `pre-create-<set>.py` gate runs for real, and each leg's own
+`post-create-<set>.py` finalizes it for real.
 
 ### Fail-fast carve-out (D6-B) — narrowly scoped to the one shared gate
 
-Both `gate_create_quality` and `gate_create_operations` check exactly one
-shared precondition, `_require_architecture_doc_set` (the architecture doc set
-— `hld/tech-stack.md` — must exist). Because the two Starts run sequentially,
-if leg A's Start fails on that **shared** gate, you already know leg B's
-identical gate would fail too — before spending a second Skill-tool call and a
-second delivery ticket on a guaranteed-identical failure. In that case: **fail
+Every doc leg's gate — `gate_create_quality`, `gate_create_operations`,
+`gate_create_principles`, `gate_create_standards`
+(`acs_lib.ARCHITECTURE_DEPENDENT_SKILLS`) — checks exactly one shared
+precondition, `_require_architecture_doc_set` (the architecture doc set
+— `hld/tech-stack.md` — must exist). Because the Starts run sequentially,
+if the first leg's Start fails on that **shared** gate, you already know
+every remaining leg's identical gate would fail too — before spending
+another Skill-tool call and another delivery ticket on a
+guaranteed-identical failure. In that case: **fail
 fast** — stop immediately after the first gate failure, report ONE finding
-naming the shared cause (architecture doc set missing), mark **both** legs
-`not_attempted` (never `failed` — neither leg's Start actually ran), and do not
-invoke the second leg's Skill call at all. Remove both legs' worktrees (`git
-worktree remove <path>`) before reporting — they were created before either
+naming the shared cause (architecture doc set missing), mark **every** leg in
+this pass `not_attempted` (never `failed` — no leg's Start actually ran), and
+do not invoke any remaining leg's Skill call at all. Remove every created
+worktree (`git
+worktree remove <path>`) before reporting — they were created before any
 Start ran, so leaving them in place would make the documented retry's `git
 worktree add --detach <path> <default-branch>` fail on an already-occupied
 path.
@@ -222,64 +292,69 @@ local-evidence reconciliation proposal (`allocate_ticket_id`'s fail-closed
 gate, MAR-402) instead of minting that leg's delivery ticket id. Relay that
 stderr verbatim, obtain the confirmed start number from the user — never
 invent it — and re-run that leg's Start with `--seed-next <n>` added.
-Because both legs allocate from the same `(repo_id, prefix)` partition, leg
-B's Start would hit the identical refusal — but Starts run sequentially
-(`:175-178`, `:198-201`), and you stopped at leg A's refusal, so leg B's
-Start has not run yet. Once leg A's `--seed-next <n>` succeeds, it
-reconciles the partition, so leg B's Start then proceeds normally on its own
-first invocation — there is nothing to retry, since it never ran. See
+Because every leg allocates from the same `(repo_id, prefix)` partition, the
+next leg's Start would hit the identical refusal — but Starts run
+sequentially (this section), and you stopped at the first leg's refusal, so
+no later leg's Start has run yet. Once that leg's `--seed-next <n>` succeeds,
+it reconciles the partition, so the remaining legs' Starts then proceed
+normally on their own first invocation — there is nothing to retry, since
+they never ran. See
 ADR-0087 for the reconciliation gate itself; its "simultaneously" framing
 describes a fan-out that starts several `--allocate` legs at once, which
 this skill does not do.
 
 ## Reflection loop — parallel phase batches, one coordinator
 
-Once both legs have minted their own delivery ticket via their own Start
-(`skill-start.py --skill <skill> --allocate`, run in the session checkout
-per D3.2(ii) above), drive both legs' reflection loops together **from this
-coordinator** by spawning each phase's existing planner/executor/verifier
-agent files in parallel batches — reusing, **verbatim**, the mechanism
-`/acs:code`'s coordinator already uses to run "several executors in
-parallel" when their file maps are disjoint, and to spawn "the same agent
-file, four times" for its multi-lens verify (`code/SKILL.md`) — this is
-reuse of an existing, proven mechanism, never a new one:
+Once this slice's legs have minted their own delivery ticket via their own
+Start (`skill-start.py --skill <skill> --allocate`, run in the session
+checkout per D3.2(ii) above), drive the slice's reflection loops together
+**from this coordinator** by spawning each phase's existing
+planner/executor/verifier agent files in parallel batches — reusing,
+**verbatim**, the mechanism `/acs:code`'s coordinator already uses to run
+"several executors in parallel" when their file maps are disjoint, and to
+spawn "the same agent file, four times" for its multi-lens verify
+(`code/SKILL.md`) — this is reuse of an existing, proven mechanism, never a
+new one:
 
-1. **Plan** (once, before the loop) — spawn `acs:create-quality-planner` and
-   `acs:create-operations-planner` in ONE message (both Agent-tool calls in
-   the same coordinator turn). Each planner runs exactly the Plan step its
-   own SKILL.md already documents — `create-quality/SKILL.md` `##
-   Reflection loop` and `create-operations/SKILL.md` `## Reflection loop` —
+1. **Plan** (once, before the loop) — spawn this slice's planners
+   (`acs:create-quality-planner`, `acs:create-operations-planner`,
+   `acs:create-principles-planner`, `acs:create-standards-planner` — the
+   slice's, at most `max_parallel`) in ONE message (all its Agent-tool calls
+   in the same coordinator turn). Each planner runs exactly the Plan step its
+   own SKILL.md already documents — `create-<set>/SKILL.md` `##
+   Reflection loop` —
    cited here, never restated, per the drift-mitigation requirement: a
-   future change to either skill's own reflection-loop prose is a
+   future change to a leg's own reflection-loop prose is a
    documented place to re-check this umbrella. Exactly one planner per leg
    across the whole run: however many execute→verify iterations a leg
    needs, its planner is never re-spawned (the same topology
    `create-quality/SKILL.md`'s own `## Reflection loop` already fixes for a
    standalone run). On iterations 2 and 3, a leg's verifier findings go
    straight into that same leg's own executor `<context>`, with no planner
-   spawn in between and never into the sibling leg's executor.
-2. **Execute** — after both planners return, spawn
-   `acs:create-quality-executor` and `acs:create-operations-executor` in
-   one message. Both executors write in the leg's own worktree **on the
+   spawn in between and never into a sibling leg's executor.
+2. **Execute** — after the slice's planners return, spawn each of the
+   slice's executors (`acs:create-<set>-executor`, e.g.
+   `acs:create-quality-executor`) in
+   one message. Every executor writes in its own leg's worktree **on the
    branch that leg's own Branch step already created** (`## Worktrees`
    above) — never the session checkout — to disjoint doc directories
-   (`docs/quality/**` vs `docs/operations/**`); each executor's `<task>`
-   carries that leg's worktree-absolute output paths. The disjoint-file-map
-   precondition `/acs:code`'s own parallel-executor rule requires is
-   satisfied by construction.
-3. **Verify** — after both executors finish, spawn both verifiers,
-   `acs:create-quality-verifier` and `acs:create-operations-verifier`, in
-   one message.
+   (`docs/quality/**` vs `docs/operations/**` vs `docs/principles/**` vs
+   `docs/standards/**`, each leg's own configured path); each executor's
+   `<task>` carries that leg's worktree-absolute output paths. The
+   disjoint-file-map precondition `/acs:code`'s own parallel-executor rule
+   requires is satisfied by construction.
+3. **Verify** — after the slice's executors finish, spawn each of the
+   slice's verifiers (`acs:create-<set>-verifier`, e.g.
+   `acs:create-quality-verifier`), in one message.
 
 Each leg's own iteration cap (max 3 execute→verify rounds), phase-artifact
-paths (`<leg-partition>/phases/create-quality/iter-<n>-<phase>.xml` /
-`<leg-partition>/phases/create-operations/iter-<n>-<phase>.xml`), and
-Finish/result-document contract are **unchanged** — see
-`create-quality/SKILL.md` `## Reflection loop` / `## Finish` and
-`create-operations/SKILL.md` `## Reflection loop` / `## Finish`, cited
+paths (`<leg-partition>/phases/<skill>/iter-<n>-<phase>.xml`, e.g.
+`<leg-partition>/phases/create-quality/iter-<n>-<phase>.xml`), and
+Finish/result-document contract are **unchanged** — see each leg's own
+`create-<set>/SKILL.md` `## Reflection loop` / `## Finish`, cited
 rather than restated here.
 
-Validate EVERY message you send or receive, for BOTH legs, with the same
+Validate EVERY message you send or receive, for EVERY leg, with the same
 call every acs coordinator already uses:
 
 ```bash
@@ -288,22 +363,21 @@ echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 
 On an invalid message, re-request it once; if still invalid, fail **that
 leg's** run with the validation error recorded in its own `errors` — never
-the other leg's.
+another leg's.
 
-## Delivery — worktree per leg, two independent PRs
+## Delivery — worktree per leg, one independent PR each
 
 Once a leg's verifier returns zero findings, **continue** in that leg's
 worktree (already entered at its own Branch step, `## Worktrees` above —
 never the session checkout) with Delivery steps 2-4 (commit, push, `gh pr
-create`) — exactly as `create-quality/SKILL.md` `## Delivery (branch,
-commit, PR)` / `create-operations/SKILL.md` `## Delivery (branch, commit,
-PR)` already specify, cited rather than restated. Each leg's own
-`post-create-quality.py` / `post-create-operations.py`
+create`) — exactly as that leg's own `create-<set>/SKILL.md` `## Delivery
+(branch, commit, PR)` already specifies, cited rather than restated. Each
+leg's own `post-create-<set>.py`
 finalizes it exactly as a standalone run would — its own
 `pipeline-state.json`, its own `tickets-index.json` entry, its own
-delivery ticket moved to `in_review`. The result is two independent
-delivery tickets and two independent docs-only PRs (D3-B) — never one
-shared branch, never a combined PR.
+delivery ticket moved to `in_review`. The result is one independent
+delivery ticket and one independent docs-only PR **per leg** (D3-B) — never
+one shared branch, never a combined PR.
 
 ## Failure isolation (D6-B) — per leg, outside the shared-gate carve-out
 
@@ -311,7 +385,7 @@ Outside the shared-gate carve-out above, **every** failure is isolated to
 its own leg — a leg-specific hook block, a verifier cap reached at
 iteration 3, a lock held by another session — falls straight through to
 ordinary per-leg isolation, never the carve-out. The failing leg's run
-status, ticket, partition, and lock are its own: the OTHER leg's run, PR,
+status, ticket, partition, and lock are its own: every OTHER leg's run, PR,
 and ledger are never touched by it — no shared failure state between them
 (AC-3). Report each leg's outcome independently, each with its own resume
 command (see Resume below).
@@ -320,7 +394,8 @@ command (see Resume below).
 
 There is **no fan-out batch ledger of its own** (D5-A) — each leg's own
 `pipeline-state.json`, written under `flow: "product"` with its own step
-key (`create-quality` or `create-operations`), is the complete resume
+key (`create-quality`, `create-operations`, `create-principles` or
+`create-standards`), is the complete resume
 record for that leg. `/acs:ship` never drives these: its `flow: "product"`
 refusal ("If `pipeline-state.json` has `"flow": "product"` … /acs:ship does
 not drive those … and stop", `ship/SKILL.md`) is **restated here, never
@@ -333,7 +408,13 @@ umbrella:
 ```
 /acs:create-quality <ticket-id>
 /acs:create-operations <ticket-id>
+/acs:create-principles <ticket-id>
+/acs:create-standards <ticket-id>
 ```
+
+These are the legs' own internal entry points, unchanged by the fold — a
+leg keeps its SKILL.md, its hooks and its gate precisely so this resume
+path (and this umbrella's Skill-tool calls) keep working.
 
 Re-running `/acs:create-docs` itself simply re-derives the eligible batch by
 re-running the Start section's `fanout_batches` detection: a skill with an
@@ -347,8 +428,9 @@ partition).
 
 ## Context pressure
 
-Your own context carries both legs' phase bookkeeping — bounded by two
-skills' worth of prose (five small doc files total), unlike `/acs:code`'s
+Your own context carries the slice's phase bookkeeping — bounded by
+`max_parallel` (2 by default) skills' worth of prose, which is why the cap
+exists, unlike `/acs:code`'s
 much larger single-ticket context; no `/acs:ship`-style "Full-verify
 pipeline boundary" stop is needed at this scale. If you do run low
 mid-batch, flush per-leg state to that leg's own
@@ -358,15 +440,16 @@ mid-batch, flush per-leg state to that leg's own
 ## Completion report (normative)
 
 Every terminal outcome ends your final message with the standard block
-(INTERNALS.md "Completion report"), rendered per leg — the shared-gate
-carve-out collapses to one combined line (`not_attempted`, both legs):
+(INTERNALS.md "Completion report"), rendered per leg — one line for each leg
+this pass attempted; the shared-gate carve-out collapses to one combined line
+(`not_attempted`, every leg):
 
 ```markdown
 ## /acs:create-docs · <status>
 
-- **Batch**: <eligible skills this pass, or "none — see reasons">
-- **create-quality**: <ticket-id> — <status> — <PR url, or reason>
-- **create-operations**: <ticket-id> — <status> — <PR url, or reason>
+- **Requested**: <the sets you were asked for, or "default (all declared)">
+- **Batch**: <eligible skills this pass, in slices of <max_parallel>, or "none — see reasons">
+- **create-<set>**: <ticket-id> — <status> — <PR url, or reason>
 - **Findings**: <the shared-gate carve-out finding, or "none">
 - **Next**: <per-leg resume command(s), if any leg did not complete>
 ```

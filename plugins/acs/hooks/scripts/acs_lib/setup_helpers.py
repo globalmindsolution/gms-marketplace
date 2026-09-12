@@ -1,6 +1,7 @@
 """acs_lib.setup_helpers — extracted from acs_lib.py by MAR-522."""
 
 
+import collections
 import fnmatch
 import hashlib
 import json
@@ -14,20 +15,89 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1, DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY
+from ._common import (DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
+                      DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, PROJECT_MODE_SENTINEL,
+                      PROJECT_MODE_SETTINGS_KEY)
 from .settings import enforcement_value
 from .repo import ticket_id_from_text
 
+
+
+def _sentinel_present(checkout_root, base, sentinel):
+    """The settings-path + sentinel-file presence primitive, shared by every
+    caller that asks "has this already shipped?" of the disk.
+
+    `base` is the directory the evidence lives in, relative to the checkout
+    root ("" for the root itself); `sentinel` is the file whose existence IS
+    the evidence. A `base` of None -- a settings key that is not configured --
+    is ABSENT, never root-relative: an unconfigured path must not silently
+    widen the check to the whole repo."""
+    if base is None:
+        return False
+    return os.path.isfile(os.path.join(checkout_root, base, sentinel))
 
 
 def doc_set_present_on_disk(checkout_root, settings, skill):
     """D4.2(a): a doc-bootstrap skill's doc set counts as shipped only when its
     own first output file exists at its configured path -- a populated but
     otherwise-produced directory does not count (fails toward re-bootstrapping)."""
-    base = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[skill])
-    if not base:
-        return False
-    return os.path.isfile(os.path.join(checkout_root, base, DOC_BOOTSTRAP_SENTINEL[skill]))
+    return _sentinel_present(checkout_root,
+                             settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[skill]) or None,
+                             DOC_BOOTSTRAP_SENTINEL[skill])
+
+
+def project_mode(settings, checkout_root):
+    """Which /acs:project leg this repo needs, and the evidence that decided it.
+
+    The declared-data counterpart of `fanout_batches` for the design-phase
+    entry-point fold: `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL`
+    (`_common`) declare the evidence that this repo ALREADY has a project, and
+    this reads each row off disk through `_sentinel_present` -- the same
+    mechanism `doc_set_present_on_disk` uses. No prose inference, no git scan,
+    no heuristics: the umbrella states the mode and cites these rows, and a
+    test pins every direction.
+
+    Returns:
+      {"mode": "bootstrap" | "standardize",
+       "evidence": [{"name", "settings_key", "path", "present"}, ...]
+                   -- every declared row, in declared-name order; `path` is the
+                   checkout-root-relative file checked, or None when the row's
+                   settings key is unset so there was nothing to check,
+       "present": [names], "absent": [names],
+       "reason": one sentence naming the evidence that decided the mode}
+
+    The partial case is deterministic, and deliberate: ANY single present row
+    means the repo already has a project, so the mode is `standardize`. That
+    fails toward the additive, idempotent leg -- standardize-project only ever
+    adds, and a second run over an already-standardized repo finds nothing to
+    do -- whereas failing the other way would point create-project at a repo
+    its own greenfield scan refuses outright. Only a repo with NO declared
+    evidence at all is `bootstrap`.
+    """
+    settings = settings or {}
+    evidence = []
+    for name in sorted(PROJECT_MODE_SENTINEL):
+        key = PROJECT_MODE_SETTINGS_KEY[name]
+        sentinel = PROJECT_MODE_SENTINEL[name]
+        base = "" if key is None else (settings.get(key) or None)
+        evidence.append({
+            "name": name,
+            "settings_key": key,
+            "path": None if base is None else os.path.join(base, sentinel),
+            "present": _sentinel_present(checkout_root, base, sentinel),
+        })
+    present = [row["name"] for row in evidence if row["present"]]
+    absent = [row["name"] for row in evidence if not row["present"]]
+    if present:
+        reason = ("existing project evidence on disk: %s" % ", ".join(
+            "%s (%s)" % (row["path"], row["name"]) for row in evidence if row["present"]))
+    else:
+        reason = ("no project evidence on disk (checked %s)" % ", ".join(
+            row["path"] or "%s — %s unset" % (PROJECT_MODE_SENTINEL[row["name"]],
+                                              row["settings_key"])
+            for row in evidence))
+    return {"mode": "standardize" if present else "bootstrap", "evidence": evidence,
+            "present": present, "absent": absent, "reason": reason}
 
 
 def _soft_peers(candidate, eligible):
@@ -45,10 +115,11 @@ def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
     """D4.1 eligibility (configured, not-shipped, no open delivery ticket, hard
     deps clear) plus D4.3 batching: group eligible candidates so a soft
     dependency edge never shares a batch with its eligible peer, in either
-    direction. candidates defaults to the declared v1 fan-out set
-    (DOC_BOOTSTRAP_FANOUT_V1); an explicit candidates argument exists so the
-    general-case (future N-way) semantics stay unit-testable even though only
-    the v1 pair is fanned out today. Names not present in
+    direction. candidates defaults to the declared fan-out set
+    (DOC_BOOTSTRAP_FANOUT_V1, every doc-bootstrap leg since the design-phase
+    consolidation); an explicit candidates argument exists so a narrower
+    request (`/acs:create-docs quality,operations`) and the general-case N-way
+    semantics stay unit-testable. Names not present in
     DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
     tickets = (tickets_index or {}).get("tickets") or {}
 
@@ -88,26 +159,122 @@ def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
     return batches
 
 
-# /acs:create-docs's only argument. Matched only as a whole flag ("--for",
-# "--for=", or a bare trailing "--for") so an unrelated --for-* flag never
-# triggers it.
+# /acs:create-docs's legacy argument, kept for one release. Matched only as a
+# whole flag ("--for", "--for=", or a bare trailing "--for") so an unrelated
+# --for-* flag never triggers it.
 _FANOUT_FOR_RE = re.compile(r"--for(?:=|\s|$)")
+
+# The positional argument's "everything declared" selector.
+DOC_SET_ALL = "all"
+
+#: /acs:create-docs's parsed argument. candidates is None for "no argument"
+#: (fanout_batches then applies its own declared default), [] for a refusal or
+#: an explicitly empty selection, else the declared leg names to fan out.
+#: rejected names every token that is no declared doc set; notices carries the
+#: one-line messages the skill writes to stderr, in order.
+DocSetRequest = collections.namedtuple("DocSetRequest", "candidates rejected notices")
+
+_LEGACY_FOR_NOTE = (
+    "acs create-docs: --for is deprecated and accepted for one release only -- "
+    "the positional form is the spelling now, e.g. /acs:create-docs quality,operations")
+
+
+def _short_doc_set(skill):
+    """A declared leg's short spelling: its name minus the create- prefix."""
+    return skill[len("create-"):] if skill.startswith("create-") else skill
+
+
+def doc_set_spellings():
+    """Every accepted spelling of the positional <set|all> argument, in
+    declared order -- `all` first, then each declared leg's short spelling.
+    Derived from DOC_BOOTSTRAP_FANOUT_V1, so widening the declared set needs no
+    second edit here (and no prose list in the skill)."""
+    return [DOC_SET_ALL] + [_short_doc_set(skill) for skill in DOC_BOOTSTRAP_FANOUT_V1]
+
+
+def canonical_doc_set(name):
+    """Resolve one user-typed doc-set token to its declared leg name, or None
+    when the token names no declared doc set. Both spellings resolve: `quality`
+    and `create-quality` alike."""
+    for skill in DOC_BOOTSTRAP_FANOUT_V1:
+        if name in (skill, _short_doc_set(skill)):
+            return skill
+    return None
+
+
+def _unknown_doc_set_note(rejected):
+    return ("acs create-docs: %s names no doc set -- pass one of %s (the "
+            "create-<set> spelling is accepted too)"
+            % (", ".join("'%s'" % name for name in rejected),
+               ", ".join(doc_set_spellings())))
+
+
+def parse_doc_set_arg(args_text):
+    """Parse /acs:create-docs's positional `<set|all>` argument -- the whole
+    argument contract, in one declared place beside parse_fanout_for_arg
+    rather than in skill prose.
+
+    Accepts a comma-separated list of declared doc sets in either spelling
+    (`quality` or `create-quality`), or `all` on its own; `all` beside a set
+    name is refused rather than guessed at. An unknown set refuses the WHOLE
+    run (candidates == [], rejected non-empty, a notice naming every accepted
+    spelling) -- never a partial fan-out of the recognized remainder. The
+    legacy `--for <skill>,...` form still parses, through parse_fanout_for_arg
+    below, and adds exactly one deprecation notice saying the positional form
+    is the spelling now (the `test` -> run-e2e-tests alias precedent).
+
+    Returns a DocSetRequest; candidates is handed straight to
+    fanout_batches(..., candidates=...), which stays the sole eligibility
+    predicate."""
+    text = (args_text or "").strip()
+    if not text:
+        return DocSetRequest(None, [], [])
+
+    if _FANOUT_FOR_RE.search(text):
+        notices = [_LEGACY_FOR_NOTE]
+        candidates, rejected = parse_fanout_for_arg(text)
+        if rejected:
+            notices.append(_unknown_doc_set_note(rejected))
+            return DocSetRequest([], rejected, notices)
+        if not candidates:
+            notices.append("acs create-docs: --for requires at least one doc set name")
+        return DocSetRequest(candidates, [], notices)
+
+    tokens = text.replace(",", " ").split()
+    if DOC_SET_ALL in tokens:
+        if len(set(tokens)) > 1:
+            return DocSetRequest([], [], [
+                "acs create-docs: '%s' cannot be combined with a set name -- pass "
+                "'%s' on its own, or list the sets you want" % (DOC_SET_ALL, DOC_SET_ALL)])
+        return DocSetRequest(list(DOC_BOOTSTRAP_FANOUT_V1), [], [])
+
+    candidates, rejected = [], []
+    for token in tokens:
+        skill = canonical_doc_set(token)
+        bucket, value = ((candidates, skill) if skill else (rejected, token))
+        if value not in bucket:
+            bucket.append(value)
+    if rejected:
+        return DocSetRequest([], rejected, [_unknown_doc_set_note(rejected)])
+    return DocSetRequest(candidates, [], [])
 
 
 def parse_fanout_for_arg(args_text):
-    """Parse /acs:create-docs's `--for <skill>[,<skill>...]` argument against
-    the declared v1 fan-out gate (D7-A).
+    """Parse /acs:create-docs's legacy `--for <skill>[,<skill>...]` argument
+    against the declared fan-out set. parse_doc_set_arg above is the skill's
+    entry point; this stays the `--for` half of it, and stays exported for the
+    one release the flag is still accepted.
 
     Returns (candidates, rejected):
       candidates is None when no --for flag is present -- the caller hands that
         straight to fanout_batches, which then applies its own
         DOC_BOOTSTRAP_FANOUT_V1 default;
-      otherwise candidates is the requested names that ARE in
-        DOC_BOOTSTRAP_FANOUT_V1 (order-preserving, de-duplicated) and rejected
-        is every other requested name -- an unknown name and a real but non-v1
-        doc-bootstrap skill (e.g. create-principles) alike. A rejected name is
-        reported ("not in v1's fan-out set") and never fanned out; it is
-        deliberately kept OUT of fanout_batches's candidates, whose own
+      otherwise candidates is the requested names that resolve to a declared
+        doc-bootstrap leg (order-preserving, de-duplicated, canonicalized to
+        the full skill name so `--for quality` and `--for create-quality`
+        agree) and rejected is every requested name that resolves to no
+        declared doc set. A rejected name is reported and never fanned out; it
+        is deliberately kept OUT of fanout_batches's candidates, whose own
         contract is to skip unknown names silently (see above)."""
     text = args_text or ""
     m = _FANOUT_FOR_RE.search(text)
@@ -117,9 +284,10 @@ def parse_fanout_for_arg(args_text):
     for name in text[m.end():].replace(",", " ").split():
         if name.startswith("-"):
             break
-        bucket = candidates if name in DOC_BOOTSTRAP_FANOUT_V1 else rejected
-        if name not in bucket:
-            bucket.append(name)
+        skill = canonical_doc_set(name)
+        bucket, value = ((candidates, skill) if skill else (rejected, name))
+        if value not in bucket:
+            bucket.append(value)
     return (candidates, rejected)
 
 

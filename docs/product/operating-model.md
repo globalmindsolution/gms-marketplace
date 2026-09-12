@@ -220,19 +220,26 @@ Head-of split. Titles stay modest until scale demands headroom.
 
 ## Appendix A — SDLC phase to operating skill to accountable role
 
+**Skill** names the command the accountable role actually runs. Since the
+design-phase entry-point fold (ADR 0091) that is not always the skill doing the
+work: six skills are now **internal legs** invoked by an entry point, shown
+here as `entry-point (leg)`. The leg is still where the phase's work, gate and
+delivery ticket live — which is why G33's "every phase has an operating skill"
+reading is unchanged — but the role does not invoke it directly.
+
 | Phase | Skill | Accountable |
 |---|---|---|
 | Product definition | create-prd | PdM |
 | Architecture | create-architecture | Principal |
-| Bootstrap | create-project (greenfield); standardize-project (future) | Principal |
+| Bootstrap | project (legs: create-project greenfield / standardize-project existing repo — the umbrella picks the mode from on-disk evidence) | Principal |
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
 | Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |
-| Standards | create-standards / create-principles (future) | Principal |
-| Test strategy & regression | create-quality, test (future) | Evals engineer |
-| Release | release (future) | Ops hat |
+| Standards | create-docs principles,standards (legs: create-principles, create-standards) | Principal |
+| Test strategy & regression | create-docs quality (leg: create-quality), run-e2e-tests | Evals engineer |
+| Release | release | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
-| Operate & observe | metrics, usage, failure-mode dashboards, create-operations (future) | Ops hat / evals engineer |
+| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations (leg: create-operations) | Ops hat / evals engineer |
 | Governance | setup, install-hooks, org policy | Principal |
 
 ---

@@ -35,7 +35,8 @@ from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
     DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, GateError, HOOKED_SKILLS,
     PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
-    PRODUCT_TICKET_TITLES, RUN_STATUSES, ReconciliationRequired, TICKET_ID_RE,
+    PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
+    PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, RUN_STATUSES, ReconciliationRequired, TICKET_ID_RE,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
     _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
 
@@ -81,12 +82,16 @@ from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
     compute_ticket_totals, elapsed_seconds, metrics_path, run_seconds, update_metrics)  # noqa: F401
 
-from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, TOOLCHAIN, _BARE_INT_RE,
-    _FANOUT_FOR_RE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE, _managed_body, _pr_labels,
-    _soft_peers, _strip_stray_markers, _tool_version, check_toolchain,
-    classify_merge_pr_arg, doc_set_present_on_disk, fanout_batches,
+from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetRequest,
+    TOOLCHAIN, _BARE_INT_RE,
+    _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
+    _managed_body, _pr_labels, _short_doc_set, _unknown_doc_set_note,
+    _sentinel_present, _soft_peers, _strip_stray_markers, _tool_version,
+    canonical_doc_set, check_toolchain,
+    classify_merge_pr_arg, doc_set_present_on_disk, doc_set_spellings, fanout_batches,
     managed_block_is_malformed, managed_body_from_template, missing_tools,
-    parse_fanout_for_arg, render_managed_block, tracker_cli_warning,
+    parse_doc_set_arg, parse_fanout_for_arg, project_mode, render_managed_block,
+    tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import LEGACY_ARTIFACT_PATHS, e2e_case_count  # noqa: F401
@@ -142,9 +147,10 @@ from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # 
     SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WorkflowError,
     allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
     e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
-    pending_needs, phase_of, phases_path, post_code_test_active,
+    entry_point_of, pending_needs, phase_of, phases_path, post_code_test_active,
     post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_aliases,
-    ticket_artifact_path, ticket_context, validate_workflow, validate_workflow_file)
+    skill_legs, ticket_artifact_path, ticket_context, validate_workflow,
+    validate_workflow_file)
 
 from . import artifacts  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
