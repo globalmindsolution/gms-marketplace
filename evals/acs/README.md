@@ -172,7 +172,7 @@ of scenario modules the runner iterates. Each module exposes:
 
 | Name | Tier | Goal | Summary |
 |------|------|------|---------|
-| `install_gate_smoke` | free | G1 | Drive the installed dispatch hook through the main gate conditions |
+| `install_gate_smoke` | free | G1 | Drive the installed dispatch hook through each gate's input checks and safety brakes |
 | `create_ticket_artifacts` | paid | G1 | Run `/acs:create-ticket`; assert on ticket.json and pipeline-state.json |
 | `resume_and_verify` | paid | G2–G4 | Seed code-ready state; one fresh code session must resume, pass verifier, stay under PR cap |
 | `skill_triggers` | paid | routing | One NL request per skill must route to that skill (24 probes covering all 22 skills) |

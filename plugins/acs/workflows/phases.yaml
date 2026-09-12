@@ -1,0 +1,50 @@
+# workflows/phases.yaml — the skill registry, grouped by phase.
+#
+# Rules (asserted by tests/acs/test_phases_registry.py):
+#   * every plugins/acs/skills/<dir> appears exactly once — either in a phase
+#     list or as a key under `aliases` (a directory that forwards to a skill);
+#   * only these five groups exist;
+#   * workflows/ship.yaml may name build, test and ship skills only, and never
+#     merge-pr or release (a human always drives those).
+# This file is the single source for the ship-workflow schema's skill enum, the
+# README skill table (grouped by phase), INTERNALS.md and /acs:metrics grouping.
+version: 1
+phases:
+  design:
+    - create-prd
+    - create-requirements
+    - create-architecture
+    - create-project
+    - create-principles
+    - create-standards
+    - create-quality
+    - create-operations
+    - create-docs
+    - standardize-project
+    - create-ticket
+    - create-design
+  build:
+    - analyze-ticket
+    - create-api-contract
+    - create-impl-plan
+    - create-test-docs
+    - code
+    - docs-sync
+  test:
+    - create-e2e-tests
+    - run-e2e-tests
+  ship:
+    - create-pr
+    - merge-pr
+    - release
+  utility:
+    - setup
+    - install-hooks
+    - update
+    - handoff
+    - metrics
+    - usage
+    - ship
+# Alias directories: `test` forwards to run-e2e-tests for one release.
+aliases:
+  test: run-e2e-tests

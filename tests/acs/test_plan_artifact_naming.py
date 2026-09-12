@@ -3,8 +3,10 @@ protection. MAR-73 retired the resume-only read-both compat fallback MAR-70
 introduced: `plan.md` is now unconditionally the only name ever read or
 written for the plan artifact, so this module no longer tests for (or
 bounds) any legacy-literal carve-out — zero `iter-<n>-plan.md` /
-`iter-*-plan.md` literal occurrences are expected anywhere in the code
-triad's own SKILL.md/agent files.
+`iter-*-plan.md` literal occurrences are expected anywhere in code/SKILL.md
+or its two agent files. The plan phase itself moved to
+/acs:create-impl-plan, which publishes the artifact; its Publish section is
+pinned here for the same naming rule.
 
 Three naming axes touch these files: (a) the plan artifact itself (`.md`,
 renamed by MAR-70, fallback retired by MAR-73), (b) per-iteration XML
@@ -26,11 +28,13 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
 CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-executor.md")
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
+IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 
-TRIAD_AGENT_FILES = [CODE_PLANNER, CODE_EXECUTOR, CODE_VERIFIER]
+# The plan phase left /acs:code for /acs:create-impl-plan, so the code side is
+# a dyad: the executor and the verifier READ the plan the other skill wrote.
+TRIAD_AGENT_FILES = [CODE_EXECUTOR, CODE_VERIFIER]
 
 # .md-anchored only — iter-<n>-plan.xml (axis b) must NOT match this literal.
 LEGACY = re.compile(r"iter-(?:<n>|\{n\}|\*|\d+)-plan\.md")
@@ -54,25 +58,26 @@ def section_span(body, heading):
 class FreshRunNamingTest(unittest.TestCase):
     """AC-1: plan.md is the artifact name on a fresh run."""
 
-    def test_plan_md_named_in_coordinator_and_all_three_agents(self):
+    def test_plan_md_named_in_coordinator_and_both_agents(self):
         for path in [CODE_SKILL] + TRIAD_AGENT_FILES:
             body = read(path)
             self.assertIn("phases/code/plan.md", body,
-                           "%s must name phases/code/plan.md" % path)
+                           "%s must name phases/code/plan.md (the approval "
+                           "mirror and pre-docs-tree location)" % path)
 
-    def test_planner_phase_artifact_section_names_plan_md_with_no_legacy_literal(self):
-        body = read(CODE_PLANNER)
-        start, end = section_span(body, "## Phase artifact")
+    def test_publishing_skill_names_plan_md_with_no_legacy_literal(self):
+        body = read(IMPL_PLAN_SKILL)
+        start, end = section_span(body, "### Publish")
         section = body[start:end]
         self.assertIn("plan.md", section)
         self.assertEqual(LEGACY.findall(section), [],
-                          "code-planner.md's ## Phase artifact section must "
+                          "create-impl-plan/SKILL.md's Publish section must "
                           "name no legacy plan literal")
 
 
 class NoLegacyLiteralInTriadTest(unittest.TestCase):
     """AC-3 (post-MAR-73): zero iter-<n>-plan.md legacy literal survives
-    anywhere in the code triad's own source — the MAR-70 read-both fallback
+    anywhere in the code skill and its agents' own source — the MAR-70 read-both fallback
     section that used to carve out a bounded exception is retired, so there
     is no allowance left for any occurrence, in any file."""
 

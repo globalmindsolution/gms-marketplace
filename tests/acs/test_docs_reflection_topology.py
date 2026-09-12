@@ -24,6 +24,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 APPLY_WORK = {"create-ticket", "create-pr", "merge-pr"}  # MAR-55/60 inline set
+# Hooked skills whose plan phase lives in ANOTHER skill, so they ship no
+# planner file at all: /acs:code's plan phase became /acs:create-impl-plan in
+# the skills-independence refactor, and code-planner.md moved with it.
+PLANNERLESS = {"code"}
 
 
 def read(path):
@@ -92,9 +96,11 @@ def derive():
     acs_lib = _load_acs_lib()
     hooked = list(acs_lib.HOOKED_SKILLS)
     n_hooked = len(hooked)
-    triad = [s for s in hooked if s not in APPLY_WORK]
+    triad = [s for s in hooked if s not in APPLY_WORK and s not in PLANNERLESS]
     n_triad = len(triad)
-    reachable = n_triad * 3 + len(APPLY_WORK)
+    # Reachable = triad skills (3 roles each) + planner-less skills (executor +
+    # verifier) + apply-work skills (executor only).
+    reachable = n_triad * 3 + len(PLANNERLESS) * 2 + len(APPLY_WORK)
     orphaned = n_agents - reachable
     return {
         "n_skills": n_skills,
@@ -132,11 +138,17 @@ class TopologyDerivationTest(unittest.TestCase):
                     break
         self.assertEqual(prefixes, set(D["hooked"]))
 
-    def test_agent_count_equals_hooked_times_three(self):
-        self.assertEqual(D["n_agents"], D["n_hooked"] * 3)
+    def test_agent_count_matches_the_role_inventory(self):
+        """Every hooked skill ships 3 role files, except the planner-less ones
+        (2) — /acs:code, whose planner moved to /acs:create-impl-plan. The
+        apply-work skills still ship all 3 files; two of theirs are orphaned."""
+        expected = ((D["n_hooked"] - len(PLANNERLESS)) * 3 + len(PLANNERLESS) * 2)
+        self.assertEqual(D["n_agents"], expected)
 
-    def test_reachable_equals_triad_times_three_plus_apply_work(self):
-        self.assertEqual(D["reachable"], D["n_triad"] * 3 + len(APPLY_WORK))
+    def test_reachable_equals_triad_times_three_plus_the_rest(self):
+        self.assertEqual(
+            D["reachable"],
+            D["n_triad"] * 3 + len(PLANNERLESS) * 2 + len(APPLY_WORK))
 
     def test_orphaned_is_six(self):
         # apply-work executor count (3) and orphaned count (6) are the two
@@ -342,10 +354,16 @@ class SkillsMdUnchangedTest(unittest.TestCase):
     'Unchanged' name is historical (MAR-123 itself did not touch skills.md);
     these pins track the current epic state, not a frozen MAR-123 snapshot."""
 
-    def test_twenty_five_skills_present(self):
+    def test_skill_count_word_present(self):
+        # 25 -> 31 with the skills-independence refactor: five new hooked
+        # Build/Test skills (analyze-ticket, create-impl-plan,
+        # create-api-contract, create-test-docs, create-e2e-tests) plus the
+        # `test` -> `run-e2e-tests` rename, which keeps the old directory as a
+        # forwarding alias for one release.
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-five skills", body)
+        self.assertIn("Thirty-one skills", body)
         self.assertNotIn("Twenty-three skills", body)
+        self.assertNotIn("Twenty-five skills", body)
 
     def test_twelve_triad_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))

@@ -3,7 +3,7 @@
 Runs a real `claude -p` session that invokes `/acs:create-ticket` on a trivial
 request, then asserts on the workspace artifacts the skill writes — the ticket
 schema, the repo-level index/counters/metrics, the pipeline state — and that
-the `/acs:code` gate is open once create-ticket has completed. This is the
+the `/acs:code` gate reports exactly the input it still misses. This is the
 canonical agentic eval: the assertion target is workspace state, never the
 model's prose.
 """
@@ -55,10 +55,19 @@ def run():
         step = ps.get("steps", {}).get("create-ticket", {})
         check.eq("create-ticket step completed", step.get("status"), "completed")
 
-        # Gate is open for /acs:code (G1): gate_code is now an
-        # unconditional pass-through once create-ticket has completed.
+        # The /acs:code gate is an INPUT check, not an order check (the
+        # skills-independence refactor): with the ticket created but nothing
+        # planned yet it refuses by naming the artifact it is missing and the
+        # skill that writes it -- never a predecessor run.
         code, err = sb.gate("code", tid)
-        check.ok("code gate open (unconditional pass-through)",
-                 code == 0, err)
+        check.ok("code gate names its missing input (create-impl-plan)",
+                 code == 2 and "plan.md" in err and "create-impl-plan" in err, err)
+
+        # ... and opens as soon as that input exists, with no completed-run
+        # check anywhere: order is workflows/ship.yaml's concern.
+        with open(sb.ticket_path(tid, "plan.md"), "w") as fh:
+            fh.write("# Implementation plan — %s\n\n## Approach\nSeeded.\n" % tid)
+        code, err = sb.gate("code", tid)
+        check.ok("code gate open once plan.md exists", code == 0, err)
 
     return check

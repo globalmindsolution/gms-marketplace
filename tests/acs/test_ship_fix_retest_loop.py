@@ -90,8 +90,20 @@ class SettingsSchemaTest(unittest.TestCase):
 
 
 class ShipSkillGateAndLoopTest(unittest.TestCase):
-    """AC-4/AC-5: ship/SKILL.md documents the gate rule verbatim and reuses
-    the existing needs_input relay pattern rather than a new mechanism."""
+    """AC-4/AC-5: ship/SKILL.md keeps the fix-and-re-try counter and reuses
+    the existing needs_input relay pattern rather than a new mechanism.
+
+    Since the skills-independence refactor the *activation* of the post-code
+    test step is ship.yaml's `when: post_code_test_active` predicate (see
+    acs_lib.workflow), not prose in this skill -- so the e2e-presence rule is
+    asserted at the predicate and in settings.schema.json above, and what
+    stays pinned here is the loop /acs:ship still owns: the `on_fail`
+    counter."""
+
+    #: The H2 the counter lives under since the refactor (was "## Post-code
+    #: test gate", which named one step; the section is now keyed on
+    #: ship.yaml's `on_fail` field, whichever step carries it).
+    FIX_LOOP_HEADING = "## Fix loop"
 
     def _body(self):
         return read(SHIP_SKILL)
@@ -99,15 +111,26 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
     def _normalized_body(self):
         return re.sub(r"\s+", " ", self._body())
 
-    def test_pipeline_order_table_gains_test_row(self):
-        table = section(self._body(), "## Pipeline order")
-        self.assertIsNotNone(re.search(r"(?m)^\|.*\btest\b.*\|", table))
+    def _fix_loop(self):
+        return section(self._body(), self.FIX_LOOP_HEADING)
 
-    def test_gate_rule_stated_verbatim(self):
-        body = self._normalized_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)OFF only when neither .*settings\.e2e.* nor .*suites\.e2e", body),
-            "ship/SKILL.md must state the e2e-presence gate rule verbatim")
+    def test_fix_loop_is_keyed_on_the_on_fail_field(self):
+        """No step name is hard-coded: the loop runs for whichever step
+        ship.yaml marks with `on_fail`, and relays into its `relay_to`."""
+        loop = self._fix_loop()
+        self.assertIn("on_fail", loop)
+        self.assertIn("relay_to", loop)
+        self.assertIn("max_loops", loop)
+
+    def test_no_hard_coded_pipeline_order_survives(self):
+        """The order lives in workflows/ship.yaml; the skill must not carry a
+        numbered step table of its own any more."""
+        body = self._body()
+        self.assertNotIn("## Pipeline order", body)
+        self.assertNotIn("## Post-code test gate", body)
+        self.assertIn("workflow next", body,
+                      "ship/SKILL.md must drive the pipeline from "
+                      "`acs.py workflow next`")
 
     def test_relay_reuses_needs_input_pattern_not_a_new_mechanism(self):
         body = self._body()
@@ -139,10 +162,10 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
         """AC-2: the prose used to claim no acs_lib change was needed because
         update_pipeline "already writes an arbitrary-shape step dict" -- it did
         not, which is why MAR-510 exists."""
-        gate = section(self._body(), "## Post-code test gate")
+        gate = self._fix_loop()
         self.assertIsNotNone(
             re.search(self.SETS_COUNTER, gate),
-            "the test-gate steps must write fix_loops through a named writer")
+            "the fix-loop steps must write fix_loops through a named writer")
         self.assertNotIn(
             "no `acs_lib.py`\ncode change", self._body(),
             "the claim that update_pipeline already writes an arbitrary-shape "
@@ -150,8 +173,8 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
 
     def test_a_passing_step_clears_the_counter(self):
         """AC-3: a pass records completed AND removes fix_loops."""
-        gate = section(self._body(), "## Post-code test gate")
-        window = re.search(r"(?s)Verdict is `pass`.{0,500}", gate)
+        gate = self._fix_loop()
+        window = re.search(r"(?s)The step completed.{0,500}", gate)
         self.assertIsNotNone(window)
         self.assertIsNotNone(re.search(self.CLEARS_COUNTER, window.group(0)))
 
@@ -159,7 +182,7 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
         """AC-4: without a reset, a resumed run re-reads the capped value, falls
         into the cap case on its first failure, and can never make progress --
         the dead end the ticket was filed for."""
-        gate = section(self._body(), "## Post-code test gate")
+        gate = self._fix_loop()
         self.assertIsNotNone(
             re.search(r"(?i)re-entry reset", gate),
             "the gate must define what happens when the step is re-entered after a cap")
@@ -172,18 +195,18 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)fix_loops.{0,120}independent", body) or
             re.search(r"(?i)independent.{0,120}fix_loops", body),
-            "ship/SKILL.md must state fix_loops is independent of /code's own iteration cap")
+            "ship/SKILL.md must state fix_loops is independent of a step's "
+            "own iteration cap")
 
     def test_cap_exhausted_stop_case_present(self):
         handoff = section(self._body(), "## Handling the handoff")
         self.assertIsNotNone(re.search(r"(?i)cap", handoff))
 
     def test_orchestration_not_step_work_note_present(self):
-        body = self._body()
-        gate = section(body, "## Post-code test gate")
+        gate = self._fix_loop()
         self.assertIsNotNone(
             re.search(r"(?i)orchestrat", gate),
-            "the post-code test gate section must carry the "
+            "the fix-loop section must carry the "
             "'orchestration, not step-work' clarity note")
 
 

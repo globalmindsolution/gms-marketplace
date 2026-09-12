@@ -1,4 +1,10 @@
-"""acs_lib.gates — extracted from acs_lib.py by MAR-522."""
+"""acs_lib.gates — context resolution, the pre-hook gates and post-hook
+persistence (extracted from acs_lib.py by MAR-522).
+
+Gates check inputs and safety brakes only; the pipeline order lives in
+workflows/ship.yaml (acs_lib.workflow) and is advised, never enforced, here
+(acs_lib.advisory).
+"""
 
 
 import fnmatch
@@ -17,10 +23,14 @@ import claude_code_adapter as cc  # noqa: E402
 from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
-from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, skill_completed, update_index, update_pipeline
+from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
 from .derive import derive_states, disagreements
+from . import workflow
+from .gate_inputs import (LEGACY_ARTIFACT_PATHS, _refuse_epic, _require_artifact,  # noqa: F401
+                          _ticket_wctx, e2e_case_count)
+from .advisory import workflow_advisory
 
 
 
@@ -85,19 +95,16 @@ def design_requirement(ctx, tdir, ticket):
 
 # ---------------------------------------------------------------------------
 # Pre-hook gates
+#
+# A gate checks INPUTS (the ticket resolves and is active, a required artifact
+# or doc set exists) and SAFETY BRAKES (the partition lock, a verifier that did
+# not pass, a PR reference to merge) -- never ORDER. Until the
+# skills-independence refactor a gate also refused a skill until its
+# predecessor had completed (`_require_completed`); that order now lives in
+# workflows/ship.yaml and is walked by `acs.py workflow next`. A hooked skill
+# run out of the declared order gets ONE stderr advisory line
+# (acs_lib.advisory.workflow_advisory, printed by run_pre_payload) and runs.
 # ---------------------------------------------------------------------------
-
-def _require_completed(tdir, skill, ticket_id, hint):
-    if not skill_completed(tdir, skill):
-        status = last_run_status(tdir, skill)
-        if status == "in_progress":
-            detail = "/%s is recorded as in_progress for %s (crashed or still running elsewhere); re-run it to reconcile" % (skill, ticket_id)
-        elif status:
-            detail = "/%s last ended with status '%s' for %s" % (skill, status, ticket_id)
-        else:
-            detail = "/%s has not run for %s" % (skill, ticket_id)
-        raise GateError("%s — %s." % (detail, hint))
-
 
 def gate_create_prd(ctx, payload):
     return None
@@ -152,8 +159,10 @@ def _resolve_ticket_for_gate(ctx, payload, skill):
 
 
 def gate_create_design(ctx, payload):
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
-    _require_completed(tdir, "create-ticket", ticket_id, "run /acs:create-ticket first")
+    """Input: the ticket resolves and is flagged needs_design. Whether the
+    create-ticket run is recorded completed is no longer checked -- the
+    partition existing IS the ticket having been created."""
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
     if not ticket.get("needs_design"):
         raise GateError(
             "ticket %s is not flagged needs_design — /create-design only runs for design-significant tickets; "
@@ -162,32 +171,55 @@ def gate_create_design(ctx, payload):
     return ticket_id
 
 
-def gate_docs_sync(ctx, payload):
-    # AC-2: docs-sync runs after code (and the post-code test step, when it
-    # was active for this ticket), before create-pr. "test" is an UNHOOKED
-    # skill (no post-hook, no test-state.json) -- its activation/completion
-    # lives only in pipeline-state.json.steps.test, so it is read directly
-    # from the ledger rather than via skill_completed/_require_completed.
-    ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "docs-sync")
-    _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
-    pipeline = load_pipeline(tdir, ticket_id)
-    test_step = pipeline.get("steps", {}).get("test")
-    if test_step is not None and test_step.get("status") != "completed":
+def gate_analyze_ticket(ctx, payload):
+    """Input: the ticket resolves; epics are refused."""
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "analyze-ticket")
+    if ticket.get("type") == "epic":
+        _refuse_epic(ticket_id, "analyze-ticket", "analyzed for implementation")
+    return ticket_id
+
+
+def gate_create_impl_plan(ctx, payload):
+    """Input: the ticket resolves; epics are refused. No analysis is required
+    (the planner reads analysis.md and design.md when present)."""
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-impl-plan")
+    if ticket.get("type") == "epic":
+        _refuse_epic(ticket_id, "create-impl-plan", "planned")
+    return ticket_id
+
+
+def gate_create_api_contract(ctx, payload):
+    """Input: plan.md exists (the plan names the API surface the contract
+    covers) AND analysis.md declares `api_surface: true`; each miss points at
+    the skill that produces the missing input."""
+    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-api-contract")
+    _require_artifact(ctx, ticket_id, tdir, ticket, "plan.md", "create-impl-plan")
+    _require_artifact(ctx, ticket_id, tdir, ticket, "analysis.md", "analyze-ticket")
+    # The same reader ship.yaml's `when: api_surface_changed` uses; a corrupt
+    # front matter surfaces as a WorkflowError (a GateError) naming the line.
+    if not workflow.api_surface_changed(_ticket_wctx(ctx, ticket_id, tdir, ticket)):
         raise GateError(
-            "/test is recorded as %r for %s (the post-code test gate was active but has not "
-            "completed) — run /acs:test --for-ticket %s and get it green; the run records "
-            "the step itself." % (
-                test_step.get("status"), ticket_id, ticket_id)
-        )
+            "analysis.md for %s does not declare api_surface: true — /acs:create-api-contract only "
+            "runs for a ticket whose analysis found an API surface change; re-run /acs:analyze-ticket %s "
+            "if the analysis is stale." % (ticket_id, ticket_id))
+    return ticket_id
+
+
+def gate_create_test_docs(ctx, payload):
+    """Input: the ticket resolves (partition, active, unlocked) -- nothing else;
+    the plan and the API contract are read when present."""
+    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-test-docs")
     return ticket_id
 
 
 def gate_code(ctx, payload):
-    # AC-4: unconditional pass-through on LANE once create-ticket has completed --
-    # no lane branch, no create-spec/specs/ precondition (create-spec is deleted;
-    # the code-planner self-authors the folded spec content when needed). The one
-    # branch here keys on the ticket's own type: epics are refused outright.
-    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
+    # Inputs: the ticket resolves and is not an epic, and an implementation plan
+    # exists -- /acs:create-impl-plan carved the plan phase out of /acs:code, so
+    # code now REQUIRES the artifact it used to author. No lane branch, no
+    # create-spec precondition (the fold is the planner's concern), and no
+    # predecessor-completed check: the order lives in ship.yaml. Epics are
+    # refused before the plan is looked for, because an epic never has one.
+    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
     if ticket.get("type") == "epic":
         raise GateError(
             "ticket %s is an epic — epics are never implemented directly; run "
@@ -195,17 +227,44 @@ def gate_code(ctx, payload):
             "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
             "on a child." % (ticket_id, ticket_id, ticket_id)
         )
+    _require_artifact(ctx, ticket_id, tdir, ticket, "plan.md", "create-impl-plan")
+    return ticket_id
+
+
+def gate_docs_sync(ctx, payload):
+    """Input: the partition; brake: the lock. Whether /acs:code (and the
+    post-code test step) completed is ship.yaml's concern -- run out of that
+    order, the pre-hook advisory says so and docs-sync runs anyway."""
+    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "docs-sync")
+    return ticket_id
+
+
+def gate_create_e2e_tests(ctx, payload):
+    """Input: an e2e suite is configured AND test-cases.md lists at least one
+    e2e case; else refuse (ship.yaml only reaches the step when e2e is
+    configured, so a hand run without either has nothing to write)."""
+    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-e2e-tests")
+    if not workflow.e2e_configured(_ticket_wctx(ctx, ticket_id, tdir, ticket)):
+        raise GateError(
+            "no e2e suite is configured (settings.e2e or settings.suites.e2e) — configure one with "
+            "/acs:setup before /acs:create-e2e-tests %s; ship.yaml skips the step until then." % ticket_id)
+    path = _require_artifact(ctx, ticket_id, tdir, ticket, "test-cases.md", "create-test-docs")
+    if e2e_case_count(path) < 1:
+        raise GateError(
+            "test-cases.md for %s lists no e2e case (no TC-n row typed e2e) — nothing to write; "
+            "re-run /acs:create-test-docs %s if the ticket needs end-to-end coverage." % (ticket_id, ticket_id))
     return ticket_id
 
 
 def gate_create_pr(ctx, payload):
+    """Brake only: a ticket that HAS a /acs:code run whose verifier did not
+    pass may not open a PR. A ticket with no code run at all passes -- whether
+    code and docs-sync ran first is ship.yaml's concern, not the gate's."""
     ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-pr")
-    _require_completed(tdir, "code", ticket_id, "run /acs:code %s first" % ticket_id)
-    _require_completed(tdir, "docs-sync", ticket_id, "run /acs:docs-sync %s first" % ticket_id)
     state = load_state(tdir, "code", ticket_id)
-    if state["states"].get("verifier_passed") is not True:
+    if state.get("runs") and state["states"].get("verifier_passed") is not True:
         raise GateError(
-            "/code completed but its verifier did not pass for %s (verifier_passed != true in code-state.json); "
+            "/code ran for %s but its verifier did not pass (verifier_passed != true in code-state.json); "
             "re-run /acs:code %s until the review loop reports zero findings." % (ticket_id, ticket_id)
         )
     return ticket_id
@@ -226,6 +285,9 @@ def gate_merge_pr(ctx, payload):
     # pass-through BEFORE the ticket gate runs. Every other input falls through to
     # the existing ticket gate verbatim (AC-8). The pre-hook dispatcher treats a
     # plain return (no GateError) as "allow", so returning None here = allow.
+    # The readiness brake below is unchanged by the skills-independence
+    # refactor: a merge needs a PR reference recorded by a completed run --
+    # the one fact a merge cannot proceed without, not an ordering rule.
     args_text = _merge_pr_arg_text(payload)
     _resolved, _src = resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
                                         ctx["repo_id"], args_text=args_text)
@@ -300,6 +362,8 @@ def gate_create_standards(ctx, payload):
     return _require_architecture_doc_set(ctx)
 
 
+#: skill -> gate. A gate returns the resolved ticket id when it is ticket-scoped
+#: (run_pre_payload then hands that id to the order advisory) and None otherwise.
 GATES = {
     "create-prd": gate_create_prd,
     "create-requirements": gate_create_requirements,
@@ -311,11 +375,36 @@ GATES = {
     "create-standards": gate_create_standards,
     "create-ticket": gate_create_ticket,
     "create-design": gate_create_design,
+    "analyze-ticket": gate_analyze_ticket,
+    "create-impl-plan": gate_create_impl_plan,
+    "create-api-contract": gate_create_api_contract,
+    "create-test-docs": gate_create_test_docs,
     "code": gate_code,
     "docs-sync": gate_docs_sync,
+    "create-e2e-tests": gate_create_e2e_tests,
     "create-pr": gate_create_pr,
     "merge-pr": gate_merge_pr,
     "standardize-project": gate_standardize_project,
+}
+
+#: What each gate checks, by skill -- the declared classification
+#: tests/acs/test_acs_lib_gates.py asserts against GATES, so the table and the
+#: dispatch cannot drift. None of these is an ORDER check.
+#:   none          no precondition at all
+#:   prd           the PRD file exists (gate_create_architecture)
+#:   architecture  the architecture doc set exists (_require_architecture_doc_set)
+#:   ticket        the ticket resolves, is active and unlocked
+#:                 (_resolve_ticket_for_gate), plus that skill's own input or
+#:                 brake: needs_design, not-an-epic, plan.md, analysis.md's
+#:                 api_surface, e2e configured + e2e cases, verifier_passed,
+#:                 a recorded PR reference.
+GATE_INPUTS = {
+    "none": ("create-prd", "create-requirements", "create-ticket"),
+    "prd": ("create-architecture",),
+    "architecture": ("create-project", "standardize-project") + ARCHITECTURE_DEPENDENT_SKILLS,
+    "ticket": ("create-design", "analyze-ticket", "create-impl-plan", "create-api-contract",
+               "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
+               "merge-pr"),
 }
 
 
@@ -340,7 +429,11 @@ def run_pre_payload(skill, payload, record_marker=True):
     Such a payload carries no session_id or transcript_path, and
     record_session_marker faithfully persists those as null (deliberately: it
     never guesses), which would overwrite the real marker and cost the next run
-    its usage attribution."""
+    its usage attribution.
+
+    Once a ticket-scoped gate passes, the out-of-order advisory (one stderr
+    line, exit still 0) is printed when the skill's ship.yaml needs are not
+    satisfied for that ticket (acs_lib.advisory)."""
     cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
@@ -352,7 +445,11 @@ def run_pre_payload(skill, payload, record_marker=True):
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
-        GATES[skill](ctx, payload)
+        ticket_id = GATES[skill](ctx, payload)
+        if ticket_id:
+            advisory = workflow_advisory(ctx, skill, ticket_id)
+            if advisory:
+                sys.stderr.write(advisory + "\n")
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
         return 2

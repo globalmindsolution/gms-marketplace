@@ -13,22 +13,29 @@ unchanged).
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
     `/create-prd`, `/create-architecture`, `/create-project`,
-    `/create-ticket`, `/create-design`, `/code`,
-    `/create-pr`, `/merge-pr`.
-  - **Subagents**: the twelve **triad-keeping skills** (`code`,
-    `create-prd`, `create-design`, `create-architecture`, `create-project`,
+    `/create-ticket`, `/create-design`, `/analyze-ticket`,
+    `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
+    `/code`, `/create-e2e-tests`, `/docs-sync`, `/run-e2e-tests`,
+    `/create-pr`, `/merge-pr` — grouped into phases by
+    `workflows/phases.yaml`, which acs MUST also bundle alongside the default
+    `workflows/ship.yaml` the delivery order is declared in (ADR-0089).
+  - **Subagents**: the sixteen **triad-keeping skills** (`create-prd`,
+    `create-design`, `create-architecture`, `create-project`,
     `create-quality`, `create-operations`, `create-principles`,
-    `create-standards`, `docs-sync`, `standardize-project`, `create-requirements`)
-    each bundle a planner, executor, and verifier (e.g. `code-planner`,
-    `code-executor`, `code-verifier`); the three **apply-work skills**
-    (`create-ticket`, `create-pr`, `merge-pr`) run inline and ship only an
-    executor (MAR-60 inlining). 45 agent files exist on disk (15 × 3 roles);
-    39 are reachable (36 triad + 3 apply-work executors), and 6 — the
-    apply-work planner/verifier files — are orphaned. See
+    `create-standards`, `create-requirements`, `standardize-project`,
+    `analyze-ticket`, `create-impl-plan`, `create-api-contract`,
+    `create-test-docs`, `create-e2e-tests`, `docs-sync`) each bundle a
+    planner, executor, and verifier (e.g. `docs-sync-planner`,
+    `docs-sync-executor`, `docs-sync-verifier`); `code` bundles an executor
+    and a verifier only, its plan phase having moved to `create-impl-plan`
+    (ADR-0089); the three **apply-work skills** (`create-ticket`,
+    `create-pr`, `merge-pr`) run inline and ship only an executor (MAR-60
+    inlining). 59 agent files exist on disk; 53 are reachable (48 triad + 2
+    for `code` + 3 apply-work executors), and 6 — the apply-work
+    planner/verifier files — are orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per workflow skill and per product-level
-    skill, implemented as Python scripts
-    (e.g. `pre-code.py`, `post-code.py`).
+  - **Hooks**: a pre and post hook per hooked skill (twenty of each),
+    implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
   - MAY bundle optional extras wired by `/setup` on user consent — e.g. the
     status-line scripts (prompt line and agent-panel line).
 

@@ -174,9 +174,12 @@ history: read `states.pr` (`{number, url, branch, base}`) from
 `<partition>/create-pr-state.json`; when `pipeline.flow == "product"`, read it
 from the product skill's state file instead (`create-prd-state.json`,
 `create-architecture-state.json`, or `create-project-state.json` — whichever
-exists with a `states.pr`). The pre-hook gate already validated that a
-completed run recorded this reference, so product-level delivery tickets merge
-exactly like any other ticket.
+exists with a `states.pr`). The pre-hook keeps this one READINESS BRAKE
+through the skills-independence refactor — a merge cannot proceed without a PR
+reference recorded by a completed run, which is a fact about the merge, not an
+ordering rule — so it has already validated that such a run recorded this
+reference, and product-level delivery tickets merge exactly like any other
+ticket.
 
 ## Resume & reconcile
 

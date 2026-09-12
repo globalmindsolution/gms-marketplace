@@ -75,3 +75,21 @@ amendment should reconcile the two.
   contracts): its verifier-anchoring text will need amending when the
   verifier starts anchoring on `plan_approved` — explicitly **not** by this
   ticket, but by **slice 4 / MAR-74**.
+
+## Amendment — skills-independence refactor (ADR-0089/0090)
+
+`plan-approval.py` remains the sole writer of the plan-approval record and
+still gates nothing; what changed is which skill invokes it and where the
+approved plan sits. The plan phase moved out of `/acs:code` into
+`/acs:create-impl-plan`, so the script is now run by that skill's coordinator,
+immediately after the plan step and on STANDARD/COMPLEX only, exactly as
+before. `plan-approval.json` stays in the workspace partition (it is ledger,
+not a human-facing document), while the `plan.md` whose sha256 it records
+lives in `<settings.artifacts.tickets_path>/<ID>/plan.md` when the docs tree
+is active (ADR-0090) — the digest is computed over the same bytes either way.
+
+The "never gated this release" clause is strengthened rather than weakened by
+ADR-0089: `_require_completed` is gone, and `states.plan_approved` is not read
+by any gate. The one remaining pre-`create-pr` brake is `verifier_passed`, and
+even that was narrowed to refuse only a ticket whose recorded `code` run left
+it false. Context, Decision and Consequences above are otherwise unedited.

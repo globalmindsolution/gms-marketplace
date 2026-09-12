@@ -1,15 +1,18 @@
-"""MAR-114 — /acs:test skill: deterministic run mechanics (spec 02).
+"""/acs:run-e2e-tests: deterministic run mechanics.
 
-Prose-contract unit test for the NEW `plugins/acs/skills/test/SKILL.md`,
-covering AC-6 (model-invocability), AC-7 (--suite argument contract +
-setup/command/teardown), AC-8 (results-artifact shape), AC-9 all-green half
-(no-model-call determinism), AC-11 report half, and the R1 safety note.
+Prose-contract unit test for `plugins/acs/skills/run-e2e-tests/SKILL.md` —
+today's home of the suite-runner prose that shipped as `/acs:test` and that the
+skills-independence refactor renamed (`skills/test/` is now a one-paragraph
+alias; `tests/acs/test_run_e2e_tests.py` pins the rename and the alias).
+Covers model-invocability, the --suite argument contract +
+setup/command/teardown, the results-artifact shape, the all-green
+no-model-call determinism, the report, and the R1 safety note.
 
 Stdlib-only (os, re, unittest), mirroring tests/acs/test_setup_quality_path.py's
 bounded-window `section()` technique so a stray mention elsewhere in the file
 cannot satisfy an assertion.
 
-Run:  python3 -m unittest tests.acs.test_mar114_test_skill_run_mechanics -v
+Run:  python3 -m unittest tests.acs.test_run_e2e_tests_run_mechanics -v
 """
 
 import os
@@ -18,7 +21,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "test", "SKILL.md")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md")
 METRICS_SKILL_PATH = os.path.join(PLUGIN, "skills", "metrics", "SKILL.md")
 
 
@@ -48,16 +51,16 @@ def section(body, heading):
     return body[start:end]
 
 
-class Mar114TestSkillFileExistsCase(unittest.TestCase):
+class RunE2eTestsSkillFileExistsCase(unittest.TestCase):
     def test_skill_file_exists(self):
         self.assertTrue(
             os.path.isfile(SKILL_PATH),
-            msg="plugins/acs/skills/test/SKILL.md must exist (AC-6)",
+            msg="plugins/acs/skills/run-e2e-tests/SKILL.md must exist",
         )
 
 
-class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
-    """Fixture: read the new test SKILL.md once for all prose assertions."""
+class RunE2eTestsRunMechanicsCase(unittest.TestCase):
+    """Fixture: read the run-e2e-tests SKILL.md once for all prose assertions."""
 
     @classmethod
     def setUpClass(cls):
@@ -65,19 +68,19 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
         cls.fm = front_matter(cls.body)
         cls.opening = cls.body[: cls.body.index("## Step 1")] if "## Step 1" in cls.body else cls.body
 
-    # -- AC-6: model-invocability --------------------------------------
+    # -- model-invocability --------------------------------------
 
-    def test_front_matter_name_is_test(self):
+    def test_front_matter_name_is_run_e2e_tests(self):
         self.assertRegex(
-            self.fm, r"(?m)^name:\s*test\s*$",
-            msg="front matter must declare name: test (AC-6)",
+            self.fm, r"(?m)^name:\s*run-e2e-tests\s*$",
+            msg="front matter must declare name: run-e2e-tests (the renamed skill)",
         )
 
     def test_front_matter_has_no_disable_model_invocation(self):
         self.assertNotIn(
             "disable-model-invocation", self.fm,
-            msg="front matter must NOT set disable-model-invocation — /acs:test "
-                "must remain model-invocable (AC-6)",
+            msg="front matter must NOT set disable-model-invocation — "
+                "/acs:run-e2e-tests must remain model-invocable",
         )
 
     def test_front_matter_has_description(self):
@@ -111,8 +114,8 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
         )
         self.assertNotIn(
             readonly_sentence, self.opening,
-            msg="the test skill must NOT copy the metrics/usage read-only claim "
-                "verbatim — it writes a results artifact (spec 02 divergence)",
+            msg="the suite runner must NOT copy the metrics/usage read-only "
+                "claim verbatim — it writes a results artifact",
         )
 
     def test_opening_states_it_writes_results_artifact(self):
@@ -123,7 +126,7 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
                 "artifact (accurate write/mutate framing, not read-only)",
         )
 
-    # -- AC-7: --suite argument contract ---------------------------------
+    # -- --suite argument contract ---------------------------------
 
     def test_suite_flag_contract_documented(self):
         self.assertIn("--suite", self.body, msg="--suite flag must be documented")
@@ -137,7 +140,7 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
             msg="Step 1 must document: one or more --suite flags run only the named subset",
         )
 
-    # -- AC-7: setup -> command -> teardown, teardown ALWAYS -------------
+    # -- setup -> command -> teardown, teardown ALWAYS -------------
 
     def test_teardown_always_runs(self):
         m = re.search(r"(?i)teardown", self.body)
@@ -155,7 +158,7 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
             msg="must document the setup -> command -> teardown execution order",
         )
 
-    # -- AC-8: results artifact path + shape -----------------------------
+    # -- results artifact path + shape -----------------------------
 
     def test_results_artifact_path_documented(self):
         self.assertIn(
@@ -174,7 +177,7 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
                 msg="results artifact field %r must be documented" % field,
             )
 
-    # -- AC-9 (all-green half): deterministic no-model-call --------------
+    # -- all-green: deterministic no-model-call --------------
 
     def test_all_green_no_model_call_guarantee(self):
         m = re.search(r"(?i)all[- ]green|all suites pass", self.body)
@@ -191,7 +194,7 @@ class Mar114TestSkillRunMechanicsCase(unittest.TestCase):
             msg="must state explicitly that no triage step runs on all-green",
         )
 
-    # -- AC-11 (report half): summary + artifact left in place -----------
+    # -- report: summary + artifact left in place -----------
 
     def test_report_summary_documented(self):
         self.assertRegex(

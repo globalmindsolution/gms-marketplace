@@ -8,10 +8,11 @@ with the configured title, the required label, and the required body
 sections. Teardown reuses `ForgeSandbox`'s own best-effort teardown.
 
 The pipeline is seeded deterministically for free (mint a ticket, seed one
-trivial file+branch, fast-forward both the `code` and `docs-sync` gate halves
-`gate_create_pr` requires) so exactly ONE paid session is spent, told only the
-ticket id, to run `/acs:create-pr` itself -- the same "seed for free, one paid
-session" pattern `s03_resume_and_verify.py` proves.
+trivial file+branch, fast-forward the `code` and `docs-sync` runs so the
+ticket reaches create-pr the way `workflows/ship.yaml` orders it, with the
+passing verifier `gate_create_pr`'s brake requires) so exactly ONE paid session
+is spent, told only the ticket id, to run `/acs:create-pr` itself -- the same
+"seed for free, one paid session" pattern `s03_resume_and_verify.py` proves.
 
 Only runs its real assertions when a forge target is configured
 (`evals.forge_repo` / `ACS_FORGE_REPO`); otherwise it skips with one
@@ -86,7 +87,11 @@ def _code_result(branch):
 
 
 def _seed_code_and_docs_sync(sb, tid, branch):
-    """Fast-forward both gate_create_pr halves (R-6) without spending claude."""
+    """Fast-forward the ship.yaml steps ahead of create-pr without spending
+    claude. Only the passing code verifier is a gate concern now (R-6:
+    gate_create_pr is a brake, not an order check); docs-sync is seeded so the
+    ticket reaches create-pr in the order ship.yaml declares and the pre-hook
+    advisory stays silent."""
     _run_script_ok(sb, "skill-start.py", "--skill", "code", "--ticket", tid)
     _run_script_ok(sb, "post-code.py", "--ticket", tid,
                    stdin=json.dumps(_code_result(branch)))

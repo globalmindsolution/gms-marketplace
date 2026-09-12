@@ -101,7 +101,8 @@ class PipelineStepCliTest(PipelineCase):
 
     def test_only_if_present_does_not_open_a_new_gate(self):
         """A standing test run that fails must not create a steps.test entry:
-        that would newly block docs-sync on a pipeline that never gated on it."""
+        `workflow next` would then read a post-code test step as pending on a
+        pipeline that never activated one."""
         result = self.run_script("pipeline-step.py",
             "--ticket", self.ticket_id, "--skill", "test", "--status", "failed",
             "--only-if-present")
@@ -131,10 +132,13 @@ class PipelineStepCliTest(PipelineCase):
         self.assertIn("KEY=VALUE", result.stderr)
 
 
-class DocsSyncGateRemedyTest(PipelineCase):
-    """The gate's own error message must name a command that can open it."""
+class DocsSyncGateIsNotAnOrderGateTest(PipelineCase):
+    """Since the skills-independence refactor gate_docs_sync checks the
+    partition and the lock only: a failed post-code test step is `workflow
+    next`'s to route (ship.yaml's on_fail relay), never the gate's to refuse,
+    so pipeline-step.py is no longer a gate remedy."""
 
-    def test_recording_the_test_step_completed_opens_the_gate(self):
+    def test_a_failed_test_step_does_not_shut_the_docs_sync_gate(self):
         ticket_id = "SHOP-1"
         tdir = lib.ticket_dir(self.ws, self.repo_id, ticket_id)
         os.makedirs(tdir, exist_ok=True)
@@ -146,13 +150,11 @@ class DocsSyncGateRemedyTest(PipelineCase):
         ctx = lib.build_context(self.repo)
         payload = {"cwd": self.repo, "tool_name": "Skill",
                    "tool_input": {"skill": "acs:docs-sync", "args": ticket_id}}
-        with self.assertRaises(lib.GateError) as blocked:
-            lib.gate_docs_sync(ctx, payload)
-        self.assertIn("/acs:test --for-ticket", str(blocked.exception))
+        self.assertEqual(lib.gate_docs_sync(ctx, payload), ticket_id)
 
         self.run_script("pipeline-step.py",
             "--ticket", ticket_id, "--skill", "test", "--status", "completed")
-        lib.gate_docs_sync(ctx, payload)  # no longer blocked
+        self.assertEqual(lib.gate_docs_sync(ctx, payload), ticket_id)
 
 
 if __name__ == "__main__":

@@ -46,8 +46,10 @@ TICKET_ID = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+$")
 PIPELINE_STEPS = (
     "create-prd", "create-architecture", "create-project", "create-quality",
     "create-operations", "create-principles", "create-standards",
-    "create-requirements", "create-ticket", "create-design", "code", "test",
-    "docs-sync", "create-pr", "merge-pr",
+    "create-requirements", "create-ticket", "create-design", "analyze-ticket",
+    "create-impl-plan", "create-api-contract", "create-test-docs", "code",
+    "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",
+    "merge-pr",
 )
 
 

@@ -67,3 +67,14 @@ becomes ticket description content, never a command fragment (R1).
 - A suite known to be flaky is a suite-authoring concern this closed loop
   does not special-case; the `__suite__` fallback bounds its ticket noise to
   one ticket per broken suite rather than amplifying it.
+
+## Amendment — skills-independence refactor (ADR-0089)
+
+The closed-loop ticketing policy this ADR decides — stable regression key,
+three-way mint / comment-bump / new-linked-ticket disposition, never
+duplicating and never silently reopening a closed ticket — is unchanged. Only
+the skill's name moved: `/acs:test` is now `/acs:run-e2e-tests`, with the old
+directory kept for one release as a forwarding alias (registered under
+`aliases` in `workflows/phases.yaml`, never in a phase). Both remain unhooked
+and record their pipeline step through `pipeline-step.py`. Context, Decision
+and Consequences above are otherwise unedited.
