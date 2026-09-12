@@ -108,12 +108,14 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
             "no plugins/acs/agents/release-*.md file may exist (AC-1)",
         )
 
-    def test_agent_count_unchanged_forty_five(self):
+    def test_agent_count_unchanged_fifty_nine(self):
         # Literal advances as later producer children register (MAR-143:
         # create-requirements' triad, 42 -> 45; MAR-156: create-spec's triad
-        # deleted, 45 -> 42; MAR-160: docs-sync's triad registered, 42 -> 45)
+        # deleted, 45 -> 42; MAR-160: docs-sync's triad registered, 42 -> 45;
+        # the skills-independence refactor added five Build/Test triads and
+        # moved code's planner to create-impl-plan, 45 -> 59)
         # — /acs:release itself adds none.
-        self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 45)
+        self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 59)
 
     def test_release_config_flag_passed_to_every_subcommand(self):
         for fence in _bash_fences(_read_skill_body()):

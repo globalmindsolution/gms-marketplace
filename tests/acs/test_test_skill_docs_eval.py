@@ -142,8 +142,14 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
 
 
 class S04SkillTriggersCaseTest(unittest.TestCase):
-    """Approach item 4: one new /acs:test routing CASE, structurally parsed
-    (no paid model call)."""
+    """Approach item 4: one suite-runner routing CASE, structurally parsed
+    (no paid model call).
+
+    MAR-114 added it as `test`; the skills-independence refactor renamed that
+    skill to `run-e2e-tests` and left `test` behind as a deprecated alias
+    directory whose description points at the new name, so the probe must now
+    expect `run-e2e-tests` — pinning `test` would pin the alias, not the
+    skill that carries the prose."""
 
     def _cases(self):
         path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
@@ -155,13 +161,19 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
                 return ast.literal_eval(node.value)
         raise AssertionError("CASES list not found in s04_skill_triggers.py")
 
-    def test_test_case_present_and_internally_consistent(self):
+    def test_suite_runner_case_present_and_internally_consistent(self):
         cases = self._cases()
-        matches = [c for c in cases if c[0] == "test"]
-        self.assertTrue(matches, "s04 CASES must contain an entry labeled 'test'")
+        matches = [c for c in cases if c[0] == "run-e2e-tests"]
+        self.assertTrue(
+            matches, "s04 CASES must contain an entry labeled 'run-e2e-tests'")
         case = matches[0]
-        self.assertEqual(case[-1], "test",
-                          "the 'test' CASE's expected-skill (last element) must be 'test'")
+        self.assertEqual(
+            case[-1], "run-e2e-tests",
+            "the suite-runner CASE's expected-skill (last element) must be "
+            "'run-e2e-tests'")
+        self.assertEqual(
+            [c for c in cases if c[0] == "test"], [],
+            "s04 must not probe the deprecated `test` alias directory")
 
 
 class ChangelogMar114EntryTest(unittest.TestCase):

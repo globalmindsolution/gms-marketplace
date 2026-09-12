@@ -87,12 +87,19 @@ _PROJECT_RESPONSES = {
     "gh project item-edit": (0, "", ""),
 }
 
+# The 20 hooked skills. The skills-independence refactor added the five
+# Build/Test coordinators (analyze-ticket, create-impl-plan,
+# create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
+# (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
+# for one release as the alias directory.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
                  "create-standards", "create-requirements", "create-ticket",
-                 "create-design", "code", "docs-sync", "create-pr",
+                 "create-design", "analyze-ticket", "create-impl-plan",
+                 "create-api-contract", "create-test-docs", "code",
+                 "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "standardize-project"]
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs"]
 ROLES = ["planner", "executor", "verifier"]
 
 # Which agent roles each hooked skill actually owns. Every skill is a triad
