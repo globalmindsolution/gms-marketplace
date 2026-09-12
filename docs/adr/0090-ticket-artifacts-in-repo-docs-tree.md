@@ -53,6 +53,24 @@ Options weighed:
 ticket branch and reviewed in the PR like any other doc. **The workspace
 keeps the run ledger**, unchanged in shape and location (ADR-0086 stands).
 
+**Who commits them, and when.** A Build-phase document is committed by the
+skill that publishes it, on the ticket branch, as the last step of that skill
+(`/acs:analyze-ticket`, `/acs:create-impl-plan`, `/acs:create-api-contract`,
+`/acs:create-test-docs` each commit their own). The two Design-phase
+documents — `ticket.md` and, when the ticket needs one, `design.md` — are
+written *before any ticket branch exists*, so their writers publish them and
+do NOT commit: **acs never commits to the repo's default branch.** They are
+carried into the branch by the first Build step, `/acs:analyze-ticket`, whose
+commit covers the ticket's whole docs folder rather than only its own
+`analysis.md`. A ticket taken straight to a later step by hand leaves them
+for that step's commit or for the human — which the `/acs:create-pr`
+uncommitted-work question surfaces rather than hides.
+
+A corollary for the writers: `save_ticket` writes `ticket.md` only when the
+bytes would actually change. Several callers save a ticket after flipping only
+`status`, which `ticket.md` does not store, and a committed document must not
+be re-dirtied by a field that never reached the page.
+
 **`ticket.md` is markdown with YAML front matter** carrying every field
 `ticket.json` carried **except `status`**, plus `## Description`,
 `## Acceptance criteria` (a numbered list) and `## Clarifications` — the last
@@ -122,10 +140,14 @@ moves the *partition*, not the documents, deliberately: the point of putting
 them in the repo was that they stay with the code they describe.
 
 **Behaviour change, not merely relocation.** A skill that previously wrote
-`design.md` into the partition now writes it into a **tracked** directory, so
-its output lands in a commit and, if the branch is pushed, in a PR. Skills
-that write there must therefore be branch-aware in a way they did not have to
-be before.
+`design.md` into the partition now publishes it into a **tracked** directory,
+so its output lands in a commit and, if the branch is pushed, in a PR.
+`/acs:create-design`'s executor therefore writes a draft under
+`<partition>/phases/create-design/` and the coordinator publishes the verified
+bytes — the file-map guard denies a subagent the docs tree, and only verified
+content should reach a reviewed document. Skills that write there must be
+branch-aware in a way they did not have to be before, which is why the commit
+ownership above is part of this decision rather than left to each skill.
 
 **Known limitation, accepted.** `migrate` is one-way: there is no
 `unmigrate`. Setting `tickets_path` back to `null` after migrating makes the

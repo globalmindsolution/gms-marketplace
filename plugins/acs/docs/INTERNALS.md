@@ -532,7 +532,7 @@ every other key below is persisted verbatim from the result document:
 | create-architecture | `architecture` `{path, hld:[...], lld:[...]}`, `pr` `{...}` |
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
-| create-design | `design_path` (`design.md`, relative to the design source), `decision` (one line) |
+| create-design | `design_path` (the published `design.md` — the docs folder, or the partition when the tree is opted out), `decision` (one line) |
 | analyze-ticket | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
 | create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
@@ -612,7 +612,10 @@ Conventions:
   own phase artifact under `<partition>/phases/<skill>/` (plan file /
   verification report — see Phase artifacts above). Only executors mutate
   real targets (the repo for /code and the product-level skills, the
-  workspace artifacts — specs, design.md — for the rest), and they record
+  workspace artifacts — specs, and the ticket-document DRAFTS under
+  `<partition>/phases/<skill>/` — for the rest; a document in the ticket
+  docs tree is published by the coordinator from the verified draft, never
+  written by a subagent, which the file-map guard enforces), and they record
   what they changed in their execute report. The verifier must judge fresh —
   it never sees the executor's reasoning, only artifacts.
 - Verifiers re-run the actual checks (tests, coverage, builds, doc diffs) —
@@ -623,6 +626,13 @@ Conventions:
 Durable state is split by AUDIENCE. The documents a human reads or reviews live
 in the consumer repo and are committed with the change; the run ledger — every
 fact a hook or a walk reads — stays in the gitignored workspace.
+
+Who commits the documents (ADR 0090): the skill that publishes a Build-phase
+document commits it on the ticket branch. `ticket.md` and `design.md` are
+published in the Design phase, BEFORE a ticket branch exists — acs never
+commits to the default branch — so their writers leave them in the working
+tree and `/acs:analyze-ticket`, the first Build step, commits the ticket's
+whole docs folder when it creates the branch.
 
 ```
 <checkout>/<settings.artifacts.tickets_path>/<ticket-id>/   # default docs/tickets
@@ -669,7 +679,23 @@ fact a hook or a walk reads — stays in the gitignored workspace.
   `save_ticket(tdir, ticket)` writes `ticket.md` when `md_target()` says the
   tree is active and this ticket belongs to it, else `ticket.json` exactly as
   before. `acs_lib.state.load_ticket`/`save_ticket` delegate here with
-  unchanged signatures.
+  unchanged signatures. On the `ticket.md` path a save whose rendered bytes
+  equal what is on disk writes NOTHING and does not bump `updated_at`: several
+  callers save after flipping only `status`, which `ticket.md` does not store,
+  and a tracked document must not be re-dirtied for a field that never
+  reached it.
+- **The body round-trips verbatim.** `render_ticket_md` copies `description`
+  in under `## Description` unchanged, and a description is arbitrary markdown
+  — every shipped description template is `## `-headed, and `task-default`
+  opens with its own `## Description`. `parse_ticket_md` therefore does NOT
+  scan forward for the next `## `: it finds the two sections that follow the
+  description from the END of the body (the last `## Clarifications`, the last
+  `## Acceptance criteria` before it, the first `## Description` before that).
+  Neither trailing section can emit a `## ` line of its own — a criterion's
+  first line is numbered and its continuations indented, and the
+  clarifications mirror folds each entry onto one line — so the description
+  survives whatever it contains. A forward scan silently truncated it, which
+  is a deletion inside a committed document.
 - **Migration is one idempotent command.** `acs.py artifacts migrate
   [--dry-run]` renders each live partition's `ticket.json` into
   `<docs>/<ID>/ticket.md`, copies `design.md` and `phases/code/plan.md` across

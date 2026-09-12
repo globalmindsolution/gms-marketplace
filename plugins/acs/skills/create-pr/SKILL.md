@@ -50,8 +50,12 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for the executor (the only subagent
   role used by this skill; planner and verifier are not spawned).
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `design` — `{required, dir, source}`; when required, `<design.dir>/design.md`
-  feeds the Summary/Changes content.
+- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
+  ticket whose design applies and its basename is that ticket's id. When
+  required, the design document — `artifacts["design.md"]` from
+  `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
+  `<design.dir>/design.md` when the tree is opted out — feeds the
+  Summary/Changes content. Call it `<design_doc>`.
 - `post_hook` — absolute path to `post-create-pr.py`.
 
 State inputs (read these; conversation history is NOT an input):
@@ -63,7 +67,7 @@ State inputs (read these; conversation history is NOT an input):
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `review` `{iterations, findings_open}`.
 - `<partition>/specs/*.md` — scope and API/data changes per spec.
-- `<design.dir>/design.md` — the decision, when `design.required`.
+- `<design_doc>` — the decision, when `design.required`.
 
 ## Resume & reconcile
 

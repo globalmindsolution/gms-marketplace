@@ -47,9 +47,14 @@ Parse the printed context JSON. Fields you will use:
   here too.
 - `checkout_root` — the consumer repo root; every impact path in the analysis
   is repo-relative to it.
-- `design` — `{required, dir, source}`. When `design.required` is true, read
-  `<design.dir>/design.md` (`source` is `"own"` or `"parent"`); the analysis is
-  bounded by a design that already exists, never a second opinion on it.
+- `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
+  ticket whose design applies (`source` is `"own"` or `"parent"`); its
+  basename is that ticket's id. When `design.required` is true, resolve the
+  design document itself with `acs.py artifacts show --ticket <that id>` and
+  read `artifacts["design.md"]` — the design ticket's docs folder, or
+  `<design.dir>/design.md` when the tree is opted out. Call it `<design_doc>`;
+  the analysis is bounded by a design that already exists, never a second
+  opinion on it.
 - `settings` — you need `artifacts.tickets_path` (where `analysis.md` is
   published), `prd_path`, `requirements_path`, `architecture_path`,
   `high_stakes_paths` (the globs behind the stakes recommendation),
@@ -143,7 +148,7 @@ inline a file body):
 1. The ticket — `ticket` from the context JSON (its file is whatever
    `acs.py artifacts show` reports as `source_path`): title, description, every
    acceptance criterion, type, parent.
-2. `<design.dir>/design.md` when `design.required` — the decided architecture.
+2. `<design_doc>` when `design.required` — the decided architecture.
    The analysis maps the ticket onto that decision; it never re-opens it.
 3. The PRD at `<checkout_root>/<settings.prd_path>/prd.md` and the living
    requirements under `<checkout_root>/<settings.requirements_path>/` when they
@@ -351,9 +356,14 @@ bytes must equal the verified bytes:
 cp "<partition>/phases/analyze-ticket/analysis.md" "<analysis_path>"
 ```
 
-Then commit `<analysis_path>` on the ticket branch when it is inside the repo
-(the docs tree active); the partition draft is workspace state and is never
-committed.
+Then commit on the ticket branch when the analysis is inside the repo (the
+docs tree active). Commit **the ticket's whole docs folder** — `git add
+"<docs_dir>"` — not only `<analysis_path>`: `ticket.md` and, when the ticket
+needed one, `design.md` were published in the Design phase before this branch
+existed, and acs never commits to the default branch, so this first Build
+commit is what carries them into the branch and into the PR (ADR 0090). Files
+already committed and unchanged add nothing to the commit. The partition draft
+is workspace state and is never committed.
 
 ## User interaction
 

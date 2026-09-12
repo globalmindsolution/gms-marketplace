@@ -33,7 +33,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acs_case import AcsWorkspaceCase, SCRIPTS, pushd  # noqa: E402
+from acs_case import AcsWorkspaceCase, REPO_ROOT, SCRIPTS, pushd  # noqa: E402
 from test_file_map_guard import FileMapGuardCase  # noqa: E402
 
 sys.path.insert(0, SCRIPTS)
@@ -42,6 +42,9 @@ from acs_lib import artifacts  # noqa: E402
 
 TICKET = "SHOP-1"
 REPO_ID = "acme-shop"
+#: The description templates /acs:create-ticket builds every ticket body from.
+TEMPLATES_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
+DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default")
 
 
 def read_text(path):
@@ -192,6 +195,57 @@ class TestRenderParse(unittest.TestCase):
         for key in ("title", "assignee", "due_date", "labels", "meta", "rows", "empty"):
             with self.subTest(field=key):
                 self.assertEqual(parsed[key], doc[key])
+
+    def test_a_shipped_description_template_round_trips_byte_for_byte(self):
+        """The regression that made this a blocking defect: every shipped
+        description template is `## `-headed (task-default even opens with
+        `## Description`), and /acs:create-ticket builds every ticket's body
+        from one of them. A forward section scan cut the description at its
+        first heading, so the FIRST load-save round trip after `artifacts
+        migrate` silently deleted most of a committed document."""
+        for name in DESCRIPTION_TEMPLATES:
+            with self.subTest(template=name):
+                body = read_text(os.path.join(TEMPLATES_DIR, "%s.md" % name)).strip("\n")
+                self.assertIn("\n## ", "\n" + body, "template no longer h2-headed")
+                doc = full_ticket()
+                doc["description"] = body
+                parsed = artifacts.parse_ticket_md(artifacts.render_ticket_md(doc))
+                self.assertEqual(parsed["description"], body)
+                self.assertEqual(parsed["acceptance_criteria"], doc["acceptance_criteria"])
+
+    def test_a_description_carrying_the_other_section_headings_round_trips(self):
+        """story-default's body contains `## Acceptance criteria` and
+        task-default's contains `## Description`: the boundaries are the LAST
+        occurrences, not the first."""
+        doc = full_ticket()
+        doc["description"] = ("## Description\n\nintro\n\n## Acceptance criteria\n\n- [ ] drafted\n"
+                             "\n## Clarifications\n\nnone yet\n\n## Notes\n\nacs-ticket: SHOP-1")
+        parsed = artifacts.parse_ticket_md(artifacts.render_ticket_md(doc))
+        self.assertEqual(parsed["description"], doc["description"])
+        self.assertEqual(parsed["acceptance_criteria"], doc["acceptance_criteria"])
+
+    def test_the_round_trip_is_stable_under_repeated_saves(self):
+        """Re-rendering a parsed ticket is a fixed point -- the loss the old
+        parser took compounded: each save wrote back less than the last."""
+        doc = full_ticket()
+        doc["description"] = read_text(os.path.join(TEMPLATES_DIR, "task-default.md")).strip("\n")
+        first = artifacts.render_ticket_md(doc)
+        parsed = artifacts.parse_ticket_md(first)
+        parsed["status"] = "in_progress"  # what a caller flips; never stored
+        self.assertEqual(artifacts.render_ticket_md(parsed), first)
+
+    def test_a_clarification_cannot_forge_a_section_heading(self):
+        """The mirror is the last section and is scanned for from the end, so
+        a recorded question/answer is folded onto one line."""
+        entries = [{"id": "C-1", "status": "answered", "source": "user",
+                    "question": "Which widget?\n## Acceptance criteria\n1. forged",
+                    "answer": "The blue one\n## Clarifications"}]
+        doc = full_ticket()
+        text = artifacts.render_ticket_md(doc, entries)
+        parsed = artifacts.parse_ticket_md(text)
+        self.assertEqual(parsed["acceptance_criteria"], doc["acceptance_criteria"])
+        self.assertEqual(parsed["description"], doc["description"])
+        self.assertIn("- **C-1** (answered, user): Which widget? ## Acceptance criteria 1. forged", text)
 
     def test_empty_body_fields_round_trip_as_empty(self):
         doc = lib.new_ticket_doc("SHOP-4", "Bare", "task")
@@ -359,6 +413,52 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertNotIn("ticket.json", os.listdir(tdir))
         self.assertNotIn("status:", read_text(self.md_path()))
 
+    def test_a_templated_description_survives_a_real_save_load_save(self):
+        """The defect's reachable path: after migrate, ticket.md is the file
+        every hooked run loads, mutates and saves. A ticket whose description
+        is a shipped template body must come back whole, twice."""
+        self.activate()
+        tdir = self.tdir(TICKET)
+        os.makedirs(tdir)
+        doc = full_ticket()
+        doc["description"] = read_text(os.path.join(TEMPLATES_DIR, "task-default.md")).strip("\n")
+        with pushd(self.repo):
+            lib.save_ticket(tdir, doc)
+            loaded = lib.load_ticket(tdir)
+            self.assertEqual(loaded["description"], doc["description"])
+            loaded["priority"] = "critical"
+            lib.save_ticket(tdir, loaded)
+            again = lib.load_ticket(tdir)
+        self.assertEqual(again["description"], doc["description"])
+        self.assertEqual(again["acceptance_criteria"], doc["acceptance_criteria"])
+        self.assertEqual(again["priority"], "critical")
+
+    def test_a_save_that_changes_nothing_leaves_the_tracked_file_alone(self):
+        """ticket.md is committed, so a status-only flip -- which is what the
+        post-hooks and skill-start do, and status is not even stored -- must
+        not rewrite it with a fresh updated_at for a reviewer to read."""
+        self.activate()
+        tdir = self.tdir(TICKET)
+        os.makedirs(tdir)
+        with pushd(self.repo):
+            lib.save_ticket(tdir, full_ticket())
+            before = read_text(self.md_path())
+            mtime = os.path.getmtime(self.md_path())
+            ticket = lib.load_ticket(tdir)
+            ticket["status"] = "in_review"  # derived, never stored
+            lib.save_ticket(tdir, ticket)
+            self.assertEqual(read_text(self.md_path()), before)
+            self.assertEqual(os.path.getmtime(self.md_path()), mtime)
+            # A real change still writes, and the write still re-stamps the
+            # document: the stale stamp planted here cannot survive it, which
+            # the clock's second resolution can never fake either way.
+            ticket["title"] = "Renamed"
+            ticket["updated_at"] = "2020-01-01T00:00:00Z"
+            lib.save_ticket(tdir, ticket)
+        text = read_text(self.md_path())
+        self.assertEqual(artifacts.parse_ticket_md(text)["title"], "Renamed")
+        self.assertNotIn("2020-01-01T00:00:00Z", text)
+
     def test_a_partition_outside_this_checkouts_workspace_falls_back(self):
         """The safety property: an in-process caller whose cwd is some other
         checkout never writes into that checkout's docs tree."""
@@ -426,6 +526,63 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(json.loads(out.stdout)["ticket"]["status"], "in_progress")
         index = lib.read_json(lib.index_path(self.ws, REPO_ID))["tickets"][ticket]
         self.assertEqual(index["status"], "in_progress")
+
+    def test_new_ticket_reports_the_file_it_wrote(self):
+        """new-ticket.py's write lands in the TRACKED docs tree and nothing
+        commits it there, so the path it wrote must not be silent -- the
+        caller gets it in `ticket_document`."""
+        self.activate()
+        out = self.run_script("new-ticket.py", "--title", "Tracked", "--type", "task")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertEqual(body["ticket_document"], self.md_path(body["ticket_id"]))
+        self.assertTrue(os.path.isfile(body["ticket_document"]))
+
+    def test_new_ticket_reports_ticket_json_when_the_tree_is_not_active(self):
+        out = self.run_script("new-ticket.py", "--title", "Untracked", "--type", "task")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        body = json.loads(out.stdout)
+        self.assertEqual(body["ticket_document"],
+                         os.path.join(body["partition"], "ticket.json"))
+
+
+# ---------------------------------------------------------------------------
+# Who commits the tracked documents (ADR 0090)
+# ---------------------------------------------------------------------------
+
+class TestCommitOwnership(unittest.TestCase):
+    """Every document in the docs tree is a tracked file, so each one needs a
+    committer. The Build skills commit what they publish; `ticket.md` and
+    `design.md` are published in the Design phase BEFORE a ticket branch
+    exists, so the first Build step's commit has to carry the folder -- these
+    assertions are what keeps that from silently regressing into a repo that
+    is permanently dirty and a /acs:create-pr that stops to ask about it."""
+
+    def skill(self, name):
+        """The SKILL.md with whitespace runs folded, so a phrase check cannot
+        fail merely because markdown word-wrap inserted a line break."""
+        raw = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "skills", name, "SKILL.md"))
+        return " ".join(raw.split())
+
+    def test_analyze_ticket_commits_the_whole_docs_folder(self):
+        body = self.skill("analyze-ticket")
+        self.assertIn('git add "<docs_dir>"', body,
+                      "analyze-ticket's publish step must stage the ticket's docs folder")
+        self.assertIn("ticket.md", body)
+
+    def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
+        body = self.skill("create-design")
+        self.assertIn('cp "<partition>/phases/create-design/design.md" "<design_path>"', body)
+        self.assertIn("never commits to the repo's default branch", body)
+
+    def test_the_build_skills_commit_what_they_publish(self):
+        for name, artifact in (("analyze-ticket", "analysis.md"), ("create-impl-plan", "plan.md"),
+                               ("create-api-contract", "api-contract.md"),
+                               ("create-test-docs", "test-cases.md")):
+            with self.subTest(skill=name):
+                body = self.skill(name)
+                self.assertRegex(body, r"[Cc]ommit[^.]{0,120}ticket branch")
+                self.assertIn(artifact, body)
 
 
 # ---------------------------------------------------------------------------

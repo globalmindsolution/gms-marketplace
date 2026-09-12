@@ -49,8 +49,12 @@ Parse the printed context JSON. Fields you will use:
   here too.
 - `checkout_root` — the consumer repo root; every suite and module a case names
   is repo-relative to it.
-- `design` — `{required, dir, source}`; read `<design.dir>/design.md` when
-  `design.required`, for the behaviour the design already settled.
+- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
+  ticket whose design applies and its basename is that ticket's id. When
+  `design.required`, resolve the design document with `acs.py artifacts show
+  --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
+  `<design.dir>/design.md` when the tree is opted out) and read it for the
+  behaviour the design already settled. Call it `<design_doc>`.
 - `settings` — you need `artifacts.tickets_path` (where `test-cases.md` is
   published), `suites` (the configured suites a case's target may name, with the
   reserved `e2e` entry), `quality_path` (the repo's test strategy and coverage
@@ -159,7 +163,7 @@ inline a file body):
 4. `analysis.md` when it exists — its impact map names the tests that already
    cover the area, and its refined-criteria section flags criteria that are
    ambiguous or untestable as written.
-5. `<design.dir>/design.md` when `design.required`.
+5. `<design_doc>` when `design.required`.
 6. The repo's test strategy and coverage policy under
    `<checkout_root>/<settings.quality_path>/` when it exists — it decides what
    belongs at unit level versus integration versus e2e in THIS repo, and this

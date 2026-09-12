@@ -41,9 +41,14 @@ Parse the printed context JSON. Fields you will use:
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `<partition>/phases/create-impl-plan/`; the run ledger stays
   here too.
-- `design` — `{required, dir, source}`. When `design.required` is true, read
-  `<design.dir>/design.md` (`source` is `"own"` or `"parent"` — child tickets
-  plan against the parent epic's design); the plan is judged against it.
+- `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
+  ticket whose design applies (`source` is `"own"` or `"parent"` — child
+  tickets plan against the parent epic's design); its basename is that
+  ticket's id. When `design.required` is true, resolve the design document
+  with `acs.py artifacts show --ticket <that id>` and read
+  `artifacts["design.md"]` — the design ticket's docs folder, or
+  `<design.dir>/design.md` when the tree is opted out. Call it `<design_doc>`;
+  the plan is judged against it.
 - `settings` — you need `test_coverage_percent` (the coverage target the plan
   states), `architecture_path`, `requirements_path`, `adr_path`,
   `standards_path`, `artifacts.tickets_path` (where the plan is published),
@@ -144,7 +149,7 @@ inline a file body):
    impact map, assumptions, risks and refined acceptance criteria. Absent is
    not an error: plan from the ticket and the codebase instead, and say so in
    the plan.
-3. `<design.dir>/design.md` when `design.required` — the decided architecture
+3. `<design_doc>` when `design.required` — the decided architecture
    the plan must realize.
 4. `<partition>/specs/*.md` when present (sorted `01-`, `02-`, ... — that is
    the dependency order). Absent or empty activates the spec authoring fold

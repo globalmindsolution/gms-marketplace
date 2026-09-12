@@ -51,8 +51,12 @@ Parse the printed context JSON. Fields you will use:
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `<partition>/phases/create-api-contract/`.
 - `checkout_root` — the consumer repo root.
-- `design` — `{required, dir, source}`; read `<design.dir>/design.md` when
-  `design.required`, for the interface decisions it already settled.
+- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
+  ticket whose design applies and its basename is that ticket's id. When
+  `design.required`, resolve the design document with `acs.py artifacts show
+  --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
+  `<design.dir>/design.md` when the tree is opted out) and read it for the
+  interface decisions it already settled. Call it `<design_doc>`.
 - `settings` — you need `contracts_path` (default `docs/api`; `null` = the
   ticket folder only), `artifacts.tickets_path` (where `api-contract.md` is
   published), `architecture_path` (`lld/contracts.md` is the existing contract
@@ -157,7 +161,7 @@ Name these by path in the planner's `<inputs>` (never inline a file body):
    the assumptions and the refined acceptance criteria.
 3. The ticket document (`source_path` from `artifacts show`) — the acceptance
    criteria every item traces to.
-4. `<design.dir>/design.md` when `design.required` — interface decisions the
+4. `<design_doc>` when `design.required` — interface decisions the
    design already settled are binding; the contract renders them, never
    re-opens them.
 5. The architecture doc set when it exists: `<architecture_path>/lld/contracts.md`

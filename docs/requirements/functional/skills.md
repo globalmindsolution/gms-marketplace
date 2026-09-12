@@ -1077,7 +1077,10 @@ tickets where the change is architecturally significant.
   documented architecture** or explicitly lists the architecture changes it
   requires — which `/code` then applies to the doc set as part of the
   change.
-- Produces **`design.md`** in the ticket partition, with required sections:
+- Produces **`design.md`** in the ticket's docs folder (the workspace
+  partition when `artifacts.tickets_path` is `null`) — the executor drafts it
+  under `phases/create-design/` and the coordinator publishes the verified
+  bytes — with required sections:
   **context & constraints (incl. NFRs such as security and performance),
   options considered, decision & rationale, architecture (components,
   interfaces/contracts, data model, and Mermaid sequence diagrams for new or

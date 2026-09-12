@@ -46,9 +46,13 @@ Parse the printed context JSON. Fields you will use:
   `api-contract.md` when they exist, and EVERY spec in `<partition>/specs/`
   (sorted `01-`, `02-`, ... — that is the dependency order). Phase artifacts
   go in `<partition>/phases/code/`.
-- `design` — `{required, dir, source}`. When `design.required` is true, read
-  `<design.dir>/design.md` (`source` is `"own"` or `"parent"` — child tickets
-  use the parent epic's design); the changeset is judged against it.
+- `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
+  ticket whose design applies (`source` is `"own"` or `"parent"` — child
+  tickets use the parent epic's design); its basename is that ticket's id.
+  When `design.required` is true, resolve the design document with
+  `acs.py artifacts show --ticket <that id>` and read `artifacts["design.md"]`
+  — the design ticket's docs folder, or `<design.dir>/design.md` when the tree
+  is opted out. Call it `<design_doc>`; the changeset is judged against it.
 - `settings` — you need `test_coverage_percent` (the hard coverage gate),
   `architecture_path`, `requirements_path`, `adr_path` (default `docs/adr`; `null` disables),
   `standards_path` (default `docs/standards`; `null` disables — when set,
@@ -530,7 +534,7 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
 
 Spawn the verifier AFTER all executors finish, with `<inputs>` of the branch
 diff (`git diff <default-branch>...HEAD`), all `<partition>/specs/*.md`, the
-ticket document, `<design.dir>/design.md` when it applies, the resolved
+ticket document, `<design_doc>` when it applies, the resolved
 `plan.md`, and `test-cases.md` / `api-contract.md` when they exist. The verify
 `<task>`'s
 `<constraints>` always carry `<constraint name="audience_style_profile">engineers

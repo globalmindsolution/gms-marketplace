@@ -21,6 +21,18 @@ clarifications.json and tickets-index.json never leave the partition.
 `status` is never stored in ticket.md. derive_status computes it from the
 ledger and the archive -- open / in_progress / in_review / done -- the same
 way the hooks used to flip it, so a load_ticket caller still sees the field.
+Because it is not stored, a caller that saves a ticket after flipping ONLY
+`status` would rewrite the document byte for byte; save_ticket detects that
+and writes nothing at all, so a tracked file is never re-dirtied for a field
+that does not live in it.
+
+THE BODY ROUND-TRIPS VERBATIM. A description is arbitrary markdown and
+normally carries its own `## ` headings -- the shipped task/story/epic
+description templates are entirely `## `-headed, and one of them opens with
+`## Description` -- so the body is not split by scanning forward for the next
+`## `. parse_ticket_md finds the two sections that FOLLOW the description
+from the end of the body (see _body_sections); neither of them can emit a
+`## ` line, so the description survives whatever it contains.
 
 WHICH FILE A TICKET LIVES IN. load_ticket reads ticket.md when the ticket's
 docs folder holds one, else ticket.json, else the file a ticket.json.moved
@@ -75,6 +87,13 @@ _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
 _TICKET_DIR_RE = re.compile(r"^([A-Z][A-Z0-9]*-\d+)")
 _SECTION_RE = re.compile(r"^## (.+?)\s*$")
 _AC_ITEM_RE = re.compile(r"^\d+\.\s+(.*)$")
+#: The body sections render_ticket_md writes, in order. The description is
+#: VERBATIM markdown that routinely carries its own `## ` headings (every
+#: shipped description template is `## `-headed), so the two sections after it
+#: are located from the END of the body -- see _body_sections.
+DESCRIPTION_HEADING = "Description"
+CRITERIA_HEADING = "Acceptance criteria"
+CLARIFICATIONS_HEADING = "Clarifications"
 
 
 # ---------------------------------------------------------------------------
@@ -259,19 +278,27 @@ def render_front_matter(mapping):
     return _render_mapping(mapping, 0)
 
 
+def _one_line(value):
+    """A clarification field folded onto one line. The mirror is the LAST body
+    section and parsing finds the section headings from the end, so no line it
+    emits may start with `## ` -- a recorded answer that contains a markdown
+    heading would otherwise look like the start of a section."""
+    return " ".join(str(value or "").split())
+
+
 def _render_clarifications(entries):
     entries = [e for e in (entries or []) if isinstance(e, dict)]
     if not entries:
         return ["_None recorded._"]
     lines = []
     for entry in entries:
-        tags = [str(entry.get("status") or "open")]
+        tags = [_one_line(entry.get("status") or "open")]
         if entry.get("source"):
-            tags.append(str(entry["source"]))
-        lines.append("- **%s** (%s): %s" % (entry.get("id") or "?", ", ".join(tags),
-                                            str(entry.get("question") or "").strip()))
+            tags.append(_one_line(entry["source"]))
+        lines.append("- **%s** (%s): %s" % (_one_line(entry.get("id")) or "?", ", ".join(tags),
+                                            _one_line(entry.get("question"))))
         if entry.get("answer"):
-            lines.append("  - answer: %s" % str(entry["answer"]).strip())
+            lines.append("  - answer: %s" % _one_line(entry["answer"]))
     return lines
 
 
@@ -285,30 +312,64 @@ def render_ticket_md(ticket, clarifications=None):
             front[key] = ticket[key]
     lines = ["---"] + render_front_matter(front) + ["---", ""]
     lines.append("# %s — %s" % (ticket.get("id") or "", ticket.get("title") or ""))
-    lines += ["", "## Description", ""]
+    lines += ["", "## %s" % DESCRIPTION_HEADING, ""]
     description = str(ticket.get("description") or "")
     if description:
         lines.extend(description.splitlines())
-    lines += ["", "## Acceptance criteria", ""]
+    lines += ["", "## %s" % CRITERIA_HEADING, ""]
     for number, item in enumerate(ticket.get("acceptance_criteria") or [], 1):
         parts = str(item).splitlines() or [""]
         lines.append("%d. %s" % (number, parts[0]))
         lines.extend("   " + part for part in parts[1:])
-    lines += ["", "## Clarifications", ""]
+    lines += ["", "## %s" % CLARIFICATIONS_HEADING, ""]
     lines.extend(_render_clarifications(clarifications))
     return "\n".join(lines) + "\n"
 
 
-def _sections(body):
-    sections, current = {}, None
-    for line in body.splitlines():
+def _heading_lines(lines, name):
+    """Every index in `lines` holding the `## <name>` heading (case-folded)."""
+    want, found = name.lower(), []
+    for index, line in enumerate(lines):
         match = _SECTION_RE.match(line)
-        if match:
-            current = match.group(1).strip().lower()
-            sections[current] = []
-        elif current is not None:
-            sections[current].append(line)
-    return sections
+        if match and match.group(1).strip().lower() == want:
+            found.append(index)
+    return found
+
+
+def _trim_blank(lines):
+    """The lines without the blank ones render_ticket_md puts around a section."""
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return lines[start:end]
+
+
+def _body_sections(body):
+    """(description lines, acceptance-criteria lines) for a ticket.md body.
+
+    The description is arbitrary markdown copied in verbatim -- every shipped
+    description template is itself `## `-headed, and one of them opens with
+    `## Description` -- so a forward scan that started a new section on every
+    `## ` line would cut the description at its first heading (or restart it),
+    silently dropping the rest of a committed document on the next save.
+
+    The boundaries are therefore resolved from the END of the body: the LAST
+    `## Clarifications`, the LAST `## Acceptance criteria` before it, and the
+    FIRST `## Description` before that. Neither trailing section can emit a
+    `## ` line of its own -- a criterion's first line is numbered and its
+    continuations are indented, and the clarifications mirror is one folded
+    line per entry -- so those last matches are exactly the headings
+    render_ticket_md wrote, whatever the description contains."""
+    lines = body.splitlines()
+    clarifications = _heading_lines(lines, CLARIFICATIONS_HEADING)
+    end = clarifications[-1] if clarifications else len(lines)
+    criteria = [i for i in _heading_lines(lines, CRITERIA_HEADING) if i < end]
+    ac_start = criteria[-1] if criteria else end
+    description = [i for i in _heading_lines(lines, DESCRIPTION_HEADING) if i < ac_start]
+    body_lines = lines[description[0] + 1:ac_start] if description else []
+    return _trim_blank(body_lines), lines[ac_start + 1:end]
 
 
 def _parse_criteria(lines):
@@ -330,9 +391,9 @@ def parse_ticket_md(text):
     if front is None:
         raise YamlSubsetError("ticket.md has no front matter block", 1)
     ticket = dict(front)
-    sections = _sections(body)
-    ticket["description"] = "\n".join(sections.get("description", [])).strip()
-    ticket["acceptance_criteria"] = _parse_criteria(sections.get("acceptance criteria", []))
+    description, criteria = _body_sections(body)
+    ticket["description"] = "\n".join(description)
+    ticket["acceptance_criteria"] = _parse_criteria(criteria)
     return ticket
 
 
@@ -502,12 +563,32 @@ def md_target(tdir, ticket_id=None, view=None):
     return None
 
 
+def _read_text(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 def save_ticket(tdir, ticket):
-    ticket["updated_at"] = now_iso()
+    """Persist the ticket to whichever home md_target names.
+
+    On the ticket.md path a save that would not change a single byte writes
+    NOTHING and does not bump `updated_at`. ticket.md is a TRACKED document:
+    several callers save a ticket after flipping only `status`, which ticket.md
+    does not store (derive_status owns it), so without this the pipeline would
+    re-dirty a committed file -- an `updated_at`-only diff a reviewer has to
+    read and someone has to commit -- for a field that never reached the page."""
     target = md_target(tdir, ticket.get("id") or None)
     if target:
-        write_text(target, render_ticket_md(ticket, _clarifications(tdir)))
+        clarifications = _clarifications(tdir)
+        if render_ticket_md(ticket, clarifications) == _read_text(target):
+            return
+        ticket["updated_at"] = now_iso()
+        write_text(target, render_ticket_md(ticket, clarifications))
     else:
+        ticket["updated_at"] = now_iso()
         write_json(os.path.join(tdir, TICKET_JSON_FILENAME), ticket)
 
 

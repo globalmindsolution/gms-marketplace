@@ -10,7 +10,13 @@ Usage:
                 [--description "..."] [--priority high] [--needs-design true]
                 [--external jira:PROJ-456] [--assignee jane] [--story-points 3]
 
-Prints {"ticket_id": ..., "partition": ...} on success.
+Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...} on
+success. `ticket_document` is the file the ticket was written to: the
+TRACKED `<tickets_path>/<ID>/ticket.md` in the consumer repo when the docs
+tree is active, else `<partition>/ticket.json`. This command mints a ticket
+before any ticket branch exists, so it never commits or stages that file --
+/acs:analyze-ticket's first commit on the ticket branch carries the ticket's
+docs folder into the branch (ADR 0090).
 """
 
 import argparse
@@ -132,6 +138,14 @@ def main():
         due_date=args.due_date,
     )
     lib.save_ticket(tdir, ticket)
+    # Where the ticket actually landed. With the docs tree active this is a
+    # TRACKED file in the consumer repo (<tickets_path>/<ID>/ticket.md), and
+    # this command runs before any ticket branch exists -- acs never commits
+    # to the default branch -- so it is deliberately left uncommitted for the
+    # first Build step's commit (see ADR 0090). Reporting the path is what
+    # keeps that write visible to the caller instead of silent.
+    _kind, document = lib.ticket_source(tdir)
+    document = document or os.path.join(tdir, lib.artifacts.TICKET_JSON_FILENAME)
     try:
         lib.update_index(workspace, repo_id, ticket, archived=False)
     except lib.GuardTimeout as exc:
@@ -180,7 +194,8 @@ def main():
             "written; only metrics.json was not updated. Do NOT re-run -- a "
             "second call mints a second id.\n" % (exc, ticket_id))
         sys.exit(2)
-    print(json.dumps({"ticket_id": ticket_id, "partition": tdir}, indent=2))
+    print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
+                      "ticket_document": document}, indent=2))
 
 
 if __name__ == "__main__":
