@@ -121,14 +121,22 @@ configured and have not yet been validated against a live remote.
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
   routes to the right skill — target all 25 green across 27 probes (matches
-  `s04_skill_triggers.py`'s 25-skill routing coverage, up from the original 12).
-  The 20 description probes measured so far are green; the 2 explicit probes
-  became measurable only with the harness's registration-based detection rule
-  and, together with the 3 new description probes, are first measured by the
-  next paid run.
+  `s04_skill_triggers.py`'s 25-skill routing coverage, up from the original 12,
+  which is 25 of the 31 shipped skill directories: the five Build/Test skills
+  the skills-independence refactor added carry no probe yet). The 20
+  description probes measured so far are green; the 2 explicit probes became
+  measurable only with the harness's registration-based detection rule and,
+  together with the 3 new description probes, are first measured by the next
+  paid run. Superseded as the routing instrument by acs-evals, whose
+  `routing.json` measurement covers every shipped skill with 30 probes × 5 runs
+  against a promoted baseline — strictly stronger than `s04`'s single sample,
+  which is kept on demand only.
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),
   G3 (verifier-clean within the cap), and G4 (PR ≤ ~400 lines, as the seed
-  diff); `session_end_safety_net` (free) covers the SessionEnd cleanup.
+  diff); `session_end_safety_net` (free) covers the SessionEnd cleanup. `s03`
+  (`resume_and_verify`) and `s02` (`create_ticket_artifacts`) are superseded by
+  acs-evals' PIPE-* scenarios, which drive `/acs:code` and `/acs:docs-sync`
+  end-to-end against a real fixture app; the free SessionEnd smoke stays here.
 - **E1.4 (done)** — the **free** tier is wired into
   [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml) as the
   `acs-free-evals` hook (gate + SessionEnd smoke, `$0`, no `claude`), running on
@@ -136,7 +144,14 @@ configured and have not yet been validated against a live remote.
   *Pre-commit hooks* CI job (`ACS_EVAL_SOURCE=1`, so it tests the committed
   source). The **paid** tier is a local, on-demand developer action; there is no
   dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
-  paid path runs green in CI before paid was moved local-only.)
+  paid path runs green in CI before paid was moved local-only.) Since **MAR-579**
+  it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
+  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
+  here are gated by the plugin's unit suite, the coverage hard-fail and the free
+  pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic, run today
+  from a local acs-evals checkout) becomes this repo's per-PR CI brake when the
+  acs-evals suite is imported into this repository — decided, not yet landed —
+  and paid measurement runs at release cadence from the acs-evals suite.
 
 #### Epic E2 — Tracker-sync depth *(parallel, lower priority)*
 

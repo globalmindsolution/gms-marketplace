@@ -18,15 +18,17 @@ deterministic at the base, most expensive and least deterministic at the top.
 | 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **23** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_cost_sampler.py`](../../tests/acs/test_cost_sampler.py), [`test_doc_bootstrap_fanout_legs.py`](../../tests/acs/test_doc_bootstrap_fanout_legs.py), [`test_epic_fan_out_mode.py`](../../tests/acs/test_epic_fan_out_mode.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_metrics_self_estimate_removed.py`](../../tests/acs/test_metrics_self_estimate_removed.py), [`test_needs_design_epic_only.py`](../../tests/acs/test_needs_design_epic_only.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_plan_approval.py`](../../tests/acs/test_plan_approval.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_session_marker.py`](../../tests/acs/test_session_marker.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_statusline.py`](../../tests/acs/test_statusline.py), [`test_subagent_statusline.py`](../../tests/acs/test_subagent_statusline.py), [`test_ticket_id_reconciliation.py`](../../tests/acs/test_ticket_id_reconciliation.py), [`test_workspace_migrator.py`](../../tests/acs/test_workspace_migrator.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring). `AcsWorkspaceCase.setUp` seeds a *reconciled* `counters.json` (MAR-402); a test that needs the reconciliation refusal calls `unreconcile()` first. | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
 | 4 | Free eval smoke | the *shipped build* still installs & gates; SessionEnd cleanup | free, deterministic | `evals/` (`install_gate_smoke`, `session_end_safety_net`) | pre-commit + CI |
-| 5 | Trigger evals | the *right skill fires* for a natural-language request | paid (cheap), ~deterministic w/ re-probe | `evals/skill_triggers` | on-demand |
-| 6 | Artifact / behavioral evals | a *real run* produces correct workspace artifacts | paid (costly), non-deterministic | `evals/` (`create_ticket_artifacts`, `resume_and_verify`) | pre-release |
+| 5 | Trigger evals | the *right skill fires* for a natural-language request | paid (cheap), ~deterministic w/ re-probe | acs-evals `make measure` (`routing.json`, 30 probes × 5 runs vs a promoted baseline); `evals/skill_triggers` superseded, on demand | per release, in acs-evals |
+| 6 | Artifact / behavioral evals | a *real run* produces correct workspace artifacts | paid (costly), non-deterministic | acs-evals PIPE-* fixture-app scenarios; `evals/` (`create_ticket_artifacts`, `resume_and_verify`) superseded, on demand | per release, in acs-evals |
 | 7 | Runtime reflection verifier | each individual run's output is correct (in-band, per-run) | part of normal use | the plan→execute→verify cycle inside every skill | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
 | 9 | LLM-as-judge *(not built)* | subjective quality — is the PRD/design *sound*? | paid + noisy | future | pre-release for product skills |
 
 Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
-`acs-free-evals` pre-commit hook). Layers 5–6 are the paid
-[eval harness](../../evals/README.md). Layer 7 is a *runtime control*, not a test.
+`acs-free-evals` pre-commit hook). Layers 5–6 are the paid tier, measured per
+release in **acs-evals**; the in-repo [eval harness](../../evals/README.md) is
+kept as an on-demand tool for the forge-tier scenarios. Layer 7 is a *runtime
+control*, not a test.
 
 ## Coverage today (per skill)
 
@@ -174,9 +176,11 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 4. **The verifier is the runtime gate; tests are the regression net.** The
    reflection verifier catches a bad run in the moment; evals catch a regression
    in the skill across changes. They are complementary, not redundant.
-5. **Cost-aware tiering.** Free tiers gate every commit/PR; the paid suite is a
-   **pre-release gate** (`python3 evals/run_evals.py --paid` before tagging).
-   Never put paid evals on a per-commit or scheduled path.
+5. **Cost-aware tiering.** Free tiers gate every commit/PR; the **pre-release
+   gate is acs-evals** (`make eval`, then `make measure` / `make perf` against
+   the release candidate), and the in-repo paid suite is an on-demand tool —
+   no longer a per-ticket or pre-release gate. Never put paid evals on a
+   per-commit or scheduled path.
 6. **Never assert equality or ordering on an `updated_at` value.**
    `acs_lib.now_iso()` is second-resolution (`acs_lib.py:392-393`); such an
    assertion survived an injected mutant in 17 of 20 runs in MAR-169.

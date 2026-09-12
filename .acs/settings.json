@@ -9,10 +9,6 @@
   },
   "adr_path": "docs/adr",
   "principles_path": "docs/principles",
-  "e2e": {
-    "command": "python3 evals/run_evals.py --plugin acs --paid",
-    "per_iteration": false
-  },
   "tracker": {
     "provider": "github",
     "github": {
@@ -109,12 +105,6 @@
       "trigger_paths": [
         ".claude-plugin/marketplace.json"
       ]
-    }
-  },
-  "suites": {
-    "e2e": {
-      "command": "python3 evals/run_evals.py --plugin acs --paid",
-      "per_iteration": false
     }
   },
   "tests": {
