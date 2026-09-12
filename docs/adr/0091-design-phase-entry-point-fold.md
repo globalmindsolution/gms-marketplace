@@ -84,9 +84,10 @@ a genuine Skill-tool call, so all of it fires exactly as on a standalone run.
 The fold changes exactly one thing: **who may invoke it.** A leg is not a
 command a user runs, it carries `disable-model-invocation: true` (the
 `install-hooks`/`update` precedent), and it appears in no phase list. Its own
-`/acs:<leg> <ticket-id>` form survives for one purpose — resuming a leg that
-failed, was interrupted or was handed off, which its entry point never does on
-its behalf.
+`/acs:<leg>` command survives for one purpose — resuming a leg that failed, was
+interrupted or was handed off, which its entry point never does on its behalf;
+what that resume takes is each leg's own unchanged `argument-hint` (the
+delivery-ticket id for the four doc legs, no argument for `create-project`).
 
 This is the load-bearing half of the decision, and it is a *mechanical*
 constraint rather than a preference: deleting a leg's SKILL.md would break the

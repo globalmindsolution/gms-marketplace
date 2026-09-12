@@ -155,9 +155,11 @@ its registered gate and its sentinel, and its entry point invokes it as a
 genuine Skill-tool call so all of that fires exactly as it would standalone.
 What changed is only who invokes them: each carries
 `disable-model-invocation: true`, so use the entry point instead. A leg's own
-`/acs:<leg> <ticket-id>` form survives for one purpose — resuming a leg that
-failed, was interrupted or was handed off, which its entry point never does on
-its behalf.
+`/acs:<leg>` command survives for one purpose — resuming a leg that failed, was
+interrupted or was handed off, which its entry point never does on its behalf.
+Each leg's own `argument-hint` says what that resume takes: the four doc legs
+take the delivery-ticket id, and `create-project` takes no argument at all (it
+finds its own unfinished scaffold ticket in `tickets-index.json`).
 
 | Leg | Entry point | Gate (input / brake) | What it does |
 |-----|-------------|----------------------|--------------|

@@ -80,9 +80,13 @@ never hand-picked:
   `create-api-contract`, `create-test-docs`, `create-e2e-tests`), the `test`
   alias directory (deliberately unprobed — its probe targets the name it
   forwards to, `run-e2e-tests`), and the design-phase fold's `project`
-  umbrella. Re-derive both figures with
-  `python3 -c "import ast,os; ..."` over `CASES` rather than trusting this
-  sentence: nothing pins the numbers in this document.
+  umbrella. Re-derive both figures rather than trusting this
+  sentence — nothing in this document pins them.
+  `tests/acs/test_eval_trigger_detection.py`'s `S04ProbeSetTest` already
+  derives exactly this comparison (the distinct `expected` skills in
+  `s04.CASES` versus the `plugins/acs/skills/*/` directories minus its
+  `UNPROBED` allowlist) and fails when the two drift, so running that module
+  IS the check; `UNPROBED` is the list of reasons above, in code.
   A case is decided one of two ways: a **model-invocable** skill by the first
   `Skill` tool_use its description probe provokes, and a skill that sets
   `disable-model-invocation: true` by the session's registration list for the

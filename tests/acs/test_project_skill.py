@@ -216,5 +216,63 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertEqual(acs_lib.entry_point_of(leg), "project")
 
 
+class NextStepSurfacesNameTheEntryPointTest(unittest.TestCase):
+    """The fold is only real if the surfaces that tell a user what to run next
+    name the ENTRY POINT.
+
+    `/acs:setup` and `/acs:create-architecture` both hand the user a next-step
+    line, and on a greenfield repo both of them pointed at
+    `/acs:create-project` -- which the fold made an internal leg whose entry
+    point is `/acs:project`. `/acs:setup`'s line is not even prose: the wizard
+    computes it (`setup_wizard.render_next_steps` / `PIPELINE_ORDER`) and
+    `setup/SKILL.md` Step 5 says it reports that rather than re-deriving one,
+    so the fix has to land in the wizard as well as in the two skills.
+
+    The leg names come from the registry, never a literal list here.
+    """
+
+    NEXT_LINE = re.compile(r"(?m)^- \*\*Next\*\*:.*$")
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, HOOKS_DIR)
+        import setup_wizard  # noqa: E402
+        cls.wizard = setup_wizard
+        cls.legs = sorted(acs_lib.skill_legs())
+
+    def _routing_text(self, skill):
+        """A skill's user-facing next-step surfaces: every `- **Next**:` line
+        plus any arrow-joined pipeline chain in its prose."""
+        body = read(os.path.join(SKILLS_DIR, skill, "SKILL.md"))
+        chunks = self.NEXT_LINE.findall(body)
+        chunks += [line for line in body.splitlines() if "\u2192" in line and "/acs:" in line]
+        chunks += [line for line in body.splitlines()
+                   if "next step" in line.lower() and "/acs:" in line]
+        return "\n".join(chunks)
+
+    def test_the_wizard_pipeline_names_the_entry_point(self):
+        self.assertIn("project", self.wizard.PIPELINE_ORDER)
+        for leg in self.legs:
+            with self.subTest(leg=leg):
+                self.assertNotIn(leg, self.wizard.PIPELINE_ORDER)
+
+    def test_the_wizard_next_steps_never_send_a_user_to_a_leg(self):
+        for greenfield in (True, False):
+            rendered = self.wizard.render_next_steps(greenfield)
+            flat = "\n".join(rendered["first"] + rendered["pipeline"] + [rendered["then"]])
+            for leg in self.legs:
+                with self.subTest(greenfield=greenfield, leg=leg):
+                    self.assertNotIn("/acs:%s" % leg, flat)
+        self.assertIn("/acs:project", self.wizard.render_next_steps(True)["first"])
+
+    def test_the_skills_that_route_onward_name_the_entry_point(self):
+        for skill in ("setup", "create-architecture"):
+            text = self._routing_text(skill)
+            self.assertIn("/acs:project", text, skill)
+            for leg in self.legs:
+                with self.subTest(skill=skill, leg=leg):
+                    self.assertNotIn("/acs:%s" % leg, text)
+
+
 if __name__ == "__main__":
     unittest.main()

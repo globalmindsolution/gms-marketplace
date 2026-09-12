@@ -203,7 +203,7 @@ the solo-maintainer caveat, so you report them rather than re-deriving them.
 
 Repeat any unmet toolchain install hint, and confirm the workflow is ready:
 `/acs:setup`, then Design — `/acs:create-prd` → `/acs:create-architecture` →
-`/acs:create-project` → `/acs:create-ticket` → `/acs:create-design` → `/acs:code`
+`/acs:project` → `/acs:create-ticket` → `/acs:create-design` → `/acs:code`
 is no longer one fixed chain: Build/Test/Ship order is declared in
 `workflows/ship.yaml` (`acs.py workflow show` prints it) and walked by
 `/acs:ship <ticket-id>` to the PR, then `/acs:merge-pr <id>`. Offer the workspace
@@ -225,5 +225,5 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus `/acs:create-project`; then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
+- **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus `/acs:project`; then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
 ```

@@ -156,12 +156,55 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
             "only disable-model-invocation skills; the fold added %d legs"
             % len(lib.skill_legs()))
 
+    def test_the_re_derivation_hint_is_real_not_a_placeholder(self):
+        """The Trigger bullet tells a reader to re-derive its two figures. An
+        elided `python3 -c "...; ..."` stub is not a command anyone can run --
+        the hint must name the module that actually derives them."""
+        body = _read(self.STRATEGY)
+        self.assertNotRegex(body, r"python3 -c \"[^\"]*\.\.\.")
+        self.assertIn("test_eval_trigger_detection.py", body)
+        self.assertIn("UNPROBED", body)
+
     def test_strategy_states_the_legs_carry_the_flag_too(self):
         body = _read(self.STRATEGY)
         self.assertIn("internal leg", body)
         self.assertRegex(
             body, r"(?s)disable-model-invocation.{0,1500}description probe can "
                   r"never route")
+
+
+class LegResumeFormPinTest(unittest.TestCase):
+    """The fold's docs say a leg's own command survives for RESUME. Two of them
+    spelled that as a single universal template, `/acs:<leg> <ticket-id>` --
+    which is false for a leg whose own frontmatter takes no argument at all
+    (`create-project`, argument-hint `(no arguments)`, resumes by finding its
+    own unfinished scaffold ticket in `tickets-index.json`). The legs and their
+    argument-hints come from disk; only the claim is pinned here.
+    """
+
+    ADR = os.path.join(ADR_DIR, "0091-design-phase-entry-point-fold.md")
+    TEMPLATE = "`/acs:<leg> <ticket-id>`"
+
+    def _argumentless_legs(self):
+        found = set()
+        for leg in lib.skill_legs():
+            fm = _read(os.path.join(SKILLS_DIR, leg, "SKILL.md")).split("---")[1]
+            if re.search(r'(?m)^argument-hint: "\(no arguments\)"$', fm):
+                found.add(leg)
+        return found
+
+    def test_a_leg_that_takes_no_argument_exists(self):
+        """Ground truth: without one, the pin below would be vacuous."""
+        self.assertIn("create-project", self._argumentless_legs())
+
+    def test_no_doc_claims_one_universal_ticket_id_resume_form(self):
+        for path in (ACS_README, self.ADR):
+            with self.subTest(doc=os.path.basename(path)):
+                self.assertNotIn(self.TEMPLATE, _read(path),
+                                 "%s presents %s as every leg's resume form, but "
+                                 "%s take no argument"
+                                 % (os.path.basename(path), self.TEMPLATE,
+                                    ", ".join(sorted(self._argumentless_legs()))))
 
 
 class AdrIndexCompletenessTest(unittest.TestCase):

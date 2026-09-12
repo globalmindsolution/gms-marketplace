@@ -368,8 +368,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --tick
 
 3. Report a compact summary to the user: mode, files written, verifier
    iterations, PR URL, and that /acs:merge-pr (after their review) lands it
-   — for a greenfield product, /acs:create-project is the next step once
-   merged. If you genuinely cannot reach the user (a non-interactive run),
+   — for a greenfield product, /acs:project is the next step once
+   merged (the entry point; it detects greenfield from on-disk evidence and
+   dispatches to its create-project leg itself). If you genuinely cannot reach the user (a non-interactive run),
    return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,
    artifact refs (doc-set path, result.json, PR URL), and `<next-step>`.
 
@@ -389,5 +390,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
-- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-project` (greenfield) or `/acs:create-ticket` (brownfield)
+- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:project` (greenfield) or `/acs:create-ticket` (brownfield)
 ```
