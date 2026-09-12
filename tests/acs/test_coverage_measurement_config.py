@@ -97,7 +97,7 @@ class TestCoveragercOmitList(unittest.TestCase):
             for fname in _true_forwarders()
         }
         self.assertEqual(set(entries), expected)
-        self.assertEqual(len(entries), 29)
+        self.assertEqual(len(entries), 39)
         for entry in entries:
             self.assertTrue(entry.startswith("${ACS_COV_ROOT}/"), entry)
 

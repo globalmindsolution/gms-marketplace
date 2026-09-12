@@ -50,6 +50,9 @@ DEFAULT_SETTINGS = {
     "principles_path": "docs/principles",
     "standards_path": "docs/standards",
     "suites": {},
+    "workflow": {"advisories": True},
+    "artifacts": {"tickets_path": "docs/tickets"},
+    "contracts_path": "docs/api",
     "tracker": {"provider": "local"},
     "models": {},
     "formats": {

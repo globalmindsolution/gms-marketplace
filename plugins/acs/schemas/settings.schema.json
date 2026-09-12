@@ -146,6 +146,30 @@
       },
       "additionalProperties": true
     },
+    "workflow": {
+      "description": "Orchestration settings. The pipeline ORDER itself lives in workflows/ship.yaml (the plugin default, or the consumer override at .acs/workflows/ship.yaml, which replaces it wholesale). advisories: when a hooked skill runs out of that declared order (its `needs` are not satisfied for the ticket), its pre-hook prints one stderr advisory naming the position and continues; false silences the line. Never a refusal either way — skills keep only input and safety checks.",
+      "type": "object",
+      "properties": {
+        "advisories": {"type": "boolean", "default": true}
+      },
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "description": "Where the human-facing ticket documents live. tickets_path: repo-relative folder holding <ID>/ticket.md, design.md, analysis.md, api-contract.md, plan.md and test-cases.md (the run ledger — <skill>-state.json, pipeline-state.json, verdicts, locks — stays in the workspace partition). Explicit null keeps every artifact in the workspace partition exactly as before the docs tree existed.",
+      "type": "object",
+      "properties": {
+        "tickets_path": {
+          "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
+          "default": "docs/tickets"
+        }
+      },
+      "additionalProperties": true
+    },
+    "contracts_path": {
+      "description": "Where /acs:create-api-contract keeps the repo's machine-readable API contract files, updated on the ticket branch alongside the ticket's api-contract.md. Explicit null = the ticket folder only, no repo-level contract files.",
+      "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
+      "default": "docs/api"
+    },
     "models": {
       "description": "Per-role subagent model and reasoning effort. Resolution per field: overrides.<skill>.<role> -> <role> -> inherit.",
       "type": "object",
@@ -156,7 +180,7 @@
         "overrides": {
           "type": "object",
           "propertyNames": {
-            "enum": ["code", "create-architecture", "create-design", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
+            "enum": ["analyze-ticket", "code", "create-api-contract", "create-architecture", "create-design", "create-e2e-tests", "create-impl-plan", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
           },
           "additionalProperties": {
             "type": "object",

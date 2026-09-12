@@ -8,19 +8,22 @@
   "properties": {
     "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "flow": {
-      "description": "ticket = the six-step workflow pipeline; product = a product-level delivery ticket (PRD / architecture / scaffold).",
+      "description": "ticket = the ticket delivery pipeline workflows/ship.yaml declares; product = a product-level delivery ticket (PRD / architecture / scaffold).",
       "enum": ["ticket", "product"]
     },
     "steps": {
       "type": "object",
       "propertyNames": {
-        "enum": ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements", "create-ticket", "create-design", "code", "test", "docs-sync", "create-pr", "merge-pr"]
+        "enum": ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements", "create-ticket", "create-design", "analyze-ticket", "create-impl-plan", "create-api-contract", "create-test-docs", "code", "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr", "merge-pr"]
       },
       "additionalProperties": {
         "type": "object",
         "required": ["status"],
         "properties": {
-          "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
+          "status": {
+            "description": "skipped = workflows/ship.yaml recorded this step as not applicable for this ticket (its `when` predicate is false); it counts as satisfied for the walk and is never re-run unless the predicate turns true.",
+            "enum": ["in_progress", "completed", "failed", "interrupted", "handed_off", "skipped"]
+          },
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
           "summary": {

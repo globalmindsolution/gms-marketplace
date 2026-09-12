@@ -2,79 +2,152 @@
 
 ## Pipeline
 
-The `acs` plugin implements a multi-step delivery workflow. Five **workflow
-skills** — `/create-ticket`, `/code`, `/docs-sync`, `/create-pr`,
-`/merge-pr` — MUST run in the following order for a given ticket;
-`/create-design` is a **planning skill**, conditional on `needs_design`, not
-counted among the five (see below):
+The `acs` plugin implements a multi-step delivery workflow. Every skill
+belongs to exactly one of five **phases** — design, build, test, ship,
+utility — declared in the registry `plugins/acs/workflows/phases.yaml`; and
+the ORDER in which a ticket's build/test/ship steps run is **declared data,
+not hook code**: it lives in `plugins/acs/workflows/ship.yaml`, which a
+consumer repo MAY replace wholesale with `<repo>/.acs/workflows/ship.yaml`
+(an override, never a merge).
 
-| # | Skill | Purpose (summary) |
-|---|-------|-------------------|
-| 1 | `/create-ticket` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
-| 2 | `/create-design` | *(planning step, conditional on `needs_design`)* Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not `/code` — the epic's own ticket never proceeds to `/code`. |
-| 3 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
-| 4 | `/docs-sync` | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
-| 5 | `/create-pr` | Create a pull request shipping the implementation. |
-| 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
+Two requirements follow, and together they are what "pipeline" now means:
 
-`/create-design` runs only for tickets flagged **`needs_design: true`** —
-set for **epics only**; stories/tasks are always `false`. Child tickets of
-an epic do **not** repeat design: their `/code` consumes the parent
-epic's `design.md`.
+- **Every skill MUST be runnable on its own.** A skill's pre-hook MUST NOT
+  refuse it for running before or after another skill; it checks only the
+  inputs that skill reads plus a small set of safety brakes
+  ([hooks.md](hooks.md)).
+- **The declared order is authoritative for orchestration only.** `/ship`
+  walks `ship.yaml` and nothing else; a skill invoked by hand out of that
+  order MUST still run, after one advisory line on stderr.
+
+`/create-ticket` and `/create-design` are **design** work that runs before
+`/ship`; `/merge-pr` is **ship** work a human drives after review. None of
+the three may appear in `ship.yaml` — it may name build, test and ship
+skills only, and never `/merge-pr` or `/release`.
+
+| Step (`ship.yaml` id) | Phase | Runs | Purpose (summary) |
+|-----------------------|-------|------|-------------------|
+| — `/create-ticket` | design | before `/ship` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
+| — `/create-design` | design | before `/ship`, when `needs_design` | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. |
+| `analyze-ticket` | build | always | Read the ticket, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the walk branches on. A not-ready analysis returns `needs_input`. |
+| `create-impl-plan` | build | `requires: design_approved` | The plan phase carved out of `/code`: planner agent, spec fold, executor file map, plan approval and the plan-revocation path, ending in an approved `plan.md`. |
+| `create-api-contract` | build | `when: api_surface_changed` | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
+| `create-test-docs` | build | always | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. |
+| `code` | build | always (`exclusive`) | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. Its verifier reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
+| `create-e2e-tests` | test | `when: e2e_configured` | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. Runs **in parallel with `docs-sync`** — both need only `code`. |
+| `docs-sync` | build | always | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
+| `run-e2e-tests` | test | `when: post_code_test_active` | Run this product's configured suites for the ticket (`--for-ticket <id>`), scoped from `test-cases.md`. On failure the step's `on_fail` relays back into `code`, bounded by `post_code_test_fix_loops_cap`. |
+| `create-pr` | ship | `stop_after` | Create a pull request shipping the implementation. `/ship` stops here. |
+| — `/merge-pr` | ship | after `/ship`, user-invoked | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
+
+A step's condition is one of two kinds, and the difference is load-bearing:
+
+- **`when: <predicate>`** — a false predicate means the step does not apply
+  to this ticket. The walk records it `skipped` in `pipeline-state.json`
+  (with the reason) and treats it as satisfied, so everything downstream of
+  it proceeds.
+- **`requires: <predicate>`** — a false predicate means the step is not
+  allowed to proceed *yet*. The walk reports `blocked_by` with a human
+  pointer (for example, "run /acs:create-design MAR-12 first") and lists no
+  ready step; nothing downstream proceeds.
+
+The predicate vocabulary is closed — a workflow file naming an unknown
+predicate fails validation with its line number:
+
+| Predicate | True when |
+|-----------|-----------|
+| `design_approved` | the ticket needs no design; or its own (or its parent epic's) `design.md` exists **and** the ledger records `/create-design` completed for that ticket. |
+| `api_surface_changed` | `analysis.md`'s front matter declares `api_surface: true`. |
+| `e2e_configured` | `settings.e2e` or `settings.suites.e2e` is configured ([configuration.md](configuration.md)). |
+| `post_code_test_active` | `settings.post_code_test.enabled` when it is set; otherwise `e2e_configured`. |
 
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
     T -->|needs design, epic| D[/create-design/]
-    D -->|child inherits the design| C
-    T -->|otherwise| C[/code/]
     D -->|epic: after design| FO[/create-ticket --fan-out/]
-    FO -->|per child| C
+    FO -->|per child| A
+    D -->|child inherits the design| A
+    T -->|otherwise| A[/analyze-ticket/]
+    A --> PL[/create-impl-plan/]
+    PL -->|when api_surface_changed| AC[/create-api-contract/]
+    PL --> TD[/create-test-docs/]
+    AC --> TD
+    TD --> C[/code/]
     C --> DS[/docs-sync/]
+    C -->|when e2e_configured| E[/create-e2e-tests/]
+    E -->|when post_code_test_active| RE[/run-e2e-tests/]
     DS --> P[/create-pr/]
+    RE --> P
     P --> M[/merge-pr/]
-
-    T -. "ticket JSON" .-> W[(workspace/<repo>/<ticket-id>/)]
-    D -. "design.md + state" .-> W
-    FO -. "child ticket JSONs" .-> W
-    C -. "code-state.json incl. review findings" .-> W
-    DS -. "docs-sync state" .-> W
-    P -. "pr state" .-> W
-    M -. "merge state" .-> W
-    W -. "pre-hooks read predecessor state" .-> T & D & FO & C & DS & P & M
 ```
 
-> **NOTE (MAR-160):** A new hooked skill, `/docs-sync`, now runs after `/code`
-> (and the post-code `/test` step, when it ran) and before `/create-pr`, on
-> the SAME ticket branch — additional commits, same PR/review, never a
-> separate PR. It independently re-derives doc impact from
-> `git diff <default_branch>...HEAD`, `/code`'s `result.json`
-> (`docs_updated`), and the final code-verify artifact, rather than trusting
-> a hand-off summary. See [hooks.md](hooks.md) and `ship/SKILL.md`
-> "Pipeline order" / "Picking the next step".
+`/create-design` runs only for tickets flagged **`needs_design: true`** —
+set for **epics only**; stories/tasks are always `false`. Child tickets of
+an epic do **not** repeat design: their `design_approved` predicate resolves
+against the parent epic's `design.md`.
+
+### Where a ticket's artifacts live
+
+The workflow reads and writes two distinct stores, and a requirement in this
+document belongs to exactly one of them:
+
+- **The repo docs tree** — `<repo>/<settings.artifacts.tickets_path>/<ID>/`
+  (default `docs/tickets/<ID>/`) holds the **human-facing ticket documents**:
+  `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`,
+  `test-cases.md`. They are committed on the ticket branch and reviewed in
+  the PR like any other doc. Setting `artifacts.tickets_path` to `null`
+  keeps every one of them in the workspace partition instead, exactly as
+  before this split.
+- **The workspace partition** — `<workspace>/<repo>/<ticket-id>/` holds the
+  **run ledger**: `<skill>-state.json`, `pipeline-state.json`, phase
+  artifacts, verdicts, `.lock`, `clarifications.json`, and the repo-level
+  index/metrics files ([workspace-and-state.md](workspace-and-state.md)).
+
+A ticket's `status` is **derived** from the ledger, never stored alongside
+the ticket's own fields, so the two can no longer disagree
+([workspace-and-state.md](workspace-and-state.md)).
 
 ## Step gating
 
-- Each workflow skill MUST be guarded by a **pre-hook** that checks readiness
-  before the skill runs. Readiness means, at minimum: the predecessor skill's
-  state file exists in `<workspace>/<repo>/<ticket-id>/` and reports **completed**.
-  The conditional design step branches the chain: `/code`'s predecessor is
-  `/create-design` when a **child** ticket's parent epic needs design (a
-  child inherits, never reruns, its epic's design), otherwise
-  `/create-ticket`; `/create-design`'s own gate additionally requires
-  `needs_design: true`. For an **epic** itself, the step that follows
-  `/create-design` is the fan-out run
-  (`/acs:create-ticket <epic-id> --fan-out`), never `/code` — the epic's own
-  ticket never proceeds to `/code`.
-- If the predecessor is not complete, the pre-hook MUST exit with code **2**,
-  which blocks the skill from running, and SHOULD emit a clear message telling
-  the user which skill to run first.
-  - Example: `pre-code.py` is unconditional on lane once `/create-ticket` has
-    completed (`gate_code` in `acs_lib.py`); e.g. `/code` blocked when
-    `/create-ticket` has not completed, and `/code` blocked when the ticket
-    is an `epic` (epics are never implemented directly — break the epic down
-    and run `/code` on a child).
-- Each workflow skill MUST be followed by a **post-hook** that writes the
+Gating is **input gating and safety braking**, not order enforcement. The
+pipeline's order lives in `ship.yaml` ([Pipeline](#pipeline)); a pre-hook's
+job is to make sure the skill it guards can do its work at all, and to stop a
+run that would be unsafe.
+
+- Each hooked skill MUST be guarded by a **pre-hook**. Readiness means, at
+  minimum: the `.acs` `settings.json` resolves, the `<ticket-id>` partition
+  resolves, no other session holds the ticket's `.lock`, and every **input
+  artifact the skill itself reads** exists. Examples: `/code` requires an
+  approved `plan.md`; `/create-api-contract` requires `plan.md` **and** an
+  `analysis.md` declaring `api_surface: true`; `/create-e2e-tests` requires a
+  configured e2e suite **and** at least one e2e-typed case in
+  `test-cases.md`; `/create-architecture` requires the PRD doc set.
+- A pre-hook MUST NOT require that a *predecessor skill completed*. The
+  primitive that did so was removed with the skills-independence refactor:
+  running `/docs-sync` before `/code`, or `/create-pr` before `/docs-sync`,
+  is allowed and produces whatever those skills can honestly produce from the
+  inputs present.
+- **Safety brakes stay**, because they protect correctness rather than
+  sequence: epics are never implemented (`/code`, `/analyze-ticket` and
+  `/create-impl-plan` refuse an epic with an actionable breakdown message);
+  `/create-pr` refuses a ticket whose recorded `/code` run left
+  `verifier_passed != true` (a ticket with **no** recorded code run is
+  allowed through); `/merge-pr` requires a recorded PR reference; every
+  hooked skill refuses while another session holds the lock.
+- If a required input is missing, the pre-hook MUST exit with code **2**,
+  which blocks the skill, and MUST name the artifact and the skill that
+  produces it (e.g. "no plan.md found for SHOP-123 … — run
+  /acs:create-impl-plan SHOP-123 first.").
+- **Out-of-order is an advisory, never a refusal.** When a hooked skill runs
+  whose `ship.yaml` `needs` are not satisfied for this ticket, the pre-hook
+  MUST print exactly one stderr line naming the position — e.g.
+  `acs: docs-sync normally follows code in ship.yaml; code has not completed
+  for SHOP-123` — and exit **0**. The line is suppressed when
+  `settings.workflow.advisories` is `false` (default `true`), when the skill
+  is not a step of the resolved workflow, and whenever anything it needs
+  cannot be read — an advisory MUST never turn into a blocked gate.
+- Each hooked skill MUST be followed by a **post-hook** that writes the
   skill's own state into a JSON state file in the workspace
   (e.g. `post-code.py` writes `code-state.json`).
 
@@ -84,17 +157,44 @@ requirements.
 
 ## Umbrella command: `/ship`
 
-`/ship <prompt>` drives the pipeline end-to-end: it MUST run
-`/create-ticket` → `/create-design` (when the ticket needs design) →
-`/code` → `/test` (when e2e is configured) → `/docs-sync` →
-`/create-pr` in sequence, pausing for user
-clarifications wherever a skill requires them, and MUST **stop before
-`/merge-pr`** — the PR is landed separately after review.
+`/ship <ticket-id>` drives the declared pipeline end-to-end for **one
+existing ticket**. It takes a **ticket id only**: a non-id argument MUST be
+refused with a pointer at the design phase ("ship takes a ticket id; run
+/acs:create-ticket \"<prompt>\" and then /acs:ship <id>"), and an epic id
+with the design-and-fan-out pointer — an epic's own ticket is never
+implemented.
 
-- Every hook gate still applies: `/ship` adds orchestration only and MUST NOT
-  bypass pre/post hooks.
-- SHOULD be resumable: re-running `/ship` for a ticket continues from the
-  first incomplete step recorded in the workspace state.
+`/ship` MUST NOT hard-code the order. It is a **loop over
+`acs.py workflow next`**:
+
+1. Ask `workflow next` for the ticket's READY steps, evaluated from
+   `ship.yaml` against `pipeline-state.json`.
+2. In `single` mode, invoke the one ready skill with its declared `args` and
+   handle its handoff exactly as before (`completed` / `needs_input` /
+   `failed` / `handed_off`).
+3. In `parallel` mode, fan the ready steps out as **legs** — one subagent per
+   step, each in its own git worktree on a leg branch cut from the ticket
+   branch head, so two legs never share an index. When every leg has
+   returned, merge each leg branch back into the ticket branch in file order;
+   a conflict stops the pipeline naming both legs. A failed leg does not
+   cancel its siblings — it is simply ready again on the next `workflow
+   next`.
+4. Repeat until `workflow next` reports `done` (its `stop_after` step, by
+   default `create-pr`, is satisfied).
+
+- `/ship` MUST **stop before `/merge-pr`** — the PR is landed separately
+  after review; `merge-pr` may not appear in a workflow file at all.
+- Every hook still runs on every step: `/ship` adds orchestration only and
+  MUST NOT bypass pre/post hooks. Because gates no longer encode order,
+  `/ship`'s walk is the only thing that sequences the pipeline — which is
+  precisely why it reads the declared file rather than its own prose.
+- SHOULD be resumable: re-running `/ship <ticket-id>` re-evaluates
+  `workflow next` against the ledger and continues from whatever is ready.
+- A step carrying `boundary: full_verify_stop` applies the full-verify
+  pipeline boundary after it completes; a step carrying `on_fail` applies the
+  bounded fix-loop counter; a step carrying `on_replan` is re-run (and then
+  its dependants) when the ticket's `code` run ends with
+  `stop_reason: plan_superseded`.
 - `/ship` has no planner/executor/verifier of its own; each invoked skill
   runs its own reflection cycle.
 
@@ -106,8 +206,10 @@ every skill's transcript in one context:
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
   planner/executor/verifier). Between steps it reads only `pipeline-state.json`,
-  `ticket.json`, and the step's `<handoff>` / `result.json` — never the step's
-  transcript — so its own context stays small.
+  the ticket's own document (`ticket.md` in the docs tree, or `ticket.json`
+  when `artifacts.tickets_path` is `null`), the output of
+  `acs.py workflow next`, and the step's `<handoff>` / `result.json` — never
+  the step's transcript — so its own context stays small.
   - Exception: `code`'s full reflection cycle runs inside the coordinator's
     own context, so at full verify depth the two rules are reconciled by
     the boundary stop after `code` rather than by compaction
@@ -176,14 +278,17 @@ Done.
 
 ## Inside each step: Reflection
 
-Every one of the twelve **triad-keeping** workflow and product-level skills
+Every one of the sixteen **triad-keeping** skills
 MUST internally run a **plan → execute → verify** cycle using a dedicated
-subagent per phase (e.g. `code-planner`, `code-executor`, `code-verifier`) —
-with one exception: for `/acs:code`, the plan phase's dedicated subagent is
-spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors
-the plan artifact itself, with zero planner spawns (MAR-72, ADR 0074). The
-execute and verify phases keep dedicated subagents in every lane, for
-`/acs:code` and for the other eleven triad-keeping skills.
+subagent per phase (e.g. `docs-sync-planner`, `docs-sync-executor`,
+`docs-sync-verifier`) — with
+one exception: for `/create-impl-plan`, the plan phase's dedicated subagent is
+spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors the
+plan artifact itself, with zero planner spawns (MAR-72, ADR 0074). `/acs:code`
+is the one hooked skill with **no planner of its own** — its plan phase became
+`/create-impl-plan` — and runs execute → verify against that approved plan;
+the execute and verify phases keep dedicated subagents in every lane, for
+`/acs:code` and for every triad-keeping skill.
 The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator, optionally delegating to at most
 one `<skill>-executor` subagent, spawns no planner and no verifier in any
@@ -231,11 +336,12 @@ off.
 Resume works at three levels, all from workspace state alone:
 
 1. **Between steps** — `pipeline-state.json` and the per-skill state files
-   record what is complete; pre-hook gates point at the next step. Running
-   the next skill in any fresh session continues the pipeline.
-2. **Within `/ship`** — re-running `/ship` for a ticket reads
-   `pipeline-state.json` and continues from the first incomplete step
-   ([Context handoff](#context-handoff-between-steps)).
+   record what is complete; `acs.py workflow next` reads that ledger and
+   names the step(s) now ready. Running any skill in any fresh session
+   continues the pipeline — nothing has to be run in order to be allowed.
+2. **Within `/ship`** — re-running `/ship <ticket-id>` re-evaluates
+   `workflow next` against the same ledger and continues from whatever is
+   ready ([Context handoff](#context-handoff-between-steps)).
 3. **Mid-skill** — a run entry is appended with status **`in_progress`** by
    the coordinator at skill start and finalized by the post-hook, and the
    coordinator persists every phase output (plan, executor results, verifier
@@ -298,6 +404,16 @@ would require a shared or synced workspace — out of scope for now.
   primitive per leg, with each leg entering its own worktree at its own
   Branch step, before that leg's Execute phase.
   See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+- A third mechanism, **step-level fan-out within one ticket**, comes from the
+  declared workflow itself: when `acs.py workflow next` finds more than one
+  READY step, none of them `exclusive`, and `max_parallel` greater than 1, it
+  reports `mode: parallel` and lists up to `max_parallel` steps. `/ship` then
+  runs each as a **leg** — its own subagent, its own git worktree, its own leg
+  branch cut from the ticket branch head — and merges the leg branches back
+  into the ticket branch in file order when every leg has returned. In the
+  default `ship.yaml` this is what makes `create-e2e-tests` and `docs-sync`
+  run side by side: both need only `code`. A step marked `exclusive: true`
+  (`code`) always runs alone.
 
 ## Product-level architecture
 

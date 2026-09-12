@@ -12,10 +12,15 @@ it always did. In dependency order:
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
-  gates          context resolution, the pre-hook gates, post-hook persistence
+  gate_inputs    the ticket-artifact input checks the Build/Test gates share
+  gates          context resolution, the input/brake gates, post-hook persistence
+  advisory       the out-of-order advisory line the pre-hook prints (never a refusal)
   verdict        the verifier's verdict document and its derived-pass rule
   derive         the result-document fields the kernel computes from artifacts
   lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
+  yamlsubset     the strict YAML subset the workflow files and front matter use
+  workflow       phases registry, ship.yaml resolution/validation, predicates, `workflow next`
+  artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -24,7 +29,7 @@ module (`lib.subprocess`), patch the shared module object as before.
 """
 
 from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
-               forge, verdict, derive, gates, lifecycle)  # noqa: F401
+               forge, verdict, derive, gate_inputs, gates, lifecycle, advisory)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -84,15 +89,20 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, TOOLCHAIN, _BARE_INT
     parse_fanout_for_arg, render_managed_block, tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
-from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATES, _archive_partition, _clear_pointers_for_ticket,
+from .gate_inputs import LEGACY_ARTIFACT_PATHS, e2e_case_count  # noqa: F401
+from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATE_INPUTS, GATES,
+    _archive_partition, _clear_pointers_for_ticket,
     _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
-    _require_architecture_doc_set, _require_completed, _resolve_ticket_for_gate,
-    build_context, design_requirement, gate_code, gate_create_architecture,
-    gate_create_design, gate_create_operations, gate_create_pr, gate_create_prd,
-    gate_create_principles, gate_create_project, gate_create_quality,
-    gate_create_requirements, gate_create_standards, gate_create_ticket,
-    gate_docs_sync, gate_merge_pr, gate_standardize_project, parent_epic_dir, run_post,
-    run_post_exempt_pr, run_pre, run_pre_payload, session_end)  # noqa: F401
+    _require_architecture_doc_set, _resolve_ticket_for_gate,
+    build_context, design_requirement, gate_analyze_ticket, gate_code,
+    gate_create_api_contract, gate_create_architecture, gate_create_design,
+    gate_create_e2e_tests, gate_create_impl_plan, gate_create_operations, gate_create_pr,
+    gate_create_prd, gate_create_principles, gate_create_project, gate_create_quality,
+    gate_create_requirements, gate_create_standards, gate_create_test_docs,
+    gate_create_ticket, gate_docs_sync, gate_merge_pr, gate_standardize_project,
+    parent_epic_dir, run_post, run_post_exempt_pr, run_pre, run_pre_payload,
+    session_end)  # noqa: F401
+from .advisory import ADVISORY_MARK, render_advisory, workflow_advisory  # noqa: F401
 
 # Re-exported so `lib.subprocess` / `lib.os` keep resolving: patching
 # `acs_lib.subprocess.run` patches the shared module object every submodule sees.
@@ -124,3 +134,20 @@ from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_
 from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
     derive_verifier_passed, disagreements, execute_reports, gh_pr_for_branch,
     guard_denials, latest_verdict, review_iterations)  # noqa: F401
+
+from . import yamlsubset, workflow  # noqa: F401,E402
+from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
+from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # noqa: F401
+    MAX_LOOPS_NAMES, OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS, PREDICATES,
+    SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WorkflowError,
+    allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
+    e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
+    pending_needs, phase_of, phases_path, post_code_test_active,
+    post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_aliases,
+    ticket_artifact_path, ticket_context, validate_workflow, validate_workflow_file)
+
+from . import artifacts  # noqa: F401,E402
+from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
+    artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
+    ticket_docs_root, ticket_source)
+from .artifacts import migrate as migrate_artifacts  # noqa: F401

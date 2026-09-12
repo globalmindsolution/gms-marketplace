@@ -19,17 +19,21 @@ Your prompt contains one `<task skill="code" phase="verify" ticket-id="SHOP-123"
 iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 
 - `<objective>` — verify this iteration's combined changeset;
-- `<inputs>` — absolute file paths: every `<partition>/specs/*.md`,
-  `<partition>/ticket.json`, `design.md` when the ticket or its parent epic has
-  one, and the plan artifact `<partition>/phases/code/plan.md` (the path
-  supplied in `<inputs>`; read ONLY its `## Verifier checklist` — it is a
-  floor, never a ceiling). On TRIVIAL/SMALL this plan artifact may be
-  coordinator-authored rather than `code-planner`-authored (MAR-72); judge it
-  identically either way — dimensions 1, 8, 9, and 13 apply in full and are
-  never waived on authorship grounds. Also `<partition>/phases/code/plan-approval.json`,
+- `<inputs>` — absolute file paths: every `<partition>/specs/*.md`, the ticket
+  document, `design.md` when the ticket or its parent epic has
+  one, and the plan artifact `plan.md` — the path supplied in `<inputs>`, which
+  the coordinator resolved (the ticket's docs folder, the partition, or the
+  pre-docs-tree `<partition>/phases/code/plan.md`); read ONLY its
+  `## Verifier checklist` — it is a
+  floor, never a ceiling. `/acs:create-impl-plan` wrote that plan; on
+  TRIVIAL/SMALL it is coordinator-authored rather than planner-authored.
+  Judge it identically either way — dimensions 1, 8, 9, and 13 apply in full
+  and are never waived on authorship grounds. Also `test-cases.md` and
+  `api-contract.md` when they exist (dimensions 1 and 9), and
+  `<partition>/phases/code/plan-approval.json`,
   when present — the verifier reads this itself for dimension 15; it is never
   supplied as a coordinator-relayed value. READ EVERY ONE. Derive `<partition>`
-  from the directory containing `ticket.json`;
+  from the directory containing the run ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
   plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
   when set (full-depth lens spawns only — see Multi-lens review);
@@ -48,7 +52,7 @@ ALL of the following — every dimension that fails produces blocking findings:
 
 1. **Acceptance-criteria conformance** — the review loop's fixed point:
    extract every `ticket.acceptance_criteria`/DoD entry from
-   `<partition>/ticket.json` FRESH, EVERY iteration — re-read the file from
+   the ticket document FRESH, EVERY iteration — re-read the file from
    disk. You MUST NOT accept the current iteration's plan artifact's
    restatement of `acceptance_criteria` as authoritative, and MUST NOT reuse
    a value cached from an earlier iteration. Rebuild the AC-to-implementation
@@ -67,13 +71,21 @@ ALL of the following — every dimension that fails produces blocking findings:
    **Structure sub-check** (only when the fold was active). Run `Bash python3
    ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py --sections "Scope;
    Approach; API/data changes; Test plan; Out of scope" --ordered
-   <plan path>` — the plan path supplied in `<inputs>`, i.e.
-   `<partition>/phases/code/plan.md`. Each stderr `source:line:
+   <plan path>` — the plan path supplied in `<inputs>`, wherever
+   `/acs:create-impl-plan` published it. Each stderr `source:line:
    [rule] message` finding becomes one `<finding severity="blocking"
    dimension="acceptance-criteria conformance">`; exit 0 = pass; exit 2
    (usage error / unreadable file) is itself a blocking finding. This
    five-heading list is a FIXED literal here, not sourced from any settings
    key — no configurable mechanism for it exists in this ticket's scope.
+
+   **Test-case traceability sub-check** (only when `test-cases.md` is in
+   `<inputs>`). Each row of the AC-to-implementation matrix cites the `TC-n`
+   ids covering that AC, read from `test-cases.md` and matched against the
+   tests actually in the diff (the executor names the id in each test's
+   docstring). A `TC-n` with no test, or a cited id that does not exist in
+   `test-cases.md`, is a finding; a test carrying no id is not, as long as its
+   AC is covered.
 2. **Tests** — RE-RUN the full suite yourself with the repo's own commands;
    all green. New tests genuinely exercise the specs' test plans and the
    ticket's acceptance criteria — read them; assertion-free or
@@ -128,6 +140,15 @@ ALL of the following — every dimension that fails produces blocking findings:
    no separately-authored spec set exists (the fold was active), also judge
    the folded plan artifact's Approach/API-data-changes content the same way,
    in addition to the changeset itself.
+   **Contract-conformance sub-check** (only when `api-contract.md` is in
+   `<inputs>`): every endpoint/command/message the contract specifies is
+   implemented with the declared request/response shapes and error codes, and
+   the changeset adds no public surface the contract does not describe. A
+   divergence is `<finding severity="blocking" dimension="system design">`
+   naming the contract item and the implementing file; when the implementation
+   is right and the contract is stale, say so in the finding — the fix is a
+   `/acs:create-api-contract` re-run, not a silent drift. Report "N/A — no
+   api-contract.md" positively when there is none.
 10. **Security** — no injected vulnerabilities, hardcoded secrets, injection
     surfaces, unsafe input handling, or missing authn/authz on new paths.
 11. **Documentation** — of this dimension's four sub-checks, three are
@@ -233,6 +254,10 @@ ALL of the following — every dimension that fails produces blocking findings:
     therefore never a conformance contract; (4) `sha256` of the current
     `<partition>/phases/code/plan.md` bytes equals the record's
     `plan_sha256` — a plan edited after approval is not an approved plan.
+    `<partition>/phases/code/plan.md` is the approval mirror
+    `/acs:create-impl-plan` publishes from the same bytes as the plan in
+    `<inputs>`; when the two differ, the plan changed after approval, so the
+    digest check fails and the dimension is N/A, exactly as intended.
     When any condition fails (no record, `eligible` false, a `plan_path`
     other than `phases/code/plan.md`, or a digest mismatch), the dimension
     is **N/A**: report a positive, evidenced "not active because `<reason>`"
@@ -285,7 +310,7 @@ mandatory diff/log-read step.
 
 | Lens | Dimensions covered (numbered per this file) | Evidence source |
 |------|-----------------------------------------------|------------------|
-| A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + `ticket.json` re-read fresh; the ONLY lens that re-runs the test/coverage/e2e suite |
+| A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + the ticket document re-read fresh + `test-cases.md` when present; the ONLY lens that re-runs the test/coverage/e2e suite |
 | B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `recommend_stakes`/`high_stakes_paths` (dimension 16); no suite re-run |
 | C — Architecture & Documentation | 8, 9, 11, 13, 15 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose (dimensions 13, 15) + `plan-approval.json` (dimension 15); no suite re-run |
 | D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |

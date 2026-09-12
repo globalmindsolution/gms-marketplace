@@ -121,23 +121,35 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
         self.assertNotIn("Eighteen skills", intro,
                          "skills.md intro must NOT still read 'Eighteen skills'")
 
-    def test_acs_test_section_exists_with_expected_content(self):
+    def test_suite_runner_section_exists_with_expected_content(self):
+        # The skills-independence refactor renamed `/acs:test` to
+        # `/acs:run-e2e-tests`, keeping the old directory as a forwarding
+        # alias for one release; skills.md's section moved with the skill.
+        # Either heading satisfies this pin — what it asserts is the section's
+        # CONTENT, not which of the two names carries it.
         body = self._skills_req()
-        m = re.search(r"(?m)^## .*/acs:test.*$", body)
-        self.assertIsNotNone(m, "skills.md must have a '## /acs:test' section")
+        m = re.search(r"(?m)^## .*/acs:(?:run-e2e-tests|test).*$", body)
+        self.assertIsNotNone(
+            m, "skills.md must have a '## /acs:run-e2e-tests' (or '/acs:test') section")
         window = section(body, m.group(0))
         self.assertIn("--suite", window,
-                      "the /acs:test section must state the --suite argument contract")
+                      "the suite-runner section must state the --suite argument contract")
         self.assertIsNotNone(
             re.search(r"(?i)unhooked|no planner", window),
-            "the /acs:test section must state it is unhooked / has no planner triad")
+            "the suite-runner section must state it is unhooked / has no planner triad")
         self.assertIn("suites", window,
-                      "the /acs:test section must reference the suites map")
+                      "the suite-runner section must reference the suites map")
 
 
 class S04SkillTriggersCaseTest(unittest.TestCase):
-    """Approach item 4: one new /acs:test routing CASE, structurally parsed
-    (no paid model call)."""
+    """Approach item 4: one suite-runner routing CASE, structurally parsed
+    (no paid model call).
+
+    MAR-114 added it as `test`; the skills-independence refactor renamed that
+    skill to `run-e2e-tests` and left `test` behind as a deprecated alias
+    directory whose description points at the new name, so the probe must now
+    expect `run-e2e-tests` — pinning `test` would pin the alias, not the
+    skill that carries the prose."""
 
     def _cases(self):
         path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
@@ -149,13 +161,19 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
                 return ast.literal_eval(node.value)
         raise AssertionError("CASES list not found in s04_skill_triggers.py")
 
-    def test_test_case_present_and_internally_consistent(self):
+    def test_suite_runner_case_present_and_internally_consistent(self):
         cases = self._cases()
-        matches = [c for c in cases if c[0] == "test"]
-        self.assertTrue(matches, "s04 CASES must contain an entry labeled 'test'")
+        matches = [c for c in cases if c[0] == "run-e2e-tests"]
+        self.assertTrue(
+            matches, "s04 CASES must contain an entry labeled 'run-e2e-tests'")
         case = matches[0]
-        self.assertEqual(case[-1], "test",
-                          "the 'test' CASE's expected-skill (last element) must be 'test'")
+        self.assertEqual(
+            case[-1], "run-e2e-tests",
+            "the suite-runner CASE's expected-skill (last element) must be "
+            "'run-e2e-tests'")
+        self.assertEqual(
+            [c for c in cases if c[0] == "test"], [],
+            "s04 must not probe the deprecated `test` alias directory")
 
 
 class ChangelogMar114EntryTest(unittest.TestCase):

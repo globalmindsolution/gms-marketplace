@@ -5,7 +5,9 @@
 
 Each plugin has its own milestone track. M1/M2/M3 below are the **acs plugin**
 track (v0.2.0 shipped; **v0.3.0 through v0.3.4 shipped** — complexity-adaptive delivery landed in the v0.3.x line, and the **v0.3.4** interim release shipped the `/acs:setup` init-prompt configuration-completeness slice (part of G21); the **v0.3.5–v0.3.7** fast-follows (M2.6) deliver complete tracker & PR metadata sync (G22) plus dynamic (mid-flight) lane correctness (G25), with **v0.3.5–v0.3.7 all shipped — M2.6 complete**; **v0.3.8** shipped the full-SDLC verify & operate epic (M3 Wave 1, G8) on the v0.3.x patch line, and **v0.4.0** shipped M3 Wave 2 (principles & standards, G10), and **v0.4.1** shipped the e2e-integrity epic (G13); **v0.4.2** shipped Wave 3's release-versions half — first-class release versions + one-command release cut (**G17**) plus the consumer-general program (**C-20** + the Consumer-repo-generality principle); **v0.4.3** shipped the generated-doc-quality epic (**G36**); **v0.4.4** shipped the brownfield requirements-extraction epic (**G37**) — the new `/acs:create-requirements` skill, and **v0.4.5** shipped the readable/audience-aware-docs + configurable design/spec-templates epic (**G38, G39**); the **v0.4.6+ delivery waves** (M3 Wave 4) — org-level policy/scale (G12, G24) — are the next major milestone track after them (team-shared delivery state, **G23**, is deferred to a post-GA milestone — see M8)), followed by a **tentative pre-GA
-sequence v0.5.0 → v0.6.0 → v0.7.0 toward GA v1.0**, defined once the v0.4.x waves ship.
+sequence v0.6.0 → v0.7.0 → v0.8.0 toward GA v1.0** (shifted by one minor as
+v0.5.0 was taken by the skills-independence refactor), defined once the v0.4.x
+waves ship.
 **The v0.4.x waves, and the pre-GA v0.5.0→v0.6.0→v0.7.0 sequence behind them, are
 sequenced by what flagship external-consumer-product delivery needs first** — see
 **G30** (`prd.md`) — ahead of any features that do not serve that near-term
@@ -41,9 +43,10 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.4 | M3 Wave 4 — requirements extraction | brownfield requirements extraction / `/acs:create-requirements` (G37) — {MAR-142} | shipped |
 | v0.4.5 | M3 Wave 4 — readable docs + doc templates | readable audience-aware docs + configurable design/spec templates (G38, G39) — {MAR-149} | shipped |
 | v0.4.6+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
-| v0.5.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
-| v0.6.0 | M5 | Notion/remote-docs backend (G6) | tentative |
-| v0.7.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
+| v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090); six new Build/Test skills (`analyze-ticket`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel | in progress |
+| v0.6.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
+| v0.7.0 | M5 | Notion/remote-docs backend (G6) | tentative |
+| v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
 | v1.0 | M7 — GA | no committed epics yet | future |
 | post-GA (v1.x) | M8 — post-GA | team-shared delivery state (G23) | future |
 
@@ -55,9 +58,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 25 skills + 45 agent files on disk (verified `ls plugins/acs/skills` = 25,
-  `ls plugins/acs/agents` = 45); the reflection (plan→execute→verify) protocol is
-  active on the twelve triad-keeping skills (`/acs:code` now plans once per
+- 31 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 31,
+  `ls plugins/acs/agents` = 59); the reflection (plan→execute→verify) protocol is
+  active on the sixteen triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
   coordinator-authored with zero `code-planner` spawns (MAR-72);
   `/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
@@ -608,7 +611,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 45 vs 39 reachable). Maps to PRD **G8**
+  disk equals reachable-agent count (today 59 vs 53 reachable). Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
   the three dashboards — adding behavioral (artifact-level) scenarios for the

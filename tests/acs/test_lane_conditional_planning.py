@@ -1,8 +1,12 @@
-"""MAR-72 (slice 2 of MAR-69) — /acs:code's coordinator authors `plan.md`
-itself on TRIVIAL/SMALL (zero `acs:code-planner` spawns), while STANDARD/
-COMPLEX keep MAR-71's one-planner-spawn-per-run behavior unchanged. Also
-covers ADR-0074, the ADR-0034 amendment, and the reflection.md/prd.md/
-roadmap.md updates this ticket requires.
+"""MAR-72 (slice 2 of MAR-69) — the lane-conditional plan phase: its author
+is the coordinator itself on TRIVIAL/SMALL (zero planner spawns), while
+STANDARD/COMPLEX keep MAR-71's one-planner-spawn-per-run behavior unchanged.
+The skills-independence refactor moved that phase out of /acs:code into
+/acs:create-impl-plan, so the fork's own prose pins now live in
+tests/acs/test_create_impl_plan.py::LaneForkTest and
+::PlanPhaseContractTest; what remains here is this ticket's documentation
+half — ADR-0074, the ADR-0034 amendment, and the reflection.md/prd.md/
+roadmap.md updates — plus the two /acs:code-side pins that survive the move.
 
 Every assertion is by file plus whitespace-normalized substring/regex, never
 by line number (line numbers drift as prose is revised) — the house style of
@@ -19,7 +23,6 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-CODE_PLANNER = os.path.join(PLUGIN, "agents", "code-planner.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 ADR_README = os.path.join(ADR_DIR, "README.md")
@@ -48,86 +51,18 @@ def mermaid_block_and_after(body, after_len=800):
     return body[start:end], body[end:end + after_len]
 
 
-class NoPlannerSpawnOnFastLanesTest(unittest.TestCase):
-    """AC-1: TRIVIAL/SMALL completes with zero planner spawns and a
-    coordinator-authored plan.md."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.skill_body = read(CODE_SKILL)
-        cls.skill_norm = norm(cls.skill_body)
-        cls.planner_norm = norm(read(CODE_PLANNER))
-
-    def test_fast_lane_no_spawn_contract_colocated(self):
-        for m in re.finditer(r"TRIVIAL/SMALL", self.skill_norm):
-            window = self.skill_norm[max(0, m.start() - 400):m.end() + 400]
-            if ("SMALL" in window
-                    and re.search(r"(?i)zero.{0,60}(acs:code-planner|planner).{0,20}spawn", window)
-                    and "coordinator" in window.lower()
-                    and "plan.md" in window):
-                return
-        self.fail(
-            "code/SKILL.md must co-locate TRIVIAL/SMALL, a zero-planner-"
-            "spawn phrase, 'coordinator', and 'plan.md' within one bounded "
-            "window")
-
-    def test_exactly_one_clause_is_lane_qualified_standard_complex(self):
-        for m in re.finditer(r"exactly one", self.skill_norm, re.IGNORECASE):
-            window = self.skill_norm[max(0, m.start() - 200):m.end() + 200]
-            if "acs:code-planner" in window and re.search(r"(?i)\bwhole run\b", window):
-                self.assertRegex(
-                    window, r"(?i)STANDARD/COMPLEX",
-                    "the surviving 'exactly one ... acs:code-planner ... "
-                    "whole run' clause must be lane-qualified to "
-                    "STANDARD/COMPLEX")
-                return
-        self.fail("no 'exactly one ... acs:code-planner ... whole run' clause found")
-
-    def test_mar71_pin_still_passes_after_lane_qualification(self):
-        # Regression: the original MAR-71 pin (test_code_loop_topology.py)
-        # must still find the phrase intact within an 80-char window.
-        for m in re.finditer(r"exactly one", self.skill_norm, re.IGNORECASE):
-            window = self.skill_norm[max(0, m.start() - 80):m.end() + 80]
-            if "acs:code-planner" in window and re.search(r"(?i)\b(run|whole run)\b", window):
-                return
-        self.fail("MAR-71 pin regressed: exactly-one/acs:code-planner/run "
-                  "co-location lost")
-
-    def test_code_planner_states_standard_complex_only_spawn(self):
-        self.assertRegex(
-            self.planner_norm,
-            r"(?i)spawned only.{0,40}STANDARD.{0,10}(/|or).{0,10}COMPLEX")
-
-
 class CoordinatorPlanContractTest(unittest.TestCase):
-    """AC-2: code-verifier's 4 plan-dependent dimensions have a valid input
-    on TRIVIAL/SMALL."""
+    """AC-2, /acs:code side: the plan artifact still reaches the verifier's
+    inputs in every lane, and the verifier still judges a coordinator-authored
+    plan identically. The plan-artifact CONTENT contract (six headings, the
+    five fold sections, the no-stub rule) moved with the phase — see
+    tests/acs/test_create_impl_plan.py::PlanPhaseContractTest."""
 
     @classmethod
     def setUpClass(cls):
         cls.skill_body = read(CODE_SKILL)
         cls.skill_norm = norm(cls.skill_body)
         cls.verifier_norm = norm(read(CODE_VERIFIER))
-
-    def test_fast_lane_contract_names_six_planner_headings(self):
-        for heading in ("## Spec analysis", "## Executor tasks & file map",
-                        "## Test strategy", "## Documentation map",
-                        "## Risks", "## Verifier checklist"):
-            self.assertIn(heading, self.skill_body,
-                          "code/SKILL.md fast-lane contract must name %r" % heading)
-
-    def test_fast_lane_contract_names_five_fold_headings_and_lint_literal(self):
-        for heading in ("Scope", "Approach", "API/data changes", "Test plan",
-                        "Out of scope"):
-            self.assertIn(heading, self.skill_body)
-        self.assertIn(
-            'structure_lint.py --sections "Scope; Approach; API/data '
-            'changes; Test plan; Out of scope"', self.skill_body)
-
-    def test_fast_lane_contract_states_no_content_stub_rule(self):
-        self.assertRegex(
-            self.skill_norm,
-            r"(?i)never.{0,60}(empty|placeholder|see ticket)")
 
     def test_plan_artifact_still_passed_to_verifier_inputs_every_lane(self):
         start = re.search(r"(?m)^### Verify \(per iteration\)", self.skill_body)
@@ -283,37 +218,25 @@ class ProductDocFactsTest(unittest.TestCase):
             r"(coordinator-authored|zero.{0,20}(code-planner|spawn))")
 
 
-class FoldInvariantsTest(unittest.TestCase):
-    """Regression pins: the fold's activating condition, mandatory clauses,
-    D-3/D-4 statements survive the MAR-72 edit."""
+class FoldMovedOutOfCodeTest(unittest.TestCase):
+    """The fold's activating condition, its mandatory clauses and the
+    D-3/D-4 statements are pinned against their new home
+    (tests/acs/test_create_impl_plan.py); what is pinned here is that they
+    left /acs:code rather than being duplicated in it."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(CODE_SKILL)
-        cls.norm = norm(cls.body)
 
-    def test_fold_activating_condition_stays_lane_agnostic(self):
-        self.assertIsNotNone(
-            re.search(r"specs/.{0,40}(absent or empty|empty or absent)", self.body))
-        self.assertNotRegex(
-            self.body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs")
+    def test_fold_prose_no_longer_lives_in_code(self):
+        for literal in ("Spec authoring fold",
+                        "no separate /acs:create-spec invocation",
+                        "structure_lint.py --sections"):
+            with self.subTest(literal=literal):
+                self.assertNotIn(literal, self.body)
 
-    def test_mandatory_verbatim_clauses_survive(self):
-        self.assertIn(
-            "no separate /acs:create-spec invocation and no separate "
-            "create-spec planner subagent", self.norm)
-        self.assertIn(
-            "every ticket.acceptance_criteria entry maps to at least one "
-            "test the folded plan will write", self.norm)
-
-    def test_escalation_never_retro_spawns_planner(self):
-        self.assertRegex(
-            self.norm, r"(?i)never.{0,60}(spawn|retro-spawn)s? a planner")
-
-    def test_no_plan_xml_message_on_fast_lanes(self):
-        self.assertRegex(
-            self.norm,
-            r'(?i)no.{0,20}<task phase="plan">.{0,100}(message is sent|is sent)')
+    def test_code_names_create_impl_plan_as_the_plan_author(self):
+        self.assertIn("/acs:create-impl-plan", self.body)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Re-verify and complete the doc updates a ticket's changeset requires, after /acs:code (and /acs:test, when it ran) and before /acs:create-pr — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final code-verify artifact, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR). Use once /acs:code has completed and before /acs:create-pr.
+description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final code-verify artifact, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR). Use when a ticket has a changeset on its branch whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -16,7 +16,19 @@ doc content yourself.
 reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
 (MAR-65). This skill is now the sole producer of README/API/usage/
 architecture/living-requirements/ADR doc updates for a ticket's changeset,
-diff-grounded and running after code (and test) settle.
+diff-grounded and best run once code (and the post-code test step) settle.
+
+**What the pre-hook checks (and what it no longer checks).**
+`pre-docs-sync.py` gates on this skill's INPUTS and one safety brake only:
+settings resolve, the ticket resolves to a live, unlocked partition. It no
+longer refuses because `/acs:code` — or the post-code test step — has not
+recorded a completed run: pipeline order lives in `workflows/ship.yaml`, not in
+the gate, so docs-sync is runnable on its own against whatever the branch
+already holds. Run out of that declared order, the pre-hook prints ONE advisory
+line on stderr (`acs: docs-sync normally follows code in ship.yaml; code has not
+completed for <id>`) and lets the skill run. The real precondition is a
+CHANGESET: with no diff against the default branch there is nothing to
+re-derive, and step 1 below is where you find that out and stop.
 
 ## Start
 
@@ -147,9 +159,9 @@ ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
 using the FIXED v1 structure — the existing `iter-<n>-execute.json` /
 `iter-<n>-verify.md` artifact shape every hooked skill already writes
-(`/acs:code`'s own plan phase writes `plan.md` instead of
-`iter-<n>-plan.md` from MAR-70 onward; the other hooked skills' plan
-artifacts are unaffected). No new artifact type, no settings-driven
+(`/acs:create-impl-plan`, which carved the plan phase out of `/acs:code`,
+writes `plan.md` instead of `iter-<n>-plan.md`; the other hooked skills'
+plan artifacts are unaffected). No new artifact type, no settings-driven
 template, no new `settings.schema.json` keys.
 
 ### Phase: verify — `acs:docs-sync-verifier`
@@ -233,8 +245,9 @@ MANDATORY final step — never skipped, including on failure or handoff:
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-docs-sync.py" --ticket <id> --result-file <partition>/phases/docs-sync/result.json
    ```
 
-   If it exits non-zero, surface its stderr verbatim — the `/acs:create-pr`
-   gate stays closed until it succeeds.
+   If it exits non-zero, surface its stderr verbatim — until it succeeds the
+   run stays un-finalized in the ledger, so `acs.py workflow next` keeps
+   offering docs-sync instead of moving on.
 
 3. Report:
    - Direct invocation: a compact summary — doc files committed, commits

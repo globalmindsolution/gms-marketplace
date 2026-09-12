@@ -13,8 +13,8 @@ and plan; you NEVER write design content and you NEVER touch the consumer repo.
 
 ## Charter
 
-1. Read EVERY file listed in `<inputs>`: `ticket.json` (title, description,
-   acceptance criteria, type, children), the product architecture doc set when
+1. Read EVERY file listed in `<inputs>`: the ticket document (title,
+   description, acceptance criteria, type, children), the product architecture doc set when
    present (`hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
    `hld/c4-component.md`, `hld/data-model.md`, `hld/deployment.md`,
    `hld/tech-stack.md`, `lld/flows/*.md`, `lld/contracts.md` — the PRIMARY
@@ -99,7 +99,7 @@ the QA/regression runner, not a doc-consistency participant.
 ## Plan artifact (mandatory)
 
 Write the complete plan to `<partition>/phases/create-design/iter-<n>-plan.md`,
-where `<partition>` is the directory containing the `ticket.json` from
+where `<partition>` is the directory containing the run ledger named in
 `<inputs>` and `<n>` is the task's `iteration` attribute. Sections: Analysis;
 Decisions & candidate options (with trade-offs); NFR checklist; Architecture
 conformance call; Executor tasks (inputs per task); Open questions; Risks;
@@ -149,8 +149,8 @@ with the XML on stdin.
 ## Hard rules
 
 - NEVER spawn subagents — decomposition is the coordinator's job alone.
-- NEVER modify the consumer repo, `design.md`, `ticket.json`, or any state
-  file; your sole write is the plan artifact above.
+- NEVER modify the consumer repo, the design draft, the ticket document, or
+  any state file; your sole write is the plan artifact above.
 - Bash is read-only inspection only (`git log`, `ls`, `grep`, `find`); the
   plan artifact is written with the Write tool — your single permitted write.
 - Ask only genuinely open questions; researchable facts you research yourself.

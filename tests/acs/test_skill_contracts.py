@@ -87,13 +87,33 @@ _PROJECT_RESPONSES = {
     "gh project item-edit": (0, "", ""),
 }
 
+# The 20 hooked skills. The skills-independence refactor added the five
+# Build/Test coordinators (analyze-ticket, create-impl-plan,
+# create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
+# (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
+# for one release as the alias directory.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-quality", "create-operations", "create-principles",
                  "create-standards", "create-requirements", "create-ticket",
-                 "create-design", "code", "docs-sync", "create-pr",
+                 "create-design", "analyze-ticket", "create-impl-plan",
+                 "create-api-contract", "create-test-docs", "code",
+                 "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "standardize-project"]
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs"]
 ROLES = ["planner", "executor", "verifier"]
+
+# Which agent roles each hooked skill actually owns. Every skill is a triad
+# except /acs:code, whose plan phase moved to /acs:create-impl-plan in the
+# skills-independence refactor: code now starts from an existing plan, so it
+# has an executor and a verifier and no planner at all.
+def _agent_roles():
+    roles = {skill: list(ROLES) for skill in HOOKED_SKILLS}
+    roles.setdefault("create-impl-plan", list(ROLES))
+    roles["code"] = ["executor", "verifier"]
+    return roles
+
+
+AGENT_ROLES = _agent_roles()
 
 
 def read(path):
@@ -203,15 +223,16 @@ class TestAgentContracts(unittest.TestCase):
     def agent_path(self, skill, role):
         return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
 
-    def test_all_27_agents_exist_no_strays(self):
-        expected = sorted("%s-%s.md" % (s, r) for s in HOOKED_SKILLS for r in ROLES)
+    def test_all_agents_exist_no_strays(self):
+        expected = sorted("%s-%s.md" % (s, r)
+                          for s, roles in AGENT_ROLES.items() for r in roles)
         found = sorted(os.path.basename(p)
                        for p in glob.glob(os.path.join(PLUGIN, "agents", "*.md")))
         self.assertEqual(found, expected)
 
     def test_frontmatter_name_description(self):
-        for skill in HOOKED_SKILLS:
-            for role in ROLES:
+        for skill, roles in AGENT_ROLES.items():
+            for role in roles:
                 fm, _ = frontmatter(read(self.agent_path(skill, role)), skill + role)
                 self.assertRegex(fm, r"(?m)^name: %s-%s$" % (re.escape(skill), role))
                 self.assertIn("not for direct invocation", fm)
@@ -219,8 +240,8 @@ class TestAgentContracts(unittest.TestCase):
                 self.assertNotRegex(fm, r"(?m)^effort:")
 
     def test_role_tool_restrictions(self):
-        for skill in HOOKED_SKILLS:
-            for role in ("planner", "verifier"):
+        for skill, roles in AGENT_ROLES.items():
+            for role in [r for r in ("planner", "verifier") if r in roles]:
                 fm, _ = frontmatter(read(self.agent_path(skill, role)), skill)
                 self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$",
                                  "%s-%s" % (skill, role))
@@ -229,8 +250,8 @@ class TestAgentContracts(unittest.TestCase):
             self.assertNotRegex(fm, r"(?m)^tools:", skill)  # executors keep broad access
 
     def test_grounding_section_everywhere(self):
-        for skill in HOOKED_SKILLS:
-            for role in ROLES:
+        for skill, roles in AGENT_ROLES.items():
+            for role in roles:
                 body = read(self.agent_path(skill, role))
                 self.assertIn("## Grounding (anti-hallucination)", body,
                               "%s-%s" % (skill, role))
@@ -239,15 +260,16 @@ class TestAgentContracts(unittest.TestCase):
 
     def test_phase_artifact_mandated(self):
         artifact = {"planner": "plan", "executor": "execute", "verifier": "verify"}
-        for skill in HOOKED_SKILLS:
-            for role, kind in artifact.items():
+        for skill, roles in AGENT_ROLES.items():
+            for role in roles:
+                kind = artifact[role]
                 body = read(self.agent_path(skill, role))
-                if skill == "code" and role == "planner":
-                    # MAR-70: /acs:code's plan artifact is the single
-                    # per-ticket plan.md, not iter-<n>-plan.md.
-                    self.assertIn("phases/code/plan.md", body,
-                                 "code-planner missing plan.md artifact")
-                    continue
+                if skill == "create-impl-plan" and role == "executor":
+                    # The deliverable IS the plan: its executor writes the
+                    # single per-run draft plan.md the coordinator publishes,
+                    # alongside the standard iter-<n>-execute.json report.
+                    self.assertIn("phases/create-impl-plan/plan.md", body,
+                                  "create-impl-plan-executor missing plan.md draft")
                 self.assertRegex(body, r"iter-<n(?:>|\b)[^\n]*%s" % kind,
                                  "%s-%s missing iter-<n>-%s artifact" % (skill, role, kind))
 
@@ -259,8 +281,8 @@ class TestAgentContracts(unittest.TestCase):
             self.assertNotIn("heredoc", body, path)
 
     def test_result_is_final_message(self):
-        for skill in HOOKED_SKILLS:
-            for role in ROLES:
+        for skill, roles in AGENT_ROLES.items():
+            for role in roles:
                 body = read(self.agent_path(skill, role))
                 self.assertIn("<result", body, "%s-%s" % (skill, role))
                 self.assertIn("FINAL message", body, "%s-%s" % (skill, role))
@@ -291,7 +313,8 @@ class TestCrossReferences(unittest.TestCase):
     def test_skills_reference_existing_agents(self):
         for path, body in self.collect_bodies():
             for skill, role in set(re.findall(
-                    r"acs:(%s)-(planner|executor|verifier)" % "|".join(HOOKED_SKILLS), body)):
+                    r"acs:(%s)-(planner|executor|verifier)"
+                    % "|".join(sorted(AGENT_ROLES)), body)):
                 target = os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
                 self.assertTrue(os.path.isfile(target),
                                 "%s references missing agent %s-%s" % (path, skill, role))
@@ -681,10 +704,13 @@ class TestApplyTierInline(unittest.TestCase):
 
     # ------------------------------------------------------------------ Group 6
     # AC-6: the six triad-keeping skills still reference planner and verifier.
+    # /acs:code kept its verifier but lost its planner to /acs:create-impl-plan
+    # in the skills-independence refactor, so the plan-owning skill stands in
+    # for it here and code is checked for the roles it actually has.
 
     def test_triad_skills_still_reference_planner_and_verifier(self):
         """AC-6: workflow/product skills must still reference their planner+verifier."""
-        for skill in ("code", "create-prd", "docs-sync",
+        for skill in ("create-impl-plan", "create-prd", "docs-sync",
                       "create-design", "create-architecture", "create-project"):
             body = read(self.skill_path(skill))
             self.assertIsNotNone(
@@ -693,6 +719,16 @@ class TestApplyTierInline(unittest.TestCase):
             self.assertIsNotNone(
                 re.search(r"acs:" + skill + r"-verifier", body),
                 "AC-6 [%s]: must still reference acs:%s-verifier" % (skill, skill))
+
+    def test_code_references_its_executor_and_verifier(self):
+        """AC-6, /acs:code after the plan carve-out: no planner reference may
+        survive, and both surviving roles must still be named."""
+        body = read(self.skill_path("code"))
+        self.assertNotIn("acs:code-planner", body)
+        for role in ("executor", "verifier"):
+            self.assertIsNotNone(
+                re.search(r"acs:code-" + role, body),
+                "AC-6 [code]: must still reference acs:code-%s" % role)
 
     # ------------------------------------------------------------------ Group 7
     # AC-7: requirements docs updated to reflect inline shape.
@@ -1203,8 +1239,11 @@ class TestStageReintroduction(unittest.TestCase):
 class TestGeneralizedFold(unittest.TestCase):
     """MAR-156 Task 02 (AC-2, AC-3, AC-7, AC-8): the fold generalizes to every
     lane (no lane qualifier survives), step g's create-spec triad spawn
-    reference is fully gone from code/SKILL.md, and code-planner.md's Charter
-    states the dual-mode intake + carries the migrated spec-simplicity gate."""
+    reference is fully gone, and the plan planner's Charter
+    states the dual-mode intake + carries the migrated spec-simplicity gate.
+    The skills-independence refactor moved the fold and that planner out of
+    /acs:code into /acs:create-impl-plan; the contracts are unchanged, only
+    their file is."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -1213,10 +1252,10 @@ class TestGeneralizedFold(unittest.TestCase):
         return os.path.join(PLUGIN, "agents", name)
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read(self.skill_path("create-impl-plan"))
 
     def _planner_body(self):
-        return read(self.agent_path("code-planner.md"))
+        return read(self.agent_path("create-impl-plan-planner.md"))
 
     def test_fold_activating_condition_has_no_lane_qualifier(self):
         """AC-2: the fold section states the activating condition as
@@ -1839,7 +1878,9 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
         return read(self.agent_path("code", "executor"))
 
     def _planner_body(self):
-        return read(self.agent_path("code", "planner"))
+        # The documentation map is the plan planner's charter item 4; the plan
+        # phase moved to /acs:create-impl-plan.
+        return read(self.agent_path("create-impl-plan", "planner"))
 
     # --- AC-1: prd.md and roadmap.md named in SKILL.md step 4 ---
 
@@ -2296,7 +2337,8 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
         return read(self.agent_path("code", "executor"))
 
     def _planner(self):
-        return read(self.agent_path("code", "planner"))
+        # The plan phase (and its planner) moved to /acs:create-impl-plan.
+        return read(self.agent_path("create-impl-plan", "planner"))
 
     def _verifier(self):
         return read(self.agent_path("code", "verifier"))
@@ -2466,20 +2508,22 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
     # --- AC-6: cross-agent — all three agents carry both rule names ---
 
     def test_all_three_agents_carry_simplicity_first(self):
-        """AC-6: each of code-executor, code-planner, code-verifier must contain
+        """AC-6: code-executor, code-verifier and the plan planner (whose
+        charter moved to create-impl-plan-planner.md) must each contain
         'Simplicity First'."""
-        for role in ("executor", "planner", "verifier"):
-            body = read(self.agent_path("code", role))
+        for agent in ("code-executor", "code-verifier",
+                      "create-impl-plan-planner"):
+            body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Simplicity First", body,
-                          "code-%s.md must contain 'Simplicity First' (MAR-2 AC-6)" % role)
+                          "%s.md must contain 'Simplicity First' (MAR-2 AC-6)" % agent)
 
     def test_all_three_agents_carry_surgical_changes(self):
-        """AC-6: each of code-executor, code-planner, code-verifier must contain
-        'Surgical Changes'."""
-        for role in ("executor", "planner", "verifier"):
-            body = read(self.agent_path("code", role))
+        """AC-6: the same three agents must each contain 'Surgical Changes'."""
+        for agent in ("code-executor", "code-verifier",
+                      "create-impl-plan-planner"):
+            body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Surgical Changes", body,
-                          "code-%s.md must contain 'Surgical Changes' (MAR-2 AC-6)" % role)
+                          "%s.md must contain 'Surgical Changes' (MAR-2 AC-6)" % agent)
 
     # --- AC-7: MAR-2 has a CHANGELOG entry (in [Unreleased] before release,
     #     or a released [X.Y.Z] section once cut — anchored on the entry itself
@@ -3788,23 +3832,26 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
                          "anywhere (MAR-156 AC-7)")
 
     def test_ship_skill_single_walk_order_no_lane_branch(self):
-        """AC-7: 'Picking the next step' describes exactly ONE walk order for
-        every lane -- no TRIVIAL/SMALL branch language remains. A conditional
-        test step between code and create-pr does not reintroduce a lane
-        branch -- the walk stays a single, lane-uniform order."""
+        """AC-7: the walk is lane-uniform -- no TRIVIAL/SMALL branch language.
+
+        Since the skills-independence refactor the walk is not spelled out in
+        the prose at all: workflows/ship.yaml declares the order and
+        `acs.py workflow next` computes it, which makes lane-uniformity
+        structural rather than a sentence to keep in sync. The assertion is
+        therefore the delegation plus the absence of any lane branch."""
         body = self._ship_body()
-        section_start = body.index("## Picking the next step")
+        section_start = body.index("## The loop")
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section = body[section_start:section_start + 1 + next_heading.start()] \
             if next_heading else body[section_start:]
         self.assertNotIn("TRIVIAL", section)
         self.assertNotIn("SMALL", section)
-        section = re.sub(r"\s+", " ", section)
-        self.assertIn(
-            "create-ticket → create-design (when required per the rules "
-            "above) → code → test (when the gate is active, per "
-            "\"Post-code test gate\" above) → docs-sync → create-pr", section,
-            "ship/SKILL.md must state the single lane-uniform walk order")
+        self.assertNotIn("TRIVIAL", body)
+        self.assertIn("workflow next", section,
+                      "ship/SKILL.md must compute the walk with "
+                      "`acs.py workflow next`")
+        self.assertNotIn("## Pipeline order", body,
+                         "no hard-coded pipeline table may survive")
 
 
 class TestCreateTicketAcDodGateDocs(unittest.TestCase):
