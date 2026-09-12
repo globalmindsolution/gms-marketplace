@@ -1,6 +1,6 @@
 """s04 — routing evals for all 22 skills (paid, E1.2).
 
-Three kinds of probe, covering every skill:
+Three kinds of probe:
 
 1. Description-trigger (20 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
@@ -19,6 +19,20 @@ Three kinds of probe, covering every skill:
 
 All probes assert on the first `Skill` tool_use the model makes (captured and
 then killed, so the skill body never runs).
+
+The suite-runner probe targets `run-e2e-tests`: the skills-independence
+refactor renamed `test` to `run-e2e-tests` and left `test` behind as a
+deprecated alias directory whose description points at the new name, so the
+intent that used to route to `test` must now route to `run-e2e-tests`.
+
+The 22 probed skills are not every skill directory on disk. `create-docs`,
+`create-requirements` and `docs-sync` have never carried a probe, the `test`
+alias is deliberately unprobed (see above), and the five Build/Test skills the
+skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`) have none yet:
+adding probes moves the measured "all N green" routing-coverage claim the PRD
+and roadmap carry, so they are added together with a fresh paid measurement,
+not alongside the refactor that created the skills.
 """
 
 from harness import Sandbox, Check
@@ -43,8 +57,8 @@ CASES = [
      "Set up and initialize the acs configuration for this repository.",
      "setup"),
     ("ship", True,
-     "Take a CSV-export feature all the way from idea to an open pull request — "
-     "drive the whole delivery pipeline end to end.",
+     "Drive ticket EVAL-1 all the way through the delivery pipeline end to "
+     "end, from where it left off up to an open pull request.",
      "ship"),
     ("handoff", True,
      "Let's stop here and hand this work off to a fresh session so I can "
@@ -91,7 +105,8 @@ CASES = [
      "trade-offs, before we start implementing it.",
      "create-design"),
     ("code", True,
-     "Implement ticket EVAL-1 from its specs, using TDD on a dedicated branch.",
+     "Implement ticket EVAL-1 from its approved plan, using TDD on a dedicated "
+     "branch.",
      "code"),
     ("create-pr", True,
      "Open the pull request for ticket EVAL-1's finished implementation.",
@@ -108,10 +123,12 @@ CASES = [
      "time per ticket for this repo — not delivery throughput, just the tool "
      "usage and cost side.",
      "usage"),
-    ("test", True,
+    # `test` is the deprecated alias directory; the intent routes to the
+    # skill that carries the prose.
+    ("run-e2e-tests", True,
      "Run the configured test suites for this repo and give me a results "
      "report, opening a regression ticket for anything that broke.",
-     "test"),
+     "run-e2e-tests"),
     ("release", True,
      "Cut a new release — draft the changelog section from what's merged "
      "since the last tag, bump the version in both manifests, and open the "

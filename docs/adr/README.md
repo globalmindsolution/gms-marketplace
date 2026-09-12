@@ -95,6 +95,8 @@ context and consequences.
 | [0086](0086-in-repo-anchored-state-machine.md) | In-repo, main-checkout-anchored state (`.acs/state-machine`), superseding ADR-0003 | Accepted |
 | [0087](0087-ticket-id-allocation-fail-closed-reconciliation.md) | Ticket-id allocation: fail-closed reconciliation gate plus a confirmable ranked local-evidence proposal | Accepted |
 | [0088](0088-gh-only-github-transport-and-criticality-classification.md) | gh is acs's only GitHub transport; failures are classified, not routed around | Accepted |
+| [0089](0089-pipeline-order-declared-in-ship-yaml.md) | Pipeline order is declared in `workflows/ship.yaml`; every skill is independently runnable; hooks keep input checks and safety brakes, and `_require_completed` is deleted | Accepted |
+| [0090](0090-ticket-artifacts-in-repo-docs-tree.md) | Ticket and design artifacts live in the repo docs tree (`docs/tickets/<ID>/`) with a derived status; the workspace keeps the run ledger | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

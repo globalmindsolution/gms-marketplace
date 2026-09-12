@@ -145,13 +145,18 @@ Requirements:
   lane change, up or down, is ever silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
-  `<skill>-verifier`. 45 agent files exist on disk in total and are retained
-  (C-4) — three role files for each of fifteen skill prefixes that have agent
-  files. Only the **twelve** triad-keeping skills listed in the heading above
-  actively spawn the full plan→execute→verify triad. The other three prefixes
-  belong to the **apply-work** skills, which run inline and never spawn a
-  plan-phase or verify-phase subagent (see the "Apply-work skills" subsection
-  below).
+  `<skill>-verifier`. 59 agent files exist on disk in total and are retained
+  (C-4) — three role files for each hooked skill prefix except `code`, whose
+  planner moved to `create-impl-plan` with the plan phase itself (ADR-0089);
+  before that refactor there were fifteen skill prefixes with agent files, and
+  there are twenty now. **Sixteen** skills actively spawn the full
+  plan→execute→verify triad: the **twelve** listed in the heading above minus
+  `code` — which now runs execute → verify against a plan another skill
+  approved — plus the five Build/Test skills the refactor added
+  (`analyze-ticket`, `create-impl-plan`, `create-api-contract`,
+  `create-test-docs`, `create-e2e-tests`). Three prefixes belong to the
+  **apply-work** skills, which run inline and never spawn a plan-phase or
+  verify-phase subagent (see the "Apply-work skills" subsection below).
 - For the **apply-work** group, only the executor-suffix agent file may be
   delegated to at most once per invocation; the plan-phase and verify-phase
   agent files are retained on disk but the coordinator no longer spawns them.

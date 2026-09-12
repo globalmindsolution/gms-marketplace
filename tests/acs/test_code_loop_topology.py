@@ -1,9 +1,12 @@
-"""MAR-71 (slice 1b of MAR-69) — /acs:code's reflection loop drops the
-per-iteration re-plan: the planner now runs exactly once per run, before the
-loop, and the loop body is execute -> verify only. Verifier findings on
-iteration 2+ route straight to the executor's <context>, with no intervening
-planner spawn. Mid-flight escalation's detection point and monotone-ceiling
-guarantee are unaffected and are pinned here as regressions.
+"""MAR-71 (slice 1b of MAR-69) — /acs:code's reflection loop is execute ->
+verify only. The skills-independence refactor completed what MAR-71 started:
+the plan phase left this skill entirely for /acs:create-impl-plan, so the
+one-planner-spawn-per-run and plan-section contracts now live in
+tests/acs/test_create_impl_plan.py, and what is pinned here is the loop that
+remains. Verifier findings on iteration 2+ route straight to the executor's
+<context>, with no intervening planner spawn. Mid-flight escalation's
+detection point and monotone-ceiling guarantee are unaffected and are pinned
+here as regressions.
 
 Every assertion is by file + substring/regex over whitespace-normalized text,
 never by line number (line numbers drift as prose is revised). Stdlib-only
@@ -18,7 +21,7 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-CODE_PLANNER = os.path.join(PLUGIN, "agents", "code-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
 
 
@@ -37,36 +40,29 @@ def section(body, start_heading, end_heading):
     return body[body.index(start_heading):body.index(end_heading)]
 
 
-class SinglePlannerSpawnPerRunTest(unittest.TestCase):
-    """AC-1: exactly one acs:code-planner spawn across the whole run."""
+class NoPlanPhaseInCodeTest(unittest.TestCase):
+    """AC-1, after the carve-out: /acs:code spawns no planner and carries no
+    plan phase at all. The "exactly one planner spawn per run" contract moved
+    with the phase — see tests/acs/test_create_impl_plan.py::LaneForkTest."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(CODE_SKILL)
         cls.norm = norm(cls.body)
 
-    def test_reflection_loop_states_exactly_one_planner_spawn_per_run(self):
-        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
-            window = self.norm[max(0, m.start() - 80):m.end() + 80]
-            if "acs:code-planner" in window and re.search(
-                    r"(?i)\b(run|whole run)\b", window):
-                return
-        self.fail(
-            "code/SKILL.md must co-locate an 'exactly one' clause with "
-            "'acs:code-planner' and a whole-run qualifier within ~80 chars")
+    def test_no_planner_spawn_remains(self):
+        self.assertNotIn("acs:code-planner", self.body)
 
-    def test_plan_section_heading_is_not_per_iteration(self):
+    def test_no_plan_section_heading_remains(self):
         self.assertNotIn("### Plan (per iteration)", self.body)
-        self.assertRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
-
-    def test_plan_phase_runs_once_before_the_loop(self):
-        self.assertRegex(
-            self.norm,
-            r"(?i)plan.{0,80}once.{0,80}(before the loop|up front|per run)")
+        self.assertNotRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
 
     def test_no_unnegated_replan_instruction(self):
+        # \b anchors the match to the word "re-plan"/"replan" itself, so the
+        # ship.yaml edge name `on_replan` (an identifier, not an instruction)
+        # is not read as one.
         negating = re.compile(r"(?i)never|no |not|without|instead of")
-        for m in re.finditer(r"(?i)re-?plan\w*", self.body):
+        for m in re.finditer(r"(?i)\bre-?plan\w*", self.body):
             window = self.body[max(0, m.start() - 60):m.end() + 60]
             self.assertRegex(
                 window, negating,
@@ -96,10 +92,10 @@ class FindingsRouteStraightToExecutorTest(unittest.TestCase):
         self.assertIn("<context>", body_norm)
 
     def test_planner_is_no_longer_promised_verifier_findings(self):
-        body_norm = norm(read(CODE_PLANNER))
+        body_norm = norm(read(IMPL_PLAN_PLANNER))
         self.assertNotRegex(
             body_norm, r"(?i)verifier findings from the previous iteration")
-        self.assertNotIn("## Findings remediation", read(CODE_PLANNER))
+        self.assertNotIn("## Findings remediation", read(IMPL_PLAN_PLANNER))
 
 
 class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):

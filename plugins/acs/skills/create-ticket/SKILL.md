@@ -159,8 +159,10 @@ epic, after that epic's own design is approved. Resulting precedence:
    `result.json` with `states.ticket_id` = the epic, `type: "epic"`,
    `needs_design`, `children` (the epic's full children after this run),
    `prd_trace` (the epic's), then `post-create-ticket.py`. Never leave the
-   epic's `create-ticket` run non-`completed` — an interrupted fan-out would
-   block a later `create-design` re-run via `_require_completed`.
+   epic's `create-ticket` run non-`completed`: no gate refuses on it any more
+   (order lives in `workflows/ship.yaml`), but the ledger is what
+   `acs.py workflow next`, `/acs:metrics` and the derived ticket status read,
+   and a run left `in_progress` reports the epic as mid-flight for ever.
 
 ## Splitting an existing oversized ticket
 
@@ -260,7 +262,14 @@ inline.
 verifier and it is NOT skipped in any lane.** The coordinator presents the proposal
 and blocks until the user confirms or overrides:
 
-1. Resolve every genuine ambiguity with the user before finalizing.
+1. Resolve every ambiguity ABOUT THE TICKET RECORD with the user before
+   finalizing — what the work is, which type it is, and the fields items 2-7
+   confirm. Deeper REQUIREMENTS clarification is no longer this skill's job:
+   impact, assumptions, risks and refined acceptance criteria belong to
+   `/acs:analyze-ticket <id>`, the first Build step, which records each question
+   through `clarify.py` and proposes AC rewrites for your confirmation. Ask here
+   only what you need to write a well-formed ticket; park anything that needs
+   the codebase read for the analysis, and say so when you present the proposal.
 2. **PRD divergence**: if the proposal goes beyond the PRD, present the divergence,
    propose a follow-up `/acs:create-prd` re-run, and obtain explicit user
    confirmation to proceed (or stop at the user's choice). Record the confirmed

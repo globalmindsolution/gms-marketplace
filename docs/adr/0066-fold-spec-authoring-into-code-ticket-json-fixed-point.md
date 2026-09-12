@@ -105,3 +105,35 @@ without changing the fold's substance:
   deletion, the `ticket.json` `acceptance_criteria`/DoD fixed point, and the
   re-homed create-spec-verifier dimensions all stand as originally decided,
   and this ADR's Supersession of ADR 0006 above is unaffected.
+
+## Amendment — skills-independence refactor (ADR-0089/0090)
+
+Two of this ADR's premises moved; neither of its decisions did.
+
+**The plan phase this ADR folded spec authoring into is no longer `/code`'s.**
+It is its own skill, `/acs:create-impl-plan`, which carries the fold unchanged:
+when `<partition>/specs/` is absent or empty the plan's author (the planner on
+STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL) authors the five-section
+spec content inside the plan artifact, on every lane, with no lane check; when
+specs are present it reads them unchanged. `/acs:code` now **requires** the
+resulting `plan.md` as an input and produces none. So "spec authoring is folded
+into the plan phase for every lane" stands verbatim — only the skill that runs
+that phase changed.
+
+**`ticket.json` is now `ticket.md`, and the fixed point is unchanged.** The
+ticket's acceptance criteria and DoD — this ADR's review-loop fixed point,
+re-read fresh every iteration — live in `docs/tickets/<ID>/ticket.md` (YAML
+front matter plus a numbered `## Acceptance criteria` section) when the docs
+tree is active, and in the partition's `ticket.json` when
+`artifacts.tickets_path` is `null` or a partition has not been migrated
+(ADR-0090). Readers resolve one, then the other, and return the same fields
+either way, so "re-read fresh every iteration, never cached from the spec" is
+unaffected by which file answered. The one field that is **not** read back is
+`status`: it is derived from the run ledger now, and was never part of this
+ADR's fixed point.
+
+The plan artifact's own path moved with the same rule: the approved `plan.md`
+is a human-facing document and lives in the ticket's docs folder, while the
+plan-approval record and any `plan-superseded-<k>.md` copies stay in the
+workspace partition as ledger. Context, Decision and Consequences above are
+otherwise unedited.

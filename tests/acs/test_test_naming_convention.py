@@ -24,13 +24,15 @@ CANONICAL = "named by the component/behavior under test, never by a ticket id"
 
 # The three pipeline guidance surfaces (skills + agents) plus the first-class
 # standard doc that must all carry the rule. create-spec/SKILL.md and
-# create-spec-planner.md were two of the original five; MAR-156 deletes
-# create-spec outright and folds its test-authoring responsibility into
-# code/SKILL.md and code-planner.md, both already in this set.
+# create-spec-planner.md were two of the original five; MAR-156 deleted
+# create-spec outright and folded its test-authoring responsibility into
+# code/SKILL.md and the plan planner. The skills-independence refactor then
+# carved the plan phase out of /acs:code, so the planner surface is
+# create-impl-plan-planner.md.
 GUIDANCE_SURFACES = [
     os.path.join(PLUGIN, "skills", "code", "SKILL.md"),
     os.path.join(PLUGIN, "agents", "code-executor.md"),
-    os.path.join(PLUGIN, "agents", "code-planner.md"),
+    os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md"),
 ]
 STANDARD_DOC = os.path.join(REPO_ROOT, "docs", "standards", "standards.md")
 

@@ -13,10 +13,13 @@ Run:  python3 -m unittest tests.acs.test_docs_sync_pipeline_wiring -v
 
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+import acs_lib as lib  # noqa: E402
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
@@ -41,32 +44,37 @@ def section(body, heading):
 
 
 class PipelineOrderTableTest(unittest.TestCase):
-    def test_pipeline_order_table_has_docs_sync_between_test_and_create_pr(self):
-        table = section(read(SHIP_SKILL), "## Pipeline order")
-        rows = re.findall(r"(?m)^\|\s*\d+\s*\|\s*(\S[^|]*?)\s*\|", table)
-        self.assertIn("docs-sync", rows, "Pipeline order table must have a docs-sync row: %r" % rows)
-        test_idx = next(i for i, r in enumerate(rows) if r.startswith("test"))
-        docs_sync_idx = rows.index("docs-sync")
-        create_pr_idx = rows.index("create-pr")
-        self.assertLess(test_idx, docs_sync_idx,
-                        "docs-sync must be positioned after test")
-        self.assertLess(docs_sync_idx, create_pr_idx,
-                        "docs-sync must be positioned before create-pr")
+    """The order MAR-160 wired into ship/SKILL.md's prose table moved into
+    workflows/ship.yaml when the skills-independence refactor landed: the
+    table is gone from the skill, and docs-sync's position is declared as a
+    step whose `needs` name code, with create-pr needing docs-sync in turn.
+    Assert the position where it now lives, not where it used to be."""
+
+    def test_ship_yaml_orders_docs_sync_after_code_and_before_create_pr(self):
+        doc = lib.load_workflow(lib.default_workflow_path())[0]
+        steps = {step["id"]: step for step in doc["steps"]}
+        self.assertIn("docs-sync", steps, "ship.yaml must declare a docs-sync step")
+        self.assertIn("code", steps["docs-sync"].get("needs") or [],
+                      "docs-sync must need code")
+        self.assertIn("docs-sync", steps["create-pr"].get("needs") or [],
+                      "create-pr must need docs-sync")
+
+    def test_ship_skill_no_longer_carries_a_prose_order_table(self):
+        self.assertNotIn("## Pipeline order", read(SHIP_SKILL))
 
 
 class PickingNextStepWalkTest(unittest.TestCase):
-    def test_walk_contains_docs_sync_between_test_and_create_pr(self):
-        body = read(SHIP_SKILL)
-        section_start = body.index("## Picking the next step")
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        walk_section = body[section_start:section_start + 1 + next_heading.start()] \
-            if next_heading else body[section_start:]
-        normalized = re.sub(r"\s+", " ", walk_section)
-        self.assertIn("test (when the gate is active", normalized)
-        m = re.search(r"test \(when the gate is active.*?\) → (\S+) → create-pr", normalized)
-        self.assertIsNotNone(
-            m, "the walk must name a step between the test-gate clause and create-pr")
-        self.assertEqual(m.group(1), "docs-sync")
+    """The walk is computed by `acs.py workflow next`; the skill delegates to
+    it instead of restating an order."""
+
+    def test_the_skill_delegates_the_walk_to_workflow_next(self):
+        walk_section = section(read(SHIP_SKILL), "## The loop")
+        self.assertIn("acs.py", walk_section)
+        self.assertIn("workflow next", walk_section)
+
+    def test_the_skill_states_no_hard_coded_order(self):
+        body = re.sub(r"\s+", " ", read(SHIP_SKILL))
+        self.assertIn("never hard-code a step sequence", body)
 
 
 class Ac7ScopeBoundaryTest(unittest.TestCase):

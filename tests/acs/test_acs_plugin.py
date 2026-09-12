@@ -110,10 +110,18 @@ class TestGates(AcsWorkspaceCase):
                              "e2e": {"command": "make e2e", "per_iteration": False}})
         self.assertEqual(self.pre("create-ticket").returncode, 0)
 
+    def plan(self, ticket):
+        """The one input gate_code has since the skills-independence refactor:
+        a plan.md (create-impl-plan's artifact) in the ticket's docs folder
+        or partition. Nothing about the run ledger is consulted."""
+        with open(os.path.join(self.tdir(ticket), "plan.md"), "w") as fh:
+            fh.write("# plan\n")
+
     def test_gate_code_never_requires_create_spec_any_lane(self):
         # AC-4: gate_code no longer requires a completed create-spec step or a
-        # non-empty specs/ directory, on ANY lane -- it is an unconditional
-        # pass-through gated only on create-ticket having completed.
+        # non-empty specs/ directory, on ANY lane -- given a plan it is a
+        # pass-through; no predecessor run (create-ticket or otherwise) is
+        # checked, the order lives in ship.yaml.
         cases = [
             ("X", ["--size", "trivial", "--stakes", "low"]),
             ("Y", ["--size", "small", "--stakes", "normal"]),
@@ -124,12 +132,14 @@ class TestGates(AcsWorkspaceCase):
             with self.subTest(title=title):
                 t = self.new_ticket(title, "task", *args)
                 # No create-spec, no specs/ directory.
+                self.plan(t)
                 result = self.pre("code", t)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
         # Absent "lane" key (legacy ticket) also passes -- gate_code no longer
         # derives or inspects the lane at all.
         t = self.new_ticket("V", "task")
+        self.plan(t)
         tdir = self.tdir(t)
         ticket_path = os.path.join(tdir, "ticket.json")
         with open(ticket_path) as fh:
@@ -147,6 +157,7 @@ class TestGates(AcsWorkspaceCase):
         # gate's. A pre-existing, non-empty specs/ must not change the
         # outcome versus the specs-absent case already proven above.
         t = self.new_ticket("HasSpecs", "task")
+        self.plan(t)
         specs_dir = os.path.join(self.tdir(t), "specs")
         os.makedirs(specs_dir, exist_ok=True)
         with open(os.path.join(specs_dir, "01-existing.md"), "w") as fh:
@@ -312,7 +323,11 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
 
 
 class TestPipelineSequence(AcsWorkspaceCase):
-    """The full gate chain: epic -> child -> design -> code -> pr -> merge."""
+    """The full gate chain: epic -> child -> design -> code -> pr -> merge.
+
+    Since the skills-independence refactor the gates check INPUTS and BRAKES
+    only: the order (code before docs-sync before create-pr) lives in
+    workflows/ship.yaml and is advised on stderr, never refused."""
 
     def test_full_chain(self):
         out = self.run_script("skill-start.py", "--skill", "create-ticket",
@@ -328,14 +343,22 @@ class TestPipelineSequence(AcsWorkspaceCase):
         epic_doc = lib.load_ticket(self.tdir(epic))
         self.assertIn(child, epic_doc["children"])
 
-        # child skips create-ticket (recorded at mint) but is blocked on the epic design
+        # the child is not design-significant itself: create-design refuses it
         result = self.pre("create-design", child)
         self.assertEqual(result.returncode, 2)
         self.assertIn("needs_design", result.stderr)
-        # AC-4: gate_code no longer requires create-spec/specs/ for any lane --
-        # it is an unconditional pass-through gated only on create-ticket, so
-        # the child reaches /code with no design/spec precondition at all.
-        self.assertEqual(self.pre("code", child).returncode, 0)
+        # gate_code's one input is a plan (create-impl-plan's artifact): no
+        # create-spec/specs/ precondition, no design precondition, and no
+        # predecessor-completed check -- run ahead of ship.yaml's order it
+        # passes with an advisory line instead of a refusal.
+        result = self.pre("code", child)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("/acs:create-impl-plan %s" % child, result.stderr)
+        with open(os.path.join(self.tdir(child), "plan.md"), "w") as fh:
+            fh.write("# plan")
+        result = self.pre("code", child)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("normally follows create-test-docs in ship.yaml", result.stderr)
 
         with open(os.path.join(self.tdir(epic), "design.md"), "w") as fh:
             fh.write("# design")
@@ -343,7 +366,7 @@ class TestPipelineSequence(AcsWorkspaceCase):
         self.post("create-design", epic, {"status": "completed"})
         self.assertEqual(self.pre("code", child).returncode, 0)
 
-        # create-pr gate needs verifier_passed
+        # create-pr's BRAKE: a code run whose verifier did not pass is refused
         self.start("code", child)
         self.post("code", child, {"status": "completed", "states": {"verifier_passed": False}})
         self.assertEqual(self.pre("create-pr", child).returncode, 2)
@@ -352,10 +375,16 @@ class TestPipelineSequence(AcsWorkspaceCase):
         # the fixture seeds the verdict instead of asserting the conclusion.
         self.seed_verdict(child)
         self.post("code", child, {"status": "completed"})
-        # create-pr gate also needs docs-sync completed (AC-4)
+        # docs-sync is ship.yaml's concern, not create-pr's gate: without it
+        # the gate passes and the advisory names the pending need
+        result = self.pre("create-pr", child)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("docs-sync has not completed for %s" % child, result.stderr)
         self.start("docs-sync", child)
         self.post("docs-sync", child, {"status": "completed"})
-        self.assertEqual(self.pre("create-pr", child).returncode, 0)
+        result = self.pre("create-pr", child)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("normally follows", result.stderr)
 
         # merge gate needs a PR reference
         self.assertEqual(self.pre("merge-pr", child).returncode, 2)
@@ -403,9 +432,11 @@ class TestPipelineSequence(AcsWorkspaceCase):
 
 
 class TestDocsSyncGates(AcsWorkspaceCase):
-    """MAR-160 spec 02: gate_docs_sync (a)-(d) and the gate_create_pr rewire's
-    negative cases (a)/(b) -- the existing verifier_passed check must survive
-    unchanged, and the new docs-sync-completed check must be additive."""
+    """MAR-160 spec 02's gate_docs_sync (a)-(d) and gate_create_pr cases, as
+    they read after the skills-independence refactor: the ORDER checks (code
+    before docs-sync, the post-code test step, docs-sync before create-pr)
+    are ship.yaml's and surface as one stderr advisory with exit 0; the
+    verifier_passed BRAKE survives unchanged."""
 
     def setUp(self):
         super().setUp()
@@ -423,12 +454,14 @@ class TestDocsSyncGates(AcsWorkspaceCase):
         result = self.pre("docs-sync", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_docs_sync_gate_blocks_when_test_step_present_not_completed(self):
-        # (b) code completed, "test" step present but not completed -> 2, names test
+    def test_docs_sync_gate_passes_when_test_step_present_not_completed(self):
+        # (b) code completed, "test" step present but not completed -> 0: the
+        # post-code test step is not a docs-sync need in ship.yaml (docs-sync
+        # needs only code), so nothing is refused and nothing is advised.
         lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "in_progress")
         result = self.pre("docs-sync", self.ticket)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("test", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("normally follows", result.stderr)
 
     def test_docs_sync_gate_passes_when_test_step_completed(self):
         # (c) code completed, "test" step present and completed -> 0
@@ -436,20 +469,24 @@ class TestDocsSyncGates(AcsWorkspaceCase):
         result = self.pre("docs-sync", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_docs_sync_gate_blocks_when_code_not_completed(self):
-        # (d) code not completed -> 2, names code, regardless of test's state
+    def test_docs_sync_gate_passes_with_an_advisory_when_code_not_completed(self):
+        # (d) code not completed -> 0 with ONE advisory line naming code
         other = self.new_ticket("No code yet", "task")
         result = self.pre("docs-sync", other)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("code", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            [line for line in result.stderr.splitlines() if "normally follows" in line],
+            ["acs: docs-sync normally follows code in ship.yaml; code has not completed for %s"
+             % other])
 
-    # ---------------------------------------------------------------- gate_create_pr rewire
+    # ---------------------------------------------------------------- gate_create_pr
 
-    def test_create_pr_gate_blocks_when_docs_sync_not_completed(self):
-        # (a) code verifier_passed true but docs-sync never run -> 2, names docs-sync
+    def test_create_pr_gate_passes_with_an_advisory_when_docs_sync_not_completed(self):
+        # (a) code verifier_passed true but docs-sync never run -> 0; the
+        # advisory names docs-sync as the pending need
         result = self.pre("create-pr", self.ticket)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("docs-sync", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("docs-sync has not completed for %s" % self.ticket, result.stderr)
 
     def test_create_pr_gate_keeps_verifier_passed_check(self):
         # (b) docs-sync completed but the underlying code run's verifier_passed is
@@ -463,11 +500,12 @@ class TestDocsSyncGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("verifier_passed", result.stderr)
 
-    def test_create_pr_gate_passes_with_both_checks_satisfied(self):
+    def test_create_pr_gate_passes_quietly_in_order(self):
         self.start("docs-sync", self.ticket)
         self.post("docs-sync", self.ticket, {"status": "completed"})
         result = self.pre("create-pr", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("normally follows", result.stderr)
 
     # ---------------------------------------------------------------- registry
 

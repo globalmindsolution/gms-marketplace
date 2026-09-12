@@ -8,7 +8,8 @@ retired from in `code/SKILL.md`'s execute step and `code-executor.md`'s
 charter, that the relocated clauses (code-comment policy, test-filename rule,
 Simplicity First pointer) and the retained product-doc factual-reconciliation
 paragraph survive in those same producers, that the re-homed content actually
-landed in `docs-sync-executor.md`, and that `code-planner.md` still carries
+landed in `docs-sync-executor.md`, and that the plan planner
+(`create-impl-plan-planner.md` since the plan phase moved there) still carries
 its Boy-scout drift-repair paragraph with only the terminal clause rewritten
 to carry drift items into the execute report's `problems` field.
 
@@ -23,7 +24,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
-CODE_PLANNER = os.path.join(PLUGIN, "agents", "code-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
 DOCS_SYNC_EXECUTOR = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
 
 
@@ -225,14 +226,14 @@ class DocsSyncExecutorRehomeTest(unittest.TestCase):
         self.assertIn("adr_path", self.body)
 
 
-class CodePlannerBoyScoutRetainedTest(unittest.TestCase):
-    """code-planner.md's Boy-scout drift-repair detection/scheduling
+class PlanPlannerBoyScoutRetainedTest(unittest.TestCase):
+    """The plan planner's Boy-scout drift-repair detection/scheduling
     sub-paragraph is RETAINED — only its terminal clause is rewritten so the
     EXECUTOR (not the planner) carries drift items into `problems`."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_PLANNER)
+        cls.body = read(IMPL_PLAN_PLANNER)
 
     def test_absence_name_the_hld_files(self):
         self.assertNotIn("name the HLD files", self.body)

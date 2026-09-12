@@ -1,8 +1,14 @@
 """Contract tests for /acs:ship's full-verify handoff boundary.
 
-MAR-179: pins the explicit, contractual stop between the `code` step and
-docs-sync on full-verify lanes in plugins/acs/skills/ship/SKILL.md, replacing
-the previous implicit silent stop. Run:
+MAR-179: pins the explicit, contractual stop after the boundary step on
+full-verify lanes in plugins/acs/skills/ship/SKILL.md, replacing the previous
+implicit silent stop.
+
+Since the skills-independence refactor the boundary is keyed on the ready
+step's own `boundary: full_verify_stop` field (workflows/ship.yaml carries it
+on `code`), and the walk that follows it is `acs.py workflow next`, not a
+hard-coded order — so the assertions below pin the boundary mechanism and the
+delegation, never a step sequence. Run:
   python3 -m unittest tests.acs.test_ship_full_verify_handoff -v
 """
 
@@ -83,21 +89,22 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
         self.assertIsNotNone(re.search(r"(?i)docs-sync", sect))
         self.assertIsNotNone(re.search(r"(?i)create-pr", sect))
 
-    def test_picking_next_step_walk_unchanged(self):
-        section_start = self.body.index("## Picking the next step")
-        next_heading = re.search(r"\n## ", self.body[section_start + 1:])
-        walk = self.body[section_start:section_start + 1 + next_heading.start()] \
-            if next_heading else self.body[section_start:]
-        self.assertNotIn("TRIVIAL", walk)
-        self.assertNotIn("SMALL", walk)
-        normalized = normalize(walk)
-        self.assertIn(
-            "create-ticket → create-design (when required per the rules "
-            "above) → code → test (when the gate is active, per "
-            "\"Post-code test gate\" above) → docs-sync → create-pr",
-            normalized,
-            "ship/SKILL.md must keep the single lane-uniform walk order "
-            "byte-identical")
+    def test_boundary_is_keyed_on_the_step_field_not_a_step_name(self):
+        """The stop belongs to whichever step ship.yaml marks, so the section
+        must key on `boundary: full_verify_stop` rather than hard-coding the
+        skill the default workflow happens to put it on."""
+        sect = normalize(section(self.body, BOUNDARY_HEADING))
+        self.assertIn("boundary: full_verify_stop", sect)
+
+    def test_the_walk_is_delegated_not_restated(self):
+        """`acs.py workflow next` decides what runs after the boundary; the
+        lane-uniform walk is no longer spelled out in the prose at all."""
+        walk_section = section(self.body, "## The loop")
+        self.assertIn("workflow next", walk_section)
+        self.assertNotIn("TRIVIAL", walk_section)
+        self.assertNotIn("SMALL", walk_section)
+        self.assertNotIn("→ create-pr", normalize(walk_section),
+                         "the loop must not restate a hard-coded step order")
 
     def test_boundary_reachable_from_completed_handoff_branch(self):
         sect = section(self.body, "## Handling the handoff")
@@ -125,12 +132,12 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
             "the context-tiny ground rule must reconcile with the "
             "full-verify handoff boundary section")
 
-    def test_stop_precedes_post_code_test_gate(self):
+    def test_stop_precedes_the_next_walk(self):
         sect = normalize(section(self.body, BOUNDARY_HEADING))
         self.assertIsNotNone(
-            re.search(r"(?i)before.{0,120}post-code test gate", sect),
-            "the section must state the stop happens before the post-code "
-            "test gate")
+            re.search(r"(?i)before the next\s+`?workflow next`?", sect),
+            "the section must state the stop happens before the next "
+            "`workflow next` — i.e. before any further step is picked")
         self.assertIsNotNone(
             re.search(r"(?i)fresh session", sect),
             "the section must state the remaining steps run in a fresh "

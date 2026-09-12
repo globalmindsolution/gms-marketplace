@@ -63,11 +63,11 @@ sequenceDiagram
     Dev->>CC: /acs:code SHOP-123
     CC->>D: PreToolUse(Skill) payload
     D->>PRE: route by skill name, bounded alarm (same payload)
-    alt gate fails
-        PRE-->>CC: exit 2 + stderr ("no workspace partition for SHOP-123 — run /acs:create-ticket first")
+    alt an input is missing or a brake fires
+        PRE-->>CC: exit 2 + stderr ("no plan.md found for SHOP-123 ... — run /acs:create-impl-plan SHOP-123 first.")
         CC-->>Dev: skill blocked, actionable message
-    else gate passes
-        PRE-->>CC: exit 0
+    else inputs present, no brake
+        PRE-->>CC: exit 0 (plus one stderr advisory when this step's ship.yaml needs are unsatisfied)
         CC->>CO: run SKILL.md
         CO->>SS: --skill code --args "$ARGUMENTS"
         SS->>WS: lock, pointer, in_progress run, ledger
@@ -175,3 +175,36 @@ escalation check" section).
 verify reduces the iteration ceiling only — the verifier always runs; there is
 no inline human-approval gate. The TDD/coverage gate (Coverage hard fail) is
 never trimmed by the verify-depth selection and applies in full in every lane.
+
+## Amendment — skills-independence refactor (ADR-0089)
+
+The `PRE` participant's check changed kind, not position. It still runs
+in-process under `dispatch.py`'s bounded alarm, still fails closed, and exit 2
+is still the block. What it evaluates is now only:
+
+- the **inputs** the skill about to run reads — the partition resolves; the
+  PRD doc set for `/acs:create-architecture`; `plan.md` for `/acs:code`;
+  `plan.md` plus an `api_surface: true` `analysis.md` for
+  `/acs:create-api-contract`; a configured e2e suite plus at least one
+  e2e-typed case in `test-cases.md` for `/acs:create-e2e-tests`; and
+- a small set of **safety brakes** — the partition `.lock`, the epic refusal,
+  `/acs:create-pr`'s `verifier_passed` brake (narrowed to a ticket that HAS a
+  recorded `code` run), and `/acs:merge-pr`'s recorded-PR requirement.
+
+No gate reads another skill's run status: `_require_completed` is deleted.
+When the skill IS a step of the resolved `workflows/ship.yaml` and that step's
+`needs` are unsatisfied for this ticket, the gate passes and prints one stderr
+line — `acs: docs-sync normally follows code in ship.yaml; code has not
+completed for SHOP-123` — suppressed by `settings.workflow.advisories: false`
+and by any read it cannot complete. The order itself is enforced one layer up,
+by `/acs:ship`'s walk over `acs.py workflow next` (`ship-pipeline.md`).
+
+Two other participants in the diagram moved with the refactor. The `PL` /
+`PA` legs belong to `/acs:create-impl-plan` now, not `/acs:code`: the plan
+phase, `code-planner.md` (as `create-impl-plan-planner.md`) and
+`plan-approval.py`'s invocation all moved there, so a `/acs:code` run draws no
+`CO->>PL` step at all and enters the reflection loop directly with the
+approved plan as an input. And `WS` splits in two: the phase artifacts,
+verdicts, ledger and lock stay in the workspace partition, while the plan and
+the other human-facing ticket documents are written to
+`<settings.artifacts.tickets_path>/<ID>/` in the repo (ADR-0090).

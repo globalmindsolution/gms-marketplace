@@ -19,10 +19,13 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<objective>` — which spec (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
-  the plan artifact `<partition>/phases/code/plan.md` (the path supplied in
-  `<inputs>`; your task's file map and test strategy live there),
-  `<partition>/ticket.json`, and `design.md` when one applies. READ EVERY
-  ONE. Derive `<partition>` from the directory containing `ticket.json`;
+  the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
+  coordinator resolved (the ticket's docs folder, the partition, or the
+  pre-docs-tree `<partition>/phases/code/plan.md`); your task's file map and
+  test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
+  written one, the ticket document, and `design.md` when one applies. READ
+  EVERY ONE. Derive `<partition>` from the directory containing the run
+  ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target`, `branch` (the ticket branch the
   coordinator already created), `commit_message` (format with `{ticket_id}`,
   `{summary}`, optionally `{type}`/`{external_key}`);
@@ -47,6 +50,11 @@ never quietly do code work under a docs-only ticket.
    finding on iteration 2+: a failing test reproducing it). Run them and
    confirm they fail for the right reason — a test that passes before the
    implementation exists proves nothing.
+   **When `test-cases.md` is in `<inputs>`**, its `TC-n` rows whose scope falls
+   in your file map ARE that test plan: write one test per case, name the
+   `TC-n` id in the test's docstring so the verifier can trace it, and record
+   any case you could not write — with the reason — in your execute report's
+   `problems` field. Never silently drop a case, and never renumber one.
 2. **Implement** until those tests pass, iterating to green. Then run the FULL
    suite with the commands from the plan's test strategy — no regressions.
    When `<constraints>` carries `e2e_command` and your spec's Test plan names
