@@ -794,11 +794,12 @@ MANDATORY final step — never skipped, also on failure:
    }
    ```
 
-   **Four of these keys are DERIVED (MAR-523).** `verifier_passed`, `tests`,
-   `pr` and `review.iterations` are **computed by the post-hook from the
-   artifacts** — the verifier's verdict, the executors' execute reports, the
-   forge, and the verify files on disk. Write your best value anyway (the
-   document is a contract with humans too), but what lands is the computed one,
+   **Five of these keys are DERIVED (MAR-523, MAR-578).** `verifier_passed`,
+   `tests`, `pr`, `review.iterations` and `review.guard_denials` are
+   **computed by the post-hook from the artifacts** — the verifier's verdict,
+   the executors' execute reports, the forge, the guard's denial trail, and the
+   verify files on disk. Write your best value anyway (the document is a
+   contract with humans too), but what lands is the computed one,
    and a disagreement is written to `runs[-1].derived_states.overrode` and
    printed. You cannot open the /acs:create-pr gate by writing `true`.
 
