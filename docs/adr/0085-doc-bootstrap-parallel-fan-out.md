@@ -2,6 +2,25 @@
 
 **Status**: Accepted · **Date**: 2026-08-31
 
+> **Forward pointer — ADR-0091 (2026-09-12).** Every decision below stands
+> — the unhooked umbrella, the phase-level interleave, worktree-per-leg
+> delivery, the declared dependency/eligibility predicate, the no-new-ledger
+> rule and the scoped fail-fast carve-out are all **unamended**. Two things
+> this ADR scoped deliberately have since been widened by ADR-0091:
+>
+> * **The v1 pair is now all four legs.** `DOC_BOOTSTRAP_FANOUT_V1` covers
+>   `create-quality`, `create-operations`, `create-principles` and
+>   `create-standards`, exactly as the "a data change, never an edit to this
+>   skill" rule below anticipated. The general N-way case is therefore the
+>   default path, and the `candidates` argument now carries a *narrowing*
+>   request. Concurrency is capped at `max_parallel` (default 2) rather than
+>   launching every eligible leg at once.
+> * **The legs are no longer user-facing.** This ADR left them separately
+>   invocable and added `/acs:create-docs` beside them; ADR-0091 makes the
+>   umbrella their only user-facing command via the registry's `internal`
+>   map. The legs stay real, Skill-invocable skills — which is precisely
+>   what D2 below depends on.
+
 ## Context
 
 `/acs:create-quality` and `/acs:create-operations` are independent

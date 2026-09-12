@@ -2,6 +2,15 @@
 
 **Status**: Accepted · **Date**: 2026-08-26
 
+> **Forward pointer — ADR-0091 (2026-09-12).** The loop topology decided
+> below is **unamended** and still holds for all five skills exactly as
+> written: plan once before the loop, iteration-2+ findings straight to the
+> executor. Four of the five (`create-quality`, `create-operations`,
+> `create-principles`, `create-standards`) have since become **internal
+> legs** of `/acs:create-docs` — the entry-point fold moved no triad and no
+> hook, so nothing here changes; the `/acs:`-prefixed spellings below now
+> name skills rather than user-facing commands.
+
 ## Context
 
 MAR-305 drops the per-iteration planner re-spawn across the 5 bootstrap-doc

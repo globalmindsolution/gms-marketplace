@@ -93,12 +93,19 @@ coordinator authors the plan artifact itself, with zero planner spawns (ADR
 `/code`, and for every other skill among the twelve triad-keeping ones — so
 the counts above are unaffected.
 
-`/acs:create-docs` is an unhooked coordinator, not a thirteenth triad-keeping
-skill: it has no triad of its own (like `/acs:ship`), and spawns the
-*existing* triads above (`create-quality`, `create-operations`) as ordinary
-plan→execute→verify runs on their own delivery tickets, one cross-skill
-batch fanned out in parallel. The twelve-skill list and the 12/36/39 counts
-above are unaffected (MAR-1).
+`/acs:create-docs` and `/acs:project` are unhooked coordinators, and neither
+is a triad-keeping skill: like `/acs:ship` they have no triad, no gate and no
+hook scripts of their own. They are the **entry points** of the design-phase
+fold (`workflows/phases.yaml`'s `internal` map, ADR 0091), and they spawn the
+*existing* triads above as ordinary plan→execute→verify runs on their own
+delivery tickets — `/acs:create-docs` over its four doc-bootstrap legs
+(`create-quality`, `create-operations`, `create-principles`,
+`create-standards`), fanned out in cross-skill batches walked in slices of at
+most `max_parallel` (default 2) legs; `/acs:project` over exactly one of its
+two legs (`create-project` or `standardize-project`), chosen by
+`acs_lib.project_mode` from declared on-disk evidence. Because the fold moved
+no triad, no gate and no agent file, the triad-keeping list and the 12/36/39
+counts above are unaffected by it (MAR-1; fold per ADR 0091).
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;

@@ -75,9 +75,11 @@ architecture doc set, each delivered as a reviewable docs PR:
 ```
 
 (Greenfield is the same, except both skills *elicit* instead of
-reverse-engineer, and one extra `/acs:create-project` run scaffolds the repo
+reverse-engineer, and one extra `/acs:project` run scaffolds the repo
 skeleton — build, test harness, coverage tooling, lint, CI, a green vertical
-slice.)
+slice. `/acs:project` finds no packaging or build file on disk, says so, and
+dispatches to its `bootstrap` leg; run in an existing repo it picks
+`standardize` instead and audits rather than scaffolds.)
 
 Then ship features. `/acs:ship` takes a **ticket id**, so a new request starts
 in the Design phase:
@@ -117,6 +119,16 @@ allowed-skill list, `/acs:metrics` grouping). Within a phase the rows follow
 the registry's own order; the order steps actually RUN in is declared
 separately, in `workflows/ship.yaml`.
 
+Not every skill is a command you run. The registry's `internal` map names six
+**legs** — four doc-bootstrap skills behind `/acs:create-docs`, the two
+project-scaffold skills behind `/acs:project` — that keep their own SKILL.md,
+agent trio, `pre-`/`post-` hooks and gate, and stay Skill-invocable, but whose
+only user-facing command is the entry point they serve. That is an entry-point
+fold, not a collapse: nothing about a leg's own run changed. The tables below
+show the entry points; the legs get their own table under Design, where all
+six of them sit, and a leg's run reports under its entry point's phase
+(`phase_of("create-quality")` is `design`, resolved through `create-docs`).
+
 **Gate** says what each skill's pre-hook checks before letting it start. Since
 v0.5.0 a gate checks only *inputs* (the artifacts and configuration the skill
 reads) and *safety brakes* (the partition lock; a failed verifier). No gate
@@ -130,16 +142,31 @@ the pre-hook prints a one-line advisory on stderr and the skill runs anyway.
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
 | `/acs:create-requirements` | Settings exist | Bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | PRD doc set exists | HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
-| `/acs:create-project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. |
-| `/acs:create-principles` | Architecture doc set exists | Bootstraps or maintains the principles/ doc set (engineering principles + rationale) at `principles_path`, reading the PRD and the architecture set; docs PR via its own delivery ticket. |
-| `/acs:create-standards` | Architecture doc set exists | Bootstraps or maintains the standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) at `standards_path`, reading the PRD, the architecture set, and the principles set when present; docs PR via its own delivery ticket. |
-| `/acs:create-quality` | Architecture doc set exists | Bootstraps or maintains the quality/ doc set (test strategy, coverage policy) at `quality_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
-| `/acs:create-operations` | Architecture doc set exists | Bootstraps or maintains the operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) at `operations_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
-| `/acs:create-docs` | — (unhooked fan-out) | Cross-skill doc-bootstrap fan-out: detects independent doc-bootstrap skills (currently `create-quality` and `create-operations`) whose upstream inputs exist, and runs them in parallel instead of sequentially — each leg keeps its own hooks, reflection cycle, and gating, and delivers as its own docs-only PR on its own delivery ticket. |
-| `/acs:project` | — (unhooked umbrella) | Repository structure and tooling: detects from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL`) whether this repo is greenfield or an existing codebase, states the mode and the evidence it rests on, then dispatches to the matching internal leg — `create-project` (greenfield scaffold) or `standardize-project` (additive brownfield audit) — as a real Skill-tool call, so that leg's own hooks, gate, delivery ticket and PR are unchanged. |
-| `/acs:standardize-project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. |
+| `/acs:create-docs` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for the four product doc sets — `quality`, `operations`, `principles`, `standards`. Takes `all` or a comma-separated list (the `create-<set>` spelling resolves too; `--for` is accepted for one more release and says so once). Filters the request through the declared eligibility predicate, then fans the eligible legs out in capped parallel — at most 2 at a time (the ship workflow's `max_parallel`) — each leg delivering its own docs-only PR on its own delivery ticket. |
+| `/acs:project` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for repository structure and tooling. Decides its own mode from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL` — ten packaging/build/tooling files): no evidence at all ⇒ `bootstrap`, any evidence ⇒ `standardize`. States the mode and the evidence it rests on, then dispatches to that leg as a real Skill-tool call. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
+
+#### Internal legs — not commands you run
+
+These six are the `internal` map of `workflows/phases.yaml`. Each keeps its
+SKILL.md, its planner/executor/verifier trio, its `pre-`/`post-` hook scripts,
+its registered gate and its sentinel, and its entry point invokes it as a
+genuine Skill-tool call so all of that fires exactly as it would standalone.
+What changed is only who invokes them: each carries
+`disable-model-invocation: true`, so use the entry point instead. A leg's own
+`/acs:<leg> <ticket-id>` form survives for one purpose — resuming a leg that
+failed, was interrupted or was handed off, which its entry point never does on
+its behalf.
+
+| Leg | Entry point | Gate (input / brake) | What it does |
+|-----|-------------|----------------------|--------------|
+| `create-quality` | `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the quality/ doc set (test strategy, coverage policy) at `quality_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
+| `create-operations` | `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the operations/ doc set (release process, runbooks, observability, incident response, test-scheduling recipe) at `operations_path`, reading the PRD's non-functional requirements and the architecture set; docs PR via its own delivery ticket. |
+| `create-principles` | `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the principles/ doc set (engineering principles + rationale) at `principles_path`, reading the PRD and the architecture set; docs PR via its own delivery ticket. |
+| `create-standards` | `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the standards/ doc set (coding standards, naming/layout/formatting conventions, review checklist) at `standards_path`, reading the PRD, the architecture set, and the principles set when present; docs PR via its own delivery ticket. Declares a soft dependency on `create-principles`, which is why the two never share a fan-out batch. |
+| `create-project` | `/acs:project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
+| `standardize-project` | `/acs:project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
 
 ### Build — analyze, plan, specify, implement
 

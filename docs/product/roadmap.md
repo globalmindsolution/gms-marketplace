@@ -365,6 +365,20 @@ accountability)** is a documentation artifact **satisfied at this amendment's
 landing release** — no separate epic; re-checked each release the skill set
 changes.
 
+**Amendment — design-phase entry-point fold (ADR 0091).** The phase coverage
+above is unchanged, but the **commands** that reach three of those phases are
+not what the wave notes say. `create-quality`, `create-operations`,
+`create-principles`, `create-standards`, `create-project` and
+`standardize-project` are now internal legs: quality/operate and
+standards/principles are reached through `/acs:create-docs <set|all>`, and
+bootstrap/standardization through `/acs:project`, which picks its mode from
+declared on-disk evidence rather than making the user choose greenfield vs
+brownfield. Every leg kept its own gate, triad, delivery ticket and PR, so no
+wave's delivered scope moved and no phase lost its operating skill — read the
+`/acs:create-quality`-style spellings in the wave notes below as skill names,
+not as commands. `/acs:test` likewise reads as `/acs:run-e2e-tests` since the
+skills-independence refactor left `test` behind as a one-release alias.
+
 #### Wave 1 — v0.3.8 (shipped)
 
 Starts now, in parallel with M2.6 — ADR 0011 already settles its design.

@@ -251,26 +251,58 @@ The `standards` chain level has a documentary counterpart in this repo at
 `standards_path` unset, these standards are enforced by guard tests and pipeline
 guidance rather than as a runtime-verified conformance level.
 
-`DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib.py`) declares, per doc-bootstrap skill,
-which upstream doc sets it depends on, and `DOC_BOOTSTRAP_SETTINGS_KEY` maps
-each entry to the settings key that must resolve before that skill is eligible;
-`fanout_batches()` is the pure helper `/acs:create-docs` calls against this
-table to compute its eligible cross-skill batch (MAR-1); by default the eligible
-set is gated on the declared v1 tuple `DOC_BOOTSTRAP_FANOUT_V1` (v1 = the pair
-`create-quality`/`create-operations`), with the general N-way case reachable via
-`fanout_batches`'s explicit `candidates` argument. Each declared dependency is
-either **hard** (an existing gate already enforces it) or **soft** (prose-only,
-ungated) — the principles→standards edge above is the soft case:
-`create-standards` degrades gracefully when `principles/` is absent and its own
-gate requires only the architecture set, so the conformance chain's "each level
-verified against the one above it" holds as a hard property everywhere except
-this one declared-soft edge. The distinction is documented once in
-`DOC_BOOTSTRAP_DEPENDENCIES`'s own table and cross-referenced from here so a
-reader of either doc finds the other. `parse_fanout_for_arg()` is the companion
-pure parser for `/acs:create-docs`'s `--for <skill>[,<skill>...]` argument: it
-partitions the requested names against `DOC_BOOTSTRAP_FANOUT_V1` before
-`fanout_batches` is called, so a name outside the declared v1 set is reported as
-ineligible rather than silently skipped.
+`DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib`, declared in `acs_lib/_common.py`)
+declares, per doc-bootstrap skill, which upstream doc sets it depends on, and
+`DOC_BOOTSTRAP_SETTINGS_KEY` maps each entry to the settings key that must
+resolve before that skill is eligible; `fanout_batches()`
+(`acs_lib/setup_helpers.py`) is the pure helper `/acs:create-docs` calls
+against this table to compute its eligible cross-skill batches (MAR-1). The
+default eligible set is the declared tuple `DOC_BOOTSTRAP_FANOUT_V1`, which is
+now **all four** doc-bootstrap legs — `create-quality`, `create-operations`,
+`create-principles`, `create-standards` — so the N-way case that used to need
+`fanout_batches`'s explicit `candidates` argument is the default path; that
+argument now carries a *narrowing* request (the entry point's `<set|all>`
+argument) rather than a widening one. Widening the set further stays a data
+change across all four declared constants, never a code or prose change.
+
+Each declared dependency is either **hard** (an existing gate already enforces
+it) or **soft** (prose-only, ungated) — the principles→standards edge above is
+the soft case: `create-standards` degrades gracefully when `principles/` is
+absent and its own gate requires only the architecture set, so the conformance
+chain's "each level verified against the one above it" holds as a hard property
+everywhere except this one declared-soft edge. With the set at four, that edge
+is now load-bearing on the default path: it is what splits the default batches
+into `[[create-quality, create-operations, create-principles],
+[create-standards]]` instead of one flat batch. The distinction is documented
+once in `DOC_BOOTSTRAP_DEPENDENCIES`'s own table and cross-referenced from here
+so a reader of either doc finds the other.
+
+`parse_doc_set_arg()` is the companion pure parser and the entry point's whole
+argument contract: a comma-separated list of doc sets in either spelling
+(`quality` or `create-quality`), or `all` on its own (`all` beside a set name is
+refused, never guessed at). It returns `candidates` (canonical leg names, or
+`None` for "no argument", handed straight to `fanout_batches`), `rejected`, and
+`notices` — the exact stderr lines, in order. A token naming no doc set refuses
+the WHOLE run rather than fanning out the recognized remainder, so no requested
+name is ever silently dropped. `parse_fanout_for_arg()` remains the legacy
+`--for <skill>[,<skill>...]` half of the same parser, accepted for one release
+and adding exactly one deprecation notice that the positional form is the
+spelling now — the `test` → `run-e2e-tests` alias precedent.
+
+`project_mode(settings, checkout_root)` (`acs_lib/setup_helpers.py`) is the
+declared-data counterpart for the other half of the design-phase fold (ADR
+0091): the pure helper `/acs:project` calls to choose between its two legs. It
+reads `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL` (ten
+packaging/build/tooling files: `pyproject.toml`, `setup.py`, `package.json`,
+`go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`,
+`.pre-commit-config.yaml`, `.coveragerc`) off disk through the same
+`_sentinel_present` primitive `doc_set_present_on_disk` uses — no git scan, no
+heuristic, no prose inference — and returns the chosen `mode`
+(`"bootstrap"` | `"standardize"`), the full `evidence` list, `present`/`absent`
+names, and a one-sentence `reason` the skill states back to the user. The
+partial case is deterministic and deliberate: **any** single present row means
+`standardize`, so only a repo with no declared evidence at all is `bootstrap`
+— failing toward the additive, idempotent leg.
 
 ---
 

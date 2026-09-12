@@ -120,6 +120,17 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > lists above (MAR-161) because the skill and both scripts were deleted
 > outright (MAR-156, `fe91e75`) — a correction, not an omission like the
 > gaps this note otherwise flags.
+>
+> **The design-phase entry-point fold (ADR 0091) adds no gap to close.** The
+> six skills it made internal legs of `/acs:create-docs` and `/acs:project`
+> **kept** their `pre-`/`post-` pairs, so the four already flagged above
+> (`create-quality`, `create-operations`, `create-principles`,
+> `create-standards`) plus `create-project` and `standardize-project` sit in
+> this same runtime-agnostic bucket, unchanged — the fold narrowed who may
+> invoke a leg, never how it is hooked. The two **entry points** are unhooked
+> umbrellas and own no hook scripts at all: there is no `pre-create-docs.py`
+> and no `pre-project.py`, and none should be added, so neither belongs in the
+> lists above or in the gap this note flags.
 
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 

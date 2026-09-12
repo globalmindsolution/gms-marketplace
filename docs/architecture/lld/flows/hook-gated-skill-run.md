@@ -3,6 +3,14 @@
 The core runtime flow: every hooked skill, direct invocation. (Under `/ship`
 the coordinator invokes the same flow directly — see `ship-pipeline.md`.)
 
+This flow is **also** exactly what an `internal` leg of `/acs:create-docs` or
+`/acs:project` runs (`workflows/phases.yaml`). The design-phase entry-point
+fold changed only who may invoke those six skills, never how they run: the
+entry point invokes each leg as a genuine Skill-tool call, so the
+`PreToolUse(Skill)` gate, `skill-start.py`, the triad and the `post-` hook all
+fire for real, precisely as drawn below. Read every `/acs:create-quality`-style
+name in this file as the skill, not as a command a user types.
+
 The diagram below shows the **full reflection triad** (planner → executor →
 verifier), which is how the twelve triad-keeping skills run (`create-prd`,
 `create-architecture`, `create-project`, `create-quality`,

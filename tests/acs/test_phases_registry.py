@@ -263,5 +263,58 @@ class TestLoadPhasesRefusals(unittest.TestCase):
             lib.load_phases(os.path.join(self.tmp, "absent.yaml"))
 
 
+class TestInternalMapIsDocumented(unittest.TestCase):
+    """The registry is the single source for the README skill table,
+    INTERNALS.md and /acs:metrics grouping (phases.yaml's own header says so),
+    so the `internal` map has to be explained where `aliases` already is, and
+    every leg has to be named there. Without this pin the map is a data change
+    whose documentation can rot silently -- nothing else reads the prose.
+    """
+
+    INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
+    README = os.path.join(PLUGIN, "README.md")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.legs = lib.skill_legs()
+        with open(cls.INTERNALS, encoding="utf-8") as fh:
+            cls.internals = fh.read()
+        with open(cls.README, encoding="utf-8") as fh:
+            cls.readme = fh.read()
+
+    def test_internals_explains_the_internal_map_beside_aliases(self):
+        registry = self.internals.split("### `workflows/phases.yaml`")[1]
+        registry = registry.split("### `workflows/ship.yaml`")[0]
+        for token in ("aliases", "internal", "entry point", "skill_legs()",
+                      "entry_point_of("):
+            with self.subTest(token=token):
+                self.assertIn(token, registry)
+
+    def test_internals_names_every_leg_and_its_entry_point(self):
+        registry = self.internals.split("### `workflows/phases.yaml`")[1]
+        registry = registry.split("### `workflows/ship.yaml`")[0]
+        for leg, entry in self.legs.items():
+            with self.subTest(leg=leg):
+                self.assertIn("%s: %s" % (leg, entry), registry)
+
+    def test_internals_records_that_phase_of_resolves_a_leg(self):
+        """/acs:metrics groups by phase from this registry; phase_of resolving
+        a leg through its entry point is what keeps a leg's run inside a
+        phase, so the grouping surface has to say so."""
+        registry = self.internals.split("### `workflows/phases.yaml`")[1]
+        registry = registry.split("### `workflows/ship.yaml`")[0]
+        self.assertIn("/acs:metrics", registry)
+        self.assertIn('phase_of("create-quality")', registry)
+        for leg in self.legs:
+            with self.subTest(leg=leg):
+                self.assertEqual(lib.phase_of(leg), lib.phase_of(self.legs[leg]))
+
+    def test_readme_says_a_leg_is_not_a_command(self):
+        table = self.readme.split("## The ")[1]
+        self.assertIn("internal", table)
+        self.assertIn("entry point", table)
+        self.assertIn("not a collapse", table)
+
+
 if __name__ == "__main__":
     unittest.main()
