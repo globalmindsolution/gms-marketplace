@@ -54,6 +54,9 @@ denial not recorded: …`, beside the warning the executor already gets: same
 exit 2, same warning text, no retry, no wait, no lock. The append is unlocked,
 so two denials racing in the same instant can lose one — the trail is a floor
 on what was denied, not a guaranteed count. Nothing is recorded on any
-fail-open branch, so a zero-length trail and no trail at all mean the same
-thing: the guard denied nothing, which is why the derived
-`states.review.guard_denials` is absent rather than `0`.
+fail-open branch, so on a run that carries the trail a zero-length one means
+the guard denied nothing. No trail at all says less than that: the field is
+optional and forward-only, so its absence covers a run finalized before the
+trail shipped as well as a run that was never denied. That is why the derived
+`states.review.guard_denials` is absent rather than `0` — a `0` could not be
+told apart from a run predating the trail.

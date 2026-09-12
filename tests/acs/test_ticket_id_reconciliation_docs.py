@@ -146,7 +146,7 @@ class C4ComponentDocsTest(unittest.TestCase):
         # same line by design (Option F), so asserting its absence would
         # expire the moment that ticket lands.
         lib_line_match = re.search(
-            r'Component\(lib, "acs_lib\.py".*?\n', self.body, re.DOTALL
+            r'Component\(lib, "acs_lib/".*?\n', self.body, re.DOTALL
         )
         self.assertIsNotNone(lib_line_match, "the lib component entry must exist")
         lib_line = lib_line_match.group(0)
