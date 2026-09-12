@@ -196,8 +196,8 @@ scenario loop — it simply peels `--plugin` and delegates.
 
 - **E1.1 (done)** — scenario runner + sandbox + artifact assertions. Seeded
   with `install_gate_smoke` (free, G1) and `create_ticket_artifacts` (paid, G1).
-- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **all 25**
-  skills, 27 probes in all. The 23 model-invocable skills each get a
+- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **25 of the
+  31** skills, 27 probes in all. The 23 model-invocable skills each get a
   natural-language request (never naming the skill) that must route to it. The
   2 user-only skills (`install-hooks`, `update`, which set
   `disable-model-invocation: true`) get a pair of probes instead: an explicit
