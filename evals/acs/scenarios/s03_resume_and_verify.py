@@ -1,14 +1,14 @@
 """s03 — resume-from-state + verifier-clean + PR-size (paid, G2 + G3 + G4).
 
 Seeds the pipeline to "ready for /acs:code" deterministically (mint a task,
-drop a real spec file) — no `claude` spent yet — then
+drop a real spec file and the plan.md /acs:code now requires as its input —
+the plan phase moved to /acs:create-impl-plan) — no `claude` spent yet — then
 runs ONE fresh `claude -p` session that is told *only the ticket id*. The
 session must discover the work from the ticket's specs in the workspace
 (resume from state only, **G2**), implement it via the code TDD cycle and pass
-the verifier so the next gate in the pipeline — docs-sync — opens while
-create-pr stays blocked until docs-sync has run (verifier-clean, **G3**), and
-the resulting change must stay under the ~400-line PR-size cap (**G4**, measured
-as the repo diff since the seed — no forge needed).
+the verifier so the create-pr brake releases (verifier-clean, **G3**), and the
+resulting change must stay under the ~400-line PR-size cap (**G4**, measured as
+the repo diff since the seed — no forge needed).
 
 The G2 evidence is concrete: the prompt never names "/health", so an
 implementation that wires `/health` can only have come from reading the seeded
@@ -25,6 +25,18 @@ META = {
     "goal": "G2+G3+G4",
     "summary": "fresh code session resumes from specs, verifies clean, under PR-size cap",
 }
+
+PLAN = """# Implementation plan — EVAL-1
+
+## Approach
+Add a `health()` function to `app.py` that returns the string `ok`, and wire an
+HTTP route `GET /health` to it. The route returns whatever `health()` returns —
+no second copy of the literal.
+
+## File map
+- `app.py` — add `health()` and the `GET /health` route.
+- the repo's test module — add the `GET /health` test the spec's test plan names.
+"""
 
 SPEC = """# Spec 01 — GET /health
 
@@ -70,9 +82,14 @@ def run():
         os.makedirs(specs, exist_ok=True)
         with open(os.path.join(specs, "01-health.md"), "w") as fh:
             fh.write(SPEC)
-        code_gate, _ = sb.gate("code", tid)
+        # /acs:code's input gate: the plan artifact create-impl-plan writes.
+        # Seeded in the partition, which is where the resolver looks when the
+        # repo has no docs/tickets tree.
+        with open(sb.ticket_path(tid, "plan.md"), "w") as fh:
+            fh.write(PLAN)
+        code_gate, gate_err = sb.gate("code", tid)
         if not check.ok("seed reached code-ready state", code_gate == 0,
-                        "code gate exit=%s" % code_gate):
+                        "code gate exit=%s %s" % (code_gate, gate_err)):
             return check
 
         # --- one paid session, told only the ticket id --------------------
@@ -91,15 +108,11 @@ def run():
         check.eq("code step completed",
                  ps.get("steps", {}).get("code", {}).get("status"), "completed")
 
-        # G3: verifier passed => docs-sync is the gate that opens next, and
-        # create-pr stays shut until docs-sync has run (the shipped order).
-        docs_gate, docs_err = sb.gate("docs-sync", tid)
-        check.ok("verifier-clean: docs-sync gate opened after code",
-                 docs_gate == 0, "exit=%s %s" % (docs_gate, docs_err))
+        # G3: the create-pr brake only opens for a code run whose verifier
+        # passed — a red verifier is the one thing that still refuses.
         pr_gate, err = sb.gate("create-pr", tid)
-        check.ok("create-pr gate still blocked until docs-sync runs",
-                 pr_gate != 0 and "docs-sync" in err,
-                 "exit=%s %s" % (pr_gate, err))
+        check.ok("verifier-clean: create-pr brake released after code",
+                 pr_gate == 0, "exit=%s %s" % (pr_gate, err))
 
         # G4: the change a PR would carry stays under the ~400-line cap
         lines = sb.changed_lines()

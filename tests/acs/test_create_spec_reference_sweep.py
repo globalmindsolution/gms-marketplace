@@ -35,8 +35,11 @@ sys.path.insert(0, HOOKS_SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 # --- The 3 files the AC-2 predicate says must still contain "create-spec" ---
-CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
-CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
+# The fold and its planner charter moved to /acs:create-impl-plan in the
+# skills-independence refactor, so two of the three survivors moved with them;
+# the line-hit counts per file are unchanged (2, 1, 2).
+IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 
 # --- This spec's sweep-set files ---
@@ -73,11 +76,11 @@ VALIDATE_XML_PY = os.path.join(HOOKS_SCRIPTS, "validate_xml.py")
 # The 5 pinned past-tense provenance substrings (Decision 3) — deliberately
 # permanent, asserted present, never removed.
 PROVENANCE_SUBSTRINGS = [
-    (CODE_SKILL,
+    (IMPL_PLAN_SKILL,
      "the spec content a standalone create-spec planner would once have produced"),
-    (CODE_SKILL,
+    (IMPL_PLAN_SKILL,
      "no separate /acs:create-spec invocation and no separate create-spec planner"),
-    (CODE_PLANNER, "migrated from the deleted create-spec-planner.md"),
+    (IMPL_PLAN_PLANNER, "migrated from the deleted create-spec-planner.md"),
     (CODE_VERIFIER, "create-spec-verifier's `consistency` dimension"),
     (CODE_VERIFIER,
      "now that create-spec's separately-authored spec set no longer exists"),
@@ -176,7 +179,8 @@ def changelog_entry_section(body):
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     plugins/acs/{skills,agents}/** containing "create-spec" is exactly
-    {code/SKILL.md, code-planner.md, code-verifier.md} with per-file
+    {create-impl-plan/SKILL.md, create-impl-plan-planner.md,
+    code-verifier.md} with per-file
     line-hit counts {2, 1, 2}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
@@ -185,15 +189,16 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         cls.counts = line_hit_counts([SKILLS_DIR, AGENTS_DIR])
 
     def test_exact_file_set(self):
-        expected_files = {CODE_SKILL, CODE_PLANNER, CODE_VERIFIER}
+        expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER, CODE_VERIFIER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
             "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
-            "exactly {code/SKILL.md, code-planner.md, code-verifier.md} "
-            "after the sweep, got: %r" % (sorted(self.counts.keys()),))
+            "exactly {create-impl-plan/SKILL.md, create-impl-plan-planner.md, "
+            "code-verifier.md} after the sweep, got: %r"
+            % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
-        expected = {CODE_SKILL: 2, CODE_PLANNER: 1, CODE_VERIFIER: 2}
+        expected = {IMPL_PLAN_SKILL: 2, IMPL_PLAN_PLANNER: 1, CODE_VERIFIER: 2}
         for path, n in expected.items():
             with self.subTest(path=path):
                 self.assertEqual(
@@ -206,15 +211,15 @@ class ProvenanceSurvivorsTest(unittest.TestCase):
     """Assertion 2: each of the 5 surviving lines matches one of the five
     pinned past-tense provenance substrings — positive match, never absence
     of token (Decision 3: "zero occurrences" is not an available predicate
-    because code/SKILL.md's clause is itself test-pinned elsewhere)."""
+    because the fold's clause is itself test-pinned elsewhere)."""
 
     def test_each_pinned_provenance_substring_present(self):
         for path, phrase in PROVENANCE_SUBSTRINGS:
             with self.subTest(path=path, phrase=phrase):
                 self.assertRegex(norm(read(path)), phrase_re(phrase))
 
-    def test_code_planner_adr_reference_present(self):
-        self.assertIn("ADR 0037-0039", read(CODE_PLANNER))
+    def test_plan_planner_adr_reference_present(self):
+        self.assertIn("ADR 0037-0039", read(IMPL_PLAN_PLANNER))
 
 
 class Rule2HygieneTest(unittest.TestCase):

@@ -18,6 +18,7 @@ from ._common import GateError, PRODUCT_SKILLS, RUN_STATUSES, ReconciliationRequ
 from .repo import _guarded_repo_write, checkout_id, checkout_root, index_path, lock_path, repo_dir, repo_guard, scan_local_ticket_evidence, state_path
 from .lanes import VERIFY_ITERATION_CAP, derive_lane, verify_depth
 from .metrics import _measure_run_usage, compute_ticket_totals
+from . import artifacts
 
 
 
@@ -238,12 +239,18 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
 # ---------------------------------------------------------------------------
 
 def load_ticket(tdir):
-    return read_json(os.path.join(tdir, "ticket.json"))
+    """The ticket dict, status included. Routed through acs_lib.artifacts:
+    ticket.md from the docs tree when the ticket lives there (status derived
+    from the ledger), else ticket.json -- so every partition built with a
+    ticket.json keeps reading exactly as before."""
+    return artifacts.load_ticket(tdir)
 
 
 def save_ticket(tdir, ticket):
-    ticket["updated_at"] = now_iso()
-    write_json(os.path.join(tdir, "ticket.json"), ticket)
+    """Stamp updated_at and write the ticket where it lives: ticket.md when
+    the docs tree is active for this checkout and the ticket is (or is new to)
+    the tree, else ticket.json as before. acs_lib.artifacts decides which."""
+    artifacts.save_ticket(tdir, ticket)
 
 
 def new_ticket_doc(ticket_id, title, ttype, **kw):

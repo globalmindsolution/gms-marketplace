@@ -26,18 +26,37 @@ import claude_code_adapter as cc  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
-WORKFLOW_SKILLS = ["create-ticket", "code", "docs-sync", "create-pr", "merge-pr", "standardize-project"]
+# The ticket-flow skills. The five Build/Test additions (analyze-ticket,
+# create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests)
+# join here rather than in a sixth list: they are ticket-scoped like the rest,
+# so `flow = "product" if skill in PRODUCT_SKILLS else "ticket"` stays right,
+# and HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
+# workflows/ship.yaml, never in this list -- what a list position buys is the
+# metrics funnel's column order, nothing else.
+WORKFLOW_SKILLS = ["create-ticket", "analyze-ticket", "create-impl-plan", "create-api-contract",
+                   "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
+                   "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "release", "create-docs"]
+# `run-e2e-tests` is the Test-phase suite runner (today's `test`, renamed) and
+# stays UNHOOKED: it writes no run entry and spawns no reflection triad, so
+# dispatch.py passes it through and skill-start.py cannot select it. `test` is
+# retained beside it for one release as the alias directory that forwards
+# there (workflows/phases.yaml `aliases`), so an existing /acs:test invocation
+# keeps working.
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage",
+                   "test", "run-e2e-tests", "release", "create-docs"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
-# order. Unused within this ticket -- a later ticket is its first consumer;
-# a schema-mirror equality test is what stops this list from drifting.
+# order. A schema-mirror equality test is what stops this list from drifting.
+# `test` is kept beside `run-e2e-tests` so a ledger written before the rename
+# still validates and still orders sensibly.
 PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-quality",
                         "create-operations", "create-principles", "create-standards",
-                        "create-requirements", "create-ticket", "create-design", "code", "test",
-                        "docs-sync", "create-pr", "merge-pr"]
+                        "create-requirements", "create-ticket", "create-design", "analyze-ticket",
+                        "create-impl-plan", "create-api-contract", "create-test-docs", "code",
+                        "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",
+                        "merge-pr"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the

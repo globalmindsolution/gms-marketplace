@@ -1,4 +1,4 @@
-"""Prose-contract tests for /acs:test's ticket-scoped (--for-ticket) mode.
+"""Prose-contract tests for /acs:run-e2e-tests' ticket-scoped (--for-ticket) mode.
 
 Stdlib-only (re, unittest); mirrors the read()/section() helper pattern used
 elsewhere for prompt-driven-skill prose contracts.
@@ -10,7 +10,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-TEST_SKILL = os.path.join(PLUGIN, "skills", "test", "SKILL.md")
+TEST_SKILL = os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
 _CONDITIONAL_ESCAPE_HATCH = re.compile(r"(?i)\bunless\b|\bexcept when\b|\bif not\b")
@@ -95,9 +95,23 @@ class TicketScopedSubsectionTest(unittest.TestCase):
         self.assertIn('"status"', m.group(1))
         self.assertIn('"failure_output"', m.group(1))
 
+    def test_suite_scoping_reads_the_ticket_case_document(self):
+        # The skills-independence refactor made test-cases.md
+        # (/acs:create-test-docs' artifact) the source of a ticket's suites;
+        # the folded Test-plan section of the plan is the fallback for a
+        # ticket planned before that skill existed, and plan.md still resolves
+        # the legacy partition path for those.
+        sub = self._subsection()
+        self.assertIn("test-cases.md", sub)
+        self.assertIsNotNone(
+            re.search(r"(?i)fallback", sub),
+            "the plan's Test-plan section must be named as the FALLBACK, not "
+            "the primary source")
+        self.assertIn("Test-plan", sub)
+        self.assertIn("phases/code/plan.md", sub)
+
     def test_suite_scoping_selection_rule_language(self):
         sub = self._subsection()
-        self.assertIn("phases/code/plan.md", sub)
         self.assertIsNotNone(
             re.search(r"(?i)re-evaluated fresh", sub),
             "suite-scoping rule must state the selection is re-evaluated "
@@ -107,6 +121,40 @@ class TicketScopedSubsectionTest(unittest.TestCase):
         # literal should survive in this subsection.
         self.assertNotIn("iter-*-plan.md", sub)
         self.assertNotIn("iter-<n>-plan.md", sub)
+
+
+class LedgerWriteTest(unittest.TestCase):
+    """The ticket-scoped run records its outcome under the step id ship.yaml
+    declares (run-e2e-tests), not under the pre-rename `test` step, and the
+    record is read by `acs.py workflow next` -- no gate blocks on it now that
+    order lives in ship.yaml."""
+
+    def _subsection(self):
+        return section(read(TEST_SKILL), "## Ticket-scoped mode")
+
+    def test_records_under_the_run_e2e_tests_step(self):
+        sub = self._subsection()
+        self.assertIn("steps.run-e2e-tests", sub)
+        self.assertIsNotNone(
+            re.search(r"--skill run-e2e-tests", sub),
+            "the pipeline-step.py calls must record --skill run-e2e-tests")
+        self.assertNotIn("--skill test ", sub)
+
+    def test_names_workflow_next_as_the_reader(self):
+        self.assertIn("workflow next", self._subsection())
+
+    def test_does_not_claim_a_docs_sync_gate_blocks_on_it(self):
+        # gate_docs_sync no longer reads this step at all; prose promising a
+        # gate that no longer exists would send users chasing a refusal they
+        # can never see.
+        sub = self._subsection()
+        m = re.search(r"(?i)docs-sync", sub)
+        if m is not None:
+            window = sub[max(0, m.start() - 200):m.start() + 200]
+            self.assertIsNotNone(
+                re.search(r"(?i)no longer|not in a gate|no gate", window),
+                "any docs-sync mention must say the gate is gone, not that it "
+                "blocks on this step")
 
 
 class UnconditionalSkipTest(unittest.TestCase):
@@ -167,17 +215,25 @@ class SelfDescriptionAmendmentTest(unittest.TestCase):
 
 
 class SkillsRequirementsDocImpactTest(unittest.TestCase):
-    """Doc-map: docs/requirements/functional/skills.md's /acs:test section
-    mentions the new mode."""
+    """Doc-map: the suite runner's section in
+    docs/requirements/functional/skills.md mentions the ticket-scoped mode.
 
-    def test_acs_test_section_mentions_for_ticket_mode(self):
+    The heading may name the skill either way while the `test` alias directory
+    survives its one release -- the assertion is about the mode being
+    documented, not about which of the two names the doc has been moved to."""
+
+    def test_suite_runner_section_mentions_for_ticket_mode(self):
         body = read(SKILLS_REQ)
-        m = re.search(r"(?m)^## .*/acs:test.*$", body)
-        self.assertIsNotNone(m, "skills.md must have a '## /acs:test' section")
+        m = (re.search(r"(?m)^## .*/acs:run-e2e-tests.*$", body)
+             or re.search(r"(?m)^## .*/acs:test\b.*$", body))
+        self.assertIsNotNone(
+            m, "skills.md must have a section for the suite runner "
+               "('## /acs:run-e2e-tests', or '## /acs:test' while the alias lasts)")
         window = section(body, m.group(0))
         self.assertIsNotNone(
             re.search(r"--for-ticket|ticket-scoped", window, re.I),
-            "the /acs:test section must mention --for-ticket or ticket-scoped mode")
+            "the suite-runner section must mention --for-ticket or "
+            "ticket-scoped mode")
 
 
 if __name__ == "__main__":

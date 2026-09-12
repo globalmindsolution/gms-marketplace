@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Push the ticket's implementation branch and open (or update) the pull request — title and body composed entirely from workspace state, targeting the repo's default branch with the ACS label, ready for review. Use after /acs:code completes with a passing verifier, when the implementation is ready to ship for human review.
+description: Push the ticket's implementation branch and open (or update) the pull request — title and body composed entirely from workspace state, targeting the repo's default branch with the ACS label, ready for review. Use when a ticket's implementation branch is ready to ship for human review; the gate is a safety brake, not an order check — it refuses only a ticket whose recorded /acs:code run left the verifier failing.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -24,9 +24,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-pr -
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. (The pre-hook already gated on
-`code-state.json` `runs[-1].status == "completed"` with
-`states.verifier_passed == true` — if you are running, /acs:code passed.)
+improvise a workaround.
+
+The pre-hook is a SAFETY BRAKE, not an order check. It refuses when the ticket
+HAS a `/acs:code` run whose verifier did not pass
+(`code-state.json` `states.verifier_passed != true`) — a failed review loop must
+never reach a reviewer. It does NOT require that `/acs:code` or
+`/acs:docs-sync` completed: order lives in `workflows/ship.yaml`, so a ticket
+with no code run at all passes the gate (running out of that declared order
+just earns ONE advisory line on stderr). So do not assume a code run exists:
+read `code-state.json` and treat a missing file as "no recorded implementation"
+— see "State inputs" below.
 
 Parse the printed context JSON. Fields you will use:
 
@@ -42,8 +50,12 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for the executor (the only subagent
   role used by this skill; planner and verifier are not spawned).
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `design` — `{required, dir, source}`; when required, `<design.dir>/design.md`
-  feeds the Summary/Changes content.
+- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
+  ticket whose design applies and its basename is that ticket's id. When
+  required, the design document — `artifacts["design.md"]` from
+  `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
+  `<design.dir>/design.md` when the tree is opted out — feeds the
+  Summary/Changes content. Call it `<design_doc>`.
 - `post_hook` — absolute path to `post-create-pr.py`.
 
 State inputs (read these; conversation history is NOT an input):
@@ -55,7 +67,7 @@ State inputs (read these; conversation history is NOT an input):
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `review` `{iterations, findings_open}`.
 - `<partition>/specs/*.md` — scope and API/data changes per spec.
-- `<design.dir>/design.md` — the decision, when `design.required`.
+- `<design_doc>` — the decision, when `design.required`.
 
 ## Resume & reconcile
 
@@ -83,12 +95,13 @@ spawned for this skill. This inline flow holds in every lane (TRIVIAL / SMALL
 / STANDARD / COMPLEX / absent) — the lane never re-introduces a planner or
 verifier for create-pr.
 
-**Verifier-gated upstream (AC-5).** Correctness was already gated by the
-upstream code-verifier (/acs:code's verifier subagent, which must pass before
-/acs:create-pr is invoked — the pre-hook enforces this via
-`code-state.json` `states.verifier_passed == true`). The human checkpoint is
-the PR review. /acs:create-pr carries no in-skill verifier; invariant (d)
-lives in the upstream code/spec lanes, not in apply-work.
+**Verifier-gated upstream (AC-5).** Correctness is gated by the upstream
+code-verifier (/acs:code's verifier subagent). The pre-hook enforces that as a
+brake — a recorded code run with `code-state.json`
+`states.verifier_passed != true` is refused — rather than as a precondition
+that a code run exist at all. The human checkpoint is the PR review.
+/acs:create-pr carries no in-skill verifier; invariant (d) lives in the
+upstream code/spec lanes, not in apply-work.
 
 The coordinator performs the following numbered steps directly, or delegates
 the entire numbered flow to at most one `acs:create-pr-executor` subagent when

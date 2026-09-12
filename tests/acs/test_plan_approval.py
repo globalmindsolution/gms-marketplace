@@ -2,7 +2,9 @@
 3 of MAR-69). Covers acs_lib.plan_approval_eligible's purity/determinism and
 structural rules, plan-approval.py's writer behavior (drives it via
 subprocess only -- never a Write of the record it produces), and the
-code/SKILL.md + INTERNALS.md contract edits.
+create-impl-plan/SKILL.md + INTERNALS.md contract edits (the plan phase
+and its approval subsection moved out of code/SKILL.md in the
+skills-independence refactor; plan-approval.py itself is unchanged).
 
 Every prose assertion is by file plus whitespace-normalized substring/regex,
 never by line number -- the house style of tests/acs/test_code_loop_topology.py
@@ -36,6 +38,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCRIPTS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
 
@@ -579,7 +582,7 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
                             "%r" % (fname, literal))
 
     def test_skill_forbids_subagent_write_of_the_record(self):
-        norm_body = _norm(_read(CODE_SKILL))
+        norm_body = _norm(_read(IMPL_PLAN_SKILL))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), norm_body):
             window = norm_body[max(0, m.start() - 250):m.end() + 250]
@@ -609,28 +612,39 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
 
 
 class PlanApprovalContractTest(unittest.TestCase):
-    """AC-3 + call site."""
+    """AC-3 + call site. The call site moved with the plan phase: the
+    subsection now lives in create-impl-plan/SKILL.md (the deeper prose pins
+    are in tests/acs/test_create_impl_plan.py::PlanApprovalContractTest)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.skill_body = _read(CODE_SKILL)
+        cls.skill_body = _read(IMPL_PLAN_SKILL)
         cls.internals_body = _read(INTERNALS)
 
     def test_skill_finish_example_carries_plan_approved(self):
-        idx_verifier_passed = self.skill_body.index('"verifier_passed": true,')
+        idx_plan_path = self.skill_body.index('"plan_path"')
         idx_plan_approved = self.skill_body.index('"plan_approved": true,')
-        self.assertGreater(idx_plan_approved, idx_verifier_passed)
-        self.assertLess(idx_plan_approved - idx_verifier_passed, 200)
+        self.assertGreater(idx_plan_approved, idx_plan_path)
+        self.assertLess(idx_plan_approved - idx_plan_path, 200)
 
     def test_skill_canonical_states_bullet_names_plan_approved(self):
         start = self.skill_body.index("Canonical `states` keys")
-        end = self.skill_body.index("Advisory documentation findings")
+        end = self.skill_body.index("2. Run the post-hook")
         self.assertIn("plan_approved", self.skill_body[start:end])
 
-    def test_internals_code_row_names_plan_approved(self):
-        row_start = self.internals_body.index("| code |")
-        row_end = self.internals_body.index("\n", row_start)
-        self.assertIn("plan_approved", self.internals_body[row_start:row_end])
+    def test_internals_row_names_plan_approved(self):
+        """Either skill's row may carry it while the docs sweep lands: the
+        record is written on a create-impl-plan run and mirrored into
+        code-state.json by plan-approval.py, which is unchanged."""
+        rows = [self.internals_body[m:self.internals_body.index("\n", m)]
+                for m in (self.internals_body.index("| code |"),)]
+        idx = self.internals_body.find("| create-impl-plan |")
+        if idx >= 0:
+            rows.append(self.internals_body[idx:self.internals_body.index("\n", idx)])
+        self.assertTrue(
+            any("plan_approved" in row for row in rows),
+            "INTERNALS.md must record plan_approved on the code or the "
+            "create-impl-plan states row")
 
     def test_subsection_sits_between_plan_and_revocation(self):
         """Re-bound to `### Plan revocation` (MAR-74, T2) instead of

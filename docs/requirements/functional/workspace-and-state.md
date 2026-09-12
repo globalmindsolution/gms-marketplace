@@ -1,10 +1,29 @@
 # Workspace & State Management
 
+## Two stores: the repo docs tree and the workspace
+
+A ticket's files live in two places, split by audience, and every requirement
+below belongs to exactly one of them:
+
+| | Repo docs tree | Workspace partition |
+|---|----------------|---------------------|
+| **Where** | `<repo>/<settings.artifacts.tickets_path>/<ID>/` (default `docs/tickets/<ID>/`) | `<workspace>/<repo>/<ticket-id>/` |
+| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `<skill>-state.json`, `pipeline-state.json`, `phases/<skill>/`, verdicts, `.lock`, `lock-events.jsonl`, `clarifications.json`, `active-agents`, and the repo-level `tickets-index.json` / `counters.json` / `metrics.json` / `sessions/` |
+| **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
+| **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
+
+`artifacts.tickets_path` set to **`null`** turns the split off: every
+document stays in the workspace partition exactly as before the split, and
+every reader falls back to it. Readers MUST therefore resolve a document by
+looking in the docs tree first and the partition second, so a partition
+written before the split keeps working unmigrated
+([Migrating ticket documents into the repo](#migrating-ticket-documents-into-the-repo)).
+
 ## Workspace folder
 
-- The workspace is the single home for all pipeline state. **All skills and
-  hooks MUST read and write their files in the workspace folder**, located
-  via `workspace_path` in `settings.json`
+- The workspace is the single home for all pipeline **run state**. **All
+  skills and hooks MUST read and write their state files in the workspace
+  folder**, located via `workspace_path` in `settings.json`
   ([configuration.md](configuration.md)).
 - The workspace MUST be resolvable to the **same physical location from
   every worktree of a repo** — that is the actual invariant, enabling
@@ -44,7 +63,44 @@
   `workspace_path` key from `.acs/settings.local.json`, so that future runs
   resolve the in-repo default instead of the old override.
 
+## Migrating ticket documents into the repo
+
+- A repo whose partitions predate the docs-tree split MUST keep working
+  unmigrated: every reader falls back to the partition, so nothing breaks
+  until the owner chooses to move.
+- `acs.py artifacts migrate [--dry-run]` performs the one-shot move for every
+  **live** partition (archived partitions are never migrated): it renders
+  `ticket.json` into `docs/tickets/<ID>/ticket.md`, copies `design.md` and
+  `phases/code/plan.md` into the same folder when they exist and no file is
+  already there, writes `<partition>/ticket.json.moved` naming the new path,
+  and unlinks `ticket.json`. It MUST be **idempotent** (a second run reports
+  the already-migrated tickets and writes nothing new) and MUST refuse while
+  a partition it still has to move holds a `.lock`.
+- A repo that does not want the split sets `artifacts.tickets_path` to
+  `null`; `artifacts migrate` then refuses rather than half-moving anything.
+- `acs.py artifacts show [--ticket ID]` reports, for one ticket, which store
+  each document currently resolves from — the diagnostic for "where did my
+  design.md go".
+
 ## Layout
+
+The repo docs tree (committed, one folder per ticket):
+
+```
+<repo>/
+└── docs/tickets/                       # settings.artifacts.tickets_path
+    ├── SHOP-122/                       # an epic
+    │   ├── ticket.md                   # front matter (every ticket.json field except status) + Description / Acceptance criteria / Clarifications
+    │   └── design.md                   # epics always carry the design; children read it from here
+    └── SHOP-123/                       # a story/task
+        ├── ticket.md
+        ├── analysis.md                 # /analyze-ticket
+        ├── plan.md                     # /create-impl-plan
+        ├── api-contract.md             # /create-api-contract (only when the analysis found an API surface change)
+        └── test-cases.md               # /create-test-docs
+```
+
+The workspace (gitignored, the run ledger):
 
 ```
 <workspace>/
@@ -63,18 +119,18 @@
     │   ├── pipeline-state.json         # marks the flow as product-level
     │   └── create-prd-state.json       # incl. the docs PR reference
     ├── SHOP-122/                       # an epic: grouping + design
-    │   ├── ticket.json                 # lists children
+    │   ├── ticket.json.moved           # the epic's ticket.md and design.md live in the docs tree
     │   ├── pipeline-state.json
     │   ├── create-ticket-state.json
-    │   ├── design.md                   # epics always carry the design; children inherit it
     │   └── create-design-state.json
     └── SHOP-123/                       # a story/task: full pipeline
         ├── .lock                       # held by the session working this ticket
         ├── lock-events.jsonl           # append-only audit of every `lock force-unlock` (who, why, what was broken)
-        ├── ticket.json                 # output of /create-ticket (local source of truth); stores parent
-        ├── pipeline-state.json         # compact step ledger for /ship and pre-hooks
+        ├── ticket.json.moved           # pointer left by `acs.py artifacts migrate`: {ticket_id, moved_to, relative, migrated_at}
+        │                               # (an unmigrated partition, or artifacts.tickets_path: null, keeps ticket.json here instead)
+        ├── pipeline-state.json         # compact step ledger: what /ship's workflow walk and the order advisory read
         ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
-        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md (all triad skills; /code: plan.md, MAR-70) / -execute.json / -verify.md + XML snapshots; /code also: plan-approval.json (STANDARD/COMPLEX, written by plan-approval.py, not a subagent — MAR-73, slice 3 of MAR-69), plan-superseded-<k>.md (written by the coordinator on revocation, a byte-identical copy of the revoked plan.md, never deleted — MAR-74, slice 4 of MAR-69)
+        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md / -execute.json / -verify.md + XML snapshots; /create-impl-plan also: plan-approval.json (STANDARD/COMPLEX, written by plan-approval.py, not a subagent — MAR-73, slice 3 of MAR-69), plan-superseded-<k>.md (written by the coordinator on revocation, a byte-identical copy of the revoked plan.md, never deleted — MAR-74, slice 4 of MAR-69). The approved plan.md itself is a human-facing document and lives in the docs tree.
         ├── create-ticket-state.json
         ├── specs/                      # legacy input: pre-existing specs (1..n, conform to the design) read by /code when present; new tickets have none — /code self-authors the fold content instead
         │   ├── 01-data-model.md
@@ -131,13 +187,36 @@ that ticket's partition; the skills' *outputs* (PRD, architecture doc set,
 repo skeleton) live in the consumer repo
 ([skills.md](skills.md#product-level-delivery-tickets)).
 
-`ticket.json` is the local source of truth for the ticket. When a remote
+The **ticket document** is the local source of truth for the ticket:
+`docs/tickets/<ID>/ticket.md` when the docs tree is active, else the
+partition's `ticket.json`. `ticket.md` carries every field below as YAML
+front matter **except `status`**, plus a markdown body: `## Description`,
+`## Acceptance criteria` (a numbered list) and `## Clarifications` (a
+read-only mirror rendered from `clarifications.json`). Readers MUST accept
+either shape and MUST return the same dict from both, so nothing downstream
+has to know which store answered.
+
+When a remote
 tracker is configured, it MUST hold the local↔remote id mapping used for
 two-way sync ([configuration.md](configuration.md)), e.g.:
 
 ```json
 "external": { "provider": "jira", "key": "PROJ-456" }
 ```
+
+`status` is **DERIVED from the run ledger, never stored** — a stored status
+and a ledger that disagree is a class of bug the split removes rather than
+manages. The derivation is:
+
+| Derived status | When |
+|----------------|------|
+| `done` | the partition is archived, or `steps.merge-pr` is `completed`; for an epic, every child is `done` in `tickets-index.json`. |
+| `in_review` | `steps.create-pr` is `completed`, or a product-level delivery skill completed with a PR reference in its state file. |
+| `in_progress` | any step other than `create-ticket` has a status other than `skipped`; for an epic, any child is not `open`. |
+| `open` | otherwise. |
+
+`tickets-index.json` keeps mirroring the derived value so listings and
+metrics need not re-derive it per ticket.
 
 Key fields written by `/acs:create-ticket` and maintained by hooks:
 
@@ -146,7 +225,7 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `id` | string | Allocated ticket id, e.g. `SHOP-123` |
 | `title` | string | Human-readable summary |
 | `type` | `"epic"\|"story"\|"task"` | |
-| `status` | `"open"\|"in_progress"\|"in_review"\|"done"` | Managed by hooks |
+| `status` | `"open"\|"in_progress"\|"in_review"\|"done"` | **Derived** from the run ledger, never written into `ticket.md` |
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
@@ -175,13 +254,18 @@ Each state file MUST capture:
 
 **No duplicated fields** — single source of truth:
 
-- The **last `runs` entry is the current state**: the next pre-hook's gate
-  condition is `runs[-1].status == "completed"`. Status, stop reason, and
-  last-updated time are NOT mirrored at top level (they would only drift).
+- The **last `runs` entry is the current state**: `runs[-1].status` is what
+  the step ledger records, and therefore what `acs.py workflow next`, the
+  ticket's derived status, and the pre-hook order advisory all read. It is
+  NOT a gate condition — since the skills-independence refactor no pre-hook
+  refuses a skill because another skill's `runs[-1].status` is not
+  `completed`. Status, stop reason, and last-updated time are NOT mirrored at
+  top level (they would only drift).
 - A run entry is appended with status **`in_progress`** by the coordinator
   at skill start and finalized by the post-hook — so even a hard crash that
-  skips the post-hook leaves `runs[-1].status == "in_progress"`, which
-  downstream gates treat as not completed and the next run reconciles
+  skips the post-hook leaves `runs[-1].status == "in_progress"`, which the
+  workflow walk treats as unsatisfied (the step is ready again) and the next
+  run reconciles
   ([workflow.md](workflow.md#resuming-a-ticket)).
 - Run statuses: `in_progress`, `completed`, `failed`, `interrupted`, and
   `handed_off` — a deliberate session handoff, where the entry also carries
@@ -225,7 +309,8 @@ Each state file MUST capture:
 }
 ```
 
-JSON Schemas for `ticket.json`, `pipeline-state.json`, each
+JSON Schemas for the ticket (`ticket.json`, whose field set `ticket.md`'s
+front matter mirrors), `pipeline-state.json`, each
 `<skill>-state.json`, `settings.json`, `metrics.json`, and
 `clarifications.json` are **shipped with the plugin** (`schemas/`). Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
@@ -235,11 +320,16 @@ perform lightweight stdlib-only structural checks
 
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
-- Cross-partition **reads** are allowed (e.g. a child ticket's
-  `/code` reads the parent epic's `design.md`);
-  cross-partition **writes** are limited to the defined parent-epic status
-  updates performed by child hooks
+- Cross-ticket **reads** are allowed (e.g. a child ticket resolves its
+  parent epic's `design.md`, from the epic's docs-tree folder or, when the
+  tree is off, the epic's partition); cross-partition **writes** are limited
+  to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
+- The repo docs tree is a **control input**: the file-map guard refuses an
+  executor subagent a write anywhere under
+  `<settings.artifacts.tickets_path>/`, with exit 2 and a message naming it
+  as a control input only the coordinator and the ticket skills write. An
+  executor cannot widen or disarm its own scope by editing the ticket.
 - Re-running a skill for the same ticket updates the **current state** in
   place and **appends to the `runs` array** — run history is append-only.
 - State files MUST be valid JSON and SHOULD be human-readable
@@ -358,8 +448,8 @@ all of it:
 
 ## Epic ↔ child linkage
 
-Links are stored in **both directions**: the epic's `ticket.json` lists
-`children`; each child's `ticket.json` stores `parent`. The epic's status is
+Links are stored in **both directions**: the epic's ticket document lists
+`children`; each child's ticket document stores `parent`. The epic's status is
 auto-managed — **In Progress** when work starts on any child, **Done** when
 all children are merged ([workflow.md](workflow.md#epic-fan-out)) —
 with child hooks performing the parent updates (first workflow skill run

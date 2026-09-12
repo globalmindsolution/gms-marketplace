@@ -79,3 +79,23 @@ mirrors the same disclosure ADR 0076 recorded for itself.
   conformance contract, by dimension 15's `plan_path` activation condition.
 - Approval stays non-gating this release (ADR 0076 D-3): dimension 15 is a
   verifier *dimension*, not a `/acs:create-pr` gate change.
+
+## Amendment — skills-independence refactor (ADR-0089/0090)
+
+The `code-verifier`'s plan-conformance dimension still anchors on an approved
+plan; the plan is now produced by a different skill and read from a different
+path. `/acs:create-impl-plan` writes and approves it (ADR-0074's amendment),
+and the verifier reads `plan.md` from
+`<settings.artifacts.tickets_path>/<ID>/plan.md` when the docs tree is active,
+falling back to the partition's `phases/code/plan.md` otherwise (ADR-0090).
+The plan-approval record it consults stays in the partition.
+
+The revocation path is unchanged in shape and changed in destination: a
+blocking plan-conformance finding whose remedy is that the *plan* is wrong
+still copies `plan.md` to `plan-superseded-<k>.md` (in the workspace, never
+deleted, never an approval input) on an explicit user-recorded answer. What
+follows is now declared rather than hard-coded — `/acs:code` ends `failed`
+with `stop_reason: plan_superseded`, and `workflows/ship.yaml`'s
+`on_replan: create-impl-plan` on the `code` step routes the pipeline back to
+the planning skill and then forward again. Context, Decision and Consequences
+above are otherwise unedited.

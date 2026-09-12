@@ -1,11 +1,12 @@
 """MAR-575 -- what s03 asserts about the gates after a verifier-clean /acs:code.
 
-The shipped pipeline puts /acs:docs-sync between /acs:code and /acs:create-pr
-(plugins/acs/hooks/scripts/acs_lib/gates.py:165-211: gate_docs_sync needs only a
-completed code step and no pending test step; gate_create_pr additionally needs
-a completed docs-sync and blocks with "run /acs:docs-sync <id> first"). The
-scenario asserted the create-pr gate opened straight after code, so every paid
-run reported a failure the pipeline actually guarantees.
+MAR-575 wrote these tests against the pipeline as it then was, where
+gate_create_pr also required a completed docs-sync step and blocked with "run
+/acs:docs-sync <id> first". The skills-independence refactor removed every
+predecessor-completed order gate: order is declared in workflows/ship.yaml, and
+gate_create_pr keeps only its brake -- it refuses a ticket whose code run has a
+verifier that did not pass, and opens otherwise. So what these tests pin is now
+the brake, not the ordering, and the scenario asserts exactly that.
 
 These tests drive `s03_resume_and_verify.run()` against a scripted sandbox --
 no `claude`, no network, no cost -- and pin the G3 expectation while leaving G2
@@ -26,9 +27,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
 from scenarios import s03_resume_and_verify as s03  # noqa: E402
 
-BLOCKED_ON_DOCS_SYNC = (
-    2, "acs pre-create-pr: blocked - /docs-sync has not run for EVAL-1 - "
-       "run /acs:docs-sync EVAL-1 first.")
+BLOCKED_ON_VERIFIER = (
+    2, "acs pre-create-pr: blocked - /code completed but its verifier did not "
+       "pass for EVAL-1.")
 
 
 class _ScriptedSandbox:
@@ -104,52 +105,47 @@ class S03GateExpectationTest(unittest.TestCase):
                              % (needle, self._labels(check)))
 
     def test_shipped_pipeline_state_passes(self):
-        check, sandbox = self._run({"code": (0, ""), "docs-sync": (0, ""),
-                                    "create-pr": BLOCKED_ON_DOCS_SYNC})
+        check, sandbox = self._run({"code": (0, ""), "create-pr": (0, "")})
         self.assertTrue(check.passed, self._labels(check))
-        self.assertEqual(sandbox.asked, ["code", "docs-sync", "create-pr"])
+        self.assertEqual(sandbox.asked, ["code", "create-pr"])
 
-    def test_a_blocked_docs_sync_gate_fails_the_scenario(self):
-        check, _ = self._run({
-            "code": (0, ""), "create-pr": BLOCKED_ON_DOCS_SYNC,
-            "docs-sync": (2, "acs pre-docs-sync: blocked - /code has not run for EVAL-1.")})
-        self.assertFalse(check.passed)
-        self.assertFalse(self._result(check, "docs-sync"))
-
-    def test_an_open_create_pr_gate_fails_the_scenario(self):
-        # create-pr opening before docs-sync ran would mean the ordering the
-        # pipeline promises is gone -- that is a finding, not a pass.
-        check, _ = self._run({"code": (0, ""), "docs-sync": (0, ""),
-                              "create-pr": (0, "")})
+    def test_a_blocked_create_pr_gate_fails_the_scenario(self):
+        # The brake refusing a ticket whose verifier DID pass is the failure
+        # this assertion exists to catch.
+        check, _ = self._run({"code": (0, ""), "create-pr": BLOCKED_ON_VERIFIER})
         self.assertFalse(check.passed)
         self.assertFalse(self._result(check, "create-pr"))
 
+    def test_a_blocked_code_gate_fails_the_scenario(self):
+        check, _ = self._run({
+            "create-pr": (0, ""),
+            "code": (2, "acs pre-code: blocked - /create-ticket has not run for EVAL-1.")})
+        self.assertFalse(check.passed)
+        self.assertFalse(self._result(check, "code"))
+
     def test_create_pr_blocked_for_another_reason_fails_the_scenario(self):
         check, _ = self._run({
-            "code": (0, ""), "docs-sync": (0, ""),
-            "create-pr": (2, "acs pre-create-pr: blocked - /code completed but its "
-                             "verifier did not pass for EVAL-1.")})
+            "code": (0, ""),
+            "create-pr": (2, "acs pre-create-pr: blocked - no ticket partition "
+                             "for EVAL-1.")})
         self.assertFalse(check.passed)
         self.assertFalse(self._result(check, "create-pr"))
 
     def test_g2_and_g4_are_still_asserted(self):
-        check, _ = self._run({"code": (0, ""), "docs-sync": (0, ""),
-                              "create-pr": BLOCKED_ON_DOCS_SYNC})
+        check, _ = self._run({"code": (0, ""), "create-pr": (0, "")})
         labels = " | ".join(self._labels(check))
         self.assertIn("resumed from state", labels)
         self.assertIn("PR-size under cap (G4)", labels)
         self.assertIn("code step completed", labels)
 
     def test_g2_still_fails_when_the_spec_was_not_read(self):
-        check, _ = self._run({"code": (0, ""), "docs-sync": (0, ""),
-                              "create-pr": BLOCKED_ON_DOCS_SYNC},
+        check, _ = self._run({"code": (0, ""), "create-pr": (0, "")},
                              health_wired=False)
         self.assertFalse(check.passed)
         self.assertFalse(self._result(check, "resumed from state"))
 
     def test_g4_still_fails_over_the_cap(self):
-        check, _ = self._run({"code": (0, ""), "docs-sync": (0, ""),
-                              "create-pr": BLOCKED_ON_DOCS_SYNC},
+        check, _ = self._run({"code": (0, ""), "create-pr": (0, "")},
                              changed=612)
         self.assertFalse(check.passed)
         self.assertFalse(self._result(check, "PR-size under cap (G4)"))

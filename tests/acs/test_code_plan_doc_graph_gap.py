@@ -1,5 +1,9 @@
-"""MAR-164 spec 02 — bounded ADR-0012 doc-graph-gap check in code-planner.md
-(Gap 2, Decision 2, Option C).
+"""MAR-164 spec 02 — bounded ADR-0012 doc-graph-gap check in the plan
+planner (Gap 2, Decision 2, Option C). The skills-independence refactor moved
+the plan phase out of /acs:code, so the planner is now
+create-impl-plan-planner.md and the mirroring pointer sentence lives in
+create-impl-plan/SKILL.md; the ADR and requirements assertions accept either
+planner filename, since those documents are not this module's subject.
 
 Covers AC-3 (a design decision for gap 2 is recorded and implemented: a
 narrow doc-graph-gap clause, not the full ADR-0012 step and not retirement),
@@ -27,8 +31,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
-CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
-CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 CONSISTENCY_FINDINGS = os.path.join(PLUGIN, "hooks", "scripts", "consistency_findings.py")
@@ -113,14 +117,14 @@ def assert_edges_and_targets_present(testcase, text):
                 testcase.assertIn(t, text, "%s's target doc %r missing" % (edge, t))
 
 
-class CodePlannerItem4DocGraphGapTest(unittest.TestCase):
-    """Assertion 1 + 8: code-planner.md item 4 names E1-E4 with target docs,
+class PlanPlannerItem4DocGraphGapTest(unittest.TestCase):
+    """Assertion 1 + 8: the plan planner's item 4 names E1-E4 with target docs,
     the problems carrier, the touched-area bound, the explicit non-coverage
     of requirements_path/adr_path edges, and the silent-degradation rule."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_PLANNER)
+        cls.body = read(IMPL_PLAN_PLANNER)
         start = cls.body.index(
             "4. **Documentation map — docs are part of the change.**")
         end = cls.body.index("5. **Risks.**")
@@ -145,7 +149,7 @@ class CodePlannerItem4DocGraphGapTest(unittest.TestCase):
         self.assertRegex(
             self.item4_norm,
             r"(?i)no architecture doc set on disk.{0,200}(no finding|never fails|never blocks)",
-            "code-planner.md item 4 must state the silent-degradation bound "
+            "create-impl-plan-planner.md item 4 must state the silent-degradation bound "
             "(no architecture doc set on disk -> finds nothing, no finding, "
             "never fails or blocks)")
 
@@ -153,20 +157,20 @@ class CodePlannerItem4DocGraphGapTest(unittest.TestCase):
         self.assertNotIn("create-spec", self.item4)
 
 
-class CodeSkillPointerSentenceTest(unittest.TestCase):
-    """Assertion 2: code/SKILL.md's documentation-map bullet carries the
-    mirroring pointer sentence naming code-planner's item-4 participation."""
+class PlanSkillPointerSentenceTest(unittest.TestCase):
+    """Assertion 2: the plan skill's documentation-map bullet carries the
+    mirroring pointer sentence naming its planner's item-4 participation."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = read(IMPL_PLAN_SKILL)
         start = cls.body.index("- The documentation map: whether any factual")
-        end = cls.body.index("### Docs-only tickets")
+        end = cls.body.index("**Spec authoring fold")
         cls.bullet = cls.body[start:end]
         cls.bullet_norm = norm(cls.bullet)
 
-    def test_pointer_names_code_planner_item_4(self):
-        self.assertIn("code-planner", self.bullet)
+    def test_pointer_names_the_planner_item_4(self):
+        self.assertIn("create-impl-plan-planner", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
 
     def test_pointer_names_bounded_touched_area(self):
@@ -241,8 +245,9 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
     def test_code_planner_explicitly_excluded_from_reconciled_carrier_list(self):
         self.assertRegex(
             self.amendment_norm,
-            r"(?i)code-planner\.md.{0,60}not\b.{0,60}(one of the|8)",
-            "amendment must explicitly state code-planner.md is not one of "
+            r"(?i)(code-planner|create-impl-plan-planner)\.md.{0,60}not\b"
+            r".{0,60}(one of the|8)",
+            "amendment must explicitly state the plan planner is not one of "
             "the reconciled carrier list")
 
     def test_amendment_carries_e1_e4_list_and_non_coverage_bound(self):
@@ -257,7 +262,8 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
                 if t not in self.amendment:
                     has_full_table = False
         has_explicit_reference = bool(
-            re.search(r"(?i)code-planner\.md.{0,60}item\s+4", self.amendment_norm))
+            re.search(r"(?i)(code-planner|create-impl-plan-planner)\.md"
+                      r".{0,60}item\s+4", self.amendment_norm))
         self.assertTrue(
             has_full_table or has_explicit_reference,
             "the MAR-164 amendment must carry the E1-E4 list itself, or an "
@@ -285,7 +291,8 @@ class SkillsReqCodeSectionAdr0012ClauseTest(unittest.TestCase):
         has_full_table = all(
             edge in self.section for edge in EDGE_TARGET_DOCS)
         has_explicit_reference = bool(
-            re.search(r"(?i)code-planner\.md.{0,60}item\s+4", self.section_norm))
+            re.search(r"(?i)(code-planner|create-impl-plan-planner)\.md"
+                      r".{0,60}item\s+4", self.section_norm))
         self.assertTrue(
             has_full_table or has_explicit_reference,
             "skills.md's /code section must carry the E1-E4 list, or an "
@@ -301,17 +308,18 @@ class SkillsReqCodeSectionAdr0012ClauseTest(unittest.TestCase):
 
 
 class NegativeGuardsTest(unittest.TestCase):
-    """Assertion 6: code-planner.md must not be added to
+    """Assertion 6: the plan planner must not be added to
     test_doc_consistency_step.py's PLANNERS list; the canonical heading must
     not appear anywhere in code-planner.md; consistency_findings.py must be
     unchanged with no new finding kind."""
 
-    def test_code_planner_not_in_doc_consistency_step_planners(self):
+    def test_plan_planner_not_in_doc_consistency_step_planners(self):
         mod = load_module("test_doc_consistency_step", DOC_CONSISTENCY_STEP_TEST)
         self.assertNotIn("code-planner.md", mod.PLANNERS)
+        self.assertNotIn("create-impl-plan-planner.md", mod.PLANNERS)
 
-    def test_canonical_heading_absent_from_code_planner(self):
-        body = read(CODE_PLANNER)
+    def test_canonical_heading_absent_from_the_plan_planner(self):
+        body = read(IMPL_PLAN_PLANNER)
         self.assertNotIn(CANONICAL_HEADING, body)
 
     def test_consistency_findings_shape_unchanged(self):

@@ -1,6 +1,6 @@
-"""s04 — routing evals for all 25 skills (paid, E1.2).
+"""s04 — routing evals for 25 of the 31 skills (paid, E1.2).
 
-Three kinds of probe, 27 in all, covering every skill:
+Three kinds of probe, 27 in all, covering 25 of the 31 skill directories:
 
 1. Description-trigger (23 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
@@ -23,6 +23,21 @@ turn (the CLI expands a typed slash command into the prompt, so it never reaches
 the `Skill` tool at all). Every assertion label states which rule decided it, and
 a probe the harness could not measure is never a pass. The session is killed as
 soon as a probe is decided, so no skill body runs.
+
+The suite-runner probe targets `run-e2e-tests`: the skills-independence
+refactor renamed `test` to `run-e2e-tests` and left `test` behind as a
+deprecated alias directory whose description points at the new name, so the
+intent that used to route to `test` must now route to `run-e2e-tests`.
+
+The 25 probed skills are not every skill directory on disk. The `test` alias is
+deliberately unprobed (see above), and the five Build/Test skills the
+skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`) have no probe
+yet: adding probes moves the measured "all N green" routing-coverage claim the
+PRD and roadmap carry, so they are added together with a fresh paid
+measurement, not alongside the refactor that created the skills. The
+create-docs, create-requirements and docs-sync probes below are new here and
+are likewise unmeasured until the next paid run.
 """
 
 from harness import Sandbox, Check
@@ -31,7 +46,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for all 25 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for 25 of 31 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -47,8 +62,8 @@ CASES = [
      "Set up and initialize the acs configuration for this repository.",
      "setup"),
     ("ship", True,
-     "Take a CSV-export feature all the way from idea to an open pull request — "
-     "drive the whole delivery pipeline end to end.",
+     "Drive ticket EVAL-1 all the way through the delivery pipeline end to "
+     "end, from where it left off up to an open pull request.",
      "ship"),
     ("handoff", True,
      "Let's stop here and hand this work off to a fresh session so I can "
@@ -105,7 +120,8 @@ CASES = [
      "trade-offs, before we start implementing it.",
      "create-design"),
     ("code", True,
-     "Implement ticket EVAL-1 from its specs, using TDD on a dedicated branch.",
+     "Implement ticket EVAL-1 from its approved plan, using TDD on a dedicated "
+     "branch.",
      "code"),
     ("docs-sync", True,
      "Ticket EVAL-1's implementation is finished and committed but has no "
@@ -127,10 +143,12 @@ CASES = [
      "time per ticket for this repo — not delivery throughput, just the tool "
      "usage and cost side.",
      "usage"),
-    ("test", True,
+    # `test` is the deprecated alias directory; the intent routes to the
+    # skill that carries the prose.
+    ("run-e2e-tests", True,
      "Run the configured test suites for this repo and give me a results "
      "report, opening a regression ticket for anything that broke.",
-     "test"),
+     "run-e2e-tests"),
     ("release", True,
      "Cut a new release — draft the changelog section from what's merged "
      "since the last tag, bump the version in both manifests, and open the "

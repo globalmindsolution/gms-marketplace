@@ -62,6 +62,83 @@ def _tree_bodies():
     return bodies
 
 
+# Clauses the skills-independence refactor RETIRED, by the flat source file
+# they were inventoried from. AC-4 guards the MAR-145 *move* (a clause must
+# not vanish because a file was split); it was never meant to freeze the
+# requirements against later decisions. Each entry below states a requirement
+# ADR-0089 or ADR-0090 removed or replaced, and is skipped by the
+# exactly-one-home check rather than kept alive as dead prose:
+#
+#   * the per-skill "Pre-hook gate (predecessor must be completed)" table and
+#     its rows, the exit-code row that told the user "which skill to run
+#     first", and the "if the predecessor is not complete ... exit 2" clause —
+#     `_require_completed` is deleted; a pre-hook checks its own skill's
+#     inputs plus safety brakes, and out-of-order is one advisory line
+#     (ADR-0089). The surviving input/brake conditions are restated as the new
+#     "Per-skill pre-hook conditions" table in hooks.md;
+#   * the fixed "# | Skill" pipeline table and its rows — the order is
+#     declared in workflows/ship.yaml and restated as the ship.yaml step table
+#     in workflow.md (ADR-0089);
+#   * the `/ship <prompt>` clauses — /ship takes a ticket id and is a loop over
+#     `acs.py workflow next` (ADR-0089);
+#   * "Hooks MUST read and write files only in the workspace folder" — hooks
+#     write only there, but now also READ ticket documents from the repo docs
+#     tree, so the clause is restated with that split (ADR-0090);
+#   * the `status` row "Managed by hooks" — status is derived from the run
+#     ledger, never stored (ADR-0090);
+#   * the [ASSUMPTION] on hook naming — resolved by the shipped twenty-row
+#     hook inventory it was hedging.
+RETIRED_BY_SKILLS_INDEPENDENCE = {
+    'workflow.md': (
+        '- Each workflow skill MUST be followed by a **post-hook** that writes the',
+        '- Each workflow skill MUST be guarded by a **pre-hook** that checks readiness',
+        '- Every hook gate still applies: `/ship` adds orchestration only and MUST NOT',
+        '- If the predecessor is not complete, the pre-hook MUST exit with code **2**,',
+        '- SHOULD be resumable: re-running `/ship` for a ticket continues from the',
+        'MUST run in the following order for a given ticket',
+        '`/ship <prompt>` drives the pipeline end-to-end: it MUST run',
+        'clarifications wherever a skill requires them, and MUST **stop before',
+        'which blocks the skill from running, and SHOULD emit a clear message telling',
+        '| # | Skill | Purpose (summary) |',
+        '| 1 | `/create-ticket` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |',
+        '| 3 | `/code` | Analyze & clarify the specs; implement features / bug fixes / tasks using the **TDD pattern**, updating affected repo docs as part of the change. Its verifier also reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |',
+        '| 5 | `/create-pr` | Create a pull request shipping the implementation. |',
+        '| 6 | `/merge-pr` | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |',
+    ),
+    'hooks.md': (
+        '(Unconditional on lane — the code-planner self-authors folded spec content when `specs/` is absent or empty; see [skills.md](skills.md).) |',
+        '**[ASSUMPTION]** Naming above follows the `pre-code.py` / `code-state.json`',
+        '- Hooks MUST read and write files only in the **workspace folder**',
+        '`/create-architecture`, and `/create-project` — MUST have a **pre-hook**',
+        '| Skill | Pre-hook gate (predecessor must be completed) |',
+        '| `/create-architecture` | `/setup` done; PRD doc set exists (`prd_path`). |',
+        '| `/create-design` | `/create-ticket` completed; ticket flagged `needs_design`. |',
+        '| `/create-operations` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |',
+        '| `/create-pr` | `/code` completed **and its verifier passed** (no blocking findings) — the automatic remediation loop inside `/code` runs until this holds ([workflow.md](workflow.md#review-feedback-loop)). |',
+        '| `/create-prd` | `/setup` done; product-level — no ticket required. |',
+        '| `/create-principles` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |',
+        '| `/create-project` | `/setup` done; architecture doc set exists (greenfield only). |',
+        '| `/create-quality` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |',
+        '| `/create-standards` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |',
+        '| `/create-ticket` | `/setup` done (settings exist); no pipeline predecessor. |',
+        '| `/merge-pr` | A PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)). |',
+        '| `/standardize-project` | `/setup` done; architecture doc set exists (`hld/tech-stack.md`). |',
+        '| `0` | Ready — the skill proceeds. |',
+        "| `2` | **Blocked** — the skill MUST NOT run. The hook's stderr message tells the user what is missing and which skill to run first. |",
+    ),
+    'skills.md': (
+        '- MUST NOT bypass any pre/post hook; it adds orchestration only.',
+        '- Pre-hook (`pre-code.py`) MUST verify that `/create-ticket` has',
+        '- SHOULD be resumable: re-running it for a ticket continues from the first',
+        '- `/ship <prompt>` MUST run the workflow skills in the SAME order on every',
+    ),
+    'workspace-and-state.md': (
+        'hooks MUST read and write their files in the workspace folder**, located',
+        '| `status` | `"open"\\|"in_progress"\\|"in_review"\\|"done"` | Managed by hooks |',
+    ),
+}
+
+
 class ContentPreservationTest(unittest.TestCase):
     """AC-4: every MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]-tagged clause (or an
     equivalent clause-level unit — a markdown table data row) inventoried
@@ -87,7 +164,10 @@ class ContentPreservationTest(unittest.TestCase):
         missing = []
         duplicated = []
         for source, clauses in self.fixture.items():
+            retired = RETIRED_BY_SKILLS_INDEPENDENCE.get(source, ())
             for clause in clauses:
+                if clause in retired:
+                    continue
                 homes = self._homes(clause)
                 if len(homes) == 0:
                     missing.append((source, clause))
@@ -101,6 +181,32 @@ class ContentPreservationTest(unittest.TestCase):
             duplicated, [],
             "clauses duplicated across >1 functional/non-functional file: "
             "%r" % (duplicated[:5],))
+
+    def test_retired_allowlist_is_really_retired(self):
+        """Every allowlisted clause must actually be absent — an entry that is
+        still in the tree would silently exempt a clause the reorg guard is
+        supposed to be watching."""
+        still_present = []
+        for source, clauses in RETIRED_BY_SKILLS_INDEPENDENCE.items():
+            for clause in clauses:
+                if self._homes(clause):
+                    still_present.append((source, clause))
+        self.assertEqual(
+            still_present, [],
+            "allowlisted-as-retired clauses that are still in the tree "
+            "(drop them from RETIRED_BY_SKILLS_INDEPENDENCE): %r"
+            % (still_present[:5],))
+
+    def test_retired_allowlist_only_names_inventoried_clauses(self):
+        """The allowlist may only exempt clauses the fixture actually
+        inventoried, so it cannot become a general-purpose escape hatch."""
+        unknown = []
+        for source, clauses in RETIRED_BY_SKILLS_INDEPENDENCE.items():
+            known = set(self.fixture.get(source, ()))
+            for clause in clauses:
+                if clause not in known:
+                    unknown.append((source, clause))
+        self.assertEqual(unknown, [], "allowlist entries not in the fixture: %r" % (unknown[:5],))
 
     def test_fixture_is_non_trivial(self):
         total = sum(len(v) for v in self.fixture.values())
