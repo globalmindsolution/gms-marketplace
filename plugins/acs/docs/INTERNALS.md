@@ -133,8 +133,10 @@ onto the plugin hooks API like this:
    of the shared `<skill>-state.json` from a `PreToolUse` deny path, and so the
    first that can run while the parallel executor fan-out is in flight.
    `SessionEnd`'s `finalize_run` writes the same file from a hook process too,
-   but only at teardown, never alongside running executors. No corruption is
-   reachable: `write_json` is atomic (`mkstemp` + `os.replace`), so a torn or
+   but only at teardown, by which point this checkout's executors have normally
+   already finished — normally, because nothing here enforces it: when the
+   runtime fires `SessionEnd` is the runtime's business, not this repo's. No
+   corruption is reachable: `write_json` is atomic (`mkstemp` + `os.replace`), so a torn or
    truncated state file cannot result. A lost update can: the append is an
    unlocked read-modify-write of the whole document, so when two writes to that
    file overlap — N executors denied inside the same window, the correlated case
