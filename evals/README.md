@@ -55,6 +55,13 @@ locally on commit and in the *Pre-commit hooks* CI job — with
 `ACS_EVAL_SOURCE=1` so it tests the source being committed. Keeping all of this
 out of `tests/` is what stops `unittest discover` from ever picking it up.
 
+A scenario counts as behavioural evidence only if it satisfies
+[`docs/quality/behavioural-eval-rubric.md`](../docs/quality/behavioural-eval-rubric.md)
+— assert on the workspace rather than the transcript, on shape *and* value, with an
+honest tier and preconditions the fixture actually satisfies. How good the skill
+itself is, as opposed to the evidence, is
+[`docs/quality/skill-rubric.md`](../docs/quality/skill-rubric.md).
+
 ## Scenario tiers
 
 | Tier | Spawns `claude`? | Default? | Use |

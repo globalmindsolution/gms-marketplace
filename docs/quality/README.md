@@ -9,6 +9,8 @@ covers, and the policy that gates a release.
 |-----|---------------|--------|
 | [testing-strategy.md](testing-strategy.md) | The layered test pyramid (contract → deterministic → static → free/paid evals → runtime verifier → dogfooding), the per-skill coverage matrix, principles, and the roadmap to close the gap | ✅ |
 | `test-plan.md` | Concrete per-area test plans and the pre-release checklist (currently inline in the [root README](../../README.md#releasing--updating) and [evals/README.md](../../evals/README.md)) | planned |
+| [skill-rubric.md](skill-rubric.md) | How good a skill is — the six dimensions (routing, gate, contract, structure, recovery, prose), the rule that an unmeasured dimension is not a pass, and the per-skill Ready/Thin/Blocked verdict. The judgement the eval dataset deliberately refuses to make | ✅ |
+| [behavioural-eval-rubric.md](behavioural-eval-rubric.md) | What an artifact-level eval must assert to count as evidence — read the workspace not the transcript, shape AND value, an honest tier, real preconditions — plus the severity scale and the order to write the remaining 29 in | ✅ |
 | [coverage-policy.md](coverage-policy.md) | The 90% coverage floor and its hard-fail rule, the `.coveragerc` exclusions, and the repo-wide gate — `coverage report --fail-under=$ACS_COVERAGE` over the whole measured `source` tree | ✅ |
 
 Verification flows from the layers above it: a `quality/` claim ("create-ticket
