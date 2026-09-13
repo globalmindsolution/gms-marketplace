@@ -181,6 +181,16 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
                 return ast.literal_eval(node.value)
         raise AssertionError("CASES list not found in s04_skill_triggers.py")
 
+    def _negative(self):
+        path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        tree = ast.parse(read(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "NEGATIVE" for t in node.targets
+            ):
+                return ast.literal_eval(node.value)
+        raise AssertionError("NEGATIVE list not found in s04_skill_triggers.py")
+
     def test_create_principles_case_present_and_internally_consistent(self):
         cases = self._cases()
         matches = [c for c in cases if c[0] == "create-principles"]
@@ -191,8 +201,20 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
             case[-1], "create-principles",
             "the 'create-principles' CASE's expected-skill (last element) "
             "must be 'create-principles'")
+        # ADR 0091 made this an internal leg, so disable-model-invocation: true.
+        # Its positive probe is therefore the explicit command, and the
+        # description that used to be the positive is now the NEGATIVE probe --
+        # the one that must NOT auto-route. The no-naming rule follows the
+        # description to where it lives.
+        self.assertEqual(
+            case[2], "/acs:create-principles",
+            "a user-only skill's positive probe is the explicit command")
+        negatives = [c for c in self._negative() if c[0] == "create-principles"]
+        self.assertTrue(
+            negatives,
+            "a user-only skill needs a no-auto-route negative probe")
         self.assertNotIn(
-            "create-principles", case[2],
+            "create-principles", negatives[0][2],
             "the probe request must describe intent without naming the skill")
 
 
