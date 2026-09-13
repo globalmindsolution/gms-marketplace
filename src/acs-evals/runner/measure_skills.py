@@ -47,6 +47,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -360,11 +361,79 @@ def route_cmd(prompt, build=None):
 
 
 def session_cmd(prompt, build=None):
-    """The argv for a full pipeline session. Pure, for the same reason."""
-    cmd = ["claude", "-p", prompt, "--output-format", "json",
+    """The argv for a full pipeline session. Pure, for the same reason.
+
+    `stream-json` rather than `json`, so the run's SKILL SEQUENCE is on the
+    record. The 2026-09-13 measurement had PIPE-code fall from 3/3 to 1/3 with
+    two runs hitting the wall at 1800s, and nothing in the measurement could
+    say what those runs were doing: the final envelope is all `json` emits, and
+    a run that times out never emits one at all. The final `result` event
+    carries the same `total_cost_usd`, `num_turns` and `is_error`, so nothing
+    is lost by asking for the whole stream and reading the end of it.
+    """
+    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
            "--permission-mode", "acceptEdits",
            "--allowedTools", " ".join(PIPELINE_TOOLS)]
     return cmd + plugin_args(build) if build is not None else cmd
+
+
+#: Keep a run's skill sequence bounded: a loop is visible in the first few
+#: dozen entries, and an unbounded list would bloat every measurement file.
+MAX_SKILL_TRAIL = 60
+
+
+def read_stream(path):
+    """Pull `(envelope, skills)` out of a stream-json transcript on disk.
+
+    `skills` is every Skill the run invoked, in order, each `{skill, ok}` --
+    `ok` false when the call came back an error. Order and repetition are the
+    point: a coordinator looping on one skill looks nothing like one that ran
+    its steps once. `envelope` is the final `result` event, or None when the
+    run was killed before emitting one.
+
+    Reads line by line and keeps only what it extracts, so a 30-minute
+    transcript costs a file on disk and not a process's memory.
+    """
+    envelope, skills, truncated = None, [], False
+    pending = {}
+    try:
+        fh = open(path, encoding="utf-8", errors="replace")
+    except OSError:
+        return None, [], False
+    with fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            if event.get("type") == "result":
+                envelope = event
+                continue
+            message = event.get("message")
+            blocks = message.get("content") or [] if isinstance(message, dict) else []
+            if isinstance(blocks, str):
+                blocks = []
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                if (block.get("type") == "tool_use"
+                        and block.get("name") == "Skill"):
+                    name = (block.get("input") or {}).get("skill")
+                    if len(skills) < MAX_SKILL_TRAIL:
+                        skills.append({"skill": name, "ok": True})
+                        pending[block.get("id")] = len(skills) - 1
+                    else:
+                        truncated = True
+                elif block.get("type") == "tool_result":
+                    idx = pending.pop(block.get("tool_use_id"), None)
+                    if idx is not None and block.get("is_error"):
+                        skills[idx]["ok"] = False
+    return envelope, skills, truncated
 
 
 def route_once(prompt, cwd, timeout, env, build=None):
@@ -401,28 +470,54 @@ def route_once(prompt, cwd, timeout, env, build=None):
 
 
 def session_once(prompt, cwd, timeout, env, build=None):
-    """One full `claude -p` session. Returns the envelope plus wall clock."""
+    """One full `claude -p` session. The envelope, the wall clock, and the
+    sequence of skills the run invoked.
+
+    The transcript goes to a FILE rather than a pipe, for two reasons. It keeps
+    `subprocess.run`'s timeout enforcement, which a read loop over a pipe
+    quietly loses the moment a session stops emitting. And it survives the
+    timeout: a killed run leaves its partial transcript on disk, so the runs
+    that hit the wall -- the ones worth understanding -- still report what they
+    were doing when they got there. That is the whole reason this exists: two
+    PIPE-code runs died at 1800s on 2026-09-13 and the measurement recorded
+    nothing about either.
+    """
     cmd = session_cmd(prompt, build)
     started = time.time()
+    handle, path = tempfile.mkstemp(prefix="acs-session-", suffix=".jsonl")
+    out = {"ok": False, "seconds": None, "cost_usd": None, "turns": None,
+           "error": None}
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd,
-                              timeout=timeout, env=env)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "seconds": round(time.time() - started, 3),
-                "cost_usd": None, "turns": None, "error": "timeout"}
-    out = {"ok": proc.returncode == 0, "seconds": round(time.time() - started, 3),
-           "cost_usd": None, "turns": None, "error": None}
-    try:
-        env_doc = json.loads(proc.stdout)
-        out["cost_usd"] = env_doc.get("total_cost_usd")
-        out["turns"] = env_doc.get("num_turns")
-        out["ok"] = proc.returncode == 0 and not env_doc.get("is_error")
-        if env_doc.get("is_error"):
+        with os.fdopen(handle, "w") as sink:
+            try:
+                proc = subprocess.run(cmd, stdout=sink, stderr=subprocess.DEVNULL,
+                                      text=True, cwd=cwd, timeout=timeout,
+                                      env=env)
+                returncode = proc.returncode
+            except subprocess.TimeoutExpired:
+                returncode, out["error"] = None, "timeout"
+        out["seconds"] = round(time.time() - started, 3)
+        envelope, skills, truncated = read_stream(path)
+        if skills:
+            out["skills_invoked"] = skills
+            if truncated:
+                out["skills_truncated"] = True
+        if out["error"] == "timeout":
+            return out
+        if envelope is None:
+            out["error"] = "no result event — the session emitted no envelope"
+            return out
+        out["cost_usd"] = envelope.get("total_cost_usd")
+        out["turns"] = envelope.get("num_turns")
+        out["ok"] = returncode == 0 and not envelope.get("is_error")
+        if envelope.get("is_error"):
             out["error"] = "session reported is_error"
-    except (json.JSONDecodeError, TypeError):
-        out["ok"] = False
-        out["error"] = "unparseable session envelope"
-    return out
+        return out
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 # --------------------------------------------------------------------------
@@ -790,10 +885,49 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
                  agg["reliability"]["total"],
                  ("$%.2f" % agg["cost_usd"]["median"])
                  if agg["cost_usd"] else "cost n/a"))
+        # Print the skill trail of any run that did not complete. Written to
+        # the measurement either way, but a run that times out is the one
+        # someone reads the console for, and "what was it doing" should not
+        # need a JSON query to answer.
+        for i, run in enumerate(runs):
+            if run.get("ok") or run.get("unmeasured"):
+                continue
+            trail = run.get("skills_invoked") or []
+            print("      run %d %s: %s" % (
+                i, run.get("error") or "did not complete",
+                summarize_trail(trail) if trail else "invoked no skill"))
         if checkpoint:
             checkpoint.add(rec)
         out.append(rec)
     return out
+
+
+def summarize_trail(skills):
+    """`a -> b -> b x3 -> c` — a run's skill sequence, runs of one collapsed.
+
+    Collapsed because the shape that matters is repetition: a coordinator
+    stuck re-invoking one skill reads completely differently from one walking
+    its steps once, and an uncollapsed list of forty buries that.
+    """
+    out, previous, count = [], None, 0
+
+    def flush():
+        if previous is None:
+            return
+        name = previous["skill"] or "?"
+        if not previous["ok"]:
+            name += "(refused)"
+        out.append(name if count == 1 else "%s x%d" % (name, count))
+
+    for entry in skills:
+        key = {"skill": entry.get("skill"), "ok": entry.get("ok", True)}
+        if previous is not None and key == previous:
+            count += 1
+            continue
+        flush()
+        previous, count = key, 1
+    flush()
+    return " -> ".join(out)
 
 
 def claude_version():

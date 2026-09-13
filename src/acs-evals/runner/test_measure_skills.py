@@ -692,6 +692,101 @@ class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
                         checkpoint=cp)
         self.assertIn("a", cp.done)
 
+class SkillTrailTest(unittest.TestCase):
+    """What a pipeline run actually invoked, from its stream-json transcript.
+
+    PIPE-code fell from 3/3 to 1/3 on 2026-09-13 with two runs hitting the
+    1800s wall, and the measurement could not say what either was doing: the
+    old `--output-format json` emits one envelope at the end, and a killed run
+    never gets there.
+    """
+
+    def _transcript(self, events):
+        path = tempfile.mktemp(suffix=".jsonl")
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        with open(path, "w", encoding="utf-8") as fh:
+            for e in events:
+                fh.write(json.dumps(e) + "\n")
+        return path
+
+    @staticmethod
+    def _use(skill, call_id):
+        return {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": call_id, "name": "Skill",
+             "input": {"skill": skill}}]}}
+
+    @staticmethod
+    def _res(call_id, is_error=False):
+        return {"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": call_id,
+             "is_error": is_error, "content": "ok"}]}}
+
+    def test_the_sequence_is_recorded_in_order(self):
+        path = self._transcript([
+            self._use("acs:create-impl-plan", "t1"), self._res("t1"),
+            self._use("acs:code", "t2"), self._res("t2"),
+            {"type": "result", "total_cost_usd": 1.5, "num_turns": 9}])
+        envelope, skills, truncated = measure_skills.read_stream(path)
+        self.assertEqual([s["skill"] for s in skills],
+                         ["acs:create-impl-plan", "acs:code"])
+        self.assertEqual(envelope["num_turns"], 9)
+        self.assertFalse(truncated)
+
+    def test_a_transcript_with_no_result_event_still_yields_its_trail(self):
+        # The timeout case, and the reason this exists at all.
+        path = self._transcript([self._use("acs:code", "t1"), self._res("t1"),
+                                 self._use("acs:create-standards", "t2")])
+        envelope, skills, _ = measure_skills.read_stream(path)
+        self.assertIsNone(envelope)
+        self.assertEqual([s["skill"] for s in skills],
+                         ["acs:code", "acs:create-standards"])
+
+    def test_a_refused_call_is_marked_not_dropped(self):
+        path = self._transcript([self._use("acs:update", "t1"),
+                                 self._res("t1", is_error=True)])
+        _, skills, _ = measure_skills.read_stream(path)
+        self.assertEqual(skills, [{"skill": "acs:update", "ok": False}])
+
+    def test_the_trail_is_bounded(self):
+        events = []
+        for i in range(measure_skills.MAX_SKILL_TRAIL + 20):
+            events.append(self._use("acs:code", "t%d" % i))
+        path = self._transcript(events)
+        _, skills, truncated = measure_skills.read_stream(path)
+        self.assertEqual(len(skills), measure_skills.MAX_SKILL_TRAIL)
+        self.assertTrue(truncated)
+
+    def test_garbage_and_odd_shapes_are_survived(self):
+        path = self._transcript([])
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("not json\n[1,2]\nnull\n")
+            fh.write(json.dumps({"type": "result", "message": "a string",
+                                 "total_cost_usd": 2.0}) + "\n")
+        envelope, skills, _ = measure_skills.read_stream(path)
+        self.assertEqual(envelope["total_cost_usd"], 2.0)
+        self.assertEqual(skills, [])
+
+    def test_a_missing_transcript_is_empty_not_an_error(self):
+        self.assertEqual(measure_skills.read_stream("/no/such/file"),
+                         (None, [], False))
+
+    def test_the_pipeline_session_asks_for_the_stream(self):
+        cmd = measure_skills.session_cmd("do the thing")
+        self.assertEqual(cmd[cmd.index("--output-format") + 1], "stream-json")
+        self.assertIn("--verbose", cmd)
+
+    def test_runs_of_one_skill_collapse_in_the_summary(self):
+        trail = [{"skill": "acs:code", "ok": True}] * 3 + [
+            {"skill": "acs:create-pr", "ok": True}]
+        self.assertEqual(measure_skills.summarize_trail(trail),
+                         "acs:code x3 -> acs:create-pr")
+
+    def test_the_summary_names_a_refusal(self):
+        self.assertEqual(
+            measure_skills.summarize_trail([{"skill": "acs:update", "ok": False}]),
+            "acs:update(refused)")
+
+
 class CheckpointBuildIdentityTest(unittest.TestCase):
     """A checkpoint is reusable only for the build that bought it.
 
