@@ -116,7 +116,7 @@ the envelope's, the session marker is rejected on mismatch, and the run
 degrades to zeroed tokens / `cost_usd: None` on both legs for no
 measurement benefit).
 
-**D4 — Dependency/eligibility declaration: an `acs_lib.py` table plus pure
+**D4 — Dependency/eligibility declaration: an `acs_lib/_common.py` table plus pure
 helpers.** `DOC_BOOTSTRAP_DEPENDENCIES` (a skill → its declared upstream
 doc-bootstrap dependencies, tagged `hard`/`soft`), `DOC_BOOTSTRAP_SETTINGS_KEY`
 (explicit skill → settings-key map, never string-built), and a pure
@@ -169,7 +169,7 @@ the only option whose safety does not depend on a *different* decision
 (`cost_sampler.py`) is explicitly **not** given the same guard
 (user-confirmed): a race there degrades to a documented, disclosed
 `cost_basis: "unavailable"` on the losing leg, never silent data loss or a
-fabricated figure, keeping this ticket's blast radius inside `acs_lib.py`
+fabricated figure, keeping this ticket's blast radius inside `acs_lib/`
 as scoped.
 
 **D6 — Failure isolation: per-leg, with one narrowly-scoped fail-fast
@@ -212,7 +212,7 @@ follow-up lands.
 
 - One new unhooked skill, `plugins/acs/skills/create-docs/SKILL.md`, with
   no dedicated agent files; skill count 24 → 25.
-- `acs_lib.py` gains `DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
+- `acs_lib/_common.py` gains `DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
   `DOC_BOOTSTRAP_SENTINEL`, the declared v1 tuple `DOC_BOOTSTRAP_FANOUT_V1`,
   pure `doc_set_present_on_disk`/`fanout_batches`/`parse_fanout_for_arg`
   helpers, and an `O_EXCL` guard on `update_index`/`update_metrics` — a

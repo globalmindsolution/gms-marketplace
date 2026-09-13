@@ -157,7 +157,7 @@ class TestStalenessGuardFieldContract(unittest.TestCase):
 class TestRunPreFailClosedRegressionGuard(AcsWorkspaceCase):
     """THE single most important test in this unit: a raised exception inside
     record_session_marker must not make run_pre exit 2. gate_create_ticket
-    (acs_lib.py:1805) is an unconditional pass with no I/O of its own, so any
+    (acs_lib/gates.py) is an unconditional pass with no I/O of its own, so any
     exit 2 here can only be caused by an unwrapped marker-write bug. Driven via
     subprocess (never in-process) because run_pre resolves cwd from the process
     per Risk R1 -- see test_acs_lib_hook_entrypoints.py's module docstring."""

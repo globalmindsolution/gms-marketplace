@@ -32,7 +32,7 @@ dedicated settings-schema-validation CI step does; see .github/workflows/ci.yml
 around line 170).
 
 MAR-154 dropped the `coordinator` role from the `models` settings contract
-entirely (schema, committed settings.json, and acs_lib.py's validate_models
+entirely (schema, committed settings.json, and acs_lib's validate_models
 role loop) and moved the planner/verifier default to the then-current opus
 generation.
 

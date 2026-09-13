@@ -1,7 +1,7 @@
 """MAR-143 spec 01 — /acs:create-requirements skill scaffold, triad, hooks,
 registration (AC-1, AC-6, AC-7 partial).
 
-Registers the new producer skill in `acs_lib.py` (`PRODUCT_SKILLS`,
+Registers the new producer skill in `acs_lib/_common.py` (`PRODUCT_SKILLS`,
 `PRODUCT_TICKET_TITLES`, a standalone `gate_create_requirements`, `GATES`),
 proves the coordinator + triad + hooks exist on disk, and pins the
 count-bump doc-set (`c4-container.md`/`c4-component.md`) to the post-registration

@@ -1,4 +1,4 @@
-"""Behavior tests for acs_lib.py's state files, ticket ledger, locking, and
+"""Behavior tests for acs_lib's state files, ticket ledger, locking, and
 context-resolution helpers.
 
 Originating ticket: MAR-173. resolve_ticket_id's pointer-file and branch-name
@@ -285,7 +285,7 @@ class TestFinalizeRun(unittest.TestCase):
     def test_no_checkout_id_branch_keeps_model_usage_tokens_only(self):
         """design.md:718 -- the no-checkout_id branch persists model_usage
         tokens-only (no cost keys), mirroring role_usage's own behavior at
-        this branch (acs_lib.py:1368): measured token data is never
+        this branch (acs_lib/state.py): measured token data is never
         discarded just because cost can't be located."""
         lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
@@ -308,7 +308,7 @@ class TestFinalizeRun(unittest.TestCase):
     def test_no_session_marker_and_degraded_branches_emit_empty_model_usage(self):
         """No session_id/transcript_path, and a degraded transcript read,
         both persist model_usage=[] -- same rule as role_usage's own
-        empty-list branches (acs_lib.py:1342-1347, :1352-1360)."""
+        empty-list branches (acs_lib/state.py)."""
         lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
             state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})

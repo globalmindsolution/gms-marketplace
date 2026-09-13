@@ -5,7 +5,7 @@ live violation the prototype found.
 Three conventions, each with the concrete failure that motivated it:
 
 1. No updated_at-equality (or ordering) assertion under tests/. acs_lib.now_iso()
-   is second-resolution (acs_lib.py:391-392), so a re-save inside the same
+   is second-resolution (acs_lib/_common.py), so a re-save inside the same
    second writes an identical string; such an assertion survived an injected
    mutant in 17 of 20 runs in MAR-169, and in 14 of 20 runs in this ticket's
    own experiment at the site AC-4 repairs, the parent-untouched assertion in
@@ -41,7 +41,7 @@ Three conventions, each with the concrete failure that motivated it:
    measured setting with zero false positives on the 7 legitimate sites
    while still catching every negative control (depth 0 false-positives on
    5 of 7 -- lock_path/state_path/sessions_dir live one hop away in
-   acs_lib.py; the planning prototype's transitive depth 2 additionally leaked
+   acs_lib/repo.py; the planning prototype's transitive depth 2 additionally leaked
    index.json as "reachable" from handoff.py -- that leak is a prototype
    measurement and is not reproducible here, because build_corpus below
    implements the single hop only, which makes its depth argument effectively
@@ -81,7 +81,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_case import acs_lib_source  # noqa: E402
 
 SECOND_RESOLUTION_REASON = (
-    "acs_lib.now_iso() is second-resolution (acs_lib.py:391-392), so a "
+    "acs_lib.now_iso() is second-resolution (acs_lib/_common.py), so a "
     "re-save inside the same second writes an identical string"
 )
 

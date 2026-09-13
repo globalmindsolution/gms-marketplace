@@ -1,9 +1,9 @@
-"""MAR-403 (parent MAR-401) — the canonical gh-failure diagnostic in acs_lib.py.
+"""MAR-403 (parent MAR-401) — the canonical gh-failure diagnostic in acs_lib/.
 
 Unit tests for GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT, and
 the pure gh_failure_hint(stderr_text) predicate (Option F / decision D3).
 These are the only tests exercising T1's new, measured statements in
-plugins/acs/hooks/scripts/acs_lib.py; T2's and T3's outputs are prose,
+plugins/acs/hooks/scripts/acs_lib/repo.py; T2's and T3's outputs are prose,
 covered by their own doc/anti-drift test modules rather than by line
 coverage.
 

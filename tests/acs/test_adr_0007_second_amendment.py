@@ -172,7 +172,7 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
     def test_workflow_skills_contains_docs_sync(self):
         body = acs_lib_source()
         match = re.search(r"WORKFLOW_SKILLS\s*=\s*\[([^\]]*)\]", body)
-        self.assertIsNotNone(match, "acs_lib.py must define WORKFLOW_SKILLS")
+        self.assertIsNotNone(match, "acs_lib/_common.py must define WORKFLOW_SKILLS")
         self.assertIn('"docs-sync"', match.group(1))
 
     def test_gate_create_pr_no_longer_requires_docs_sync(self):

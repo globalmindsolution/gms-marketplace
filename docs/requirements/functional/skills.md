@@ -366,7 +366,7 @@ docs-only PR on its own delivery ticket.
   `create-docs-state.json` skill-start ticket allocation; it is not one of
   the triad-keeping skills. Like `/acs:ship`, it adopts
   `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
-- **Eligibility**: `fanout_batches()` (`acs_lib.py`) computes the eligible
+- **Eligibility**: `fanout_batches()` (`acs_lib/setup_helpers.py`) computes the eligible
   batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
   the consumer repo's settings and on-disk doc state, gated on the declared
   v1 set `DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
@@ -383,7 +383,7 @@ docs-only PR on its own delivery ticket.
 - **Argument contract**: `--for <skill>[,<skill>...]` narrows the batch to
   the named skill(s); with no flag, every currently-eligible skill fans out;
   a name outside `DOC_BOOTSTRAP_FANOUT_V1` is rejected as *not in v1's
-  fan-out set* (`parse_fanout_for_arg()`, `acs_lib.py`) — reported, never
+  fan-out set* (`parse_fanout_for_arg()`, `acs_lib/_common.py`) — reported, never
   silently fanned out or silently dropped.
 
 ## Product-level delivery (tickets)
