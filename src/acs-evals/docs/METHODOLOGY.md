@@ -110,7 +110,14 @@ verified on the strength of a tier-1 gate.
 
 Tier 3 measures it without waiting for early access: `runner/measure_skills.py`
 drives the same `dataset/routing.json` prompts through plain `claude -p` with
-only the `Skill` tool allowed, killing the session at the first `Skill` call.
+only the `Skill` tool available (`--tools Skill`), killing the session at that
+call's result. Until 2026-09-13 it passed `--allowedTools Skill` alone, which
+is a PERMISSION allowlist rather than a tool-set selector: the session still
+advertised all 38 built-in tools, so the model could read the repo and do the
+job by hand instead of routing — and sometimes did. Every
+"routed nowhere" miss in that measurement was of that kind, never a wrong
+skill, so the probe was measuring whether a task was doable rather than
+whether a description attracts it.
 The two explicit probes (`/acs:install-hooks`, `/acs:update`) cannot be seen
 that way — a typed slash command is expanded by the CLI and never dispatched
 through the `Skill` tool — so they are decided at the `init` event's

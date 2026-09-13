@@ -122,11 +122,25 @@ class DescriptionProbeTest(unittest.TestCase):
                  _result(content=REFUSAL, is_error=True)]
         self.assertEqual(classify(lines, self.PROMPT)[2], "acs:create-standards")
 
-    def test_any_other_tool_error_also_means_the_skill_did_not_run(self):
+    def test_a_gate_rejection_is_still_a_correct_route(self):
+        # The commonest result on a positive probe, and the one that nearly
+        # inverted the suite: the model picks exactly the right skill, the
+        # skill IS invoked, and its own pre-hook refuses to proceed in a
+        # sandbox that cannot satisfy it. Routing is what this measures.
+        hook = ("PreToolUse:Skill hook error: acs pre-code: blocked — no "
+                "plan.md found for TKT-1 — run /acs:create-impl-plan first.")
         lines = [_init(), _assistant(_skill("acs:code")),
-                 _result(content="no such skill", is_error=True)]
+                 _result(content=hook, is_error=True)]
         self.assertEqual(classify(lines, self.PROMPT),
-                         (None, "refused", "acs:code"))
+                         ("acs:code", "skill_tool_use", None))
+
+    def test_only_the_user_only_refusal_undoes_a_route(self):
+        for text, expected in (
+                ("no such skill", ("acs:code", "skill_tool_use", None)),
+                ("rate limited, try again", ("acs:code", "skill_tool_use", None))):
+            lines = [_init(), _assistant(_skill("acs:code")),
+                     _result(content=text, is_error=True)]
+            self.assertEqual(classify(lines, self.PROMPT), expected, text)
 
     def test_a_result_for_some_other_call_does_not_decide(self):
         lines = [_init(), _assistant(_skill("acs:code")),
@@ -149,6 +163,18 @@ class DescriptionProbeTest(unittest.TestCase):
                     for _ in range(measure_skills.RESULT_LOOKAHEAD + 5)])
         self.assertEqual(classify(lines, self.PROMPT)[1],
                          "skill_tool_use_unresolved")
+
+    def test_events_whose_message_is_not_an_object_are_survived(self):
+        # A live stream carries events whose `message` is a bare string (the
+        # final `result` event among them), and since the decision now reads
+        # every event rather than only assistant ones, reading `.content` off
+        # one raised — mid-measurement, after the money was spent.
+        odd = [json.dumps({"type": "result", "message": "all done"}),
+               json.dumps({"type": "user", "message": {"content": "plain text"}}),
+               json.dumps({"type": "assistant", "message": {"content": ["x", 7]}})]
+        lines = [_init()] + odd + [_assistant(_skill("acs:code"))] + odd + [_result()]
+        self.assertEqual(classify(lines, self.PROMPT),
+                         ("acs:code", "skill_tool_use", None))
 
     def test_init_registration_never_decides_a_description_probe(self):
         # The model must choose; the CLI knowing the command is not routing.
@@ -345,21 +371,30 @@ class DatasetProfilesTest(unittest.TestCase):
     def test_the_prompts_themselves_are_unchanged_by_the_environment(self):
         # The environment carries the presupposition; the prompt still never
         # names the skill (the description-discrimination test is intact).
-        for pid in ("ROUTE-create-requirements", "ROUTE-docs-sync"):
+        for pid in ("ROUTE-create-requirements", "ROUTE-docs-sync",
+                    "ROUTE-create-design"):
             prompt = self._probe(pid)["prompt"].lower()
             self.assertNotIn("acs:", prompt)
             self.assertNotIn(pid[len("ROUTE-"):], prompt)
 
+    def test_a_prompt_about_an_epic_runs_where_an_epic_exists(self):
+        # `ticketed` mints a small, low-stakes TASK; "this epic is
+        # design-significant" is simply false there. `epic` mints a large,
+        # high-stakes epic — the thing the prompt describes.
+        self.assertEqual(probe_env(self._probe("ROUTE-create-design")),
+                         ("epic", ()))
+
     def test_every_other_probe_keeps_the_default_sandbox(self):
-        others = [p for p in self.probes
-                  if p["id"] not in ("ROUTE-create-requirements", "ROUTE-docs-sync")]
+        placed = ("ROUTE-create-requirements", "ROUTE-docs-sync",
+                  "ROUTE-create-design")
+        others = [p for p in self.probes if p["id"] not in placed]
         self.assertEqual({probe_env(p) for p in others}, {("ticketed", ())})
 
     def test_the_plan_counts_the_sandboxes(self):
         text = plan({"routing": {"runs_per_probe": 5},
                      "pipeline": {"runs_per_scenario": 3, "scenarios": []}},
                     self.probes, True, False, None)
-        self.assertIn("sandboxes 3 for routing: ticketed, app, "
+        self.assertIn("sandboxes 4 for routing: ticketed, epic, app, "
                       "app-ticketed (+3 setup steps)", text)
 
 
@@ -493,6 +528,21 @@ class BuildUnderTestIsActuallyLoadedTest(unittest.TestCase):
         cmd = session_cmd("do the thing", self._Build())
         self.assertIn("--plugin-dir", cmd)
         self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], self._Build.root)
+
+    def test_a_routing_probe_has_exactly_one_tool_to_reach_for(self):
+        # --allowedTools is a PERMISSION allowlist: with it alone the session
+        # still advertised all 38 built-in tools, so the model could read the
+        # repo and do the job by hand instead of routing -- which is what
+        # every "routed nowhere" miss on the 2026-09-13 measurement turned out
+        # to be. --tools is the tool-SET selector.
+        cmd = route_cmd("do the thing")
+        self.assertIn("--tools", cmd)
+        self.assertEqual(cmd[cmd.index("--tools") + 1], "Skill")
+
+    def test_a_pipeline_session_keeps_its_full_tool_set(self):
+        # The opposite requirement: a pipeline scenario must actually do the
+        # work, so it is never narrowed to one tool.
+        self.assertNotIn("--tools", session_cmd("do the thing"))
 
     def test_without_a_build_no_plugin_is_forced(self):
         """The parameter is optional so a caller can still measure whatever is

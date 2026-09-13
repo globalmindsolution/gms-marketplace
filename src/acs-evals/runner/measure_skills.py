@@ -99,11 +99,25 @@ RESULT_LOOKAHEAD = 40
 
 
 def _skill_refusal(block):
-    """Did this tool_result say the Skill call was refused, and why?
+    """Did the CLI refuse to DISPATCH this Skill call?
 
-    Returns None when the call was honoured. The `disable-model-invocation`
-    case has its own detection label because it is the whole subject of the
-    negative probes.
+    Returns a detection label when it did, None otherwise — and the test is
+    deliberately narrow: only `disable-model-invocation` counts.
+
+    Any other error on a Skill call happened AFTER dispatch. The commonest by
+    far is the skill's own pre-hook declining to proceed in the probe's
+    sandbox, e.g.
+
+        PreToolUse:Skill hook error: acs pre-code: blocked — no plan.md found
+        for TKT-1 ... run /acs:create-impl-plan TKT-1 first
+
+    That is a correctly routed probe: the model picked exactly the right
+    skill, the skill was invoked, and its gate refused the work. Routing is
+    what this measures, so it is a HIT. Treating every `is_error` as "did not
+    route" inverts the positive half of the suite — most probes run in a
+    sandbox that cannot satisfy the skill they are meant to reach, which is
+    fine, because the probe is killed at the routing decision and never wanted
+    the skill to run.
     """
     if not block.get("is_error"):
         return None
@@ -111,7 +125,7 @@ def _skill_refusal(block):
     text = content if isinstance(content, str) else json.dumps(content)
     if "disable-model-invocation" in text:
         return "refused_user_only"
-    return "refused"
+    return None
 
 
 def classify(lines, prompt):
@@ -160,9 +174,18 @@ def classify(lines, prompt):
                 return None, "unmeasured", None
             registered = event.get("slash_commands") or []
             return (want if want in registered else None), "registered", None
-        blocks = (event.get("message") or {}).get("content") or []
+        # `message` is a dict on assistant/user events and a bare string on
+        # others (the final `result` event, notably). Reading `.content` off
+        # the string form raises, and this runs on EVERY event now, not just
+        # assistant ones.
+        message = event.get("message")
+        blocks = message.get("content") or [] if isinstance(message, dict) else []
+        if isinstance(blocks, str):
+            blocks = []
         if pending is not None:
             for block in blocks:
+                if not isinstance(block, dict):
+                    continue
                 if (block.get("type") == "tool_result"
                         and block.get("tool_use_id") == pending[0]):
                     refusal = _skill_refusal(block)
@@ -178,6 +201,8 @@ def classify(lines, prompt):
             continue
         if kind == "assistant":
             for block in blocks:
+                if not isinstance(block, dict):
+                    continue
                 if block.get("type") == "tool_use" and block.get("name") == "Skill":
                     pending = (block.get("id"),
                                (block.get("input") or {}).get("skill"))
@@ -270,10 +295,24 @@ def plugin_args(build):
 
 
 def route_cmd(prompt, build=None):
-    """The argv for a routing probe. Pure, so the plugin wiring is testable."""
+    """The argv for a routing probe. Pure, so the plugin wiring is testable.
+
+    `--tools Skill` is load-bearing, and `--allowedTools Skill` is NOT a
+    substitute for it. `--allowedTools` is a PERMISSION allowlist — what may
+    run without prompting — so the session still advertised all 38 built-in
+    tools, Bash, Read, Edit and Write among them. With `--permission-mode
+    acceptEdits` the model could therefore just do the work, and on the
+    2026-09-13 measurement it sometimes did: every "routed nowhere" miss on
+    create-design, docs-sync and create-test-docs was the model reading the
+    repo and either answering from it or starting the job by hand, never a
+    wrong skill. That measures whether a task is doable, not whether a
+    description attracts it, and it costs a working session per probe instead
+    of the few seconds the design assumes. `--tools` is the tool-set selector:
+    it leaves exactly one tool, so the only move available is to route.
+    """
     cmd = ["claude", "-p", prompt, "--output-format", "stream-json",
            "--verbose", "--permission-mode", "acceptEdits",
-           "--allowedTools", "Skill"]
+           "--tools", "Skill", "--allowedTools", "Skill"]
     return cmd + plugin_args(build) if build is not None else cmd
 
 
@@ -745,10 +784,23 @@ def plan(scenarios, probes, routing_only, pipeline_only, limit):
                          for profile, setup in envs)))
     if not routing_only:
         n = limit or scenarios["pipeline"].get("runs_per_scenario", 3)
+        worst = 0
         for s in scenarios["pipeline"]["scenarios"]:
-            lines.append("  pipeline  %-22s x %d runs, up to %ds each"
-                         % (s["id"], n, s.get("timeout_seconds", 1800)))
-            sessions += n
+            # A setup prompt is a paid session of its own, and on the docs-sync
+            # scenarios it is a whole /acs:code cycle -- several times the
+            # measured skill's budget. Leaving it out of the plan understated
+            # the run by hours and by most of its cost.
+            setups = s.get("setup_prompts") or []
+            cap = s.get("timeout_seconds", 1800)
+            setup_cap = s.get("setup_timeout_seconds", cap)
+            lines.append("  pipeline  %-22s x %d runs, up to %ds each%s"
+                         % (s["id"], n, cap,
+                            " + %d setup prompt(s) at up to %ds each"
+                            % (len(setups), setup_cap) if setups else ""))
+            sessions += n * (1 + len(setups))
+            worst += n * (cap + len(setups) * setup_cap)
+        lines.append("  worst case %.1f hours of wall clock if every session "
+                     "runs to its timeout" % (worst / 3600.0))
     lines.append("  TOTAL     %d claude sessions" % sessions)
     return "\n".join(lines)
 

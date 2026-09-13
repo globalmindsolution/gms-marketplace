@@ -13,7 +13,7 @@ runs: 3
 # pays for the skill body to run, which this case does not assert on.
 max_turns: 2
 prompt: |
-  This epic is design-significant. Settle the system design and weigh the options before anyone writes code.
+  TKT-1 is design-significant. Settle its system design and weigh the options before anyone writes code.
 graders:
   - name: routes-to-acs-create-design
     tool_used: Skill

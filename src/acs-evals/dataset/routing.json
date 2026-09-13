@@ -39,9 +39,10 @@
       "id": "ROUTE-create-design",
       "skill": "acs:create-design",
       "kind": "positive",
-      "prompt": "This epic is design-significant. Settle the system design and weigh the options before anyone writes code.",
+      "prompt": "TKT-1 is design-significant. Settle its system design and weigh the options before anyone writes code.",
       "must_route": true,
-      "why": "A natural-language request in the skill's domain, never naming the skill."
+      "why": "A natural-language request in the skill's domain, never naming the skill. 1.6.0 fixes both halves of a 3/5 split on the 2026-09-13 measurement, neither of them the description's. The prompt said \"this epic\" and named none: a diagnostic caught the model identifying the right skill (\"this matches /acs:create-design exactly\") and then declining for want of a referent — \"I need to know which epic you mean\". It now names the ticket, as ROUTE-create-test-docs and ROUTE-run-e2e-tests already do. And the sandbox is now `epic`: the default `ticketed` profile mints a small, low-stakes TASK, so \"design-significant\" was false of the only ticket present, while `epic` mints a large, high-stakes epic — exactly what the prompt describes.",
+      "profile": "epic"
     },
     {
       "id": "ROUTE-create-docs",
@@ -194,12 +195,12 @@
       "kind": "positive",
       "prompt": "The code change is done. Make sure the docs match what actually changed before we raise the PR.",
       "must_route": true,
-      "why": "A natural-language request in the skill's domain, never naming the skill. 1.5.0: runs on the ticketed fixture app, on a ticket branch with a committed API change that docs/api.md does not yet describe — the prompt presupposes a finished change, and on the seeded repo (clean tree, one commit, no ticket branch) the model looked for it, found none, and asked instead of routing (1/5 runs).",
+      "why": "A natural-language request in the skill's domain, never naming the skill. The prompt presupposes a finished change the docs do not yet describe, so the sandbox has to contain one. 1.5.0 committed an UNREFERENCED constant under a commit message claiming the routes were added; the model read the diff, found do_GET/do_POST untouched, concluded docs/api.md's \"the API is read-and-create only\" was still accurate, and declined to sync — correctly. It split 3/5 on the 2026-09-13 measurement and 2/5 on a 5-run diagnostic, every miss for that reason. 1.6.0 commits the real handler: POST /orders/<id>/confirm and /pay now dispatch to the service, so the documented claim is genuinely false and there is something to sync.",
       "profile": "app-ticketed",
       "setup": [
         "git checkout -qb task/TKT-1-let-the-api-confirm-and-pay-an-order-cha",
-        "printf '%s\\n' '' 'CONFIRM_ROUTES = (\"/orders/<id>/confirm\", \"/orders/<id>/pay\")  # TKT-1: wired to the service in the next commit' >> orders/api.py",
-        "git commit -qam 'TKT-1 add the confirm and pay routes to the API'"
+        "python3 - <<'PYPATCH'\nimport re, pathlib\np = pathlib.Path(\"orders/api.py\")\nsrc = p.read_text()\nold = \"\"\"        def do_POST(self):\n            if self.path != \"/orders\":\n                return self._send(404, {\"error\": \"not found\"})\"\"\"\nnew = \"\"\"        def do_POST(self):\n            m = re.match(r\"^/orders/([^/]+)/(confirm|pay)$\", self.path)\n            if m:\n                order_id, action = m.group(1), m.group(2)\n                try:\n                    if action == \"confirm\":\n                        order = service.confirm(order_id)\n                    else:\n                        order = service.pay(order_id, day_provider())\n                except KeyError:\n                    return self._send(404, {\"error\": \"no such order\"})\n                except Exception as exc:  # noqa: BLE001 - bad transition -> 409\n                    return self._send(409, {\"error\": str(exc)})\n                return self._send(200, order.to_dict())\n            if self.path != \"/orders\":\n                return self._send(404, {\"error\": \"not found\"})\"\"\"\nassert src.count(old) == 1, \"do_POST anchor\"\nsrc = src.replace(old, new, 1).replace(\"import json\\n\", \"import json\\nimport re\\n\", 1)\np.write_text(src)\nPYPATCH",
+        "git commit -qam 'TKT-1 let the API confirm and pay an order'"
       ]
     },
     {

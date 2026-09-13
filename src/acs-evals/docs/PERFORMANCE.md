@@ -50,9 +50,12 @@ finding. Iterations-to-pass is the closest thing the pipeline records to a
 quality measure: it counts how often the executor's first answer was not good
 enough, and it costs money on every ticket.
 
-Routing probes record **no cost**. The session is killed at the first `Skill`
-tool_use — that is what keeps a probe to time-to-route instead of a whole skill
-body — so it never emits a cost envelope. `cost_usd` is `null` rather than
+Routing probes record **no cost**. The session runs with `--tools Skill`, so
+routing is the only move available to it, and is killed at that call's result
+— that is what keeps a probe to time-to-route instead of a whole
+skill body, and it is why the flag matters: under `--allowedTools Skill` alone
+the model kept all 38 built-in tools and a probe could turn into a working
+session. Killed that early it never emits a cost envelope. `cost_usd` is `null` rather than
 estimated; an invented number in a cost baseline is worse than an absent one.
 
 The two explicit probes (`/acs:install-hooks`, `/acs:update`) are cheaper
@@ -60,8 +63,8 @@ still. A typed slash command is expanded by the CLI itself and never dispatched
 through the `Skill` tool, so `disable-model-invocation` skills can only be
 observed as **registered**: the `init` event's `slash_commands` list. Those
 probes are decided at `init`, before any model turn. Every routing run records
-`detection` — `skill_tool_use`, `registered`, `refused_user_only` or `refused`
-when the CLI rejected the Skill call, `skill_tool_use_unresolved` when the
+`detection` — `skill_tool_use`, `registered`, `refused_user_only` when the CLI
+declined to dispatch the call at all, `skill_tool_use_unresolved` when the
 stream ended before the call's result arrived, or `unmeasured` when an explicit
 probe's stream reported no registration list at all, which the gate counts as
 a miss, never a pass.
@@ -87,7 +90,14 @@ rule is not a criterion.
   disable-model-invocation`) and the skill body never loads, so the guarantee
   held. A run is therefore decided by the Skill call's **tool_result**, not by
   the `tool_use` that asked for it: `detection` is `refused_user_only` and
-  `routed_to` is `None`. The attempt is kept in the run's `attempted` and
+  `routed_to` is `None`. That test is deliberately narrow — **only** a
+  `disable-model-invocation` refusal undoes a route. Every other error on a
+  Skill call happens *after* dispatch, and the commonest by far is the skill's
+  own pre-hook declining to work in the probe's sandbox (`acs pre-code:
+  blocked — no plan.md found for TKT-1`). That is a correctly routed probe:
+  the right skill was chosen and invoked, and its gate refused the work, which
+  is all a probe killed at the routing decision ever wanted. Counting those as
+  misses would invert the positive half of the suite. The attempt is kept in the run's `attempted` and
   reported as a `minor` **routing-quality** finding — the descriptions are
   pointing the model at a skill only a user may run, which costs a turn and is
   worth fixing in prose. Scoring the request as the invocation is what made the
