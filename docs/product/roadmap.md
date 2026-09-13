@@ -152,8 +152,8 @@ configured and have not yet been validated against a live remote.
   pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
   this repo's per-PR CI brake once a workflow is wired to run it. The suite
   itself has now been **imported into this repository** at
-  [`src/acs-evals/`](../../src/acs-evals/README.md), history intact, so the
-  brake no longer waits on a sibling checkout at a pinned ref — only the
+  [`src/acs-evals/`](../../src/acs-evals/README.md), so the brake no longer
+  waits on a sibling checkout at a pinned ref — only the
   workflow is decided, not yet landed, and `.github/workflows/` still carries
   no eval job. Paid measurement runs at release cadence from that same suite.
 

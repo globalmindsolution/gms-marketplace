@@ -165,9 +165,11 @@ The marketplace currently ships two plugins:
 | [`.acs/`](.acs/) | This repo's own acs configuration, CI convention gate, and run ledger. |
 
 `src/acs-evals/` keeps its own `Makefile`, `README.md` and `docs/` — read those
-before running it. Its pre-fold history carries **repo-root-relative paths**,
-so `git log -- src/acs-evals/<path>` stops at the fold commit; reach the older
-history by the original path instead (`git log 74c7478 -- dataset/cases/06-gates.json`).
+before running it. It arrived by squash merge, so `git log -- src/acs-evals/`
+shows a single commit; the history that built it stays in
+[`globalmindsolution/acs-evals`](https://github.com/globalmindsolution/acs-evals)
+under the old repo-root-relative paths. `src/acs-evals/README.md` has the two
+commands for reading it.
 
 ## Where to read more
 
