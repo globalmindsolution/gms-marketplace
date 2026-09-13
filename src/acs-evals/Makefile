@@ -18,6 +18,8 @@ PYTHON  ?= python3
 MUTANTS ?= 40
 CATCH_RUNS ?= 1
 WORKSPACE ?= ../../.acs/state-machine/globalmindsolution-gms-marketplace
+#: The plugin source this checkout carries, as `eval-source` points at it.
+SOURCE  := $(CURDIR)/../../plugins/acs
 RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
@@ -39,7 +41,7 @@ gate-deterministic: eval check mutation report ## The deterministic tier only �
 	@printf '\nDeterministic tier complete. This says NOTHING about skill\n'
 	@printf 'quality, reliability, cost or time — see docs/PERFORMANCE.md.\n'
 
-eval: ## Run the deterministic tier (448 cases, zero cost, no model)
+eval: ## Run the deterministic tier (455 cases, zero cost, no model)
 	$(PYTHON) runner/run_golden.py --json $(JSON)
 
 # Point the suite at the sibling plugin source. This does NOT change
@@ -85,14 +87,27 @@ catch-rate-plan: ## What `make catch-rate` would run, spending nothing
 catch-rate: ## PAID — feed every seeded defect through /acs:code and read the verifier's verdicts
 	$(PYTHON) runner/verifier_catch_rate.py --runs $(CATCH_RUNS)
 
-check: ## Fail if any generated tree is stale against its source
-	$(PYTHON) runner/gen_plugin_eval.py --check
-	$(PYTHON) runner/gen_schema_cases.py --check
+# generate / check / mutation are AUTHORING tools: they ask whether this
+# dataset is consistent with the schemas it pins, so they must read the tree
+# being edited. Left to the default resolution they read the newest INSTALLED
+# build instead -- which, with source nine merged PRs ahead of 0.4.9, meant
+# five schemas differed and two (phases, ship-workflow) did not exist there at
+# all. Cases were being generated for a schema set nobody was reviewing, and
+# `make mutation`'s coverage number described that same stale set.
+#
+# `eval` is deliberately NOT in this list: it is the gate, and which build it
+# judges is the question, not a detail. Override with ACS_PLUGIN_ROOT=... to
+# point these at something else.
+ACS_PLUGIN_ROOT ?= $(SOURCE)
+
+check: ## Fail if any generated tree is stale against the plugin source
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_plugin_eval.py --check
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py --check
 	$(PYTHON) runner/fixture_app.py --check
 
 generate: ## Re-render both generated trees (routing cases, schema constraint cases)
-	$(PYTHON) runner/gen_plugin_eval.py
-	$(PYTHON) runner/gen_schema_cases.py
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_plugin_eval.py
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
 	$(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)
@@ -101,7 +116,7 @@ verifier-rates: ## Per-dimension verifier finding rates from an acs workspace (W
 	$(PYTHON) runner/verifier_rates.py --workspace $(WORKSPACE) --json results/verifier-rates.json
 
 mutation: ## Measure schema coverage by deleting each constraint (must stay >= 90%)
-	$(PYTHON) runner/mutation_sweep.py --threshold 0.9
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_sweep.py --threshold 0.9
 
 list: ## List every case without running anything
 	$(PYTHON) runner/run_golden.py --list

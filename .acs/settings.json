@@ -105,7 +105,12 @@
       "trigger_paths": [
         ".claude-plugin/marketplace.json"
       ]
-    }
+    },
+    "pre_release_gate": [
+      "make -C src/acs-evals eval-source",
+      "make -C src/acs-evals measure",
+      "make -C src/acs-evals perf"
+    ]
   },
   "tests": {
     "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet \"coverage>=7.14.2\" jsonschema",

@@ -39,11 +39,35 @@ the notes.
 
 ### Changed
 
+- **⚠️ BREAKING: six Design-phase skills became internal legs (ADR 0091).**
+  `/acs:create-docs <set|all>` is now the only user-facing command for the four
+  doc-bootstrap sets, and a new unhooked `/acs:project` auto-detects bootstrap
+  vs standardize and dispatches. `create-quality`, `create-operations`,
+  `create-principles`, `create-standards`, `create-project` and
+  `standardize-project` keep their SKILL.md, their agent trios, their pre/post
+  hooks, their registered gates and their sentinels — the umbrella invokes each
+  leg's Start as a genuine Skill-tool call, so every hook fires exactly as it
+  would standalone — but each now ships `disable-model-invocation: true` and is
+  registered under `workflows/phases.yaml`'s new `internal:` map rather than in
+  a phase list. They stop being *model-invocable*, nothing more. **Migration:**
+  a human or script that typed `/acs:create-quality` still works; a model will
+  no longer route to it from a description, so reach for `/acs:create-docs
+  quality` instead.
+
 - **⚠️ BREAKING: hook gates no longer enforce the pipeline order.** `_require_completed` — the primitive that refused `/acs:docs-sync` until `/acs:code` had completed, `/acs:create-pr` until `/acs:docs-sync` had, and `/acs:create-design` until `/acs:create-ticket` had — is gone from `acs_lib/gates.py`. What each pre-hook checks now is exactly two things: the **inputs** that skill reads (the ticket partition resolves; `prd.md` for `/acs:create-architecture`; `plan.md` for `/acs:code`; `plan.md` + an `api_surface: true` analysis for `/acs:create-api-contract`; a configured e2e suite + at least one e2e case for `/acs:create-e2e-tests`) and a small set of **safety brakes** (the partition `.lock`; epics are still never implemented; `/acs:create-pr` still refuses a ticket whose recorded `/acs:code` run left `verifier_passed != true`, while a ticket with no code run at all is now allowed through; `/acs:merge-pr` still requires a recorded PR reference). Every skill is therefore runnable on its own, in any order, by hand. **Running out of the declared order is an advisory, not a refusal:** the pre-hook prints one stderr line — `acs: docs-sync normally follows code in ship.yaml; code has not completed for MAR-12` — and exits 0. Set `workflow.advisories: false` to silence it. **Migration:** a pipeline driven by `/acs:ship` behaves as before, because `ship.yaml` declares the same order the gates used to enforce; a script that *relied* on a gate refusing (for example, to detect "not ready yet" by exit code 2) must read `acs.py workflow next` instead.
 
 - **⚠️ BREAKING: `/acs:ship` takes a ticket id.** The `new_request` entry path is removed: ticket creation and design are Design-phase work that runs before ship. A non-id argument is refused with `ship takes a ticket id; run /acs:create-ticket "<prompt>" (Design phase) and then /acs:ship <id>`, and an epic id with the design-and-fan-out pointer. **Migration:** replace `/acs:ship "<prompt>"` with `/acs:create-ticket "<prompt>"` followed by `/acs:ship <id>`.
 
 - **⚠️ BREAKING: the human-facing ticket documents live in the repo, not the workspace.** `docs/tickets/<ID>/` now holds `ticket.md` (YAML front matter carrying today's `ticket.json` fields except `status`, plus `## Description`, `## Acceptance criteria` and a read-only `## Clarifications` mirror), `design.md`, `analysis.md`, `api-contract.md`, `plan.md` and `test-cases.md` — reviewable in the PR like any other doc. The **run ledger stays in the workspace**: `<skill>-state.json`, `pipeline-state.json`, phase artifacts, verdicts, locks, `active-agents`, `clarifications.json`, `tickets-index.json`. A ticket's `status` is no longer stored — it is **derived** from that ledger (`open` → `in_progress` → `in_review` → `done`), so the two can no longer disagree. `load_ticket()` still returns the same dict, reading `ticket.md` when the tree is active and falling back to `ticket.json` otherwise, so a partition written before this release keeps working unmigrated. The file-map guard treats `docs/tickets/<ID>/` as a control input: executors may not write there. **⚠️ MIGRATION:** run **`acs.py artifacts migrate`** once per repo (`--dry-run` first to see the plan), or set `artifacts.tickets_path: null` to keep the previous layout.
+
+- **The `release` block accepts `pre_release_gate`.** A list of commands
+  `/acs:release` prints verbatim as its closing reminder, in order, and never
+  runs itself. It used to hardcode `python3 evals/run_evals.py --plugin acs
+  --paid` — a path that exists only in this marketplace, and which stopped
+  being even this repo's gate when the per-ticket paid tier was retired. A
+  repo that declares no `pre_release_gate` now gets a reminder that names no
+  command rather than the wrong one. **Migration:** none required; add the key
+  to `.acs/settings.json` to have your own gate named.
 
 - **⚠️ BREAKING: `/acs:code` no longer plans.** Its Plan, Plan approval, Plan revocation and Plan-artifact-resolution steps moved to `/acs:create-impl-plan` (and `agents/code-planner.md` with them, as `agents/create-impl-plan-planner.md`). `/acs:code` keeps execute → verify, the escalation triggers, the coverage gate and the full-verify boundary; its executor writes tests from `test-cases.md` when present, its verifier gains a contract-conformance check when `api-contract.md` exists, and an execution that finds the plan wrong ends `failed` with `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back to `/acs:create-impl-plan`. **Migration:** run `/acs:create-impl-plan <id>` before `/acs:code <id>`; `/acs:ship` does it for you.
 
@@ -52,6 +76,17 @@ the notes.
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
 
 ### Fixed
+
+- **`validate_xml.py` accepts the `lens` attribute on `<result>`.**
+  `acs-messages.xsd` has declared `lens` (`A`|`B`|`C`|`D`, naming which
+  full-depth review lens a verify result belongs to) since the four-lens
+  verifier landed, but the in-process validator's `ALLOWED_ATTRS` mirror was
+  never updated, so every lens-tagged result a verifier emitted was refused as
+  having an undeclared attribute — on the only validation path a stdlib-only
+  interpreter has. The value is now checked against the enumeration too, and a
+  new bidirectional drift guard recomputes the whole mirror from the XSD at run
+  time, in both directions, so the next attribute added to the schema cannot
+  drift the same way.
 
 - **`acs verdict show` refuses a verdict that is not about the run it was
   asked for** (MAR-573). `cmd_verdict_show` called `validate_verdict` with

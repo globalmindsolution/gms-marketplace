@@ -183,7 +183,16 @@ def main():
         else:
             print("  %-32s %3d/%-3d  %5.1f%%" % (name, c, t, 100.0 * c / t))
     print("\n  %-32s %3d/%-3d  %5.1f%%" % ("TOTAL", caught, total, pct))
+    uncovered = sorted(n for n, (_c, t) in results.items() if not t)
     print("\n  %d constraint(s) pinned by no case." % len(holes))
+    if uncovered:
+        # These contribute 0/0, so they cannot pull the percentage down and a
+        # reader sees a high number with no hint that a whole schema is
+        # unpinned. Same failure as counting inert constraints, mirrored: one
+        # inflates the denominator, this one quietly leaves it.
+        print("  %d schema(s) have NO cases at all and are absent from the "
+              "total, not counted as covered: %s"
+              % (len(uncovered), ", ".join(uncovered)))
     if skipped:
         print("  %d keyword occurrence(s) restrict nothing and are not counted "
               "(--inert lists them)." % len(skipped))

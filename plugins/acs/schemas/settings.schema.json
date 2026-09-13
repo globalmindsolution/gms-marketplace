@@ -330,6 +330,7 @@
             "tag_format": {"type": "string", "minLength": 1, "description": "{version}-templated git tag name, e.g. 'v{version}'."},
             "base_branch": {"type": "string", "minLength": 1, "description": "Branch the 'since last tag' boundary and the release PR target, e.g. 'main'."},
             "release_branch_format": {"type": "string", "minLength": 1, "description": "{version}-templated release branch name, e.g. 'release/v{version}'. Should match one of enforcement.exempt_branches' globs (R-A5) or the release PR will fight the conventions gate."},
+            "pre_release_gate": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "Commands a human runs before merging the release PR, in order. /acs:release prints them verbatim as its closing reminder and never runs them itself. Omit it and the skill reminds the human to run this repo's own pre-release gate without naming one — the honest answer, since the gate is repo-specific and this skill ships to consumer repos with no evals/ directory at all."},
             "publish_driver": {
               "description": "Documentary only — names the CI job that performs the privileged tag+publish step. release_notes.py validates but does not act on this field; the skill never tags or publishes itself regardless of its value (ADR 0052).",
               "type": "object",

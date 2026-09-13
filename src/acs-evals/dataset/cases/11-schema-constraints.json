@@ -21,7 +21,7 @@
         "clarifications": [
           {
             "id": "C-1",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "user",
@@ -52,7 +52,7 @@
         "clarifications": [
           {
             "id": "C-1",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "user",
@@ -81,7 +81,7 @@
         "ticket_id": "TKT-1",
         "clarifications": [
           {
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "user",
@@ -112,7 +112,7 @@
         "clarifications": [
           {
             "id": " not-a-match ",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "user",
@@ -172,7 +172,7 @@
         "clarifications": [
           {
             "id": "C-1",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "",
             "answer": "x",
             "source": "user",
@@ -202,7 +202,7 @@
         "clarifications": [
           {
             "id": "C-1",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "__acs_evals_not_in_enum__",
@@ -232,7 +232,7 @@
         "clarifications": [
           {
             "id": "C-1",
-            "skill": "code",
+            "skill": "analyze-ticket",
             "question": "x",
             "answer": "x",
             "source": "user",
@@ -2555,6 +2555,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -2614,7 +2618,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -2663,6 +2667,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -2700,6 +2707,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -2723,6 +2733,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -2782,7 +2796,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -2831,6 +2845,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -2868,6 +2885,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -2891,6 +2911,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -2950,7 +2974,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -2999,6 +3023,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3036,6 +3063,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3059,6 +3089,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3118,7 +3152,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -3167,6 +3201,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3204,6 +3241,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3227,6 +3267,10 @@
         "merge_strategy": "__acs_evals_not_in_enum__",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3286,7 +3330,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -3335,6 +3379,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3372,6 +3419,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3395,6 +3445,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3454,7 +3508,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -3503,6 +3557,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3540,6 +3597,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3563,6 +3623,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3622,7 +3686,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -3671,6 +3735,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3708,6 +3775,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3731,6 +3801,10 @@
         "merge_strategy": "squash",
         "adr_path": "",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3790,7 +3864,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -3839,6 +3913,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -3876,6 +3953,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -3899,6 +3979,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -3958,7 +4042,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4007,6 +4091,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4044,6 +4131,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4067,6 +4157,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -4126,7 +4220,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4175,6 +4269,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4212,6 +4309,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4235,6 +4335,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -4294,7 +4398,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4343,6 +4447,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4380,6 +4487,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4403,6 +4513,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -4462,7 +4576,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4511,6 +4625,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4548,6 +4665,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4571,6 +4691,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "setup": "x",
           "teardown": "x",
@@ -4629,7 +4753,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4678,6 +4802,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4715,6 +4842,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4739,6 +4869,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "",
           "setup": "x",
@@ -4798,7 +4932,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -4847,6 +4981,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -4884,6 +5021,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -4907,6 +5047,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "",
@@ -4966,7 +5110,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5015,6 +5159,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5052,6 +5199,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5075,6 +5225,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5134,7 +5288,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5183,6 +5337,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5220,6 +5377,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5243,6 +5403,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5302,7 +5466,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5351,6 +5515,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5387,6 +5554,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5411,6 +5581,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5470,7 +5644,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5519,6 +5693,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5556,6 +5733,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5579,6 +5759,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5638,7 +5822,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5687,6 +5871,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5724,6 +5911,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5747,6 +5937,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5806,7 +6000,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -5855,6 +6049,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -5892,6 +6089,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -5915,6 +6115,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -5974,7 +6178,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6023,6 +6227,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6059,6 +6266,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6083,6 +6293,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6142,7 +6356,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6191,6 +6405,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6228,6 +6445,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6251,6 +6471,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6310,7 +6534,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6359,6 +6583,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6396,6 +6623,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6419,6 +6649,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6478,7 +6712,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6527,6 +6761,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6564,6 +6801,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6587,6 +6827,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6646,7 +6890,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6695,6 +6939,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6732,6 +6979,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6745,9 +6995,9 @@
       "id": "SC-SETTINGS-026",
       "kind": "schema",
       "schema": "settings.schema.json",
-      "title": "models rejects an undeclared property",
-      "constraint": "additionalProperties",
-      "instance_path": "models",
+      "title": "artifacts.tickets_path violates minLength (its branch, and so the choice here, stops matching)",
+      "constraint": "minLength",
+      "instance_path": "artifacts.tickets_path",
       "json": {
         "ticket_prefix": "TKT",
         "workspace_path": "../ws",
@@ -6755,6 +7005,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": ""
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6814,7 +7068,363 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
+              "planner": {
+                "model": "x",
+                "effort": "low"
+              },
+              "executor": {
+                "model": "x",
+                "effort": "low"
+              },
+              "verifier": {
+                "model": "x",
+                "effort": "low"
+              }
+            }
+          }
+        },
+        "operations_path": "x",
+        "post_code_test": {
+          "enabled": true,
+          "fix_loops_cap": 0
+        },
+        "prd_path": "x",
+        "principles_path": "x",
+        "quality_path": "x",
+        "release": {
+          "version_locations": [
+            {
+              "file": "x",
+              "pointer": "x",
+              "kind": "json-pointer"
+            }
+          ],
+          "extra_refs": [
+            {
+              "file": "x",
+              "selector": {
+                "pointer": "x",
+                "match": {
+                  "acs_evals_fill_0": "x"
+                },
+                "set": "x"
+              },
+              "value_format": "x"
+            }
+          ],
+          "changelog_path": "x",
+          "tag_format": "x",
+          "base_branch": "x",
+          "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
+          "publish_driver": {
+            "workflow": "x",
+            "trigger_paths": [
+              "x"
+            ]
+          }
+        },
+        "requirements_layout": {
+          "functional_subdir": "x",
+          "non_functional_subdir": "x"
+        },
+        "requirements_path": "x",
+        "standards_path": "x",
+        "suites": {
+          "sample": {
+            "command": "x",
+            "setup": "x",
+            "teardown": "x",
+            "per_iteration": true
+          }
+        },
+        "tests": {
+          "command": "x",
+          "setup": "x"
+        },
+        "tracker": {
+          "provider": "local",
+          "milestone": "x",
+          "github": {
+            "owner": "x",
+            "project_number": 1
+          },
+          "jira": {
+            "base_url": "x",
+            "project_key": "x",
+            "board": "x"
+          }
+        },
+        "workflow": {
+          "advisories": true
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.artifacts.tickets_path: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SETTINGS-027",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "contracts_path violates minLength (its branch, and so the choice here, stops matching)",
+      "constraint": "minLength",
+      "instance_path": "contracts_path",
+      "json": {
+        "ticket_prefix": "TKT",
+        "workspace_path": "../ws",
+        "test_coverage_percent": 90,
+        "merge_strategy": "squash",
+        "adr_path": "x",
+        "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "",
+        "e2e": {
+          "command": "x",
+          "setup": "x",
+          "teardown": "x",
+          "per_iteration": true
+        },
+        "enforcement": {
+          "checks": {
+            "branch_name": true,
+            "pr_title": true,
+            "pr_description": true,
+            "acs_label": true,
+            "commit_message": true
+          },
+          "require_label": "x",
+          "exempt_label": "x",
+          "exempt_branches": [
+            "x"
+          ],
+          "pr_description_sections": [
+            "x"
+          ],
+          "design_sections": [
+            "x"
+          ]
+        },
+        "evals": {
+          "forge_repo": "owner/acs-eval"
+        },
+        "formats": {
+          "branch_name": "{ticket_id}",
+          "commit_message": "x",
+          "pr_title": "x",
+          "pr_description_template": "x",
+          "design_template": "x",
+          "tickets": {
+            "epic": {
+              "title": "x",
+              "description_template": "x"
+            }
+          }
+        },
+        "high_stakes_paths": [
+          "x"
+        ],
+        "models": {
+          "planner": {
+            "model": "x",
+            "effort": "low"
+          },
+          "executor": {
+            "model": "x",
+            "effort": "low"
+          },
+          "verifier": {
+            "model": "x",
+            "effort": "low"
+          },
+          "overrides": {
+            "analyze-ticket": {
+              "planner": {
+                "model": "x",
+                "effort": "low"
+              },
+              "executor": {
+                "model": "x",
+                "effort": "low"
+              },
+              "verifier": {
+                "model": "x",
+                "effort": "low"
+              }
+            }
+          }
+        },
+        "operations_path": "x",
+        "post_code_test": {
+          "enabled": true,
+          "fix_loops_cap": 0
+        },
+        "prd_path": "x",
+        "principles_path": "x",
+        "quality_path": "x",
+        "release": {
+          "version_locations": [
+            {
+              "file": "x",
+              "pointer": "x",
+              "kind": "json-pointer"
+            }
+          ],
+          "extra_refs": [
+            {
+              "file": "x",
+              "selector": {
+                "pointer": "x",
+                "match": {
+                  "acs_evals_fill_0": "x"
+                },
+                "set": "x"
+              },
+              "value_format": "x"
+            }
+          ],
+          "changelog_path": "x",
+          "tag_format": "x",
+          "base_branch": "x",
+          "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
+          "publish_driver": {
+            "workflow": "x",
+            "trigger_paths": [
+              "x"
+            ]
+          }
+        },
+        "requirements_layout": {
+          "functional_subdir": "x",
+          "non_functional_subdir": "x"
+        },
+        "requirements_path": "x",
+        "standards_path": "x",
+        "suites": {
+          "sample": {
+            "command": "x",
+            "setup": "x",
+            "teardown": "x",
+            "per_iteration": true
+          }
+        },
+        "tests": {
+          "command": "x",
+          "setup": "x"
+        },
+        "tracker": {
+          "provider": "local",
+          "milestone": "x",
+          "github": {
+            "owner": "x",
+            "project_number": 1
+          },
+          "jira": {
+            "base_url": "x",
+            "project_key": "x",
+            "board": "x"
+          }
+        },
+        "workflow": {
+          "advisories": true
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.contracts_path: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SETTINGS-028",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "models rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "models",
+      "json": {
+        "ticket_prefix": "TKT",
+        "workspace_path": "../ws",
+        "test_coverage_percent": 90,
+        "merge_strategy": "squash",
+        "adr_path": "x",
+        "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
+        "e2e": {
+          "command": "x",
+          "setup": "x",
+          "teardown": "x",
+          "per_iteration": true
+        },
+        "enforcement": {
+          "checks": {
+            "branch_name": true,
+            "pr_title": true,
+            "pr_description": true,
+            "acs_label": true,
+            "commit_message": true
+          },
+          "require_label": "x",
+          "exempt_label": "x",
+          "exempt_branches": [
+            "x"
+          ],
+          "pr_description_sections": [
+            "x"
+          ],
+          "design_sections": [
+            "x"
+          ]
+        },
+        "evals": {
+          "forge_repo": "owner/acs-eval"
+        },
+        "formats": {
+          "branch_name": "{ticket_id}",
+          "commit_message": "x",
+          "pr_title": "x",
+          "pr_description_template": "x",
+          "design_template": "x",
+          "tickets": {
+            "epic": {
+              "title": "x",
+              "description_template": "x"
+            }
+          }
+        },
+        "high_stakes_paths": [
+          "x"
+        ],
+        "models": {
+          "planner": {
+            "model": "x",
+            "effort": "low"
+          },
+          "executor": {
+            "model": "x",
+            "effort": "low"
+          },
+          "verifier": {
+            "model": "x",
+            "effort": "low"
+          },
+          "overrides": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -6864,6 +7474,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -6901,6 +7514,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -6912,7 +7528,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-027",
+      "id": "SC-SETTINGS-029",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.planner violates minLength (its branch, and so the choice here, stops matching)",
@@ -6925,6 +7541,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -6981,7 +7601,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7030,6 +7650,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7067,6 +7690,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7077,7 +7703,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-028",
+      "id": "SC-SETTINGS-030",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.planner rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -7090,6 +7716,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7150,7 +7780,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7199,6 +7829,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7236,6 +7869,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7246,7 +7882,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-029",
+      "id": "SC-SETTINGS-031",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.planner.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -7259,6 +7895,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7318,7 +7958,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7367,6 +8007,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7404,6 +8047,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7414,7 +8060,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-030",
+      "id": "SC-SETTINGS-032",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.planner.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -7427,6 +8073,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7486,7 +8136,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7535,6 +8185,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7572,6 +8225,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7582,7 +8238,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-031",
+      "id": "SC-SETTINGS-033",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.executor violates minLength (its branch, and so the choice here, stops matching)",
@@ -7595,6 +8251,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7651,7 +8311,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7700,6 +8360,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7737,6 +8400,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7747,7 +8413,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-032",
+      "id": "SC-SETTINGS-034",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.executor rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -7760,6 +8426,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7820,7 +8490,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -7869,6 +8539,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -7906,6 +8579,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -7916,7 +8592,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-033",
+      "id": "SC-SETTINGS-035",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.executor.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -7929,6 +8605,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -7988,7 +8668,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8037,6 +8717,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8074,6 +8757,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8084,7 +8770,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-034",
+      "id": "SC-SETTINGS-036",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.executor.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -8097,6 +8783,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8156,7 +8846,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8205,6 +8895,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8242,6 +8935,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8252,7 +8948,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-035",
+      "id": "SC-SETTINGS-037",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.verifier violates minLength (its branch, and so the choice here, stops matching)",
@@ -8265,6 +8961,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8321,7 +9021,7 @@
           },
           "verifier": "",
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8370,6 +9070,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8407,6 +9110,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8417,7 +9123,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-036",
+      "id": "SC-SETTINGS-038",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.verifier rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -8430,6 +9136,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8490,7 +9200,7 @@
             "__acs_evals_extra__": 1
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8539,6 +9249,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8576,6 +9289,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8586,7 +9302,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-037",
+      "id": "SC-SETTINGS-039",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.verifier.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -8599,6 +9315,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8658,7 +9378,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8707,6 +9427,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8744,6 +9467,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8754,7 +9480,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-038",
+      "id": "SC-SETTINGS-040",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.verifier.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -8767,6 +9493,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8826,7 +9556,7 @@
             "effort": "__acs_evals_not_in_enum__"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -8875,6 +9605,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -8912,6 +9645,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -8922,7 +9658,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-039",
+      "id": "SC-SETTINGS-041",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.* rejects an undeclared property",
@@ -8935,6 +9671,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -8994,7 +9734,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -9044,6 +9784,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9081,6 +9824,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -9092,7 +9838,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-040",
+      "id": "SC-SETTINGS-042",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.planner violates minLength (its branch, and so the choice here, stops matching)",
@@ -9105,6 +9851,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9164,7 +9914,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": "",
               "executor": {
                 "model": "x",
@@ -9210,6 +9960,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9247,17 +10000,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.planner: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.planner: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-041",
+      "id": "SC-SETTINGS-043",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.planner rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -9270,6 +10026,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9329,7 +10089,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low",
@@ -9379,6 +10139,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9416,17 +10179,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.planner: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.planner: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-042",
+      "id": "SC-SETTINGS-044",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.planner.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -9439,6 +10205,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9498,7 +10268,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "",
                 "effort": "low"
@@ -9547,6 +10317,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9584,17 +10357,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.planner: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.planner: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-043",
+      "id": "SC-SETTINGS-045",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.planner.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -9607,6 +10383,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9666,7 +10446,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "__acs_evals_not_in_enum__"
@@ -9715,6 +10495,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9752,17 +10535,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.planner: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.planner: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-044",
+      "id": "SC-SETTINGS-046",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.executor violates minLength (its branch, and so the choice here, stops matching)",
@@ -9775,6 +10561,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9834,7 +10624,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -9880,6 +10670,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -9917,17 +10710,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.executor: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.executor: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-045",
+      "id": "SC-SETTINGS-047",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.executor rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -9940,6 +10736,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -9999,7 +10799,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10049,6 +10849,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10086,17 +10889,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.executor: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.executor: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-046",
+      "id": "SC-SETTINGS-048",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.executor.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -10109,6 +10915,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -10168,7 +10978,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10217,6 +11027,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10254,17 +11067,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.executor: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.executor: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-047",
+      "id": "SC-SETTINGS-049",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.executor.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -10277,6 +11093,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -10336,7 +11156,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10385,6 +11205,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10422,17 +11245,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.executor: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.executor: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-048",
+      "id": "SC-SETTINGS-050",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.verifier violates minLength (its branch, and so the choice here, stops matching)",
@@ -10445,6 +11271,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -10504,7 +11334,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10550,6 +11380,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10587,17 +11420,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.verifier: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.verifier: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-049",
+      "id": "SC-SETTINGS-051",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.verifier rejects an undeclared property (its branch, and so the choice here, stops matching)",
@@ -10610,6 +11446,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -10669,7 +11509,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10719,6 +11559,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10756,17 +11599,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.verifier: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.verifier: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-050",
+      "id": "SC-SETTINGS-052",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.verifier.model violates minLength (its branch, and so the choice here, stops matching)",
@@ -10779,6 +11625,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -10838,7 +11688,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -10887,6 +11737,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -10924,17 +11777,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.verifier: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.verifier: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-051",
+      "id": "SC-SETTINGS-053",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides.*.verifier.effort violates enum (its branch, and so the choice here, stops matching)",
@@ -10947,6 +11803,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11006,7 +11866,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11055,6 +11915,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11092,17 +11955,20 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
-          "$.models.overrides.code.verifier: matched 0 oneOf branches, expected exactly 1"
+          "$.models.overrides.analyze-ticket.verifier: matched 0 oneOf branches, expected exactly 1"
         ]
       }
     },
     {
-      "id": "SC-SETTINGS-052",
+      "id": "SC-SETTINGS-054",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "models.overrides rejects a property NAME that violates enum",
@@ -11115,6 +11981,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11174,7 +12044,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11237,6 +12107,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11274,6 +12147,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -11285,7 +12161,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-053",
+      "id": "SC-SETTINGS-055",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "tracker.provider violates enum",
@@ -11298,6 +12174,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11357,7 +12237,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11406,6 +12286,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11443,6 +12326,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -11453,7 +12339,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-054",
+      "id": "SC-SETTINGS-056",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "tracker.milestone violates minLength (its branch, and so the choice here, stops matching)",
@@ -11466,6 +12352,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11525,7 +12415,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11574,6 +12464,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11611,6 +12504,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -11621,7 +12517,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-055",
+      "id": "SC-SETTINGS-057",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "tracker.github.project_number violates minimum",
@@ -11634,6 +12530,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11693,7 +12593,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11742,6 +12642,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11779,6 +12682,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -11789,7 +12695,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-056",
+      "id": "SC-SETTINGS-058",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "formats rejects an undeclared property",
@@ -11802,6 +12708,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -11862,7 +12772,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -11911,6 +12821,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -11948,6 +12861,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -11959,7 +12875,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-057",
+      "id": "SC-SETTINGS-059",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "formats.branch_name violates pattern",
@@ -11972,6 +12888,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12031,7 +12951,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12080,6 +13000,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12117,6 +13040,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12127,7 +13053,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-058",
+      "id": "SC-SETTINGS-060",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "formats.tickets.* rejects an undeclared property",
@@ -12140,6 +13066,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12200,7 +13130,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12249,6 +13179,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12286,6 +13219,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12297,7 +13233,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-059",
+      "id": "SC-SETTINGS-061",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "formats.tickets rejects a property NAME that violates enum",
@@ -12310,6 +13246,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12373,7 +13313,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12422,6 +13362,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12459,6 +13402,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12470,7 +13416,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-060",
+      "id": "SC-SETTINGS-062",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "enforcement.checks rejects an undeclared property",
@@ -12483,6 +13429,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12543,7 +13493,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12592,6 +13542,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12629,6 +13582,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12640,7 +13596,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-061",
+      "id": "SC-SETTINGS-063",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations is required (its branch, and so the choice here, stops matching)",
@@ -12653,6 +13609,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12712,7 +13672,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12754,6 +13714,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12791,6 +13754,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12801,7 +13767,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-062",
+      "id": "SC-SETTINGS-064",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations violates minItems (its branch, and so the choice here, stops matching)",
@@ -12814,6 +13780,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -12873,7 +13843,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -12916,6 +13886,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -12953,6 +13926,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -12963,7 +13939,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-063",
+      "id": "SC-SETTINGS-065",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations.0.file is required (its branch, and so the choice here, stops matching)",
@@ -12976,6 +13952,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13035,7 +14015,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13083,6 +14063,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13120,6 +14103,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13130,7 +14116,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-064",
+      "id": "SC-SETTINGS-066",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations.0.file violates minLength (its branch, and so the choice here, stops matching)",
@@ -13143,6 +14129,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13202,7 +14192,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13251,6 +14241,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13288,6 +14281,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13298,7 +14294,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-065",
+      "id": "SC-SETTINGS-067",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations.0.pointer violates minLength (its branch, and so the choice here, stops matching)",
@@ -13311,6 +14307,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13370,7 +14370,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13419,6 +14419,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13456,6 +14459,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13466,7 +14472,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-066",
+      "id": "SC-SETTINGS-068",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.version_locations.0.kind violates enum (its branch, and so the choice here, stops matching)",
@@ -13479,6 +14485,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13538,7 +14548,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13587,6 +14597,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13624,6 +14637,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13634,7 +14650,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-067",
+      "id": "SC-SETTINGS-069",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.file is required (its branch, and so the choice here, stops matching)",
@@ -13647,6 +14663,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13706,7 +14726,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13754,6 +14774,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13791,6 +14814,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13801,7 +14827,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-068",
+      "id": "SC-SETTINGS-070",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.file violates minLength (its branch, and so the choice here, stops matching)",
@@ -13814,6 +14840,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -13873,7 +14903,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -13922,6 +14952,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -13959,6 +14992,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -13969,7 +15005,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-069",
+      "id": "SC-SETTINGS-071",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.selector.pointer is required (its branch, and so the choice here, stops matching)",
@@ -13982,6 +15018,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14041,7 +15081,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14089,6 +15129,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14126,6 +15169,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14136,7 +15182,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-070",
+      "id": "SC-SETTINGS-072",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.selector.pointer violates minLength (its branch, and so the choice here, stops matching)",
@@ -14149,6 +15195,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14208,7 +15258,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14257,6 +15307,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14294,6 +15347,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14304,7 +15360,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-071",
+      "id": "SC-SETTINGS-073",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.selector.match violates minProperties (its branch, and so the choice here, stops matching)",
@@ -14317,6 +15373,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14376,7 +15436,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14423,6 +15483,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14460,6 +15523,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14470,7 +15536,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-072",
+      "id": "SC-SETTINGS-074",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.selector.set violates minLength (its branch, and so the choice here, stops matching)",
@@ -14483,6 +15549,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14542,7 +15612,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14591,6 +15661,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14628,6 +15701,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14638,7 +15714,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-073",
+      "id": "SC-SETTINGS-075",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.extra_refs.0.value_format violates minLength (its branch, and so the choice here, stops matching)",
@@ -14651,6 +15727,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14710,7 +15790,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14759,6 +15839,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14796,6 +15879,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14806,7 +15892,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-074",
+      "id": "SC-SETTINGS-076",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.changelog_path violates minLength (its branch, and so the choice here, stops matching)",
@@ -14819,6 +15905,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -14878,7 +15968,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -14927,6 +16017,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -14964,6 +16057,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -14974,7 +16070,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-075",
+      "id": "SC-SETTINGS-077",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.tag_format violates minLength (its branch, and so the choice here, stops matching)",
@@ -14987,6 +16083,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -15046,7 +16146,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -15095,6 +16195,9 @@
           "tag_format": "",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -15132,6 +16235,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -15142,7 +16248,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-076",
+      "id": "SC-SETTINGS-078",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.base_branch violates minLength (its branch, and so the choice here, stops matching)",
@@ -15155,6 +16261,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -15214,7 +16324,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -15263,6 +16373,9 @@
           "tag_format": "x",
           "base_branch": "",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -15300,6 +16413,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -15310,7 +16426,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-077",
+      "id": "SC-SETTINGS-079",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.release_branch_format violates minLength (its branch, and so the choice here, stops matching)",
@@ -15323,6 +16439,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -15382,7 +16502,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -15431,6 +16551,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -15468,6 +16591,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -15478,12 +16604,12 @@
       }
     },
     {
-      "id": "SC-SETTINGS-078",
+      "id": "SC-SETTINGS-080",
       "kind": "schema",
       "schema": "settings.schema.json",
-      "title": "release.publish_driver.workflow violates minLength (its branch, and so the choice here, stops matching)",
-      "constraint": "minLength",
-      "instance_path": "release.publish_driver.workflow",
+      "title": "release.pre_release_gate violates minItems (its branch, and so the choice here, stops matching)",
+      "constraint": "minItems",
+      "instance_path": "release.pre_release_gate",
       "json": {
         "ticket_prefix": "TKT",
         "workspace_path": "../ws",
@@ -15491,6 +16617,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -15550,7 +16680,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -15599,6 +16729,363 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [],
+          "publish_driver": {
+            "workflow": "x",
+            "trigger_paths": [
+              "x"
+            ]
+          }
+        },
+        "requirements_layout": {
+          "functional_subdir": "x",
+          "non_functional_subdir": "x"
+        },
+        "requirements_path": "x",
+        "standards_path": "x",
+        "suites": {
+          "sample": {
+            "command": "x",
+            "setup": "x",
+            "teardown": "x",
+            "per_iteration": true
+          }
+        },
+        "tests": {
+          "command": "x",
+          "setup": "x"
+        },
+        "tracker": {
+          "provider": "local",
+          "milestone": "x",
+          "github": {
+            "owner": "x",
+            "project_number": 1
+          },
+          "jira": {
+            "base_url": "x",
+            "project_key": "x",
+            "board": "x"
+          }
+        },
+        "workflow": {
+          "advisories": true
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.release: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SETTINGS-081",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "release.pre_release_gate.0 violates minLength (its branch, and so the choice here, stops matching)",
+      "constraint": "minLength",
+      "instance_path": "release.pre_release_gate.0",
+      "json": {
+        "ticket_prefix": "TKT",
+        "workspace_path": "../ws",
+        "test_coverage_percent": 90,
+        "merge_strategy": "squash",
+        "adr_path": "x",
+        "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
+        "e2e": {
+          "command": "x",
+          "setup": "x",
+          "teardown": "x",
+          "per_iteration": true
+        },
+        "enforcement": {
+          "checks": {
+            "branch_name": true,
+            "pr_title": true,
+            "pr_description": true,
+            "acs_label": true,
+            "commit_message": true
+          },
+          "require_label": "x",
+          "exempt_label": "x",
+          "exempt_branches": [
+            "x"
+          ],
+          "pr_description_sections": [
+            "x"
+          ],
+          "design_sections": [
+            "x"
+          ]
+        },
+        "evals": {
+          "forge_repo": "owner/acs-eval"
+        },
+        "formats": {
+          "branch_name": "{ticket_id}",
+          "commit_message": "x",
+          "pr_title": "x",
+          "pr_description_template": "x",
+          "design_template": "x",
+          "tickets": {
+            "epic": {
+              "title": "x",
+              "description_template": "x"
+            }
+          }
+        },
+        "high_stakes_paths": [
+          "x"
+        ],
+        "models": {
+          "planner": {
+            "model": "x",
+            "effort": "low"
+          },
+          "executor": {
+            "model": "x",
+            "effort": "low"
+          },
+          "verifier": {
+            "model": "x",
+            "effort": "low"
+          },
+          "overrides": {
+            "analyze-ticket": {
+              "planner": {
+                "model": "x",
+                "effort": "low"
+              },
+              "executor": {
+                "model": "x",
+                "effort": "low"
+              },
+              "verifier": {
+                "model": "x",
+                "effort": "low"
+              }
+            }
+          }
+        },
+        "operations_path": "x",
+        "post_code_test": {
+          "enabled": true,
+          "fix_loops_cap": 0
+        },
+        "prd_path": "x",
+        "principles_path": "x",
+        "quality_path": "x",
+        "release": {
+          "version_locations": [
+            {
+              "file": "x",
+              "pointer": "x",
+              "kind": "json-pointer"
+            }
+          ],
+          "extra_refs": [
+            {
+              "file": "x",
+              "selector": {
+                "pointer": "x",
+                "match": {
+                  "acs_evals_fill_0": "x"
+                },
+                "set": "x"
+              },
+              "value_format": "x"
+            }
+          ],
+          "changelog_path": "x",
+          "tag_format": "x",
+          "base_branch": "x",
+          "release_branch_format": "x",
+          "pre_release_gate": [
+            ""
+          ],
+          "publish_driver": {
+            "workflow": "x",
+            "trigger_paths": [
+              "x"
+            ]
+          }
+        },
+        "requirements_layout": {
+          "functional_subdir": "x",
+          "non_functional_subdir": "x"
+        },
+        "requirements_path": "x",
+        "standards_path": "x",
+        "suites": {
+          "sample": {
+            "command": "x",
+            "setup": "x",
+            "teardown": "x",
+            "per_iteration": true
+          }
+        },
+        "tests": {
+          "command": "x",
+          "setup": "x"
+        },
+        "tracker": {
+          "provider": "local",
+          "milestone": "x",
+          "github": {
+            "owner": "x",
+            "project_number": 1
+          },
+          "jira": {
+            "base_url": "x",
+            "project_key": "x",
+            "board": "x"
+          }
+        },
+        "workflow": {
+          "advisories": true
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.release: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SETTINGS-082",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "release.publish_driver.workflow violates minLength (its branch, and so the choice here, stops matching)",
+      "constraint": "minLength",
+      "instance_path": "release.publish_driver.workflow",
+      "json": {
+        "ticket_prefix": "TKT",
+        "workspace_path": "../ws",
+        "test_coverage_percent": 90,
+        "merge_strategy": "squash",
+        "adr_path": "x",
+        "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
+        "e2e": {
+          "command": "x",
+          "setup": "x",
+          "teardown": "x",
+          "per_iteration": true
+        },
+        "enforcement": {
+          "checks": {
+            "branch_name": true,
+            "pr_title": true,
+            "pr_description": true,
+            "acs_label": true,
+            "commit_message": true
+          },
+          "require_label": "x",
+          "exempt_label": "x",
+          "exempt_branches": [
+            "x"
+          ],
+          "pr_description_sections": [
+            "x"
+          ],
+          "design_sections": [
+            "x"
+          ]
+        },
+        "evals": {
+          "forge_repo": "owner/acs-eval"
+        },
+        "formats": {
+          "branch_name": "{ticket_id}",
+          "commit_message": "x",
+          "pr_title": "x",
+          "pr_description_template": "x",
+          "design_template": "x",
+          "tickets": {
+            "epic": {
+              "title": "x",
+              "description_template": "x"
+            }
+          }
+        },
+        "high_stakes_paths": [
+          "x"
+        ],
+        "models": {
+          "planner": {
+            "model": "x",
+            "effort": "low"
+          },
+          "executor": {
+            "model": "x",
+            "effort": "low"
+          },
+          "verifier": {
+            "model": "x",
+            "effort": "low"
+          },
+          "overrides": {
+            "analyze-ticket": {
+              "planner": {
+                "model": "x",
+                "effort": "low"
+              },
+              "executor": {
+                "model": "x",
+                "effort": "low"
+              },
+              "verifier": {
+                "model": "x",
+                "effort": "low"
+              }
+            }
+          }
+        },
+        "operations_path": "x",
+        "post_code_test": {
+          "enabled": true,
+          "fix_loops_cap": 0
+        },
+        "prd_path": "x",
+        "principles_path": "x",
+        "quality_path": "x",
+        "release": {
+          "version_locations": [
+            {
+              "file": "x",
+              "pointer": "x",
+              "kind": "json-pointer"
+            }
+          ],
+          "extra_refs": [
+            {
+              "file": "x",
+              "selector": {
+                "pointer": "x",
+                "match": {
+                  "acs_evals_fill_0": "x"
+                },
+                "set": "x"
+              },
+              "value_format": "x"
+            }
+          ],
+          "changelog_path": "x",
+          "tag_format": "x",
+          "base_branch": "x",
+          "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "",
             "trigger_paths": [
@@ -15636,6 +17123,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -15646,7 +17136,7 @@
       }
     },
     {
-      "id": "SC-SETTINGS-079",
+      "id": "SC-SETTINGS-083",
       "kind": "schema",
       "schema": "settings.schema.json",
       "title": "release.publish_driver.trigger_paths.0 violates minLength (its branch, and so the choice here, stops matching)",
@@ -15659,6 +17149,10 @@
         "merge_strategy": "squash",
         "adr_path": "x",
         "architecture_path": "x",
+        "artifacts": {
+          "tickets_path": "x"
+        },
+        "contracts_path": "x",
         "e2e": {
           "command": "x",
           "setup": "x",
@@ -15718,7 +17212,7 @@
             "effort": "low"
           },
           "overrides": {
-            "code": {
+            "analyze-ticket": {
               "planner": {
                 "model": "x",
                 "effort": "low"
@@ -15767,6 +17261,9 @@
           "tag_format": "x",
           "base_branch": "x",
           "release_branch_format": "x",
+          "pre_release_gate": [
+            "x"
+          ],
           "publish_driver": {
             "workflow": "x",
             "trigger_paths": [
@@ -15804,6 +17301,9 @@
             "project_key": "x",
             "board": "x"
           }
+        },
+        "workflow": {
+          "advisories": true
         }
       },
       "expect": {
@@ -15868,6 +17368,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -15942,6 +17453,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16013,6 +17535,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16081,6 +17614,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16156,6 +17700,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16226,6 +17781,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16299,6 +17865,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16368,6 +17945,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16441,6 +18029,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16510,6 +18109,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16583,6 +18193,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16652,6 +18273,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16725,6 +18357,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16794,6 +18437,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -16867,6 +18521,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -16936,6 +18601,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17009,6 +18685,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17080,6 +18767,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17148,6 +18846,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17222,6 +18931,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17291,6 +19011,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17364,6 +19095,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17433,6 +19175,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17506,6 +19259,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17575,6 +19339,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17648,6 +19423,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17719,6 +19505,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17787,6 +19584,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -17861,6 +19669,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -17930,6 +19749,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -18003,6 +19833,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -18072,6 +19913,17 @@
                 "cache_read": -1,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "in_progress",
@@ -18145,6 +19997,17 @@
                 "cost_basis": "measured"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -18216,6 +20079,17 @@
                 "cost_basis": "__acs_evals_not_in_enum__"
               }
             ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
             "status": "in_progress",
             "stop_reason": "x",
             "handoff_summary": "x"
@@ -18231,6 +20105,252 @@
     },
     {
       "id": "SC-SKILLSTAT-035",
+      "kind": "schema",
+      "schema": "skill-state.schema.json",
+      "title": "runs.0.guard_events.0.ts is required",
+      "constraint": "required",
+      "instance_path": "runs.0.guard_events.0",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "states": {},
+        "findings": [],
+        "errors": [],
+        "runs": [
+          {
+            "started_at": "x",
+            "ended_at": "x",
+            "session_id": "x",
+            "transcript_path": "x",
+            "checkout_id": "x",
+            "tokens": {
+              "input": 0,
+              "output": 0,
+              "cache_creation": 0,
+              "cache_read": 0
+            },
+            "cost_usd": 0.0,
+            "cost_basis": "measured",
+            "cost_scope": "session_total",
+            "excluded_cost_usd": 0.0,
+            "excluded_token_share": 0.0,
+            "api_duration_ms": 0.0,
+            "api_duration_basis": "measured",
+            "api_duration_scope": "session_total",
+            "role_usage": [
+              {
+                "role": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured",
+                "api_duration_ms": 0.0,
+                "api_duration_basis": "measured"
+              }
+            ],
+            "model_usage": [
+              {
+                "model": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
+              }
+            ],
+            "status": "in_progress",
+            "stop_reason": "x",
+            "handoff_summary": "x"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "ts"
+        ]
+      }
+    },
+    {
+      "id": "SC-SKILLSTAT-036",
+      "kind": "schema",
+      "schema": "skill-state.schema.json",
+      "title": "runs.0.guard_events.0.reason violates enum",
+      "constraint": "enum",
+      "instance_path": "runs.0.guard_events.0.reason",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "states": {},
+        "findings": [],
+        "errors": [],
+        "runs": [
+          {
+            "started_at": "x",
+            "ended_at": "x",
+            "session_id": "x",
+            "transcript_path": "x",
+            "checkout_id": "x",
+            "tokens": {
+              "input": 0,
+              "output": 0,
+              "cache_creation": 0,
+              "cache_read": 0
+            },
+            "cost_usd": 0.0,
+            "cost_basis": "measured",
+            "cost_scope": "session_total",
+            "excluded_cost_usd": 0.0,
+            "excluded_token_share": 0.0,
+            "api_duration_ms": 0.0,
+            "api_duration_basis": "measured",
+            "api_duration_scope": "session_total",
+            "role_usage": [
+              {
+                "role": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured",
+                "api_duration_ms": 0.0,
+                "api_duration_basis": "measured"
+              }
+            ],
+            "model_usage": [
+              {
+                "model": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "__acs_evals_not_in_enum__",
+                "declared_count": 0
+              }
+            ],
+            "status": "in_progress",
+            "stop_reason": "x",
+            "handoff_summary": "x"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-SKILLSTAT-037",
+      "kind": "schema",
+      "schema": "skill-state.schema.json",
+      "title": "runs.0.guard_events.0.declared_count violates minimum",
+      "constraint": "minimum",
+      "instance_path": "runs.0.guard_events.0.declared_count",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "states": {},
+        "findings": [],
+        "errors": [],
+        "runs": [
+          {
+            "started_at": "x",
+            "ended_at": "x",
+            "session_id": "x",
+            "transcript_path": "x",
+            "checkout_id": "x",
+            "tokens": {
+              "input": 0,
+              "output": 0,
+              "cache_creation": 0,
+              "cache_read": 0
+            },
+            "cost_usd": 0.0,
+            "cost_basis": "measured",
+            "cost_scope": "session_total",
+            "excluded_cost_usd": 0.0,
+            "excluded_token_share": 0.0,
+            "api_duration_ms": 0.0,
+            "api_duration_basis": "measured",
+            "api_duration_scope": "session_total",
+            "role_usage": [
+              {
+                "role": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured",
+                "api_duration_ms": 0.0,
+                "api_duration_basis": "measured"
+              }
+            ],
+            "model_usage": [
+              {
+                "model": "x",
+                "input": 0,
+                "output": 0,
+                "cache_creation": 0,
+                "cache_read": 0,
+                "cost_usd": 0.0,
+                "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": -1
+              }
+            ],
+            "status": "in_progress",
+            "stop_reason": "x",
+            "handoff_summary": "x"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-SKILLSTAT-038",
       "kind": "schema",
       "schema": "skill-state.schema.json",
       "title": "runs.0.status violates enum",
@@ -18285,6 +20405,17 @@
                 "cache_read": 0,
                 "cost_usd": 0.0,
                 "cost_basis": "measured"
+              }
+            ],
+            "guard_events": [
+              {
+                "ts": "x",
+                "skill": "x",
+                "iteration": "x",
+                "tool": "x",
+                "target": "x",
+                "reason": "outside_map",
+                "declared_count": 0
               }
             ],
             "status": "__acs_evals_not_in_enum__",

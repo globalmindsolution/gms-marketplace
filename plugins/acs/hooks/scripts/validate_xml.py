@@ -27,10 +27,14 @@ Strategy (stdlib-only requirement):
   with it.  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is
   the binding proof — every listed class produces identical pass/fail verdicts
   under both paths.  If the XSD gains a construct not in that corpus, extend the
-  corpus so any in-process/xmllint divergence fails the build.  SKILLS drift
-  specifically (missing or stale skill names, versus acs-messages.xsd and the two
-  identical schema copies) is caught by
-  tests/acs/test_message_schema_skill_enum.py, which recomputes every side live.
+  corpus so any in-process/xmllint divergence fails the build.  Two drift guards
+  recompute a mirror from its source live rather than freezing a baseline:
+  tests/acs/test_message_schema_skill_enum.py for SKILLS (versus the skills
+  directory and the two identical schema copies), and
+  tests/acs/test_message_schema_attrs.py for ALLOWED_ATTRS (versus the XSD's own
+  attribute declarations, in both directions).  The second exists because this
+  table silently drifted: the XSD gained `lens` on <result> and the mirror did
+  not, so every lens-tagged verify result was refused as undeclared.
 
 Usage:
   validate_xml.py <file.xml> [more.xml ...]
@@ -83,6 +87,10 @@ SKILLS = {"analyze-ticket", "code", "create-api-contract", "create-architecture"
           "update", "usage", "create-spec"}
 PHASES = {"plan", "execute", "verify", "coordinate"}
 RESULT_STATUSES = {"completed", "failed", "needs_input"}
+# acs-messages.xsd's verifyLens enumeration: which of the four full-depth
+# review lenses a verify result belongs to. Optional -- a light-verify result
+# carries no lens.
+VERIFY_LENSES = {"A", "B", "C", "D"}
 HANDOFF_STATUSES = {"completed", "failed", "interrupted", "handed_off", "needs_input"}
 TICKET_RE = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+$")
 
@@ -98,7 +106,7 @@ REQUIRED_CHILDREN = {"task": ["objective"], "result": [], "handoff": ["summary"]
 # Keep in sync with the XSD when it changes.
 ALLOWED_ATTRS = {
     "task": {"skill", "phase", "ticket-id", "iteration"},
-    "result": {"skill", "phase", "ticket-id", "iteration", "status"},
+    "result": {"skill", "phase", "ticket-id", "iteration", "status", "lens"},
     "handoff": {"skill", "ticket-id", "status"},
     "finding": {"severity", "dimension", "file"},
     "constraint": {"name"},
@@ -130,6 +138,10 @@ def _attr_errors(root):
             errors.append("<%s iteration=%r> must be a positive integer" % (tag, iteration))
     if tag == "result":
         need("status", lambda v: v in RESULT_STATUSES, "one of: %s" % ", ".join(sorted(RESULT_STATUSES)))
+        lens = root.get("lens")
+        if lens is not None and lens not in VERIFY_LENSES:
+            errors.append("<result lens=%r> is invalid (one of: %s)"
+                          % (lens, ", ".join(sorted(VERIFY_LENSES))))
     if tag == "handoff":
         need("status", lambda v: v in HANDOFF_STATUSES, "one of: %s" % ", ".join(sorted(HANDOFF_STATUSES)))
 

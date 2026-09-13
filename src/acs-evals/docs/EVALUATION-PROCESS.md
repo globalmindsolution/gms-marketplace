@@ -32,7 +32,7 @@ make gate
 
 `make gate` runs four steps and stops at the first failure:
 
-1. **`make eval`** — the deterministic tier. 448 cases against the resolved
+1. **`make eval`** — the deterministic tier. 455 cases against the resolved
    build, writing `results/latest.json`. Non-zero exit if any case differs.
 2. **`make check`** — asserts both GENERATED trees are still in sync with their
    sources: `evals/**/case.yaml` against `dataset/routing.json`, and
