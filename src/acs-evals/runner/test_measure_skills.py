@@ -10,13 +10,16 @@ whose stream never reports a registration list is `unmeasured`, never a pass.
 
 import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import measure_skills  # noqa: E402
 from measure_skills import (DEFAULT_ROUTING_PROFILE, classify,  # noqa: E402
+                            route_cmd, session_cmd,
                             explicit_skill, measure_routing, plan,
                             probe_env, routing_sandboxes)
 from gen_plugin_eval import renderable  # noqa: E402
@@ -171,7 +174,13 @@ class ControlProbeTest(unittest.TestCase):
         text = plan({"routing": {"runs_per_probe": runs},
                      "pipeline": {"runs_per_scenario": 3, "scenarios": []}},
                     self.probes, True, False, None)
-        self.assertIn("preflight 2 free control probes", text)
+        free = len([p for p in self.probes
+                    if p.get("kind") == "control"
+                    and measure_skills.explicit_skill(p["prompt"])])
+        self.assertIn("build-identity check", text,
+                      "the plan must name the check that proves the session "
+                      "loaded the build the run claims to describe")
+        self.assertIn("%d free control probe(s)" % free, text)
         # Derived from the shipped probe set, not pinned: widening routing.json
         # is exactly the change this line should keep describing, and a literal
         # here went stale the moment the probe set grew from 30 to 43.
@@ -325,8 +334,11 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
         measure_skills.Sandbox, measure_skills.route_once = self._sandbox, self._route
 
     @staticmethod
-    def _fake_route(prompt, cwd, timeout, env):
-        _FakeSandbox.events.append(("route", cwd, prompt))
+    def _fake_route(prompt, cwd, timeout, env, build=None):
+        # `build` is recorded, not just accepted: measure_routing must hand the
+        # resolved build to every probe, or the session loads whatever is
+        # installed and the measurement describes the wrong plugin.
+        _FakeSandbox.events.append(("route", cwd, prompt, build))
         if prompt == "boom":
             raise RuntimeError("session failed")
         return "acs:code", "skill_tool_use", 1.0
@@ -340,14 +352,16 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
                   {"id": "c", "skill": "acs:code", "prompt": "pc"},
                   {"id": "d", "skill": "acs:code", "prompt": "pd",
                    "profile": "app-ticketed", "setup": ["git checkout -qb t", "git commit"]}]
-        out = measure_routing(None, self._scenarios, probes, {})
+        build = object()   # a sentinel: only threading can put it there
+        out = measure_routing(build, self._scenarios, probes, {})
         builds = [e for e in _FakeSandbox.events if e[0] == "build"]
         self.assertEqual(builds, [("build", "ticketed"), ("build", "app-ticketed")])
         setups = [e for e in _FakeSandbox.events if e[0] == "setup"]
         self.assertEqual(setups, [("setup", "app-ticketed", "git checkout -qb t"),
                                   ("setup", "app-ticketed", "git commit")])
         # setup precedes the first session in that sandbox, and never re-runs
-        first_route = _FakeSandbox.events.index(("route", "/repo/app-ticketed", "pb"))
+        first_route = next(i for i, e in enumerate(_FakeSandbox.events)
+                           if e[0] == "route" and e[1:3] == ("/repo/app-ticketed", "pb"))
         self.assertTrue(all(_FakeSandbox.events.index(s) < first_route for s in setups))
         self.assertEqual([e[1] for e in _FakeSandbox.events if e[0] == "route"],
                          ["/repo/ticketed"] * 2 + ["/repo/app-ticketed"] * 2
@@ -355,6 +369,12 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
         self.assertTrue(all(sb.closed for sb in _FakeSandbox.live))
         self.assertEqual([r["profile"] for r in out],
                          ["ticketed", "app-ticketed", "ticketed", "app-ticketed"])
+        # Every probe was handed the RESOLVED build. Asserted with a sentinel
+        # rather than None, so the check cannot pass on the parameter default.
+        self.assertEqual({e[3] for e in _FakeSandbox.events if e[0] == "route"},
+                         {build},
+                         "measure_routing must pass its build to every probe, "
+                         "or the session loads whatever is installed")
         self.assertNotIn("setup", out[0])
         self.assertEqual(out[1]["setup"], ["git checkout -qb t", "git commit"])
 
@@ -385,6 +405,83 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
         self.assertIn("fatal: nope", str(ctx.exception))
         self.assertTrue(all(sb.closed for sb in _FakeSandbox.live))
 
+
+
+class BuildUnderTestIsActuallyLoadedTest(unittest.TestCase):
+    """`build under test: acs X` must name the build the session RAN.
+
+    It did not. `measure_skills` resolved a build, printed that line, and then
+    spawned `claude` with no plugin selector, so every session loaded whatever
+    was installed. On a checkout ahead of the last release that silently
+    invalidates a third of routing.json: skills the probes name do not exist in
+    the installed build, and negative probes assert a no-auto-invoke guarantee
+    its skills do not carry.
+    """
+
+    class _Build:
+        root = "/somewhere/plugins/acs"
+        version = "0.4.10-rc1"
+
+    def test_a_routing_probe_loads_the_resolved_build(self):
+        cmd = route_cmd("do the thing", self._Build())
+        self.assertIn("--plugin-dir", cmd)
+        self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], self._Build.root)
+
+    def test_a_pipeline_session_loads_the_resolved_build(self):
+        cmd = session_cmd("do the thing", self._Build())
+        self.assertIn("--plugin-dir", cmd)
+        self.assertEqual(cmd[cmd.index("--plugin-dir") + 1], self._Build.root)
+
+    def test_without_a_build_no_plugin_is_forced(self):
+        """The parameter is optional so a caller can still measure whatever is
+        installed -- deliberately, but only by asking for it."""
+        for cmd in (route_cmd("x"), session_cmd("x")):
+            self.assertNotIn("--plugin-dir", cmd)
+
+
+class BuildIdentityCheckTest(unittest.TestCase):
+    """Passing --plugin-dir fixes the cause; this check keeps it honest."""
+
+    def _build(self, skills):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for name in skills:
+            os.makedirs(os.path.join(tmp, "skills", name))
+        return type("B", (), {"root": tmp, "version": "test"})()
+
+    def _check(self, shipped, registered):
+        build = self._build(shipped)
+        original = measure_skills.registered_skills
+        measure_skills.registered_skills = lambda *a, **k: registered
+        self.addCleanup(setattr, measure_skills, "registered_skills", original)
+        return measure_skills.build_identity_check(build, "/tmp", {})
+
+    def test_matching_sets_pass(self):
+        got = self._check(["code", "ship"], {"acs:code", "acs:ship"})
+        self.assertTrue(got["passed"], got)
+
+    def test_a_shipped_skill_the_session_never_registered_fails(self):
+        got = self._check(["code", "ship"], {"acs:code"})
+        self.assertFalse(got["passed"])
+        self.assertIn("acs:ship", got["reason"])
+
+    def test_a_registered_skill_the_build_does_not_ship_fails(self):
+        """The installed-build case: the session carries skills from somewhere
+        other than the build the measurement claims to describe."""
+        got = self._check(["code"], {"acs:code", "acs:create-quality"})
+        self.assertFalse(got["passed"])
+        self.assertIn("acs:create-quality", got["reason"])
+
+    def test_no_registration_list_is_a_failure_not_a_pass(self):
+        got = self._check(["code"], None)
+        self.assertFalse(got["passed"])
+        self.assertEqual(got["detection"], "unmeasured")
+
+    def test_an_unreadable_build_is_a_failure(self):
+        build = type("B", (), {"root": "/no/such/build", "version": "x"})()
+        got = measure_skills.build_identity_check(build, "/tmp", {})
+        self.assertFalse(got["passed"])
+        self.assertEqual(got["detection"], "unreadable")
 
 if __name__ == "__main__":
     unittest.main()

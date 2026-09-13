@@ -131,6 +131,21 @@ marketplace checkout under `~/.claude/plugins/marketplaces/*/plugins/acs`. The
 banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
 
+That resolution governs **both tiers**. Tier 1 runs the resolved build's CLIs
+directly. Tier 3 hands the same root to `claude --plugin-dir`, so its sessions
+load the build the run names — no plugin cache is touched and nothing needs
+restoring afterwards. Every `make` target except `eval` defaults the root to
+this checkout's `../../plugins/acs`, so the suite grades the source it sits
+next to; `eval` is left alone because which build the gate judges is the
+question, not a detail.
+
+This was not always true of tier 3, and the failure was quiet: the root was
+resolved, printed as "build under test", and then never passed to `claude`, so
+every session loaded whatever the operator had installed. A pre-flight
+**build-identity check** now compares the commands a real session registers
+against the skills the resolved build ships, and refuses to spend if they
+differ — so the banner is an assertion rather than a caption.
+
 ```bash
 ACS_PLUGIN_ROOT=$PWD/../../plugins/acs python3 runner/run_golden.py   # or: make eval-source
 ```

@@ -52,13 +52,13 @@ eval-source: ## Run the deterministic tier against this checkout's plugins/acs
 	ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs $(PYTHON) runner/run_golden.py --json $(JSON)
 
 measure: ## TIER 3 — run the controlled scenario set (SPENDS MONEY; needs `claude`)
-	$(PYTHON) runner/measure_skills.py --out $(MEASURE)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --out $(MEASURE)
 
 measure-plan: ## What `make measure` would run, and how many sessions, spending nothing
 	$(PYTHON) runner/measure_skills.py --dry-run
 
-measure-routing: ## TIER 3, cheap half — routing reliability + controls (30 probes)
-	$(PYTHON) runner/measure_skills.py --routing-only --out $(MEASURE)
+measure-routing: ## TIER 3, cheap half — routing reliability + controls (43 probes)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --routing-only --out $(MEASURE)
 
 perf: ## Judge the last measurement against the baseline (pure; no model, no cost)
 	$(PYTHON) runner/perf_gate.py --measurement $(MEASURE) --json $(RESULTS)/perf.json
@@ -85,19 +85,28 @@ catch-rate-plan: ## What `make catch-rate` would run, spending nothing
 	$(PYTHON) runner/verifier_catch_rate.py --dry-run
 
 catch-rate: ## PAID — feed every seeded defect through /acs:code and read the verifier's verdicts
-	$(PYTHON) runner/verifier_catch_rate.py --runs $(CATCH_RUNS)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/verifier_catch_rate.py --runs $(CATCH_RUNS)
 
-# generate / check / mutation are AUTHORING tools: they ask whether this
-# dataset is consistent with the schemas it pins, so they must read the tree
-# being edited. Left to the default resolution they read the newest INSTALLED
-# build instead -- which, with source nine merged PRs ahead of 0.4.9, meant
-# five schemas differed and two (phases, ship-workflow) did not exist there at
-# all. Cases were being generated for a schema set nobody was reviewing, and
-# `make mutation`'s coverage number described that same stale set.
+# Everything that reads or exercises the plugin, EXCEPT `eval`, resolves the
+# tree being edited rather than the newest installed build.
+#
+# For the authoring tools (generate / check / mutation) that is about pinning
+# the right schemas: with source nine merged PRs ahead of 0.4.9, five schemas
+# differed and two (phases, ship-workflow) did not exist there at all, so cases
+# were generated for a schema set nobody was reviewing.
+#
+# For the tier-3 targets (measure / measure-routing / catch-rate) it decides
+# which plugin the SESSIONS load -- measure_skills passes this root to `claude
+# --plugin-dir`, so the run exercises the build it names. Before that wiring
+# existed the root was printed and then dropped, and every session loaded
+# whatever the operator happened to have installed: on this checkout that
+# invalidated a third of routing.json, because seven probed skills did not
+# exist in 0.4.9 and six negative probes asserted a guarantee its legs did not
+# carry.
 #
 # `eval` is deliberately NOT in this list: it is the gate, and which build it
 # judges is the question, not a detail. Override with ACS_PLUGIN_ROOT=... to
-# point these at something else.
+# point any of these at something else.
 ACS_PLUGIN_ROOT ?= $(SOURCE)
 
 check: ## Fail if any generated tree is stale against the plugin source

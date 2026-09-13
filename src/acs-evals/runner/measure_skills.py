@@ -131,7 +131,43 @@ def classify(lines, prompt):
     return None, ("unmeasured" if want is not None else "skill_tool_use")
 
 
-def route_once(prompt, cwd, timeout, env):
+def plugin_args(build):
+    """Make the session load the build under test, rather than hoping it does.
+
+    Until this existed, `measure_skills` resolved a build, printed "build under
+    test: acs X", and then spawned `claude` with no plugin selector at all -- so
+    the session loaded whatever the operator happened to have INSTALLED, and the
+    label described a build the measurement never exercised. On a checkout ahead
+    of the last release that is not a small discrepancy: seven skills in
+    routing.json did not exist in the installed build, and six negative probes
+    asserted a no-auto-invoke guarantee the installed legs did not carry, so a
+    third of the routing probes could not return a meaningful answer.
+
+    `--plugin-dir` loads a plugin from a directory for that session only. It
+    touches no plugin cache and needs no cleanup, which is the whole point:
+    staging a build into the operator's real `~/.claude/plugins` works, but it
+    mutates shared state and leaves a restore that someone has to remember.
+    """
+    return ["--plugin-dir", build.root]
+
+
+def route_cmd(prompt, build=None):
+    """The argv for a routing probe. Pure, so the plugin wiring is testable."""
+    cmd = ["claude", "-p", prompt, "--output-format", "stream-json",
+           "--verbose", "--permission-mode", "acceptEdits",
+           "--allowedTools", "Skill"]
+    return cmd + plugin_args(build) if build is not None else cmd
+
+
+def session_cmd(prompt, build=None):
+    """The argv for a full pipeline session. Pure, for the same reason."""
+    cmd = ["claude", "-p", prompt, "--output-format", "json",
+           "--permission-mode", "acceptEdits",
+           "--allowedTools", " ".join(PIPELINE_TOOLS)]
+    return cmd + plugin_args(build) if build is not None else cmd
+
+
+def route_once(prompt, cwd, timeout, env, build=None):
     """Return (routed_to, detection, seconds). Killed at the first decision.
 
     `routed_to` is None when the model stopped, or the timeout elapsed, without
@@ -139,9 +175,7 @@ def route_once(prompt, cwd, timeout, env):
     None is a result here and never an error. `detection` says which rule in
     `classify` decided the run.
     """
-    cmd = ["claude", "-p", prompt, "--output-format", "stream-json",
-           "--verbose", "--permission-mode", "acceptEdits",
-           "--allowedTools", "Skill"]
+    cmd = route_cmd(prompt, build)
     started = time.time()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True,
@@ -164,11 +198,9 @@ def route_once(prompt, cwd, timeout, env):
     return routed, detection, round(time.time() - started, 3)
 
 
-def session_once(prompt, cwd, timeout, env):
+def session_once(prompt, cwd, timeout, env, build=None):
     """One full `claude -p` session. Returns the envelope plus wall clock."""
-    cmd = ["claude", "-p", prompt, "--output-format", "json",
-           "--permission-mode", "acceptEdits",
-           "--allowedTools", " ".join(PIPELINE_TOOLS)]
+    cmd = session_cmd(prompt, build)
     started = time.time()
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd,
@@ -250,6 +282,78 @@ def read_ledger(sandbox, skill):
 # The run
 # --------------------------------------------------------------------------
 
+def registered_skills(build, cwd, env, timeout=60):
+    """The acs commands a real session registers, read from its `init` event.
+
+    Free: the stream is abandoned at `init`, before any model turn, exactly as
+    an explicit routing probe is.
+    """
+    cmd = route_cmd("/acs:usage", build)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True,
+                            cwd=cwd, env=env)
+    deadline = time.time() + timeout
+    try:
+        for line in proc.stdout:
+            if time.time() > deadline:
+                return None
+            try:
+                event = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if (isinstance(event, dict) and event.get("type") == "system"
+                    and event.get("subtype") == "init"):
+                if "slash_commands" not in event:
+                    return None
+                return {c for c in (event.get("slash_commands") or [])
+                        if c.startswith("acs:")}
+    finally:
+        proc.kill()
+        proc.wait()
+        if proc.stdout:
+            proc.stdout.close()
+    return None
+
+
+def build_identity_check(build, cwd, env, timeout=60):
+    """Assert the session loaded THE RESOLVED BUILD, not merely some acs.
+
+    "build under test: acs X" used to be a line of output with nothing behind
+    it -- the resolved build was never passed to `claude`, so the session ran
+    whatever was installed. Passing `--plugin-dir` fixes the cause; this check
+    is what keeps the claim honest, by comparing the commands the session
+    actually registered against the skills the resolved build ships. A
+    measurement whose subject cannot be confirmed is worse than none: it is
+    wrong under a true-sounding label, and every number in it inherits that.
+    """
+    skills_dir = os.path.join(build.root, "skills")
+    try:
+        shipped = {"acs:%s" % d for d in os.listdir(skills_dir)
+                   if os.path.isdir(os.path.join(skills_dir, d))}
+    except OSError as exc:
+        return {"id": "CONTROL-build-identity", "passed": False,
+                "detection": "unreadable", "seconds": 0.0,
+                "reason": "cannot list %s: %s" % (skills_dir, exc)}
+    started = time.time()
+    registered = registered_skills(build, cwd, env, timeout)
+    seconds = round(time.time() - started, 3)
+    if registered is None:
+        return {"id": "CONTROL-build-identity", "passed": False,
+                "detection": "unmeasured", "seconds": seconds,
+                "reason": "the session reported no registration list"}
+    missing, extra = sorted(shipped - registered), sorted(registered - shipped)
+    passed = not missing and not extra
+    reason = "" if passed else (
+        "the session did not load the resolved build: %d shipped skill(s) "
+        "unregistered (%s), %d registered skill(s) not in the build (%s)"
+        % (len(missing), ", ".join(missing[:4]) or "-",
+           len(extra), ", ".join(extra[:4]) or "-"))
+    return {"id": "CONTROL-build-identity", "passed": passed,
+            "detection": "registered", "seconds": seconds,
+            "registered": len(registered), "shipped": len(shipped),
+            "reason": reason}
+
+
 def preflight(build, probes, env, timeout=60):
     """Run the free controls once, before a single paid session starts.
 
@@ -261,12 +365,14 @@ def preflight(build, probes, env, timeout=60):
     controls = [p for p in probes
                 if p.get("kind") == "control" and explicit_skill(p["prompt"])]
     checks = []
-    if not controls:
-        return True, checks
+    # No early return when the dataset ships no explicit control: the identity
+    # check is not one of them, and it is the one check that must never be
+    # skipped -- everything downstream is a claim ABOUT the resolved build.
     with Sandbox(build, profile="bare") as sb:
+        checks.append(build_identity_check(build, sb.repo, env, timeout))
         for probe in controls:
             routed, detection, seconds = route_once(probe["prompt"], sb.repo,
-                                                    timeout, env)
+                                                    timeout, env, build)
             rec = {"kind": "routing", "skill": probe["skill"],
                    "expect": {"must_route": probe.get("must_route", True),
                               "skill": probe["skill"], "control": True},
@@ -341,7 +447,7 @@ def measure_routing(build, scenarios, probes, env, limit=None):
             runs = []
             for _ in range(runs_per):
                 routed, detection, seconds = route_once(
-                    probe["prompt"], sb.repo, timeout, env)
+                    probe["prompt"], sb.repo, timeout, env, build)
                 runs.append({"ok": True, "routed_to": routed,
                              "detection": detection, "seconds": seconds,
                              "cost_usd": None, "turns": None})
@@ -386,7 +492,8 @@ def measure_pipeline(build, scenarios, env, limit=None):
                 setup = []
                 for text in scenario.get("setup_prompts", []):
                     s_run = session_once(fill(text), sb.repo,
-                                         scenario.get("timeout_seconds", 1800), env)
+                                         scenario.get("timeout_seconds", 1800),
+                                         env, build)
                     setup.append(s_run)
                     if not s_run["ok"]:
                         break
@@ -396,7 +503,8 @@ def measure_pipeline(build, scenarios, env, limit=None):
                            % (setup[-1].get("error") or "session not ok")}
                 else:
                     run = session_once(fill(scenario["prompt"]), sb.repo,
-                                       scenario.get("timeout_seconds", 1800), env)
+                                       scenario.get("timeout_seconds", 1800),
+                                       env, build)
                 if setup:
                     run["setup"] = setup
                 ledger = read_ledger(sb, scenario["skill"])
@@ -438,8 +546,8 @@ def plan(scenarios, probes, routing_only, pipeline_only, limit):
     lines, sessions = [], 0
     free = [p for p in probes
             if p.get("kind") == "control" and explicit_skill(p["prompt"])]
-    lines.append("  preflight %d free control probes before any paid session"
-                 % len(free))
+    lines.append("  preflight build-identity check + %d free control probe(s), "
+                 "before any paid session" % len(free))
     if not pipeline_only:
         n = limit or scenarios["routing"].get("runs_per_probe", 5)
         lines.append("  routing   %d probes x %d runs = %d sessions "
