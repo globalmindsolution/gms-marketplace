@@ -109,12 +109,35 @@ under-classifying is how a real defect ships green.
 
 Two conditions are reported alongside the verdict and are also blocking:
 
-- **Off-baseline** — the build under test is not the version the goldens were
+- **Off-baseline** — the build under test is not the build the goldens were
   recorded against. Not a defect, but it means "no regression" is unproven
   until the baseline is refreshed.
+
+  **Not the version — the build.** An unreleased source tree carries the same
+  `plugin.json` version as the release it supersedes, so comparing versions
+  answered "yes, this is the baseline" for the source the dataset pins *and*
+  for the older released build it was scores of cases ahead of, and this
+  condition never fired in either direction. The manifest therefore records a
+  `recorded_against_fingerprint` — a hash of the shipped skill surface, each
+  skill with whether a model may route to it unaided — and 25 invocable skills
+  is not 32 with six legs user-only, whatever the two `plugin.json` files say.
+  `--record` re-stamps it, so a re-record cannot leave the baseline naming the
+  previous build.
 - **Coverage below floor** — `make mutation` measures what the schema tier
-  would actually catch. Below 50%, a green run is weak evidence, and the gate
-  says so.
+  would actually catch. Below 90%, a green run is weak evidence, and the gate
+  says so. The floor was 50% while the measurement itself was wrong in two
+  ways: it counted keyword occurrences that restrict nothing (an
+  `additionalProperties: true` says exactly what its own absence says, so no
+  case can ever pin it), and the case generator refused every constraint it
+  could not reason about in advance instead of building the mutant and asking
+  the validator. With both fixed, and every schema seeded, the tier measures
+  **100% of the 224 constraints any instance could distinguish** — so a 50%
+  floor gated nothing. A floor no run can fail is not a floor.
+
+  The floor sits at 90 rather than 100 deliberately: the steady state is 100%,
+  and the ten points are headroom for a schema that grows a constraint before
+  the case pinning it is written, not licence to leave one unpinned. A drop to
+  99% is a question to answer, not a budget to spend.
 
 ## Tier 3 has its own verdict, and its own reason
 

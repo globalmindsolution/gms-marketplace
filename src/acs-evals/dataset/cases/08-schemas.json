@@ -1,6 +1,6 @@
 {
   "group": "shipped JSON schemas",
-  "description": "Hand-written conformance cases for the 12 shipped JSON schemas: the ones that carry JUDGEMENT \u2014 why a constraint matters, or where the shape/meaning split lies. Each schema gets an instance that must be ACCEPTED (which also serves as the seed for the generated tier) and instances that must be REJECTED, naming the constraint that did it.\n\nSCOPE, measured rather than claimed: these cases alone pin about 9% of the ~229 constraints the schemas declare. The mechanical remainder is generated into 11-schema-constraints.json, which lifts measured coverage to roughly 55%. Run `make mutation` for the current number and `python3 runner/mutation_sweep.py --holes` for the constraints still pinned by nothing \u2014 mostly branches under oneOf/anyOf, where a single-constraint reject case would be unsound because another branch still matches.\n\nValidated by runner/jsonschema_mini.py, a stdlib subset validator. It raises on any keyword it does not implement rather than silently passing, so a schema that grows one fails loudly.\n\nschemas/acs-messages.xsd is XML, not JSON Schema. It is NOT covered by this dataset \u2014 the plugin's validate_xml.py is an untested surface here.",
+  "description": "Hand-written conformance cases for the 14 shipped JSON schemas: the ones that carry JUDGEMENT \u2014 why a constraint matters, or where the shape/meaning split lies. Each schema gets an instance that must be ACCEPTED (which also serves as the seed for the generated tier) and instances that must be REJECTED, naming the constraint that did it.\n\nSCOPE, measured rather than claimed: these cases alone pin about 9% of the constraints the schemas declare. The mechanical remainder is generated into 11-schema-constraints.json, which lifts measured coverage to 100% of the 224 constraints that any instance could distinguish. Run `make mutation` for the current number, `make mutation MUTATION_ARGS=--holes` for anything still pinned by nothing, and `--inert` for the keyword occurrences that restrict nothing and are therefore not in the denominator.\n\nValidated by runner/jsonschema_mini.py, a stdlib subset validator. It raises on any keyword it does not implement rather than silently passing, so a schema that grows one fails loudly.\n\nschemas/acs-messages.xsd is XML, not JSON Schema. It is NOT covered by this dataset \u2014 the plugin's validate_xml.py is an untested surface here.",
   "surface": "schemas/*.json",
   "covers": [
     "MAR-527",
@@ -356,6 +356,80 @@
       }
     },
     {
+      "id": "SCHEMA-LOCKEV-004",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: a recorded break must carry its evidence \u2014 lock_force_released without staleness_verdict is rejected",
+      "json": {
+        "event": "lock_force_released",
+        "at": "2026-01-01T00:00:00Z",
+        "reason": "holder host is decommissioned",
+        "actor": null,
+        "by_checkout_id": "repo-abc",
+        "by_pid": 4242,
+        "by_hostname": "vm",
+        "staleness_basis": "age-timeout",
+        "broken_lock": {
+          "checkout_id": "elsewhere-deadbeef",
+          "created_at": "2026-01-01T00:00:00Z",
+          "pid": 4242,
+          "hostname": "some-other-host.invalid"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "staleness_verdict",
+          "required property is missing"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-LOCKEV-005",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: a failed break must say what failed \u2014 lock_force_release_failed without error is rejected",
+      "json": {
+        "event": "lock_force_release_failed",
+        "at": "2026-01-01T00:00:00Z",
+        "reason": "holder host is decommissioned",
+        "actor": null,
+        "by_checkout_id": "repo-abc",
+        "by_pid": 4242,
+        "by_hostname": "vm",
+        "staleness_verdict": true,
+        "staleness_basis": "age-timeout",
+        "broken_lock": {
+          "checkout_id": "elsewhere-deadbeef",
+          "created_at": "2026-01-01T00:00:00Z",
+          "pid": 4242,
+          "hostname": "some-other-host.invalid"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "error",
+          "required property is missing"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-LOCKEV-006",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: the two event kinds carry different keys \u2014 a failed break is accepted WITHOUT the released-only evidence",
+      "json": {
+        "event": "lock_force_release_failed",
+        "at": "2026-01-01T00:00:00Z",
+        "reason": "holder host is decommissioned",
+        "error": "unlink .lock: [Errno 13] Permission denied"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
       "id": "SCHEMA-COUNTERS-001",
       "kind": "schema",
       "schema": "counters.schema.json",
@@ -635,6 +709,240 @@
         "valid": false,
         "errors_contain": [
           "expected type object"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-PHASES-001",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases: the shipped registry validates \u2014 the file the plugin loads is the instance this schema is for",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-PHASES-002",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases: a skill name must match the shipped spelling \u2014 lowercase, digits and hyphens, so a phase list cannot name a directory that could not exist",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "Create-PRD"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      },
+      "note": "The schema constrains the SHAPE of a skill name, not the set: `skillName` is a pattern, not an enum. That a phase list names only skills that actually ship is enforced by tests/acs/test_phases_registry.py against the skills directory, which a schema cannot see. A first draft of this case asserted the enum and was rejected by the suite for saying something false about the schema."
+    },
+    {
+      "id": "SCHEMA-SHIPWF-001",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "ship-workflow: the shipped ship.yaml validates \u2014 the delivery order the plugin actually runs is a conforming document",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-SHIPWF-002",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "ship-workflow: a step without a skill is rejected \u2014 a step that names no skill cannot be run",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "code"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "skill",
+          "required property is missing"
         ]
       }
     }

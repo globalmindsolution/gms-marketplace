@@ -20,6 +20,7 @@ import argparse
 import datetime
 import fnmatch
 import glob
+import collections
 import json
 import os
 import re
@@ -458,6 +459,56 @@ def _refresh_subset(previous, actual):
 # Reporting
 # --------------------------------------------------------------------------
 
+def stamp_baseline(build):
+    """Point the manifest's baseline at the build just recorded from.
+
+    A re-record that leaves the baseline naming the PREVIOUS build re-arms the
+    exact confusion this pair of fields exists to prevent: the goldens would
+    describe one tree while the manifest named another, and -- because the two
+    can share a version string -- nothing would say so.
+    """
+    path = os.path.join(DATASET, "manifest.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            manifest = json.load(fh, object_pairs_hook=collections.OrderedDict)
+    except (OSError, ValueError):
+        return None
+    before = (manifest.get("recorded_against"),
+              manifest.get("recorded_against_fingerprint"))
+    after = (build.version, build.fingerprint)
+    if before == after:
+        return None
+    manifest["recorded_against"] = build.version
+    if build.fingerprint:
+        manifest["recorded_against_fingerprint"] = build.fingerprint
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(manifest, indent=2) + "\n")
+    return "acs %s [%s] (was acs %s [%s])" % (after + before)
+
+
+def baseline_mismatch(build, manifest):
+    """Why this build is not the one the goldens were recorded against, or None.
+
+    Version alone cannot answer it. An unreleased source tree ships the same
+    `plugin.json` version as the release it supersedes, so the old check --
+    `build.version == recorded_against` -- read TRUE both for the source the
+    dataset pins and for the older released build it is scores of cases ahead
+    of, and the off-baseline warning stayed silent in both directions. The
+    surface fingerprint is what tells them apart; the version is kept because
+    it is what a human recognises.
+    """
+    recorded = manifest.get("recorded_against")
+    if recorded and build.version != recorded:
+        return ("build %s differs from the recorded baseline %s"
+                % (build.version, recorded))
+    want = manifest.get("recorded_against_fingerprint")
+    if want and build.fingerprint and build.fingerprint != want:
+        return ("build %s carries skill surface %s, but the goldens were "
+                "recorded against %s — same version string, different build"
+                % (build.version, build.fingerprint, want))
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -493,10 +544,15 @@ def main():
 
     print("acs golden dataset %s  |  build under test: acs %s"
           % (manifest["dataset_version"], build.version))
-    print("recorded against: acs %s" % manifest["recorded_against"])
-    if build.version != manifest["recorded_against"] and not args.record:
-        print("NOTE: build differs from the recorded baseline — differences "
-              "below are release-relevant, not necessarily defects.")
+    print("recorded against: acs %s%s"
+          % (manifest["recorded_against"],
+             " [%s]" % manifest["recorded_against_fingerprint"]
+             if manifest.get("recorded_against_fingerprint") else ""))
+    if not args.record:
+        why = baseline_mismatch(build, manifest)
+        if why:
+            print("NOTE: %s — differences below are release-relevant, not "
+                  "necessarily defects." % why)
     print("build root: %s\n" % build.root)
 
     failures, passed = [], 0
@@ -551,8 +607,11 @@ def main():
 
     if args.record:
         rewrite(touched, cases)
-        print("\nrecorded %d case(s) from acs %s — review the diff before "
-              "committing." % (len(cases), build.version))
+        stamped = stamp_baseline(build)
+        print("\nrecorded %d case(s) from acs %s [%s] — review the diff before "
+              "committing." % (len(cases), build.version, build.fingerprint))
+        if stamped:
+            print("manifest baseline updated: %s" % stamped)
         return 0
 
     elapsed = round(time.time() - started, 2)
@@ -607,7 +666,7 @@ def write_results(path, manifest, build, records, elapsed):
             "covers": manifest.get("covers", []),
         },
         "build": {"version": build.version, "root": build.root},
-        "baseline_match": build.version == manifest.get("recorded_against"),
+        "baseline_match": not baseline_mismatch(build, manifest),
         "totals": {
             "total": len(records), "passed": len(passed), "failed": len(failed),
             "known_divergences": len([r for r in records if r["known_divergence"]]),

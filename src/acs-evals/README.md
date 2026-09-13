@@ -48,9 +48,9 @@ export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
 make gate
 ```
 
-`make gate` = **`eval`** (run the 363 deterministic cases) → **`check`**
+`make gate` = **`eval`** (run the 502 deterministic cases) → **`check`**
 (assert both generated trees are in sync with their sources) → **`mutation`**
-(measure schema coverage, floor 50%) → **`report`** (render
+(measure schema coverage, floor 90%) → **`report`** (render
 `results/report.md` and `results/report.html`) → **`perf`** (judge the tier-3
 measurement of skill quality, reliability, cost and time). It stops at the
 first failure.
@@ -100,14 +100,14 @@ that catches packaging drift.
 
 | Tier | Where | Runner | Cost | Status |
 |---|---|---|---|---|
-| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **363 cases, all green** |
+| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **502 cases, all green** |
 | **2 — Agentic (routing)** | `evals/` | `claude plugin eval` | paid sessions | authored, **never executed** — needs early access |
 | **3 — Skill performance** | `dataset/scenarios.json` | `runner/measure_skills.py` + `runner/perf_gate.py` | paid sessions to measure; $0 to judge | **built, never measured** — see [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 
 Tier 1 asks whether the plumbing still emits the same bytes. **Tier 3 asks the
 four questions a release actually turns on** — did the skills get less
 reliable, worse, more expensive, or slower — because a build that made every
-skill twice as slow and three times as expensive passes all 363 tier-1 cases
+skill twice as slow and three times as expensive passes all 502 tier-1 cases
 and prints PASSED. Tier 3 also measures routing through plain `claude -p`, so
 it does not wait on tier 2's early access.
 
@@ -130,6 +130,21 @@ installed build under `~/.claude/plugins/cache/*/acs/*/`; otherwise a
 marketplace checkout under `~/.claude/plugins/marketplaces/*/plugins/acs`. The
 banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
+
+That resolution governs **both tiers**. Tier 1 runs the resolved build's CLIs
+directly. Tier 3 hands the same root to `claude --plugin-dir`, so its sessions
+load the build the run names — no plugin cache is touched and nothing needs
+restoring afterwards. Every `make` target except `eval` defaults the root to
+this checkout's `../../plugins/acs`, so the suite grades the source it sits
+next to; `eval` is left alone because which build the gate judges is the
+question, not a detail.
+
+This was not always true of tier 3, and the failure was quiet: the root was
+resolved, printed as "build under test", and then never passed to `claude`, so
+every session loaded whatever the operator had installed. A pre-flight
+**build-identity check** now compares the commands a real session registers
+against the skills the resolved build ships, and refuses to spend if they
+differ — so the banner is an assertion rather than a caption.
 
 ```bash
 ACS_PLUGIN_ROOT=$PWD/../../plugins/acs python3 runner/run_golden.py   # or: make eval-source
@@ -164,7 +179,7 @@ ship, carry a routing `description`, and declare the right
 
 ## What the dataset covers
 
-363 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
+502 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |
@@ -210,7 +225,7 @@ turn, and one whose deletion leaves the suite green is a hole:
 
 ```bash
 make mutation                                    # the coverage table
-python3 runner/mutation_sweep.py --holes         # every unpinned constraint
+make mutation MUTATION_ARGS=--holes             # every unpinned constraint
 ```
 
 Current: **126/229 constraints (55.0%)**. It was 9.3% when the cases were all

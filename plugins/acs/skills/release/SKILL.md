@@ -168,10 +168,25 @@ Only reached when Step 2 found no in-flight/done cut.
    `draft_section` text as the proposed CHANGELOG entry, and a reminder
    that `files_changed` were edited by this PR.
 
-5. **STOP — remind the paid-eval gate.** The final action is reporting the
-   PR URL and explicitly reminding the human: "Before merging, run the
-   release gate — `python3 evals/run_evals.py --plugin acs --paid`." You do
-   **not** run this gate yourself and do **not** wait for it — it is a
+5. **STOP — remind this repo's pre-release gate.** The final action is
+   reporting the PR URL and reminding the human to run the gate before
+   merging. Read `release_block.get("pre_release_gate")` — the same block you
+   already resolved in Start, so there is nothing new to load:
+
+   - **Set** (a non-empty list of command strings): name them verbatim, in
+     order, as the gate to run before merging.
+   - **Absent**: say that this repo declares no `release.pre_release_gate`, so
+     you cannot name its gate, and that one should be added to
+     `.acs/settings.json` if the repo has one.
+
+   Never substitute a command of your own. This skill ships to consumer repos
+   whose gate you cannot know: it used to hardcode `python3
+   evals/run_evals.py --plugin acs --paid`, which names a path most consumers
+   do not have, and which stopped being even this marketplace's gate when
+   MAR-579 retired the per-ticket paid tier. A reminder naming the wrong
+   command is worse than one naming none.
+
+   You do **not** run the gate yourself and do **not** wait for it — it is a
    reminder step, not a blocking check.
 
 ## SAFETY invariants
@@ -236,5 +251,5 @@ ticket:
 - **Findings**: coverage <N> merged / <M> covered / <K> missing (or "none — no-op path")
 - **Artifacts**: release PR body at <url> (no workspace artifact — release_notes.py's write targets are exactly the files named by the resolved release block's version_locations + extra_refs + changelog_path; the durable record is the PR itself)
 - **Metrics**: n/a
-- **Next**: run the paid-eval gate (`python3 evals/run_evals.py --plugin acs --paid`), then request human review — or, on a no-op, nothing further to do
+- **Next**: run this repo's pre-release gate (the commands from `release.pre_release_gate`, verbatim; or, when it declares none, say so) then request human review — or, on a no-op, nothing further to do
 ```

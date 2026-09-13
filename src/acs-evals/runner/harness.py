@@ -7,6 +7,7 @@ golden expectation can be compared byte for byte.
 Stdlib only, Python >= 3.9 — same constraint the acs plugin itself keeps.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -76,6 +77,52 @@ def _version_key(text):
                  for p in re.split(r"[.\-+]", str(text).lstrip("v"))[:4])
 
 
+def skill_surface(root):
+    """`<skill>:<invocable>` for every shipped skill, sorted.
+
+    The observable surface this dataset is mostly about: which skills exist,
+    and which of them a model may route to on its own.
+    """
+    out = []
+    skills = os.path.join(root, "skills")
+    try:
+        names = sorted(os.listdir(skills))
+    except OSError:
+        return out
+    for name in names:
+        path = os.path.join(skills, name, "SKILL.md")
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                head = fh.read(2048)
+        except OSError:
+            continue
+        user_only = re.search(r"(?m)^disable-model-invocation:\s*true\s*$", head)
+        out.append("%s:%s" % (name, "user-only" if user_only else "invocable"))
+    return out
+
+
+def fingerprint(root):
+    """A short, stable id for that surface.
+
+    A VERSION STRING CANNOT IDENTIFY A BUILD HERE. An unreleased source tree
+    carries the same `plugin.json` version as the release it will supersede --
+    both say 0.4.9 today -- so `build.version == manifest.recorded_against`
+    is true for the source the dataset was recorded against AND for the
+    released build it is 70 cases ahead of. The off-baseline warning, which
+    exists precisely to stop someone reading a run as evidence about the wrong
+    tree, was silent in both directions.
+
+    Hashing the skill surface separates them: 25 invocable skills is not 32
+    with six legs user-only, whatever the manifests say.
+    """
+    surface = skill_surface(root)
+    if not surface:
+        return None
+    return hashlib.sha256("\n".join(surface).encode("utf-8")).hexdigest()[:16]
+
+
 class Build:
     """The acs plugin build the dataset is being evaluated against."""
 
@@ -85,12 +132,13 @@ class Build:
         self.version = _plugin_version(root)
         if not os.path.isfile(os.path.join(self.scripts, "acs.py")):
             raise BuildError("no hooks/scripts/acs.py under %s" % root)
+        self.fingerprint = fingerprint(root)
 
     def script(self, name):
         return os.path.join(self.scripts, name)
 
     def __repr__(self):
-        return "<acs %s at %s>" % (self.version, self.root)
+        return "<acs %s (%s) at %s>" % (self.version, self.fingerprint, self.root)
 
 
 def resolve_build():

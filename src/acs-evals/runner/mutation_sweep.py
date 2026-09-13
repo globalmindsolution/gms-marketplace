@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """Measure the schema tier's coverage by deleting constraints.
 
-    python3 runner/mutation_sweep.py                 # per-schema coverage table
-    python3 runner/mutation_sweep.py --holes         # list every unpinned constraint
-    python3 runner/mutation_sweep.py --threshold 0.5 # exit 1 below 50% coverage
+    make mutation                                    # per-schema coverage table
+    make mutation MUTATION_ARGS=--holes              # every unpinned constraint
+
+Run it through `make`, not directly: a bare invocation resolves the newest
+INSTALLED acs build, while `make mutation` points it at this checkout's
+plugin source -- the tree you are editing, and the one whose schemas the
+cases were generated from. The two answer differently whenever source is
+ahead of the last release, which is most of the time.
+
+    ACS_PLUGIN_ROOT=... python3 runner/mutation_sweep.py [--holes] [--inert]
+    python3 runner/mutation_sweep.py --threshold 0.9 # exit 1 below 90%
 
 A passing suite says nothing about how much it would catch. This asks the only
 question that matters of a schema case set:
@@ -49,6 +57,48 @@ CONSTRAINTS = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
                "minProperties", "maxProperties",
                "enum", "const", "required", "additionalProperties",
                "propertyNames"}
+
+
+def inert(key, value, schema=None, pointer=""):
+    """Why deleting this constraint cannot change any verdict, or None.
+
+    Some keyword occurrences restrict nothing: `additionalProperties: true`
+    says exactly what its own absence says, and a zero `minLength`/`minItems`/
+    `minProperties` admits every value the type already admits. Deleting one
+    produces a schema that is not merely equivalent in practice but IDENTICAL
+    in meaning, so no instance exists that any case could use to notice.
+
+    Such an occurrence is not a hole. Counting it as one asks the reader to
+    close a gap that cannot be closed, and understates the coverage of the
+    cases that do exist -- which is the opposite of what this tool is for.
+
+    It is excluded from the denominator and reported separately rather than
+    dropped: a denominator that quietly shrinks is how a coverage number stops
+    meaning anything, and the whole argument for generating these cases was
+    that 9.3%% was the honest number.
+
+    The last rule needs the whole schema, not just the keyword: a `required`
+    inside an `if` decides only whether the condition matches a document
+    LACKING those properties -- and when the enclosing schema requires the same
+    ones, no such document is ever valid to begin with. lock-events declares
+    `required: ["event"]` at the root and again in both `if` clauses, so
+    deleting either copy leaves every verdict unchanged. Narrow on purpose:
+    only `required` directly under an `if`, only against the root's own
+    `required`. Anything subtler stays a hole, which is the safe direction.
+    """
+    if key == "additionalProperties" and value is True:
+        return "additionalProperties: true is what its own absence means"
+    if key == "required" and value == []:
+        return "required: [] requires nothing"
+    if key in ("minLength", "minItems", "minProperties") and value == 0:
+        return "%s: 0 admits every value of the type" % key
+    if (key == "required" and schema is not None
+            and pointer.endswith("/if") and isinstance(value, list)):
+        root_required = schema.get("required")
+        if isinstance(root_required, list) and set(value) <= set(root_required):
+            return ("required %s inside an if, already required at the root: "
+                    "no valid document can omit them" % sorted(value))
+    return None
 
 
 def schema_cases():
@@ -99,7 +149,7 @@ def at(doc, pointer):
 
 
 def sweep(build_root, cases):
-    results, holes = {}, []
+    results, holes, skipped = {}, [], []
     for path in sorted(glob.glob(os.path.join(build_root, "schemas", "*.json"))):
         name = os.path.basename(path)
         if not any(c["schema"] == name for c in cases):
@@ -113,6 +163,10 @@ def sweep(build_root, cases):
             parent = at(mutant, pointer)
             if key not in parent:
                 continue
+            why = inert(key, parent[key], base, pointer)
+            if why:
+                skipped.append((name, key, pointer or "(root)", why))
+                continue
             del parent[key]
             total += 1
             if holds(cases, name, mutant):
@@ -120,7 +174,7 @@ def sweep(build_root, cases):
             else:
                 caught += 1
         results[name] = (caught, total)
-    return results, holes
+    return results, holes, skipped
 
 
 def main():
@@ -128,13 +182,16 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--holes", action="store_true",
                     help="list every constraint no case pins")
+    ap.add_argument("--inert", action="store_true",
+                    help="list keyword occurrences that restrict nothing, and "
+                         "so are excluded from the denominator")
     ap.add_argument("--threshold", type=float,
                     help="exit 1 if total coverage falls below this (0..1)")
     args = ap.parse_args()
 
     build = resolve_build()
     cases = schema_cases()
-    results, holes = sweep(build.root, cases)
+    results, holes, skipped = sweep(build.root, cases)
 
     caught = sum(c for c, _t in results.values())
     total = sum(t for _c, t in results.values())
@@ -149,12 +206,29 @@ def main():
         else:
             print("  %-32s %3d/%-3d  %5.1f%%" % (name, c, t, 100.0 * c / t))
     print("\n  %-32s %3d/%-3d  %5.1f%%" % ("TOTAL", caught, total, pct))
+    uncovered = sorted(n for n, (_c, t) in results.items() if not t)
     print("\n  %d constraint(s) pinned by no case." % len(holes))
+    if uncovered:
+        # These contribute 0/0, so they cannot pull the percentage down and a
+        # reader sees a high number with no hint that a whole schema is
+        # unpinned. Same failure as counting inert constraints, mirrored: one
+        # inflates the denominator, this one quietly leaves it.
+        print("  %d schema(s) have NO cases at all and are absent from the "
+              "total, not counted as covered: %s"
+              % (len(uncovered), ", ".join(uncovered)))
+    if skipped:
+        print("  %d keyword occurrence(s) restrict nothing and are not counted "
+              "(--inert lists them)." % len(skipped))
 
     if args.holes:
         print()
         for name, key, pointer in holes:
             print("  %-30s %-22s %s" % (name, key, pointer))
+
+    if args.inert:
+        print()
+        for name, key, pointer, why in skipped:
+            print("  %-30s %-22s %-46s %s" % (name, key, pointer, why))
 
     if args.threshold is not None and total:
         if caught / total < args.threshold:

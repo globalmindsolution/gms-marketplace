@@ -23,7 +23,7 @@ Copy this into the release PR and tick it.
       regression fixed, golden re-recorded in its own reviewed commit, or case
       corrected as a dataset bug.
 
-- [ ] **Coverage has not regressed** (`make mutation`, floor 50%). A re-recording
+- [ ] **Coverage has not regressed** (`make mutation`, floor 90%). A re-recording
       that keeps the case count but lowers coverage has weakened the gate.
 
 - [ ] **Every known divergence has a decision.** Read the report's *Known

@@ -57,7 +57,7 @@ deleted in turn and the suite re-run:
 
 ```bash
 make mutation                                # the current number
-python3 runner/mutation_sweep.py --holes     # every constraint nothing pins
+make mutation MUTATION_ARGS=--holes             # every constraint nothing pins
 ```
 
 The CLI tier's equivalent is `runner/mutation_cli.py` (`make mutation-cli`).
