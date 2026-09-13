@@ -109,9 +109,20 @@ under-classifying is how a real defect ships green.
 
 Two conditions are reported alongside the verdict and are also blocking:
 
-- **Off-baseline** — the build under test is not the version the goldens were
+- **Off-baseline** — the build under test is not the build the goldens were
   recorded against. Not a defect, but it means "no regression" is unproven
   until the baseline is refreshed.
+
+  **Not the version — the build.** An unreleased source tree carries the same
+  `plugin.json` version as the release it supersedes, so comparing versions
+  answered "yes, this is the baseline" for the source the dataset pins *and*
+  for the older released build it was scores of cases ahead of, and this
+  condition never fired in either direction. The manifest therefore records a
+  `recorded_against_fingerprint` — a hash of the shipped skill surface, each
+  skill with whether a model may route to it unaided — and 25 invocable skills
+  is not 32 with six legs user-only, whatever the two `plugin.json` files say.
+  `--record` re-stamps it, so a re-record cannot leave the baseline naming the
+  previous build.
 - **Coverage below floor** — `make mutation` measures what the schema tier
   would actually catch. Below 90%, a green run is weak evidence, and the gate
   says so. The floor was 50% while the measurement itself was wrong in two
