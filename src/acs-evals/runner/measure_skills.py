@@ -131,6 +131,67 @@ def classify(lines, prompt):
     return None, ("unmeasured" if want is not None else "skill_tool_use")
 
 
+class Checkpoint:
+    """Durable, append-only record of paid work already done.
+
+    A tier-3 run spends hundreds of real sessions and used to hold every result
+    in memory, writing once at the very end. Anything that ended the process
+    early -- a kill, a reaped background job, a container recycle -- threw the
+    entire spend away with nothing on disk to show for it. That is not a
+    theoretical risk: it happened, at 29 of 43 probes, and roughly 145 paid
+    sessions went with it.
+
+    So each record lands on disk the moment it exists, and a later run reuses
+    what is already there instead of buying it twice. JSONL because a partial
+    line at the tail of a killed write is recoverable by dropping it, where
+    half a JSON object is not.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.done = {}
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue   # a torn final line: drop it, keep the rest
+                    if rec.get("id"):
+                        self.done[rec["id"]] = rec
+        except OSError:
+            pass
+
+    def get(self, rec_id):
+        return self.done.get(rec_id)
+
+    def add(self, rec):
+        self.done[rec.get("id")] = rec
+        if not self.path:
+            return
+        try:
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+        except OSError as exc:
+            sys.stderr.write("warning: could not checkpoint %s: %s\n"
+                             % (rec.get("id"), exc))
+
+    def discard(self):
+        if self.path and os.path.exists(self.path):
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
+
+
 def plugin_args(build):
     """Make the session load the build under test, rather than hoping it does.
 
@@ -421,7 +482,7 @@ def routing_sandboxes(probes):
     return seen
 
 
-def measure_routing(build, scenarios, probes, env, limit=None):
+def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
     conf = scenarios["routing"]
     runs_per = limit or conf.get("runs_per_probe", 5)
     timeout = conf.get("timeout_seconds", 120)
@@ -444,6 +505,13 @@ def measure_routing(build, scenarios, probes, env, limit=None):
                         raise RuntimeError("%s: setup step failed (%s): %s"
                                            % (probe["id"], step,
                                               (exc.stderr or "").strip()))
+            done = checkpoint.get(probe["id"]) if checkpoint else None
+            if done is not None:
+                agg = done.get("aggregate", {}).get("reliability", {})
+                print("  %-32s %s/%s  (from checkpoint, not re-spent)"
+                      % (probe["id"], agg.get("hits", "?"), agg.get("total", "?")))
+                out.append(done)
+                continue
             runs = []
             for _ in range(runs_per):
                 routed, detection, seconds = route_once(
@@ -466,6 +534,8 @@ def measure_routing(build, scenarios, probes, env, limit=None):
             print("  %-32s %d/%d  %.1fs median"
                   % (probe["id"], hits["hits"], hits["total"],
                      rec["aggregate"]["seconds"]["median"]))
+            if checkpoint:
+                checkpoint.add(rec)
             out.append(rec)
     finally:
         for sb in sandboxes.values():
@@ -473,11 +543,18 @@ def measure_routing(build, scenarios, probes, env, limit=None):
     return out
 
 
-def measure_pipeline(build, scenarios, env, limit=None):
+def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
     conf = scenarios["pipeline"]
     runs_per = limit or conf.get("runs_per_scenario", 3)
     out = []
     for scenario in conf["scenarios"]:
+        done = checkpoint.get(scenario["id"]) if checkpoint else None
+        if done is not None:
+            agg = done.get("aggregate", {}).get("reliability", {})
+            print("  %-32s %s/%s completed  (from checkpoint, not re-spent)"
+                  % (scenario["id"], agg.get("hits", "?"), agg.get("total", "?")))
+            out.append(done)
+            continue
         runs = []
         for _ in range(runs_per):
             # A fresh sandbox per run: a second run reusing the first's
@@ -526,6 +603,8 @@ def measure_pipeline(build, scenarios, env, limit=None):
                  agg["reliability"]["total"],
                  ("$%.2f" % agg["cost_usd"]["median"])
                  if agg["cost_usd"] else "cost n/a"))
+        if checkpoint:
+            checkpoint.add(rec)
         out.append(rec)
     return out
 
@@ -581,6 +660,10 @@ def main():
                     help="override runs per probe (1 is cheap and NOISY — a "
                          "single run cannot satisfy the routing decision rule)")
     ap.add_argument("--probe", default=None, help="glob-filter routing probes")
+    ap.add_argument("--checkpoint", default=None,
+                    help="where paid records land as they complete, so an "
+                         "interrupted run resumes instead of re-spending "
+                         "(default: <--out>.partial; '' disables)")
     ap.add_argument("--skip-preflight", action="store_true",
                     help="spend without first proving the sandbox can see the "
                          "plugin (only for debugging the pre-flight itself)")
@@ -639,11 +722,20 @@ def main():
                 "routing results.\n")
             return 3
         print()
+    checkpoint = Checkpoint(args.checkpoint if args.checkpoint is not None
+                            else (args.out + ".partial" if args.out else None))
+    if checkpoint.done:
+        print("resuming: %d record(s) already measured and on disk; they are "
+              "reused, not re-spent (%s)\n"
+              % (len(checkpoint.done), checkpoint.path))
+
     records = []
     if not args.pipeline_only:
-        records += measure_routing(build, scenarios, probes, env, args.runs)
+        records += measure_routing(build, scenarios, probes, env, args.runs,
+                                   checkpoint)
     if not args.routing_only:
-        records += measure_pipeline(build, scenarios, env, args.runs)
+        records += measure_pipeline(build, scenarios, env, args.runs,
+                                    checkpoint)
 
     # A run declares its scope up front — full, routing, or pipeline — and is
     # marked incomplete only when it did not finish what it set out to do (a
@@ -681,6 +773,7 @@ def main():
         json.dump(doc, fh, indent=2)
         fh.write("\n")
 
+    checkpoint.discard()
     print("\nmeasurement written to %s  (%.1fs)"
           % (args.out, time.time() - started))
     if incomplete:

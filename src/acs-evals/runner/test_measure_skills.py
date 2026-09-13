@@ -483,5 +483,102 @@ class BuildIdentityCheckTest(unittest.TestCase):
         self.assertFalse(got["passed"])
         self.assertEqual(got["detection"], "unreadable")
 
+
+class CheckpointTest(unittest.TestCase):
+    """Paid work must survive the process that bought it.
+
+    A tier-3 run spends hundreds of real sessions and used to write once, at
+    the very end. The run that proved this necessary was killed at 29 of 43
+    probes: roughly 145 paid sessions, and not one byte on disk to show for
+    them, because every record was still in memory.
+    """
+
+    def _path(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        return os.path.join(tmp, "m.json.partial")
+
+    def test_a_record_is_on_disk_the_moment_it_exists(self):
+        path = self._path()
+        measure_skills.Checkpoint(path).add({"id": "ROUTE-code", "kind": "routing"})
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(measure_skills.Checkpoint(path).get("ROUTE-code")["kind"],
+                         "routing")
+
+    def test_a_later_run_reads_back_everything_already_bought(self):
+        path = self._path()
+        first = measure_skills.Checkpoint(path)
+        for i in range(3):
+            first.add({"id": "ROUTE-%d" % i, "kind": "routing"})
+        self.assertEqual(len(measure_skills.Checkpoint(path).done), 3)
+
+    def test_a_torn_final_line_costs_one_record_not_all_of_them(self):
+        """A kill mid-write leaves half a line. JSONL is used precisely so the
+        records before it still count -- half a JSON object would lose every
+        session in the file."""
+        path = self._path()
+        cp = measure_skills.Checkpoint(path)
+        cp.add({"id": "ROUTE-a", "kind": "routing"})
+        cp.add({"id": "ROUTE-b", "kind": "routing"})
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write('{"id": "ROUTE-c", "kind": "rout')     # killed mid-write
+        reread = measure_skills.Checkpoint(path)
+        self.assertEqual(sorted(reread.done), ["ROUTE-a", "ROUTE-b"])
+
+    def test_discard_removes_it_only_when_asked(self):
+        path = self._path()
+        cp = measure_skills.Checkpoint(path)
+        cp.add({"id": "ROUTE-a"})
+        self.assertTrue(os.path.exists(path))
+        cp.discard()
+        self.assertFalse(os.path.exists(path))
+
+    def test_no_path_keeps_working_in_memory(self):
+        cp = measure_skills.Checkpoint(None)
+        cp.add({"id": "ROUTE-a"})
+        self.assertIsNotNone(cp.get("ROUTE-a"))
+        cp.discard()   # must not raise
+
+
+class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
+    """The point of the checkpoint: a resumed run buys nothing twice."""
+
+    def setUp(self):
+        _FakeSandbox.events, _FakeSandbox.live = [], []
+        self._sandbox = measure_skills.Sandbox
+        self._route = measure_skills.route_once
+        measure_skills.Sandbox = _FakeSandbox
+        self.spent = []
+
+        def fake_route(prompt, cwd, timeout, env, build=None):
+            self.spent.append(prompt)
+            return "acs:code", "skill_tool_use", 1.0
+
+        measure_skills.route_once = fake_route
+
+    def tearDown(self):
+        measure_skills.Sandbox = self._sandbox
+        measure_skills.route_once = self._route
+
+    def test_a_probe_already_in_the_checkpoint_spends_nothing(self):
+        probes = [{"id": "a", "skill": "acs:code", "prompt": "pa"},
+                  {"id": "b", "skill": "acs:code", "prompt": "pb"}]
+        cp = measure_skills.Checkpoint(None)
+        cp.add({"id": "a", "kind": "routing", "skill": "acs:code",
+                "runs": [], "aggregate": {"reliability": {"hits": 5, "total": 5}}})
+        out = measure_routing(None, {"routing": {"runs_per_probe": 2}},
+                              probes, {}, checkpoint=cp)
+        self.assertEqual(self.spent, ["pb", "pb"],
+                         "only the unmeasured probe may spend")
+        self.assertEqual([r["id"] for r in out], ["a", "b"],
+                         "the reused record must still reach the measurement")
+
+    def test_every_fresh_record_is_checkpointed_as_it_completes(self):
+        probes = [{"id": "a", "skill": "acs:code", "prompt": "pa"}]
+        cp = measure_skills.Checkpoint(None)
+        measure_routing(None, {"routing": {"runs_per_probe": 1}}, probes, {},
+                        checkpoint=cp)
+        self.assertIn("a", cp.done)
+
 if __name__ == "__main__":
     unittest.main()
