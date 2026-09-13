@@ -28,7 +28,7 @@ surface) — those land as later, additive decisions in this same file.
 
 Escalation events are appended to an additive `escalations` array on the
 current `/code` run's entry in `code-state.json`
-(`runs[-1].escalations: [{...}]`), written by a new `acs_lib.py` helper,
+(`runs[-1].escalations: [{...}]`), written by a new `acs_lib/state.py` helper,
 `record_escalation_event(tdir, skill, event)`. Each event is a fixed
 13-field dict: `ts, from_lane, to_lane, from_size, from_stakes, to_size,
 to_stakes, trigger, source, ceiling_before, ceiling_after, direction,
@@ -112,7 +112,7 @@ without a passing verifier at the escalated depth — the merge gate is
 
 **Decision:** full user-confirmed, boundary-only de-escalation via a
 dedicated, automatically-unreachable writer, `confirm_deescalation(tdir,
-ticket, confirmed_size, confirmed_stakes, clarify_ref)` (`acs_lib.py`).
+ticket, confirmed_size, confirmed_stakes, clarify_ref)` (`acs_lib/state.py`).
 De-escalation is offered only at an iteration or run boundary of `/acs:code`,
 never mid-iteration. The `/code` coordinator records the request via
 `clarify.py add`, issues an explicit `AskUserQuestion`, and — only on an

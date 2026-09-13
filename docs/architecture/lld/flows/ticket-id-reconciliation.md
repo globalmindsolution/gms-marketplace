@@ -1,6 +1,6 @@
 # Flow — Ticket-id first-allocate reconciliation
 
-`allocate_ticket_id` (`acs_lib.py`) gains a fail-closed, network-free
+`allocate_ticket_id` (`acs_lib/state.py`) gains a fail-closed, network-free
 reconciliation gate inside its existing O_EXCL critical section (MAR-402).
 The first allocation for a `(repo_id, prefix)` partition that has never
 allocated an id refuses with exit 2 unless a confirmable local-evidence

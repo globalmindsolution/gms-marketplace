@@ -21,14 +21,14 @@ and the verifier-as-gate invariant absolutely constant across all lanes.
 Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
 
 1. **`verify_depth(lane, stakes) -> "light" | "full"`** (pure function in
-   `acs_lib.py`): returns `"light"` for TRIVIAL/SMALL tickets at low/normal
+   `acs_lib/lanes.py`): returns `"light"` for TRIVIAL/SMALL tickets at low/normal
    stakes; returns `"full"` for STANDARD/COMPLEX tickets or any high-stakes
    ticket. Stakes = `"high"` is checked first (floor cannot be bypassed by lane
    value — defense-in-depth). Absent/unknown lane defaults conservatively to
    `"full"`.
 
 2. **`VERIFY_ITERATION_CAP = {"light": 1, "full": 3}`** (constant in
-   `acs_lib.py`): encodes the cap as a tested code fact.
+   `acs_lib/`): encodes the cap as a tested code fact.
 
 3. **Light verify** = single verifier pass that may iterate **at most once** on
    blocking findings (iteration cap 1, not 3). Applies to TRIVIAL/SMALL tickets
@@ -78,7 +78,7 @@ Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
 ## Consequences
 
 - `verify_depth(lane, stakes)` and `VERIFY_ITERATION_CAP` are additive to
-  `acs_lib.py`; no schema changes, no state-file shape changes.
+  `acs_lib/lanes.py`; no schema changes, no state-file shape changes.
 - The `/acs:code` coordinator reads `ticket.lane`/`ticket.stakes`, calls
   `verify_depth`, and sets the loop ceiling = `VERIFY_ITERATION_CAP[depth]`
   before starting the reflection loop.

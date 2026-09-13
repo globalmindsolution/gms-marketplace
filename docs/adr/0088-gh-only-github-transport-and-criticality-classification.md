@@ -90,7 +90,7 @@ grounds to revert or re-attempt the merge: it is reported as an
 error-severity finding naming the outstanding sync, with a replayable block,
 and the run still finishes `merged: true`.
 
-**The canonical diagnostic lives once, in `acs_lib.py`, quoted by all three
+**The canonical diagnostic lives once, in `acs_lib/repo.py`, quoted by all three
 skills.** `GH_ACCESS_DENIED_MARKER`, `GH_ACCESS_HINT`, `GH_GENERIC_HINT`, and
 the pure `gh_failure_hint(stderr_text)` predicate are pure, stdlib, no I/O,
 no network, no new import — a single source of truth for the hint sentence,

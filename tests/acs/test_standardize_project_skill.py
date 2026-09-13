@@ -272,7 +272,7 @@ class Mar121CompletionReportShapeCase(unittest.TestCase):
 class Mar121DeliveryTitleConsistencyCase(unittest.TestCase):
     """Cross-spec identity: the Start section's delivery-ticket title string
     matches spec 01's DELIVERY_TICKET_TITLES["standardize-project"] verbatim
-    (acs_lib.py:65-66)."""
+    (acs_lib/_common.py)."""
 
     @classmethod
     def setUpClass(cls):

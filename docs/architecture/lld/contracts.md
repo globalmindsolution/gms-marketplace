@@ -125,7 +125,7 @@ re-entry and no re-spawn of any prior stage (`code/SKILL.md`'s "In-loop
 escalation check" section).
 
 `confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
-clarify_ref)` (`acs_lib.py`, MAR-108) is the only writer capable of lowering
+clarify_ref)` (`acs_lib/state.py`, MAR-108) is the only writer capable of lowering
 `size`/`stakes`/`lane` below the ticket's current confirmed value. It hard-
 requires `clarify_ref` to resolve to a `clarify.py` ledger entry with
 `status == "answered"` exactly — a falsy ref, an unresolvable id, an `"open"`

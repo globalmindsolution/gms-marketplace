@@ -72,7 +72,7 @@ def build_title(template, ticket_id, type_, title, summary, external_key, provid
     """Render the PR title via acs_lib.render_format — the AC-1 mechanism.
 
     No re-implementation: this is a thin mapping-builder around the existing
-    render_format(template, mapping) function (acs_lib.py:621-622).
+    render_format(template, mapping) function (acs_lib/settings.py:621-622).
     """
     mapping = {
         "ticket_id": ticket_id or "",

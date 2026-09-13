@@ -261,3 +261,136 @@ class AdrIndexCompletenessTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkillCountDenominatorPinTest(unittest.TestCase):
+    """MAR-522/ADR-0091 rot guard: the skill-count denominators in
+    testing-strategy.md must match what is actually on disk.
+
+    These went stale twice without anything noticing -- the refactor moved the
+    inventory and the doc kept quoting the old totals in three separate places,
+    contradicting itself. Nothing pinned them, so CI stayed green. Every
+    expected value here is derived, so adding or removing a skill fails this
+    test until the prose is updated with it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = _read(os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md"))
+        cls.skills = len([n for n in os.listdir(SKILLS_DIR)
+                          if os.path.isdir(os.path.join(SKILLS_DIR, n)) and not n.startswith(".")])
+        cls.hooked = len(lib.HOOKED_SKILLS)
+        cls.unhooked = len(lib.UNHOOKED_SKILLS)
+
+    def test_the_registry_split_adds_up_to_the_directory_count(self):
+        """Sanity on the derivation itself, so a wrong pin cannot look right."""
+        self.assertEqual(self.hooked + self.unhooked, self.skills)
+
+    def test_every_denominator_in_the_doc_is_a_live_count(self):
+        """EXHAUSTIVE, deliberately. Asserting that a correct "32 of 32" appears
+        somewhere is not enough: this doc states the same fact in three separate
+        places, and the rot that prompted this guard was two of them being left
+        behind while the third was updated. Every `N of M` must check out.
+        """
+        allowed = {self.skills, self.hooked}
+        wrong = []
+        for match in re.finditer(r"(\d+) of (\d+)(?P<tail>[^\n]{0,6})", self.text):
+            if match.group("tail").startswith(" runs"):
+                continue  # a mutant-survival figure, not a skill denominator
+            if int(match.group(2)) not in allowed:
+                wrong.append("%r (denominators must be %s)"
+                             % (match.group(0).strip(), sorted(allowed)))
+        self.assertEqual(wrong, [], "stale denominators in testing-strategy.md:\n  "
+                                    + "\n  ".join(wrong))
+
+    def test_the_three_coverage_claims_are_each_present(self):
+        """Pins the numerators too, so a claim cannot quietly vanish."""
+        for needle in ("%d of %d" % (self.skills, self.skills),
+                       "%d of %d hooked" % (self.hooked, self.hooked),
+                       "only 3 of %d" % self.skills):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.text)
+
+    def test_the_registry_split_prose_matches_acs_lib(self):
+        for needle in ("**%d hooked**" % self.hooked, "**%d unhooked**" % self.unhooked):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.text)
+
+    def test_the_re_derive_note_reports_the_live_numbers(self):
+        """The doc tells a reader how to re-derive; those figures must be live too."""
+        self.assertIn("(→ `%d`)" % self.skills, self.text)
+        self.assertIn("(→ `%d %d`)" % (self.hooked, self.unhooked), self.text)
+
+
+class ScriptPathReferencesResolveTest(unittest.TestCase):
+    """MAR-522 rot guard: a doc or test that names a hook-script path must name
+    one that exists.
+
+    `acs_lib.py` became the package `acs_lib/`, and 47 files went on citing the
+    vanished file -- some with line numbers into it. Nothing caught that either.
+    Any reference to a path under plugins/acs/hooks/scripts must resolve, unless
+    it is listed below as a deliberate mention of history.
+    """
+
+    SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+    #: (path, needle) -> why this mention of a non-existent file is correct.
+    ALLOWED = {
+        ("plugins/acs/CHANGELOG.md", "acs_lib.py"):
+            "a changelog records what past releases did; rewriting it would falsify history",
+        ("tests/acs/acs_case.py", "acs_lib.py"):
+            "describes the MAR-522 split itself (what reading acs_lib.py used to give)",
+        ("tests/acs/test_evidence_sidecar_topology.py", "acs_lib.py"):
+            "notes that MAR-522 split acs_lib.py into a package",
+        ("tests/acs/test_setup_skill_reference_sweep.py", "acs_lib.py"):
+            "explains why a guard went vacuous once MAR-522 deleted acs_lib.py",
+        ("tests/acs/test_ship_fix_retest_loop.py", "acs_lib.py"):
+            "asserts a false claim is ABSENT from a skill body; the string must stay verbatim",
+        ("tests/acs/test_testing_conventions_guard.py", "acs_lib.py"):
+            "deliberate stale-path fixture proving the allowlist-staleness detector fires",
+        ("tests/acs/test_ticket_id_reconciliation.py", "acs_lib.py"):
+            "live code: a filename comparison when listing the scripts directory",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib.py"):
+            "this guard's own allowlist must name the path it allows; the "
+            "load-bearing test below keeps every entry honest",
+    }
+    #: Module docstrings that record their own extraction are allowed wholesale.
+    EXTRACTION_NOTE = "extracted from acs_lib.py by MAR-522"
+
+    def _referring_files(self):
+        for sub in ("docs", "tests", "plugins"):
+            for root, dirs, names in os.walk(os.path.join(REPO_ROOT, sub)):
+                dirs[:] = [d for d in dirs if d not in {"__pycache__", ".git"}]
+                for name in names:
+                    if name.endswith((".md", ".py")):
+                        yield os.path.join(root, name)
+
+    def test_every_hook_script_path_named_in_a_doc_or_test_exists(self):
+        pattern = re.compile(r"(?<![\w.])(acs_lib(?:/[A-Za-z0-9_]+)?\.py)")
+        unresolved = []
+        for path in self._referring_files():
+            rel = os.path.relpath(path, REPO_ROOT)
+            with open(path, "r", encoding="utf-8") as fh:
+                text = fh.read()
+            for lineno, line in enumerate(text.split("\n"), 1):
+                if self.EXTRACTION_NOTE in line:
+                    continue
+                for ref in pattern.findall(line):
+                    if os.path.exists(os.path.join(self.SCRIPTS, ref)):
+                        continue
+                    if (rel, ref) in self.ALLOWED:
+                        continue
+                    unresolved.append("%s:%d names %s, which does not exist" % (rel, lineno, ref))
+        self.assertEqual(unresolved, [], "\n  " + "\n  ".join(unresolved))
+
+    def test_every_allowlist_entry_is_still_load_bearing(self):
+        """An allowlist that outlives its reason is how the next rot hides."""
+        stale = []
+        for (rel, needle), reason in self.ALLOWED.items():
+            full = os.path.join(REPO_ROOT, rel)
+            if not os.path.exists(full):
+                stale.append("%s no longer exists (reason: %s)" % (rel, reason))
+                continue
+            with open(full, "r", encoding="utf-8") as fh:
+                if needle not in fh.read():
+                    stale.append("%s no longer mentions %s (reason: %s)" % (rel, needle, reason))
+        self.assertEqual(stale, [], "\n  " + "\n  ".join(stale))

@@ -23,7 +23,7 @@ import acs_lib as lib  # noqa: E402
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 
-# The exact breakdown-command wording landed in acs_lib.py's gate_code (T1,
+# The exact breakdown-command wording landed in acs_lib's gate_code (T1,
 # committed d7d345d) -- cross-consistency requires the SAME command string.
 GATE_BREAKDOWN_COMMAND = "/acs:create-ticket %s (epic fan-out)"
 
@@ -57,7 +57,7 @@ def section(body, start_heading, end_heading):
 class GateMessageWordingTest(unittest.TestCase):
     """GATE_BREAKDOWN_COMMAND is defined once at module level and reused by
     every assertion site below (not hand-copied per site); this test asserts
-    that constant against acs_lib.py's actual gate_code source, so a drift in
+    that constant against acs_lib's actual gate_code source, so a drift in
     T1's message fails here loudly instead of silently desyncing the prose."""
 
     def test_gate_code_message_contains_expected_breakdown_command(self):
@@ -65,7 +65,7 @@ class GateMessageWordingTest(unittest.TestCase):
         src = inspect.getsource(lib.gate_code)
         self.assertIn(
             GATE_BREAKDOWN_COMMAND, src,
-            "acs_lib.py's gate_code message wording changed -- re-check this "
+            "acs_lib's gate_code message wording changed -- re-check this "
             "module's GATE_BREAKDOWN_COMMAND constant for drift")
 
     def test_gate_code_message_routes_through_create_design_first(self):
@@ -77,7 +77,7 @@ class GateMessageWordingTest(unittest.TestCase):
         src = inspect.getsource(lib.gate_code)
         self.assertIn(
             GATE_DESIGN_FIRST_COMMAND, src,
-            "acs_lib.py's gate_code message must route the user through "
+            "acs_lib's gate_code message must route the user through "
             "/acs:create-design first when the epic has no design yet")
         design_pos = src.index(GATE_DESIGN_FIRST_COMMAND)
         breakdown_pos = src.index(GATE_BREAKDOWN_COMMAND)
@@ -376,7 +376,7 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
 
 
 class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
-    """Cross-consistency: the literal breakdown command named in acs_lib.py's
+    """Cross-consistency: the literal breakdown command named in acs_lib's
     gate_code message also appears in create-design/SKILL.md's epic branch
     (T1 + T2 must route the user to the same place)."""
 

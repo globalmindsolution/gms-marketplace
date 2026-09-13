@@ -277,7 +277,7 @@ ALL of the following — every dimension that fails produces blocking findings:
     of the coordinator's escalation trigger (b) instead of trusting that it
     fired: run `git diff --name-only <default_branch>...HEAD` over the
     changeset, then feed the changed-file list to `recommend_stakes(changed_paths,
-    settings)` (`acs_lib.py`). A `"normal"` return is a positive, evidenced
+    settings)` (`acs_lib/lanes.py`). A `"normal"` return is a positive, evidenced
     no-op. A `"high"` return is **accounted for** when either (a)
     `ticket.json`'s `stakes: "high"`, re-read fresh, already reflects it, or
     (b) `code-state.json`'s `runs[-1].escalations` carries a

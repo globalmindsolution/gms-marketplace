@@ -52,7 +52,7 @@ Key design choices:
 ## Consequences
 
 - `settings.schema.json` gains an optional `high_stakes_paths` array-of-strings property.
-- `DEFAULT_SETTINGS` in `acs_lib.py` has the seed list as the fallback value.
+- `DEFAULT_SETTINGS` in `acs_lib/settings.py` has the seed list as the fallback value.
 - `recommend_stakes(paths, settings)` is a pure, stdlib-only, unit-testable function
   (no side effects, no imports beyond `fnmatch` which is already used in the module).
 - The create-ticket SKILL.md planner runs path-glob matching and presents the recommendation
