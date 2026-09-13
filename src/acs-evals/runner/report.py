@@ -164,9 +164,17 @@ def md_cell(text):
     return str(text).replace("|", "\\|")
 
 
-def _strip_trailing(text):
-    """Drop per-line trailing whitespace, preserving the final newline."""
-    return "\n".join(line.rstrip() for line in text.split("\n"))
+def _pre_commit_clean(text):
+    """Normalise what this repo's pre-commit hooks would otherwise rewrite.
+
+    A reviewed report is committed under ``reports/``, so it passes through
+    ``trailing-whitespace`` and ``end-of-file-fixer`` like any other file.
+    Emitting what they want means a regenerated report never arrives with a
+    diff nobody wrote: no per-line trailing whitespace, and exactly one
+    newline at the end.
+    """
+    body = "\n".join(line.rstrip() for line in text.split("\n"))
+    return body.rstrip("\n") + "\n"
 
 
 def render_markdown(doc):
@@ -730,15 +738,10 @@ def main():
     if directory:
         os.makedirs(directory, exist_ok=True)
     md_path, html_path = args.out + ".md", args.out + ".html"
-    # A reviewed report is committed under reports/, so it passes through this
-    # repo's pre-commit hooks like any other file. Strip per-line trailing
-    # whitespace here rather than letting `trailing-whitespace` rewrite the
-    # file after the fact -- otherwise every regenerated report arrives with a
-    # diff nobody wrote.
     with open(md_path, "w") as fh:
-        fh.write(_strip_trailing(render_markdown(doc)))
+        fh.write(_pre_commit_clean(render_markdown(doc)))
     with open(html_path, "w") as fh:
-        fh.write(_strip_trailing(render_html(doc)))
+        fh.write(_pre_commit_clean(render_html(doc)))
 
     state, headline, _ = verdict(doc)
     print("%s\n  %s\n  %s" % (headline, md_path, html_path))
