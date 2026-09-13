@@ -477,6 +477,11 @@ def walk(schema, spath=(), ipath=(), inside_choice=False, _root=None, _seen=None
                         ipath + (_ANY_KEY,), inside_choice, **kw)
     names = schema.get("propertyNames")
     if isinstance(names, dict):
+        # Deref, for the same reason the top of this function does: `phases`
+        # spells both its open maps as `propertyNames: {$ref: skillName}`, and
+        # reading the ref node directly finds no constraint to violate, so both
+        # went unpinned with nothing in --report to say why.
+        names = _deref(names, _root or schema) or names
         for key in HANDLED:
             if key in names:
                 yield (key, names, ipath, "key",

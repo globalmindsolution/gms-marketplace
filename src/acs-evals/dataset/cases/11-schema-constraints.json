@@ -1526,6 +1526,1211 @@
       }
     },
     {
+      "id": "SC-PHASES-001",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "(root).version is required",
+      "constraint": "required",
+      "instance_path": "(root)",
+      "json": {
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "version"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-002",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "(root) rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "(root)",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        },
+        "__acs_evals_extra__": 1
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "additional properties are not allowed",
+          "__acs_evals_extra__"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-003",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "version violates const",
+      "constraint": "const",
+      "instance_path": "version",
+      "json": {
+        "version": "__acs_evals_not_the_const__",
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "expected const"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-004",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.design is required",
+      "constraint": "required",
+      "instance_path": "phases",
+      "json": {
+        "version": 1,
+        "phases": {
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "design"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-005",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "phases",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ],
+          "__acs_evals_extra__": 1
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "additional properties are not allowed",
+          "__acs_evals_extra__"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-006",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.design violates minItems",
+      "constraint": "minItems",
+      "instance_path": "phases.design",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-007",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.design.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "phases.design.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            " not-a-match ",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-008",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.build violates minItems",
+      "constraint": "minItems",
+      "instance_path": "phases.build",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-009",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.build.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "phases.build.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            " not-a-match ",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-010",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.test violates minItems",
+      "constraint": "minItems",
+      "instance_path": "phases.test",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-011",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.test.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "phases.test.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            " not-a-match ",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-012",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.ship violates minItems",
+      "constraint": "minItems",
+      "instance_path": "phases.ship",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-013",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.ship.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "phases.ship.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            " not-a-match ",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-014",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.utility violates minItems",
+      "constraint": "minItems",
+      "instance_path": "phases.utility",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": []
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-015",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "phases.utility.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "phases.utility.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            " not-a-match ",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-016",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "aliases.* violates pattern",
+      "constraint": "pattern",
+      "instance_path": "aliases.*",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": " not-a-match "
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-017",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "aliases rejects a property NAME that violates pattern",
+      "constraint": "pattern",
+      "instance_path": "aliases",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests",
+          " not-a-match ": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern",
+          "property name"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-018",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "internal.* violates pattern",
+      "constraint": "pattern",
+      "instance_path": "internal.*",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": " not-a-match ",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-019",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "internal rejects a property NAME that violates pattern",
+      "constraint": "pattern",
+      "instance_path": "internal",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-quality": "create-docs",
+          "create-operations": "create-docs",
+          "create-principles": "create-docs",
+          "create-standards": "create-docs",
+          "create-project": "project",
+          "standardize-project": "project",
+          " not-a-match ": "create-docs"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern",
+          "property name"
+        ]
+      }
+    },
+    {
       "id": "SC-PIPELINES-001",
       "kind": "schema",
       "schema": "pipeline-state.schema.json",
@@ -17310,6 +18515,2213 @@
         "valid": false,
         "errors_contain": [
           "$.release: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-001",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "(root).version is required",
+      "constraint": "required",
+      "instance_path": "(root)",
+      "json": {
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "version"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-002",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "(root) rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "(root)",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ],
+        "__acs_evals_extra__": 1
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "additional properties are not allowed",
+          "__acs_evals_extra__"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-003",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "version violates const",
+      "constraint": "const",
+      "instance_path": "version",
+      "json": {
+        "version": "__acs_evals_not_the_const__",
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "expected const"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-004",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "name violates minLength",
+      "constraint": "minLength",
+      "instance_path": "name",
+      "json": {
+        "version": 1,
+        "name": "",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-005",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "stop_after violates minLength",
+      "constraint": "minLength",
+      "instance_path": "stop_after",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-006",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "max_parallel violates minimum",
+      "constraint": "minimum",
+      "instance_path": "max_parallel",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 0,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-007",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps violates minItems",
+      "constraint": "minItems",
+      "instance_path": "steps",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-008",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.id is required",
+      "constraint": "required",
+      "instance_path": "steps.0",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "id"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-009",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0 rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "steps.0",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved",
+            "__acs_evals_extra__": 1
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "additional properties are not allowed",
+          "__acs_evals_extra__"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-010",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.id violates pattern",
+      "constraint": "pattern",
+      "instance_path": "steps.0.id",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": " not-a-match ",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-011",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.skill violates enum",
+      "constraint": "enum",
+      "instance_path": "steps.0.skill",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "__acs_evals_not_in_enum__",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-012",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.needs.0 violates pattern",
+      "constraint": "pattern",
+      "instance_path": "steps.0.needs.0",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              " not-a-match "
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-013",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.when violates enum",
+      "constraint": "enum",
+      "instance_path": "steps.0.when",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "__acs_evals_not_in_enum__"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-014",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.requires violates enum",
+      "constraint": "enum",
+      "instance_path": "steps.0.requires",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "__acs_evals_not_in_enum__",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-015",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.boundary violates enum",
+      "constraint": "enum",
+      "instance_path": "steps.0.boundary",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "__acs_evals_not_in_enum__",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-016",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_fail.relay_to is required",
+      "constraint": "required",
+      "instance_path": "steps.0.on_fail",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "relay_to"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-017",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_fail rejects an undeclared property",
+      "constraint": "additionalProperties",
+      "instance_path": "steps.0.on_fail",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0,
+              "__acs_evals_extra__": 1
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "additional properties are not allowed",
+          "__acs_evals_extra__"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-018",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_fail.relay_to violates pattern",
+      "constraint": "pattern",
+      "instance_path": "steps.0.on_fail.relay_to",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": " not-a-match ",
+              "max_loops": 0
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-019",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_fail.max_loops violates minimum (its branch, and so the choice here, stops matching)",
+      "constraint": "minimum",
+      "instance_path": "steps.0.on_fail.max_loops",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": -1
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.steps[0].on_fail.max_loops: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-020",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_fail.max_loops violates enum (its branch, and so the choice here, stops matching)",
+      "constraint": "enum",
+      "instance_path": "steps.0.on_fail.max_loops",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": "__acs_evals_not_in_enum__"
+            },
+            "on_replan": "main",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.steps[0].on_fail.max_loops: matched 0 oneOf branches, expected exactly 1"
+        ]
+      }
+    },
+    {
+      "id": "SC-SHIPWORKF-021",
+      "kind": "schema",
+      "schema": "ship-workflow.schema.json",
+      "title": "steps.0.on_replan violates pattern",
+      "constraint": "pattern",
+      "instance_path": "steps.0.on_replan",
+      "json": {
+        "version": 1,
+        "name": "ship",
+        "stop_after": "create-pr",
+        "max_parallel": 2,
+        "steps": [
+          {
+            "id": "analyze-ticket",
+            "skill": "analyze-ticket",
+            "args": "x",
+            "boundary": "full_verify_stop",
+            "exclusive": true,
+            "needs": [
+              "main"
+            ],
+            "on_fail": {
+              "relay_to": "main",
+              "max_loops": 0
+            },
+            "on_replan": " not-a-match ",
+            "requires": "design_approved",
+            "when": "design_approved"
+          },
+          {
+            "id": "create-impl-plan",
+            "skill": "create-impl-plan",
+            "needs": [
+              "analyze-ticket"
+            ],
+            "requires": "design_approved"
+          },
+          {
+            "id": "create-api-contract",
+            "skill": "create-api-contract",
+            "needs": [
+              "create-impl-plan"
+            ],
+            "when": "api_surface_changed"
+          },
+          {
+            "id": "create-test-docs",
+            "skill": "create-test-docs",
+            "needs": [
+              "create-impl-plan",
+              "create-api-contract"
+            ]
+          },
+          {
+            "id": "code",
+            "skill": "code",
+            "needs": [
+              "create-test-docs"
+            ],
+            "exclusive": true,
+            "boundary": "full_verify_stop",
+            "on_replan": "create-impl-plan"
+          },
+          {
+            "id": "create-e2e-tests",
+            "skill": "create-e2e-tests",
+            "needs": [
+              "code"
+            ],
+            "when": "e2e_configured"
+          },
+          {
+            "id": "docs-sync",
+            "skill": "docs-sync",
+            "needs": [
+              "code"
+            ]
+          },
+          {
+            "id": "run-e2e-tests",
+            "skill": "run-e2e-tests",
+            "args": "--for-ticket {ticket_id}",
+            "needs": [
+              "create-e2e-tests"
+            ],
+            "when": "post_code_test_active",
+            "on_fail": {
+              "relay_to": "code",
+              "max_loops": "post_code_test_fix_loops_cap"
+            }
+          },
+          {
+            "id": "create-pr",
+            "skill": "create-pr",
+            "needs": [
+              "docs-sync",
+              "run-e2e-tests"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
         ]
       }
     },

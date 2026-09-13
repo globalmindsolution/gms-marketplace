@@ -119,8 +119,14 @@ Two conditions are reported alongside the verdict and are also blocking:
   `additionalProperties: true` says exactly what its own absence says, so no
   case can ever pin it), and the case generator refused every constraint it
   could not reason about in advance instead of building the mutant and asking
-  the validator. With both fixed the tier measures **97.5%**, so a 50% floor
-  gated nothing. A floor no run can fail is not a floor.
+  the validator. With both fixed, and every schema seeded, the tier measures
+  **100% of the 224 constraints any instance could distinguish** — so a 50%
+  floor gated nothing. A floor no run can fail is not a floor.
+
+  The floor sits at 90 rather than 100 deliberately: the steady state is 100%,
+  and the ten points are headroom for a schema that grows a constraint before
+  the case pinning it is written, not licence to leave one unpinned. A drop to
+  99% is a question to answer, not a budget to spend.
 
 ## Tier 3 has its own verdict, and its own reason
 

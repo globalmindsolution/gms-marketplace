@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """Measure the schema tier's coverage by deleting constraints.
 
-    python3 runner/mutation_sweep.py                 # per-schema coverage table
-    python3 runner/mutation_sweep.py --holes         # list every unpinned constraint
-    python3 runner/mutation_sweep.py --threshold 0.5 # exit 1 below 50% coverage
+    make mutation                                    # per-schema coverage table
+    make mutation MUTATION_ARGS=--holes              # every unpinned constraint
+
+Run it through `make`, not directly: a bare invocation resolves the newest
+INSTALLED acs build, while `make mutation` points it at this checkout's
+plugin source -- the tree you are editing, and the one whose schemas the
+cases were generated from. The two answer differently whenever source is
+ahead of the last release, which is most of the time.
+
+    ACS_PLUGIN_ROOT=... python3 runner/mutation_sweep.py [--holes] [--inert]
+    python3 runner/mutation_sweep.py --threshold 0.9 # exit 1 below 90%
 
 A passing suite says nothing about how much it would catch. This asks the only
 question that matters of a schema case set:
@@ -51,7 +59,7 @@ CONSTRAINTS = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
                "propertyNames"}
 
 
-def inert(key, value):
+def inert(key, value, schema=None, pointer=""):
     """Why deleting this constraint cannot change any verdict, or None.
 
     Some keyword occurrences restrict nothing: `additionalProperties: true`
@@ -68,6 +76,15 @@ def inert(key, value):
     dropped: a denominator that quietly shrinks is how a coverage number stops
     meaning anything, and the whole argument for generating these cases was
     that 9.3%% was the honest number.
+
+    The last rule needs the whole schema, not just the keyword: a `required`
+    inside an `if` decides only whether the condition matches a document
+    LACKING those properties -- and when the enclosing schema requires the same
+    ones, no such document is ever valid to begin with. lock-events declares
+    `required: ["event"]` at the root and again in both `if` clauses, so
+    deleting either copy leaves every verdict unchanged. Narrow on purpose:
+    only `required` directly under an `if`, only against the root's own
+    `required`. Anything subtler stays a hole, which is the safe direction.
     """
     if key == "additionalProperties" and value is True:
         return "additionalProperties: true is what its own absence means"
@@ -75,6 +92,12 @@ def inert(key, value):
         return "required: [] requires nothing"
     if key in ("minLength", "minItems", "minProperties") and value == 0:
         return "%s: 0 admits every value of the type" % key
+    if (key == "required" and schema is not None
+            and pointer.endswith("/if") and isinstance(value, list)):
+        root_required = schema.get("required")
+        if isinstance(root_required, list) and set(value) <= set(root_required):
+            return ("required %s inside an if, already required at the root: "
+                    "no valid document can omit them" % sorted(value))
     return None
 
 
@@ -140,7 +163,7 @@ def sweep(build_root, cases):
             parent = at(mutant, pointer)
             if key not in parent:
                 continue
-            why = inert(key, parent[key])
+            why = inert(key, parent[key], base, pointer)
             if why:
                 skipped.append((name, key, pointer or "(root)", why))
                 continue
