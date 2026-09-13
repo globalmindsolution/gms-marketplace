@@ -9,7 +9,7 @@ Prose-contract unit test covering every shipped surface outside
     (`<main-checkout>/.acs/state-machine`) before falling back to an
     explicit override, and no longer frames "workspace_path is not
     configured" as reachable prose (that message does not exist in
-    acs_lib.py/handoff.py); Step 5's "Scope" bullet no longer claims
+    the acs_lib package or handoff.py); Step 5's "Scope" bullet no longer claims
     workspace_path is unconditionally machine-local.
   AC4 — update/SKILL.md's Step 6 item 3 "Workspace reachable" check resolves
     the same way item 1 already does (settings load + validate/derive),
@@ -110,7 +110,7 @@ class HandoffLocatingWorkspaceCase(unittest.TestCase):
         )
 
     def test_no_unreachable_workspace_path_is_not_configured_hint(self):
-        """`workspace_path is not configured` is not a message acs_lib.py or
+        """`workspace_path is not configured` is not a message acs_lib/ or
         handoff.py ever emits (grep confirms it does not exist in either
         source file) — the error-hint list must not reference it."""
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -126,7 +126,8 @@ class HandoffLocatingWorkspaceCase(unittest.TestCase):
         self.assertNotIn(
             "workspace_path is not configured", self.body,
             msg="handoff/SKILL.md must not document an error hint "
-                "(`workspace_path is not configured`) that acs_lib/handoff.py "
+                "(`workspace_path is not configured`) that the acs_lib package "
+                "or handoff.py "
                 "never actually raises (AC3)",
         )
 

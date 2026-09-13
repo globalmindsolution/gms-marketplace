@@ -1,7 +1,7 @@
 # Flow — State-root resolution
 
 Every gated skill run resolves its workspace partition root through
-`build_context` -> `validate_settings` in `acs_lib.py`. When
+`build_context` -> `validate_settings` in `acs_lib/gates.py`. When
 `require_workspace` is `True` (the default for every pre-hook) and the
 loaded settings carry no explicit `workspace_path`, `validate_settings`
 derives one via the new `default_state_root(cwd)` helper instead of

@@ -1,7 +1,7 @@
 """cost_sampler.py — shape-agnostic statusLine cost sampling and cursor-based
 cost allocation for acs.
 
-Stdlib-only, sibling of acs_lib.py / metrics_aggregate.py.
+Stdlib-only, sibling of acs_lib/ / metrics_aggregate.py.
 
 Two responsibilities:
 

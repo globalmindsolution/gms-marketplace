@@ -127,7 +127,7 @@ def escalate_lane(current_lane, size, stakes, needs_design, ticket_type, setting
       ceiling — VERIFY_ITERATION_CAP[depth]
 
     Pure function: no file I/O, no state mutations, no side effects.
-    Mirrors recommend_stakes() (acs_lib.py: "Pure function — never writes
+    Mirrors recommend_stakes() (acs_lib/lanes.py: "Pure function — never writes
     stakes to ticket.json or any state file").
     """
     candidate_lane = derive_lane(size, stakes, needs_design, ticket_type)

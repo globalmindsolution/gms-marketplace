@@ -168,7 +168,7 @@ class TestGates(AcsWorkspaceCase):
 
 class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     """AC-1/AC-5: /acs:create-spec (skill, 3 agent files, both hook scripts, its
-    GATES/WORKFLOW_SKILLS entries) no longer exists on disk or in acs_lib.py's
+    GATES/WORKFLOW_SKILLS entries) no longer exists on disk or in acs_lib's
     registries; the pipeline-state.json and settings.json schemas no longer
     carry its footprint."""
 
@@ -3939,7 +3939,7 @@ class TestRecordEscalationEvent(AcsWorkspaceCase):
 
     def test_persists_via_pretty_printed_write_json(self):
         """The written code-state.json is valid JSON, 2-space indented,
-        matching write_json's existing convention (acs_lib.py write_json)."""
+        matching write_json's existing convention (acs_lib/_common.py write_json)."""
         lib.record_escalation_event(self._tdir, "code", self._event())
 
         path = lib.state_path(self._tdir, "code")
@@ -4601,7 +4601,7 @@ class TestRecordExternal(AcsWorkspaceCase):
             (epic_stat_before.st_mtime_ns, epic_stat_before.st_ino),
             "writing a child's external must not touch the parent epic's ticket.json "
             "at all (AC-6); st_mtime_ns/st_ino detect a re-save that acs_lib.now_iso()'s "
-            "second-resolution updated_at cannot (acs_lib.py:391-392, 419-431)")
+            "second-resolution updated_at cannot (acs_lib/_common.py)")
 
     def test_ac4_product_flow_title_refused(self):
         """AC-4 defense-in-depth: a ticket titled exactly a PRODUCT_TICKET_TITLES

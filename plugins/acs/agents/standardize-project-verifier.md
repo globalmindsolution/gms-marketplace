@@ -32,7 +32,7 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
 ```
 
    Pass the raw output plus the plan's Additive-surface allowlist to spec 01's
-   `classify_additive_diff` helper in `acs_lib.py` (a pure function; invoke it the same
+   `classify_additive_diff` helper in `acs_lib/lanes.py` (a pure function; invoke it the same
    way a `pre-/post-<skill>.py` hook imports from `acs_lib` locally, e.g. a short
    `python3 -c "... from acs_lib import classify_additive_diff; ..."` call). Every
    returned violation — any `R` (rename), any `D` (delete), any out-of-allowlist `M`
@@ -70,7 +70,7 @@ it, unchanged from today), `dimension="doc-set-authorship"` (all of it, unchange
 today), `dimension="recommended-follow-ups-only"`, `dimension="completion-report"` shape,
 and — critically — dimension 4's second clause, "no unplanned extra scaffold file": an
 unplanned extra scaffold file is `A`-status and passes `classify_additive_diff`
-unconditionally (`acs_lib.py:309-310`), so this clause is the *only* gate on it and it
+unconditionally (`acs_lib/lanes.py`), so this clause is the *only* gate on it and it
 must never degrade.
 
 **Degradable case (narrow):** only a `dimension="plan-conformance"` finding of the
@@ -89,7 +89,7 @@ second — degrades to `severity="info"`, and only when ALL FOUR of the followin
 
 **Fail-closed default:** if any of the four conditions is undetermined, or the finding's
 class is ambiguous, it stays blocking — mirroring `classify_additive_diff`'s own
-fail-closed posture (`acs_lib.py:296-298` docstring, implemented at `:322-324`).
+fail-closed posture (`acs_lib/lanes.py`).
 
 When all four hold, the finding is still recorded — never silently dropped — as:
 

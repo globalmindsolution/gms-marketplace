@@ -90,8 +90,8 @@ reached — so Rule 4 was unreachable for epics and unwanted for non-epics, and
 - Rule 4 ("`needs_design == True` → STANDARD floor", Decision above) is
   **removed**. The Decision table's STANDARD row ("standard or any with
   stakes=high or needs_design=True") now reads, in the code, "standard, or
-  any with stakes=high" (`plugins/acs/hooks/scripts/acs_lib.py:84-108`).
-- The rule list renumbers 1-6 → 1-5 (`acs_lib.py:87-93`): Rule 3 (high-stakes
+  any with stakes=high" (`plugins/acs/hooks/scripts/acs_lib/lanes.py`).
+- The rule list renumbers 1-6 → 1-5 (`acs_lib/lanes.py`): Rule 3 (high-stakes
   floor) is followed directly by the size dispatch, then the default.
 - Rule 1 (`ticket_type == "epic"` → COMPLEX) and Rule 3 (`stakes == "high"` →
   STANDARD floor, non-bypassable per the surviving decision above) are

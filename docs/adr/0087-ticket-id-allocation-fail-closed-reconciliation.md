@@ -4,7 +4,7 @@
 
 ## Context
 
-`allocate_ticket_id` (`acs_lib.py`) mints the next `<prefix>-<n>` id from
+`allocate_ticket_id` (`acs_lib/state.py`) mints the next `<prefix>-<n>` id from
 `counters.json`'s `next` field with no cross-check against reality. A fresh
 or previously-unreconciled workspace partition — the default state for any
 new repo, new clone, or newly-configured `workspace_path` (ADR-0086) — starts
