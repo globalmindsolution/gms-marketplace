@@ -10,7 +10,8 @@ Copy this into the release PR and tick it.
 - [ ] **Working tree is green.** The code being released behaves as recorded.
 
       ```bash
-      export ACS_PLUGIN_ROOT=~/src/gms-marketplace/plugins/acs
+      cd src/acs-evals
+      export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs
       make gate
       ```
 

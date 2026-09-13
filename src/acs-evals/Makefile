@@ -4,23 +4,27 @@
 # write the report. Everything else is a step of it, or a tool for working on
 # the dataset.
 #
+# This suite lives at src/acs-evals/ inside the gms-marketplace repo, so the
+# plugin source it grades is a sibling: ../../plugins/acs.
+#
 # ACS_PLUGIN_ROOT selects the build under test. Leave it unset and the runner
 # resolves the newest INSTALLED acs build, which is what a consumer actually
-# runs; set it to point at a working tree instead.
+# runs; set it to point at a working tree instead. `make eval-source` is that
+# second form, pre-spelled for the sibling source.
 #
-#   make gate ACS_PLUGIN_ROOT=~/src/gms-marketplace/plugins/acs
+#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs
 
 PYTHON  ?= python3
 MUTANTS ?= 40
 CATCH_RUNS ?= 1
-WORKSPACE ?= ../gms-marketplace/.acs/state-machine/globalmindsolution-gms-marketplace
+WORKSPACE ?= ../../.acs/state-machine/globalmindsolution-gms-marketplace
 RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
 MEASURE ?= $(RESULTS)/measurements.json
 
 .DEFAULT_GOAL := help
-.PHONY: help gate eval report check generate mutation list record clean verify-self
+.PHONY: help gate eval eval-source report check generate mutation list record clean verify-self
 
 help: ## Show this help
 	@printf '\nacs-evals — evaluation process\n\n'
@@ -35,8 +39,15 @@ gate-deterministic: eval check mutation report ## The deterministic tier only �
 	@printf '\nDeterministic tier complete. This says NOTHING about skill\n'
 	@printf 'quality, reliability, cost or time — see docs/PERFORMANCE.md.\n'
 
-eval: ## Run the deterministic tier (356 cases, zero cost, no model)
+eval: ## Run the deterministic tier (363 cases, zero cost, no model)
 	$(PYTHON) runner/run_golden.py --json $(JSON)
+
+# Point the suite at the sibling plugin source. This does NOT change
+# resolution: runner/harness.py still prefers the INSTALLED build by default,
+# on purpose — packaging drift between source and installed is a defect this
+# dataset exists to catch, and a source-only gate would never see it.
+eval-source: ## Run the deterministic tier against this checkout's plugins/acs
+	ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs $(PYTHON) runner/run_golden.py --json $(JSON)
 
 measure: ## TIER 3 — run the controlled scenario set (SPENDS MONEY; needs `claude`)
 	$(PYTHON) runner/measure_skills.py --out $(MEASURE)

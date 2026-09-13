@@ -81,19 +81,25 @@ per-entry CI validator checks each entry's `name` (always) and `version` (only
 when the entry declares one) against the plugin's own `plugin.json`.
 
 **Before cutting a release** (before bumping `version`), run the pre-release
-quality gate — **[acs-evals](https://github.com/globalmindsolution/acs-evals)**
-(`globalmindsolution/acs-evals`), not this repo's in-repo suite. In an acs-evals
-checkout, point it at the release candidate (`ACS_PLUGIN_ROOT` at this plugin)
+quality gate — **[acs-evals](src/acs-evals/README.md)** at
+[`src/acs-evals/`](src/acs-evals/), not this repo's root `evals/` suite. Point
+it at the release candidate (`ACS_PLUGIN_ROOT` at the sibling plugin source)
 and run:
 
 ```bash
-make eval      # deterministic golden cases — the gate
-make measure   # routing / behavioral measurement vs the promoted baseline
-make perf      # performance measurement
+cd src/acs-evals
+make eval-source   # deterministic golden cases against ../../plugins/acs — the gate
+make measure       # routing / behavioral measurement vs the promoted baseline
+make perf          # performance measurement
 ```
 
-Treat a clean `make eval` as the gate; investigate any failing case, and any
-regression `make measure` / `make perf` reports, before tagging — the
+Plain `make eval` resolves the newest *installed* acs build instead, which is
+what a consumer actually runs. Run it **both ways**: the installed run is the
+only one that catches packaging drift, and it is red by construction whenever
+source is ahead of the last release.
+
+Treat a clean `make eval-source` as the gate; investigate any failing case, and
+any regression `make measure` / `make perf` reports, before tagging — the
 step-by-step is the [release runbook](docs/operations/release-runbook.md). The
 in-repo **paid** tier (`python3 evals/run_evals.py --plugin acs --paid`, which
 spawns real `claude -p` sessions and needs an authenticated claude CLI) is an
@@ -120,7 +126,7 @@ The marketplace currently ships two plugins:
   through product definition (PRD), architecture, ticketing, design, ticket
   analysis, an implementation plan, an API contract and test cases, TDD
   implementation with an automatic review loop, end-to-end tests, doc sync,
-  pull request, and merge. Thirty-one skills (`/acs:setup`, `/acs:ship`,
+  pull request, and merge. Thirty-two skills (`/acs:setup`, `/acs:ship`,
   `/acs:code`, …), grouped into five phases — Design, Build, Test, Ship and
   Utility — by `plugins/acs/workflows/phases.yaml`; each runs a
   plan → execute → verify reflection cycle with dedicated subagents.
@@ -146,6 +152,24 @@ The marketplace currently ships two plugins:
 - **`tabp` (Team AI Builder Pack)** — skills-only plugin targeting Claude Cowork.
   Starts with `screen-cvs`, a skill that screens CVs against a job description
   with weighted scoring, fairness guardrails, and an Excel scorecard.
+
+## Repository layout
+
+| Path | What lives there |
+|------|------------------|
+| [`plugins/acs/`](plugins/acs/README.md), [`plugins/tabp/`](plugins/tabp/README.md) | The shipped plugins. `marketplace.json` resolves `acs` from `plugins/acs` at the pinned release tag. |
+| [`tests/`](tests/) | Deterministic unit + contract suites for the plugins (`python3 -m unittest discover -s tests`). |
+| [`evals/`](evals/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. |
+| [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` with its history. |
+| [`docs/`](docs/README.md) | Product, requirements, architecture, ADRs, quality and operations docs for this repo. |
+| [`.acs/`](.acs/) | This repo's own acs configuration, CI convention gate, and run ledger. |
+
+`src/acs-evals/` keeps its own `Makefile`, `README.md` and `docs/` — read those
+before running it. Its pre-fold history carries **repo-root-relative paths**,
+so `git log -- src/acs-evals/<path>` stops at the fold commit; reach the older
+history by the original path instead (`git log 74c7478 -- dataset/cases/06-gates.json`).
+
+## Where to read more
 
 | Where | What |
 |-------|------|

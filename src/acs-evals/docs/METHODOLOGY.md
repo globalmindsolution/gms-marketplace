@@ -178,13 +178,26 @@ passes — but it covers only the schema tier.
 
 ## Independence
 
-The dataset lives in a separate repository from the plugin deliberately: it
-cannot be edited in the same change that alters the behaviour it pins, so
-weakening a case and changing the code are two reviewable acts, not one.
+The dataset used to live in a separate repository from the plugin, and that
+separation *was* the independence guarantee: a case could not be edited in the
+same change that altered the behaviour it pins, so weakening a case and
+changing the code were two reviewable acts, not one.
 
-The counterweight to that independence is drift — a plugin change that adds a
-surface leaves this repo behind. The release checklist's "new surfaces have
-cases" step is the only thing closing that loop, and it is a human step.
+**The fold into `gms-marketplace` gave that up.** One commit can now move a
+gate and re-record the case that pins it, and nothing structural stops it. What
+remains is procedural, and weaker for being procedural: [`RUBRIC.md`](RUBRIC.md)
+lets a `major` be accepted only when the golden is re-recorded in **its own
+reviewed commit** and the change is **named in the plugin's changelog**, and
+lets a `critical` be accepted not at all. So the diff is still separable and
+still has to be argued for — but a reviewer now has to notice, where the two
+repos used to force it.
+
+Say plainly what was traded for what: the fold bought the counterweight. Drift
+was the cost of independence — a plugin change that added a surface left the
+dataset behind, and the release checklist's "new surfaces have cases" step was
+the only thing closing that loop, a human step in another repo. In one tree the
+same PR that adds a surface can add its case, and a reviewer reads both. That
+is a real gain, and it does not make the paragraph above untrue.
 
 ## Reproducibility
 

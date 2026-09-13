@@ -32,11 +32,11 @@ python3 evals/run_evals.py --paid          # full agentic suite — on demand, n
 - The **paid** evals are an **on-demand tool**, run locally when you need them
   (they cost money and are non-deterministic) — kept for the forge-tier
   scenarios, and not a gate on any ticket, PR or release.
-- The **pre-release gate is acs-evals**
-  ([globalmindsolution/acs-evals](https://github.com/globalmindsolution/acs-evals)):
-  `make eval`, then `make measure` / `make perf` against the release candidate,
-  run from an acs-evals checkout pointed at this plugin. Run it before bumping
-  `version` — see the [release runbook](docs/operations/release-runbook.md).
+- The **pre-release gate is acs-evals**, in this repo at
+  [`src/acs-evals/`](src/acs-evals/README.md): `make eval-source`, then
+  `make measure` / `make perf` against the release candidate. Run it before
+  bumping `version` — see the
+  [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally
 

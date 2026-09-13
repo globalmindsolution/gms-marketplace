@@ -11,14 +11,18 @@ the step-by-step the maintainer follows.
 
 ## Steps
 
-1. **Run the pre-release quality gate — acs-evals.** In an
-   [acs-evals](https://github.com/globalmindsolution/acs-evals) checkout, point
-   it at the release candidate (`ACS_PLUGIN_ROOT` at this plugin) and run:
+1. **Run the pre-release quality gate — acs-evals.** It lives in this repo at
+   [`src/acs-evals/`](../../src/acs-evals/README.md). Point it at the release
+   candidate and run:
    ```bash
-   make eval      # deterministic golden cases — the gate
-   make measure   # routing / behavioral measurement vs the promoted baseline
-   make perf      # performance measurement
+   cd src/acs-evals
+   make eval-source   # golden cases against ../../plugins/acs — the gate
+   make measure       # routing / behavioral measurement vs the promoted baseline
+   make perf          # performance measurement
    ```
+   Then run plain `make eval` as well, once the tag is cut and the build is
+   installed: it resolves the newest *installed* acs build and is the only run
+   that catches packaging drift between source and what a consumer receives.
    Treat a clean `make eval` as the gate. Investigate any failing case, and any
    regression `make measure` / `make perf` reports, before continuing — do not
    tag on red. (The free in-repo smoke already ran on every commit via

@@ -167,11 +167,24 @@ class ControlProbeTest(unittest.TestCase):
         self.assertIsNone(explicit_skill(off["prompt"]))
 
     def test_the_plan_names_the_preflight_before_any_session(self):
-        text = plan({"routing": {"runs_per_probe": 5},
+        runs = 5
+        text = plan({"routing": {"runs_per_probe": runs},
                      "pipeline": {"runs_per_scenario": 3, "scenarios": []}},
                     self.probes, True, False, None)
         self.assertIn("preflight 2 free control probes", text)
-        self.assertIn("30 probes x 5 runs = 150 sessions", text)
+        # Derived from the shipped probe set, not pinned: widening routing.json
+        # is exactly the change this line should keep describing, and a literal
+        # here went stale the moment the probe set grew from 30 to 43.
+        #
+        # `plan` counts EVERY probe, controls included, even though the two
+        # lines above it declare two of those controls free. So the estimate is
+        # the honest upper bound on sessions, not a cost estimate net of the
+        # free preflight. Asserted as observed rather than corrected here --
+        # changing what the estimator counts is a decision about the estimator.
+        total = len(self.probes)
+        self.assertIn("%d probes x %d runs = %d sessions"
+                      % (total, runs, total * runs), text)
+        self.assertIn("TOTAL     %d claude sessions" % (total * runs), text)
 
 
 class GateReadsDetectionHonestlyTest(unittest.TestCase):

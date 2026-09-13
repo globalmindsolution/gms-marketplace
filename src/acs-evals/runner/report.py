@@ -164,6 +164,11 @@ def md_cell(text):
     return str(text).replace("|", "\\|")
 
 
+def _strip_trailing(text):
+    """Drop per-line trailing whitespace, preserving the final newline."""
+    return "\n".join(line.rstrip() for line in text.split("\n"))
+
+
 def render_markdown(doc):
     groups, tickets = aggregate(doc)
     state, headline, detail = verdict(doc)
@@ -725,10 +730,15 @@ def main():
     if directory:
         os.makedirs(directory, exist_ok=True)
     md_path, html_path = args.out + ".md", args.out + ".html"
+    # A reviewed report is committed under reports/, so it passes through this
+    # repo's pre-commit hooks like any other file. Strip per-line trailing
+    # whitespace here rather than letting `trailing-whitespace` rewrite the
+    # file after the fact -- otherwise every regenerated report arrives with a
+    # diff nobody wrote.
     with open(md_path, "w") as fh:
-        fh.write(render_markdown(doc))
+        fh.write(_strip_trailing(render_markdown(doc)))
     with open(html_path, "w") as fh:
-        fh.write(render_html(doc))
+        fh.write(_strip_trailing(render_html(doc)))
 
     state, headline, _ = verdict(doc)
     print("%s\n  %s\n  %s" % (headline, md_path, html_path))

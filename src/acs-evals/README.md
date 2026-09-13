@@ -1,17 +1,24 @@
 # acs-evals — golden dataset for the `acs` plugin
 
-The evaluation repo for the [`acs`](https://github.com/globalmindsolution/gms-marketplace)
-Claude Code plugin. It holds a **golden dataset**: a curated, versioned corpus
-of inputs paired with the outputs the plugin actually produced, so a release can
-be checked against recorded behaviour instead of against someone's memory of it.
+The evaluation suite for the [`acs`](../../plugins/acs) Claude Code plugin. It
+holds a **golden dataset**: a curated, versioned corpus of inputs paired with
+the outputs the plugin actually produced, so a release can be checked against
+recorded behaviour instead of against someone's memory of it.
+
+It began as the separate `globalmindsolution/acs-evals` repository and was
+folded into this one, history intact, at `src/acs-evals/`. Its history carries
+the **old, repo-root-relative paths**, so `git log -- src/acs-evals/<path>`
+stops at the fold commit; read the pre-fold history by its original path
+instead — `git log 74c7478 -- dataset/cases/06-gates.json`.
 
 Built as the release gate for **v0.4.10**.
 
 ## Why this exists, and how it differs from the plugin's own tests
 
-The plugin repo already has two layers: `tests/` (unit tests, driving Python
-functions directly) and `evals/` (behavioural scenarios that spawn `claude -p`).
-This repo is a third thing, and the difference is what makes it useful:
+This repo already has two layers: `tests/` (unit tests, driving Python
+functions directly) and `evals/` (behavioural scenarios that spawn `claude -p`),
+both at the repo root. This dataset is a third thing, and the difference is
+what makes it useful:
 
 - `tests/` asserts that a **function** does what its author intended.
 - This dataset asserts that a **shipped build's observable surface** — exit
@@ -26,11 +33,12 @@ also catches packaging drift that a source-tree test suite cannot see.
 One command runs the gate:
 
 ```bash
-export ACS_PLUGIN_ROOT=~/src/gms-marketplace/plugins/acs   # the build being released
+cd src/acs-evals
+export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
 make gate
 ```
 
-`make gate` = **`eval`** (run the 356 deterministic cases) → **`check`**
+`make gate` = **`eval`** (run the 363 deterministic cases) → **`check`**
 (assert both generated trees are in sync with their sources) → **`mutation`**
 (measure schema coverage, floor 50%) → **`report`** (render
 `results/report.md` and `results/report.html`) → **`perf`** (judge the tier-3
@@ -82,14 +90,14 @@ that catches packaging drift.
 
 | Tier | Where | Runner | Cost | Status |
 |---|---|---|---|---|
-| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **356 cases, all green** |
+| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **363 cases, all green** |
 | **2 — Agentic (routing)** | `evals/` | `claude plugin eval` | paid sessions | authored, **never executed** — needs early access |
 | **3 — Skill performance** | `dataset/scenarios.json` | `runner/measure_skills.py` + `runner/perf_gate.py` | paid sessions to measure; $0 to judge | **built, never measured** — see [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 
 Tier 1 asks whether the plumbing still emits the same bytes. **Tier 3 asks the
 four questions a release actually turns on** — did the skills get less
 reliable, worse, more expensive, or slower — because a build that made every
-skill twice as slow and three times as expensive passes all 356 tier-1 cases
+skill twice as slow and three times as expensive passes all 363 tier-1 cases
 and prints PASSED. Tier 3 also measures routing through plain `claude -p`, so
 it does not wait on tier 2's early access.
 
@@ -114,7 +122,7 @@ banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
 
 ```bash
-ACS_PLUGIN_ROOT=~/src/gms-marketplace/plugins/acs python3 runner/run_golden.py
+ACS_PLUGIN_ROOT=$PWD/../../plugins/acs python3 runner/run_golden.py   # or: make eval-source
 ```
 
 ### Tier 2 — agentic routing (not yet runnable)
@@ -146,7 +154,7 @@ ship, carry a routing `description`, and declare the right
 
 ## What the dataset covers
 
-356 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
+363 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |

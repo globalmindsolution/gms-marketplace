@@ -1,6 +1,6 @@
 # The acs evaluation process
 
-How this repo is used to decide whether an `acs` plugin build is fit to
+How this suite is used to decide whether an `acs` plugin build is fit to
 release. It is written to be followed by someone who did not build the dataset.
 
 - **What it answers:** has the plugin's observable behaviour moved since the
@@ -23,16 +23,16 @@ sees the diff.**
 
 ## The gate
 
-One command. Run it from a clean checkout of this repo.
+One command, run from `src/acs-evals/` in a clean checkout.
 
 ```bash
-export ACS_PLUGIN_ROOT=~/src/gms-marketplace/plugins/acs   # the build being released
+export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
 make gate
 ```
 
 `make gate` runs four steps and stops at the first failure:
 
-1. **`make eval`** — the deterministic tier. 356 cases against the resolved
+1. **`make eval`** — the deterministic tier. 363 cases against the resolved
    build, writing `results/latest.json`. Non-zero exit if any case differs.
 2. **`make check`** — asserts both GENERATED trees are still in sync with their
    sources: `evals/**/case.yaml` against `dataset/routing.json`, and
@@ -66,8 +66,8 @@ right, the installed build tells you the packaging is.
 | After publishing a release | full gate against the *installed* build | Release engineer |
 | When adding a plugin surface | `make eval` + new cases | Dataset maintainer |
 
-This repo deliberately ships **no CI workflow**. The deterministic tier needs
-an `acs` build resolved on the machine, and the plugin repo's own policy (C-4)
+This suite deliberately runs in **no CI workflow**. The deterministic tier
+needs an `acs` build resolved on the machine, and the plugin's own policy (C-4)
 keeps eval execution local rather than in CI. Running it is a step in the
 release checklist, not a background job — see
 [`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md).
