@@ -1,18 +1,19 @@
-"""s04 — routing evals for 25 of the 32 skills (paid, E1.2).
+"""s04 — routing evals for 31 of the 32 skills (paid, E1.2).
 
-Three kinds of probe, 27 in all, covering 25 of the 32 skill directories:
+Three kinds of probe, 39 in all, covering 31 of the 32 skill directories:
 
 1. Description-trigger (23 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
    skill. A miss is a real finding — the skill's `description` frontmatter
    isn't discriminating that request from its neighbors.
 
-2. Explicit-invocation (the 2 user-only skills `install-hooks` and `update`):
+2. Explicit-invocation (the 8 user-only skills — `install-hooks`, `update`,
+   and the six ADR 0091 legs of /acs:create-docs and /acs:project):
    the explicit `/acs:<skill>` command must still route to the skill. The
    model is forbidden from auto-routing to these, so a description probe
    can't reach them — but the explicit path the user types must work.
 
-3. Negative-routing (same 2 user-only skills): a bare description of their
+3. Negative-routing (same 8 user-only skills): a bare description of their
    intent must NOT auto-route to them, proving `disable-model-invocation` is
    honored — the model should pick a different skill or no skill at all.
 
@@ -60,13 +61,14 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 25 of 32 (23 by description, 2 user-only by explicit cmd + no-auto-route)",
+    "summary": "right skill routes for 31 of 32 (23 by description, 8 user-only by explicit cmd + no-auto-route; `test` is an alias of run-e2e-tests)",
 }
 
 # Description-trigger + explicit-invocation cases.
 # (label, init?, request, expected skill).
 #   - The 23 model-invocable skills use a request that avoids naming the skill.
-#   - The 2 user-only skills (install-hooks, update) set
+#   - The 8 user-only skills (install-hooks, update, and the six ADR 0091
+#     legs of /acs:create-docs and /acs:project) set
 #     disable-model-invocation, so they can only be reached by the explicit
 #     `/acs:<skill>` command — a description would never route to them. Their
 #     positive case is therefore the literal explicit invocation; their
@@ -97,24 +99,19 @@ CASES = [
      "high- and low-level design flows for this product.",
      "create-architecture"),
     ("create-project", True,
-     "Scaffold the repository skeleton — build config, test framework, CI — "
-     "from the approved architecture docs.",
+     "/acs:create-project",
      "create-project"),
     ("create-quality", True,
-     "Author and maintain the test-strategy and coverage-policy docs for this "
-     "product's quality doc set.",
+     "/acs:create-quality",
      "create-quality"),
     ("create-operations", True,
-     "Author and maintain the release-process, runbooks, observability, and "
-     "incident-response docs for this product's operations doc set.",
+     "/acs:create-operations",
      "create-operations"),
     ("create-principles", True,
-     "Author and maintain the engineering principles and rationale doc set "
-     "for this product.",
+     "/acs:create-principles",
      "create-principles"),
     ("create-standards", True,
-     "Author and maintain the coding standards and conventions doc set — "
-     "style, naming, and the review checklist — for this product's codebase.",
+     "/acs:create-standards",
      "create-standards"),
     ("create-docs", True,
      "Bootstrap the quality and the operations doc sets in one parallel "
@@ -122,9 +119,7 @@ CASES = [
      "own docs-only pull request.",
      "create-docs"),
     ("standardize-project", True,
-     "Audit this existing repo against our approved doc set and readiness "
-     "tooling, then additively scaffold whatever's missing without ever "
-     "touching the source we already have.",
+     "/acs:standardize-project",
      "standardize-project"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
@@ -168,6 +163,31 @@ CASES = [
      "since the last tag, bump the version in both manifests, and open the "
      "release PR for me to review and merge.",
      "release"),
+    ("analyze-ticket", True,
+     "Before we plan anything for EVAL-1, work out what it really asks for: "
+     "what breaks, what is unclear, and what we are assuming.",
+     "analyze-ticket"),
+    ("create-impl-plan", True,
+     "EVAL-1 has been analysed and the questions are answered. Work out the "
+     "file-by-file approach the implementation should follow.",
+     "create-impl-plan"),
+    ("create-api-contract", True,
+     "The plan for EVAL-1 adds two new endpoints. Pin down their request and "
+     "response shapes, the error codes and the compatibility story before "
+     "anything is built.",
+     "create-api-contract"),
+    ("create-test-docs", True,
+     "Work out the test cases EVAL-1 needs from its acceptance criteria, and "
+     "say which suite each one belongs in.",
+     "create-test-docs"),
+    ("create-e2e-tests", True,
+     "EVAL-1's test plan has three end-to-end cases and none of them exist "
+     "yet. Write those suites on the ticket branch.",
+     "create-e2e-tests"),
+    ("project", True,
+     "This repository has no build or test tooling yet. Set up its structure "
+     "so work can start.",
+     "project"),
     # User-only skills: positive case = the explicit command the user types.
     # (A description can't reach them — see NEGATIVE for that guarantee.)
     ("install-hooks", True,
@@ -178,7 +198,7 @@ CASES = [
      "update"),
 ]
 
-# Negative-routing cases for the two user-only skills: a bare description of
+# Negative-routing cases for the eight user-only skills: a bare description of
 # their intent must NOT auto-route to them (disable-model-invocation is
 # honored). PASS when the model picks anything other than the forbidden skill
 # — a different skill, or no skill at all (None).
@@ -192,6 +212,31 @@ NEGATIVE = [
      "Check whether there's a newer version of the acs plugin available and "
      "summarize what changed since the version I have installed.",
      "update"),
+    ("create-project", True,
+     "Scaffold the repository skeleton — build config, test framework, CI — "
+     "from the approved architecture docs.",
+     "create-project"),
+    ("create-quality", True,
+     "Author and maintain the test-strategy and coverage-policy docs for this "
+     "product's quality doc set.",
+     "create-quality"),
+    ("create-operations", True,
+     "Author and maintain the release-process, runbooks, observability, and "
+     "incident-response docs for this product's operations doc set.",
+     "create-operations"),
+    ("create-principles", True,
+     "Author and maintain the engineering principles and rationale doc set "
+     "for this product.",
+     "create-principles"),
+    ("create-standards", True,
+     "Author and maintain the coding standards and conventions doc set — "
+     "style, naming, and the review checklist — for this product's codebase.",
+     "create-standards"),
+    ("standardize-project", True,
+     "Audit this existing repo against our approved doc set and readiness "
+     "tooling, then additively scaffold whatever's missing without ever "
+     "touching the source we already have.",
+     "standardize-project"),
 ]
 
 

@@ -278,8 +278,20 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
             case[-1], "standardize-project",
             "the 'standardize-project' CASE's expected-skill (last element) "
             "must be 'standardize-project'")
+        # ADR 0091 made this an internal leg, so disable-model-invocation: true.
+        # Its positive probe is therefore the explicit command, and the
+        # description that used to be the positive is now the NEGATIVE probe --
+        # the one that must NOT auto-route. The no-naming rule follows the
+        # description to where it lives.
+        self.assertEqual(
+            case[2], "/acs:standardize-project",
+            "a user-only skill's positive probe is the explicit command")
+        negatives = [c for c in self._negative() if c[0] == "standardize-project"]
+        self.assertTrue(
+            negatives,
+            "a user-only skill needs a no-auto-route negative probe")
         self.assertNotIn(
-            "standardize", case[2],
+            "standardize", negatives[0][2],
             "the probe request must describe brownfield audit intent "
             "without naming the skill")
 
