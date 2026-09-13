@@ -213,6 +213,20 @@ def classify(lines, prompt):
     return None, ("unmeasured" if want is not None else "skill_tool_use"), None
 
 
+def identity_of(build):
+    """`<version>[<fingerprint>]` -- what makes two builds the same build.
+
+    The version string alone is not enough: source and the release it
+    supersedes share one, which is why `harness.fingerprint` hashes the skill
+    surface. Returns None when there is no build to identify, which leaves
+    every identity check inert rather than guessing.
+    """
+    if build is None:
+        return None
+    fp = getattr(build, "fingerprint", None)
+    return "%s[%s]" % (getattr(build, "version", "?"), fp or "?")
+
+
 class Checkpoint:
     """Durable, append-only record of paid work already done.
 
@@ -229,11 +243,15 @@ class Checkpoint:
     half a JSON object is not.
     """
 
-    def __init__(self, path):
+    def __init__(self, path, build=None):
         self.path = path
         self.done = {}
+        self.identity = identity_of(build)
+        self.dropped = None
         if not path:
             return
+        found = {}
+        stamp = None
         try:
             with open(path, encoding="utf-8") as fh:
                 for line in fh:
@@ -244,19 +262,44 @@ class Checkpoint:
                         rec = json.loads(line)
                     except json.JSONDecodeError:
                         continue   # a torn final line: drop it, keep the rest
-                    if rec.get("id"):
-                        self.done[rec["id"]] = rec
+                    if rec.get("__build__"):
+                        stamp = rec["__build__"]
+                    elif rec.get("id"):
+                        found[rec["id"]] = rec
         except OSError:
-            pass
+            return
+        # Reuse costs nothing and saves real money -- but only for the SAME
+        # build. A checkpoint carried no build identity until 2026-09-13, so a
+        # run interrupted against one build and resumed against another
+        # silently reported the first build's probes as the second's. That is
+        # exactly what would have happened here: four probes measured with
+        # disable-model-invocation still set, reused by the run that removed
+        # it. An unstamped or mismatched checkpoint is dropped, loudly.
+        if self.identity and stamp != self.identity:
+            self.dropped = (stamp or "unstamped", len(found))
+            self.discard()
+            return
+        self.done = found
 
     def get(self, rec_id):
         return self.done.get(rec_id)
+
+    def _stamp(self):
+        """Write the build identity as the file's first line, once."""
+        if not self.identity or os.path.exists(self.path):
+            return
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        with open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"__build__": self.identity}) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
 
     def add(self, rec):
         self.done[rec.get("id")] = rec
         if not self.path:
             return
         try:
+            self._stamp()
             os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
             with open(self.path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(rec) + "\n")
@@ -880,7 +923,13 @@ def main():
             return 3
         print()
     checkpoint = Checkpoint(args.checkpoint if args.checkpoint is not None
-                            else (args.out + ".partial" if args.out else None))
+                            else (args.out + ".partial" if args.out else None),
+                            build)
+    if checkpoint.dropped:
+        stamp, count = checkpoint.dropped
+        print("discarded a checkpoint of %d record(s) from a different build "
+              "(%s, now %s) — they would have been reported as this build's\n"
+              % (count, stamp, checkpoint.identity))
     if checkpoint.done:
         print("resuming: %d record(s) already measured and on disk; they are "
               "reused, not re-spent (%s)\n"

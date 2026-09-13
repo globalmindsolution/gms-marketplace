@@ -692,6 +692,75 @@ class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
                         checkpoint=cp)
         self.assertIn("a", cp.done)
 
+class CheckpointBuildIdentityTest(unittest.TestCase):
+    """A checkpoint is reusable only for the build that bought it.
+
+    On 2026-09-13 a run was stopped after 4 probes so the plugin could be
+    changed; its checkpoint carried no build identity at all, so the next run
+    would have reported those four probes -- measured with
+    disable-model-invocation still set -- as the fixed build's.
+    """
+
+    class _Build:
+        version = "0.4.9"
+        fingerprint = "aaaaaaaaaaaaaaaa"
+
+    class _Other:
+        version = "0.4.9"          # same version string, different surface
+        fingerprint = "bbbbbbbbbbbbbbbb"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="acs-cp-")
+        self.path = os.path.join(self.dir, "m.json.partial")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _write(self, build):
+        cp = measure_skills.Checkpoint(self.path, build)
+        cp.add({"id": "ROUTE-code", "kind": "routing"})
+        return cp
+
+    def test_the_same_build_reuses_what_it_already_bought(self):
+        self._write(self._Build())
+        cp = measure_skills.Checkpoint(self.path, self._Build())
+        self.assertIn("ROUTE-code", cp.done)
+        self.assertIsNone(cp.dropped)
+
+    def test_a_different_surface_on_the_same_version_is_dropped(self):
+        self._write(self._Build())
+        cp = measure_skills.Checkpoint(self.path, self._Other())
+        self.assertEqual(cp.done, {})
+        self.assertEqual(cp.dropped[1], 1)
+        self.assertFalse(os.path.exists(self.path),
+                         "a checkpoint from another build must not survive to "
+                         "be half-reused by the run after this one")
+
+    def test_an_unstamped_checkpoint_is_dropped(self):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"id": "ROUTE-code", "kind": "routing"}) + "\n")
+        cp = measure_skills.Checkpoint(self.path, self._Build())
+        self.assertEqual(cp.done, {})
+        self.assertEqual(cp.dropped[0], "unstamped")
+
+    def test_without_a_build_the_check_is_inert_not_guessed(self):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"id": "ROUTE-code"}) + "\n")
+        cp = measure_skills.Checkpoint(self.path, None)
+        self.assertIn("ROUTE-code", cp.done)
+        self.assertIsNone(cp.dropped)
+
+    def test_the_stamp_is_written_once_and_is_not_a_record(self):
+        cp = self._write(self._Build())
+        cp.add({"id": "ROUTE-setup", "kind": "routing"})
+        with open(self.path, encoding="utf-8") as fh:
+            lines = [json.loads(l) for l in fh if l.strip()]
+        self.assertEqual(sum(1 for l in lines if l.get("__build__")), 1)
+        self.assertEqual(lines[0]["__build__"], "0.4.9[aaaaaaaaaaaaaaaa]")
+        again = measure_skills.Checkpoint(self.path, self._Build())
+        self.assertEqual(sorted(again.done), ["ROUTE-code", "ROUTE-setup"])
+
+
 class SetupPreconditionTest(unittest.TestCase):
     """`setup_assert`: did the setup leave the sandbox where the scenario needs it?
 
