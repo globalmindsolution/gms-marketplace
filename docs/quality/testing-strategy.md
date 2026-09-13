@@ -74,10 +74,9 @@ never hand-picked:
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
-  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 25 of 32 (MAR-575
-  added `create-requirements`, `docs-sync` and `create-docs`). Seven skill
-  directories carry no probe yet, each recorded with its reason in
-  `test_eval_trigger_detection.py`'s `UNPROBED`: the five Build/Test skills the
+  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 31 of 32. One skill
+  directory carries no probe, recorded with its reason in
+  `test_eval_trigger_detection.py`'s `UNPROBED`: `test`, the alias the
   skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
   `create-api-contract`, `create-test-docs`, `create-e2e-tests`), the `test`
   alias directory (deliberately unprobed — its probe targets the name it
@@ -178,9 +177,9 @@ on-disk set against the `ALL_SKILLS` literal at
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 20 of 20 hooked skills**; the other
 12 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 25 of 32** — 27 probes in all (23 by
-description, 2 by explicit command, 2 negative), three of them closed
-by MAR-575. **The gap is behavioral (artifact) coverage: only 3 of 32
+none should. **Routing covers 31 of 32** — 39 probes in all (23 by
+description, 8 by explicit command, 8 negative); only the `test` alias is
+unprobed, because `run-e2e-tests` carries the probe for it. **The gap is behavioral (artifact) coverage: only 3 of 32
 skills** (`create-ticket`,
 `code`, `create-pr`) are verified at the output level (`create-pr`'s eval
 skips without a configured forge target) — so the *common* skill bugs (a

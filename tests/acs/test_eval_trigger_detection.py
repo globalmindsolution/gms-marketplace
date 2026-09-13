@@ -224,28 +224,38 @@ class TriggerDetailTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--allowedTools") + 1], "Skill")
 
 
+def user_only_skills():
+    """Skills whose frontmatter forbids auto-invocation — the set that must be
+    probed by explicit command plus a no-auto-route negative. Read from the
+    shipped SKILL.md rather than listed here, so the ADR 0091 legs (and anything
+    later given the flag) cannot drift out of this guard the way a literal did."""
+    out = set()
+    for name in shipped_skills():
+        path = os.path.join(SKILLS_DIR, name, "SKILL.md")
+        with open(path, encoding="utf-8") as fh:
+            head = fh.read(4096)
+        if "\ndisable-model-invocation: true" in head:
+            out.add(name)
+    return out
+
+
 class S04ProbeSetTest(unittest.TestCase):
     """AC-3: every shipped skill has a probe unless UNPROBED records why, and
     no new description prompt names a skill. MAR-575 asserted plain equality
-    with the shipped set; the skills-independence refactor added five unprobed
-    Build/Test skills and the run-e2e-tests alias, so the guard now carries an
-    explicit exclusion list instead of a false completeness claim."""
+    with the shipped set; the skills-independence refactor and the ADR 0091
+    fold then added seven unprobed directories, so the guard carries an
+    explicit exclusion list instead of a false completeness claim. The list is
+    now down to the one entry that can never have its own probe."""
 
     NEW_CASES = {"create-docs", "create-requirements", "docs-sync"}
 
-    # Shipped skill directories with no probe, each for a stated reason. The
-    # skills-independence refactor added five Build/Test skills and left `test`
-    # behind as a deprecated alias of run-e2e-tests; probing the five moves the
-    # measured routing-coverage claim the PRD and roadmap carry, so they are
-    # added with a fresh paid measurement rather than alongside the refactor,
-    # and the alias is deliberately unprobed because its own probe targets the
-    # new name. Anything else missing a probe is a defect this test catches.
-    # `project` joins them for the same reason: the design-phase entry-point
-    # fold mints it as a new user-facing umbrella, and probing it moves the
-    # measured routing-coverage claim, so its probe lands with the next paid
-    # measurement rather than alongside the fold.
-    UNPROBED = {"analyze-ticket", "create-api-contract", "create-impl-plan",
-                "create-test-docs", "create-e2e-tests", "test", "project"}
+    # Shipped skill directories with no probe, each for a stated reason.
+    # `test` is the alias DIRECTORY that phases.yaml forwards to run-e2e-tests;
+    # a probe of its own would measure the same routing decision twice under a
+    # name the registry only keeps for one release, and run-e2e-tests carries
+    # the real probe. It is the only entry that can never earn one.
+    # Anything else missing a probe is a defect this test catches.
+    UNPROBED = {"test"}
 
     def test_every_shipped_skill_has_a_probe_or_a_recorded_reason(self):
         probed = {expected for _, _, _, expected in s04.CASES}
@@ -260,9 +270,12 @@ class S04ProbeSetTest(unittest.TestCase):
             "UNPROBED names a skill that no longer ships — drop it from the set")
 
     def test_case_counts(self):
-        self.assertEqual(len(s04.CASES), 25)
-        self.assertEqual(len(s04.NEGATIVE), 2)
-        self.assertEqual(len({expected for _, _, _, expected in s04.CASES}), 25)
+        """Derived, not pinned: one positive per probed skill, one negative per
+        user-only skill."""
+        probed = set(shipped_skills()) - self.UNPROBED
+        self.assertEqual(len(s04.CASES), len(probed))
+        self.assertEqual(len({e for _, _, _, e in s04.CASES}), len(probed))
+        self.assertEqual({f for _, _, _, f in s04.NEGATIVE}, user_only_skills())
 
     def test_the_three_new_cases_expect_their_own_skill(self):
         by_label = {label: expected for label, _, _, expected in s04.CASES}
@@ -283,7 +296,7 @@ class S04ProbeSetTest(unittest.TestCase):
     def test_only_the_user_only_skills_are_probed_explicitly(self):
         explicit = {label for label, _, request, _ in s04.CASES
                     if request.startswith("/")}
-        self.assertEqual(explicit, {"install-hooks", "update"})
+        self.assertEqual(explicit, user_only_skills())
 
 
 class _FakeSandbox:
@@ -328,7 +341,7 @@ class S04DetectionIsReportedTest(unittest.TestCase):
                           if not request.startswith("/")
                           else (harness.explicit_skill(request), "registered"))
         labels = [label for label, _, _ in check.results]
-        self.assertEqual(len(labels), 27)
+        self.assertEqual(len(labels), len(s04.CASES) + len(s04.NEGATIVE))
         for label in labels:
             self.assertTrue(label.endswith("[registered]")
                             or label.endswith("[skill_tool_use]")
@@ -338,7 +351,7 @@ class S04DetectionIsReportedTest(unittest.TestCase):
         check = self._run(self._all_right)
         self.assertTrue(check.passed)
         explicit = [label for label, _, _ in check.results if "[registered]" in label]
-        self.assertEqual(len(explicit), 2)
+        self.assertEqual(len(explicit), len(user_only_skills()))
 
     def test_an_unmeasured_explicit_probe_is_never_a_pass(self):
         def answers(request):
@@ -349,7 +362,7 @@ class S04DetectionIsReportedTest(unittest.TestCase):
         check = self._run(answers)
         self.assertFalse(check.passed)
         failed = [label for label, ok, _ in check.results if not ok]
-        self.assertEqual(len(failed), 2)
+        self.assertEqual(len(failed), len(user_only_skills()))
         for label in failed:
             self.assertIn("[unmeasured]", label)
 

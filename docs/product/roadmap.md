@@ -120,16 +120,16 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 25 green across 27 probes (matches
-  `s04_skill_triggers.py`'s 25-skill routing coverage, up from the original 12,
-  which is 25 of the 32 shipped skill directories: the five Build/Test skills
-  the skills-independence refactor added and the design-phase fold's
-  `/acs:project` umbrella carry no probe yet). The 20
-  description probes measured so far are green; the 2 explicit probes became
-  measurable only with the harness's registration-based detection rule and,
-  together with the 3 new description probes, are first measured by the next
-  paid run. Superseded as the routing instrument by acs-evals, whose
-  `routing.json` measurement covers every shipped skill with 30 probes × 5 runs
+  routes to the right skill — target all 31 green across 39 probes (matches
+  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
+  which is 31 of the 32 shipped skill directories: only the `test` alias is
+  unprobed, since `run-e2e-tests` carries its probe. The six ADR 0091 legs
+  moved from description probes to explicit + no-auto-route pairs). The 20
+  description probes measured before the refactor are green; everything added
+  since — the 3 MAR-575 probes, the 6 new Build/Test and umbrella probes, and
+  the 6 legs' explicit + negative pairs — is authored and first measured by the
+  next paid run. Superseded as the routing instrument by acs-evals, whose
+  `routing.json` measurement covers every shipped skill with 43 probes × 5 runs
   against a promoted baseline — strictly stronger than `s04`'s single sample,
   which is kept on demand only.
 - **E1.3 (done)** — `resume_and_verify` (paid) covers G2 (resume-from-state),

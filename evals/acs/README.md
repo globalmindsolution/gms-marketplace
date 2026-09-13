@@ -200,7 +200,7 @@ of scenario modules the runner iterates. Each module exposes:
 | `install_gate_smoke` | free | G1 | Drive the installed dispatch hook through each gate's input checks and safety brakes |
 | `create_ticket_artifacts` | paid | G1 | Run `/acs:create-ticket`; assert on ticket.json and pipeline-state.json |
 | `resume_and_verify` | paid | G2–G4 | Seed code-ready state; one fresh code session must resume, pass verifier, stay under PR cap |
-| `skill_triggers` | paid | routing | Routing must hold for every probed skill — 27 probes over 25 of the 31 skill directories: 23 NL descriptions, 2 explicit commands (the user-only skills), 2 negatives; the `test` alias and the five Build/Test skills the skills-independence refactor added carry no probe yet |
+| `skill_triggers` | paid | routing | Routing must hold for every probed skill — 39 probes over 31 of the 32 skill directories: 23 NL descriptions, 8 explicit commands (the user-only skills), 8 negatives; only the `test` alias is unprobed, since `run-e2e-tests` carries its probe |
 | `session_end_safety_net` | free | cleanup | Abnormal-ending SessionEnd hook finalizes in_progress runs correctly |
 | `update_migration` | free | update | `/acs:update` semver compare + Step-6 migration checks |
 | `fanout_tracker_sync` | forge | G11 | `/acs:create-ticket` syncs every epic fan-out child's external via GitHub |

@@ -210,14 +210,16 @@ scenario loop — it simply peels `--plugin` and delegates.
 
 - **E1.1 (done)** — scenario runner + sandbox + artifact assertions. Seeded
   with `install_gate_smoke` (free, G1) and `create_ticket_artifacts` (paid, G1).
-- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **25 of the
-  31** skills, 27 probes in all. The 23 model-invocable skills each get a
+- **E1.2 (done)** — `skill_triggers` (paid): routing coverage for **31 of the
+  32** skills, 39 probes in all. The 23 model-invocable skills each get a
   natural-language request (never naming the skill) that must route to it. The
-  2 user-only skills (`install-hooks`, `update`, which set
+  8 user-only skills (`install-hooks`, `update`, and the six ADR 0091 legs of
+  `/acs:create-docs` and `/acs:project`, which set
   `disable-model-invocation: true`) get a pair of probes instead: an explicit
   `/acs:<skill>` invocation that must route, plus a negative probe — a bare
   description of their intent that must NOT auto-route to them (proving the
-  no-auto-invoke guarantee); 23 + 2 + 2 = 27. Each probe is decided by one of
+  no-auto-invoke guarantee); 23 + 8 + 8 = 39. Only the `test` alias is
+  unprobed: `run-e2e-tests`, the name it forwards to, carries its probe. Each probe is decided by one of
   two rules and the run is killed the instant it is, so the body never executes
   and a probe costs only the time-to-route: a description probe by the first
   `Skill` call the model makes, and an explicit probe by the session's

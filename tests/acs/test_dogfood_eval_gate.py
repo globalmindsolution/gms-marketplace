@@ -171,6 +171,28 @@ class SettingsShapeTest(unittest.TestCase):
         )
 
 
+
+def _s04_probed_skills():
+    """Skills s04 probes, read from the scenario's own CASES/NEGATIVE lists.
+
+    Parsed rather than imported: s04 imports the eval harness, which is not on
+    the path for the unit suite. Derived rather than pinned so that adding a
+    skill's probe cannot leave the roadmap's claim behind -- the rot this
+    assertion existed to catch, twice.
+    """
+    import ast
+    path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+    with open(path, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    found = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") in (
+                "CASES", "NEGATIVE"):
+            found |= {row[-1] for row in ast.literal_eval(node.value)}
+    assert found, "neither CASES nor NEGATIVE found in s04_skill_triggers.py"
+    return found
+
+
 class DocsPolicyTest(unittest.TestCase):
     """[AC-3..AC-6] every document that stated the retired policy now names
     acs-evals as the gate."""
@@ -205,10 +227,13 @@ class DocsPolicyTest(unittest.TestCase):
         for item in (e12, e13):
             self.assertRegex(item, r"(?i)supersed")
             self.assertIn("acs-evals", item)
-        # MAR-575 (this branch, formerly PR #526) added the create-docs,
-        # create-requirements and docs-sync probes, taking the count to 25;
-        # MAR-579 pinned 22 and named that PR as the owner of the change.
-        self.assertIn("25-skill routing coverage", e12)
+        # The count moves with the probe set: MAR-575 took it to 25, and
+        # probing the refactor's Build/Test skills plus the ADR 0091 umbrella
+        # takes it to 31 — every shipped skill except the `test` alias, whose
+        # routing is measured through run-e2e-tests. Derived from the shipped
+        # probe set rather than pinned, so the next skill cannot silently
+        # leave the claim behind.
+        self.assertIn("%d-skill routing coverage" % len(_s04_probed_skills()), e12)
         self.assertIn("PIPE-", e13)
         self.assertIn("MAR-579", e14)
         self.assertRegex(e14, r"(?i)no longer .{0,40}per-ticket")
