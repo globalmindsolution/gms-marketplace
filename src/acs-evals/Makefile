@@ -39,7 +39,7 @@ gate-deterministic: eval check mutation report ## The deterministic tier only â€
 	@printf '\nDeterministic tier complete. This says NOTHING about skill\n'
 	@printf 'quality, reliability, cost or time â€” see docs/PERFORMANCE.md.\n'
 
-eval: ## Run the deterministic tier (363 cases, zero cost, no model)
+eval: ## Run the deterministic tier (448 cases, zero cost, no model)
 	$(PYTHON) runner/run_golden.py --json $(JSON)
 
 # Point the suite at the sibling plugin source. This does NOT change
@@ -100,8 +100,8 @@ mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision cod
 verifier-rates: ## Per-dimension verifier finding rates from an acs workspace (WORKSPACE=<workspace>/<repo_id>)
 	$(PYTHON) runner/verifier_rates.py --workspace $(WORKSPACE) --json results/verifier-rates.json
 
-mutation: ## Measure schema coverage by deleting each constraint (must stay >= 50%)
-	$(PYTHON) runner/mutation_sweep.py --threshold 0.5
+mutation: ## Measure schema coverage by deleting each constraint (must stay >= 90%)
+	$(PYTHON) runner/mutation_sweep.py --threshold 0.9
 
 list: ## List every case without running anything
 	$(PYTHON) runner/run_golden.py --list

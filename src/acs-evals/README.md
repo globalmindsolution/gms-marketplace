@@ -48,9 +48,9 @@ export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
 make gate
 ```
 
-`make gate` = **`eval`** (run the 363 deterministic cases) → **`check`**
+`make gate` = **`eval`** (run the 448 deterministic cases) → **`check`**
 (assert both generated trees are in sync with their sources) → **`mutation`**
-(measure schema coverage, floor 50%) → **`report`** (render
+(measure schema coverage, floor 90%) → **`report`** (render
 `results/report.md` and `results/report.html`) → **`perf`** (judge the tier-3
 measurement of skill quality, reliability, cost and time). It stops at the
 first failure.
@@ -100,14 +100,14 @@ that catches packaging drift.
 
 | Tier | Where | Runner | Cost | Status |
 |---|---|---|---|---|
-| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **363 cases, all green** |
+| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **448 cases, all green** |
 | **2 — Agentic (routing)** | `evals/` | `claude plugin eval` | paid sessions | authored, **never executed** — needs early access |
 | **3 — Skill performance** | `dataset/scenarios.json` | `runner/measure_skills.py` + `runner/perf_gate.py` | paid sessions to measure; $0 to judge | **built, never measured** — see [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 
 Tier 1 asks whether the plumbing still emits the same bytes. **Tier 3 asks the
 four questions a release actually turns on** — did the skills get less
 reliable, worse, more expensive, or slower — because a build that made every
-skill twice as slow and three times as expensive passes all 363 tier-1 cases
+skill twice as slow and three times as expensive passes all 448 tier-1 cases
 and prints PASSED. Tier 3 also measures routing through plain `claude -p`, so
 it does not wait on tier 2's early access.
 
@@ -164,7 +164,7 @@ ship, carry a routing `description`, and declare the right
 
 ## What the dataset covers
 
-363 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
+448 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |

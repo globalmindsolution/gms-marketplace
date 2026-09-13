@@ -113,8 +113,14 @@ Two conditions are reported alongside the verdict and are also blocking:
   recorded against. Not a defect, but it means "no regression" is unproven
   until the baseline is refreshed.
 - **Coverage below floor** — `make mutation` measures what the schema tier
-  would actually catch. Below 50%, a green run is weak evidence, and the gate
-  says so.
+  would actually catch. Below 90%, a green run is weak evidence, and the gate
+  says so. The floor was 50% while the measurement itself was wrong in two
+  ways: it counted keyword occurrences that restrict nothing (an
+  `additionalProperties: true` says exactly what its own absence says, so no
+  case can ever pin it), and the case generator refused every constraint it
+  could not reason about in advance instead of building the mutant and asking
+  the validator. With both fixed the tier measures **97.4%**, so a 50% floor
+  gated nothing. A floor no run can fail is not a floor.
 
 ## Tier 3 has its own verdict, and its own reason
 

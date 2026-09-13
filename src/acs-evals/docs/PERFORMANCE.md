@@ -14,7 +14,7 @@ here.
 
 Every tier-1 expectation is a recorded byte string. A release that made every
 skill twice as slow, three times as expensive, and worse at routing would match
-all 363 of them and print **PASSED**. That is not a defect in tier 1 — pinning
+all 448 of them and print **PASSED**. That is not a defect in tier 1 — pinning
 contracts is what it is for — but it means a green tier-1 run is evidence about
 *contracts*, never about *skills*.
 

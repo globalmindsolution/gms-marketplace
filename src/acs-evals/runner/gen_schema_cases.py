@@ -26,17 +26,29 @@ generator walks from the schema location to the matching instance location,
 plants a value that violates exactly that constraint, and asserts the schema
 rejects it.
 
-What it deliberately does not generate
---------------------------------------
-Constraints it cannot reach with a single unambiguous instance path are
-reported, never silently skipped:
+Every candidate is verified
+---------------------------
+The mutant is validated against the schema before its case is emitted, and the
+case ships only if the schema actually rejects it AND says so naming this
+constraint. A case that does not bite is worse than a missing one: it counts
+toward coverage while pinning nothing.
 
-  * branches under `oneOf`/`anyOf` — violating one branch usually leaves
-    another matching, so the document stays valid and the "reject" case would
-    be wrong;
-  * `propertyNames` and constraints under `additionalProperties` where the seed
-    carries no sample key to attach them to;
-  * `required` on a subschema the seed never instantiates.
+That check is also what lets this generator stop refusing things in advance.
+It used to skip, unexamined, every constraint under a `oneOf`/`anyOf` (on the
+reasoning that violating one branch leaves another matching, so the document
+stays valid), every `propertyNames` (which constrains keys, not values), and
+everything behind a `$ref`. Each was a statement about a mutant nobody built.
+Now they are built and the validator answers. Where a choice collapses into
+"matched 0 oneOf branches" with no branch named, the case asserts that message
+WITH its instance path: restore the constraint and the mutant matches its
+branch again, which is exactly what being pinned means, and
+`runner/mutation_sweep.py` measures it directly.
+
+What is still not generated
+---------------------------
+  * constraints inside an `if`/`then` — deleting one changes WHEN a rule
+    applies rather than what it allows, so there is no single value to plant;
+  * anything the enriched seed still cannot instantiate.
 
 `--report` prints them. That list is the honest residue of this tier's
 coverage, and it belongs in the report rather than in a footnote.
@@ -110,9 +122,32 @@ def seeds():
 #: Candidate strings probed against a `pattern` when synthesising a value. The
 #: shipped schemas constrain ticket ids, prefixes, dates, repo slugs and format
 #: templates; probing a short list beats writing a regex-to-example generator.
-_STRING_CANDIDATES = ("TKT-1", "TKT", "2026-01-01", "owner/acs-eval", "main",
-                      "v1.0.0", "0.4.10", "docs/adr", "{ticket_id}",
+_STRING_CANDIDATES = ("TKT-1", "TKT", "C-1", "2026-01-01", "owner/acs-eval",
+                      "main", "v1.0.0", "0.4.10", "docs/adr", "{ticket_id}",
                       "[{ticket_id}] {title}", "{type}/{ticket_id}-{slug}", "x")
+
+
+def _richness(value):
+    """How much structure a synthesised value carries, for branch selection."""
+    if isinstance(value, dict):
+        return 2 + sum(_richness(v) for v in value.values())
+    if isinstance(value, list):
+        return 2 + sum(_richness(v) for v in value)
+    return 1
+
+
+def _sample_key(names):
+    """A key an open map's `propertyNames` accepts, or None."""
+    if not isinstance(names, dict):
+        return "sample"
+    if "enum" in names:
+        return next((v for v in names["enum"] if isinstance(v, str)), None)
+    if "const" in names and isinstance(names["const"], str):
+        return names["const"]
+    pattern = names.get("pattern")
+    if pattern:
+        return next((c for c in _STRING_CANDIDATES if re.search(pattern, c)), None)
+    return "sample"
 
 
 def synthesize(schema, root):
@@ -122,7 +157,29 @@ def synthesize(schema, root):
     constraint on a property the seed never populates is unreachable, and an
     unreachable constraint is an unpinned one -- so the richer the seed, the
     more of the schema the generated cases actually cover.
+
+    The result is CHECKED against the subschema before it is returned, so this
+    never hands back a value it already knows is wrong. It used to: an object
+    whose required property could not be synthesised got `"x"` planted for it,
+    and `clarifications[].id` (pattern `^C-[0-9]+$`) rejected that -- which
+    `enrich` then discovered, discarded the whole item, and left every
+    constraint under `clarifications[]` reported as "the seed has no value
+    here". The cause was invisible because the guess was made in one place and
+    thrown away in another.
     """
+    value = _synthesize(schema, root)
+    if value is None:
+        return None
+    try:
+        if js.validate(value, schema, root):
+            return None
+    except js.UnsupportedKeyword:
+        return None
+    return value
+
+
+def _synthesize(schema, root):
+    """synthesize() without the self-check -- call synthesize(), not this."""
     if not isinstance(schema, dict):
         return None
     if "$ref" in schema:
@@ -141,14 +198,34 @@ def synthesize(schema, root):
                 return value
         return schema["enum"][0]
     for choice in ("oneOf", "anyOf"):
-        for branch in schema.get(choice) or []:
+        branches = schema.get(choice) or []
+        if not branches:
+            continue
+        # Take the RICHEST branch, not the first. The shipped schemas spell
+        # optional structure as `oneOf: [{type: null}, {the real thing}]`, and
+        # first-match returned the null branch -- so `release`, `adr_path` and
+        # friends were seeded as nothing and every constraint beneath them was
+        # reported unreachable. Enrichment exists to reach constraints, and a
+        # null reaches none.
+        best = None
+        for branch in branches:
             value = synthesize(branch, root)
-            if value is not None:
-                return value
+            if value is None:
+                continue
+            if best is None or _richness(value) > _richness(best):
+                best = value
+        if best is not None:
+            return best
     types = schema.get("type")
     types = types if isinstance(types, list) else [types]
-    types = [t for t in types if t and t != "null"] or [None]
-    kind = types[0]
+    concrete = [t for t in types if t and t != "null"]
+    if not concrete and any(t == "null" for t in types):
+        # A null-only subschema instantiates nothing. Saying so is the point:
+        # falling through to the string branch below used to return "x" here,
+        # a value the branch itself rejects, which `enrich` then planted,
+        # re-validated, and silently discarded.
+        return None
+    kind = (concrete or [None])[0]
     if kind == "object":
         out = {}
         for name, sub in (schema.get("properties") or {}).items():
@@ -157,12 +234,39 @@ def synthesize(schema, root):
                 out[name] = value
         for name in schema.get("required", []):
             out.setdefault(name, "x")
+        extra = schema.get("additionalProperties")
+        names = schema.get("propertyNames")
+        if isinstance(extra, dict) and not out:
+            # An open map (`suites`, `models.overrides`, `formats.tickets`):
+            # every constraint it declares hangs off a key that does not exist
+            # until the seed carries one, so supply a sample key its own
+            # propertyNames accepts.
+            sample = _sample_key(names)
+            value = synthesize(extra, root)
+            if sample is not None and value is not None:
+                out[sample] = value
+        # An object can also be constrained purely by SIZE, with nothing said
+        # about what goes in it -- `release.extra_refs[].selector.match` is
+        # `{type: object, minProperties: 1}` and declares no properties at all.
+        # Built empty it violates its own constraint, so the whole selector,
+        # the extra_ref around it and every constraint beneath went unreachable.
+        need = schema.get("minProperties", 0)
+        if need and len(out) < need and not isinstance(names, dict):
+            filler = synthesize(extra, root) if isinstance(extra, dict) else "x"
+            while len(out) < need:
+                out["acs_evals_fill_%d" % len(out)] = (
+                    copy.deepcopy(filler) if filler is not None else "x")
         return out
     if kind == "array":
         item = synthesize(schema.get("items") or {}, root)
         if item is None:
-            item = "x"
-        return [item] * max(schema.get("minItems", 1), 1)
+            # No valid element can be built, so no valid array can be either.
+            # Filling with "x" here produced `[{"file": ...}]`-shaped arrays
+            # whose elements the item schema rejects -- a value synthesize
+            # already knew was wrong, handed back for enrich to discard.
+            return None
+        return [copy.deepcopy(item)
+                for _ in range(max(schema.get("minItems", 1), 1))]
     if kind == "boolean":
         return True
     if kind in ("integer", "number"):
@@ -234,14 +338,34 @@ def _gaps(schema, instance, root, path=()):
     schema = _deref(schema, root)
     if not isinstance(schema, dict):
         return
-    for branch in (schema.get("oneOf") or []) + (schema.get("anyOf") or []):
-        # Only descend a branch the instance already satisfies, so filling it
+    branches = (schema.get("oneOf") or []) + (schema.get("anyOf") or [])
+    for branch in branches:
+        # Descend a branch the instance already satisfies, so filling it in
         # cannot flip which branch matches.
         try:
             if not js.validate(instance, _deref(branch, root)):
                 yield from _gaps(branch, instance, root, path)
         except js.UnsupportedKeyword:
             continue
+    if instance is None and branches:
+        # A null here satisfies the `{type: null}` branch and pins nothing:
+        # `ticket.external` and `settings.models.*` are spelled that way, and
+        # every constraint in their real branch was unreachable because the
+        # seed said null. Offer the richest branch as a REPLACEMENT. Flipping
+        # which branch matches is exactly the point, and it is safe for the
+        # same reason everything else here is: `enrich` plants the candidate,
+        # re-validates the whole instance, and keeps it only if it still
+        # conforms. Guarded on null so a value the seed actually chose is
+        # never overwritten.
+        best = None
+        for branch in branches:
+            value = synthesize(_deref(branch, root), root)
+            if value is None:
+                continue
+            if best is None or _richness(value) > _richness(best):
+                best = value
+        if best is not None:
+            yield path, best
     if isinstance(instance, dict):
         for name, sub in sorted((schema.get("properties") or {}).items()):
             if name in instance:
@@ -255,6 +379,15 @@ def _gaps(schema, instance, root, path=()):
             for name in sorted(instance):
                 if name not in (schema.get("properties") or {}):
                     yield from _gaps(extra, instance[name], root, path + (name,))
+            if not any(n not in (schema.get("properties") or {}) for n in instance):
+                # An open map the seed left EMPTY (`pipeline-state.steps` is
+                # `{}`): synthesize only supplies a sample key when the whole
+                # property is absent, so an empty one stayed empty and every
+                # constraint under its keys stayed unreachable.
+                sample = _sample_key(schema.get("propertyNames"))
+                value = synthesize(extra, root)
+                if sample is not None and value is not None and sample not in instance:
+                    yield path + (sample,), value
     elif isinstance(instance, list):
         items = schema.get("items")
         if isinstance(items, dict):
@@ -292,39 +425,62 @@ def _deref(schema, root):
     return schema if isinstance(schema, dict) else {}
 
 
-def walk(schema, spath=(), ipath=(), inside_choice=False):
-    """Yield (constraint, schema_node, instance_path, reachable, why).
+def walk(schema, spath=(), ipath=(), inside_choice=False, _root=None, _seen=None):
+    """Yield (constraint, schema_node, instance_path, mode, note).
 
     `instance_path` is where in the INSTANCE this constraint applies.
-    `reachable` is False when the location cannot be addressed unambiguously.
+    `mode` is "value" when the constraint restricts the value at that path, or
+    "key" when it restricts the KEYS of the object there (`propertyNames`).
+
+    Nothing is refused here any more. A constraint under `oneOf`/`anyOf` used to
+    be dropped unseen, on the reasoning that violating one branch usually leaves
+    a sibling branch matching, so the document stays valid and a "reject" case
+    would be wrong. That reasoning is sound but the conclusion was too strong:
+    it is a statement about a mutant nobody built. `build` now builds the mutant
+    and asks the validator, which answers the question directly and for every
+    constraint, not only the ones outside a choice. `note` carries the context
+    into the skip reason when the validator does say the mutation does not bite.
     """
     if not isinstance(schema, dict):
         return
+    if "$ref" in schema:
+        # Follow it. `settings.models.<role>` is `{"$ref": "#/$defs/roleModel"}`
+        # and every constraint roleModel declares was invisible from the
+        # instance side, so four of them sat unpinned with nothing in the
+        # report to say why -- they were never walked at all. `seen` guards
+        # against a self-referential schema walking forever.
+        target = _deref(schema, _root or schema)
+        if target and id(target) not in (_seen or frozenset()):
+            yield from walk(target, spath, ipath, inside_choice,
+                            _root=_root, _seen=(_seen or frozenset()) | {id(target)})
+        return
     for key in HANDLED:
         if key in schema:
-            yield (key, schema, ipath, not inside_choice,
+            yield (key, schema, ipath, "value",
                    "under oneOf/anyOf" if inside_choice else "")
+    kw = {"_root": _root, "_seen": _seen}
     for name, sub in (schema.get("properties") or {}).items():
         yield from walk(sub, spath + ("properties", name), ipath + (name,),
-                        inside_choice)
+                        inside_choice, **kw)
     if isinstance(schema.get("items"), dict):
         yield from walk(schema["items"], spath + ("items",), ipath + (0,),
-                        inside_choice)
+                        inside_choice, **kw)
     for choice in ("oneOf", "anyOf"):
         for i, sub in enumerate(schema.get(choice) or []):
-            yield from walk(sub, spath + (choice, i), ipath, True)
+            yield from walk(sub, spath + (choice, i), ipath, True, **kw)
     for key in ("allOf",):
         for i, sub in enumerate(schema.get(key) or []):
-            yield from walk(sub, spath + (key, i), ipath, inside_choice)
+            yield from walk(sub, spath + (key, i), ipath, inside_choice, **kw)
     extra = schema.get("additionalProperties")
     if isinstance(extra, dict):
         yield from walk(extra, spath + ("additionalProperties",),
-                        ipath + (_ANY_KEY,), inside_choice)
-    if isinstance(schema.get("propertyNames"), dict):
+                        ipath + (_ANY_KEY,), inside_choice, **kw)
+    names = schema.get("propertyNames")
+    if isinstance(names, dict):
         for key in HANDLED:
-            if key in schema["propertyNames"]:
-                yield (key, schema["propertyNames"], ipath, False,
-                       "propertyNames constrains keys, not values")
+            if key in names:
+                yield (key, names, ipath, "key",
+                       "under oneOf/anyOf" if inside_choice else "")
 
 
 class _AnyKey(str):
@@ -394,18 +550,30 @@ def violate(constraint, schema, value):
     return None
 
 
+#: A validator message that says a choice failed without naming which keyword
+#: inside the branch did it -- the one rejection shape a generated case cannot
+#: attribute from the message alone. See `build`.
+_CHOICE_FAIL = re.compile(r"matched 0 (?:oneOf|anyOf) branches")
+
+
 def build(schema_name, schema, seed):
-    """(cases, skipped) for one schema."""
+    """(cases, skipped) for one schema.
+
+    Every candidate is VERIFIED before it is emitted: the mutant is validated
+    against the schema, and the case ships only if the schema actually rejects
+    it and says so naming this constraint. That check is what lets the walk stop
+    refusing `oneOf`/`anyOf` branches on principle -- and it is worth having on
+    its own account, because until now a case was emitted on the ASSUMPTION that
+    planting a bad value made the document invalid. A case that does not bite is
+    worse than a missing one: it counts toward coverage while pinning nothing.
+    """
     cases, skipped, seen = [], [], set()
-    for constraint, node, ipath, reachable, why in walk(schema):
-        key = (constraint, tuple(str(p) for p in ipath), id(node))
+    for constraint, node, ipath, mode, why in walk(schema, _root=schema):
+        key = (constraint, tuple(str(p) for p in ipath), mode, id(node))
         if key in seen:
             continue
         seen.add(key)
         where = ".".join(str(p) for p in ipath) or "(root)"
-        if not reachable:
-            skipped.append((schema_name, constraint, where, why))
-            continue
         target, concrete = resolve(seed, ipath)
         if concrete is None:
             skipped.append((schema_name, constraint, where,
@@ -413,7 +581,24 @@ def build(schema_name, schema, seed):
             continue
         mutant = copy.deepcopy(seed)
 
-        if constraint == "required":
+        if mode == "key":
+            if not isinstance(target, dict) or not target:
+                skipped.append((schema_name, constraint, where,
+                                "the seed carries no object of keys here"))
+                continue
+            bad = violate(constraint, node, next(iter(target)))
+            if not isinstance(bad, str):
+                skipped.append((schema_name, constraint, where,
+                                "no string key violates this constraint alone"))
+                continue
+            # Reuse a value the seed already has under this object, so the only
+            # thing wrong with the mutant is the KEY. A freshly synthesised
+            # value could fail its own subschema and the case would then pin
+            # that failure instead of propertyNames.
+            _at(mutant, concrete)[bad] = copy.deepcopy(next(iter(target.values())))
+            label = "%s rejects a property NAME that violates %s" % (where, constraint)
+            detail = "property name"
+        elif constraint == "required":
             if not isinstance(target, dict):
                 skipped.append((schema_name, constraint, where,
                                 "the seed value here is not an object"))
@@ -446,6 +631,41 @@ def build(schema_name, schema, seed):
             label = "%s violates %s" % (where, constraint)
             detail = None
 
+        # VERIFY, then emit. The schema must actually reject the mutant, and
+        # the rejection must name this constraint -- a document rejected for
+        # some unrelated reason would ship a green case that pins nothing.
+        expected = [REASON[constraint]] + ([detail] if detail else [])
+        try:
+            errors = js.validate(mutant, schema)
+        except js.UnsupportedKeyword as exc:
+            skipped.append((schema_name, constraint, where,
+                            "the validator cannot check this schema: %s" % exc))
+            continue
+        if not errors:
+            skipped.append((schema_name, constraint, where,
+                            ("the schema still accepts the mutant" +
+                             (" (%s)" % why if why else ""))))
+            continue
+        missing = [n for n in expected if not any(n in e for e in errors)]
+        if missing and len(errors) == 1 and _CHOICE_FAIL.search(errors[0]):
+            # The constraint sits inside a `oneOf`/`anyOf`, and this validator
+            # collapses a choice failure into one message without naming the
+            # branch keyword that failed. The rejection is still caused by
+            # exactly this constraint -- restore it and the mutant matches its
+            # branch again, so the document becomes valid and this case fails.
+            # That is what "pinned" means, and mutation_sweep measures it
+            # directly. Assert the whole message, path included, so the case is
+            # tied to a choice failing HERE rather than anywhere in the
+            # document.
+            expected = [errors[0]]
+            label += " (its branch, and so the choice here, stops matching)"
+            missing = []
+        if missing:
+            skipped.append((schema_name, constraint, where,
+                            "rejected, but not for this constraint (no %r in "
+                            "the errors)" % missing[0]))
+            continue
+
         cases.append({
             "id": "SC-%s-%03d" % (_slug(schema_name), len(cases) + 1),
             "kind": "schema",
@@ -454,10 +674,8 @@ def build(schema_name, schema, seed):
             "constraint": constraint,
             "instance_path": where,
             "json": mutant,
-            "expect": {"valid": False, "errors_contain": [REASON[constraint]]},
+            "expect": {"valid": False, "errors_contain": expected},
         })
-        if detail:
-            cases[-1]["expect"]["errors_contain"].append(detail)
     return cases, skipped
 
 
@@ -504,11 +722,13 @@ def render(build_root):
             "only 9.3%% of declared constraints, measured by constraint-deletion "
             "mutation (runner/mutation_sweep.py). Judgement-carrying cases stay "
             "hand-written in 08-schemas.json; the mechanical ones live here.\n\n"
-            "Regenerate with `make generate`. Do not hand-edit: edits are "
-            "overwritten. Constraints that cannot be reached with one "
-            "unambiguous instance path (oneOf/anyOf branches, propertyNames, "
-            "paths the seed does not instantiate) are NOT generated and are "
-            "listed by `python3 runner/gen_schema_cases.py --report`."),
+            "Every case is VERIFIED before it is emitted: the mutant is "
+            "validated against the schema, and the case ships only if the "
+            "schema rejects it naming this constraint.\n\nRegenerate with "
+            "`make generate`. Do not hand-edit: edits are overwritten. What "
+            "is still not generated (if/then conditionals, and paths the "
+            "enriched seed cannot instantiate) is listed by "
+            "`python3 runner/gen_schema_cases.py --report`."),
         "surface": "schemas/*.json",
         "covers": ["MAR-527", "MAR-530"],
         "profile": "bare",

@@ -32,7 +32,7 @@ make gate
 
 `make gate` runs four steps and stops at the first failure:
 
-1. **`make eval`** — the deterministic tier. 363 cases against the resolved
+1. **`make eval`** — the deterministic tier. 448 cases against the resolved
    build, writing `results/latest.json`. Non-zero exit if any case differs.
 2. **`make check`** — asserts both GENERATED trees are still in sync with their
    sources: `evals/**/case.yaml` against `dataset/routing.json`, and
@@ -40,7 +40,7 @@ make gate
    Catches a generated file edited by hand, where the edit would be silently
    overwritten.
 3. **`make mutation`** — measures what the schema tier would actually catch, by
-   deleting each constraint in turn. Fails below 50% coverage.
+   deleting each constraint in turn. Fails below 90% coverage.
 4. **`make report`** — renders `results/report.md` and `results/report.html`
    from the run result.
 

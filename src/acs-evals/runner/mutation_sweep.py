@@ -51,6 +51,33 @@ CONSTRAINTS = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
                "propertyNames"}
 
 
+def inert(key, value):
+    """Why deleting this constraint cannot change any verdict, or None.
+
+    Some keyword occurrences restrict nothing: `additionalProperties: true`
+    says exactly what its own absence says, and a zero `minLength`/`minItems`/
+    `minProperties` admits every value the type already admits. Deleting one
+    produces a schema that is not merely equivalent in practice but IDENTICAL
+    in meaning, so no instance exists that any case could use to notice.
+
+    Such an occurrence is not a hole. Counting it as one asks the reader to
+    close a gap that cannot be closed, and understates the coverage of the
+    cases that do exist -- which is the opposite of what this tool is for.
+
+    It is excluded from the denominator and reported separately rather than
+    dropped: a denominator that quietly shrinks is how a coverage number stops
+    meaning anything, and the whole argument for generating these cases was
+    that 9.3%% was the honest number.
+    """
+    if key == "additionalProperties" and value is True:
+        return "additionalProperties: true is what its own absence means"
+    if key == "required" and value == []:
+        return "required: [] requires nothing"
+    if key in ("minLength", "minItems", "minProperties") and value == 0:
+        return "%s: 0 admits every value of the type" % key
+    return None
+
+
 def schema_cases():
     out = []
     for path in sorted(glob.glob(os.path.join(REPO_ROOT, "dataset", "cases", "*.json"))):
@@ -99,7 +126,7 @@ def at(doc, pointer):
 
 
 def sweep(build_root, cases):
-    results, holes = {}, []
+    results, holes, skipped = {}, [], []
     for path in sorted(glob.glob(os.path.join(build_root, "schemas", "*.json"))):
         name = os.path.basename(path)
         if not any(c["schema"] == name for c in cases):
@@ -113,6 +140,10 @@ def sweep(build_root, cases):
             parent = at(mutant, pointer)
             if key not in parent:
                 continue
+            why = inert(key, parent[key])
+            if why:
+                skipped.append((name, key, pointer or "(root)", why))
+                continue
             del parent[key]
             total += 1
             if holds(cases, name, mutant):
@@ -120,7 +151,7 @@ def sweep(build_root, cases):
             else:
                 caught += 1
         results[name] = (caught, total)
-    return results, holes
+    return results, holes, skipped
 
 
 def main():
@@ -128,13 +159,16 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--holes", action="store_true",
                     help="list every constraint no case pins")
+    ap.add_argument("--inert", action="store_true",
+                    help="list keyword occurrences that restrict nothing, and "
+                         "so are excluded from the denominator")
     ap.add_argument("--threshold", type=float,
                     help="exit 1 if total coverage falls below this (0..1)")
     args = ap.parse_args()
 
     build = resolve_build()
     cases = schema_cases()
-    results, holes = sweep(build.root, cases)
+    results, holes, skipped = sweep(build.root, cases)
 
     caught = sum(c for c, _t in results.values())
     total = sum(t for _c, t in results.values())
@@ -150,11 +184,19 @@ def main():
             print("  %-32s %3d/%-3d  %5.1f%%" % (name, c, t, 100.0 * c / t))
     print("\n  %-32s %3d/%-3d  %5.1f%%" % ("TOTAL", caught, total, pct))
     print("\n  %d constraint(s) pinned by no case." % len(holes))
+    if skipped:
+        print("  %d keyword occurrence(s) restrict nothing and are not counted "
+              "(--inert lists them)." % len(skipped))
 
     if args.holes:
         print()
         for name, key, pointer in holes:
             print("  %-30s %-22s %s" % (name, key, pointer))
+
+    if args.inert:
+        print()
+        for name, key, pointer, why in skipped:
+            print("  %-30s %-22s %-46s %s" % (name, key, pointer, why))
 
     if args.threshold is not None and total:
         if caught / total < args.threshold:
