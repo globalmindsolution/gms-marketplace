@@ -90,25 +90,27 @@ never hand-picked:
   `s04.CASES` versus the `plugins/acs/skills/*/` directories minus its
   `UNPROBED` allowlist) and fails when the two drift, so running that module
   IS the check; `UNPROBED` is the list of reasons above, in code.
-  A case is decided one of two ways: a **model-invocable** skill by the first
-  `Skill` tool_use its description probe provokes, and a skill that sets
-  `disable-model-invocation: true` by the session's registration list for the
-  explicit `/acs:<skill>` command it is probed with — which is why the latter
-  can carry a ✅ in a column otherwise defined by model routing.
-  **Eight skills now set that flag, not two.** Alongside the two user-action-only
-  skills (`install-hooks`, `update`) the design-phase entry-point fold (ADR
-  0091) gave it to all six **internal legs** — `create-quality`,
-  `create-operations`, `create-principles`, `create-standards`,
-  `create-project`, `standardize-project` — because their entry point
-  (`/acs:create-docs`, `/acs:project`) is the only user-facing command for
-  them. The consequence for this column is direct and not yet absorbed by the
-  probe set: a **description probe can never route** to a skill carrying
-  `disable-model-invocation: true`, so the six legs' existing description
-  probes are expected to miss on the next paid run and need reclassifying to
-  the explicit-invocation + negative-routing pair the other two carriers use.
-  That reclassification moves the measured routing-coverage claim, so it is
-  deliberately left to a fresh paid measurement rather than done blind here —
-  it is a known open item, not a silent one.
+  A case is decided one of two ways: by the first `Skill` tool_use its
+  description probe provokes, or — for a probe written as the explicit
+  `/acs:<skill>` command — by the session's registration list, which is why
+  such a case can carry a ✅ in a column otherwise defined by model routing.
+  **Every shipped skill is model-invocable**: none sets
+  `disable-model-invocation`. That flag is enforced by the CLI, which refuses
+  the `Skill` call outright while leaving the slash command working, so it
+  cannot be used to make a skill "internal" — it does the opposite. Six skills
+  carried it until 2026-09-13 and each is an **internal leg** dispatched by its
+  entry point with a real `Skill(acs:<leg>)` call, so while it was set,
+  `/acs:create-docs` could not start one of its four doc legs and
+  `/acs:project` could not start either of its two.
+  The six legs — `create-quality`, `create-operations`, `create-principles`,
+  `create-standards`, `create-project`, `standardize-project` — are still
+  probed by explicit command, but for a different reason: a user invokes a leg
+  directly to resume an interrupted delivery ticket, so that command must keep
+  resolving. What steers a plain description to the entry point instead is the
+  leg's **description** ("Internal leg of /acs:<entry>, not a user-facing
+  command"), and s04's `NEGATIVE` cases measure exactly that.
+  `tests/acs/test_skill_contracts.py` now fails if any skill a `Skill(acs:…)`
+  call names is made non-invocable again.
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
   artifacts → 3 of 32: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),

@@ -74,7 +74,7 @@
       "kind": "positive",
       "prompt": "/acs:create-operations",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-create-operations-negative",
@@ -82,7 +82,7 @@
       "kind": "negative",
       "prompt": "Write up our release process, the runbooks, observability and how we handle incidents.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:create-docs is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:create-docs, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:create-docs dispatches this leg with a real Skill(acs:create-operations) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-create-pr",
@@ -106,7 +106,7 @@
       "kind": "positive",
       "prompt": "/acs:create-principles",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-create-principles-negative",
@@ -114,7 +114,7 @@
       "kind": "negative",
       "prompt": "Capture the engineering principles this team works to, with the rationale for each.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:create-docs is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:create-docs, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:create-docs dispatches this leg with a real Skill(acs:create-principles) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-create-project-explicit",
@@ -122,7 +122,7 @@
       "kind": "positive",
       "prompt": "/acs:create-project",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:project, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-create-project-negative",
@@ -130,7 +130,7 @@
       "kind": "negative",
       "prompt": "This repo is brand new and empty. Scaffold the project skeleton from the approved architecture.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:project, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:create-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-create-quality-explicit",
@@ -138,7 +138,7 @@
       "kind": "positive",
       "prompt": "/acs:create-quality",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-create-quality-negative",
@@ -146,7 +146,7 @@
       "kind": "negative",
       "prompt": "Write our test strategy and the coverage policy that goes with it.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:create-docs is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:create-docs, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:create-docs dispatches this leg with a real Skill(acs:create-quality) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-create-requirements",
@@ -163,7 +163,7 @@
       "kind": "positive",
       "prompt": "/acs:create-standards",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-create-standards-negative",
@@ -171,7 +171,7 @@
       "kind": "negative",
       "prompt": "Document our coding standards, the naming and layout conventions, and a review checklist.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:create-docs is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:create-docs, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:create-docs dispatches this leg with a real Skill(acs:create-standards) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-create-test-docs",
@@ -217,15 +217,15 @@
       "kind": "positive",
       "prompt": "/acs:install-hooks",
       "must_route": true,
-      "why": "disable-model-invocation:true, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving. Previously justified by disable-model-invocation (\"only an explicit invocation may route\"); it now pins registration, decided at the init event, alongside the description probe that was this skill's negative case."
     },
     {
-      "id": "ROUTE-install-hooks-negative",
+      "id": "ROUTE-install-hooks",
       "skill": "acs:install-hooks",
-      "kind": "negative",
+      "kind": "positive",
       "prompt": "Set up the git hooks for this repository so checks run before every commit.",
-      "must_route": false,
-      "why": "The no-auto-invoke guarantee: a bare description of this skill's intent must NOT route to it."
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. This was a NEGATIVE probe until 2026-09-13, asserting that disable-model-invocation kept the model from reaching acs:install-hooks. No skill sets that flag now, so the same prompt states the opposite and better claim: a request about local git hooks should reach this skill. The prompt is unchanged."
     },
     {
       "id": "ROUTE-merge-pr",
@@ -289,7 +289,7 @@
       "kind": "positive",
       "prompt": "/acs:standardize-project",
       "must_route": true,
-      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:project, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving: a user invokes a leg directly to resume an interrupted delivery ticket, which is what its argument-hint offers. This probe used to be justified by disable-model-invocation — \"only an explicit invocation may route\" — which is no longer true of any skill; it now pins registration, decided at the init event like every other explicit probe."
     },
     {
       "id": "ROUTE-standardize-project-negative",
@@ -297,7 +297,7 @@
       "kind": "negative",
       "prompt": "Audit this existing repo against our standards and scaffold whatever tooling is missing.",
       "must_route": false,
-      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+      "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:project, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:standardize-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
       "id": "ROUTE-test-explicit",
@@ -313,15 +313,15 @@
       "kind": "positive",
       "prompt": "/acs:update",
       "must_route": true,
-      "why": "disable-model-invocation:true, so only an explicit invocation may route."
+      "why": "The explicit command must keep resolving. Previously justified by disable-model-invocation (\"only an explicit invocation may route\"); it now pins registration, decided at the init event, alongside the description probe that was this skill's negative case."
     },
     {
-      "id": "ROUTE-update-negative",
+      "id": "ROUTE-update",
       "skill": "acs:update",
-      "kind": "negative",
+      "kind": "positive",
       "prompt": "Check whether there is a newer version of the acs plugin available.",
-      "must_route": false,
-      "why": "The no-auto-invoke guarantee: a bare description of this skill's intent must NOT route to it."
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. This was a NEGATIVE probe until 2026-09-13, asserting that disable-model-invocation kept the model from reaching acs:update. No skill sets that flag now, so the same prompt states the opposite and better claim: a request about a newer plugin version should reach this skill. The prompt is unchanged."
     },
     {
       "id": "ROUTE-usage",

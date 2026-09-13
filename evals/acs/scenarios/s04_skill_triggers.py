@@ -61,18 +61,20 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 31 of 32 (23 by description, 8 user-only by explicit cmd + no-auto-route; `test` is an alias of run-e2e-tests)",
+    "summary": "right skill routes for 31 of 32 (25 by description, 6 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
 }
 
 # Description-trigger + explicit-invocation cases.
 # (label, init?, request, expected skill).
-#   - The 23 model-invocable skills use a request that avoids naming the skill.
-#   - The 8 user-only skills (install-hooks, update, and the six ADR 0091
-#     legs of /acs:create-docs and /acs:project) set
-#     disable-model-invocation, so they can only be reached by the explicit
-#     `/acs:<skill>` command — a description would never route to them. Their
-#     positive case is therefore the literal explicit invocation; their
-#     no-auto-route guarantee is covered by NEGATIVE below.
+#   - 25 skills are probed by description, with a request that avoids naming
+#     the skill. Every shipped skill is model-invocable, so that is the
+#     default; no skill sets disable-model-invocation.
+#   - The 6 internal legs of /acs:create-docs and /acs:project are probed by
+#     the explicit `/acs:<skill>` command instead, because that command must
+#     keep resolving: a user invokes a leg directly to resume an interrupted
+#     delivery ticket, which is what its argument-hint offers. What a leg must
+#     NOT do is pick up a plain description of its own subject — its entry
+#     point should — and that is covered by NEGATIVE below.
 CASES = [
     ("setup", False,
      "Set up and initialize the acs configuration for this repository.",
@@ -188,22 +190,11 @@ CASES = [
      "This repository has no build or test tooling yet. Set up its structure "
      "so work can start.",
      "project"),
-    # User-only skills: positive case = the explicit command the user types.
-    # (A description can't reach them — see NEGATIVE for that guarantee.)
-    ("install-hooks", True,
-     "/acs:install-hooks",
-     "install-hooks"),
-    ("update", True,
-     "/acs:update",
-     "update"),
-]
-
-# Negative-routing cases for the eight user-only skills: a bare description of
-# their intent must NOT auto-route to them (disable-model-invocation is
-# honored). PASS when the model picks anything other than the forbidden skill
-# — a different skill, or no skill at all (None).
-# (label, init?, request, forbidden skill)
-NEGATIVE = [
+    # install-hooks and update are model-invocable like any other skill, so
+    # they are probed by description like any other skill. They used to carry
+    # disable-model-invocation and be probed by explicit command instead;
+    # these two prompts are the ones that were their NEGATIVE cases, which is
+    # exactly what a description probe should say.
     ("install-hooks", True,
      "Set up the local git hooks for this clone so our configured commit-message "
      "and branch-name conventions are enforced before anything gets pushed.",
@@ -212,6 +203,23 @@ NEGATIVE = [
      "Check whether there's a newer version of the acs plugin available and "
      "summarize what changed since the version I have installed.",
      "update"),
+]
+
+# Negative-routing cases for the six internal legs: a bare description of a
+# leg's intent must NOT route to the leg, because its entry point
+# (/acs:create-docs, /acs:project) is the documented front door and is what
+# should pick it up. PASS when the model picks anything other than the
+# forbidden skill — the entry point, another skill, or no skill at all (None).
+#
+# What enforces this is the leg's DESCRIPTION ("Internal leg of /acs:<entry>,
+# not a user-facing command ... run /acs:<entry> instead"), not a frontmatter
+# flag. The legs used to set disable-model-invocation, which the CLI enforces
+# by refusing the Skill call — and since each entry point dispatches its legs
+# with a real `Skill(acs:<leg>)` call, that flag broke both folds outright.
+# The property below is the one that was actually wanted, and a description is
+# what delivers it.
+# (label, init?, request, forbidden skill)
+NEGATIVE = [
     ("create-project", True,
      "Scaffold the repository skeleton — build config, test framework, CI — "
      "from the approved architecture docs.",

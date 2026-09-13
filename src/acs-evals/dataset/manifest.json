@@ -3,7 +3,7 @@
   "target_plugin": "acs",
   "target_release": "v0.4.10",
   "recorded_against": "0.4.9",
-  "recorded_against_fingerprint": "56fd087181fdd8ce",
+  "recorded_against_fingerprint": "fac10cbbcd9f7fb5",
   "recorded_on": "2026-09-13",
   "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.4.10 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and \u2014 as of 1.1.0 \u2014 the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills, ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
   "tiers": {

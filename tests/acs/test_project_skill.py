@@ -162,13 +162,23 @@ class DispatchTest(unittest.TestCase):
 class InternalLegFrontmatterTest(unittest.TestCase):
     """Brief section 4, for the two project legs: each stays Skill-invocable
     with its body, agents, hooks and gate unchanged, but stops being
-    user-facing -- model invocation off, description naming its entry point."""
+    user-facing -- which the DESCRIPTION does, by naming its entry point.
 
-    def test_each_leg_disables_model_invocation(self):
+    "Stays Skill-invocable" and `disable-model-invocation: true` cannot both
+    be true: the CLI enforces the flag and refuses the dispatch, so
+    /acs:project's own `Skill(acs:create-project)` could never have run."""
+
+    def test_each_leg_stays_dispatchable_by_its_entry_point(self):
         for leg in LEGS:
             with self.subTest(leg=leg):
                 fm = frontmatter(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
-                self.assertRegex(fm, r"(?m)^disable-model-invocation: true$")
+                self.assertNotIn("disable-model-invocation", fm)
+
+    def test_the_entry_point_dispatches_each_leg(self):
+        body = read(SKILL_PATH)
+        for leg in LEGS:
+            with self.subTest(leg=leg):
+                self.assertIn("Skill(acs:%s)" % leg, body)
 
     def test_each_leg_description_names_the_project_entry_point(self):
         for leg in LEGS:

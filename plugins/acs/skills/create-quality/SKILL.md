@@ -1,7 +1,6 @@
 ---
 name: create-quality
 description: Internal leg of /acs:create-docs, not a user-facing command: bootstrap or maintain the consumer quality/ doc set (test strategy, coverage policy) from templates, reading the PRD non-functional requirements and the architecture/ set as upstream, delivered as a docs-only PR on its own delivery ticket. Run /acs:create-docs quality (or /acs:create-docs all) instead — that umbrella invokes this leg, with every hook, gate and reflection cycle unchanged; a bare delivery-ticket id resumes an interrupted leg.
-disable-model-invocation: true
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

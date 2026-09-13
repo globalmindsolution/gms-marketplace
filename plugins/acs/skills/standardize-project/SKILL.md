@@ -1,7 +1,6 @@
 ---
 name: standardize-project
 description: Internal leg of /acs:project (standardize mode), not a user-facing entry point -- invoke /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here. Audits an EXISTING repo against its principles_path/standards_path doc sets, hld/project-structure.md, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds ONLY the missing docs/config/tooling as one reviewed PR -- never moving, renaming, deleting, or rewriting existing source. Structural gaps surface as recommended follow-up tickets, never auto-minted. The brownfield counterpart to the greenfield-only create-project leg.
-disable-model-invocation: true
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

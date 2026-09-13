@@ -102,9 +102,10 @@ Treat the generated tier as change-detection, not validation.
 not enabled on the account this dataset was built with, so its case and grader
 schema is authored from the CLI's `--help` output rather than a passing run.
 
-What *is* verified without a model is the routing **surface**: that all 25
-skills ship, carry a description, and declare the right
-`disable-model-invocation` (`SKILL-*`). **Whether a real request reaches the
+What *is* verified without a model is the routing **surface**: that every
+skill ships, carries a description, and stays invocable — no skill sets
+`disable-model-invocation`, and a leg its entry point dispatches must not
+(`SKILL-*`, critical for the six legs). **Whether a real request reaches the
 right skill is not pinned by the deterministic tier.** Do not record routing as
 verified on the strength of a tier-1 gate.
 

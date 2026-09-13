@@ -77,6 +77,23 @@ the notes.
 
 ### Fixed
 
+- **`/acs:create-docs` and `/acs:project` can start their legs again.** Both
+  entry points dispatch each leg with a real `Skill(acs:<leg>)` call, and all
+  six legs (`create-quality`, `create-operations`, `create-principles`,
+  `create-standards`, `create-project`, `standardize-project`) carried
+  `disable-model-invocation: true`. That flag is enforced by the CLI, which
+  refuses the Skill call outright — `cannot be used with Skill tool due to
+  disable-model-invocation` — so neither fold could start a single leg;
+  `/acs:create-docs all` was dead on arrival. The flag was reached for to make
+  a leg "not user-facing", but it does the opposite of that: it leaves the
+  slash command working and blocks the programmatic dispatch. What keeps a leg
+  out of a user's way is its **description** ("Internal leg of /acs:<entry>,
+  not a user-facing command"), which is what steers routing, and that is
+  unchanged. `install-hooks` and `update` also drop the flag and are now
+  model-invocable like every other skill. No skill sets it any more, and
+  `tests/acs/test_skill_contracts.py` now fails if a skill named by any
+  `Skill(acs:…)` call is made non-invocable again.
+
 - **`validate_xml.py` accepts the `lens` attribute on `<result>`.**
   `acs-messages.xsd` has declared `lens` (`A`|`B`|`C`|`D`, naming which
   full-depth review lens a verify result belongs to) since the four-lens

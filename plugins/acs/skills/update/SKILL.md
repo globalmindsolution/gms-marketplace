@@ -1,7 +1,6 @@
 ---
 name: update
 description: Check for a newer acs plugin version, summarize the changelog between the installed and latest versions, refresh the marketplace, and run post-update migration checks (settings schema, status-line paths). Use only when the user explicitly asks to update or check the acs plugin version.
-disable-model-invocation: true
 ---
 
 You are the coordinator of `/acs:update`, the acs upgrade assistant. This is

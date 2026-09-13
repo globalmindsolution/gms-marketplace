@@ -31,8 +31,13 @@ A case is `critical` when its failure mode is one of:
 - **Evidence stops being evidence.** The verdict's derived-`passed` invariant,
   and the freshness rules that stop one run's clean verdict standing in for
   another's.
-- **A guarantee the docs make to users is withdrawn.** The no-auto-invoke
-  guarantee on `disable-model-invocation` skills.
+- **A guarantee the docs make to users is withdrawn.** An entry point that
+  can no longer start its own legs, for one: `/acs:create-docs` and
+  `/acs:project` each dispatch theirs with a real `Skill(acs:<leg>)` call, so
+  a leg made non-invocable takes its whole fold down. That is what
+  `disable-model-invocation` on the six legs did until 2026-09-13 — the flag
+  is enforced by the CLI, which refuses the dispatch while leaving the slash
+  command working, the opposite of what it was reached for.
 
 **Release rule: a single `critical` failure blocks the release.** No exceptions,
 no "accepted for this cut" — either the build is fixed or the case is proven
@@ -119,8 +124,9 @@ Two conditions are reported alongside the verdict and are also blocking:
   for the older released build it was scores of cases ahead of, and this
   condition never fired in either direction. The manifest therefore records a
   `recorded_against_fingerprint` — a hash of the shipped skill surface, each
-  skill with whether a model may route to it unaided — and 25 invocable skills
-  is not 32 with six legs user-only, whatever the two `plugin.json` files say.
+  skill with whether a model may route to it unaided — and a build whose legs
+  a fold can dispatch is not the build whose legs it cannot, whatever the two
+  `plugin.json` files say.
   `--record` re-stamps it, so a re-record cannot leave the baseline naming the
   previous build.
 - **Coverage below floor** — `make mutation` measures what the schema tier

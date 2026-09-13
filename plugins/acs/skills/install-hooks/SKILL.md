@@ -1,7 +1,6 @@
 ---
 name: install-hooks
 description: Install this clone's local acs convention hooks (commit-msg + pre-push) that enforce the branch and commit formats you configured at /acs:setup, before anything is pushed — the `pre-commit install` equivalent for acs. Use after cloning a repo that has acs enforcement set up, or whenever you want local enforcement of the configured conventions before pushing a PR.
-disable-model-invocation: true
 ---
 
 You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline

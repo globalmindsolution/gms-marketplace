@@ -363,10 +363,18 @@ class LoopTopologyTest(unittest.TestCase):
 
 class InternalLegFrontmatterTest(unittest.TestCase):
     """The entry-point fold, leg side: each of the four doc-bootstrap legs
-    stops being user-facing (`disable-model-invocation: true`) and says in its
-    description that /acs:create-docs is the way in. Everything else about the
-    leg -- body, agents, hooks, gate, sentinel, settings key -- is untouched,
-    which is why the umbrella can still invoke it as a real Skill-tool call."""
+    stops being user-facing by SAYING SO IN ITS DESCRIPTION -- the thing that
+    steers routing -- and names /acs:create-docs as the way in. Everything
+    else about the leg (body, agents, hooks, gate, sentinel, settings key) is
+    untouched, which is why the umbrella can still invoke it as a real
+    Skill-tool call.
+
+    This class used to require `disable-model-invocation: true` on each leg,
+    which contradicted the sentence above it: the flag is enforced by the CLI
+    and refuses the Skill call outright, so the umbrella's
+    `Skill(acs:create-quality)` could never have run. It was leaving the slash
+    command (the user-facing route) working and blocking the dispatch (the
+    programmatic one) -- backwards on both counts."""
 
     LEGS = ("create-quality", "create-operations",
             "create-principles", "create-standards")
@@ -378,11 +386,17 @@ class InternalLegFrontmatterTest(unittest.TestCase):
         assert m, "%s/SKILL.md must open with a front-matter block" % skill
         return m.group(1)
 
-    def test_each_leg_is_no_longer_model_invocable(self):
+    def test_each_leg_stays_dispatchable_by_its_entry_point(self):
         for skill in self.LEGS:
             with self.subTest(skill=skill):
-                self.assertRegex(self._fm(skill),
-                                 r"(?m)^disable-model-invocation: true$")
+                self.assertNotIn("disable-model-invocation", self._fm(skill))
+
+    def test_the_umbrella_dispatches_every_leg(self):
+        umbrella = read(os.path.join(PLUGIN, "skills", "create-docs",
+                                     "SKILL.md"))
+        for skill in self.LEGS:
+            with self.subTest(skill=skill):
+                self.assertIn("Skill(acs:%s)" % skill, umbrella)
 
     def test_each_leg_description_names_its_entry_point(self):
         for skill in self.LEGS:

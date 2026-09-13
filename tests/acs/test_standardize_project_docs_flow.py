@@ -347,9 +347,9 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
         m2 = re.search(
-            r"(\d+) of (\d+) \((\d+) by description, (\d+) user-only", summary)
+            r"(\d+) of (\d+) \((\d+) by description, (\d+) internal legs", summary)
         self.assertIsNotNone(
-            m2, "summary must state 'N of M (D by description, K user-only'")
+            m2, "summary must state 'N of M (D by description, K internal legs'")
         self.assertEqual(
             (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
             (total, shipped, described, user_only))
@@ -360,15 +360,18 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
         user_only = len(self._negative())
         described = total - user_only
 
-        described_hits = re.findall(r"(\d+) model-invocable skills", source)
+        # "model-invocable" stopped distinguishing anything once every skill
+        # became so; the split that remains is how a skill is PROBED.
+        described_hits = re.findall(r"(\d+) skills are probed by description",
+                                    source)
         self.assertTrue(described_hits,
-                        "s04 prose must state 'N model-invocable skills'")
+                        "s04 prose must state 'N skills are probed by description'")
         for value in described_hits:
             self.assertEqual(int(value), described)
 
-        user_only_hits = re.findall(r"(\d+) user-only skills", source)
+        user_only_hits = re.findall(r"(\d+) internal legs", source)
         self.assertTrue(user_only_hits,
-                        "s04 prose must state 'N user-only skills'")
+                        "s04 prose must state 'N internal legs'")
         for value in user_only_hits:
             self.assertEqual(int(value), user_only)
 

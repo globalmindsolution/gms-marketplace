@@ -1,6 +1,6 @@
 {
   "group": "skill inventory and routing surface",
-  "description": "All 32 shipped skills, checked deterministically. What a skill ROUTES on is its frontmatter — the `description` Claude matches against, and `disable-model-invocation`, which decides whether it may be auto-invoked at all. Both are packaged data, so both are assertable with no model and no cost.\n\nThis catches the failure the paid routing tier cannot: a skill that stops shipping, loses its description, or silently gains/loses its user-only flag. The behavioural half — does a real request actually route here — lives in dataset/routing.json and the evals/ tier.",
+  "description": "All 32 shipped skills, checked deterministically. What a skill ROUTES on is its frontmatter \u2014 the `description` Claude matches against, and `disable-model-invocation`, which decides whether it may be auto-invoked at all. Both are packaged data, so both are assertable with no model and no cost.\n\nThis catches the failure the paid routing tier cannot: a skill that stops shipping, loses its description, or silently gains/loses its user-only flag. The behavioural half \u2014 does a real request actually route here \u2014 lives in dataset/routing.json and the evals/ tier.",
   "surface": "skills/*/SKILL.md",
   "covers": [
     "MAR-526"
@@ -155,17 +155,20 @@
       "id": "SKILL-create-operations",
       "kind": "skill_manifest",
       "skill": "create-operations",
-      "title": "create-operations: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "create-operations: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "create-operations",
-          "disable-model-invocation": "true"
+          "name": "create-operations"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-pr",
@@ -207,49 +210,58 @@
       "id": "SKILL-create-principles",
       "kind": "skill_manifest",
       "skill": "create-principles",
-      "title": "create-principles: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "create-principles: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "create-principles",
-          "disable-model-invocation": "true"
+          "name": "create-principles"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-project",
       "kind": "skill_manifest",
       "skill": "create-project",
-      "title": "create-project: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "create-project: ships as an internal leg of /acs:project, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "create-project",
-          "disable-model-invocation": "true"
+          "name": "create-project"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-quality",
       "kind": "skill_manifest",
       "skill": "create-quality",
-      "title": "create-quality: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "create-quality: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "create-quality",
-          "disable-model-invocation": "true"
+          "name": "create-quality"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-requirements",
@@ -273,17 +285,20 @@
       "id": "SKILL-create-standards",
       "kind": "skill_manifest",
       "skill": "create-standards",
-      "title": "create-standards: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "create-standards: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "create-standards",
-          "disable-model-invocation": "true"
+          "name": "create-standards"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-test-docs",
@@ -361,18 +376,19 @@
       "id": "SKILL-install-hooks",
       "kind": "skill_manifest",
       "skill": "install-hooks",
-      "title": "install-hooks: ships, and is USER-ONLY — it may never be model-invoked",
+      "title": "install-hooks: ships as a model-invocable skill with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "install-hooks",
-          "disable-model-invocation": "true"
+          "name": "install-hooks"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      },
-      "severity": "critical"
+      }
     },
     {
       "id": "SKILL-merge-pr",
@@ -504,17 +520,20 @@
       "id": "SKILL-standardize-project",
       "kind": "skill_manifest",
       "skill": "standardize-project",
-      "title": "standardize-project: ships as an internal leg — not model-invocable — with a routing description",
+      "title": "standardize-project: ships as an internal leg of /acs:project, dispatchable by it, with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "standardize-project",
-          "disable-model-invocation": "true"
+          "name": "standardize-project"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      }
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-test",
@@ -538,18 +557,19 @@
       "id": "SKILL-update",
       "kind": "skill_manifest",
       "skill": "update",
-      "title": "update: ships, and is USER-ONLY — it may never be model-invoked",
+      "title": "update: ships as a model-invocable skill with a routing description",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "update",
-          "disable-model-invocation": "true"
+          "name": "update"
         },
         "frontmatter_nonempty": [
           "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
         ]
-      },
-      "severity": "critical"
+      }
     },
     {
       "id": "SKILL-usage",

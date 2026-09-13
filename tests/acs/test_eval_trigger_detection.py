@@ -29,6 +29,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+import acs_lib as lib  # noqa: E402  (the registry is the single source for legs)
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 from scenarios import s04_skill_triggers as s04  # noqa: E402
 
@@ -224,19 +226,20 @@ class TriggerDetailTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--allowedTools") + 1], "Skill")
 
 
-def user_only_skills():
-    """Skills whose frontmatter forbids auto-invocation — the set that must be
-    probed by explicit command plus a no-auto-route negative. Read from the
-    shipped SKILL.md rather than listed here, so the ADR 0091 legs (and anything
-    later given the flag) cannot drift out of this guard the way a literal did."""
-    out = set()
-    for name in shipped_skills():
-        path = os.path.join(SKILLS_DIR, name, "SKILL.md")
-        with open(path, encoding="utf-8") as fh:
-            head = fh.read(4096)
-        if "\ndisable-model-invocation: true" in head:
-            out.add(name)
-    return out
+def internal_legs():
+    """The legs of an entry-point fold — the set probed by explicit command
+    plus a negative saying a description of the leg's subject must reach the
+    ENTRY POINT rather than the leg. Read from the registry (phases.yaml's
+    `internal` map), which is the single source and is itself pinned by
+    test_phases_registry.py, so a new leg cannot drift out of this guard.
+
+    This used to read `disable-model-invocation: true` off each SKILL.md. No
+    skill sets that flag: the CLI enforces it by refusing the Skill call, and
+    every one of these legs is dispatched by its entry point with a real
+    `Skill(acs:<leg>)` call, so the flag broke both folds. Steering a
+    description away from a leg is the description's job, which is what
+    NEGATIVE measures."""
+    return set(lib.skill_legs())
 
 
 class S04ProbeSetTest(unittest.TestCase):
@@ -275,7 +278,7 @@ class S04ProbeSetTest(unittest.TestCase):
         probed = set(shipped_skills()) - self.UNPROBED
         self.assertEqual(len(s04.CASES), len(probed))
         self.assertEqual(len({e for _, _, _, e in s04.CASES}), len(probed))
-        self.assertEqual({f for _, _, _, f in s04.NEGATIVE}, user_only_skills())
+        self.assertEqual({f for _, _, _, f in s04.NEGATIVE}, internal_legs())
 
     def test_the_three_new_cases_expect_their_own_skill(self):
         by_label = {label: expected for label, _, _, expected in s04.CASES}
@@ -293,10 +296,10 @@ class S04ProbeSetTest(unittest.TestCase):
                 self.assertNotIn(form, text,
                                  "%s prompt names the skill %r" % (label, form))
 
-    def test_only_the_user_only_skills_are_probed_explicitly(self):
+    def test_only_the_internal_legs_are_probed_explicitly(self):
         explicit = {label for label, _, request, _ in s04.CASES
                     if request.startswith("/")}
-        self.assertEqual(explicit, user_only_skills())
+        self.assertEqual(explicit, internal_legs())
 
 
 class _FakeSandbox:
@@ -351,7 +354,7 @@ class S04DetectionIsReportedTest(unittest.TestCase):
         check = self._run(self._all_right)
         self.assertTrue(check.passed)
         explicit = [label for label, _, _ in check.results if "[registered]" in label]
-        self.assertEqual(len(explicit), len(user_only_skills()))
+        self.assertEqual(len(explicit), len(internal_legs()))
 
     def test_an_unmeasured_explicit_probe_is_never_a_pass(self):
         def answers(request):
@@ -362,7 +365,7 @@ class S04DetectionIsReportedTest(unittest.TestCase):
         check = self._run(answers)
         self.assertFalse(check.passed)
         failed = [label for label, ok, _ in check.results if not ok]
-        self.assertEqual(len(failed), len(user_only_skills()))
+        self.assertEqual(len(failed), len(internal_legs()))
         for label in failed:
             self.assertIn("[unmeasured]", label)
 

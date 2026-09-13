@@ -32,8 +32,9 @@ bought once can be re-judged under new thresholds without paying again.
 ## What is measured, and from where
 
 **Reliability** — routing accuracy per skill (does a natural request reach the
-right skill, and do `disable-model-invocation` skills stay silent), and whether
-pipeline runs reach a completed status at all.
+right skill, and does a description of an internal leg's subject reach its
+entry point rather than the leg), and whether pipeline runs reach a completed
+status at all.
 
 **Cost** — `cost_usd` per run. For pipeline scenarios this comes from acs's own
 ledger, `<ticket>/<skill>-state.json`, which is the same document `/acs:usage`
@@ -58,11 +59,13 @@ the model kept all 38 built-in tools and a probe could turn into a working
 session. Killed that early it never emits a cost envelope. `cost_usd` is `null` rather than
 estimated; an invented number in a cost baseline is worse than an absent one.
 
-The two explicit probes (`/acs:install-hooks`, `/acs:update`) are cheaper
-still. A typed slash command is expanded by the CLI itself and never dispatched
-through the `Skill` tool, so `disable-model-invocation` skills can only be
-observed as **registered**: the `init` event's `slash_commands` list. Those
-probes are decided at `init`, before any model turn. Every routing run records
+The explicit probes (the six internal legs, plus `/acs:install-hooks`,
+`/acs:update` and `/acs:test`) are cheaper still. A typed slash command is
+expanded by the CLI itself and never dispatched through the `Skill` tool, so
+such a probe can only be observed as **registered**: the `init` event's
+`slash_commands` list. Those probes are decided at `init`, before any model
+turn. They pin that the command still resolves — a user invokes a leg
+directly to resume an interrupted delivery ticket. Every routing run records
 `detection` — `skill_tool_use`, `registered`, `refused_user_only` when the CLI
 declined to dispatch the call at all, `skill_tool_use_unresolved` when the
 stream ended before the call's result arrived, or `unmeasured` when an explicit
@@ -82,15 +85,23 @@ rule is not a criterion.
   "this existing codebase" on an empty repo tests the model's patience, not
   the description; a split is triaged against the sandbox before the
   description (scenario set 1.5.0).
-- **Routing, negative probe** — passes only if the skill auto-invokes on **no**
-  run. This is the `disable-model-invocation` guarantee, and it is `critical`.
-  **A request is not an invocation.** A flagged skill is still listed in the
-  session's `skills`, and the model does sometimes reach for it — but the CLI
-  refuses the call outright (`cannot be used with Skill tool due to
-  disable-model-invocation`) and the skill body never loads, so the guarantee
-  held. A run is therefore decided by the Skill call's **tool_result**, not by
-  the `tool_use` that asked for it: `detection` is `refused_user_only` and
-  `routed_to` is `None`. That test is deliberately narrow — **only** a
+- **Routing, negative probe** — passes only if the skill routes on **no** run.
+  The six probes are the six **internal legs**: a plain description of a leg's
+  own subject must reach its entry point (`/acs:create-docs`,
+  `/acs:project`), which coordinates the fan-out, rather than the leg. It is
+  `major`. It was `critical` while it guarded `disable-model-invocation`, a
+  CLI-enforced guarantee; what it guards now is a description steering
+  preference, and a user who lands on a leg still gets a working leg — just
+  one doc set instead of the coordinated pass. Recording the drop here rather
+  than quietly restating the floor.
+  **A request is not an invocation.** No skill sets
+  `disable-model-invocation` today, but the rule the flag needs is kept
+  because the flag is CLI-enforced: a flagged skill is still listed in the
+  session's `skills` and the model does reach for it, the CLI refuses the call
+  outright (`cannot be used with Skill tool due to disable-model-invocation`),
+  and the skill body never loads. A run is therefore decided by the Skill
+  call's **tool_result**, not by the `tool_use` that asked for it: `detection`
+  is `refused_user_only` and `routed_to` is `None`. That test is deliberately narrow — **only** a
   `disable-model-invocation` refusal undoes a route. Every other error on a
   Skill call happens *after* dispatch, and the commonest by far is the skill's
   own pre-hook declining to work in the probe's sandbox (`acs pre-code:
@@ -151,7 +162,7 @@ generator; one far looser makes it decorative.
 | State | Condition |
 |---|---|
 | **UNMEASURED** | No measurement exists. Exit non-zero. |
-| **BLOCKED (critical)** | A `disable-model-invocation` skill actually ran (its Skill call was honoured), or a control probe failed. |
+| **BLOCKED (critical)** | A control probe failed, or a `disable-model-invocation` skill actually ran (no skill sets the flag today; the rule stands in case one does). |
 | **BLOCKED** | An absolute floor was crossed. |
 | **UNCOMPARED (baseline established)** | Floors held; first measurement for this scenario set, so nothing to compare. |
 | **PASSED (uncalibrated drift)** | A provisional relative threshold was crossed. Look, do not block. |

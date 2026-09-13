@@ -172,10 +172,10 @@ python3 runner/gen_plugin_eval.py --check   # fail if the tree is stale
 
 Edit the JSON, never the generated YAML.
 
-The half of routing that *is* checkable without a model — that all 25 skills
-ship, carry a routing `description`, and declare the right
-`disable-model-invocation` — is pinned deterministically in tier 1 as
-`SKILL-*`.
+The half of routing that *is* checkable without a model — that every skill
+ships, carries a routing `description`, and stays invocable (no skill sets
+`disable-model-invocation`, and a leg its entry point dispatches must not) —
+is pinned deterministically in tier 1 as `SKILL-*`.
 
 ## What the dataset covers
 

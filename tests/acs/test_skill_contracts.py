@@ -185,28 +185,54 @@ class TestSkillContracts(unittest.TestCase):
         self.assertNotIn("one subagent per step", body)
         self.assertIsNone(re.search(r"spawn a fresh subagent", body, re.IGNORECASE))
 
-    def test_non_model_invocable_skills(self):
-        # Two classes set disable-model-invocation, and only these two:
-        #   * user-action-only: update + install-hooks change the environment
-        #     (merge-pr is agent/model-invocable since MAR-42, so it is NOT
-        #     in this set);
-        #   * internal legs: the design-phase entry-point fold left each leg
-        #     in the registry's `internal` map Skill-invocable by its own
-        #     entry point but no longer user-facing, so a description can
-        #     never route to it. Read the legs from the registry rather than
-        #     re-listing them: phases.yaml is the single source, and
-        #     test_phases_registry.py pins the map itself.
-        user_action = ("update", "install-hooks")
-        legs = tuple(sorted(lib.skill_legs()))
-        self.assertTrue(legs, "the registry must declare the internal legs")
-        for name in user_action + legs:
-            fm, _ = frontmatter(read(self.skill_path(name)), name)
-            self.assertRegex(fm, r"(?m)^disable-model-invocation: true$", name)
+    def test_every_skill_is_model_invocable(self):
+        # No skill sets disable-model-invocation. The flag is enforced by the
+        # CLI, which refuses the Skill call outright ("cannot be used with
+        # Skill tool due to disable-model-invocation") while leaving the slash
+        # command working -- the exact opposite of what it was used for here.
+        # Six of the eight skills that carried it are dispatched BY another
+        # skill's Skill-tool call (see the next test), so the flag broke both
+        # folds: /acs:create-docs could not start one of its four doc legs and
+        # /acs:project could not start either of its two. The registry said so
+        # all along -- skill_legs()'s own docstring is "stays Skill-invocable,
+        # but whose only user-facing command is the entry point it serves" --
+        # and the frontmatter contradicted it.
+        #
+        # "Not user-facing" is carried by the DESCRIPTION, which is what
+        # steers routing: each leg opens "Internal leg of /acs:<entry>, not a
+        # user-facing command", and the entry point says to run it instead.
         for name in ALL_SKILLS:
-            if name in user_action or name in legs:
-                continue
             fm, _ = frontmatter(read(self.skill_path(name)), name)
-            self.assertNotIn("disable-model-invocation: true", fm, name)
+            self.assertNotIn("disable-model-invocation", fm, name)
+
+    def test_every_skill_a_skill_dispatches_is_invocable(self):
+        """The check that would have caught it: a `Skill(acs:x)` call in one
+        skill must name a skill the model is allowed to invoke."""
+        called = {}
+        for name in ALL_SKILLS:
+            for target in re.findall(r"Skill\(acs:([a-z0-9-]+)\)",
+                                     read(self.skill_path(name))):
+                if target != name:
+                    called.setdefault(target, set()).add(name)
+        self.assertTrue(called, "no skill dispatches another; the fold is gone")
+        for target, callers in sorted(called.items()):
+            self.assertIn(target, ALL_SKILLS,
+                          "%s dispatches unknown skill %s"
+                          % (sorted(callers), target))
+            fm, _ = frontmatter(read(self.skill_path(target)), target)
+            self.assertNotIn(
+                "disable-model-invocation", fm,
+                "%s is dispatched via Skill() by %s, so the CLI must be "
+                "allowed to dispatch it" % (target, ", ".join(sorted(callers))))
+
+    def test_the_internal_legs_are_the_ones_their_entry_points_dispatch(self):
+        """The registry and the skills must agree on who dispatches whom."""
+        legs = lib.skill_legs()
+        self.assertTrue(legs, "the registry must declare the internal legs")
+        for leg, entry in sorted(legs.items()):
+            self.assertIn("Skill(acs:%s)" % leg, read(self.skill_path(entry)),
+                          "%s is registered as %s's leg but %s never "
+                          "dispatches it" % (leg, entry, entry))
 
     def test_merge_pr_is_agent_invocable(self):
         # MAR-42: /acs:merge-pr is agent/model-invocable; the readiness gate +

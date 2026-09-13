@@ -116,16 +116,16 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
 
 
 class TestingStrategyInvocationClassPinTest(unittest.TestCase):
-    """The design-phase entry-point fold moved a fact this document asserts.
+    """testing-strategy.md's Trigger bullet explains how a skill's routing
+    tick is decided, and that turns on which skills the model may invoke.
 
-    testing-strategy.md's Trigger bullet explains WHY two skills carry a
-    routing tick in a column otherwise defined by model routing: they are the
-    only skills that set `disable-model-invocation: true`, so they can only be
-    probed by an explicit command. The fold gave that flag to the six internal
-    legs as well, so "the 2 user-only skills, both disable-model-invocation:
-    true" is no longer a complete account of who carries it -- and the reason
-    matters, because a DESCRIPTION probe can never route to a skill that
-    carries it. The number here is derived from disk, never a literal.
+    The answer is now all of them: no skill sets `disable-model-invocation`.
+    The flag is enforced by the CLI, which refuses the Skill call, and each of
+    the six internal legs is dispatched by its entry point with a real
+    `Skill(acs:<leg>)` call -- so while they carried it, /acs:create-docs and
+    /acs:project could not start a single leg. The document must not claim any
+    skill is unreachable by a description probe for that reason. Carriers are
+    derived from disk, never a literal.
     """
 
     STRATEGY = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
@@ -142,19 +142,23 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
                 found.add(name)
         return found
 
-    def test_carriers_are_the_two_user_only_skills_plus_every_leg(self):
-        """Ground truth, from disk and the registry."""
-        self.assertEqual(self._carriers(),
-                         {"update", "install-hooks"} | set(lib.skill_legs()))
+    def test_no_skill_carries_the_flag(self):
+        """Ground truth, from disk. Each of these skills is dispatched by an
+        entry point's Skill() call or is plain user-facing; the CLI enforces
+        the flag by refusing that dispatch."""
+        self.assertEqual(self._carriers(), set())
 
-    def test_strategy_does_not_claim_only_two_skills_carry_the_flag(self):
+    def test_strategy_does_not_claim_any_skill_is_description_unreachable(self):
         body = _read(self.STRATEGY)
         self.assertNotIn(
             "the 2 user-only skills\n  (`install-hooks`, `update`, both "
             "`disable-model-invocation: true`)", body,
-            "testing-strategy.md still claims install-hooks and update are the "
-            "only disable-model-invocation skills; the fold added %d legs"
-            % len(lib.skill_legs()))
+            "testing-strategy.md still claims install-hooks and update carry "
+            "the flag; no skill does")
+        self.assertNotIn(
+            "description probe can never route", body,
+            "testing-strategy.md still says a description probe cannot reach "
+            "some skill; every shipped skill is model-invocable")
 
     def test_the_re_derivation_hint_is_real_not_a_placeholder(self):
         """The Trigger bullet tells a reader to re-derive its two figures. An
@@ -165,12 +169,13 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
         self.assertIn("test_eval_trigger_detection.py", body)
         self.assertIn("UNPROBED", body)
 
-    def test_strategy_states_the_legs_carry_the_flag_too(self):
+    def test_strategy_states_why_the_legs_are_probed_explicitly(self):
         body = _read(self.STRATEGY)
         self.assertIn("internal leg", body)
         self.assertRegex(
-            body, r"(?s)disable-model-invocation.{0,1500}description probe can "
-                  r"never route")
+            body, r"(?s)internal leg.{0,2000}entry point",
+            "the Trigger bullet must say a leg is probed by explicit command "
+            "because its entry point is the front door for descriptions")
 
 
 class LegResumeFormPinTest(unittest.TestCase):

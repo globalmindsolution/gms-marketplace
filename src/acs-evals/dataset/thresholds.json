@@ -13,9 +13,9 @@
     },
     "routing_negative_accuracy_floor": {
       "value": 1.0,
-      "severity": "critical",
-      "rule": "A negative probe must NOT auto-invoke its skill on ANY run.",
-      "why": "This is the no-auto-invoke guarantee on disable-model-invocation skills. RUBRIC.md already classes withdrawing a documented user guarantee as critical; one auto-invocation of /acs:update in a consumer repo is the failure this exists to stop."
+      "severity": "major",
+      "rule": "A negative probe must NOT route to its skill on ANY run. The six are the internal legs: a description of a leg's own subject must reach its entry point, not the leg.",
+      "why": "MAJOR since 2026-09-13, down from critical, and the drop is deliberate rather than a quiet relaxation. It was critical while it guarded the no-auto-invoke guarantee on disable-model-invocation skills — a CLI-enforced promise, and withdrawing a documented user guarantee is critical by RUBRIC.md. No skill sets that flag now (the CLI enforces it by refusing the dispatch, which broke both entry-point folds), so what these probes guard is a description steering preference: a user who lands on a leg still gets a working leg, just one doc set instead of the coordinated fan-out /acs:create-docs would have run. Degraded, not broken."
     },
     "routing_control_floor": {
       "value": 1.0,
@@ -40,7 +40,7 @@
     "user_only_attempt_ceiling": {
       "value": 0,
       "severity": "minor",
-      "rule": "A run may not reach for a `disable-model-invocation` skill, even though the CLI refuses the call.",
+      "rule": "A run may not reach for a `disable-model-invocation` skill, even though the CLI refuses the call. Dormant: no skill sets the flag today, and the rule is kept so that reintroducing it is measured rather than discovered.",
       "why": "MINOR, deliberately. The guarantee itself is enforced by the CLI, which returns `cannot be used with Skill tool due to disable-model-invocation` and never loads the skill — verified 2026-09-13 — so an attempt is not the guarantee breaking and must never be scored as one. What it does say is that the descriptions draw the model toward a skill only a user may run, which costs a turn and is worth fixing in prose. Scoring the attempt as an invocation is what made the 2026-09-13 measurement report two CRITICAL findings against a guarantee that held on all 15 runs."
     }
   },

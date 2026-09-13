@@ -18,4 +18,4 @@ graders:
   - name: does-not-route-to-acs-standardize-project
     tool_not_used: Skill
     skill: acs:standardize-project
-  # The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures.
+  # A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION ("Internal leg of /acs:project, not a user-facing command"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:standardize-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is.
