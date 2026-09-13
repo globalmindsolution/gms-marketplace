@@ -30,9 +30,10 @@ unchanged).
     and a verifier only, its plan phase having moved to `create-impl-plan`
     (ADR-0089); the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and ship only an executor (MAR-60
-    inlining). 59 agent files exist on disk; 53 are reachable (48 triad + 2
-    for `code` + 3 apply-work executors), and 6 — the apply-work
-    planner/verifier files — are orphaned. See
+    inlining). 53 agent files exist on disk and 53 are reachable (48 triad
+    + 2 for `code` + 3 apply-work executors): ADR-0092 deleted the six
+    apply-work planner/verifier files the skills already forbade spawning, and
+    the registry now declares what each skill owns. See
     [../functional/reflection.md](../functional/reflection.md).
   - **Hooks**: a pre and post hook per hooked skill (twenty of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).

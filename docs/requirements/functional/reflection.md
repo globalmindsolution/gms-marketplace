@@ -145,8 +145,9 @@ Requirements:
   lane change, up or down, is ever silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
-  `<skill>-verifier`. 59 agent files exist on disk in total and are retained
-  (C-4) — three role files for each hooked skill prefix except `code`, whose
+  `<skill>-verifier`. 53 agent files exist on disk in total — exactly the
+  roles `workflows/phases.yaml` declares (ADR-0092), so none is orphaned —
+  three role files for each hooked skill prefix except `code`, whose
   planner moved to `create-impl-plan` with the plan phase itself (ADR-0089);
   before that refactor there were fifteen skill prefixes with agent files, and
   there are twenty now. **Sixteen** skills actively spawn the full

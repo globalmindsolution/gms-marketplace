@@ -98,9 +98,12 @@ def derive():
     n_hooked = len(hooked)
     triad = [s for s in hooked if s not in APPLY_WORK and s not in PLANNERLESS]
     n_triad = len(triad)
-    # Reachable = triad skills (3 roles each) + planner-less skills (executor +
-    # verifier) + apply-work skills (executor only).
-    reachable = n_triad * 3 + len(PLANNERLESS) * 2 + len(APPLY_WORK)
+    # Reachable = every role some skill DECLARES it owns. Read from the
+    # registry (ADR-0092) rather than recomputed from hardcoded APPLY_WORK /
+    # PLANNERLESS sets, which were a third copy of the same fact and the
+    # reason the doc and the disk could disagree.
+    declared_roles = acs_lib.skill_agents()
+    reachable = sum(len(roles) for roles in declared_roles.values())
     orphaned = n_agents - reachable
     return {
         "n_skills": n_skills,
@@ -111,6 +114,7 @@ def derive():
         "triad": triad,
         "n_triad": n_triad,
         "reachable": reachable,
+        "declared_roles": declared_roles,
         "orphaned": orphaned,
         "s04_cases": _s04_cases(),
     }
@@ -139,21 +143,32 @@ class TopologyDerivationTest(unittest.TestCase):
         self.assertEqual(prefixes, set(D["hooked"]))
 
     def test_agent_count_matches_the_role_inventory(self):
-        """Every hooked skill ships 3 role files, except the planner-less ones
-        (2) — /acs:code, whose planner moved to /acs:create-impl-plan. The
-        apply-work skills still ship all 3 files; two of theirs are orphaned."""
-        expected = ((D["n_hooked"] - len(PLANNERLESS)) * 3 + len(PLANNERLESS) * 2)
-        self.assertEqual(D["n_agents"], expected)
+        """The files on disk are exactly the roles the registry declares.
 
-    def test_reachable_equals_triad_times_three_plus_the_rest(self):
-        self.assertEqual(
-            D["reachable"],
-            D["n_triad"] * 3 + len(PLANNERLESS) * 2 + len(APPLY_WORK))
+        Each skill declares its own shape (ADR-0092), so there is no formula
+        to apply and no per-skill exception to carve out: the inventory IS the
+        declaration.
+        """
+        self.assertEqual(D["n_agents"], D["reachable"])
 
-    def test_orphaned_is_six(self):
-        # apply-work executor count (3) and orphaned count (6) are the two
-        # UNCHANGED figures per the ticket's ground-truth map.
-        self.assertEqual(D["orphaned"], 6)
+    def test_every_agent_on_disk_is_declared(self):
+        declared = {"%s-%s" % (skill, role)
+                    for skill, roles in D["declared_roles"].items()
+                    for role in roles}
+        on_disk = {os.path.splitext(os.path.basename(p))[0]
+                   for p in D["agent_files"]}
+        self.assertEqual(on_disk, declared)
+
+    def test_no_agent_is_orphaned(self):
+        """Was `test_orphaned_is_six`, and six was the point.
+
+        create-pr, create-ticket and merge-pr each forbade spawning a planner
+        or verifier in their own prose and shipped both files anyway. That the
+        orphan count was a PINNED CONSTANT — an expected, documented six —
+        rather than a failure is how it survived. ADR-0092 deleted them; the
+        assertion is now that the number is zero and stays there.
+        """
+        self.assertEqual(D["orphaned"], 0)
 
 
 class InternalsTopologyTest(unittest.TestCase):

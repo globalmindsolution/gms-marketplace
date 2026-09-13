@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 32 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 59 files (20 hooked skills: 19 × 3 roles, plus `code` × 2 — its planner moved to `/acs:create-impl-plan`); 53 reachable (16 triad-keeping skills × 3 + code's executor and verifier + 3 apply-work executors), 6 apply-work planner/verifier files orphaned (MAR-60 inlining) |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 53 files, all reachable (16 triad-keeping skills × 3 + code's executor and verifier + 3 apply-work executors). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set (ADR-0092) |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
@@ -670,8 +670,11 @@ All coordinator <-> subagent communication uses the three message shapes in
 
 ## Subagents
 
-59 agent files named `<skill>-<role>` in `plugins/acs/agents/`, of which 53 are
-reachable. The sixteen **triad-keeping skills** (`analyze-ticket`,
+53 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 53 reachable —
+every one of them: the files on disk are exactly the roles `workflows/phases.yaml`
+declares under `agents` (ADR-0092), which is what
+`tests/acs/test_docs_reflection_topology.py` asserts. The sixteen
+**triad-keeping skills** (`analyze-ticket`,
 `create-impl-plan`, `create-api-contract`, `create-test-docs`,
 `create-e2e-tests`, `create-prd`, `create-design`, `create-architecture`,
 `create-project`, `create-quality`, `create-operations`, `create-principles`,
@@ -684,8 +687,9 @@ collapse — the agent count did not move. **`/acs:code` is planner-less**: its 
 `/acs:create-impl-plan`, `code-planner.md` moved with it, and code ships only
 an executor and a verifier — 2 files, not 3, and no orphan. The three
 **apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and
-use only their executor — so their six planner/verifier files are the orphaned
-ones (MAR-60 inlining).
+use only their executor, and ship only that: their six planner/verifier files
+were orphaned from the day the skills were inlined (MAR-60) and ADR-0092
+deleted them. No agent file is orphaned.
 Conventions:
 
 - Frontmatter: `name`, `description` (when the coordinator spawns it), and
