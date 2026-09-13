@@ -1,0 +1,359 @@
+{
+  "description": "Routing probes for all 32 model-invocable acs skills. 30 get one natural-language request that must route to them without naming them. The 8 user-only skills (disable-model-invocation:true — `install-hooks`, `update`, and the six ADR 0091 legs) get a pair each: an explicit invocation that MUST route, and a bare description of their intent that must NOT.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into evals/**/case.yaml for `claude plugin eval`; dataset/cases/10-skills.json pins the routing SURFACE (each skill's shipped description and invocation flag) deterministically, with no model.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
+  "skill_count": 32,
+  "probe_count": 43,
+  "probes": [
+    {
+      "id": "ROUTE-analyze-ticket",
+      "skill": "acs:analyze-ticket",
+      "kind": "positive",
+      "prompt": "Before we plan anything for TKT-1, work out what it really asks for: what breaks, what is unclear, and what we are assuming.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. Deliberately pre-plan: the neighbour is create-impl-plan, so the prompt asks for understanding and open questions, never for an approach or a file list."
+    },
+    {
+      "id": "ROUTE-code",
+      "skill": "acs:code",
+      "kind": "positive",
+      "prompt": "TKT-1 already has approved specs in the workspace. Please implement it.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-api-contract",
+      "skill": "acs:create-api-contract",
+      "kind": "positive",
+      "prompt": "The plan for TKT-1 adds two new endpoints. Pin down their request and response shapes, the error codes and the compatibility story before anything is built.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The neighbour is create-impl-plan; the prompt is scoped to the external surface and its shapes rather than to the internal approach."
+    },
+    {
+      "id": "ROUTE-create-architecture",
+      "skill": "acs:create-architecture",
+      "kind": "positive",
+      "prompt": "We have a PRD now. Draw up the system architecture docs — the C4 views and the key flows.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-design",
+      "skill": "acs:create-design",
+      "kind": "positive",
+      "prompt": "This epic is design-significant. Settle the system design and weigh the options before anyone writes code.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-docs",
+      "skill": "acs:create-docs",
+      "kind": "positive",
+      "prompt": "Bootstrap the quality and operations doc sets together, in parallel rather than one after the other.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-e2e-tests",
+      "skill": "acs:create-e2e-tests",
+      "kind": "positive",
+      "prompt": "TKT-1's test plan has three end-to-end cases and none of them exist yet. Write those suites on the ticket branch.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The neighbours are create-test-docs and run-e2e-tests; the prompt presupposes the cases already exist and asks for the suites to be authored, not run."
+    },
+    {
+      "id": "ROUTE-create-impl-plan",
+      "skill": "acs:create-impl-plan",
+      "kind": "positive",
+      "prompt": "TKT-1 has been analysed and the questions are answered. Work out the file-by-file approach the implementation should follow.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. Deliberately post-analysis and pre-code: the neighbours are analyze-ticket and code, so the prompt asks for the approach, not for understanding or edits."
+    },
+    {
+      "id": "ROUTE-create-operations-explicit",
+      "skill": "acs:create-operations",
+      "kind": "positive",
+      "prompt": "/acs:create-operations",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-create-operations-negative",
+      "skill": "acs:create-operations",
+      "kind": "negative",
+      "prompt": "Write up our release process, the runbooks, observability and how we handle incidents.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-create-pr",
+      "skill": "acs:create-pr",
+      "kind": "positive",
+      "prompt": "The implementation is finished and the verifier passed. Open the pull request for it.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-prd",
+      "skill": "acs:create-prd",
+      "kind": "positive",
+      "prompt": "I want to define this product properly: vision, the problem, personas, goals with measurable success metrics.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-create-principles-explicit",
+      "skill": "acs:create-principles",
+      "kind": "positive",
+      "prompt": "/acs:create-principles",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-create-principles-negative",
+      "skill": "acs:create-principles",
+      "kind": "negative",
+      "prompt": "Capture the engineering principles this team works to, with the rationale for each.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-create-project-explicit",
+      "skill": "acs:create-project",
+      "kind": "positive",
+      "prompt": "/acs:create-project",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:project, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-create-project-negative",
+      "skill": "acs:create-project",
+      "kind": "negative",
+      "prompt": "This repo is brand new and empty. Scaffold the project skeleton from the approved architecture.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-create-quality-explicit",
+      "skill": "acs:create-quality",
+      "kind": "positive",
+      "prompt": "/acs:create-quality",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-create-quality-negative",
+      "skill": "acs:create-quality",
+      "kind": "negative",
+      "prompt": "Write our test strategy and the coverage policy that goes with it.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-create-requirements",
+      "skill": "acs:create-requirements",
+      "kind": "positive",
+      "prompt": "Reverse-engineer the functional and non-functional requirements out of this existing codebase.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. 1.5.0: runs on the fixture app — the prompt presupposes a codebase to reverse-engineer, and on the empty seeded repo the model inspected it, found nothing, and asked instead of routing (1/5 runs).",
+      "profile": "app"
+    },
+    {
+      "id": "ROUTE-create-standards-explicit",
+      "skill": "acs:create-standards",
+      "kind": "positive",
+      "prompt": "/acs:create-standards",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:create-docs, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-create-standards-negative",
+      "skill": "acs:create-standards",
+      "kind": "negative",
+      "prompt": "Document our coding standards, the naming and layout conventions, and a review checklist.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-create-test-docs",
+      "skill": "acs:create-test-docs",
+      "kind": "positive",
+      "prompt": "Work out the test cases TKT-1 needs from its acceptance criteria, and say which suite each one belongs in.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The neighbours are create-e2e-tests and run-e2e-tests; the prompt asks for the cases to be derived and written down, never for suites to be authored or run."
+    },
+    {
+      "id": "ROUTE-create-ticket",
+      "skill": "acs:create-ticket",
+      "kind": "positive",
+      "prompt": "We need a ticket for adding SSO login to the customer portal.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-docs-sync",
+      "skill": "acs:docs-sync",
+      "kind": "positive",
+      "prompt": "The code change is done. Make sure the docs match what actually changed before we raise the PR.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. 1.5.0: runs on the ticketed fixture app, on a ticket branch with a committed API change that docs/api.md does not yet describe — the prompt presupposes a finished change, and on the seeded repo (clean tree, one commit, no ticket branch) the model looked for it, found none, and asked instead of routing (1/5 runs).",
+      "profile": "app-ticketed",
+      "setup": [
+        "git checkout -qb task/TKT-1-let-the-api-confirm-and-pay-an-order-cha",
+        "printf '%s\\n' '' 'CONFIRM_ROUTES = (\"/orders/<id>/confirm\", \"/orders/<id>/pay\")  # TKT-1: wired to the service in the next commit' >> orders/api.py",
+        "git commit -qam 'TKT-1 add the confirm and pay routes to the API'"
+      ]
+    },
+    {
+      "id": "ROUTE-handoff",
+      "skill": "acs:handoff",
+      "kind": "positive",
+      "prompt": "I need to stop here. Park this ticket cleanly so I can pick it up in a fresh session tomorrow.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-install-hooks-explicit",
+      "skill": "acs:install-hooks",
+      "kind": "positive",
+      "prompt": "/acs:install-hooks",
+      "must_route": true,
+      "why": "disable-model-invocation:true, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-install-hooks-negative",
+      "skill": "acs:install-hooks",
+      "kind": "negative",
+      "prompt": "Set up the git hooks for this repository so checks run before every commit.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee: a bare description of this skill's intent must NOT route to it."
+    },
+    {
+      "id": "ROUTE-merge-pr",
+      "skill": "acs:merge-pr",
+      "kind": "positive",
+      "prompt": "The PR is approved and CI is green. Land it and clean up the branch.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-metrics",
+      "skill": "acs:metrics",
+      "kind": "positive",
+      "prompt": "Show me our delivery throughput — how many tickets are done, and how the pipeline is converting.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-project",
+      "skill": "acs:project",
+      "kind": "positive",
+      "prompt": "This repository has no build or test tooling yet. Set up its structure so work can start.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The umbrella auto-detects greenfield versus existing; the prompt states the greenfield evidence so the routing decision, not the mode decision, is measured."
+    },
+    {
+      "id": "ROUTE-release",
+      "skill": "acs:release",
+      "kind": "positive",
+      "prompt": "Cut version 0.4.10: assemble the changelog section and open the release PR.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-run-e2e-tests",
+      "skill": "acs:run-e2e-tests",
+      "kind": "positive",
+      "prompt": "Execute the end-to-end suites for TKT-1 and tell me which of its cases passed.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The neighbour is create-e2e-tests, and the alias `test` shares the domain; the prompt asks for execution and results, never for authoring."
+    },
+    {
+      "id": "ROUTE-setup",
+      "skill": "acs:setup",
+      "kind": "positive",
+      "prompt": "Configure acs for this repository — ticket prefix, coverage target, merge strategy.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-ship",
+      "skill": "acs:ship",
+      "kind": "positive",
+      "prompt": "Ship a password-reset email flow for me end to end: open the ticket, implement it with tests, and get a pull request up for review — I don't want to drive each step myself.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. The earlier prompt ('Take this request end to end for me, from ticket all the way to a pull request') routed nowhere on 5/5 runs of the 2026-09-10 measurement; a diagnostic session showed the model naming acs:ship and asking what the request was — it had nothing to ship. A routing probe must carry a shippable request, as s04's does."
+    },
+    {
+      "id": "ROUTE-standardize-project-explicit",
+      "skill": "acs:standardize-project",
+      "kind": "positive",
+      "prompt": "/acs:standardize-project",
+      "must_route": true,
+      "why": "disable-model-invocation:true since ADR 0091 made this an internal leg of /acs:project, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-standardize-project-negative",
+      "skill": "acs:standardize-project",
+      "kind": "negative",
+      "prompt": "Audit this existing repo against our standards and scaffold whatever tooling is missing.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
+    },
+    {
+      "id": "ROUTE-test",
+      "skill": "acs:test",
+      "kind": "positive",
+      "prompt": "Run our test suites and tell me whether anything broke.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "ROUTE-update-explicit",
+      "skill": "acs:update",
+      "kind": "positive",
+      "prompt": "/acs:update",
+      "must_route": true,
+      "why": "disable-model-invocation:true, so only an explicit invocation may route."
+    },
+    {
+      "id": "ROUTE-update-negative",
+      "skill": "acs:update",
+      "kind": "negative",
+      "prompt": "Check whether there is a newer version of the acs plugin available.",
+      "must_route": false,
+      "why": "The no-auto-invoke guarantee: a bare description of this skill's intent must NOT route to it."
+    },
+    {
+      "id": "ROUTE-usage",
+      "skill": "acs:usage",
+      "kind": "positive",
+      "prompt": "How much have we spent on AI for this repo, and what's the token burn per role?",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill."
+    },
+    {
+      "id": "CONTROL-off-domain",
+      "skill": null,
+      "kind": "control",
+      "prompt": "Write a four-line poem about the sea.",
+      "must_route": false,
+      "why": "A request with nothing to do with software delivery must invoke no skill at all. Routing it anywhere is over-triggering by the plugin's descriptions; reporting a skill here when none fired is a lying detector. Either way the surrounding measurement cannot be read."
+    },
+    {
+      "id": "CONTROL-registration-canary",
+      "skill": "acs:setup",
+      "kind": "control",
+      "prompt": "/acs:setup",
+      "must_route": true,
+      "why": "Deterministic canary, decided at the init event with no model turn: the CLI must list the plugin's commands. If this misses, the session cannot see the plugin at all and every paid probe would be measuring an absence — the failure that hid all 22 routes for three paid runs in September 2026. measure_skills runs it before spending anything."
+    },
+    {
+      "id": "CONTROL-unregistered-command",
+      "skill": "acs:no-such-skill",
+      "kind": "control",
+      "prompt": "/acs:no-such-skill",
+      "must_route": false,
+      "why": "A detector that reported every explicit probe as registered would pass the canary and both explicit probes alike. This command does not exist, so it must miss; a hit here means the instrument is lying, not that the plugin grew a skill."
+    }
+  ],
+  "control_count": 3
+}

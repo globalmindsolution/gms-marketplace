@@ -1,9 +1,10 @@
 # Skill rubric
 
 How good is a skill? Every other document in this set, and every document in
-[acs-evals](https://github.com/globalmindsolution/acs-evals), deliberately
-refuses to answer that. `acs-evals/docs/RUBRIC.md` ranks *the consequence of a
-case failing*, and says so outright: "whether acs should behave that way in the
+[acs-evals](../../src/acs-evals/README.md) — this repo's golden dataset, at
+`src/acs-evals/` — deliberately refuses to answer that.
+`src/acs-evals/docs/RUBRIC.md` ranks *the consequence of a case failing*, and
+says so outright: "whether acs should behave that way in the
 first place is a design judgement this dataset deliberately does not make."
 `EVALUATION-PROCESS.md` opens by disclaiming the same question. Both are right
 to: a golden dataset that graded its own subject would have nothing left to
@@ -31,9 +32,9 @@ well written: a description that wins its own probe but also wins its
 neighbour's is worse than a plain one that wins only its own.
 
 - **Evidence**: the skill's probe in `evals/acs/scenarios/s04_skill_triggers.py`
-  and `acs-evals/dataset/routing.json`, measured over 5 runs.
+  and `src/acs-evals/dataset/routing.json`, measured over 5 runs.
 - **Blocks** when reliability is below 100%. Routing is an absolute floor —
-  `acs-evals/docs/PERFORMANCE.md` already treats it as one, and a skill that
+  `src/acs-evals/docs/PERFORMANCE.md` already treats it as one, and a skill that
   routes 4 times in 5 fails one user in five.
 - **Reports, never blocks**: time-to-route. The median across description
   probes is ~3.0s; `ship` at 6.5s and `create-requirements` at 5.2s are slower
@@ -71,7 +72,7 @@ coordinator's prose.
 
 ### 4. Structure — is the document itself conformant?
 
-- **Evidence**: the `SKILL-*` case in `acs-evals/dataset/cases/10-skills.json`
+- **Evidence**: the `SKILL-*` case in `src/acs-evals/dataset/cases/10-skills.json`
   (frontmatter: `name`, a non-empty `description`, the invocation flag), and
   `structure_lint.py` against the skill's own declared `required_sections`
   (ADR 0056 — the list the executor is told to write IS the list the verifier
@@ -147,7 +148,7 @@ Per skill, and deliberately **not a score**:
 separately is the point of the rubric: a thin skill is not a broken skill, and
 it is not a finished one either.
 
-There is no composite number, for the reason `acs-evals/docs/RUBRIC.md` gives
+There is no composite number, for the reason `src/acs-evals/docs/RUBRIC.md` gives
 about its own levels: a percentage "invites shipping on a number", and one
 skill that refuses to route is not offset by thirty-one that do.
 
@@ -176,5 +177,5 @@ and with the user, not by grading.
 It also inherits the limit its sibling states plainly: evidence is only as good
 as the build it was measured against. A dimension that passed against an
 installed build older than the source under review is not evidence about the
-source. See `acs-evals/dataset/manifest.json` for which build the current
+source. See `src/acs-evals/dataset/manifest.json` for which build the current
 figures describe.

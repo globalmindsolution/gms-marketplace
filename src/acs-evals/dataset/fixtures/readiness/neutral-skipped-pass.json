@@ -1,0 +1,6 @@
+{"pr_view":{"number":59,"url":"u","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE",
+ "mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","baseRefName":"main","headRefName":"h",
+ "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"NEUTRAL","isRequired":true},
+                      {"name":"deploy","status":"COMPLETED","conclusion":"SKIPPED","isRequired":true},
+                      {"context":"legacy/ci","state":"SUCCESS","isRequired":true}]},
+ "required_checks_ok":true}

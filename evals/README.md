@@ -134,15 +134,21 @@ gate).
 
 ## Before a release
 
-The **release gate is acs-evals** (`globalmindsolution/acs-evals`), not this
-in-repo suite. In an acs-evals checkout, point it at the release candidate
-(`ACS_PLUGIN_ROOT` at this plugin) and run:
+The **release gate is acs-evals**, which lives in this repo at
+[`src/acs-evals/`](../src/acs-evals/README.md) — a different suite from this
+one, not a tier of it. It replays recorded CLI invocations against a *built*
+plugin; this directory drives real `claude -p` sessions. Point it at the
+release candidate and run:
 
 ```bash
-make eval        # deterministic golden cases — the gate
-make measure     # routing / behavioral measurement vs the promoted baseline
-make perf        # performance measurement
+cd ../src/acs-evals
+make eval-source   # deterministic golden cases against ../../plugins/acs — the gate
+make measure       # routing / behavioral measurement vs the promoted baseline
+make perf          # performance measurement
 ```
+
+Plain `make eval` resolves the newest *installed* build instead — run it that
+way too, since it is the only run that catches packaging drift.
 
 Treat a clean `make eval` as the precondition for tagging, and investigate any
 regression `make measure` / `make perf` reports before continuing.

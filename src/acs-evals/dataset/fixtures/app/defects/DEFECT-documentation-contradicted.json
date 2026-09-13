@@ -1,0 +1,22 @@
+{
+  "id": "DEFECT-documentation-contradicted",
+  "dimension_id": 11,
+  "dimension": "Documentation",
+  "expected_severity": "info",
+  "title": "POST /orders now answers 200 while docs/api.md still says 201",
+  "tests_after": "green",
+  "ticket_context": "Ticket: align the create-order status code with the other endpoints.",
+  "description": "The code and its test move to 200; docs/api.md keeps 201. acs's code-verifier reports consumer-doc drift as advisory (info) and leaves the repair to /acs:docs-sync, so the expected finding is info, not blocking — this defect checks the advisory fires at all.",
+  "patch": [
+    {
+      "file": "orders/api.py",
+      "before": "            return self._send(201, order.to_dict())",
+      "after": "            return self._send(200, order.to_dict())"
+    },
+    {
+      "file": "tests/test_api.py",
+      "before": "        self.assertEqual(status, 201)\n",
+      "after": "        self.assertEqual(status, 200)\n"
+    }
+  ]
+}

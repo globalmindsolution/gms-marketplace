@@ -1,0 +1,35 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": "A",
+  "passed": true,
+  "dimensions": [
+    {
+      "id": 1,
+      "name": "Acceptance-criteria conformance",
+      "result": "pass",
+      "evidence": "reviewed"
+    },
+    {
+      "id": 2,
+      "name": "Tests",
+      "result": "pass",
+      "evidence": "reviewed"
+    },
+    {
+      "id": 3,
+      "name": "Coverage",
+      "result": "pass",
+      "evidence": "reviewed"
+    },
+    {
+      "id": 4,
+      "name": "Business logic",
+      "result": "pass",
+      "evidence": "reviewed"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,17 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": "D",
+  "passed": true,
+  "dimensions": [
+    {
+      "id": 14,
+      "name": "Regression-risk (git-history)",
+      "result": "pass",
+      "evidence": "reviewed regression-risk (git-history)"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

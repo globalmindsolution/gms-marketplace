@@ -1,0 +1,17 @@
+{
+  "id": "DEFECT-quality-dead-duplicate",
+  "dimension_id": 6,
+  "dimension": "Quality",
+  "expected_severity": "blocking",
+  "title": "A dead, duplicated total function",
+  "tests_after": "green",
+  "ticket_context": "Ticket: add a helper for a forthcoming invoice PDF.",
+  "description": "A second subtotal implementation is added, named for a use that does not exist, called by nothing. Green suite, dead code.",
+  "patch": [
+    {
+      "file": "orders/pricing.py",
+      "before": "def subtotal(lines):\n    return sum(line_total(line) for line in lines)\n",
+      "after": "def subtotal(lines):\n    return sum(line_total(line) for line in lines)\n\n\ndef invoice_subtotal(lines):\n    total = 0\n    for line in lines:\n        total = total + line.unit_cents * line.quantity\n    return total\n"
+    }
+  ]
+}

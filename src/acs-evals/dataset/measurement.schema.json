@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/acs-evals/dataset/measurement.schema.json",
+  "title": "acs-evals tier-3 measurement record",
+  "description": "One controlled measurement of a build: every probe in the scenario set, run N times, with the per-run observations and the aggregates the gate compares. A baseline is simply a measurement promoted to dataset/baselines/.",
+  "type": "object",
+  "required": [
+    "schema",
+    "generated_at",
+    "build",
+    "scenario_set_version",
+    "environment",
+    "probes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "acs-evals/measurement/1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "build": {
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        }
+      }
+    },
+    "scenario_set_version": {
+      "type": "string",
+      "description": "From dataset/scenarios.json. A measurement may only be compared against a baseline carrying the SAME value — a changed scenario set is a changed experiment."
+    },
+    "environment": {
+      "type": "object",
+      "description": "What else could explain a difference. Recorded because a cost or time delta with no environment attached is uninterpretable.",
+      "required": [
+        "claude_cli_version"
+      ],
+      "properties": {
+        "claude_cli_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        },
+        "preflight": {
+          "type": "object",
+          "description": "The free, deterministic controls run before any paid session. A measurement is only written when every check passed.",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "routed_to": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "detection": {
+                    "enum": [
+                      "skill_tool_use",
+                      "registered",
+                      "unmeasured"
+                    ]
+                  },
+                  "seconds": {
+                    "type": "number"
+                  },
+                  "passed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "incomplete": {
+      "type": "boolean",
+      "description": "True when some probe did not produce the runs the scenario set asks for (a timeout, a crashed collector, an interrupted session). An incomplete measurement may not be promoted to a baseline.",
+      "default": false
+    },
+    "probes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "skill",
+          "runs",
+          "aggregate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "routing",
+              "pipeline"
+            ]
+          },
+          "skill": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The skill under test; null for a control whose known answer is that no skill fires."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "must_route": {
+                "type": "boolean"
+              },
+              "skill": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "explicit": {
+                "type": "boolean",
+                "description": "True when the prompt is a typed `/acs:<skill>` command, which the CLI expands itself and never dispatches through the Skill tool."
+              },
+              "control": {
+                "type": "boolean",
+                "description": "True for a control probe: it tests the instrument (registration canary, unregistered command, off-domain request) and its floor carries its own severity."
+              }
+            }
+          },
+          "runs": {
+            "type": "array",
+            "description": "One entry per execution. Kept raw alongside the aggregate so the spread is auditable and thresholds can be calibrated from it later.",
+            "items": {
+              "type": "object",
+              "required": [
+                "ok",
+                "seconds"
+              ],
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "cost_usd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "turns": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "routed_to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "stop_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "role_usage": {
+                  "type": "array",
+                  "description": "Copied verbatim from the skill-state ledger acs itself wrote, so the eval and /acs:usage cannot disagree about what a run cost.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string"
+                      },
+                      "cost_usd": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "input": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "output": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "cache_creation": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "cache_read": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "quality": {
+                  "type": "object",
+                  "properties": {
+                    "verify_iterations": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "coverage_percent": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "coverage_target": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "blocking_findings": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "tests_passed": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "detection": {
+                  "enum": [
+                    "skill_tool_use",
+                    "registered",
+                    "unmeasured"
+                  ],
+                  "description": "How a routing run was decided: the first Skill tool_use (model routing), the init event's slash_commands list (CLI registration, explicit probes only), or unmeasured when an explicit probe's stream reported no registration list — a miss, never a pass."
+                },
+                "setup": {
+                  "type": "array",
+                  "description": "Sessions run before the measured one to bring the sandbox to the state the skill needs; their cost and time are never folded into the run.",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "aggregate": {
+            "type": "object",
+            "description": "What the gate reads. Medians, never means: one 30-minute timeout should not move the number the gate compares.",
+            "properties": {
+              "runs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reliability": {
+                "type": "object",
+                "properties": {
+                  "hits": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rate": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              },
+              "seconds": {
+                "$ref": "#/$defs/spread"
+              },
+              "cost_usd": {
+                "$ref": "#/$defs/spread"
+              },
+              "verify_iterations": {
+                "$ref": "#/$defs/spread"
+              },
+              "coverage_percent": {
+                "$ref": "#/$defs/spread"
+              },
+              "blocking_findings_rate": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "enum": [
+        "full",
+        "routing",
+        "pipeline"
+      ],
+      "description": "What the run set out to measure. `incomplete` says whether it finished that; a routing-scoped run that finished is whole, not half, and may be promoted as a routing-scoped baseline."
+    },
+    "set_hashes": {
+      "type": "object",
+      "description": "Content hashes of the two halves of the experiment (routing probes; pipeline scenarios + fixture). A baseline is comparable when the halves it covers are unchanged.",
+      "properties": {
+        "routing": {
+          "type": "string"
+        },
+        "pipeline": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "spread": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "median plus the observed range. The range is what calibration reads; without it a threshold is a guess forever.",
+      "properties": {
+        "median": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

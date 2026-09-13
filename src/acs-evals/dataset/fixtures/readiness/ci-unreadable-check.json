@@ -1,0 +1,4 @@
+{"pr_view":{"number":46,"url":"u","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE",
+ "mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","baseRefName":"main","headRefName":"h",
+ "statusCheckRollup":[{"name":"mystery","isRequired":true}]},
+ "required_checks_ok":true}

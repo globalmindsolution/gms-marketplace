@@ -1,0 +1,574 @@
+{
+  "group": "skill inventory and routing surface",
+  "description": "All 32 shipped skills, checked deterministically. What a skill ROUTES on is its frontmatter — the `description` Claude matches against, and `disable-model-invocation`, which decides whether it may be auto-invoked at all. Both are packaged data, so both are assertable with no model and no cost.\n\nThis catches the failure the paid routing tier cannot: a skill that stops shipping, loses its description, or silently gains/loses its user-only flag. The behavioural half — does a real request actually route here — lives in dataset/routing.json and the evals/ tier.",
+  "surface": "skills/*/SKILL.md",
+  "covers": [
+    "MAR-526"
+  ],
+  "profile": "bare",
+  "cases": [
+    {
+      "id": "SKILL-analyze-ticket",
+      "kind": "skill_manifest",
+      "skill": "analyze-ticket",
+      "title": "analyze-ticket: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "analyze-ticket"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-code",
+      "kind": "skill_manifest",
+      "skill": "code",
+      "title": "code: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "code"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-api-contract",
+      "kind": "skill_manifest",
+      "skill": "create-api-contract",
+      "title": "create-api-contract: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-api-contract"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-architecture",
+      "kind": "skill_manifest",
+      "skill": "create-architecture",
+      "title": "create-architecture: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-architecture"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-design",
+      "kind": "skill_manifest",
+      "skill": "create-design",
+      "title": "create-design: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-design"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-docs",
+      "kind": "skill_manifest",
+      "skill": "create-docs",
+      "title": "create-docs: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-docs"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-e2e-tests",
+      "kind": "skill_manifest",
+      "skill": "create-e2e-tests",
+      "title": "create-e2e-tests: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-e2e-tests"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-impl-plan",
+      "kind": "skill_manifest",
+      "skill": "create-impl-plan",
+      "title": "create-impl-plan: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-impl-plan"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-operations",
+      "kind": "skill_manifest",
+      "skill": "create-operations",
+      "title": "create-operations: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-operations",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-pr",
+      "kind": "skill_manifest",
+      "skill": "create-pr",
+      "title": "create-pr: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-pr"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-prd",
+      "kind": "skill_manifest",
+      "skill": "create-prd",
+      "title": "create-prd: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-prd"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-principles",
+      "kind": "skill_manifest",
+      "skill": "create-principles",
+      "title": "create-principles: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-principles",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-project",
+      "kind": "skill_manifest",
+      "skill": "create-project",
+      "title": "create-project: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-project",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-quality",
+      "kind": "skill_manifest",
+      "skill": "create-quality",
+      "title": "create-quality: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-quality",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-requirements",
+      "kind": "skill_manifest",
+      "skill": "create-requirements",
+      "title": "create-requirements: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-requirements"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-standards",
+      "kind": "skill_manifest",
+      "skill": "create-standards",
+      "title": "create-standards: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-standards",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-test-docs",
+      "kind": "skill_manifest",
+      "skill": "create-test-docs",
+      "title": "create-test-docs: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-test-docs"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-create-ticket",
+      "kind": "skill_manifest",
+      "skill": "create-ticket",
+      "title": "create-ticket: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "create-ticket"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-docs-sync",
+      "kind": "skill_manifest",
+      "skill": "docs-sync",
+      "title": "docs-sync: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "docs-sync"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-handoff",
+      "kind": "skill_manifest",
+      "skill": "handoff",
+      "title": "handoff: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "handoff"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-install-hooks",
+      "kind": "skill_manifest",
+      "skill": "install-hooks",
+      "title": "install-hooks: ships, and is USER-ONLY — it may never be model-invoked",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "install-hooks",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "SKILL-merge-pr",
+      "kind": "skill_manifest",
+      "skill": "merge-pr",
+      "title": "merge-pr: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "merge-pr"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-metrics",
+      "kind": "skill_manifest",
+      "skill": "metrics",
+      "title": "metrics: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "metrics"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-project",
+      "kind": "skill_manifest",
+      "skill": "project",
+      "title": "project: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "project"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-release",
+      "kind": "skill_manifest",
+      "skill": "release",
+      "title": "release: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "release"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-run-e2e-tests",
+      "kind": "skill_manifest",
+      "skill": "run-e2e-tests",
+      "title": "run-e2e-tests: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "run-e2e-tests"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-setup",
+      "kind": "skill_manifest",
+      "skill": "setup",
+      "title": "setup: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "setup"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-ship",
+      "kind": "skill_manifest",
+      "skill": "ship",
+      "title": "ship: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "ship"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-standardize-project",
+      "kind": "skill_manifest",
+      "skill": "standardize-project",
+      "title": "standardize-project: ships as an internal leg — not model-invocable — with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "standardize-project",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-test",
+      "kind": "skill_manifest",
+      "skill": "test",
+      "title": "test: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "test"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
+      "id": "SKILL-update",
+      "kind": "skill_manifest",
+      "skill": "update",
+      "title": "update: ships, and is USER-ONLY — it may never be model-invoked",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "update",
+          "disable-model-invocation": "true"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "SKILL-usage",
+      "kind": "skill_manifest",
+      "skill": "usage",
+      "title": "usage: ships as a model-invocable skill with a routing description",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "usage"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    }
+  ],
+  "severity": "major"
+}

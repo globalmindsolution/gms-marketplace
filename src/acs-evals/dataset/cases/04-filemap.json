@@ -1,0 +1,333 @@
+{
+  "group": "executor file map",
+  "description": "MAR-529 turned 'mutate ONLY the files in your task's file map' from a sentence in the executor prompt into a PreToolUse write guard. These cases pin the DECLARATION side \u2014 what `acs filemap set/show` accepts, and how the enforced union accumulates across an iteration's parallel executor tasks.\n\nNOT COVERED: the guard's own allow/deny decisions. Driving them needs a PreToolUse hook envelope with an active executor record, which this harness does not construct. FILEMAP-006 records the declaration-side half of that seam; the enforcement half is an open gap.",
+  "surface": "acs filemap",
+  "covers": [
+    "MAR-529"
+  ],
+  "profile": "ticketed",
+  "cases": [
+    {
+      "id": "FILEMAP-001",
+      "title": "before any declaration the map is empty and declared is false",
+      "note": "A TRIVIAL-lane run spawns no planner, so no map is ever declared; the guard fails open on exactly this state rather than denying every write.",
+      "invoke": {
+        "argv": [
+          "filemap",
+          "show",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "declared": false,
+          "tasks": {},
+          "union": [],
+          "ticket_id": "TKT-1",
+          "skill": "code",
+          "iteration": "1"
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-002",
+      "title": "one task declares the files it may write",
+      "invoke": {
+        "argv": [
+          "filemap",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1",
+          "--task",
+          "1",
+          "--file",
+          "src/login.py",
+          "--file",
+          "tests/test_login.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "task": "1",
+          "files": [
+            "src/login.py",
+            "tests/test_login.py"
+          ],
+          "tasks": {
+            "1": [
+              "src/login.py",
+              "tests/test_login.py"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-003",
+      "title": "a second task adds to the iteration's union without disturbing the first",
+      "note": "Parallel executors each declare their own task; the guard enforces the union, so one task's declaration must never overwrite another's.",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "filemap",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1",
+          "--task",
+          "2",
+          "--file",
+          "src/session.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "task": "2",
+          "files": [
+            "src/session.py"
+          ],
+          "tasks": {
+            "1": [
+              "src/login.py",
+              "tests/test_login.py"
+            ],
+            "2": [
+              "src/session.py"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-004",
+      "title": "show reports the union across every declared task",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ],
+              "2": [
+                "src/session.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "filemap",
+          "show",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "declared": true,
+          "tasks": {
+            "1": [
+              "src/login.py",
+              "tests/test_login.py"
+            ],
+            "2": [
+              "src/session.py"
+            ]
+          },
+          "union": [
+            "src/login.py",
+            "src/session.py",
+            "tests/test_login.py"
+          ]
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-005",
+      "title": "an absolute path is normalised to a repo-relative one on declaration",
+      "note": "The map is repo-relative by construction, so a leading slash is stripped rather than rejected. The guard resolves the WRITE target the same way, which is what makes /repo/../outside.py fail to match anything.",
+      "invoke": {
+        "argv": [
+          "filemap",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1",
+          "--task",
+          "1",
+          "--file",
+          "/etc/passwd"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "files": [
+            "etc/passwd"
+          ],
+          "tasks": {
+            "1": [
+              "etc/passwd"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-006",
+      "title": "declaration accepts a traversal path verbatim \u2014 matching it is what fails",
+      "note": "Pins a real asymmetry. `../outside.py` is stored as written, but the guard normalises a write target before comparing, so no target ever matches this entry: declaring an escape does not grant one. Recorded so a future change to either side shows up here.",
+      "invoke": {
+        "argv": [
+          "filemap",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1",
+          "--task",
+          "1",
+          "--file",
+          "../outside.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "files": [
+            "../outside.py"
+          ]
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-007",
+      "title": "files read from stdin, one per line",
+      "invoke": {
+        "argv": [
+          "filemap",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "1",
+          "--task",
+          "1",
+          "--files-from",
+          "-"
+        ],
+        "stdin": "src/a.py\nsrc/b.py\n"
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "files": [
+            "src/a.py",
+            "src/b.py"
+          ]
+        }
+      }
+    },
+    {
+      "id": "FILEMAP-008",
+      "title": "each iteration carries its own map",
+      "note": "The coordinator declares a fresh map before each iteration's executors, and the guard reads the highest iteration declared.",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "filemap",
+          "show",
+          "--ticket",
+          "TKT-1",
+          "--skill",
+          "code",
+          "--iteration",
+          "2"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "declared": false,
+          "tasks": {},
+          "union": [],
+          "iteration": "2"
+        }
+      }
+    }
+  ],
+  "severity": "major"
+}

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.sandboxes/
+
+# Working output of a run. The reviewed, committed copy of a report lives in
+# reports/ — see docs/RELEASE-CHECKLIST.md.
+results/
+evals/results/

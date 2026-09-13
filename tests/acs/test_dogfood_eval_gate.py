@@ -97,6 +97,16 @@ def paragraph(body, marker):
     raise AssertionError("no paragraph found containing %r" % marker)
 
 
+def flat(text):
+    """Collapse runs of whitespace, so a pinned phrase can straddle a hard wrap.
+
+    These are hand-wrapped prose documents: a literal pinned across a line
+    break breaks the moment someone reflows the paragraph, which says nothing
+    about whether the fact is still true.
+    """
+    return " ".join(text.split())
+
+
 def line_containing(body, needle):
     for line in body.splitlines():
         if needle in line:
@@ -273,16 +283,43 @@ class DocsPolicyTest(unittest.TestCase):
         self.assertRegex(step_one, r"(?i)on-demand")
 
     def test_ci_brake_is_stated_as_a_plan_not_current_fact(self):
-        """No document claims this repo already runs acs-evals in CI."""
+        """No document claims this repo already runs acs-evals in CI.
+
+        Two halves, and they moved apart when the suite was folded in as
+        `src/acs-evals/`: the **import** has landed, the **workflow** has not.
+        A document that still names the import as the pending half sends a
+        maintainer looking for a checkout that is already here, so the
+        pending-wording assertions below are what make this guard bite on the
+        fold rather than merely on the word "imported".
+        """
         planned = "imported into this repository"
         documents = (
             ("prd G13", line_containing(read(PRD_PATH), "G13 — Enforceable e2e integrity")),
             ("roadmap E1.4", list_item(read(ROADMAP_PATH), "**E1.4 (done)**")),
             ("ADR 0022 amendment", section(read(ADR_PATH), AMENDMENT_HEADING)),
         )
+        pending_import = (
+            "when the acs-evals suite is imported",
+            "once that import lands",
+            "run today from a local acs-evals checkout",
+        )
         for name, text in documents:
-            self.assertIn(planned, text, "%s must state the CI brake as a plan" % name)
+            flattened = flat(text)
+            self.assertIn(planned, flattened,
+                          "%s must state the CI brake as a plan" % name)
+            self.assertIn("not yet landed", flattened,
+                          "%s must still mark the CI brake as unlanded" % name)
             self.assertNotIn("MAR-576", text, "%s names a retired ticket" % name)
+            self.assertIn(
+                "src/acs-evals", flattened,
+                "%s must name where the imported suite lives" % name,
+            )
+            for stale in pending_import:
+                self.assertNotIn(
+                    stale, flattened,
+                    "%s still describes the import as pending; it landed at "
+                    "src/acs-evals — only the workflow has not" % name,
+                )
         # Neither release doc may send a maintainer to a ref no workflow pins.
         for path in (RUNBOOK_PATH, EVALS_README_PATH):
             self.assertNotIn("the ref this repo's CI workflow pins", read(path))

@@ -1,0 +1,310 @@
+{
+  "note": "The fixture's commit history, replayed by runner/fixture_app.py with fixed author, committer and dates so the SHAs are identical on every build. A step's `files` are copied from tree/ in their FINAL form; a step's `patch` rewrites text in files already present (each `before` must occur exactly once). When a file is first added, the builder applies every later non-reverted patch to it in reverse (after -> before), so the file enters history in its oldest form and the patches replay the real edits forward. A `revert` step reverts the previous commit; that commit's patch is marked `reverted` so it is excluded from the reverse pass.",
+  "author": "Ada Fixture <ada@example.invalid>",
+  "start": "2026-06-01T09:00:00+00:00",
+  "step_minutes": 137,
+  "commits": [
+    {
+      "message": "Scaffold the orders service",
+      "files": [
+        "README.md",
+        ".gitignore",
+        "Makefile",
+        ".coveragerc",
+        "orders/__init__.py",
+        "tests/__init__.py"
+      ]
+    },
+    {
+      "message": "Read settings from the environment",
+      "files": [
+        "orders/config.py"
+      ]
+    },
+    {
+      "message": "Add the domain records; money is integer cents",
+      "files": [
+        "orders/models.py",
+        "tests/test_models.py"
+      ]
+    },
+    {
+      "message": "Persist state as one JSON document",
+      "files": [
+        "orders/storage.py",
+        "tests/test_storage.py",
+        "tests/_support.py"
+      ]
+    },
+    {
+      "message": "Write the store atomically via a temp file and os.replace",
+      "files": [
+        "docs/adr/0001-json-file-storage.md"
+      ]
+    },
+    {
+      "message": "Track stock with reservations",
+      "files": [
+        "orders/inventory.py",
+        "tests/test_inventory.py"
+      ]
+    },
+    {
+      "message": "Price lines and apply tax",
+      "files": [
+        "orders/pricing.py"
+      ]
+    },
+    {
+      "message": "Round tax half up on the cent",
+      "patch": [
+        {
+          "file": "orders/pricing.py",
+          "before": "    \"\"\"Truncate to the cent.\"\"\"\n    return int(amount_cents * tax_rate)\n",
+          "after": "    \"\"\"Round half up on the cent, so 0.5 cents becomes one cent, not zero.\"\"\"\n    scaled = amount_cents * tax_rate * 100\n    return int((scaled + 50) // 100)\n"
+        }
+      ]
+    },
+    {
+      "message": "Add coupon codes with validity windows",
+      "files": [
+        "orders/discounts.py"
+      ]
+    },
+    {
+      "message": "Apply the coupon before tax in a quote",
+      "files": [
+        "tests/test_pricing.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/pricing.py",
+          "before": "    \"\"\"A breakdown dict; tax is on the subtotal.\"\"\"\n    sub = subtotal(lines)\n    discount = coupon.discount_cents(sub) if coupon is not None else 0\n    tax = tax_cents(sub, tax_rate)\n    return {\"subtotal\": sub, \"discount\": discount, \"tax\": tax,\n            \"total\": sub - discount + tax}\n",
+          "after": "    \"\"\"A breakdown dict; the coupon is applied before tax.\"\"\"\n    sub = subtotal(lines)\n    discount = coupon.discount_cents(sub) if coupon is not None else 0\n    taxable = sub - discount\n    tax = tax_cents(taxable, tax_rate)\n    return {\"subtotal\": sub, \"discount\": discount, \"tax\": tax,\n            \"total\": taxable + tax}\n"
+        }
+      ]
+    },
+    {
+      "message": "Introduce the payments package",
+      "files": [
+        "orders/payments/__init__.py"
+      ]
+    },
+    {
+      "message": "Charge through a gateway with idempotency keys",
+      "files": [
+        "orders/payments/gateway.py"
+      ]
+    },
+    {
+      "message": "Record why charges are idempotent",
+      "files": [
+        "docs/adr/0002-idempotent-charges.md"
+      ]
+    },
+    {
+      "message": "Refund against a charge, never beyond what remains",
+      "files": [
+        "tests/test_gateway.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/payments/gateway.py",
+          "before": "        self.charges[key] = record\n        return dict(record)\n",
+          "after": "        self.charges[key] = record\n        return dict(record)\n\n    def refund(self, charge_id, amount_cents):\n        record = self.charges.get(charge_id)\n        if record is None:\n            raise KeyError(\"no charge %s\" % charge_id)\n        remaining = record[\"amount_cents\"] - record[\"refunded_cents\"]\n        if amount_cents <= 0 or amount_cents > remaining:\n            raise ValueError(\"refund of %d not within remaining %d\" % (amount_cents, remaining))\n        record[\"refunded_cents\"] += amount_cents\n        if record[\"refunded_cents\"] == record[\"amount_cents\"]:\n            record[\"status\"] = \"refunded\"\n        return dict(record)\n"
+        }
+      ]
+    },
+    {
+      "message": "Add the order life cycle",
+      "files": [
+        "orders/orders.py"
+      ]
+    },
+    {
+      "message": "Pay a confirmed order through the gateway",
+      "patch": [
+        {
+          "file": "orders/orders.py",
+          "before": "    def cancel(self, order_id):\n",
+          "after": "    def pay(self, order_id, day):\n        order = self.get(order_id)\n        if order.status != \"confirmed\":\n            raise InvalidTransition(\"%s -> paid\" % order.status)\n        total = self.quote(order, day)[\"total\"]\n        charge = self.gateway.charge(order.id, total)\n        order.charge_id = charge[\"id\"]\n        return self._move(order, \"paid\")\n\n    def cancel(self, order_id):\n"
+        }
+      ]
+    },
+    {
+      "message": "Release reserved stock on cancel",
+      "files": [
+        "tests/test_orders.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/orders.py",
+          "before": "    def cancel(self, order_id):\n        return self._move(self.get(order_id), \"cancelled\")\n",
+          "after": "    def cancel(self, order_id):\n        order = self._move(self.get(order_id), \"cancelled\")\n        for line in order.lines:\n            self.inventory.release(line.sku, line.quantity)\n        return order\n"
+        }
+      ]
+    },
+    {
+      "message": "Add the refund policy",
+      "files": [
+        "orders/payments/refunds.py"
+      ]
+    },
+    {
+      "message": "Stack a fixed coupon on top of a percentage coupon",
+      "reverted": true,
+      "patch": [
+        {
+          "file": "orders/discounts.py",
+          "before": "        if self.percent:\n            return subtotal_cents * self.percent // 100\n        return min(self.fixed_cents, subtotal_cents)",
+          "after": "        percent_part = subtotal_cents * self.percent // 100\n        return min(percent_part + self.fixed_cents, subtotal_cents)"
+        }
+      ]
+    },
+    {
+      "message": "Revert \"Stack a fixed coupon on top of a percentage coupon\"",
+      "revert": true,
+      "trailer": "Stacking let a fixed coupon apply on top of a percentage one, which finance never approved; a coupon is one or the other."
+    },
+    {
+      "message": "Report revenue over the charge ledger",
+      "files": [
+        "orders/reports.py",
+        "tests/test_reports.py"
+      ]
+    },
+    {
+      "message": "Serve a JSON HTTP API",
+      "files": [
+        "orders/api.py"
+      ]
+    },
+    {
+      "message": "Return 409 when stock is short on POST /orders",
+      "files": [
+        "tests/test_api.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/api.py",
+          "before": "            except (KeyError, ValueError, TypeError) as exc:\n                return self._send(400, {\"error\": str(exc)})\n            return self._send(201, order.to_dict())",
+          "after": "            except (KeyError, ValueError, TypeError) as exc:\n                return self._send(400, {\"error\": str(exc)})\n            except Exception as exc:  # noqa: BLE001 - stock errors surface as 409\n                return self._send(409, {\"error\": str(exc)})\n            return self._send(201, order.to_dict())"
+        }
+      ]
+    },
+    {
+      "message": "Add a command line over the service",
+      "files": [
+        "orders/cli.py",
+        "tests/test_cli.py"
+      ]
+    },
+    {
+      "message": "Document the architecture",
+      "files": [
+        "docs/README.md",
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "message": "Document the HTTP API",
+      "files": [
+        "docs/api.md"
+      ]
+    },
+    {
+      "message": "Refund policy: nothing after ninety days",
+      "patch": [
+        {
+          "file": "orders/payments/refunds.py",
+          "before": "    \"\"\"What the customer gets back.\"\"\"\n",
+          "after": "    \"\"\"What the customer gets back; zero once the order is older than 90 days.\"\"\"\n"
+        },
+        {
+          "file": "orders/payments/refunds.py",
+          "before": "    if age <= timedelta(days=FULL_REFUND_DAYS):\n        return paid_cents\n    return paid_cents - paid_cents * RESTOCKING_PERCENT // 100\n",
+          "after": "    if age <= timedelta(days=FULL_REFUND_DAYS):\n        return paid_cents\n    if age <= timedelta(days=90):\n        return paid_cents - paid_cents * RESTOCKING_PERCENT // 100\n    return 0\n"
+        }
+      ]
+    },
+    {
+      "message": "Reject a refund dated before the order",
+      "files": [
+        "tests/test_refunds.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/payments/refunds.py",
+          "before": "    age = today - ordered_on\n    if age <= timedelta(days=FULL_REFUND_DAYS):",
+          "after": "    age = today - ordered_on\n    if age < timedelta(0):\n        raise ValueError(\"an order cannot be refunded before it was placed\")\n    if age <= timedelta(days=FULL_REFUND_DAYS):"
+        }
+      ]
+    },
+    {
+      "message": "Case-insensitive coupon lookup",
+      "files": [
+        "tests/test_discounts.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/discounts.py",
+          "before": "        self._by_code[coupon.code] = coupon\n",
+          "after": "        self._by_code[coupon.code.upper()] = coupon\n"
+        },
+        {
+          "file": "orders/discounts.py",
+          "before": "        coupon = self._by_code.get(code or \"\")\n",
+          "after": "        coupon = self._by_code.get((code or \"\").upper())\n"
+        }
+      ]
+    },
+    {
+      "message": "Fail loudly on a malformed tax rate",
+      "files": [
+        "tests/test_config.py"
+      ],
+      "patch": [
+        {
+          "file": "orders/config.py",
+          "before": "    \"\"\"Build Settings from `env` (default: os.environ); a malformed number falls back to its default.\"\"\"\n",
+          "after": "    \"\"\"Build Settings from `env` (default: os.environ); malformed numbers fail loudly.\"\"\"\n"
+        },
+        {
+          "file": "orders/config.py",
+          "before": "        tax_rate=_number(env.get(\"ORDERS_TAX_RATE\", \"0.20\"), 0.20),\n",
+          "after": "        tax_rate=float(env.get(\"ORDERS_TAX_RATE\", \"0.20\")),\n"
+        },
+        {
+          "file": "orders/config.py",
+          "before": "        gateway_timeout_s=_number(env.get(\"ORDERS_GATEWAY_TIMEOUT\", \"5.0\"), 5.0),\n",
+          "after": "        gateway_timeout_s=float(env.get(\"ORDERS_GATEWAY_TIMEOUT\", \"5.0\")),\n"
+        },
+        {
+          "file": "orders/config.py",
+          "before": "\n\ndef _number(text, default):\n    try:\n        return float(text)\n    except ValueError:\n        return default\n\n\ndef load(env=None):",
+          "after": "\n\ndef load(env=None):"
+        }
+      ]
+    },
+    {
+      "message": "Note the single-writer constraint in the storage ADR",
+      "patch": [
+        {
+          "file": "docs/adr/0001-json-file-storage.md",
+          "before": "## Consequences\n\n- Reads are whole-document; fine at this size, revisit past ~10k orders.\n",
+          "after": "## Consequences\n\n- No concurrent writers: the process is the only writer.\n- Reads are whole-document; fine at this size, revisit past ~10k orders.\n"
+        }
+      ]
+    },
+    {
+      "message": "Bump to 1.4.0",
+      "patch": [
+        {
+          "file": "orders/__init__.py",
+          "before": "__version__ = \"1.3.0\"\n",
+          "after": "__version__ = \"1.4.0\"\n"
+        }
+      ]
+    }
+  ]
+}

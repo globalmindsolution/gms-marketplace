@@ -1,0 +1,101 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": null,
+  "passed": false,
+  "dimensions": [
+    {
+      "id": 1,
+      "name": "Acceptance-criteria conformance",
+      "result": "pass",
+      "evidence": "reviewed acceptance-criteria conformance"
+    },
+    {
+      "id": 2,
+      "name": "Tests",
+      "result": "pass",
+      "evidence": "pytest -q -> 12 passed"
+    },
+    {
+      "id": 3,
+      "name": "Coverage",
+      "result": "pass",
+      "evidence": "pytest -q -> 12 passed"
+    },
+    {
+      "id": 4,
+      "name": "Business logic",
+      "result": "pass",
+      "evidence": "reviewed business logic"
+    },
+    {
+      "id": 5,
+      "name": "Features",
+      "result": "pass",
+      "evidence": "reviewed features"
+    },
+    {
+      "id": 6,
+      "name": "Quality",
+      "result": "pass",
+      "evidence": "reviewed quality"
+    },
+    {
+      "id": 7,
+      "name": "Technical standards",
+      "result": "pass",
+      "evidence": "reviewed technical standards"
+    },
+    {
+      "id": 8,
+      "name": "Architecture",
+      "result": "pass",
+      "evidence": "reviewed architecture"
+    },
+    {
+      "id": 9,
+      "name": "System design",
+      "result": "pass",
+      "evidence": "reviewed system design"
+    },
+    {
+      "id": 10,
+      "name": "Security",
+      "result": "pass",
+      "evidence": "reviewed security"
+    },
+    {
+      "id": 11,
+      "name": "Documentation",
+      "result": "pass",
+      "evidence": "reviewed documentation"
+    },
+    {
+      "id": 12,
+      "name": "Simplicity & scope",
+      "result": "pass",
+      "evidence": "reviewed simplicity & scope"
+    },
+    {
+      "id": 13,
+      "name": "Audience-style",
+      "result": "pass",
+      "evidence": "reviewed audience-style"
+    },
+    {
+      "id": 15,
+      "name": "Plan conformance",
+      "result": "pass",
+      "evidence": "reviewed plan conformance"
+    },
+    {
+      "id": 16,
+      "name": "Approval-audit",
+      "result": "pass",
+      "evidence": "reviewed approval-audit"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

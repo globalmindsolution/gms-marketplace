@@ -1,0 +1,957 @@
+{
+  "group": "pipeline gates",
+  "description": "The acs pipeline is hook-gated: every skill's pre-gate refuses to run until its upstream step has. This is the SPINE \u2014 the ordering every release depends on, independent of what v0.4.10 changed. Each of the 15 gated skills is driven through three workspace states, and the assertion is on the gate's exit code and the reason it gives, because the reason is what tells an operator (or a coordinator) which step to run next.\n\nProfiles: bare = a fresh repo with settings and no tickets; ticketed = one open task ticket (TKT-1, small/low, needs_design false); epic = one open epic (TKT-1, large/high, needs_design true).",
+  "surface": "acs gate",
+  "covers": [
+    "MAR-523",
+    "MAR-528"
+  ],
+  "cases": [
+    {
+      "id": "GATE-001",
+      "title": "bare: /create-prd opens",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-prd"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-prd"
+        }
+      }
+    },
+    {
+      "id": "GATE-002",
+      "title": "bare: /create-architecture is blocked \u2014 no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-architecture"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-architecture: blocked",
+          "no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first (it also baselines existing products)."
+        ]
+      }
+    },
+    {
+      "id": "GATE-003",
+      "title": "bare: /create-requirements opens",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-requirements"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-requirements"
+        }
+      }
+    },
+    {
+      "id": "GATE-004",
+      "title": "bare: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-principles"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-principles: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-005",
+      "title": "bare: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-standards"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-standards: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-006",
+      "title": "bare: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-quality"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-quality: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-007",
+      "title": "bare: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-operations"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-operations: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-008",
+      "title": "bare: /create-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-project"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-009",
+      "title": "bare: /standardize-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "standardize-project"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-standardize-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-010",
+      "title": "bare: /create-ticket opens",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-ticket"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-ticket"
+        }
+      }
+    },
+    {
+      "id": "GATE-011",
+      "title": "bare: /create-design is blocked \u2014 could not resolve a ticket id for /create-design (no argument, no sess",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-design"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-design: blocked",
+          "could not resolve a ticket id for /create-design (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:create-design TKT-123."
+        ]
+      }
+    },
+    {
+      "id": "GATE-012",
+      "title": "bare: /code is blocked \u2014 could not resolve a ticket id for /code (no argument, no session point",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "code"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-code: blocked",
+          "could not resolve a ticket id for /code (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:code TKT-123."
+        ]
+      }
+    },
+    {
+      "id": "GATE-013",
+      "title": "bare: /docs-sync is blocked \u2014 could not resolve a ticket id for /docs-sync (no argument, no session ",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "docs-sync"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-docs-sync: blocked",
+          "could not resolve a ticket id for /docs-sync (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:docs-sync TKT-123."
+        ]
+      }
+    },
+    {
+      "id": "GATE-014",
+      "title": "bare: /create-pr is blocked \u2014 could not resolve a ticket id for /create-pr (no argument, no session ",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-pr"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-pr: blocked",
+          "could not resolve a ticket id for /create-pr (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:create-pr TKT-123."
+        ]
+      }
+    },
+    {
+      "id": "GATE-015",
+      "title": "bare: /merge-pr is blocked \u2014 could not resolve a ticket id for /merge-pr (no argument, no session p",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "merge-pr"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-merge-pr: blocked",
+          "could not resolve a ticket id for /merge-pr (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:merge-pr TKT-123."
+        ]
+      }
+    },
+    {
+      "id": "GATE-016",
+      "title": "ticketed: /create-prd opens",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-prd",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-prd"
+        }
+      }
+    },
+    {
+      "id": "GATE-017",
+      "title": "ticketed: /create-architecture is blocked \u2014 no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-architecture",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-architecture: blocked",
+          "no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first (it also baselines existing products)."
+        ]
+      }
+    },
+    {
+      "id": "GATE-018",
+      "title": "ticketed: /create-requirements opens",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-requirements",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-requirements"
+        }
+      }
+    },
+    {
+      "id": "GATE-019",
+      "title": "ticketed: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-principles",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-principles: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-020",
+      "title": "ticketed: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-standards",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-standards: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-021",
+      "title": "ticketed: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-quality",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-quality: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-022",
+      "title": "ticketed: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-operations",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-operations: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-023",
+      "title": "ticketed: /create-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-project",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-024",
+      "title": "ticketed: /standardize-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "standardize-project",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-standardize-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-025",
+      "title": "ticketed: /create-ticket opens",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-ticket",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-ticket"
+        }
+      }
+    },
+    {
+      "id": "GATE-026",
+      "title": "ticketed: /create-design is blocked \u2014 ticket TKT-1 is not flagged needs_design \u2014 /create-design only runs fo",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-design",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-design: blocked",
+          "ticket TKT-1 is not flagged needs_design \u2014 /create-design only runs for design-significant tickets; go straight to /acs:code TKT-1."
+        ]
+      }
+    },
+    {
+      "id": "GATE-027",
+      "title": "ticketed: /code is blocked \u2014 no plan.md \u2014 run /acs:create-impl-plan TKT-1 first.",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "code",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stdout_json_subset": {
+          "ok": false,
+          "exit_code": 2,
+          "skill": "code"
+        },
+        "stderr_contains": [
+          "acs pre-code: blocked \u2014 no plan.md found for TKT-1 (looked in the ticket's docs folder and in <WS>/TKT-1) \u2014 run /acs:create-impl-plan TKT-1 first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-028",
+      "title": "ticketed: /docs-sync opens out of order, with the ship.yaml advisory on stderr",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "docs-sync",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "exit_code": 0,
+          "ok": true,
+          "skill": "docs-sync"
+        },
+        "stderr_contains": [
+          "acs: docs-sync normally follows code in ship.yaml; code has not completed for TKT-1"
+        ]
+      }
+    },
+    {
+      "id": "GATE-029",
+      "title": "ticketed: /create-pr opens out of order, with the ship.yaml advisory on stderr",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-pr",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "exit_code": 0,
+          "ok": true,
+          "skill": "create-pr"
+        },
+        "stderr_contains": [
+          "acs: create-pr normally follows docs-sync and run-e2e-tests in ship.yaml; docs-sync and run-e2e-tests have not completed for TKT-1"
+        ]
+      }
+    },
+    {
+      "id": "GATE-030",
+      "title": "ticketed: /merge-pr is blocked \u2014 no PR reference recorded for TKT-1 \u2014 /acs:create-pr (or the product-le",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "merge-pr",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-merge-pr: blocked",
+          "no PR reference recorded for TKT-1 \u2014 /acs:create-pr (or the product-level skill) must complete first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-031",
+      "title": "epic: /create-prd opens",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-prd",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-prd"
+        }
+      }
+    },
+    {
+      "id": "GATE-032",
+      "title": "epic: /create-architecture is blocked \u2014 no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-architecture",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-architecture: blocked",
+          "no PRD found at <REPO>/docs/product/prd.md \u2014 run /acs:create-prd first (it also baselines existing products)."
+        ]
+      }
+    },
+    {
+      "id": "GATE-033",
+      "title": "epic: /create-requirements opens",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-requirements",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-requirements"
+        }
+      }
+    },
+    {
+      "id": "GATE-034",
+      "title": "epic: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-principles",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-principles: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-035",
+      "title": "epic: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-standards",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-standards: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-036",
+      "title": "epic: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-quality",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-quality: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-037",
+      "title": "epic: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-operations",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-operations: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-038",
+      "title": "epic: /create-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-project",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-create-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-039",
+      "title": "epic: /standardize-project is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "standardize-project",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-standardize-project: blocked",
+          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
+        ]
+      }
+    },
+    {
+      "id": "GATE-040",
+      "title": "epic: /create-ticket opens",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-ticket",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-ticket"
+        }
+      }
+    },
+    {
+      "id": "GATE-041",
+      "title": "epic: /create-design opens",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-design",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "exit_code": 0,
+          "skill": "create-design"
+        }
+      }
+    },
+    {
+      "id": "GATE-042",
+      "title": "epic: /code is blocked \u2014 ticket TKT-1 is an epic \u2014 epics are never implemented directly; run /a",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "code",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-code: blocked",
+          "ticket TKT-1 is an epic \u2014 epics are never implemented directly; run /acs:create-design TKT-1 first if the epic has no design yet, then break it down into child tickets with /acs:create-ticket TKT-1 (epic fan-out), then run /acs:code on a child."
+        ]
+      }
+    },
+    {
+      "id": "GATE-043",
+      "title": "epic: /docs-sync opens out of order, with the ship.yaml advisory on stderr",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "docs-sync",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "exit_code": 0,
+          "ok": true,
+          "skill": "docs-sync"
+        },
+        "stderr_contains": [
+          "acs: docs-sync normally follows code in ship.yaml; code has not completed for TKT-1"
+        ]
+      }
+    },
+    {
+      "id": "GATE-044",
+      "title": "epic: /create-pr opens out of order, with the ship.yaml advisory on stderr",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "create-pr",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "exit_code": 0,
+          "ok": true,
+          "skill": "create-pr"
+        },
+        "stderr_contains": [
+          "acs: create-pr normally follows docs-sync and run-e2e-tests in ship.yaml; docs-sync and run-e2e-tests have not completed for TKT-1"
+        ]
+      }
+    },
+    {
+      "id": "GATE-045",
+      "title": "epic: /merge-pr is blocked \u2014 no PR reference recorded for TKT-1 \u2014 /acs:create-pr (or the product-le",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "gate",
+          "--skill",
+          "merge-pr",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs pre-merge-pr: blocked",
+          "no PR reference recorded for TKT-1 \u2014 /acs:create-pr (or the product-level skill) must complete first."
+        ]
+      }
+    }
+  ],
+  "severity": "critical"
+}

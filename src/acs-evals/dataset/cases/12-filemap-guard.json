@@ -1,0 +1,893 @@
+{
+  "group": "12-filemap-guard",
+  "description": "The file-map deny control as the PreToolUse hook actually runs it (dispatch.py file-map, payload on stdin): half one decides whether the guard applies and fails OPEN; half two decides whether THIS write is inside the declared map and fails CLOSED. Recorded because the first CLI mutation sweep found the deny exit code, the control-input refusals and the scope branches pinned by no case.",
+  "surface": "PreToolUse file-map guard",
+  "covers": [
+    "MAR-529"
+  ],
+  "profile": "ticketed",
+  "severity": "major",
+  "cases": [
+    {
+      "id": "GUARD-001",
+      "title": "no executor running: the guard does not apply and the write is allowed",
+      "note": "Half one of the guard fails OPEN by design \u2014 a coordinator's or planner's write outside any map is not scope creep.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/login.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-002",
+      "title": "an executor is running but no map was declared: allowed (the plan had no opinion)",
+      "note": "A TRIVIAL/SMALL lane may run with no map at all; nothing declared means nothing to enforce.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/anything/at/all.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-003",
+      "title": "executor running, map declared, write inside the map: allowed",
+      "note": "The happy path of the deny control.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/login.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-004",
+      "title": "executor running, map declared, write OUTSIDE the map: denied with exit 2 naming the map",
+      "note": "The decision the control exists to make. The mutant that turned this exit code into 3 survived the first CLI mutation sweep: no case pinned it.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs: <REPO>/src/session.py is outside this task's file map.\nDeclared for /acs:code iteration 1:\n  src/login.py\n  tests/test_login.py\nDo not improvise scope: STOP and return `needs_input` naming the file, so the coordinator can adjust the file map."
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "GUARD-005",
+      "title": "an executor writing the file map itself is denied: it cannot widen its own scope",
+      "note": "The guard's control inputs are never exempt, even from a write that would otherwise be in scope.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{ticket_dir}}/phases/code/iter-1-filemap.json"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs: <WS>/TKT-1/phases/code/iter-1-filemap.json is the file-map guard's own control input.\nAn executor cannot widen or disarm its own scope. If the map is wrong, STOP and return `needs_input` naming the file, so the coordinator can adjust it."
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "GUARD-006",
+      "title": "an executor writing an active-agents record is denied: it cannot disarm the guard",
+      "note": "The other control input: the record that says an executor is running.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{ticket_dir}}/active-agents/acs-code-executor_0000000000.json"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs: <WS>/TKT-1/active-agents/acs-code-executor_0000000000.json is the file-map guard's own control input.\nAn executor cannot widen or disarm its own scope. If the map is wrong, STOP and return `needs_input` naming the file, so the coordinator can adjust it."
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "GUARD-007",
+      "title": "a write tool whose tool_input is not an object is an unverifiable write while an executor runs: denied",
+      "note": "Fail CLOSED once past the scope question: a payload the guard cannot read is not a write it can wave through.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": "not-an-object",
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs: Write carried a str tool_input, which the file map cannot be checked against. STOP and return `needs_input`."
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "GUARD-008",
+      "title": "an executor record from another session does not arm the guard here",
+      "note": "That session's subagent cannot be writing in this one; _record_is_current says so.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-OTHER",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-009",
+      "title": "an executor record older than the TTL no longer arms the guard",
+      "note": "Nothing clears the record when a subagent dies mid-flight; without the bound one interrupted executor would deny every later write for good.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{hours_ago:7}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-010",
+      "title": "a planner's record never arms the guard: planners are read-only by charter",
+      "note": "Only an executor is constrained; the role is read off the record.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-planner_0000000000.json",
+          "json": {
+            "agent_id": "agent-planner",
+            "agent_type": "acs:code-planner",
+            "skill": "code",
+            "role": "planner",
+            "phase": "plan",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-011",
+      "title": "the executor's own phase artifacts are exempt from the map",
+      "note": "iter-1-execute.json under phases/code is what the executor must write; it is never in the map and never denied.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{ticket_dir}}/phases/code/iter-1-execute.json"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-012",
+      "title": "a tool that names no path writes nothing for the map to cover: allowed",
+      "note": "Bash carries no file_path; the map has nothing to compare.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Bash",
+          "tool_input": {
+            "command": "echo hi"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-013",
+      "title": "a cwd outside any acs partition: the guard does not apply",
+      "note": "Half one again: no partition resolves, so the write is not the guard's business.",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 0
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/login.py"
+          },
+          "cwd": "/tmp",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    },
+    {
+      "id": "GUARD-014",
+      "title": "an executor at exactly the stop-attempt cap is still running: a write outside the map is denied",
+      "note": "BLOCK_LIMIT is 2 and the record is current while stop_attempts is not ABOVE it. Pins the comparison's direction and edge \u2014 the boundary and off-by-one mutants at filemap.py:142 survived the first sweep.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 2
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs: <REPO>/src/session.py is outside this task's file map.\nDeclared for /acs:code iteration 1:\n  src/login.py\n  tests/test_login.py\nDo not improvise scope: STOP and return `needs_input` naming the file, so the coordinator can adjust the file map."
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "GUARD-015",
+      "title": "an executor past the stop-attempt cap no longer arms the guard: SubagentStop already gave up on it",
+      "note": "stop_attempts above BLOCK_LIMIT means the agent was refused a clean stop past the cap; treating it as running would deny every later write for good.",
+      "files": [
+        {
+          "base": "ws",
+          "path": "sessions/{{checkout_id}}.json",
+          "json": {
+            "ticket_id": "TKT-1"
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "active-agents/acs-code-executor_0000000000.json",
+          "json": {
+            "agent_id": "agent-executor",
+            "agent_type": "acs:code-executor",
+            "skill": "code",
+            "role": "executor",
+            "phase": "execute",
+            "session_id": "sess-1",
+            "checkout_id": null,
+            "started_at": "{{now}}",
+            "stop_attempts": 3
+          }
+        },
+        {
+          "base": "ticket",
+          "path": "phases/code/iter-1-filemap.json",
+          "json": {
+            "skill": "code",
+            "iteration": "1",
+            "tasks": {
+              "1": [
+                "src/login.py",
+                "tests/test_login.py"
+              ]
+            },
+            "declared_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "file-map"
+        ],
+        "stdin": {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "{{repo}}/src/session.py"
+          },
+          "cwd": "{{repo}}",
+          "session_id": "sess-1"
+        }
+      },
+      "expect": {
+        "exit_code": 0
+      }
+    }
+  ]
+}

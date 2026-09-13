@@ -97,7 +97,7 @@ undecidable probe as "a miss, never a pass". Same default here.
 
 ## Severity, when one fails
 
-The same three levels `acs-evals/docs/RUBRIC.md` defines, asking its same
+The same three levels `src/acs-evals/docs/RUBRIC.md` defines, asking its same
 question — *if this failed on a released build, what can go wrong for a
 consumer?* — applied to artifacts rather than CLI output:
 
@@ -129,7 +129,7 @@ would cost:
 4. **Read-only dashboards.** `metrics`, `usage`, `handoff` — named in PRD G8
    as today's trigger-only gap, and genuinely the lowest risk of the four.
 
-Write them against the fixture app (`acs-evals/runner/fixture_app.py`) rather
+Write them against the fixture app (`src/acs-evals/runner/fixture_app.py`) rather
 than a bare sandbox wherever the skill needs a real codebase, so that
 precondition 4 holds by construction.
 

@@ -149,10 +149,13 @@ configured and have not yet been validated against a live remote.
   it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
   no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
   here are gated by the plugin's unit suite, the coverage hard-fail and the free
-  pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic, run today
-  from a local acs-evals checkout) becomes this repo's per-PR CI brake when the
-  acs-evals suite is imported into this repository — decided, not yet landed —
-  and paid measurement runs at release cadence from the acs-evals suite.
+  pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
+  this repo's per-PR CI brake once a workflow is wired to run it. The suite
+  itself has now been **imported into this repository** at
+  [`src/acs-evals/`](../../src/acs-evals/README.md), history intact, so the
+  brake no longer waits on a sibling checkout at a pinned ref — only the
+  workflow is decided, not yet landed, and `.github/workflows/` still carries
+  no eval job. Paid measurement runs at release cadence from that same suite.
 
 #### Epic E2 — Tracker-sync depth *(parallel, lower priority)*
 

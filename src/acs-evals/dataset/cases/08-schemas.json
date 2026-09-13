@@ -1,0 +1,643 @@
+{
+  "group": "shipped JSON schemas",
+  "description": "Hand-written conformance cases for the 12 shipped JSON schemas: the ones that carry JUDGEMENT \u2014 why a constraint matters, or where the shape/meaning split lies. Each schema gets an instance that must be ACCEPTED (which also serves as the seed for the generated tier) and instances that must be REJECTED, naming the constraint that did it.\n\nSCOPE, measured rather than claimed: these cases alone pin about 9% of the ~229 constraints the schemas declare. The mechanical remainder is generated into 11-schema-constraints.json, which lifts measured coverage to roughly 55%. Run `make mutation` for the current number and `python3 runner/mutation_sweep.py --holes` for the constraints still pinned by nothing \u2014 mostly branches under oneOf/anyOf, where a single-constraint reject case would be unsound because another branch still matches.\n\nValidated by runner/jsonschema_mini.py, a stdlib subset validator. It raises on any keyword it does not implement rather than silently passing, so a schema that grows one fails loudly.\n\nschemas/acs-messages.xsd is XML, not JSON Schema. It is NOT covered by this dataset \u2014 the plugin's validate_xml.py is an untested surface here.",
+  "surface": "schemas/*.json",
+  "covers": [
+    "MAR-527",
+    "MAR-530"
+  ],
+  "profile": "bare",
+  "cases": [
+    {
+      "id": "SCHEMA-TICKET-001",
+      "kind": "schema",
+      "schema": "ticket.schema.json",
+      "title": "ticket: a fully-populated task is accepted",
+      "json": {
+        "id": "TKT-1",
+        "title": "Add user login",
+        "type": "task",
+        "description": "",
+        "acceptance_criteria": [],
+        "priority": "medium",
+        "parent": null,
+        "children": [],
+        "status": "open",
+        "external": null,
+        "assignee": null,
+        "story_points": null,
+        "needs_design": false,
+        "docs_only": false,
+        "size": "small",
+        "stakes": "low",
+        "lane": "SMALL",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-TICKET-002",
+      "kind": "schema",
+      "schema": "ticket.schema.json",
+      "title": "ticket: a lowercase id is rejected by the id pattern",
+      "json": {
+        "id": "tkt-1",
+        "title": "x",
+        "type": "task",
+        "description": "",
+        "acceptance_criteria": [],
+        "priority": "medium",
+        "parent": null,
+        "children": [],
+        "status": "open",
+        "external": null,
+        "assignee": null,
+        "story_points": null,
+        "needs_design": false
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-TICKET-003",
+      "kind": "schema",
+      "schema": "ticket.schema.json",
+      "title": "ticket: an unknown status is rejected by the enum",
+      "json": {
+        "id": "TKT-1",
+        "title": "x",
+        "type": "task",
+        "description": "",
+        "acceptance_criteria": [],
+        "priority": "medium",
+        "parent": null,
+        "children": [],
+        "status": "merged",
+        "external": null,
+        "assignee": null,
+        "story_points": null,
+        "needs_design": false
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-TICKET-004",
+      "kind": "schema",
+      "schema": "ticket.schema.json",
+      "title": "ticket: a missing required field is reported by name",
+      "json": {
+        "id": "TKT-1",
+        "title": "x",
+        "type": "task"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.needs_design: required property is missing"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-001",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: the honest-pass fixture the CLI cases use also satisfies the shipped schema",
+      "fixture": "verdict/honest-pass.json",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-002",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: SHAPE ONLY \u2014 the lying verdict passes the schema, and is caught by validate_verdict instead",
+      "note": "Deliberate and documented in the schema's own description: `passed` must equal 'no blocking finding' is not expressible in JSON Schema. This case exists so the division of labour is explicit \u2014 see VERDICT-002 for the check that does reject it.",
+      "fixture": "verdict/lying-pass.json",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-003",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: iteration 0 is rejected \u2014 iterations are 1-based",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 0,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "result": "pass"
+          }
+        ],
+        "findings": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum 1"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-004",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: a dimension id outside 1-16 is rejected",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 17,
+            "result": "pass"
+          }
+        ],
+        "findings": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "above maximum 16"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-005",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: an empty dimensions array is rejected by minItems",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "passed": true,
+        "dimensions": [],
+        "findings": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems 1"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-006",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: a finding severity outside blocking/info is rejected",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "passed": false,
+        "dimensions": [
+          {
+            "id": 1,
+            "result": "fail"
+          }
+        ],
+        "findings": [
+          {
+            "severity": "warning",
+            "detail": "x"
+          }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-VERDICT-007",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "verdict: lens null is valid \u2014 a light-depth verdict covers no single lens",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "lens": null,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "result": "pass"
+          }
+        ],
+        "findings": []
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-LOCK-001",
+      "kind": "schema",
+      "schema": "lock.schema.json",
+      "title": "lock: the foreign-lock fixture the LOCK cases use satisfies the schema",
+      "fixture": "lock/foreign-stale.json",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-LOCK-002",
+      "kind": "schema",
+      "schema": "lock.schema.json",
+      "title": "lock: pid 0 is rejected \u2014 a pid is 1 or greater",
+      "json": {
+        "checkout_id": "repo-abc",
+        "created_at": "2026-01-01T00:00:00Z",
+        "pid": 0
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum 1"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-LOCK-003",
+      "kind": "schema",
+      "schema": "lock.schema.json",
+      "title": "lock: an empty checkout_id is rejected by minLength",
+      "json": {
+        "checkout_id": "",
+        "created_at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-LOCKEV-001",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: a force-release record is accepted",
+      "json": {
+        "event": "lock_force_released",
+        "at": "2026-01-01T00:00:00Z",
+        "reason": "holder host is decommissioned",
+        "actor": null,
+        "by_checkout_id": "repo-abc",
+        "by_pid": 4242,
+        "by_hostname": "vm",
+        "staleness_verdict": true,
+        "staleness_basis": "age-timeout",
+        "broken_lock": {
+          "checkout_id": "elsewhere-deadbeef",
+          "created_at": "2026-01-01T00:00:00Z",
+          "pid": 4242,
+          "hostname": "some-other-host.invalid"
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-LOCKEV-002",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: the reason is required \u2014 an unexplained break is not a record",
+      "json": {
+        "event": "lock_force_released",
+        "at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.reason: required property is missing"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-LOCKEV-003",
+      "kind": "schema",
+      "schema": "lock-events.schema.json",
+      "title": "lock-events: an unknown event name is rejected",
+      "json": {
+        "event": "lock_released",
+        "at": "2026-01-01T00:00:00Z",
+        "reason": "x"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-COUNTERS-001",
+      "kind": "schema",
+      "schema": "counters.schema.json",
+      "title": "counters: a reconciled counter is accepted",
+      "json": {
+        "next": 2,
+        "reconciled": true,
+        "seed_source": "explicit-user",
+        "seeded_at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-COUNTERS-002",
+      "kind": "schema",
+      "schema": "counters.schema.json",
+      "title": "counters: next 0 is rejected \u2014 ids are 1-based",
+      "json": {
+        "next": 0
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum 1"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-COUNTERS-003",
+      "kind": "schema",
+      "schema": "counters.schema.json",
+      "title": "counters: an unknown seed_source is rejected",
+      "json": {
+        "next": 1,
+        "seed_source": "guessed"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-PIPELINE-001",
+      "kind": "schema",
+      "schema": "pipeline-state.schema.json",
+      "title": "pipeline-state: a ticket-flow document is accepted",
+      "json": {
+        "ticket_id": "TKT-1",
+        "flow": "ticket",
+        "steps": {}
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-PIPELINE-002",
+      "kind": "schema",
+      "schema": "pipeline-state.schema.json",
+      "title": "pipeline-state: an unknown flow is rejected \u2014 there are exactly two",
+      "json": {
+        "ticket_id": "TKT-1",
+        "flow": "release",
+        "steps": {}
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-SKILLSTATE-001",
+      "kind": "schema",
+      "schema": "skill-state.schema.json",
+      "title": "skill-state: a code run's state document is accepted",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "states": {},
+        "findings": [],
+        "errors": [],
+        "runs": []
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-SKILLSTATE-002",
+      "kind": "schema",
+      "schema": "skill-state.schema.json",
+      "title": "skill-state: the skill enum is closed \u2014 an unknown skill name is rejected",
+      "note": "This enum is the plugin's own list of skills, so it is also the schema-level record of what ships.",
+      "json": {
+        "skill": "deploy",
+        "ticket_id": "TKT-1",
+        "states": {},
+        "findings": [],
+        "errors": [],
+        "runs": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-SESSION-001",
+      "kind": "schema",
+      "schema": "session-pointer.schema.json",
+      "title": "session-pointer: a pointer at one ticket is accepted",
+      "json": {
+        "checkout_id": "repo-abc",
+        "ticket_id": "TKT-1",
+        "skill": "code",
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-SESSION-002",
+      "kind": "schema",
+      "schema": "session-pointer.schema.json",
+      "title": "session-pointer: a malformed ticket id is rejected",
+      "json": {
+        "checkout_id": "repo-abc",
+        "ticket_id": "1-TKT"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-CLARIF-001",
+      "kind": "schema",
+      "schema": "clarifications.schema.json",
+      "title": "clarifications: a ticket's clarification set is accepted",
+      "json": {
+        "ticket_id": "TKT-1",
+        "clarifications": []
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-CLARIF-002",
+      "kind": "schema",
+      "schema": "clarifications.schema.json",
+      "title": "clarifications: the ticket id must be well formed",
+      "json": {
+        "ticket_id": "nope",
+        "clarifications": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-INDEX-001",
+      "kind": "schema",
+      "schema": "tickets-index.schema.json",
+      "title": "tickets-index: an index keyed by ticket id is accepted",
+      "json": {
+        "tickets": {
+          "TKT-1": {
+            "id": "TKT-1",
+            "title": "Add user login",
+            "status": "open",
+            "type": "task"
+          }
+        }
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-INDEX-002",
+      "kind": "schema",
+      "schema": "tickets-index.schema.json",
+      "title": "tickets-index: tickets is required \u2014 an empty document is not an index",
+      "json": {},
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "$.tickets: required property is missing"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-SETTINGS-001",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "settings: the sandbox's own .acs/settings.json is accepted",
+      "note": "The same four keys every profile in this dataset is seeded with, so a settings-schema tightening breaks here first.",
+      "json": {
+        "ticket_prefix": "TKT",
+        "workspace_path": "../ws",
+        "test_coverage_percent": 90,
+        "merge_strategy": "squash"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-SETTINGS-002",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "settings: a lowercase ticket_prefix is rejected",
+      "json": {
+        "ticket_prefix": "tkt"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-SETTINGS-003",
+      "kind": "schema",
+      "schema": "settings.schema.json",
+      "title": "settings: an unsupported merge strategy is rejected",
+      "json": {
+        "merge_strategy": "fast-forward"
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SCHEMA-METRICS-001",
+      "kind": "schema",
+      "schema": "metrics.schema.json",
+      "title": "metrics: an aggregate document is accepted",
+      "json": {
+        "tickets": {},
+        "prs": {},
+        "totals": {},
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "id": "SCHEMA-METRICS-002",
+      "kind": "schema",
+      "schema": "metrics.schema.json",
+      "title": "metrics: tickets must be an object, not a list",
+      "json": {
+        "tickets": []
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "expected type object"
+        ]
+      }
+    }
+  ],
+  "severity": "major"
+}
