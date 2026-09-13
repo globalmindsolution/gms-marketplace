@@ -5,11 +5,21 @@ holds a **golden dataset**: a curated, versioned corpus of inputs paired with
 the outputs the plugin actually produced, so a release can be checked against
 recorded behaviour instead of against someone's memory of it.
 
-It began as the separate `globalmindsolution/acs-evals` repository and was
-folded into this one, history intact, at `src/acs-evals/`. Its history carries
-the **old, repo-root-relative paths**, so `git log -- src/acs-evals/<path>`
-stops at the fold commit; read the pre-fold history by its original path
-instead — `git log 74c7478 -- dataset/cases/06-gates.json`.
+It began as the separate
+[`globalmindsolution/acs-evals`](https://github.com/globalmindsolution/acs-evals)
+repository and was folded into this one at `src/acs-evals/`.
+
+**Reading the pre-fold history.** The fold was squash-merged, so on `main` the
+whole dataset arrives in a single commit and `git log -- src/acs-evals/` shows
+only that one. The commits that built it are still in the original repository,
+on `claude/acs-evals-review-az3x51`, and they carry the **old,
+repo-root-relative paths** — so read them there, by the original path:
+
+```bash
+git remote add acs-evals https://github.com/globalmindsolution/acs-evals.git
+git fetch acs-evals claude/acs-evals-review-az3x51
+git log FETCH_HEAD -- dataset/cases/06-gates.json   # not src/acs-evals/dataset/...
+```
 
 Built as the release gate for **v0.4.10**.
 
