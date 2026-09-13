@@ -39,8 +39,25 @@ def _assistant(*blocks):
                        "message": {"content": list(blocks)}})
 
 
-def _skill(name):
-    return {"type": "tool_use", "name": "Skill", "input": {"skill": name}}
+def _skill(name, call_id="t1"):
+    return {"type": "tool_use", "id": call_id, "name": "Skill",
+            "input": {"skill": name}}
+
+
+def _result(call_id="t1", content="ok", is_error=False):
+    """The tool_result the CLI returns for a Skill call.
+
+    The decision needs this, not just the request: a `disable-model-invocation`
+    skill is offered to the model, and asking for it is refused here.
+    """
+    return json.dumps({"type": "user", "message": {"content": [
+        {"type": "tool_result", "tool_use_id": call_id,
+         "is_error": is_error, "content": content}]}})
+
+
+REFUSAL = ("<tool_use_error>Skill acs:create-standards cannot be used with "
+           "Skill tool due to disable-model-invocation. Ask the user to run "
+           "/acs:create-standards themselves</tool_use_error>")
 
 
 def _text(text):
@@ -69,42 +86,87 @@ class DescriptionProbeTest(unittest.TestCase):
 
     def test_first_skill_tool_use_decides(self):
         lines = [_init(), _assistant(_text("Thinking."), _skill("acs:code")),
-                 _assistant(_skill("acs:create-pr"))]
+                 _result(), _assistant(_skill("acs:create-pr", "t2"))]
         self.assertEqual(classify(lines, self.PROMPT),
-                         ("acs:code", "skill_tool_use"))
+                         ("acs:code", "skill_tool_use", None))
 
     def test_stops_reading_at_the_decision(self):
+        # The decision is the RESULT of the first Skill call, not the request:
+        # a refused call did not route. So it reads one event further than it
+        # used to, and not one more than that.
         seen = []
 
         def lines():
-            for line in [_init(), _assistant(_skill("acs:code")),
-                         _assistant(_skill("acs:create-pr"))]:
+            for line in [_init(), _assistant(_skill("acs:code")), _result(),
+                         _assistant(_skill("acs:create-pr", "t2"))]:
                 seen.append(line)
                 yield line
 
         classify(lines(), self.PROMPT)
-        self.assertEqual(len(seen), 2)
+        self.assertEqual(len(seen), 3)
 
     def test_no_skill_call_is_a_none_result(self):
         lines = [_init(), _assistant(_text("I cannot help with that."))]
-        self.assertEqual(classify(lines, self.PROMPT), (None, "skill_tool_use"))
+        self.assertEqual(classify(lines, self.PROMPT), (None, "skill_tool_use", None))
+
+    def test_a_refused_user_only_skill_did_not_route(self):
+        # 2026-09-13: the negative probes reported two CRITICAL findings on a
+        # guarantee that held on every run, because they scored the request.
+        lines = [_init(), _assistant(_skill("acs:create-standards")),
+                 _result(content=REFUSAL, is_error=True)]
+        self.assertEqual(classify(lines, self.PROMPT),
+                         (None, "refused_user_only", "acs:create-standards"))
+
+    def test_the_attempt_is_kept_even_though_it_did_not_route(self):
+        lines = [_init(), _assistant(_skill("acs:create-standards")),
+                 _result(content=REFUSAL, is_error=True)]
+        self.assertEqual(classify(lines, self.PROMPT)[2], "acs:create-standards")
+
+    def test_any_other_tool_error_also_means_the_skill_did_not_run(self):
+        lines = [_init(), _assistant(_skill("acs:code")),
+                 _result(content="no such skill", is_error=True)]
+        self.assertEqual(classify(lines, self.PROMPT),
+                         (None, "refused", "acs:code"))
+
+    def test_a_result_for_some_other_call_does_not_decide(self):
+        lines = [_init(), _assistant(_skill("acs:code")),
+                 _result("other", content=REFUSAL, is_error=True), _result()]
+        self.assertEqual(classify(lines, self.PROMPT),
+                         ("acs:code", "skill_tool_use", None))
+
+    def test_a_request_whose_result_never_comes_reports_the_request(self):
+        # An unanswered call is not evidence of a refusal. Say so in the
+        # detection rather than quietly scoring it either way.
+        lines = [_init(), _assistant(_skill("acs:code"))]
+        routed, detection, attempted = classify(lines, self.PROMPT)
+        self.assertEqual((routed, detection), ("acs:code",
+                                               "skill_tool_use_unresolved"))
+        self.assertEqual(attempted, "acs:code")
+
+    def test_the_lookahead_for_a_result_is_bounded(self):
+        lines = ([_init(), _assistant(_skill("acs:code"))]
+                 + [_assistant(_text("still going"))
+                    for _ in range(measure_skills.RESULT_LOOKAHEAD + 5)])
+        self.assertEqual(classify(lines, self.PROMPT)[1],
+                         "skill_tool_use_unresolved")
 
     def test_init_registration_never_decides_a_description_probe(self):
         # The model must choose; the CLI knowing the command is not routing.
         lines = [_init(), _assistant(_text("Done."))]
-        self.assertEqual(classify(lines, self.PROMPT), (None, "skill_tool_use"))
+        self.assertEqual(classify(lines, self.PROMPT), (None, "skill_tool_use", None))
 
     def test_garbage_lines_are_skipped(self):
-        lines = ["not json", "[1,2]", "null", _assistant(_skill("acs:setup"))]
+        lines = ["not json", "[1,2]", "null", _assistant(_skill("acs:setup")),
+                 "garbage too", _result()]
         self.assertEqual(classify(lines, self.PROMPT),
-                         ("acs:setup", "skill_tool_use"))
+                         ("acs:setup", "skill_tool_use", None))
 
 
 class ExplicitProbeTest(unittest.TestCase):
     def test_registered_command_routes_at_init(self):
         lines = [_init(), _assistant(_text("Resolving repo roots."))]
         self.assertEqual(classify(lines, "/acs:install-hooks"),
-                         ("acs:install-hooks", "registered"))
+                         ("acs:install-hooks", "registered", None))
 
     def test_decided_before_any_model_turn(self):
         seen = []
@@ -120,22 +182,22 @@ class ExplicitProbeTest(unittest.TestCase):
     def test_unregistered_command_is_a_miss(self):
         lines = [_init(commands=("acs:code",)), _assistant(_text("?"))]
         self.assertEqual(classify(lines, "/acs:install-hooks"),
-                         (None, "registered"))
+                         (None, "registered", None))
 
     def test_init_without_a_registration_list_is_unmeasured(self):
         lines = [_init(with_list=False), _assistant(_text("?"))]
         self.assertEqual(classify(lines, "/acs:install-hooks"),
-                         (None, "unmeasured"))
+                         (None, "unmeasured", None))
 
     def test_no_init_at_all_is_unmeasured(self):
         lines = [_assistant(_text("?"))]
-        self.assertEqual(classify(lines, "/acs:update"), (None, "unmeasured"))
+        self.assertEqual(classify(lines, "/acs:update"), (None, "unmeasured", None))
 
     def test_exact_command_match_only(self):
         # A same-named command from another namespace is not this skill.
         lines = [_init(commands=("other:install-hooks", "install-hooks"))]
         self.assertEqual(classify(lines, "/acs:install-hooks"),
-                         (None, "registered"))
+                         (None, "registered", None))
 
 
 class ControlProbeTest(unittest.TestCase):
@@ -341,7 +403,7 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
         _FakeSandbox.events.append(("route", cwd, prompt, build))
         if prompt == "boom":
             raise RuntimeError("session failed")
-        return "acs:code", "skill_tool_use", 1.0
+        return "acs:code", "skill_tool_use", None, 1.0
 
     _scenarios = {"routing": {"runs_per_probe": 2, "timeout_seconds": 1}}
 
@@ -552,7 +614,7 @@ class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
 
         def fake_route(prompt, cwd, timeout, env, build=None):
             self.spent.append(prompt)
-            return "acs:code", "skill_tool_use", 1.0
+            return "acs:code", "skill_tool_use", None, 1.0
 
         measure_skills.route_once = fake_route
 
@@ -579,6 +641,124 @@ class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
         measure_routing(None, {"routing": {"runs_per_probe": 1}}, probes, {},
                         checkpoint=cp)
         self.assertIn("a", cp.done)
+
+class SetupPreconditionTest(unittest.TestCase):
+    """`setup_assert`: did the setup leave the sandbox where the scenario needs it?
+
+    A setup prompt is a model session, so "it exited 0" is not the same claim
+    as "the precondition holds". On 2026-09-13 a PIPE-docs-sync setup finished
+    clean having asked five clarifying questions and written no code; docs-sync
+    then correctly refused, and the refusal was scored against docs-sync.
+    """
+
+    class FakeSandbox:
+        def __init__(self, repo, partition, ticket_id="TKT-1"):
+            self.repo, self._partition = repo, partition
+            self.ticket_id = ticket_id
+
+        def ticket_dir(self):
+            return self._partition
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="acs-setup-assert-")
+        self.repo = os.path.join(self.base, "repo")
+        self.partition = os.path.join(self.base, "part")
+        os.makedirs(self.repo)
+        os.makedirs(self.partition)
+        self.sb = self.FakeSandbox(self.repo, self.partition)
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def ledger(self, doc):
+        with open(os.path.join(self.partition, "pipeline-state.json"), "w") as fh:
+            json.dump(doc, fh)
+
+    def test_no_assert_is_nothing_to_check_not_a_failure(self):
+        self.assertTrue(measure_skills.setup_holds({}, self.sb, {}))
+
+    def test_the_assert_reads_the_partition_the_sandbox_names(self):
+        self.ledger({"steps": {"code": {"status": "completed"}}})
+        scenario = {"setup_assert":
+                    "test -f \"$ACS_PARTITION/pipeline-state.json\""}
+        self.assertTrue(measure_skills.setup_holds(scenario, self.sb, {}))
+
+    def test_the_ticket_id_is_bound_too(self):
+        scenario = {"setup_assert": "test \"$ACS_TICKET_ID\" = TKT-1"}
+        self.assertTrue(measure_skills.setup_holds(scenario, self.sb, {}))
+
+    def test_a_failing_assert_marks_the_run_unmeasured(self):
+        scenario = {"setup_assert": "false"}
+        self.assertFalse(measure_skills.setup_holds(scenario, self.sb, {}))
+
+    def test_an_assert_that_cannot_run_fails_closed(self):
+        # An unmeasurable precondition is not a held precondition.
+        scenario = {"setup_assert": "exec 2>/dev/null; sleep 5"}
+        self.assertFalse(measure_skills.setup_holds(
+            dict(scenario, setup_assert="no-such-command-anywhere"),
+            self.sb, {}))
+
+    def test_the_shipped_docs_sync_assert_reads_the_code_step(self):
+        # The dataset's own command, run against real and degenerate ledgers.
+        with open(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), os.pardir,
+                "dataset", "scenarios.json")) as fh:
+            scenarios = json.load(fh)
+        cmd = [s for s in scenarios["pipeline"]["scenarios"]
+               if s["id"] == "PIPE-docs-sync"][0]["setup_assert"]
+        scenario = {"setup_assert": cmd}
+        self.ledger({"steps": {"code": {"status": "completed"}}})
+        self.assertTrue(measure_skills.setup_holds(scenario, self.sb, {}))
+        for short in ({"steps": {"code": {"status": "in_progress"}}},
+                      {"steps": {"code": {"status": "failed"}}},
+                      {"steps": {}}, {}):
+            self.ledger(short)
+            self.assertFalse(measure_skills.setup_holds(scenario, self.sb, {}),
+                             "%r must not read as a completed code step" % short)
+        os.remove(os.path.join(self.partition, "pipeline-state.json"))
+        self.assertFalse(measure_skills.setup_holds(scenario, self.sb, {}),
+                         "no ledger at all must fail closed")
+
+
+class SetupBudgetTest(unittest.TestCase):
+    """A setup prompt is another scenario's whole body, not a preamble.
+
+    PIPE-docs-sync's setup is PIPE-code's prompt verbatim. Sized by docs-sync's
+    900s it timed out; PIPE-code itself is given 1800s and took up to 1204s.
+    """
+
+    def budgets(self, scenario):
+        return (scenario.get("setup_timeout_seconds",
+                             scenario.get("timeout_seconds", 1800)),
+                scenario.get("timeout_seconds", 1800))
+
+    def test_a_scenario_without_setup_prompts_is_unchanged(self):
+        self.assertEqual(self.budgets({"timeout_seconds": 600}), (600, 600))
+
+    def test_setup_may_outrun_the_measured_budget(self):
+        self.assertEqual(
+            self.budgets({"timeout_seconds": 900,
+                          "setup_timeout_seconds": 1800}), (1800, 900))
+
+    def test_every_shipped_setup_gets_at_least_its_own_scenario_s_budget(self):
+        with open(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), os.pardir,
+                "dataset", "scenarios.json")) as fh:
+            scenarios = json.load(fh)["pipeline"]["scenarios"]
+        # Keyed on (prompt, profile): PIPE-code and PIPE-code-app run the
+        # same prompt on different sandboxes and cost differently.
+        by_prompt = {(s["prompt"], s["profile"]): s for s in scenarios}
+        for s in scenarios:
+            for prompt in s.get("setup_prompts", []):
+                twin = by_prompt.get((prompt, s["profile"]))
+                if twin is None or twin["id"] == s["id"]:
+                    continue
+                setup_budget = self.budgets(s)[0]
+                self.assertGreaterEqual(
+                    setup_budget, twin["timeout_seconds"],
+                    "%s's setup runs %s's body and must carry at least its "
+                    "budget" % (s["id"], twin["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()

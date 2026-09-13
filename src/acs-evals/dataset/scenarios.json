@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.5.0",
+  "scenario_set_version": "1.6.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -54,10 +54,12 @@
           "cost",
           "time"
         ],
-        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate.",
+        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate. 1.6.0: that setup prompt is PIPE-code's whole body, so it carries PIPE-code's budget rather than this scenario's — under the 900s measured budget it timed out on 1 of 3 runs of the 2026-09-13 measurement — and a `setup_assert` states the precondition, because a setup session can finish clean and still leave nothing to sync.",
         "setup_prompts": [
           "TKT-1 is ready to implement. Please implement it."
-        ]
+        ],
+        "setup_timeout_seconds": 1800,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\""
       },
       {
         "id": "PIPE-code-app",
@@ -87,7 +89,9 @@
           "cost",
           "time"
         ],
-        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated."
+        "setup_timeout_seconds": 2400,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\"",
+        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached."
       }
     ]
   },

@@ -92,15 +92,37 @@ def explicit_skill(prompt):
     return parts[0] if parts else None
 
 
+#: How many further events to read looking for a Skill call's result. The
+#: refusal below is a CLI check, not a model turn, so it lands within a couple
+#: of events; the bound only stops a hung stream from being read forever.
+RESULT_LOOKAHEAD = 40
+
+
+def _skill_refusal(block):
+    """Did this tool_result say the Skill call was refused, and why?
+
+    Returns None when the call was honoured. The `disable-model-invocation`
+    case has its own detection label because it is the whole subject of the
+    negative probes.
+    """
+    if not block.get("is_error"):
+        return None
+    content = block.get("content")
+    text = content if isinstance(content, str) else json.dumps(content)
+    if "disable-model-invocation" in text:
+        return "refused_user_only"
+    return "refused"
+
+
 def classify(lines, prompt):
     """Decide where a stream-json session routed, from its raw event lines.
 
-    Returns `(routed_to, detection)`. Pure: `lines` is any iterable of
-    stream-json lines, so the decision rule is testable without a `claude`,
+    Returns `(routed_to, detection, attempted)`. Pure: `lines` is any iterable
+    of stream-json lines, so the decision rule is testable without a `claude`,
     and the caller may stop reading the moment a value comes back.
 
     * A description prompt is routed by the model: `routed_to` is the `skill`
-      of the first `Skill` tool_use and `detection` is `skill_tool_use`.
+      of the first `Skill` tool_use — PROVIDED the call was honoured.
     * An explicit `/acs:<skill>` prompt is routed by the CLI: the `init` event
       lists every registered command in `slash_commands`, so `routed_to` is the
       named command when it is registered and `detection` is `registered`.
@@ -108,8 +130,22 @@ def classify(lines, prompt):
     * An explicit probe whose stream never reports a registration list — an
       `init` without `slash_commands`, or no `init` at all — is `unmeasured`:
       `routed_to` is None, which the gate counts as a miss, never as a pass.
+
+    **A request is not an invocation.** Until 2026-09-13 this stopped at the
+    tool_use and reported the skill the model ASKED for. A skill carrying
+    `disable-model-invocation: true` is offered in the session's `skills` list
+    and the model does sometimes reach for it, but the CLI refuses the call
+    outright — "cannot be used with Skill tool due to disable-model-invocation"
+    — and the skill body never loads. Scoring the request as an invocation
+    turned a guarantee that held on every run into two CRITICAL findings
+    against it. So the decision now reads one step further, to the matching
+    tool_result: a refused call did not route. `attempted` keeps the skill the
+    model reached for, because "the model tried and was stopped" is real signal
+    about the descriptions — just not a broken guarantee.
     """
     want = explicit_skill(prompt)
+    pending = None          # (tool_use_id, skill) awaiting its result
+    since = 0
     for line in lines:
         try:
             event = json.loads(line)
@@ -121,14 +157,35 @@ def classify(lines, prompt):
         if (want is not None and kind == "system"
                 and event.get("subtype") == "init"):
             if "slash_commands" not in event:
-                return None, "unmeasured"
+                return None, "unmeasured", None
             registered = event.get("slash_commands") or []
-            return (want if want in registered else None), "registered"
+            return (want if want in registered else None), "registered", None
+        blocks = (event.get("message") or {}).get("content") or []
+        if pending is not None:
+            for block in blocks:
+                if (block.get("type") == "tool_result"
+                        and block.get("tool_use_id") == pending[0]):
+                    refusal = _skill_refusal(block)
+                    if refusal:
+                        return None, refusal, pending[1]
+                    return pending[1], "skill_tool_use", None
+            since += 1
+            if since > RESULT_LOOKAHEAD:
+                # No result in sight. Report what was asked for rather than
+                # claim nothing happened: an unanswered call is not evidence
+                # of a refusal.
+                return pending[1], "skill_tool_use_unresolved", pending[1]
+            continue
         if kind == "assistant":
-            for block in (event.get("message") or {}).get("content") or []:
+            for block in blocks:
                 if block.get("type") == "tool_use" and block.get("name") == "Skill":
-                    return (block.get("input") or {}).get("skill"), "skill_tool_use"
-    return None, ("unmeasured" if want is not None else "skill_tool_use")
+                    pending = (block.get("id"),
+                               (block.get("input") or {}).get("skill"))
+                    break
+    if pending is not None:
+        # The stream ended before the result did.
+        return pending[1], "skill_tool_use_unresolved", pending[1]
+    return None, ("unmeasured" if want is not None else "skill_tool_use"), None
 
 
 class Checkpoint:
@@ -229,12 +286,13 @@ def session_cmd(prompt, build=None):
 
 
 def route_once(prompt, cwd, timeout, env, build=None):
-    """Return (routed_to, detection, seconds). Killed at the first decision.
+    """Return (routed_to, detection, attempted, seconds). Killed at the decision.
 
-    `routed_to` is None when the model stopped, or the timeout elapsed, without
-    invoking any skill — which for a negative probe is the passing outcome, so
+    `routed_to` is None when the model stopped, the timeout elapsed, or the CLI
+    refused the call — which for a negative probe is the passing outcome, so
     None is a result here and never an error. `detection` says which rule in
-    `classify` decided the run.
+    `classify` decided the run, and `attempted` names the skill the model
+    reached for when the call was refused.
     """
     cmd = route_cmd(prompt, build)
     started = time.time()
@@ -250,13 +308,14 @@ def route_once(prompt, cwd, timeout, env, build=None):
             yield line
 
     try:
-        routed, detection = classify(until_deadline(proc.stdout), prompt)
+        routed, detection, attempted = classify(until_deadline(proc.stdout),
+                                                prompt)
     finally:
         proc.kill()
         proc.wait()
         if proc.stdout:
             proc.stdout.close()
-    return routed, detection, round(time.time() - started, 3)
+    return routed, detection, attempted, round(time.time() - started, 3)
 
 
 def session_once(prompt, cwd, timeout, env, build=None):
@@ -432,16 +491,19 @@ def preflight(build, probes, env, timeout=60):
     with Sandbox(build, profile="bare") as sb:
         checks.append(build_identity_check(build, sb.repo, env, timeout))
         for probe in controls:
-            routed, detection, seconds = route_once(probe["prompt"], sb.repo,
-                                                    timeout, env, build)
+            routed, detection, attempted, seconds = route_once(
+                probe["prompt"], sb.repo, timeout, env, build)
             rec = {"kind": "routing", "skill": probe["skill"],
                    "expect": {"must_route": probe.get("must_route", True),
                               "skill": probe["skill"], "control": True},
                    "runs": [{"ok": True, "routed_to": routed}]}
             passed = summarize(rec)["reliability"]["hits"] == 1
-            checks.append({"id": probe["id"], "routed_to": routed,
-                           "detection": detection, "seconds": seconds,
-                           "passed": passed})
+            check = {"id": probe["id"], "routed_to": routed,
+                     "detection": detection, "seconds": seconds,
+                     "passed": passed}
+            if attempted:
+                check["attempted"] = attempted
+            checks.append(check)
     return all(c["passed"] for c in checks), checks
 
 
@@ -514,11 +576,16 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
                 continue
             runs = []
             for _ in range(runs_per):
-                routed, detection, seconds = route_once(
+                routed, detection, attempted, seconds = route_once(
                     probe["prompt"], sb.repo, timeout, env, build)
-                runs.append({"ok": True, "routed_to": routed,
-                             "detection": detection, "seconds": seconds,
-                             "cost_usd": None, "turns": None})
+                run = {"ok": True, "routed_to": routed,
+                       "detection": detection, "seconds": seconds,
+                       "cost_usd": None, "turns": None}
+                if attempted:
+                    # The model reached for a skill the CLI would not let it
+                    # run. Not a route, but not nothing either.
+                    run["attempted"] = attempted
+                runs.append(run)
             rec = {"id": probe["id"], "kind": "routing",
                    "skill": probe["skill"],
                    "expect": {"must_route": probe.get("must_route", True),
@@ -543,6 +610,32 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
     return out
 
 
+def setup_holds(scenario, sandbox, env):
+    """Did the setup actually leave the sandbox in the state the scenario needs?
+
+    A setup prompt is a model session, so it can report success and still stop
+    short of the precondition — /acs:code asking five clarifying questions and
+    finishing with `ready_for_planning=false` leaves no changeset for
+    /acs:docs-sync to re-derive. Measuring the skill against that sandbox does
+    not measure the skill; it measures the setup, and scores the skill's
+    correct refusal as the skill's failure. `setup_assert` is the scenario's
+    own statement of what must hold, run as a shell command in the sandbox
+    repo with `ACS_PARTITION` and `ACS_TICKET_ID` bound. No assert means there
+    is nothing to check, not that nothing needed checking.
+    """
+    cmd = scenario.get("setup_assert")
+    if not cmd:
+        return True
+    senv = dict(env, ACS_PARTITION=sandbox.ticket_dir(),
+                ACS_TICKET_ID=sandbox.ticket_id or "")
+    try:
+        proc = subprocess.run(cmd, shell=True, cwd=sandbox.repo, env=senv,
+                              capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return proc.returncode == 0
+
+
 def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
     conf = scenarios["pipeline"]
     runs_per = limit or conf.get("runs_per_scenario", 3)
@@ -565,19 +658,31 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
                 # Setup prompts bring the sandbox to the state the measured
                 # skill needs (docs-sync after a real /acs:code run, say).
                 # Their cost and time are recorded separately, never folded
-                # into the measured run.
+                # into the measured run, and they get their OWN budget: a
+                # setup prompt is another scenario's whole body, so sizing it
+                # by the cheap skill being measured times it out by
+                # construction and spends the run for nothing.
+                setup_timeout = scenario.get(
+                    "setup_timeout_seconds",
+                    scenario.get("timeout_seconds", 1800))
                 setup = []
                 for text in scenario.get("setup_prompts", []):
-                    s_run = session_once(fill(text), sb.repo,
-                                         scenario.get("timeout_seconds", 1800),
+                    s_run = session_once(fill(text), sb.repo, setup_timeout,
                                          env, build)
                     setup.append(s_run)
                     if not s_run["ok"]:
                         break
+                unmeasured = None
                 if setup and not setup[-1]["ok"]:
-                    run = {"ok": False, "seconds": 0.0, "cost_usd": None,
-                           "turns": None, "error": "setup prompt failed: %s"
-                           % (setup[-1].get("error") or "session not ok")}
+                    unmeasured = ("setup prompt failed: %s"
+                                  % (setup[-1].get("error") or "session not ok"))
+                elif setup and not setup_holds(scenario, sb, env):
+                    unmeasured = ("setup ran but left the precondition unmet: %s"
+                                  % scenario["setup_assert"])
+                if unmeasured:
+                    run = {"ok": False, "unmeasured": unmeasured,
+                           "seconds": 0.0, "cost_usd": None, "turns": None,
+                           "error": unmeasured}
                 else:
                     run = session_once(fill(scenario["prompt"]), sb.repo,
                                        scenario.get("timeout_seconds", 1800),

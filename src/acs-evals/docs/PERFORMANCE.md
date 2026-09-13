@@ -60,7 +60,9 @@ still. A typed slash command is expanded by the CLI itself and never dispatched
 through the `Skill` tool, so `disable-model-invocation` skills can only be
 observed as **registered**: the `init` event's `slash_commands` list. Those
 probes are decided at `init`, before any model turn. Every routing run records
-`detection` — `skill_tool_use`, `registered`, or `unmeasured` when an explicit
+`detection` — `skill_tool_use`, `registered`, `refused_user_only` or `refused`
+when the CLI rejected the Skill call, `skill_tool_use_unresolved` when the
+stream ended before the call's result arrived, or `unmeasured` when an explicit
 probe's stream reported no registration list at all, which the gate counts as
 a miss, never a pass.
 
@@ -79,6 +81,18 @@ rule is not a criterion.
   description (scenario set 1.5.0).
 - **Routing, negative probe** — passes only if the skill auto-invokes on **no**
   run. This is the `disable-model-invocation` guarantee, and it is `critical`.
+  **A request is not an invocation.** A flagged skill is still listed in the
+  session's `skills`, and the model does sometimes reach for it — but the CLI
+  refuses the call outright (`cannot be used with Skill tool due to
+  disable-model-invocation`) and the skill body never loads, so the guarantee
+  held. A run is therefore decided by the Skill call's **tool_result**, not by
+  the `tool_use` that asked for it: `detection` is `refused_user_only` and
+  `routed_to` is `None`. The attempt is kept in the run's `attempted` and
+  reported as a `minor` **routing-quality** finding — the descriptions are
+  pointing the model at a skill only a user may run, which costs a turn and is
+  worth fixing in prose. Scoring the request as the invocation is what made the
+  2026-09-13 measurement report two CRITICAL findings against a guarantee that
+  had in fact held on all fifteen runs.
 - **Controls** — three probes whose answer is known before the run: a
   registration canary (`/acs:setup`) that must hit, an unregistered command
   (`/acs:no-such-skill`) that must miss, and an off-domain request (a poem)
@@ -127,7 +141,7 @@ generator; one far looser makes it decorative.
 | State | Condition |
 |---|---|
 | **UNMEASURED** | No measurement exists. Exit non-zero. |
-| **BLOCKED (critical)** | A `disable-model-invocation` skill auto-invoked, or a control probe failed. |
+| **BLOCKED (critical)** | A `disable-model-invocation` skill actually ran (its Skill call was honoured), or a control probe failed. |
 | **BLOCKED** | An absolute floor was crossed. |
 | **UNCOMPARED (baseline established)** | Floors held; first measurement for this scenario set, so nothing to compare. |
 | **PASSED (uncalibrated drift)** | A provisional relative threshold was crossed. Look, do not block. |
@@ -150,6 +164,32 @@ half alone. Scenario set 1.4.0 adds two scenarios on the fixture app
 scenario whose measured skill needs prior pipeline state names that state's
 prompts in `setup_prompts`, run first in the same sandbox and recorded on the
 run's `setup` list, never folded into the measured cost or time.
+
+### A setup that falls short leaves a hole, not a failure
+
+A setup prompt is another scenario's whole body, and it is a model session:
+it can time out, and it can exit clean having stopped short of the state the
+measured skill needs. Scenario set 1.6.0 gives each one its own
+`setup_timeout_seconds` (sized by the scenario the prompt belongs to, not by
+the cheap skill being measured) and a `setup_assert` — a shell command, run in
+the sandbox with `ACS_PARTITION` and `ACS_TICKET_ID` bound, that states the
+precondition in the dataset rather than assuming it.
+
+When either gives way the run is marked `unmeasured`, and the difference
+matters more than it looks:
+
+| | What it means | Whose bug |
+|---|---|---|
+| `unmeasured` | the setup never reached the state the scenario declares, so the skill was never run | the harness or the dataset |
+| a run that completed with `status: failed` | the skill ran and did not finish | the plugin |
+
+An `unmeasured` run leaves the reliability denominator and every median the
+gate compares, and is reported on its own **coverage** axis — major severity,
+absolute, so it blocks. Scoring it as a reliability miss files a harness defect
+against the plugin; dropping it silently lets a release quote a floor nothing
+was measured against. Both happened in the 2026-09-13 measurement, which is
+why this exists: `PIPE-docs-sync` reported 2/3 and `PIPE-docs-sync-app` 0/3
+for a skill that had, on the app profile, never once been reached.
 
 ## The fixture app
 

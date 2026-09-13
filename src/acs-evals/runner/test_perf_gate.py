@@ -68,6 +68,25 @@ def pipeline(pid="PIPE-code", skill="acs:code", n=3, ok=True, seconds=600.0,
     return probe
 
 
+def unmeasured_pipeline(pid="PIPE-docs-sync", skill="acs:docs-sync",
+                       measured=(), holes=1):
+    """A pipeline probe some of whose runs never reached the skill.
+
+    `measured` is one (ok, status) pair per run that actually ran; `holes` is
+    the number whose setup fell short.
+    """
+    runs = [{"ok": False, "unmeasured": "setup prompt failed: timeout",
+             "seconds": 0.0, "cost_usd": None, "error": "setup prompt failed"}
+            for _ in range(holes)]
+    runs += [{"ok": ok, "seconds": 40.0, "cost_usd": 0.3, "status": status,
+              "quality": {"verify_iterations": 0, "coverage_percent": None,
+                          "blocking_findings": 0}}
+             for ok, status in measured]
+    probe = {"id": pid, "kind": "pipeline", "skill": skill, "runs": runs}
+    probe["aggregate"] = pg.summarize(probe)
+    return probe
+
+
 def measurement(probes, version="0.4.10", sset="1.0.0", incomplete=False):
     return {"schema": "acs-evals/measurement/1",
             "build": {"version": version}, "scenario_set_version": sset,
@@ -102,6 +121,73 @@ class TestSummarise(unittest.TestCase):
         probe = routing(pid="ROUTE-update", skill="acs:update", must=False,
                         routed=[None, "acs:update", None])
         self.assertAlmostEqual(probe["aggregate"]["reliability"]["rate"], 2 / 3)
+
+
+class TestUnmeasuredRuns(unittest.TestCase):
+    """A run that never reached the skill is a hole, not a failure.
+
+    The 2026-09-13 measurement is why this class exists. PIPE-docs-sync's
+    setup prompt is a whole /acs:code cycle; sized by docs-sync's own budget
+    it timed out, and a second run's setup finished clean but left no
+    changeset, so docs-sync correctly refused. Both were scored as docs-sync
+    failing. The skill was never once exercised on the app profile, and the
+    gate reported it as 0% reliable rather than unmeasured.
+    """
+
+    def test_a_hole_leaves_the_reliability_denominator(self):
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        rel = probe["aggregate"]["reliability"]
+        self.assertEqual((rel["hits"], rel["total"], rel["rate"]), (2, 2, 1.0))
+        self.assertEqual(probe["aggregate"]["unmeasured"], 1)
+
+    def test_a_skill_that_ran_and_failed_stays_in_the_denominator(self):
+        # The distinction the whole class turns on: this one IS the plugin's.
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "failed")], holes=0)
+        rel = probe["aggregate"]["reliability"]
+        self.assertEqual((rel["hits"], rel["total"]), (1, 2))
+        self.assertEqual(probe["aggregate"]["unmeasured"], 0)
+
+    def test_a_hole_does_not_drag_the_medians_the_gate_compares(self):
+        # An unmeasured run records zero seconds and no cost.
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        agg = probe["aggregate"]
+        self.assertEqual(agg["seconds"]["median"], 40.0)
+        self.assertEqual(agg["seconds"]["n"], 2)
+        self.assertEqual(agg["cost_usd"]["median"], 0.3)
+
+    def test_a_hole_is_reported_on_its_own_axis(self):
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        cov = [f for f in found if f["axis"] == "coverage"]
+        self.assertEqual(len(cov), 1)
+        self.assertEqual(cov[0]["severity"], "major")
+        self.assertIn("1 of 3 runs measured nothing", cov[0]["summary"])
+        # ... and not as a reliability failure of the skill.
+        self.assertEqual([f for f in found if f["axis"] == "reliability"], [])
+
+    def test_a_scenario_that_measured_nothing_says_so_rather_than_zero(self):
+        probe = unmeasured_pipeline(pid="PIPE-docs-sync-app", measured=[],
+                                    holes=3)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        summaries = " | ".join(f["summary"] for f in found)
+        self.assertIn("3 of 3 runs measured nothing", summaries)
+        self.assertIn("unevaluated", summaries)
+        self.assertNotIn("completed 0 of 3", summaries)
+
+    def test_a_hole_blocks_even_while_thresholds_are_provisional(self):
+        # It is an absolute finding: nothing was measured, whatever the
+        # ratios would have said.
+        probe = unmeasured_pipeline(measured=[(True, "completed")], holes=2)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        state, headline, detail = pg.verdict(measurement([probe]), None,
+                                             PROVISIONAL, found)
+        self.assertEqual(state, "fail")
+        self.assertEqual(headline, "Skill performance: BLOCKED")
+        self.assertIn("2 of 3 runs measured nothing", detail)
 
 
 class TestAbsoluteGates(unittest.TestCase):

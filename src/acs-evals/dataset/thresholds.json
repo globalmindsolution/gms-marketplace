@@ -30,6 +30,20 @@
       "why": "A skill that fails one run in three burns the user's money and time and leaves a half-written partition behind."
     }
   },
+  "coverage": {
+    "unmeasured_runs_ceiling": {
+      "value": 0,
+      "severity": "major",
+      "rule": "A pipeline scenario's runs must all actually exercise the skill: no run may end with its setup short of the state the scenario declares (`setup_assert`).",
+      "why": "An unmeasured run is not a failing run and must not be scored as one — it is a hole in the measurement, and the two need different fixes. Scoring it as a skill failure blames the plugin for the harness; dropping it silently lets a release quote a floor nothing was measured against. It is reported on its own axis so the hole itself is the finding."
+    },
+    "user_only_attempt_ceiling": {
+      "value": 0,
+      "severity": "minor",
+      "rule": "A run may not reach for a `disable-model-invocation` skill, even though the CLI refuses the call.",
+      "why": "MINOR, deliberately. The guarantee itself is enforced by the CLI, which returns `cannot be used with Skill tool due to disable-model-invocation` and never loads the skill — verified 2026-09-13 — so an attempt is not the guarantee breaking and must never be scored as one. What it does say is that the descriptions draw the model toward a skill only a user may run, which costs a turn and is worth fixing in prose. Scoring the attempt as an invocation is what made the 2026-09-13 measurement report two CRITICAL findings against a guarantee that held on all 15 runs."
+    }
+  },
   "cost": {
     "median_regression_ratio": {
       "value": 1.25,

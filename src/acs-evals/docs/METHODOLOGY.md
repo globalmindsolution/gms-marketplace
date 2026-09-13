@@ -122,7 +122,9 @@ pre-flight that refuses to spend when the sandbox cannot see the plugin — the
 failure mode that produced 22 phantom misses per paid run before it was found.
 Its decision rule is stated in [`PERFORMANCE.md`](PERFORMANCE.md) — a positive
 probe passes only if it routes on **all** runs, a split result is a finding, and
-a negative probe that auto-invokes even once is `critical`. That answers the
+a negative probe whose skill actually runs even once is `critical` (a refused
+Skill call is not one: the CLI enforces `disable-model-invocation`, so the
+probe reads the call's result rather than the request). That answers the
 "`runs: 3` with no declared rule is not a criterion" objection this section
 raised. **First run 2026-09-10** (`dataset/baselines/acs-0.4.9-routing.json`):
 27 of 30 probes unanimous over 5 runs, one probe's prompt found to carry no

@@ -205,6 +205,10 @@
                     "null"
                   ]
                 },
+                "unmeasured": {
+                  "type": "string",
+                  "description": "Present only when this run never exercised the skill: the scenario's setup prompt failed or timed out, or it finished but left the scenario's `setup_assert` precondition unmet. The run then leaves the reliability denominator entirely and is counted in the aggregate's `unmeasured` instead. The value is the reason. A skill that ran and reported `failed` is NOT this: that is a reliability miss and stays in."
+                },
                 "stop_reason": {
                   "type": [
                     "string",
@@ -342,6 +346,11 @@
                     "maximum": 1
                   }
                 }
+              },
+              "unmeasured": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Pipeline scenarios only: how many of `runs` never reached the skill (see a run's own `unmeasured`). These runs are excluded from `reliability` and from every spread below — an unmeasured run records zero seconds and no cost, and folding either in moves the number the gate compares. The gate reports this on its own `coverage` axis, because a hole in the measurement and a regression in the skill need opposite fixes."
               },
               "seconds": {
                 "$ref": "#/$defs/spread"

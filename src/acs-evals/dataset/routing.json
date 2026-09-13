@@ -278,9 +278,9 @@
       "id": "ROUTE-ship",
       "skill": "acs:ship",
       "kind": "positive",
-      "prompt": "Ship a password-reset email flow for me end to end: open the ticket, implement it with tests, and get a pull request up for review — I don't want to drive each step myself.",
+      "prompt": "TKT-1 is ready to go. Take it from here to a pull request for me — I don't want to drive each step myself.",
       "must_route": true,
-      "why": "A natural-language request in the skill's domain, never naming the skill. The earlier prompt ('Take this request end to end for me, from ticket all the way to a pull request') routed nowhere on 5/5 runs of the 2026-09-10 measurement; a diagnostic session showed the model naming acs:ship and asking what the request was — it had nothing to ship. A routing probe must carry a shippable request, as s04's does."
+      "why": "A natural-language request in the skill's domain, never naming the skill. The prompt names a TICKET, because a ticket is what the skill takes: since the skills-independence refactor /acs:ship parses its argument as \"a ticket id, and nothing else\" and refuses a bare prompt, redirecting to /acs:create-ticket. The 1.3.0 prompt asked for a password-reset flow to be shipped from nothing and routed to acs:create-ticket on 5/5 runs of the 2026-09-13 measurement — the documented correct answer to a prompt carrying no ticket. That probe was measuring a contract the plugin no longer has."
     },
     {
       "id": "ROUTE-standardize-project-explicit",
@@ -299,12 +299,12 @@
       "why": "The no-auto-invoke guarantee after ADR 0091: this bare request must NOT reach the leg. It is the prompt that previously routed here, kept verbatim so the fold's behaviour change is what the probe measures."
     },
     {
-      "id": "ROUTE-test",
+      "id": "ROUTE-test-explicit",
       "skill": "acs:test",
       "kind": "positive",
-      "prompt": "Run our test suites and tell me whether anything broke.",
+      "prompt": "/acs:test",
       "must_route": true,
-      "why": "A natural-language request in the skill's domain, never naming the skill."
+      "why": "acs:test is a DEPRECATED ALIAS for acs:run-e2e-tests, retained for one release so existing invocations, scripts and habits keep working. Registration, not routing, is the whole guarantee, so this probe asserts it the way the other explicit probes do — at the session's init event. The natural-language half of the domain belongs to ROUTE-run-e2e-tests and is measured there. The 1.5.0 form asked in prose (\"Run our test suites and tell me whether anything broke\") and must_route'd to the alias; it routed nowhere on 5/5 runs of the 2026-09-13 measurement — what a description reading \"Deprecated alias ... Prefer /acs:run-e2e-tests\" should produce."
     },
     {
       "id": "ROUTE-update-explicit",

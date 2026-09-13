@@ -97,17 +97,30 @@ def summarize(probe):
                 return run.get("routed_to") is not None
             return run.get("routed_to") == want
         hits = sum(1 for r in runs if fired(r) == bool(must))
+        scored = runs
     else:
-        hits = sum(1 for r in runs if r.get("ok"))
+        # A run whose setup never established the precondition did not measure
+        # the skill. Counting it as a failure blames the plugin for the
+        # harness, and counting it as a pass hides that nothing was measured —
+        # so it leaves the denominator entirely and is reported on its own
+        # axis. A skill that ran and reported `failed` is the real thing this
+        # floor is for, and stays in.
+        scored = [r for r in runs if not r.get("unmeasured")]
+        hits = sum(1 for r in scored
+                   if r.get("ok") and r.get("status") != "failed")
+        agg["unmeasured"] = len(runs) - len(scored)
     agg["reliability"] = {
-        "hits": hits, "total": len(runs),
-        "rate": (hits / len(runs)) if runs else None,
+        "hits": hits, "total": len(scored),
+        "rate": (hits / len(scored)) if scored else None,
     }
 
-    agg["seconds"] = spread([r.get("seconds") for r in runs])
-    agg["cost_usd"] = spread([r.get("cost_usd") for r in runs])
+    # Every spread reads the scored runs too: an unmeasured run records zero
+    # seconds and no cost, and folding those in moves the median the gate
+    # compares.
+    agg["seconds"] = spread([r.get("seconds") for r in scored])
+    agg["cost_usd"] = spread([r.get("cost_usd") for r in scored])
 
-    quals = [r.get("quality") or {} for r in runs]
+    quals = [r.get("quality") or {} for r in scored]
     agg["verify_iterations"] = spread([q.get("verify_iterations") for q in quals])
     agg["coverage_percent"] = spread([q.get("coverage_percent") for q in quals])
     blocking = [q.get("blocking_findings") for q in quals
@@ -165,6 +178,7 @@ def compare(measurement, baseline, thresholds):
     """
     findings = []
     rel = thresholds.get("reliability", {})
+    cov = thresholds.get("coverage", {})
     cost = thresholds.get("cost", {})
     time_t = thresholds.get("time", {})
     qual = thresholds.get("quality", {})
@@ -181,10 +195,44 @@ def compare(measurement, baseline, thresholds):
         # -- Absolute: reliability ------------------------------------------
         r = agg.get("reliability") or {}
         rate, total = r.get("rate"), r.get("total") or 0
+
+        # -- Absolute: coverage ---------------------------------------------
+        # Reported before reliability, because a scenario that measured
+        # nothing has no reliability to read.
+        unmeasured = agg.get("unmeasured") or 0
+        if unmeasured:
+            spec = cov.get("unmeasured_runs_ceiling", {})
+            findings.append(_finding(
+                pid, "coverage", spec.get("severity", "major"),
+                "%d of %d runs measured nothing — the setup never reached the "
+                "state the scenario needs, so the skill was never exercised"
+                % (unmeasured, unmeasured + total),
+                observed=unmeasured, threshold=spec.get("value", 0)))
+
+        # -- Absolute: a refused reach for a user-only skill -----------------
+        # The guarantee held — the CLI refused the call — so this is never a
+        # reliability finding. But the model spent a turn reaching for a skill
+        # it cannot run, and what draws it there is the descriptions. Worth
+        # saying; not worth blocking.
+        reached = [r.get("attempted") for r in (probe.get("runs") or [])
+                   if r.get("attempted") and r.get("detection") == "refused_user_only"]
+        if reached:
+            spec = cov.get("user_only_attempt_ceiling", {})
+            findings.append(_finding(
+                pid, "routing-quality", spec.get("severity", "minor"),
+                "reached for %s on %d of %d runs and was refused — the "
+                "no-auto-invoke guarantee held, but the descriptions still "
+                "point the model at a skill it cannot invoke"
+                % (", ".join(sorted(set(reached))), len(reached),
+                   len(probe.get("runs") or [])),
+                observed=len(reached), threshold=spec.get("value", 0)))
+
         if total == 0:
             findings.append(_finding(
                 pid, "reliability", "major",
-                "no runs recorded — the probe did not execute"))
+                "no runs recorded — the probe did not execute" if not unmeasured
+                else "nothing measured — every run's setup fell short, so this "
+                     "skill is unevaluated in this measurement"))
         elif kind == "routing":
             expect = probe.get("expect") or {}
             negative = not expect.get("must_route", True)
@@ -334,10 +382,20 @@ def verdict(measurement, baseline, thresholds, findings):
                 "see docs/PERFORMANCE.md. Do not cut a release from this "
                 "build.%s" % (len(crit), note))
     if major:
+        # Name the coverage half separately: "the skill got less reliable" and
+        # "the skill was never exercised" need opposite fixes, and reading the
+        # second as the first is how a harness defect gets filed against the
+        # plugin.
+        holes = [f for f in major if f["axis"] == "coverage"]
+        gap = ("" if not holes else
+               " %d of them a hole in the measurement, not a regression: %s."
+               % (len(holes), "; ".join("%s — %s" % (f["probe"], f["summary"])
+                                        for f in holes)))
         return ("fail", "Skill performance: BLOCKED",
                 "%d finding(s) crossed an absolute floor: skills got less "
-                "reliable, or ran out of the pipeline carrying blocking "
-                "findings.%s" % (len(major), note))
+                "reliable, ran out of the pipeline carrying blocking findings, "
+                "or were never exercised at all.%s%s"
+                % (len(major), gap, note))
     if baseline is None:
         return ("warn", "Skill performance: UNCOMPARED (baseline established)",
                 "The absolute floors held, but this is the first measurement "
