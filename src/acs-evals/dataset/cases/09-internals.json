@@ -1,0 +1,324 @@
+{
+  "group": "internals and side surfaces",
+  "description": "The parts of the plugin outside the acs.py entry point: PR conventions (MAR-525), the doc structure linter, the SessionEnd safety net, the measurement adapter's status line and the metrics aggregate (MAR-520). These are the surfaces a consumer sees indirectly \u2014 in CI enforcement, in the status bar, in /acs:metrics \u2014 so a regression here is quiet unless something pins it.",
+  "surface": "pr-conventions.py|structure_lint.py|statusline.py|metrics_aggregate.py|dispatch.py",
+  "covers": [
+    "MAR-520",
+    "MAR-525"
+  ],
+  "cases": [
+    {
+      "id": "PRCONV-001",
+      "title": "render-title fills the configured PR title format",
+      "profile": "bare",
+      "invoke": {
+        "script": "pr-conventions.py",
+        "argv": [
+          "render-title",
+          "--template",
+          "[{ticket_id}] {title}",
+          "--ticket-id",
+          "TKT-1",
+          "--title",
+          "Add user login"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "[TKT-1] Add user login"
+        ]
+      }
+    },
+    {
+      "id": "PRCONV-002",
+      "title": "render-title honours a different format without special-casing it",
+      "profile": "bare",
+      "invoke": {
+        "script": "pr-conventions.py",
+        "argv": [
+          "render-title",
+          "--template",
+          "{type}({ticket_id}): {title}",
+          "--ticket-id",
+          "TKT-7",
+          "--type",
+          "feat",
+          "--title",
+          "Add SSO"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "feat(TKT-7): Add SSO"
+        ]
+      }
+    },
+    {
+      "id": "PRCONV-003",
+      "title": "check accepts a conforming title \u2014 no pr_title finding is raised",
+      "note": "The ACS-label finding is expected here: the check has no label list to read in a sandbox, and its absence is itself the documented refusal. What this case pins is that the TITLE dimension passed.",
+      "profile": "bare",
+      "files": [
+        {
+          "base": "repo",
+          "path": "body.md",
+          "text": "## Summary\nx\n## Changes\ny\n"
+        }
+      ],
+      "invoke": {
+        "script": "pr-conventions.py",
+        "argv": [
+          "check",
+          "--title",
+          "[TKT-1] Add user login",
+          "--body-file",
+          "{{repo}}/body.md",
+          "--pr-title-format",
+          "[{ticket_id}] {title}",
+          "--ticket-prefix",
+          "TKT"
+        ]
+      },
+      "expect": {
+        "exit_code": 1,
+        "stdout_contains": [
+          "\"passed\":",
+          "\"skipped\": [\"branch_name\", \"commit_message\"]"
+        ],
+        "stdout_excludes": [
+          "\"heading\": \"pr_title\""
+        ]
+      },
+      "severity": "major"
+    },
+    {
+      "id": "PRCONV-004",
+      "title": "check rejects a title that does not carry its ticket id, and shows the expected shape",
+      "profile": "bare",
+      "files": [
+        {
+          "base": "repo",
+          "path": "body.md",
+          "text": "## Summary\nx\n"
+        }
+      ],
+      "invoke": {
+        "script": "pr-conventions.py",
+        "argv": [
+          "check",
+          "--title",
+          "Add user login",
+          "--body-file",
+          "{{repo}}/body.md",
+          "--pr-title-format",
+          "[{ticket_id}] {title}",
+          "--ticket-prefix",
+          "TKT"
+        ]
+      },
+      "expect": {
+        "exit_code": 1,
+        "stdout_contains": [
+          "\"heading\": \"pr_title\"",
+          "does not match required format '[{ticket_id}] {title}'",
+          "e.g. [TKT-12] Short description"
+        ]
+      },
+      "severity": "major"
+    },
+    {
+      "id": "STRUCT-001",
+      "title": "structure_lint reports a required section that is absent",
+      "profile": "bare",
+      "files": [
+        {
+          "base": "repo",
+          "path": "doc.md",
+          "text": "# Doc\n\n## Alpha\n\nSome content.\n"
+        }
+      ],
+      "invoke": {
+        "script": "structure_lint.py",
+        "argv": [
+          "--sections",
+          "Alpha; Gamma",
+          "{{repo}}/doc.md"
+        ]
+      },
+      "expect": {
+        "exit_code": 1,
+        "stderr_contains": [
+          "[missing-section] required section 'Gamma' not found"
+        ]
+      }
+    },
+    {
+      "id": "STRUCT-002",
+      "title": "structure_lint reports a section that exists but carries no content",
+      "profile": "bare",
+      "files": [
+        {
+          "base": "repo",
+          "path": "doc.md",
+          "text": "# Doc\n\n## Alpha\n\n## Beta\n\ntext\n"
+        }
+      ],
+      "invoke": {
+        "script": "structure_lint.py",
+        "argv": [
+          "--sections",
+          "Alpha; Beta",
+          "{{repo}}/doc.md"
+        ]
+      },
+      "expect": {
+        "exit_code": 1,
+        "stderr_contains": [
+          "[empty-section] section 'Alpha' has no content"
+        ],
+        "stderr_excludes": [
+          "section 'Beta' has no content"
+        ]
+      }
+    },
+    {
+      "id": "STRUCT-003",
+      "title": "a fully-populated doc reports no findings",
+      "profile": "bare",
+      "files": [
+        {
+          "base": "repo",
+          "path": "doc.md",
+          "text": "# Doc\n\n## Alpha\n\na\n\n## Beta\n\nb\n"
+        }
+      ],
+      "invoke": {
+        "script": "structure_lint.py",
+        "argv": [
+          "--sections",
+          "Alpha; Beta",
+          "{{repo}}/doc.md"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_excludes": [
+          "missing-section",
+          "empty-section"
+        ]
+      }
+    },
+    {
+      "id": "STATUS-001",
+      "title": "the status line names the repo and says there is no active ticket",
+      "note": "MAR-520 routed every degradation through one switch; 'no active ticket' is the ordinary answer, not a degraded one.",
+      "profile": "bare",
+      "invoke": {
+        "script": "statusline.py",
+        "argv": []
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "repo",
+          "acs: no active ticket"
+        ]
+      }
+    },
+    {
+      "id": "STATUS-002",
+      "title": "a statusLine payload that is valid JSON but not an object renders the ordinary fallback",
+      "note": "The one visible behaviour change MAR-520 records. Pinned so it cannot silently become an exception again.",
+      "profile": "bare",
+      "invoke": {
+        "script": "statusline.py",
+        "argv": [],
+        "stdin": "[1,2,3]"
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "acs:"
+        ]
+      }
+    },
+    {
+      "id": "METRICS-001",
+      "title": "the metrics aggregate reports all seven panels plus the summaries",
+      "profile": "ticketed",
+      "invoke": {
+        "script": "metrics_aggregate.py",
+        "argv": []
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "\"panels\"",
+          "\"delivery_summary\"",
+          "\"usage_summary\"",
+          "\"progress\"",
+          "\"deadline\"",
+          "\"issues\"",
+          "\"meta\""
+        ]
+      }
+    },
+    {
+      "id": "METRICS-002",
+      "title": "one open ticket is counted, and every unmeasurable panel says WHY it is degraded",
+      "note": "MAR-520's rule: every 'unavailable' traces to one call site and carries a reason. An empty `degraded` list beside missing data would be the regression.",
+      "profile": "ticketed",
+      "invoke": {
+        "script": "metrics_aggregate.py",
+        "argv": []
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "\"by_status\": {\"open\": 1}",
+          "\"by_type\": {\"task\": 1}",
+          "\"tickets_done_over_total\": \"0/1\"",
+          "\"degraded\": [",
+          "coverage unavailable",
+          "deadline not configured"
+        ]
+      },
+      "severity": "major"
+    },
+    {
+      "id": "SESSIONEND-001",
+      "title": "the SessionEnd safety net leaves a clean partition intact",
+      "note": "The abnormal-ending cleanup must be a no-op when nothing is in flight. Asserted on the partition rather than on exit status alone: an exit-code-only case would pass against a hook that did nothing, or against one that deleted the ticket.",
+      "profile": "ticketed",
+      "invoke": {
+        "script": "dispatch.py",
+        "argv": [
+          "session-end"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "after": [
+          {
+            "base": "ticket",
+            "path": "ticket.json",
+            "exists": true,
+            "json_subset": {
+              "id": "TKT-1",
+              "status": "open"
+            }
+          },
+          {
+            "base": "ticket",
+            "path": ".lock",
+            "exists": false
+          }
+        ]
+      },
+      "severity": "major"
+    }
+  ],
+  "severity": "minor"
+}

@@ -1,0 +1,4 @@
+{"pr_view":{"number":47,"url":"u","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE",
+ "mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","baseRefName":"main","headRefName":"h",
+ "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS"}]},
+ "required_checks_ok":[false,"no required checks reported on the 'task/TKT-1' branch"]}

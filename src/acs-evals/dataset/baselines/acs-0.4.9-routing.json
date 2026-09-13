@@ -1,0 +1,2199 @@
+{
+  "schema": "acs-evals/measurement/1",
+  "generated_at": "2026-09-10T06:07:36Z",
+  "build": {
+    "version": "0.4.9",
+    "root": "/root/.claude/plugins/cache/gms-marketplace/acs/0.4.9"
+  },
+  "scenario_set_version": "1.5.0",
+  "environment": {
+    "claude_cli_version": "2.1.267 (Claude Code)",
+    "host": "linux",
+    "preflight": {
+      "ok": true,
+      "checks": [
+        {
+          "id": "CONTROL-registration-canary",
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 2.742,
+          "passed": true
+        },
+        {
+          "id": "CONTROL-unregistered-command",
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.368,
+          "passed": true
+        }
+      ],
+      "skipped": false
+    }
+  },
+  "incomplete": false,
+  "probes": [
+    {
+      "id": "ROUTE-code",
+      "kind": "routing",
+      "skill": "acs:code",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:code",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:code",
+          "detection": "skill_tool_use",
+          "seconds": 2.692,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:code",
+          "detection": "skill_tool_use",
+          "seconds": 3.661,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:code",
+          "detection": "skill_tool_use",
+          "seconds": 2.814,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:code",
+          "detection": "skill_tool_use",
+          "seconds": 2.832,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:code",
+          "detection": "skill_tool_use",
+          "seconds": 2.656,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.814,
+          "min": 2.656,
+          "max": 3.661,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-architecture",
+      "kind": "routing",
+      "skill": "acs:create-architecture",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-architecture",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-architecture",
+          "detection": "skill_tool_use",
+          "seconds": 2.764,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-architecture",
+          "detection": "skill_tool_use",
+          "seconds": 3.01,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-architecture",
+          "detection": "skill_tool_use",
+          "seconds": 2.642,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-architecture",
+          "detection": "skill_tool_use",
+          "seconds": 3.882,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-architecture",
+          "detection": "skill_tool_use",
+          "seconds": 3.483,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.01,
+          "min": 2.642,
+          "max": 3.882,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-design",
+      "kind": "routing",
+      "skill": "acs:create-design",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-design",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-design",
+          "detection": "skill_tool_use",
+          "seconds": 4.145,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-design",
+          "detection": "skill_tool_use",
+          "seconds": 4.317,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-design",
+          "detection": "skill_tool_use",
+          "seconds": 4.516,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-design",
+          "detection": "skill_tool_use",
+          "seconds": 3.491,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-design",
+          "detection": "skill_tool_use",
+          "seconds": 3.611,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 4.145,
+          "min": 3.491,
+          "max": 4.516,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-docs",
+      "kind": "routing",
+      "skill": "acs:create-docs",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-docs",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-docs",
+          "detection": "skill_tool_use",
+          "seconds": 2.862,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-docs",
+          "detection": "skill_tool_use",
+          "seconds": 2.557,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-docs",
+          "detection": "skill_tool_use",
+          "seconds": 2.914,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-docs",
+          "detection": "skill_tool_use",
+          "seconds": 2.764,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-docs",
+          "detection": "skill_tool_use",
+          "seconds": 2.641,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.764,
+          "min": 2.557,
+          "max": 2.914,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-operations",
+      "kind": "routing",
+      "skill": "acs:create-operations",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-operations",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-operations",
+          "detection": "skill_tool_use",
+          "seconds": 4.823,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-operations",
+          "detection": "skill_tool_use",
+          "seconds": 4.224,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-operations",
+          "detection": "skill_tool_use",
+          "seconds": 3.076,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-operations",
+          "detection": "skill_tool_use",
+          "seconds": 3.926,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-operations",
+          "detection": "skill_tool_use",
+          "seconds": 3.39,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.926,
+          "min": 3.076,
+          "max": 4.823,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-pr",
+      "kind": "routing",
+      "skill": "acs:create-pr",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-pr",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-pr",
+          "detection": "skill_tool_use",
+          "seconds": 2.676,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-pr",
+          "detection": "skill_tool_use",
+          "seconds": 3.796,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-pr",
+          "detection": "skill_tool_use",
+          "seconds": 2.544,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-pr",
+          "detection": "skill_tool_use",
+          "seconds": 3.083,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-pr",
+          "detection": "skill_tool_use",
+          "seconds": 4.349,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.083,
+          "min": 2.544,
+          "max": 4.349,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-prd",
+      "kind": "routing",
+      "skill": "acs:create-prd",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-prd",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-prd",
+          "detection": "skill_tool_use",
+          "seconds": 2.969,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-prd",
+          "detection": "skill_tool_use",
+          "seconds": 2.851,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-prd",
+          "detection": "skill_tool_use",
+          "seconds": 2.786,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-prd",
+          "detection": "skill_tool_use",
+          "seconds": 2.68,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-prd",
+          "detection": "skill_tool_use",
+          "seconds": 3.244,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.851,
+          "min": 2.68,
+          "max": 3.244,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-principles",
+      "kind": "routing",
+      "skill": "acs:create-principles",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-principles",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-principles",
+          "detection": "skill_tool_use",
+          "seconds": 3.675,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-principles",
+          "detection": "skill_tool_use",
+          "seconds": 2.592,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-principles",
+          "detection": "skill_tool_use",
+          "seconds": 3.806,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-principles",
+          "detection": "skill_tool_use",
+          "seconds": 3.856,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-principles",
+          "detection": "skill_tool_use",
+          "seconds": 3.462,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.675,
+          "min": 2.592,
+          "max": 3.856,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-project",
+      "kind": "routing",
+      "skill": "acs:create-project",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-project",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-project",
+          "detection": "skill_tool_use",
+          "seconds": 5.117,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-project",
+          "detection": "skill_tool_use",
+          "seconds": 3.478,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-project",
+          "detection": "skill_tool_use",
+          "seconds": 3.404,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-project",
+          "detection": "skill_tool_use",
+          "seconds": 3.501,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-project",
+          "detection": "skill_tool_use",
+          "seconds": 16.28,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.501,
+          "min": 3.404,
+          "max": 16.28,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-quality",
+      "kind": "routing",
+      "skill": "acs:create-quality",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-quality",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-quality",
+          "detection": "skill_tool_use",
+          "seconds": 4.788,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-quality",
+          "detection": "skill_tool_use",
+          "seconds": 3.905,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-quality",
+          "detection": "skill_tool_use",
+          "seconds": 3.679,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-quality",
+          "detection": "skill_tool_use",
+          "seconds": 2.648,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-quality",
+          "detection": "skill_tool_use",
+          "seconds": 3.756,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.756,
+          "min": 2.648,
+          "max": 4.788,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-requirements",
+      "kind": "routing",
+      "skill": "acs:create-requirements",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-requirements",
+        "explicit": false,
+        "control": false
+      },
+      "profile": "app",
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-requirements",
+          "detection": "skill_tool_use",
+          "seconds": 7.715,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-requirements",
+          "detection": "skill_tool_use",
+          "seconds": 3.91,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-requirements",
+          "detection": "skill_tool_use",
+          "seconds": 4.761,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-requirements",
+          "detection": "skill_tool_use",
+          "seconds": 7.165,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-requirements",
+          "detection": "skill_tool_use",
+          "seconds": 5.244,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 5.244,
+          "min": 3.91,
+          "max": 7.715,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-standards",
+      "kind": "routing",
+      "skill": "acs:create-standards",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-standards",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-standards",
+          "detection": "skill_tool_use",
+          "seconds": 4.476,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-standards",
+          "detection": "skill_tool_use",
+          "seconds": 4.116,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-standards",
+          "detection": "skill_tool_use",
+          "seconds": 4.787,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-standards",
+          "detection": "skill_tool_use",
+          "seconds": 4.253,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-standards",
+          "detection": "skill_tool_use",
+          "seconds": 4.096,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 4.253,
+          "min": 4.096,
+          "max": 4.787,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-create-ticket",
+      "kind": "routing",
+      "skill": "acs:create-ticket",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:create-ticket",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:create-ticket",
+          "detection": "skill_tool_use",
+          "seconds": 2.629,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-ticket",
+          "detection": "skill_tool_use",
+          "seconds": 2.794,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-ticket",
+          "detection": "skill_tool_use",
+          "seconds": 3.012,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-ticket",
+          "detection": "skill_tool_use",
+          "seconds": 2.615,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:create-ticket",
+          "detection": "skill_tool_use",
+          "seconds": 2.721,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.721,
+          "min": 2.615,
+          "max": 3.012,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-docs-sync",
+      "kind": "routing",
+      "skill": "acs:docs-sync",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:docs-sync",
+        "explicit": false,
+        "control": false
+      },
+      "profile": "app-ticketed",
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:docs-sync",
+          "detection": "skill_tool_use",
+          "seconds": 8.05,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:docs-sync",
+          "detection": "skill_tool_use",
+          "seconds": 3.86,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:docs-sync",
+          "detection": "skill_tool_use",
+          "seconds": 4.502,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:docs-sync",
+          "detection": "skill_tool_use",
+          "seconds": 4.124,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:docs-sync",
+          "detection": "skill_tool_use",
+          "seconds": 3.866,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "setup": [
+        "git checkout -qb task/TKT-1-let-the-api-confirm-and-pay-an-order-cha",
+        "printf '%s\\n' '' 'CONFIRM_ROUTES = (\"/orders/<id>/confirm\", \"/orders/<id>/pay\")  # TKT-1: wired to the service in the next commit' >> orders/api.py",
+        "git commit -qam 'TKT-1 add the confirm and pay routes to the API'"
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 4.124,
+          "min": 3.86,
+          "max": 8.05,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-handoff",
+      "kind": "routing",
+      "skill": "acs:handoff",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:handoff",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:handoff",
+          "detection": "skill_tool_use",
+          "seconds": 4.084,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:handoff",
+          "detection": "skill_tool_use",
+          "seconds": 3.584,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:handoff",
+          "detection": "skill_tool_use",
+          "seconds": 3.896,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:handoff",
+          "detection": "skill_tool_use",
+          "seconds": 4.072,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:handoff",
+          "detection": "skill_tool_use",
+          "seconds": 3.652,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 3.896,
+          "min": 3.584,
+          "max": 4.084,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-merge-pr",
+      "kind": "routing",
+      "skill": "acs:merge-pr",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:merge-pr",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:merge-pr",
+          "detection": "skill_tool_use",
+          "seconds": 2.949,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:merge-pr",
+          "detection": "skill_tool_use",
+          "seconds": 2.645,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:merge-pr",
+          "detection": "skill_tool_use",
+          "seconds": 3.077,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:merge-pr",
+          "detection": "skill_tool_use",
+          "seconds": 3.296,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:merge-pr",
+          "detection": "skill_tool_use",
+          "seconds": 2.928,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.949,
+          "min": 2.645,
+          "max": 3.296,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-metrics",
+      "kind": "routing",
+      "skill": "acs:metrics",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:metrics",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:metrics",
+          "detection": "skill_tool_use",
+          "seconds": 2.491,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:metrics",
+          "detection": "skill_tool_use",
+          "seconds": 2.592,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:metrics",
+          "detection": "skill_tool_use",
+          "seconds": 2.517,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:metrics",
+          "detection": "skill_tool_use",
+          "seconds": 2.52,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:metrics",
+          "detection": "skill_tool_use",
+          "seconds": 2.685,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.52,
+          "min": 2.491,
+          "max": 2.685,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-release",
+      "kind": "routing",
+      "skill": "acs:release",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:release",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:release",
+          "detection": "skill_tool_use",
+          "seconds": 2.97,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:release",
+          "detection": "skill_tool_use",
+          "seconds": 2.77,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:release",
+          "detection": "skill_tool_use",
+          "seconds": 2.751,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:release",
+          "detection": "skill_tool_use",
+          "seconds": 2.895,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:release",
+          "detection": "skill_tool_use",
+          "seconds": 2.828,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.828,
+          "min": 2.751,
+          "max": 2.97,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-setup",
+      "kind": "routing",
+      "skill": "acs:setup",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:setup",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "skill_tool_use",
+          "seconds": 2.828,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "skill_tool_use",
+          "seconds": 2.725,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "skill_tool_use",
+          "seconds": 2.371,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "skill_tool_use",
+          "seconds": 2.54,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "skill_tool_use",
+          "seconds": 2.436,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.54,
+          "min": 2.371,
+          "max": 2.828,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-ship",
+      "kind": "routing",
+      "skill": "acs:ship",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:ship",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:ship",
+          "detection": "skill_tool_use",
+          "seconds": 5.9,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:ship",
+          "detection": "skill_tool_use",
+          "seconds": 7.6,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:ship",
+          "detection": "skill_tool_use",
+          "seconds": 5.652,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:ship",
+          "detection": "skill_tool_use",
+          "seconds": 6.508,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:ship",
+          "detection": "skill_tool_use",
+          "seconds": 7.104,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 6.508,
+          "min": 5.652,
+          "max": 7.6,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-standardize-project",
+      "kind": "routing",
+      "skill": "acs:standardize-project",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:standardize-project",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:standardize-project",
+          "detection": "skill_tool_use",
+          "seconds": 2.642,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:standardize-project",
+          "detection": "skill_tool_use",
+          "seconds": 2.793,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:standardize-project",
+          "detection": "skill_tool_use",
+          "seconds": 2.709,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:standardize-project",
+          "detection": "skill_tool_use",
+          "seconds": 2.582,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:standardize-project",
+          "detection": "skill_tool_use",
+          "seconds": 3.192,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.709,
+          "min": 2.582,
+          "max": 3.192,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-test",
+      "kind": "routing",
+      "skill": "acs:test",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:test",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:test",
+          "detection": "skill_tool_use",
+          "seconds": 2.955,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:test",
+          "detection": "skill_tool_use",
+          "seconds": 2.608,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:test",
+          "detection": "skill_tool_use",
+          "seconds": 2.992,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:test",
+          "detection": "skill_tool_use",
+          "seconds": 3.306,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:test",
+          "detection": "skill_tool_use",
+          "seconds": 3.892,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.992,
+          "min": 2.608,
+          "max": 3.892,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-usage",
+      "kind": "routing",
+      "skill": "acs:usage",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:usage",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:usage",
+          "detection": "skill_tool_use",
+          "seconds": 2.613,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:usage",
+          "detection": "skill_tool_use",
+          "seconds": 2.5,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:usage",
+          "detection": "skill_tool_use",
+          "seconds": 2.616,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:usage",
+          "detection": "skill_tool_use",
+          "seconds": 2.607,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:usage",
+          "detection": "skill_tool_use",
+          "seconds": 2.721,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 2.613,
+          "min": 2.5,
+          "max": 2.721,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-install-hooks-explicit",
+      "kind": "routing",
+      "skill": "acs:install-hooks",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:install-hooks",
+        "explicit": true,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:install-hooks",
+          "detection": "registered",
+          "seconds": 1.252,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:install-hooks",
+          "detection": "registered",
+          "seconds": 1.145,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:install-hooks",
+          "detection": "registered",
+          "seconds": 1.123,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:install-hooks",
+          "detection": "registered",
+          "seconds": 1.16,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:install-hooks",
+          "detection": "registered",
+          "seconds": 1.168,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 1.16,
+          "min": 1.123,
+          "max": 1.252,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-install-hooks-negative",
+      "kind": "routing",
+      "skill": "acs:install-hooks",
+      "expect": {
+        "must_route": false,
+        "skill": "acs:install-hooks",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 66.451,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 37.38,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 37.895,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 49.39,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 31.76,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 37.895,
+          "min": 31.76,
+          "max": 66.451,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-update-explicit",
+      "kind": "routing",
+      "skill": "acs:update",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:update",
+        "explicit": true,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:update",
+          "detection": "registered",
+          "seconds": 1.335,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:update",
+          "detection": "registered",
+          "seconds": 1.127,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:update",
+          "detection": "registered",
+          "seconds": 1.337,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:update",
+          "detection": "registered",
+          "seconds": 1.176,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:update",
+          "detection": "registered",
+          "seconds": 1.32,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 1.32,
+          "min": 1.127,
+          "max": 1.337,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "ROUTE-update-negative",
+      "kind": "routing",
+      "skill": "acs:update",
+      "expect": {
+        "must_route": false,
+        "skill": "acs:update",
+        "explicit": false,
+        "control": false
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 58.674,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 70.423,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 51.484,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 78.778,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 68.946,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 68.946,
+          "min": 51.484,
+          "max": 78.778,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "CONTROL-registration-canary",
+      "kind": "routing",
+      "skill": "acs:setup",
+      "expect": {
+        "must_route": true,
+        "skill": "acs:setup",
+        "explicit": true,
+        "control": true
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 1.295,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 1.018,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 1.127,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 1.456,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": "acs:setup",
+          "detection": "registered",
+          "seconds": 1.164,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 1.164,
+          "min": 1.018,
+          "max": 1.456,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "CONTROL-unregistered-command",
+      "kind": "routing",
+      "skill": "acs:no-such-skill",
+      "expect": {
+        "must_route": false,
+        "skill": "acs:no-such-skill",
+        "explicit": true,
+        "control": true
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.38,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.118,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.239,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.203,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "registered",
+          "seconds": 1.42,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 1.239,
+          "min": 1.118,
+          "max": 1.42,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    },
+    {
+      "id": "CONTROL-off-domain",
+      "kind": "routing",
+      "skill": null,
+      "expect": {
+        "must_route": false,
+        "skill": null,
+        "explicit": false,
+        "control": true
+      },
+      "runs": [
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 4.234,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 4.224,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 4.35,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 4.522,
+          "cost_usd": null,
+          "turns": null
+        },
+        {
+          "ok": true,
+          "routed_to": null,
+          "detection": "skill_tool_use",
+          "seconds": 4.103,
+          "cost_usd": null,
+          "turns": null
+        }
+      ],
+      "aggregate": {
+        "runs": 5,
+        "reliability": {
+          "hits": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "seconds": {
+          "median": 4.234,
+          "min": 4.103,
+          "max": 4.522,
+          "n": 5
+        },
+        "cost_usd": null,
+        "verify_iterations": null,
+        "coverage_percent": null,
+        "blocking_findings_rate": null
+      }
+    }
+  ],
+  "scope": "routing",
+  "scope_note": "Recorded by the routing-only collector at commit 40e40df, before `scope` existed and while routing-only runs were marked incomplete by construction. Re-derived under the 0824379 rule from this document's own probes: scope routing, 30/30 probes with 5/5 runs, no probe filter, pre-flight ok — a whole routing-scoped measurement, promotable as acs-0.4.9-routing.json. Composed for scenario set 1.3.0: the 29 probes whose prompts 1.3.0 did not change carry their 1.2.0 runs unchanged; ROUTE-ship carries 5 fresh runs under its 1.3.0 prompt (generated_at of those runs: 2026-09-10T06:10:52Z). Composed again for scenario set 1.5.0: the 28 probes whose sandbox 1.5.0 did not change carry their runs unchanged; ROUTE-create-requirements (fixture app) and ROUTE-docs-sync (ticketed fixture app, committed change on the ticket branch) carry 5 fresh runs each under their 1.5.0 sandboxes (generated_at of those runs: 2026-09-10T07:13:34Z, 2026-09-10T07:13:59Z). set_hashes: routing 441ffb205c582634 (1.5.0), pipeline 1727107699361b03 (the 1.4.0 pipeline set, which 1.5.0 leaves unchanged).",
+  "triage": {
+    "reviewed": "2026-09-10, before promotion; re-reviewed 2026-09-10 for 1.5.0",
+    "findings": [
+      {
+        "probe": "ROUTE-create-requirements",
+        "verdict": "probe presupposition defect (dataset), fixed in 1.5.0",
+        "note": "4/5 under 1.3.0 on the seeded repo. Diagnostic sessions showed the model naming acs:create-requirements every time, inspecting the repo first on some runs, finding no code to reverse-engineer, and asking instead of routing. The 1.3.0 triage called this a description defect; it was the sandbox. Re-measured 5/5 on the fixture app with the prompt unchanged."
+      },
+      {
+        "probe": "ROUTE-docs-sync",
+        "verdict": "probe presupposition defect (dataset), fixed in 1.5.0",
+        "note": "4/5 under 1.3.0 on the seeded repo: clean tree, one commit, no ticket branch, so \"the code change is done\" was false and the model that checked asked which change. Re-measured 5/5 on the ticketed fixture app with a committed change on the ticket branch, prompt unchanged."
+      },
+      {
+        "probe": "ROUTE-ship",
+        "verdict": "probe defect (dataset), fixed in 1.3.0",
+        "note": "0/5 under the 1.2.0 prompt; the diagnostic session showed the model naming acs:ship and asking for the request — the prompt shipped nothing. Re-measured 5/5 under the 1.3.0 prompt."
+      }
+    ]
+  },
+  "set_hashes": {
+    "routing": "441ffb205c582634",
+    "pipeline": "1727107699361b03"
+  }
+}

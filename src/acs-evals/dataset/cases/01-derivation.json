@@ -1,0 +1,721 @@
+{
+  "group": "derivation",
+  "description": "Pure derivation surfaces exposed by the acs.py entry point: slug, lane derivation and ranking, the stakes recommendation and its axis guard, and the docs fan-out batching. Every one of these is a pure function of its arguments, so a golden value here is a decision table the release must not move silently.",
+  "surface": "acs lane|stakes|slug|fanout",
+  "covers": [
+    "MAR-521",
+    "MAR-522"
+  ],
+  "profile": "bare",
+  "cases": [
+    {
+      "id": "SLUG-001",
+      "title": "punctuation drops and spaces become single hyphens",
+      "invoke": {
+        "argv": [
+          "slug",
+          "--text",
+          "Add User Login!"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "slug": "add-user-login",
+          "text": "Add User Login!"
+        }
+      },
+      "severity": "minor"
+    },
+    {
+      "id": "SLUG-002",
+      "title": "non-ASCII is dropped rather than transliterated, and runs collapse",
+      "invoke": {
+        "argv": [
+          "slug",
+          "--text",
+          "  Fix   the \u00dcBER bug (#42)  "
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "slug": "fix-the-ber-bug-42",
+          "text": "  Fix   the \u00dcBER bug (#42)  "
+        }
+      },
+      "severity": "minor"
+    },
+    {
+      "id": "SLUG-003",
+      "title": "--max-len truncates on a word boundary, never mid-word",
+      "invoke": {
+        "argv": [
+          "slug",
+          "--text",
+          "a very long title that should get truncated somewhere sensible indeed",
+          "--max-len",
+          "30"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "slug": "a-very-long-title-that-should",
+          "text": "a very long title that should get truncated somewhere sensible indeed"
+        }
+      },
+      "severity": "minor"
+    },
+    {
+      "id": "LANE-001",
+      "title": "trivial/low -> TRIVIAL, one iteration, light review",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "trivial",
+          "--stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 1,
+          "depth": "light",
+          "lane": "TRIVIAL",
+          "rank": 0
+        }
+      }
+    },
+    {
+      "id": "LANE-002",
+      "title": "trivial/normal stays TRIVIAL",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "trivial",
+          "--stakes",
+          "normal"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 1,
+          "depth": "light",
+          "lane": "TRIVIAL",
+          "rank": 0
+        }
+      }
+    },
+    {
+      "id": "LANE-003",
+      "title": "high stakes lifts even a trivial change to STANDARD and full review",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "trivial",
+          "--stakes",
+          "high"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-004",
+      "title": "small/low -> SMALL",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "small",
+          "--stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 1,
+          "depth": "light",
+          "lane": "SMALL",
+          "rank": 1
+        }
+      }
+    },
+    {
+      "id": "LANE-005",
+      "title": "small/normal stays SMALL",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "small",
+          "--stakes",
+          "normal"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 1,
+          "depth": "light",
+          "lane": "SMALL",
+          "rank": 1
+        }
+      }
+    },
+    {
+      "id": "LANE-006",
+      "title": "small/high lifts to STANDARD",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "small",
+          "--stakes",
+          "high"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-007",
+      "title": "standard/low -> STANDARD (size floors the lane)",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "standard",
+          "--stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-008",
+      "title": "standard/normal -> STANDARD",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "standard",
+          "--stakes",
+          "normal"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-009",
+      "title": "standard/high -> STANDARD (already at the stakes ceiling)",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "standard",
+          "--stakes",
+          "high"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-010",
+      "title": "large/low -> COMPLEX",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "large",
+          "--stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "COMPLEX",
+          "rank": 3
+        }
+      }
+    },
+    {
+      "id": "LANE-011",
+      "title": "large/normal -> COMPLEX",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "large",
+          "--stakes",
+          "normal"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "COMPLEX",
+          "rank": 3
+        }
+      }
+    },
+    {
+      "id": "LANE-012",
+      "title": "large/high -> COMPLEX",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "large",
+          "--stakes",
+          "high"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "COMPLEX",
+          "rank": 3
+        }
+      }
+    },
+    {
+      "id": "LANE-013",
+      "title": "needs_design alone does not lift a small ticket's lane",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "small",
+          "--stakes",
+          "low",
+          "--needs-design"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 1,
+          "depth": "light",
+          "lane": "SMALL",
+          "rank": 1
+        }
+      }
+    },
+    {
+      "id": "LANE-014",
+      "title": "an epic is COMPLEX whatever its size and stakes say",
+      "invoke": {
+        "argv": [
+          "lane",
+          "derive",
+          "--size",
+          "trivial",
+          "--stakes",
+          "low",
+          "--type",
+          "epic"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "ceiling": 3,
+          "depth": "full",
+          "lane": "COMPLEX",
+          "rank": 3
+        }
+      }
+    },
+    {
+      "id": "LANE-RANK-001",
+      "title": "TRIVIAL ranks 0",
+      "invoke": {
+        "argv": [
+          "lane",
+          "rank",
+          "--lane",
+          "TRIVIAL"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "lane": "TRIVIAL",
+          "rank": 0
+        }
+      }
+    },
+    {
+      "id": "LANE-RANK-002",
+      "title": "SMALL ranks 1",
+      "invoke": {
+        "argv": [
+          "lane",
+          "rank",
+          "--lane",
+          "SMALL"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "lane": "SMALL",
+          "rank": 1
+        }
+      }
+    },
+    {
+      "id": "LANE-RANK-003",
+      "title": "STANDARD ranks 2",
+      "invoke": {
+        "argv": [
+          "lane",
+          "rank",
+          "--lane",
+          "STANDARD"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "lane": "STANDARD",
+          "rank": 2
+        }
+      }
+    },
+    {
+      "id": "LANE-RANK-004",
+      "title": "COMPLEX ranks 3",
+      "invoke": {
+        "argv": [
+          "lane",
+          "rank",
+          "--lane",
+          "COMPLEX"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "lane": "COMPLEX",
+          "rank": 3
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-001",
+      "title": "an ordinary source path recommends normal stakes",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--path",
+          "src/app.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 1,
+          "stakes": "normal"
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-002",
+      "title": "a migrations/ path recommends high stakes",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--path",
+          "migrations/001_init.sql"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 1,
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-003",
+      "title": "the default globs are repo-root anchored: src/auth/** is NOT auth/**",
+      "note": "Pins a real sharp edge. `auth/**` matches auth/login.py but not src/auth/login.py, so a repo that nests its auth code needs its own high_stakes_paths.",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--path",
+          "src/auth/login.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 1,
+          "stakes": "normal"
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-004",
+      "title": "a root-anchored auth/ path does recommend high stakes",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--path",
+          "auth/login.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 1,
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-005",
+      "title": "one high-stakes path in a set lifts the whole recommendation",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--path",
+          "README.md",
+          "--path",
+          "security/keys.py"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 2,
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-REC-006",
+      "title": "paths read from stdin, one per line",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "recommend",
+          "--paths-from",
+          "-"
+        ],
+        "stdin": "docs/readme.md\npayments/charge.py\n"
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "paths_considered": 2,
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-GUARD-001",
+      "title": "the axis guard ratchets stakes up",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "guard",
+          "--current-size",
+          "small",
+          "--current-stakes",
+          "low",
+          "--proposed-size",
+          "small",
+          "--proposed-stakes",
+          "high"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "changed": true,
+          "size": "small",
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-GUARD-002",
+      "title": "the axis guard refuses to ratchet stakes back down",
+      "note": "The headline property: a run may raise its own stakes but never quietly lower them.",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "guard",
+          "--current-size",
+          "small",
+          "--current-stakes",
+          "high",
+          "--proposed-size",
+          "small",
+          "--proposed-stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "changed": false,
+          "size": "small",
+          "stakes": "high"
+        }
+      }
+    },
+    {
+      "id": "STAKES-GUARD-003",
+      "title": "size ratchets up independently of stakes",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "guard",
+          "--current-size",
+          "small",
+          "--current-stakes",
+          "low",
+          "--proposed-size",
+          "large",
+          "--proposed-stakes",
+          "low"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "changed": true,
+          "size": "large",
+          "stakes": "low"
+        }
+      }
+    },
+    {
+      "id": "STAKES-GUARD-004",
+      "title": "size does not ratchet back down either",
+      "invoke": {
+        "argv": [
+          "stakes",
+          "guard",
+          "--current-size",
+          "large",
+          "--current-stakes",
+          "normal",
+          "--proposed-size",
+          "trivial",
+          "--proposed-stakes",
+          "normal"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "changed": false,
+          "size": "large",
+          "stakes": "normal"
+        }
+      }
+    },
+    {
+      "id": "FANOUT-001",
+      "title": "all four doc sets fan out, in two batches: standards waits on principles (the declared soft edge)",
+      "invoke": {
+        "argv": [
+          "fanout",
+          "batches"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json": {
+          "batches": [
+            [
+              "create-quality",
+              "create-operations",
+              "create-principles"
+            ],
+            [
+              "create-standards"
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "severity": "major"
+}

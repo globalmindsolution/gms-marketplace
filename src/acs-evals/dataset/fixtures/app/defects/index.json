@@ -1,0 +1,12 @@
+{
+  "note": "Seeded defects for the verifier catch-rate measurement (docs/PERFORMANCE.md). Each is a changeset that leaves the fixture's own test suite GREEN and is wrong in exactly one way the code-verifier's named dimension must catch. runner/defects.py applies one to a fresh fixture build; `selftest` proves every patch still applies and every suite stays green (and the coverage defect really drops below the floor). The paid runner that feeds each through the verifier is runner/verifier_catch_rate.py.",
+  "defects": [
+    "DEFECT-business-logic-refund-window",
+    "DEFECT-tests-assert-nothing",
+    "DEFECT-security-committed-key",
+    "DEFECT-quality-dead-duplicate",
+    "DEFECT-documentation-contradicted",
+    "DEFECT-scope-unrelated-rewrite",
+    "DEFECT-coverage-untested-module"
+  ]
+}

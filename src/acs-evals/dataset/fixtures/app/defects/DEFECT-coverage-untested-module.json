@@ -1,0 +1,17 @@
+{
+  "id": "DEFECT-coverage-untested-module",
+  "dimension_id": 3,
+  "dimension": "Coverage",
+  "expected_severity": "blocking",
+  "title": "A new export module with no tests drops coverage under the floor",
+  "tests_after": "green",
+  "coverage_after": "below_floor",
+  "ticket_context": "Ticket: export orders as CSV.",
+  "description": "Roughly seventy untested statements land; the suite stays green and total coverage falls below .coveragerc's 85. The coverage dimension, not the test suite, must block.",
+  "create": [
+    {
+      "file": "orders/exports.py",
+      "text": "\"\"\"CSV export of orders (no tests yet).\"\"\"\n\nimport csv\nimport io\n\nCOLUMNS = [\"id\", \"customer_id\", \"status\", \"coupon\", \"lines\", \"charge_id\"]\n\n\ndef _line_text(lines):\n    parts = []\n    for line in lines:\n        parts.append(\"%s x%d @ %d\" % (line[\"sku\"], line[\"quantity\"], line[\"unit_cents\"]))\n    return \"; \".join(parts)\n\n\ndef _row(order):\n    row = []\n    for column in COLUMNS:\n        if column == \"lines\":\n            row.append(_line_text(order.get(\"lines\", [])))\n        else:\n            row.append(order.get(column, \"\"))\n    return row\n\n\ndef to_csv(orders, include_header=True):\n    buffer = io.StringIO()\n    writer = csv.writer(buffer)\n    if include_header:\n        writer.writerow(COLUMNS)\n    for order_id in sorted(orders):\n        writer.writerow(_row(orders[order_id]))\n    return buffer.getvalue()\n\n\ndef by_status(orders, status):\n    selected = {}\n    for order_id, order in orders.items():\n        if order.get(\"status\") == status:\n            selected[order_id] = order\n    return selected\n\n\ndef by_customer(orders, customer_id):\n    selected = {}\n    for order_id, order in orders.items():\n        if order.get(\"customer_id\") == customer_id:\n            selected[order_id] = order\n    return selected\n\n\ndef write_file(orders, path):\n    with open(path, \"w\", newline=\"\") as fh:\n        fh.write(to_csv(orders))\n    return path\n\n\ndef group_by_sku(orders):\n    totals = {}\n    for order in orders.values():\n        for line in order.get(\"lines\", []):\n            sku = line[\"sku\"]\n            if sku not in totals:\n                totals[sku] = {\"quantity\": 0, \"cents\": 0}\n            totals[sku][\"quantity\"] += line[\"quantity\"]\n            totals[sku][\"cents\"] += line[\"quantity\"] * line[\"unit_cents\"]\n    return totals\n\n\ndef sku_report(orders):\n    rows = []\n    for sku, agg in sorted(group_by_sku(orders).items()):\n        rows.append(\"%s,%d,%d\" % (sku, agg[\"quantity\"], agg[\"cents\"]))\n    if not rows:\n        return \"sku,quantity,cents\\n\"\n    return \"sku,quantity,cents\\n\" + \"\\n\".join(rows) + \"\\n\"\n\n\ndef customers(orders):\n    seen = []\n    for order in orders.values():\n        customer = order.get(\"customer_id\")\n        if customer and customer not in seen:\n            seen.append(customer)\n    seen.sort()\n    return seen\n\n\ndef status_counts(orders):\n    counts = {}\n    for order in orders.values():\n        status = order.get(\"status\", \"draft\")\n        counts[status] = counts.get(status, 0) + 1\n    return counts\n\n\ndef summary_line(orders):\n    counts = status_counts(orders)\n    parts = []\n    for status in sorted(counts):\n        parts.append(\"%s=%d\" % (status, counts[status]))\n    if not parts:\n        return \"no orders\"\n    return \" \".join(parts)\n"
+    }
+  ]
+}

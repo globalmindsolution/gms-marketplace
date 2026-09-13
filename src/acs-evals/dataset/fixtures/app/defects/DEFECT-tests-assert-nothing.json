@@ -1,0 +1,22 @@
+{
+  "id": "DEFECT-tests-assert-nothing",
+  "dimension_id": 2,
+  "dimension": "Tests",
+  "expected_severity": "blocking",
+  "title": "Tax truncates to the cent again, behind a test that asserts nothing",
+  "tests_after": "green",
+  "ticket_context": "Ticket: simplify tax_cents(); rounding must not change.",
+  "description": "tax_cents goes back to truncation (the defect the half-up commit fixed) and the one test that pinned half-up now computes a value and asserts nothing about it. Every other test's amounts happen to be exact multiples, so the suite is green because the assertion is gone, not because the behaviour holds.",
+  "patch": [
+    {
+      "file": "orders/pricing.py",
+      "before": "    \"\"\"Round half up on the cent, so 0.5 cents becomes one cent, not zero.\"\"\"\n    scaled = amount_cents * tax_rate * 100\n    return int((scaled + 50) // 100)\n",
+      "after": "    \"\"\"Tax on an amount, to the cent.\"\"\"\n    return int(amount_cents * tax_rate)\n"
+    },
+    {
+      "file": "tests/test_pricing.py",
+      "before": "        self.assertEqual(tax_cents(1, 0.20), 0)      # 0.2 cents\n        self.assertEqual(tax_cents(3, 0.20), 1)      # 0.6 cents\n        self.assertEqual(tax_cents(25, 0.20), 5)     # exactly 5.0\n        self.assertEqual(tax_cents(1250, 0.20), 250)\n",
+      "after": "        for amount in (1, 3, 25, 1250):\n            self.assertIsInstance(tax_cents(amount, 0.20), int)\n"
+    }
+  ]
+}

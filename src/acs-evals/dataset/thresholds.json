@@ -1,0 +1,78 @@
+{
+  "thresholds_version": "1.0.0",
+  "basis": "provisional",
+  "basis_note": "NOT calibrated. No tier-3 measurement has been taken yet, so no observed variance exists to set these from. They are placeholders chosen to be loose enough not to fire on noise and tight enough to catch a doubling. Until `calibrated_from` names a real measurement, a tier-3 regression is a PROMPT TO LOOK, not evidence of a defect — perf_gate.py says so in its own output and refuses to report a blocking verdict.",
+  "calibrated_from": null,
+  "calibration_protocol": "Run `make measure` N times against one unchanged build. The spread that produces is the tier's noise floor. Set each ratio so the noise floor sits inside it with margin, record the measurement id in `calibrated_from`, and set basis to \"calibrated\". A threshold tighter than the noise floor makes the gate a random number generator; one much looser than it makes the gate decorative.",
+  "reliability": {
+    "routing_positive_accuracy_floor": {
+      "value": 1.0,
+      "severity": "major",
+      "rule": "Every run of a positive probe must route to the expected skill. A split result is a finding.",
+      "why": "A skill that routes 4 times in 5 is a skill a user cannot rely on. The floor is 1.0 because the failure is invisible to the user — they get some other skill, or none, and no error."
+    },
+    "routing_negative_accuracy_floor": {
+      "value": 1.0,
+      "severity": "critical",
+      "rule": "A negative probe must NOT auto-invoke its skill on ANY run.",
+      "why": "This is the no-auto-invoke guarantee on disable-model-invocation skills. RUBRIC.md already classes withdrawing a documented user guarantee as critical; one auto-invocation of /acs:update in a consumer repo is the failure this exists to stop."
+    },
+    "routing_control_floor": {
+      "value": 1.0,
+      "severity": "critical",
+      "rule": "Every control probe must produce its known answer on every run: the registration canary hits, the unregistered command misses, the off-domain request routes nowhere.",
+      "why": "Controls test the instrument, not the plugin. A suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count; a failed control means the measurement around it cannot be read at all, which is worse than any single skill regressing — so it blocks as critical even though no user guarantee moved."
+    },
+    "pipeline_completion_floor": {
+      "value": 1.0,
+      "severity": "major",
+      "rule": "Every pipeline run must reach a completed status, not an error, timeout, or block-limit exhaustion.",
+      "why": "A skill that fails one run in three burns the user's money and time and leaves a half-written partition behind."
+    }
+  },
+  "cost": {
+    "median_regression_ratio": {
+      "value": 1.25,
+      "severity": "major",
+      "rule": "Per probe: median cost_usd may not exceed 1.25x the baseline median.",
+      "why": "Cost per skill run is what a consumer pays per ticket. A 25% jump across a release is not noise — it is a change in how much work the skill does, and it should be a decision rather than a discovery on someone's bill."
+    },
+    "absolute_floor_usd": {
+      "value": 0.05,
+      "rule": "Probes whose baseline median is below this are exempt from the ratio gate.",
+      "why": "Ratios on tiny numbers are noise amplifiers: a routing probe going from $0.004 to $0.006 is a 50% regression and means nothing."
+    }
+  },
+  "time": {
+    "median_regression_ratio": {
+      "value": 1.5,
+      "severity": "major",
+      "rule": "Per probe: median wall-clock seconds may not exceed 1.5x the baseline median.",
+      "why": "Looser than cost deliberately. Wall clock carries load, network and model-latency noise that cost does not, so the same band would fire on conditions that have nothing to do with the build."
+    },
+    "absolute_floor_seconds": {
+      "value": 5.0,
+      "rule": "Probes whose baseline median is below this are exempt from the ratio gate."
+    }
+  },
+  "quality": {
+    "verify_iterations_median_ceiling_delta": {
+      "value": 1,
+      "severity": "major",
+      "rule": "Median verify iterations to pass may not exceed baseline median by more than 1.",
+      "why": "Iterations to pass is the closest thing to a quality measure the pipeline records: it counts how often the executor's first answer was not good enough. Rising iterations mean worse first drafts, and they cost money on every ticket."
+    },
+    "coverage_floor_delta": {
+      "value": -2.0,
+      "severity": "major",
+      "rule": "Median achieved coverage may not fall more than 2 percentage points below baseline.",
+      "why": "Coverage is measured against the repo's own configured target, so this catches a release that starts writing thinner tests while still reporting a pass."
+    },
+    "blocking_findings_rate_ceiling": {
+      "value": 0.0,
+      "severity": "major",
+      "rule": "No pipeline run may finish carrying an unresolved blocking finding.",
+      "why": "The verifier's own contract already makes passed=false with a blocking finding. A run that ends blocked is a run that did not deliver."
+    }
+  }
+}

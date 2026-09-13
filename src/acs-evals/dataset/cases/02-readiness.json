@@ -1,0 +1,550 @@
+{
+  "group": "merge readiness",
+  "description": "merge-pr's four readiness dimensions and one verdict, replayed from recorded `gh pr view` documents. MAR-524 turned this from prose in merge-pr/SKILL.md into a pure function, so every verdict here is reproducible offline and reviewable. The fixtures live in dataset/fixtures/readiness/.",
+  "surface": "acs readiness",
+  "covers": [
+    "MAR-524"
+  ],
+  "profile": "bare",
+  "cases": [
+    {
+      "id": "READY-001",
+      "title": "a clean, approved, green PR is ready to merge",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ready.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "ready",
+          "ready": true,
+          "behind": false,
+          "failed": [],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": null
+        }
+      }
+    },
+    {
+      "id": "READY-002",
+      "title": "a failing REQUIRED check blocks, and the reason names the check",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ci-required-failing.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "ci"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "fail: required check(s) failing: build",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: ci required check(s) failing: build"
+        }
+      }
+    },
+    {
+      "id": "READY-003",
+      "title": "a required check still running blocks \u2014 pending is not passing",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ci-required-pending.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "ci"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "fail: required check(s) still running: build",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: ci required check(s) still running: build"
+        }
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "READY-004",
+      "title": "a failing OPTIONAL check does not block the merge",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ci-optional-failing.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "ready",
+          "ready": true,
+          "behind": false,
+          "failed": [],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": null
+        }
+      }
+    },
+    {
+      "id": "READY-005",
+      "title": "a required check with neither status nor state is pending, not passing",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ci-unreadable-check.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "ci"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "fail: required check(s) still running: mystery",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: ci required check(s) still running: mystery"
+        }
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "READY-006",
+      "title": "'no required checks configured' is a supported repo shape, not a CI failure",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/ci-no-required-configured.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "ready",
+          "ready": true,
+          "behind": false,
+          "failed": [],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": null
+        }
+      }
+    },
+    {
+      "id": "READY-007",
+      "title": "REVIEW_REQUIRED blocks with its own distinct reason",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/approvals-review-required.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "approvals"
+          ],
+          "dimensions": {
+            "approvals": "fail: REVIEW_REQUIRED \u2014 no approving review yet",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: approvals REVIEW_REQUIRED \u2014 no approving review yet"
+        }
+      }
+    },
+    {
+      "id": "READY-008",
+      "title": "CHANGES_REQUESTED blocks with its own distinct reason",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/approvals-changes-requested.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "approvals"
+          ],
+          "dimensions": {
+            "approvals": "fail: CHANGES_REQUESTED \u2014 a reviewer has requested changes",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: approvals CHANGES_REQUESTED \u2014 a reviewer has requested changes"
+        }
+      }
+    },
+    {
+      "id": "READY-009",
+      "title": "ADR-0028: even a repo requiring no review blocks an agent merge without one",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/approvals-none-required.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "approvals"
+          ],
+          "dimensions": {
+            "approvals": "fail: no approving review (this repo requires none, but an agent-invoked merge must carry one \u2014 ADR-0028)",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: approvals no approving review (this repo requires none, but an agent-invoked merge must carry one \u2014 ADR-0028)"
+        }
+      }
+    },
+    {
+      "id": "READY-010",
+      "title": "DIRTY blocks as a conflict",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/conflicts-dirty.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "conflicts"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "fail: DIRTY \u2014 the branch conflicts with its base",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: conflicts DIRTY \u2014 the branch conflicts with its base"
+        }
+      }
+    },
+    {
+      "id": "READY-011",
+      "title": "mergeable UNKNOWN blocks \u2014 GitHub has not finished computing it",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/conflicts-unknown.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "conflicts"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "fail: mergeable is UNKNOWN \u2014 GitHub has not finished computing mergeability; re-invoke once it settles",
+            "protections": "pass"
+          },
+          "stop_reason": "readiness failed: conflicts mergeable is UNKNOWN \u2014 GitHub has not finished computing mergeability; re-invoke once it settles"
+        }
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "READY-012",
+      "title": "BEHIND with the other three green routes to the update-branch carve-out",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/behind-others-pass.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "update-branch",
+          "ready": false,
+          "behind": true,
+          "failed": [],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "behind: the base is ahead \u2014 routes to the update-branch carve-out"
+          },
+          "stop_reason": null
+        }
+      }
+    },
+    {
+      "id": "READY-013",
+      "title": "BEHIND stops being a carve-out as soon as another dimension fails",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/behind-others-fail.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "approvals",
+            "protections"
+          ],
+          "dimensions": {
+            "approvals": "fail: REVIEW_REQUIRED \u2014 no approving review yet",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "fail: BEHIND"
+          },
+          "stop_reason": "readiness failed: approvals REVIEW_REQUIRED \u2014 no approving review yet; protections BEHIND"
+        }
+      }
+    },
+    {
+      "id": "READY-014",
+      "title": "a draft PR blocks",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/protections-draft.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "protections"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "fail: the PR is a draft"
+          },
+          "stop_reason": "readiness failed: protections the PR is a draft"
+        }
+      }
+    },
+    {
+      "id": "READY-015",
+      "title": "a non-OPEN PR blocks",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/protections-closed.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "protections"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "fail: PR state is CLOSED, not OPEN"
+          },
+          "stop_reason": "readiness failed: protections PR state is CLOSED, not OPEN"
+        }
+      }
+    },
+    {
+      "id": "READY-016",
+      "title": "BLOCKED branch protection blocks",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/protections-blocked.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "protections"
+          ],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "fail: BLOCKED \u2014 unmet branch protection rules that cannot be auto-resolved"
+          },
+          "stop_reason": "readiness failed: protections BLOCKED \u2014 unmet branch protection rules that cannot be auto-resolved"
+        }
+      }
+    },
+    {
+      "id": "READY-017",
+      "title": "NEUTRAL, SKIPPED and a StatusContext SUCCESS all count as passing",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/neutral-skipped-pass.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "ready",
+          "ready": true,
+          "behind": false,
+          "failed": [],
+          "dimensions": {
+            "approvals": "pass",
+            "ci": "pass",
+            "conflicts": "pass",
+            "protections": "pass"
+          },
+          "stop_reason": null
+        }
+      }
+    },
+    {
+      "id": "READY-018",
+      "title": "FAIL CLOSED: a truncated recording blocks on all four dimensions, never 'ready'",
+      "invoke": {
+        "argv": [
+          "readiness",
+          "--from",
+          "{{fixture:readiness/truncated.json}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "verdict": "blocked",
+          "ready": false,
+          "behind": false,
+          "failed": [
+            "ci",
+            "approvals",
+            "conflicts",
+            "protections"
+          ],
+          "dimensions": {
+            "approvals": "fail: the PR recording is missing state, isDraft, mergeStateStatus, statusCheckRollup, so readiness cannot be judged from it",
+            "ci": "fail: the PR recording is missing state, isDraft, mergeStateStatus, statusCheckRollup, so readiness cannot be judged from it",
+            "conflicts": "fail: the PR recording is missing state, isDraft, mergeStateStatus, statusCheckRollup, so readiness cannot be judged from it",
+            "protections": "fail: the PR recording is missing state, isDraft, mergeStateStatus, statusCheckRollup, so readiness cannot be judged from it"
+          },
+          "stop_reason": "the PR recording is missing state, isDraft, mergeStateStatus, statusCheckRollup, so readiness cannot be judged from it"
+        }
+      },
+      "severity": "critical"
+    }
+  ],
+  "severity": "major"
+}

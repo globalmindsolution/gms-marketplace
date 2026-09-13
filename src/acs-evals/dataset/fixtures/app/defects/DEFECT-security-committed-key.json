@@ -1,0 +1,17 @@
+{
+  "id": "DEFECT-security-committed-key",
+  "dimension_id": 10,
+  "dimension": "Security",
+  "expected_severity": "blocking",
+  "title": "A live gateway key committed as a constant",
+  "tests_after": "green",
+  "ticket_context": "Ticket: prepare the gateway for the real processor's authentication header.",
+  "description": "A production-looking secret lands in source and is sent in a header helper. No test can see it; the security dimension must. (The literal is shaped like a processor key but deliberately does not match any provider's real key pattern, so GitHub's push protection lets the fixture exist.)",
+  "patch": [
+    {
+      "file": "orders/payments/gateway.py",
+      "before": "import hashlib\n",
+      "after": "import hashlib\n\nAPI_KEY = \"live-9f8e7d6c5b4a3210fedcba9876543210-prod\"\n\n\ndef auth_headers():\n    \"\"\"Headers for the processor; the key is what the dashboard issued.\"\"\"\n    return {\"Authorization\": \"Bearer \" + API_KEY}\n"
+    }
+  ]
+}

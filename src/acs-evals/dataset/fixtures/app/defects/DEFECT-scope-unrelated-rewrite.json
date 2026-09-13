@@ -1,0 +1,22 @@
+{
+  "id": "DEFECT-scope-unrelated-rewrite",
+  "dimension_id": 12,
+  "dimension": "Simplicity & scope",
+  "expected_severity": "blocking",
+  "title": "The report renderer rewritten inside an unrelated ticket",
+  "tests_after": "green",
+  "ticket_context": "Ticket: reject a negative quantity on POST /orders with a clear message.",
+  "description": "Alongside the requested API validation, the change restyles reports.render for no stated reason. Behaviour-preserving, green, and out of scope.",
+  "patch": [
+    {
+      "file": "orders/api.py",
+      "before": "                items = [(i[\"sku\"], int(i[\"quantity\"])) for i in payload[\"items\"]]\n",
+      "after": "                items = [(i[\"sku\"], int(i[\"quantity\"])) for i in payload[\"items\"]]\n                if any(q <= 0 for _sku, q in items):\n                    return self._send(400, {\"error\": \"quantity must be positive\"})\n"
+    },
+    {
+      "file": "orders/reports.py",
+      "before": "    lines = [\"orders:   %d\" % summary_dict[\"orders\"],\n             \"gross:    %.2f %s\" % (summary_dict[\"gross_cents\"] / 100, currency),\n             \"refunded: %.2f %s\" % (summary_dict[\"refunded_cents\"] / 100, currency),\n             \"net:      %.2f %s\" % (summary_dict[\"net_cents\"] / 100, currency)]\n    return \"\\n\".join(lines)\n",
+      "after": "    rows = ((\"orders:  \", \"%d\" % summary_dict[\"orders\"]),\n            (\"gross:   \", \"%.2f %s\" % (summary_dict[\"gross_cents\"] / 100, currency)),\n            (\"refunded:\", \"%.2f %s\" % (summary_dict[\"refunded_cents\"] / 100, currency)),\n            (\"net:     \", \"%.2f %s\" % (summary_dict[\"net_cents\"] / 100, currency)))\n    return \"\\n\".join(\"%s %s\" % row for row in rows)\n"
+    }
+  ]
+}

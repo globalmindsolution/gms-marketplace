@@ -1,0 +1,41 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": "C",
+  "passed": true,
+  "dimensions": [
+    {
+      "id": 8,
+      "name": "Architecture",
+      "result": "pass",
+      "evidence": "reviewed architecture"
+    },
+    {
+      "id": 9,
+      "name": "System design",
+      "result": "pass",
+      "evidence": "reviewed system design"
+    },
+    {
+      "id": 11,
+      "name": "Documentation",
+      "result": "pass",
+      "evidence": "reviewed documentation"
+    },
+    {
+      "id": 13,
+      "name": "Audience-style",
+      "result": "pass",
+      "evidence": "reviewed audience-style"
+    },
+    {
+      "id": 15,
+      "name": "Plan conformance",
+      "result": "pass",
+      "evidence": "reviewed plan conformance"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

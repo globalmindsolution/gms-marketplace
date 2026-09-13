@@ -1,0 +1,22 @@
+{
+  "id": "DEFECT-business-logic-refund-window",
+  "dimension_id": 4,
+  "dimension": "Business logic",
+  "expected_severity": "blocking",
+  "title": "Refund window loses its fourteenth day",
+  "tests_after": "green",
+  "ticket_context": "Ticket: tidy the refund policy's comparison style; behaviour must not change.",
+  "description": "The full-refund window is inclusive (docs/architecture.md: 'full for 14 days'). The change makes it exclusive and edits the test to a 13-day example so the suite stays green. Only a reviewer reading the policy catches it.",
+  "patch": [
+    {
+      "file": "orders/payments/refunds.py",
+      "before": "    if age <= timedelta(days=FULL_REFUND_DAYS):\n        return paid_cents\n",
+      "after": "    if age < timedelta(days=FULL_REFUND_DAYS):\n        return paid_cents\n"
+    },
+    {
+      "file": "tests/test_refunds.py",
+      "before": "        self.assertEqual(refundable_cents(1000, date(2026, 6, 1), date(2026, 6, 15)), 1000)\n",
+      "after": "        self.assertEqual(refundable_cents(1000, date(2026, 6, 1), date(2026, 6, 14)), 1000)\n"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{"pr_view":{"number":42,"url":"https://github.com/acme/shop/pull/42","state":"OPEN","isDraft":false,
+ "mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED",
+ "baseRefName":"main","headRefName":"task/TKT-1-add-user-login",
+ "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS","isRequired":true},
+                      {"name":"lint","status":"COMPLETED","conclusion":"SUCCESS","isRequired":true}]},
+ "required_checks_ok":true}

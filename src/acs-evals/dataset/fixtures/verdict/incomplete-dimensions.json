@@ -1,0 +1,29 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": null,
+  "passed": true,
+  "dimensions": [
+    {
+      "id": 1,
+      "name": "Acceptance-criteria conformance",
+      "result": "pass",
+      "evidence": "reviewed acceptance-criteria conformance"
+    },
+    {
+      "id": 2,
+      "name": "Tests",
+      "result": "pass",
+      "evidence": "pytest -q -> 12 passed"
+    },
+    {
+      "id": 3,
+      "name": "Coverage",
+      "result": "pass",
+      "evidence": "pytest -q -> 12 passed"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

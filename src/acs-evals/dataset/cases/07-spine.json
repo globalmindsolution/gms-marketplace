@@ -1,0 +1,352 @@
+{
+  "group": "pipeline spine",
+  "description": "Ticket minting, the id counter, settings resolution and the ticket read/write pair. None of this is new in v0.4.10, which is exactly why it is here: every release depends on it, and a regression would be silent everywhere else in the dataset.",
+  "surface": "acs context|ticket, new-ticket.py",
+  "covers": [
+    "MAR-402",
+    "MAR-521"
+  ],
+  "cases": [
+    {
+      "id": "MINT-001",
+      "title": "FAIL CLOSED: minting refuses in a partition that has never allocated and carries no reconciliation marker",
+      "note": "MAR-402. Allocating here would restart the sequence at 1 and could collide with ids already used in the repo's history, so the refusal names the confirmation flag rather than guessing.",
+      "profile": "bare",
+      "invoke": {
+        "script": "new-ticket.py",
+        "argv": [
+          "--title",
+          "Add user login",
+          "--type",
+          "task"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "has never allocated a ticket id and carries no reconciliation marker",
+          "may collide with ids already used in this repo's history",
+          "new-ticket.py --seed-next <n>"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "MINT-002",
+      "title": "an explicit --seed-next mints the first id",
+      "profile": "bare",
+      "invoke": {
+        "script": "new-ticket.py",
+        "argv": [
+          "--title",
+          "Add user login",
+          "--type",
+          "task",
+          "--seed-next",
+          "1"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ticket_id": "TKT-1"
+        }
+      }
+    },
+    {
+      "id": "MINT-003",
+      "title": "a reconciled counter mints without confirmation, and the prefix comes from settings",
+      "profile": "seeded",
+      "invoke": {
+        "script": "new-ticket.py",
+        "argv": [
+          "--title",
+          "Add user login",
+          "--type",
+          "task"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ticket_id": "TKT-1"
+        }
+      }
+    },
+    {
+      "id": "MINT-004",
+      "title": "the second mint takes the next id, not the first again",
+      "profile": "ticketed",
+      "invoke": {
+        "script": "new-ticket.py",
+        "argv": [
+          "--title",
+          "Add password reset",
+          "--type",
+          "task"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ticket_id": "TKT-2"
+        }
+      }
+    },
+    {
+      "id": "TICKET-001",
+      "title": "a minted task carries its derived lane and the axis values it was minted with",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "ticket",
+          "show",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "ticket_id": "TKT-1",
+          "ticket": {
+            "id": "TKT-1",
+            "title": "Add user login",
+            "type": "task",
+            "status": "open",
+            "size": "small",
+            "stakes": "low",
+            "lane": "SMALL",
+            "needs_design": false,
+            "docs_only": false,
+            "priority": "medium",
+            "parent": null,
+            "children": [],
+            "external": null,
+            "acceptance_criteria": []
+          }
+        }
+      }
+    },
+    {
+      "id": "TICKET-002",
+      "title": "an epic defaults to needs_design true and the COMPLEX lane",
+      "note": "This is what makes /acs:create-design's gate open for an epic and /acs:code's refuse it \u2014 see GATE-041 and GATE-042.",
+      "profile": "epic",
+      "invoke": {
+        "argv": [
+          "ticket",
+          "show",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "ticket": {
+            "type": "epic",
+            "needs_design": true,
+            "lane": "COMPLEX",
+            "size": "large",
+            "stakes": "high"
+          }
+        }
+      }
+    },
+    {
+      "id": "TICKET-003",
+      "title": "an unknown ticket is refused, not invented",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "ticket",
+          "show",
+          "--ticket",
+          "TKT-99"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "no partition for TKT-99"
+        ]
+      }
+    },
+    {
+      "id": "TICKET-004",
+      "title": "ticket save MERGES: a field absent from the document is kept, not cleared",
+      "note": "A behaviour change MAR-521's own migration note called 'none'. The save sends only id and priority; every other field must SURVIVE, which is what the on-disk assertion checks \u2014 a caller can no longer clear a field by omitting it.",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "ticket",
+          "save",
+          "--ticket",
+          "{{ticket}}",
+          "--from",
+          "-"
+        ],
+        "stdin": {
+          "id": "TKT-1",
+          "priority": "critical"
+        }
+      },
+      "expect": {
+        "exit_code": 0,
+        "after": [
+          {
+            "base": "ticket",
+            "path": "ticket.json",
+            "exists": true,
+            "json_subset": {
+              "id": "TKT-1",
+              "priority": "critical",
+              "title": "Add user login",
+              "type": "task",
+              "size": "small",
+              "lane": "SMALL"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "TICKET-005",
+      "title": "after a partial save the untouched fields survive and the touched one changed",
+      "profile": "ticketed",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "ticket.json",
+          "json": {
+            "id": "TKT-1",
+            "title": "Add user login",
+            "type": "task",
+            "status": "open",
+            "size": "small",
+            "stakes": "low",
+            "lane": "SMALL",
+            "priority": "critical",
+            "needs_design": false,
+            "docs_only": false,
+            "parent": null,
+            "children": [],
+            "external": null,
+            "acceptance_criteria": [],
+            "description": "",
+            "assignee": null,
+            "story_points": null,
+            "due_date": null,
+            "created_at": "{{now}}",
+            "updated_at": "{{now}}"
+          }
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "ticket",
+          "show",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ticket": {
+            "priority": "critical",
+            "title": "Add user login",
+            "lane": "SMALL"
+          }
+        }
+      }
+    },
+    {
+      "id": "CONTEXT-001",
+      "title": "context resolves the repo, the workspace partition and the merged settings",
+      "note": "Every skill starts here, so the key set is a contract. The sandbox pins only four settings; the rest are the plugin's own defaults, and their presence is what a consumer repo relies on.",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "context"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "repo_id": "repo",
+          "checkout_root": "<REPO>",
+          "main_repo_root": "<REPO>",
+          "repo_dir": "<WS>",
+          "index_path": "<WS>/tickets-index.json",
+          "settings": {
+            "ticket_prefix": "TKT",
+            "test_coverage_percent": 90,
+            "merge_strategy": "squash",
+            "workspace_path": "../ws",
+            "adr_path": "docs/adr",
+            "architecture_path": "docs/architecture",
+            "prd_path": "docs/product",
+            "high_stakes_paths": [
+              "auth/**",
+              "payments/**",
+              "migrations/**",
+              "public-api/**",
+              "security/**"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "CONTEXT-002",
+      "title": "the settings a repo did not set come from the plugin defaults, and every documented key is present",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "context"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_contains": [
+          "\"principles_path\"",
+          "\"standards_path\"",
+          "\"quality_path\"",
+          "\"operations_path\"",
+          "\"requirements_path\"",
+          "\"requirements_layout\"",
+          "\"tracker\"",
+          "\"models\"",
+          "\"suites\"",
+          "\"formats\"",
+          "\"settings_sources\""
+        ]
+      }
+    },
+    {
+      "id": "DOCTOR-001",
+      "title": "doctor reports the toolchain and separates missing-required from merely missing",
+      "note": "git is required; gh and pre-commit are optional in a bare sandbox, so `missing` is non-empty while `missing_required` stays empty and ok stays true.",
+      "profile": "bare",
+      "invoke": {
+        "argv": [
+          "doctor"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "context": true,
+          "missing_required": []
+        }
+      }
+    }
+  ],
+  "severity": "major"
+}

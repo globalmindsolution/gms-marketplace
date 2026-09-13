@@ -1,0 +1,41 @@
+{
+  "skill": "code",
+  "ticket_id": "TKT-1",
+  "iteration": 1,
+  "lens": "B",
+  "passed": true,
+  "dimensions": [
+    {
+      "id": 6,
+      "name": "Quality",
+      "result": "pass",
+      "evidence": "reviewed quality"
+    },
+    {
+      "id": 7,
+      "name": "Technical standards",
+      "result": "pass",
+      "evidence": "reviewed technical standards"
+    },
+    {
+      "id": 10,
+      "name": "Security",
+      "result": "pass",
+      "evidence": "reviewed security"
+    },
+    {
+      "id": 12,
+      "name": "Simplicity & scope",
+      "result": "pass",
+      "evidence": "reviewed simplicity & scope"
+    },
+    {
+      "id": 16,
+      "name": "Approval-audit",
+      "result": "pass",
+      "evidence": "reviewed approval-audit"
+    }
+  ],
+  "findings": [],
+  "written_at": "2026-01-01T00:00:00Z"
+}

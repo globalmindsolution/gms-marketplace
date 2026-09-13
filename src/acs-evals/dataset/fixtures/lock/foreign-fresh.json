@@ -1,0 +1,2 @@
+{"checkout_id":"elsewhere-deadbeef","checkout_path":"/elsewhere/repo","pid":4242,
+ "hostname":"some-other-host.invalid","created_at":"{{hours_ago:2}}"}

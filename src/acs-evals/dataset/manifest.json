@@ -1,0 +1,30 @@
+{
+  "dataset_version": "1.1.0",
+  "target_plugin": "acs",
+  "target_release": "v0.4.10",
+  "recorded_against": "0.4.9",
+  "recorded_on": "2026-09-13",
+  "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.4.10 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and — as of 1.1.0 — the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills, ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
+  "tiers": {
+    "deterministic": "dataset/cases/*.json, run by runner/run_golden.py. No model, no network, $0.",
+    "agentic": "evals/**/case.yaml, run by `claude plugin eval`. Spawns sessions; costs money."
+  },
+  "recorded_against_note": "1.1.0 is recorded against the SOURCE tree at gms-marketplace fa6c2f3 (main 64e16bd plus PR #533), not against an installed build: the refactor and the fold are merged but NOT released, so the installed 0.4.9 predates every surface this version pins. Run it with ACS_PLUGIN_ROOT=<checkout>/plugins/acs until a release is cut; against source it is 363/363. Against installed 0.4.9 it is BLOCKED with 19 failures, and that is the dataset working correctly — it is reporting the installed build as stale, not a regression. Set recorded_against to the released version, and drop the override, as part of cutting that release.",
+  "covers": [
+    "MAR-402",
+    "MAR-520",
+    "MAR-521",
+    "MAR-522",
+    "MAR-523",
+    "MAR-524",
+    "MAR-525",
+    "MAR-526",
+    "MAR-527",
+    "MAR-528",
+    "MAR-529",
+    "MAR-530",
+    "MAR-575",
+    "MAR-578",
+    "MAR-579"
+  ]
+}

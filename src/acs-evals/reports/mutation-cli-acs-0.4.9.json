@@ -1,0 +1,1376 @@
+{
+  "schema": "acs-evals/mutation-cli/1",
+  "build": {
+    "version": "0.4.9",
+    "root": "/root/.claude/plugins/cache/gms-marketplace/acs/0.4.9"
+  },
+  "modules": [
+    "derive.py",
+    "verdict.py",
+    "readiness.py",
+    "gates.py",
+    "lanes.py",
+    "filemap.py",
+    "state.py",
+    "settings.py"
+  ],
+  "seed": 2026,
+  "max_mutants": 40,
+  "sites_total": 705,
+  "sampled": 40,
+  "killed": 14,
+  "judged": 40,
+  "rate": 0.35,
+  "per_module": {
+    "derive.py": {
+      "killed": 0,
+      "survived": 2,
+      "error": 0
+    },
+    "filemap.py": {
+      "killed": 2,
+      "survived": 5,
+      "error": 0
+    },
+    "gates.py": {
+      "killed": 0,
+      "survived": 4,
+      "error": 0
+    },
+    "lanes.py": {
+      "killed": 1,
+      "survived": 6,
+      "error": 0
+    },
+    "readiness.py": {
+      "killed": 2,
+      "survived": 0,
+      "error": 0
+    },
+    "settings.py": {
+      "killed": 3,
+      "survived": 3,
+      "error": 0
+    },
+    "state.py": {
+      "killed": 2,
+      "survived": 5,
+      "error": 0
+    },
+    "verdict.py": {
+      "killed": 4,
+      "survived": 1,
+      "error": 0
+    }
+  },
+  "results": [
+    {
+      "kind": "nudge-int",
+      "path": [
+        [
+          "body",
+          16
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "keywords",
+          0
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "body",
+          null
+        ],
+        [
+          "slice",
+          null
+        ]
+      ],
+      "lineno": 77,
+      "detail": "0 -> 1",
+      "module": "derive.py",
+      "line": "return sorted(out, key=lambda item: item[0])",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 15.5
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          18
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 111,
+      "detail": "Is -> IsNot",
+      "module": "derive.py",
+      "line": "if best is None:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 15.7
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          11
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          1
+        ]
+      ],
+      "lineno": 69,
+      "detail": "not x -> x",
+      "module": "filemap.py",
+      "line": "if not isinstance(doc, dict) or not isinstance(doc.get(\"tasks\"), dict):",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "FILEMAP-003"
+      ],
+      "seconds": 15.9
+    },
+    {
+      "kind": "flip-bool",
+      "path": [
+        [
+          "body",
+          11
+        ],
+        [
+          "body",
+          9
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "keywords",
+          0
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 80,
+      "detail": "True -> False",
+      "module": "filemap.py",
+      "line": "os.makedirs(os.path.dirname(path), exist_ok=True)",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "FILEMAP-003"
+      ],
+      "seconds": 16.5
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          13
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 121,
+      "detail": "and <-> or",
+      "module": "filemap.py",
+      "line": "if candidate == entry or candidate.startswith(entry.rstrip(\"/\") + \"/\"):",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.1
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          15
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "left",
+          null
+        ],
+        [
+          "args",
+          0
+        ]
+      ],
+      "lineno": 142,
+      "detail": "and <-> or",
+      "module": "filemap.py",
+      "line": "if int(entry.get(\"stop_attempts\") or 0) > BLOCK_LIMIT:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.1
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          15
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "left",
+          null
+        ]
+      ],
+      "lineno": 148,
+      "detail": "and <-> or",
+      "module": "filemap.py",
+      "line": "age = (now or datetime.now(timezone.utc)) - datetime.fromisoformat(",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.6
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          17
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 191,
+      "detail": "not x -> x",
+      "module": "filemap.py",
+      "line": "if not tdir:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.8
+    },
+    {
+      "kind": "nudge-int",
+      "path": [
+        [
+          "body",
+          17
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 211,
+      "detail": "2 -> 3",
+      "module": "filemap.py",
+      "line": "return 2",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.6
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          47
+        ],
+        [
+          "body",
+          13
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 420,
+      "detail": "not x -> x",
+      "module": "gates.py",
+      "line": "if not result.get(\"status\"):",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.3
+    },
+    {
+      "kind": "negate-test",
+      "path": [
+        [
+          "body",
+          48
+        ],
+        [
+          "body",
+          8
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 444,
+      "detail": "if x -> if not x",
+      "module": "gates.py",
+      "line": "if parent_ticket:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.3
+    },
+    {
+      "kind": "negate-test",
+      "path": [
+        [
+          "body",
+          51
+        ],
+        [
+          "body",
+          22
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 539,
+      "detail": "if x -> if not x",
+      "module": "gates.py",
+      "line": "if ticket:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 15.9
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          51
+        ],
+        [
+          "body",
+          22
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "keywords",
+          1
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 555,
+      "detail": "and <-> or",
+      "module": "gates.py",
+      "line": "pr_created=(status == \"completed\" and bool((result.get(\"states\") or {}).get(\"pr\"))",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.5
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          14
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 46,
+      "detail": "Eq -> NotEq",
+      "module": "lanes.py",
+      "line": "if size == \"small\":",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "LANE-001",
+        "LANE-002",
+        "LANE-004",
+        "LANE-005",
+        "LANE-013",
+        "TICKET-001",
+        "TICKET-004"
+      ],
+      "seconds": 16.7
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          24
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "body",
+          6
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 240,
+      "detail": "Gt -> LtE",
+      "module": "lanes.py",
+      "line": "path = parts[1] if len(parts) > 1 else \"\"",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.3
+    },
+    {
+      "kind": "boundary",
+      "path": [
+        [
+          "body",
+          24
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "body",
+          6
+        ],
+        [
+          "orelse",
+          0
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 245,
+      "detail": "Gt -> GtE",
+      "module": "lanes.py",
+      "line": "path = parts[2] if len(parts) > 2 else (parts[1] if len(parts) > 1 else \"\")",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 17.5
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 321,
+      "detail": "and <-> or",
+      "module": "lanes.py",
+      "line": "settings = settings or {}",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 17.1
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          14
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 353,
+      "detail": "not x -> x",
+      "module": "lanes.py",
+      "line": "if not occs:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 17.4
+    },
+    {
+      "kind": "flip-bool",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          16
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 368,
+      "detail": "True -> False",
+      "module": "lanes.py",
+      "line": "required_ok = True",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.0
+    },
+    {
+      "kind": "flip-bool",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          19
+        ],
+        [
+          "orelse",
+          0
+        ],
+        [
+          "value",
+          null
+        ]
+      ],
+      "lineno": 410,
+      "detail": "True -> False",
+      "module": "lanes.py",
+      "line": "checks[\"fold_sections_ok\"] = True",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.1
+    },
+    {
+      "kind": "negate-test",
+      "path": [
+        [
+          "body",
+          12
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 125,
+      "detail": "if x -> if not x",
+      "module": "readiness.py",
+      "line": "if isinstance(required_checks_ok, tuple):",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "READY-001",
+        "READY-004",
+        "READY-007",
+        "READY-008",
+        "READY-009",
+        "READY-010",
+        "READY-011",
+        "READY-012"
+      ],
+      "seconds": 16.6
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          15
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 183,
+      "detail": "Eq -> NotEq",
+      "module": "readiness.py",
+      "line": "if merge_state == \"BLOCKED\":",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "READY-001",
+        "READY-002",
+        "READY-003",
+        "READY-004",
+        "READY-005",
+        "READY-006",
+        "READY-007",
+        "READY-008"
+      ],
+      "seconds": 15.9
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          22
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "args",
+          0
+        ]
+      ],
+      "lineno": 125,
+      "detail": "and <-> or",
+      "module": "settings.py",
+      "line": "suites = dict(merged.get(\"suites\") or {})",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 15.6
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          23
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          1
+        ]
+      ],
+      "lineno": 146,
+      "detail": "not x -> x",
+      "module": "settings.py",
+      "line": "if not prefix or not re.fullmatch(r\"[A-Z][A-Z0-9]*\", str(prefix)):",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [],
+      "seconds": 5.3
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          24
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 204,
+      "detail": "not x -> x",
+      "module": "settings.py",
+      "line": "if not isinstance(tickets, dict):",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [],
+      "seconds": 5.4
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          30
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 266,
+      "detail": "In -> NotIn",
+      "module": "settings.py",
+      "line": "if role in models:",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [],
+      "seconds": 5.4
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          1
+        ]
+      ],
+      "lineno": 297,
+      "detail": "NotEq -> Eq",
+      "module": "settings.py",
+      "line": "if value and value != \"inherit\":",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.2
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 297,
+      "detail": "and <-> or",
+      "module": "settings.py",
+      "line": "if value and value != \"inherit\":",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.2
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          25
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "args",
+          0
+        ],
+        [
+          "generators",
+          0
+        ],
+        [
+          "ifs",
+          0
+        ]
+      ],
+      "lineno": 150,
+      "detail": "and <-> or",
+      "module": "state.py",
+      "line": "entry = next((e for e in (entries or []) if isinstance(e, dict) and e.get(\"id\") == clarify_ref), None)",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.0
+    },
+    {
+      "kind": "negate-test",
+      "path": [
+        [
+          "body",
+          27
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 210,
+      "detail": "if x -> if not x",
+      "module": "state.py",
+      "line": "if flow:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.4
+    },
+    {
+      "kind": "swap-boolop",
+      "path": [
+        [
+          "body",
+          27
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 213,
+      "detail": "and <-> or",
+      "module": "state.py",
+      "line": "if status == \"in_progress\" and not step.get(\"started_at\"):",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.7
+    },
+    {
+      "kind": "nudge-int",
+      "path": [
+        [
+          "body",
+          31
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "comparators",
+          0
+        ]
+      ],
+      "lineno": 294,
+      "detail": "1 -> 2",
+      "module": "state.py",
+      "line": "if seed_next < 1:",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "MINT-002"
+      ],
+      "seconds": 16.6
+    },
+    {
+      "kind": "flip-bool",
+      "path": [
+        [
+          "body",
+          36
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "elts",
+          0
+        ]
+      ],
+      "lineno": 407,
+      "detail": "False -> True",
+      "module": "state.py",
+      "line": "return False, \"holder-process-live\"",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.3
+    },
+    {
+      "kind": "negate-test",
+      "path": [
+        [
+          "body",
+          38
+        ],
+        [
+          "body",
+          6
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 441,
+      "detail": "if x -> if not x",
+      "module": "state.py",
+      "line": "if stale:",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.2
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          44
+        ],
+        [
+          "body",
+          1
+        ],
+        [
+          "test",
+          null
+        ]
+      ],
+      "lineno": 523,
+      "detail": "not x -> x",
+      "module": "state.py",
+      "line": "if not (reason or \"\").strip():",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "LOCK-006",
+        "LOCK-007"
+      ],
+      "seconds": 16.3
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          9
+        ],
+        [
+          "value",
+          null
+        ],
+        [
+          "args",
+          0
+        ],
+        [
+          "generators",
+          0
+        ],
+        [
+          "ifs",
+          0
+        ]
+      ],
+      "lineno": 75,
+      "detail": "NotEq -> Eq",
+      "module": "verdict.py",
+      "line": "BASE_DIMENSIONS = tuple(i for i in sorted(VERDICT_DIMENSIONS) if i != 14)",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "VERDICT-001",
+        "VERDICT-003",
+        "VERDICT-005",
+        "VERDICT-006",
+        "VERDICT-007"
+      ],
+      "seconds": 15.9
+    },
+    {
+      "kind": "nudge-int",
+      "path": [
+        [
+          "body",
+          16
+        ],
+        [
+          "body",
+          4
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          1
+        ],
+        [
+          "comparators",
+          0
+        ]
+      ],
+      "lineno": 132,
+      "detail": "1 -> 2",
+      "module": "verdict.py",
+      "line": "if not isinstance(doc.get(\"iteration\"), int) or doc[\"iteration\"] < 1:",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "VERDICT-001",
+        "VERDICT-003",
+        "VERDICT-005",
+        "VERDICT-007",
+        "VERDICT-011",
+        "VERDICT-012",
+        "VERDICT-013"
+      ],
+      "seconds": 16.4
+    },
+    {
+      "kind": "negate-compare",
+      "path": [
+        [
+          "body",
+          16
+        ],
+        [
+          "body",
+          8
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          0
+        ]
+      ],
+      "lineno": 155,
+      "detail": "IsNot -> Is",
+      "module": "verdict.py",
+      "line": "if declared_lens is not None and declared_lens not in LENSES:",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "VERDICT-001",
+        "VERDICT-003",
+        "VERDICT-005",
+        "VERDICT-007",
+        "VERDICT-012",
+        "VERDICT-013"
+      ],
+      "seconds": 16.8
+    },
+    {
+      "kind": "drop-not",
+      "path": [
+        [
+          "body",
+          17
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "body",
+          0
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          0
+        ]
+      ],
+      "lineno": 250,
+      "detail": "not x -> x",
+      "module": "verdict.py",
+      "line": "if not isinstance(entry, dict) or entry.get(\"id\") not in VERDICT_DIMENSIONS:",
+      "outcome": "killed",
+      "exit_code": 1,
+      "killed_by": [
+        "VERDICT-012",
+        "VERDICT-013"
+      ],
+      "seconds": 16.8
+    },
+    {
+      "kind": "nudge-int",
+      "path": [
+        [
+          "body",
+          17
+        ],
+        [
+          "body",
+          5
+        ],
+        [
+          "body",
+          3
+        ],
+        [
+          "body",
+          2
+        ],
+        [
+          "test",
+          null
+        ],
+        [
+          "values",
+          1
+        ],
+        [
+          "left",
+          null
+        ],
+        [
+          "args",
+          1
+        ],
+        [
+          "operand",
+          null
+        ]
+      ],
+      "lineno": 253,
+      "detail": "1 -> 2",
+      "module": "verdict.py",
+      "line": "if current is None or rank.get(entry.get(\"result\"), -1) > rank.get(current.get(\"result\"), -1):",
+      "outcome": "survived",
+      "exit_code": 0,
+      "killed_by": [],
+      "seconds": 16.4
+    }
+  ],
+  "seconds": 637.2
+}

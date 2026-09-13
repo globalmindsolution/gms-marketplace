@@ -1,0 +1,103 @@
+{
+  "scenario_set_version": "1.5.0",
+  "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
+  "decision_rules": {
+    "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
+    "cost_and_time": "Compared as the MEDIAN across runs, never a single run. The spread (min/max) is recorded alongside so thresholds can be calibrated from observed variance rather than guessed.",
+    "quality": "Compared as the median across runs for iteration counts and coverage; blocking findings and non-completion are compared as rates, where the floor is zero."
+  },
+  "routing": {
+    "source": "dataset/routing.json",
+    "note": "The 30 probes (27 routing + 3 controls) are NOT duplicated here — routing.json stays the single source of truth, guarded by `make check`. Tier 3 runs the same prompts through `claude -p` with only the Skill tool allowed, killing the process at the first Skill call, so a probe costs time-to-route and never executes a skill body. The two explicit probes (`/acs:install-hooks`, `/acs:update`) are decided at the session's `init` event instead: a typed slash command is expanded by the CLI and never appears as a Skill tool_use, so they pass when `slash_commands` lists the command, and are killed there before any model turn. scenario_set_version 1.1.0 records that change of rule; no 1.0.0 baseline was ever promoted. scenario_set_version 1.2.0 adds the three CONTROL probes; the explicit ones among them also run as a free pre-flight before any paid session, and a failed pre-flight writes no measurement. 1.3.0 changes ROUTE-ship's prompt to carry a concrete request (the 1.2.0 prompt could not route by construction); every other probe is unchanged. 1.5.0 lets a routing probe name its sandbox `profile` and deterministic `setup` steps so the prompt's presupposition holds in the sandbox: ROUTE-create-requirements runs on the fixture app and ROUTE-docs-sync on the ticketed fixture app with a committed change on the ticket branch. Prompts are unchanged; the 1.3.0 splits on those two probes were the model inspecting an empty seeded repo and asking instead of routing — a dataset defect, not a description defect.",
+    "runs_per_probe": 5,
+    "timeout_seconds": 120
+  },
+  "pipeline": {
+    "note": "End-to-end runs that DO execute skill bodies. These are the expensive half — deliberately few, deliberately representative. Each names the sandbox profile it starts from, the request, and the ledger paths the collector reads afterwards for quality signals. Scenarios on the app profiles are the expensive end — a full /acs:code cycle each, twice for the docs-sync one (its setup prompt is that cycle).",
+    "runs_per_scenario": 3,
+    "scenarios": [
+      {
+        "id": "PIPE-create-ticket",
+        "skill": "acs:create-ticket",
+        "profile": "seeded",
+        "prompt": "We need a CSV export on the reports page. Please raise a ticket for it.",
+        "timeout_seconds": 600,
+        "measures": [
+          "reliability",
+          "cost",
+          "time"
+        ],
+        "why": "The cheapest full skill body in the pipeline, and the one every other ticket depends on. Establishes the floor of what a skill run costs."
+      },
+      {
+        "id": "PIPE-code",
+        "skill": "acs:code",
+        "profile": "ticketed",
+        "prompt": "TKT-1 is ready to implement. Please implement it.",
+        "timeout_seconds": 1800,
+        "measures": [
+          "reliability",
+          "cost",
+          "time",
+          "quality"
+        ],
+        "why": "The dominant cost centre — plan/execute/verify with up to three iterations. This is the scenario whose cost and iteration count a release most plausibly regresses, and the only one that yields verify-iteration and coverage signal."
+      },
+      {
+        "id": "PIPE-docs-sync",
+        "skill": "acs:docs-sync",
+        "profile": "ticketed",
+        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "timeout_seconds": 900,
+        "measures": [
+          "reliability",
+          "cost",
+          "time"
+        ],
+        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate.",
+        "setup_prompts": [
+          "TKT-1 is ready to implement. Please implement it."
+        ]
+      },
+      {
+        "id": "PIPE-code-app",
+        "skill": "acs:code",
+        "profile": "app-ticketed",
+        "prompt": "TKT-1 is ready to implement. Please implement it.",
+        "timeout_seconds": 2400,
+        "measures": [
+          "reliability",
+          "cost",
+          "time",
+          "quality"
+        ],
+        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that."
+      },
+      {
+        "id": "PIPE-docs-sync-app",
+        "skill": "acs:docs-sync",
+        "profile": "app-ticketed",
+        "setup_prompts": [
+          "TKT-1 is ready to implement. Please implement it."
+        ],
+        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "timeout_seconds": 1200,
+        "measures": [
+          "reliability",
+          "cost",
+          "time"
+        ],
+        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated."
+      }
+    ]
+  },
+  "excluded": {
+    "note": "Named rather than silently absent, so the gap is reviewable.",
+    "acs:create-pr": "Needs a real forge target; measuring it means opening throwaway PRs. Covered by tier 1's gate cases only.",
+    "acs:merge-pr": "Merges. Not run against anything real.",
+    "acs:release": "Opens a release PR. Same reason.",
+    "doc-bootstrap skills": "create-prd/architecture/principles/standards/quality/operations each write a large doc set; one run each would dominate the tier's cost while regressing least. Routing is measured; bodies are not."
+  },
+  "fixture_hash": "6fecba231b91b0d3",
+  "fixture_note": "dataset/fixtures/app is part of the experiment: `fixture_hash` covers every byte of its tree and history, `make check` fails when this value is stale, and a changed fixture therefore forces a scenario_set_version bump. Routing baselines survive a fixture change (set_hashes are per half); pipeline baselines do not."
+}
