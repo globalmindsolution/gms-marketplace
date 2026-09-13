@@ -106,18 +106,14 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs", "project"]
 ROLES = ["planner", "executor", "verifier"]
 
-# Which agent roles each hooked skill actually owns. Every skill is a triad
-# except /acs:code, whose plan phase moved to /acs:create-impl-plan in the
-# skills-independence refactor: code now starts from an existing plan, so it
-# has an executor and a verifier and no planner at all.
-def _agent_roles():
-    roles = {skill: list(ROLES) for skill in HOOKED_SKILLS}
-    roles.setdefault("create-impl-plan", list(ROLES))
-    roles["code"] = ["executor", "verifier"]
-    return roles
-
-
-AGENT_ROLES = _agent_roles()
+# Which agent roles each skill owns — READ FROM THE REGISTRY, never derived
+# here (ADR-0092). This used to be `{skill: list(ROLES) for skill in
+# HOOKED_SKILLS}` with one hand-carved exception, which is how nineteen skills
+# came to carry a planner nobody chose for them: three of them forbade
+# spawning one in their own prose and shipped the file anyway, held in place
+# by this very test. The shape is now a declaration in workflows/phases.yaml
+# and this asserts the declaration is honoured, not that a default holds.
+AGENT_ROLES = lib.skill_agents()
 
 
 def read(path):
@@ -431,23 +427,18 @@ class TestMergePrBehindAutoUpdate(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"BEHIND.*update-branch|update-branch.*BEHIND", body, re.DOTALL),
             "SKILL.md must co-locate BEHIND and update-branch (MAR-47 AC-1)")
-
-    def test_planner_behind_routes_to_update_branch(self):
-        body = read(self.agent_path("merge-pr", "planner"))
-        # Basic existence: update-branch is present in the planner prose.
-        self.assertIn("update-branch", body,
-                      "merge-pr-planner.md must mention update-branch (MAR-47 AC-2)")
-        # Co-occurrence: BEHIND and update-branch appear together.
-        self.assertIsNotNone(
-            re.search(r"BEHIND.*update-branch|update-branch.*BEHIND", body, re.DOTALL),
-            "merge-pr-planner.md must co-locate BEHIND and update-branch (MAR-47 AC-2)")
-        # C-7 verdict tokens: pin the verdict shape without requiring the exact
-        # full sentence — robust to minor rewording of surrounding context.
+        # C-7 verdict tokens, re-homed from the deleted planner to the file
+        # that actually records the carve-out's outcome.
         self.assertIn("was BEHIND", body,
-                      "merge-pr-planner.md must carry 'was BEHIND' verdict token (MAR-47 C-7)")
+                      "SKILL.md must carry the 'was BEHIND' verdict token (MAR-47 C-7)")
         self.assertIn("auto-updated", body,
-                      "merge-pr-planner.md must carry 'auto-updated' verdict token (MAR-47 C-7)")
+                      "SKILL.md must carry the 'auto-updated' verdict token (MAR-47 C-7)")
 
+    # MAR-47 AC-2's planner-side assertion is gone with the planner (ADR-0092):
+    # /acs:merge-pr's own prose forbids spawning one, so that file never ran
+    # and pinning the BEHIND carve-out in it pinned nothing. The requirement is
+    # asserted where it executes — the SKILL.md test above (AC-1) and the
+    # executor test below, which also carries the BEHIND-only guard.
     def test_executor_behind_routes_to_update_branch(self):
         body = read(self.agent_path("merge-pr", "executor"))
         # Basic existence: update-branch is present in the executor prose.

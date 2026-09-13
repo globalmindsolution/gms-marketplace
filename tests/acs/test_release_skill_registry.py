@@ -109,14 +109,24 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
             "no plugins/acs/agents/release-*.md file may exist (AC-1)",
         )
 
-    def test_agent_count_unchanged_fifty_nine(self):
-        # Literal advances as later producer children register (MAR-143:
-        # create-requirements' triad, 42 -> 45; MAR-156: create-spec's triad
-        # deleted, 45 -> 42; MAR-160: docs-sync's triad registered, 42 -> 45;
-        # the skills-independence refactor added five Build/Test triads and
-        # moved code's planner to create-impl-plan, 45 -> 59)
-        # — /acs:release itself adds none.
-        self.assertEqual(len(glob.glob(os.path.join(AGENTS_DIR, "*.md"))), 59)
+    def test_agent_files_match_the_registry_exactly(self):
+        """AC-1: /acs:release adds no agents of its own.
+
+        This was a hand-maintained literal (59, with a comment tracking every
+        release that moved it) until ADR-0092 made the roles a declaration in
+        workflows/phases.yaml. The count is now derived from that registry, so
+        the assertion is what it always meant — the agents on disk are exactly
+        the ones some skill declares — and adding or removing a role updates
+        one line of YAML instead of a number in a test.
+        """
+        declared = {"%s-%s.md" % (skill, role)
+                    for skill, roles in acs_lib.skill_agents().items()
+                    for role in roles}
+        on_disk = {os.path.basename(p)
+                   for p in glob.glob(os.path.join(AGENTS_DIR, "*.md"))}
+        self.assertEqual(on_disk, declared,
+                         "every agent file must be declared in phases.yaml's "
+                         "`agents` map, and every declared role must exist")
 
     def test_release_config_flag_passed_to_every_subcommand(self):
         for fence in _bash_fences(_read_skill_body()):

@@ -65,9 +65,9 @@ class TreeHashTest(unittest.TestCase):
 
     def test_the_version_cannot_collide_with_a_release(self):
         v = di.dev_version(self.dir)
-        self.assertTrue(v.startswith("0.4.10-dev."), v)
+        self.assertTrue(v.startswith("0.5.0-dev."), v)
         self.assertTrue(di.is_dev(v))
-        for release in ("0.4.9", "0.4.10", "1.0.0"):
+        for release in ("0.4.9", "0.5.0", "1.0.0"):
             self.assertNotEqual(v, release)
             self.assertFalse(di.is_dev(release))
 

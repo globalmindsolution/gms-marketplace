@@ -148,7 +148,8 @@ from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # 
     allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
     e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
     entry_point_of, pending_needs, phase_of, phases_path, post_code_test_active,
-    post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_aliases,
+    post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_agents,
+    agent_roles_of, skill_aliases,
     skill_legs, ticket_artifact_path, ticket_context, validate_workflow,
     validate_workflow_file)
 

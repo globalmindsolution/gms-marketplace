@@ -90,7 +90,7 @@ never invoked on those lanes.
    block: continue planning against the current approach while the question
    is open.
    **Oversize signal** (ADR 0069): while building this decomposition, also
-   compare it against `create-ticket-planner.md:57-65`'s existing
+   compare it against `create-ticket/SKILL.md's sizing rubric`'s existing
    reviewable-diff rubric — roughly ~4 tasks, ~400 changed lines, or ~7
    acceptance criteria, or the surface otherwise clearly exceeding a
    reviewable diff. When the decomposition itself exceeds that bar, record

@@ -1019,7 +1019,7 @@ at two levers, with an escalation between them:
    a materially simpler decomposition satisfying the same acceptance criteria
    exists, it is surfaced as a question, never a stop — plus (ADR 0069) a
    non-blocking **oversize signal** on the same charter item: when the
-   decomposition itself exceeds `create-ticket-planner.md`'s
+   decomposition itself exceeds `create-ticket/SKILL.md`'s sizing rubric's
    `~4-spec`/`~400-line`/`~7-AC` rubric, the implementation planner records
    the split seams in the plan artifact and surfaces a `<question>` through the
    clarification ledger — never a stop.

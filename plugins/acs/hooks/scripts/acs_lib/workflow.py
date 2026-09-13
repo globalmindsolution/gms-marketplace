@@ -308,6 +308,22 @@ def skill_legs(phases=None):
     return dict((phases or load_phases())["internal"])
 
 
+def skill_agents(phases=None):
+    """{skill: [role, ...]} -- the subagent roles each skill owns (ADR-0092).
+
+    A skill declares the machinery its work needs; nothing is inferred from
+    whether it is hooked. A skill absent from the map owns no subagents, which
+    is the right answer for a mechanical action or a dispatcher. `{}` when the
+    registry declares none.
+    """
+    return dict((phases or load_phases()).get("agents") or {})
+
+
+def agent_roles_of(skill, phases=None):
+    """The roles `skill` owns, `[]` when it owns none."""
+    return list(skill_agents(phases).get(skill, []))
+
+
 def entry_point_of(skill, phases=None):
     """The entry point an internal leg serves, else None (a user-facing skill
     is nobody's leg)."""

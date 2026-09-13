@@ -1,6 +1,16 @@
 # 0039 — The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added
 
-**Status**: Accepted · **Date**: 2026-07-03
+**Status**: Superseded by [0089](0089-pipeline-order-declared-in-ship-yaml.md) · **Date**: 2026-07-03
+
+> Superseded 2026-09-13. This ADR scopes the simplicity gate's planner-only scope
+> to `create-spec-planner`, an agent of a skill that no longer ships:
+> ADR-0066 folded spec authoring into `/acs:code`'s plan phase, and
+> ADR-0089's skills-independence refactor then moved that plan phase out
+> to `/acs:create-impl-plan`. The gate itself survives — it is carried by
+> `create-impl-plan-planner`, `create-impl-plan-verifier` and the `code-*`
+> agents — so this is a relocation, not a retirement. ADR-0092 moves it
+> once more, into the skill and its executor, when the authoring planners
+> go.
 
 ## Context
 

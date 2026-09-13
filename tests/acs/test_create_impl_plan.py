@@ -425,7 +425,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         cls.skill_body = read(IMPL_PLAN_SKILL)
 
     def test_rubric_numbers_present(self):
-        for token in ("~4", "~400", "~7", "create-ticket-planner.md"):
+        for token in ("~4", "~400", "~7", "create-ticket/SKILL.md"):
             self.assertIn(token, self.item2)
 
     def test_surface_never_block_contract(self):

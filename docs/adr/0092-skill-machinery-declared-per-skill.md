@@ -63,7 +63,7 @@ Skills are designed against four classes, by the kind of work they do:
 |---|---|---|
 | **A · Mechanical** | A deterministic action with no judgement: write hook files, read state, print a dashboard. | No subagents, no loop, no lanes. |
 | **B · Dispatch** | Choose and invoke other skills; do none of the work. | No subagents, no loop. |
-| **C · Apply-with-a-gate** | The judgement is a *readiness check*; the action that follows is mechanical. | Inline. No subagents. The gate is the brake. |
+| **C · Apply-with-a-gate** | The judgement is a *readiness check*; the action that follows is mechanical. | Inline, with at most one executor. No planner, no verifier — the gate runs before the action rather than reviewing it after. |
 | **D · Authoring** | Produce a document someone will rely on. | Executor + verifier. **No planner** — when the deliverable *is* the plan or the analysis, a planning phase to plan it is a second copy of the work. |
 | **E · Implementation** | Write production code and tests against a plan. | Executor + verifier, with iteration. Unchanged. |
 
@@ -84,12 +84,19 @@ where the check is a gate that runs before the action, not a review after it.
 |---|---|---|
 | A | `setup`, `install-hooks`, `update`, `metrics`, `usage`, `handoff`, `test` | 0 → 0 (correct already) |
 | B | `ship`, `create-docs`, `project`, `release`, `run-e2e-tests` | 0 → 0 (correct already) |
-| C | `create-pr`, `create-ticket`, `merge-pr` | 9 → 0 |
+| C | `create-pr`, `create-ticket`, `merge-pr` | 9 → 3 |
 | D | `analyze-ticket`, `create-api-contract`, `create-architecture`, `create-design`, `create-e2e-tests`, `create-impl-plan`, `create-operations`, `create-prd`, `create-principles`, `create-project`, `create-quality`, `create-requirements`, `create-standards`, `create-test-docs`, `docs-sync`, `standardize-project` | 48 → 32 |
 | E | `code` | 2 → 2 |
 
-**59 agent files → 34.** Twenty-five removed: nine that their own skills already
+**59 agent files → 37.** Twenty-two removed: six that their own skills already
 forbid, sixteen planners for skills whose deliverable is the plan.
+
+The three class-C **executors stay.** Each of those skills says it delegates to
+"at most one executor", and that delegation is real work kept out of the
+coordinator's context. Only their planner and verifier are unreachable. An
+earlier draft of this ADR put class C at nine files removed and called the lot
+pure subtraction; that was wrong about the executors, and removing them would
+be a behaviour change owing a measurement rather than a deletion owing none.
 
 Classes A and B need no change at all — eleven skills were already the right
 shape. The redesign is not a rewrite of everything; it is the removal of
@@ -102,8 +109,8 @@ whose own prose says it is "retained for ONE release" — and removing it now
 would be a mistake. Released 0.4.9 ships `test` and has never shipped
 `run-e2e-tests`: the rename is still unreleased. Every existing user has
 `/acs:test` in their fingers and will meet the rename for the first time when
-0.4.10 lands. The alias is the migration path for the release *ahead*, not a
-leftover from one behind, and it is removed one release after 0.4.10, not
+0.5.0 lands. The alias is the migration path for the release *ahead*, not a
+leftover from one behind, and it is removed one release after 0.5.0, not
 before it.
 
 **The four doc legs keep their own agents for now.** `create-quality`,
@@ -114,6 +121,30 @@ Collapsing them onto one shared pair is a real further saving and a separate
 decision, because it trades per-leg specificity for uniformity — the same trade
 this ADR is undoing elsewhere, and it deserves its own evidence rather than
 momentum.
+
+## What this supersedes
+
+Five ADRs said one thing five times. **0077** (docs-sync), **0078**
+(create-project), **0079** (standardize-project), **0083** (the five
+bootstrap-doc skills) and **0084** (create-architecture, create-design,
+create-requirements) each decided that their family's remediation loop is
+*execute — verify only*: the plan is authored exactly once per run, before
+the loop starts, and later findings route to the executor rather than to a new
+plan. Eleven skills, one decision, restated per family because there was no
+place to state it once.
+
+This ADR states it once, for the authoring class, and follows it to its
+conclusion. A plan authored once and never revisited, for a skill whose
+deliverable *is* a document, is a first draft — and a first draft does not need
+its own agent, its own XML task contract and its own charter. Those five are
+superseded here.
+
+It also inherits a relocation. **0037**, **0038** and **0039** scoped a
+spec-time simplicity gate to `create-spec-planner`; ADR-0066 folded spec
+authoring into `/acs:code`, ADR-0089 moved that plan phase out to
+`/acs:create-impl-plan`, and the gate travelled with it. Removing
+`create-impl-plan`'s planner moves it once more — into the skill and its
+executor, which is where it lands rather than where it dies.
 
 ## Consequences
 
@@ -126,6 +157,7 @@ momentum.
 - **Each class lands as its own change, measured.** "Simpler is more reliable"
   is a claim, and this repo owns the instrument that tests it: tier 3 reports
   reliability, cost and time per skill, and since 2026-09-13 records the skill
-  sequence of every pipeline run. Class C is pure subtraction of unreachable
-  files and needs no measurement. Classes D and E change behaviour and are
-  measured before and after, or the simplification is just a different guess.
+  sequence of every pipeline run. The six class-C planner/verifier files are
+  unreachable, so deleting them is pure subtraction and needs no measurement.
+  Every other change here alters behaviour and is measured before and after, or
+  the simplification is just a different guess.

@@ -17,7 +17,7 @@ The fix
 Give the working tree a version no release can collide with, derived from the
 tree's own contents:
 
-    0.4.10-dev.<12 hex of a hash over every file under plugins/acs>
+    0.5.0-dev.<12 hex of a hash over every file under plugins/acs>
 
 Edit any byte of the plugin and the version changes, so the cache key changes,
 so a stale hit is impossible by construction rather than by remembering to
@@ -57,8 +57,10 @@ MARKETPLACE = "gms-marketplace"
 PLUGIN = "acs"
 KEY = "%s@%s" % (PLUGIN, MARKETPLACE)
 #: Dev versions sort BELOW this release, so a dev install never looks newer
-#: than a real one. Bump it when the next release is cut.
-NEXT_RELEASE = "0.4.10"
+#: than a real one. Bump it when the next release is cut. (0.4.10 was dropped
+#: in favour of 0.5.0 -- the skill-machinery and contract redesigns are too
+#: large for a patch number.)
+NEXT_RELEASE = "0.5.0"
 DEV_PREFIX = "%s-dev." % NEXT_RELEASE
 
 #: Directories whose contents say nothing about the plugin's behaviour.

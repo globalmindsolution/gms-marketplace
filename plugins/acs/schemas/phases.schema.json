@@ -26,6 +26,22 @@
       "additionalProperties": {"$ref": "#/$defs/skillName"},
       "default": {}
     },
+    "agents": {
+      "description": "{skill: [role, ...]}; the subagent roles that skill owns, per ADR-0092. A skill declares the machinery its work needs -- nothing is inferred from whether it is hooked, and a skill omitted here owns no subagents at all. A planner appears only where planning and doing are genuinely separate work, which for a skill whose deliverable IS a plan or an analysis they are not.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/skillName"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "enum": ["planner", "executor", "verifier"]
+        }
+      },
+      "default": {}
+    },
     "internal": {
       "description": "{internal-leg: entry-point}; the leg keeps its SKILL.md, agents, hooks and gate and stays Skill-invocable, but the entry point is the only user-facing command for it.",
       "type": "object",

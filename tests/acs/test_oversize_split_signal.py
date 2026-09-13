@@ -82,11 +82,11 @@ class PlanPlannerOversizeSignalTest(unittest.TestCase):
         cls.item2 = cls.body[start:end]
 
     def test_rubric_numbers_present(self):
-        """Assertion 1: reuses create-ticket-planner.md's ~4/~400/~7 rubric."""
+        """Assertion 1: reuses create-ticket/SKILL.md's ~4/~400/~7 rubric."""
         self.assertIn("~4", self.item2)
         self.assertIn("~400", self.item2)
         self.assertIn("~7", self.item2)
-        self.assertIn("create-ticket-planner.md", self.item2)
+        self.assertIn("create-ticket/SKILL.md", self.item2)
 
     def test_surface_never_block_contract(self):
         """Assertion 1 / C-5: the signal surfaces, it never blocks."""

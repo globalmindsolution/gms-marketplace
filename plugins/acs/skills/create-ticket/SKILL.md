@@ -180,6 +180,20 @@ signal, ADR 0069), this run restructures instead of creating:
   `needs_design` becomes `true` (epics always — an existing approved design in
   the partition counts as that design); children are cut at the analysis' seams,
   each sized to ONE reviewable PR and independently shippable.
+
+### The sizing rubric
+
+**One story or task must equal ONE reviewable PR.** The ticket is the PR
+boundary — all of its work lands on one branch — so size it for review,
+grounded in a survey of the codebase: as a rule of thumb a story or task
+should need roughly **≤400 changed lines**, touch **one concern**, and carry
+**≤~7 acceptance criteria**. Estimate the expected diff surface (the
+modules and files the survey turned up) and state it. Above the bar —
+recommend `epic` and cut children at PR-sized seams: by layer, by endpoint,
+by migration versus consumer, behind a feature flag when a slice alone would
+break the build. Never propose one mega-story because decomposition is
+tedious.
+
 - The executor rewrites `ticket.json` (type `epic`, `children` filled) and
   mints each child with `new-ticket.py --parent <id>` — using Step 4's mint
   command block and conservative-defaults rule (below); when tracker sync is on,
