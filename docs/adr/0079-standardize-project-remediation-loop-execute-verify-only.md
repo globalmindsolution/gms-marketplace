@@ -12,7 +12,7 @@ already extended to `/acs:docs-sync` (MAR-300) and `/acs:create-project`
 (MAR-301). `/acs:standardize-project` is different from those two mechanical
 mirrors, though: its verifier enforces additive-only diffs against an
 **allowlist the planner itself produces** (`classify_additive_diff` in
-`acs_lib.py`, per spec 01 and `SKILL.md`'s Additive-surface contract). Simply
+`acs_lib/lanes.py`, per spec 01 and `SKILL.md`'s Additive-surface contract). Simply
 removing the per-iteration planner re-spawn and routing iteration-2/3
 verifier findings straight to the executor would risk implicitly widening
 what the executor is allowed to touch — a finding naming a path outside the
@@ -52,7 +52,7 @@ explicitly and narrowly:
 - `dimension="additive-only"` and `dimension="doc-set-authorship"` findings
   remain **always blocking** — no change, no carve-out touches these two.
 - Dimension 4's second clause, "no unplanned extra scaffold file" — the sole
-  gate on an `A`-status unplanned file (`acs_lib.py:309-310`), and therefore
+  gate on an `A`-status unplanned file (`acs_lib/lanes.py`), and therefore
   the AC-4 gate itself — remains **always blocking**.
 - `dimension="recommended-follow-ups-only"` and
   `dimension="completion-report-shape"` findings remain **always blocking**.
@@ -111,7 +111,7 @@ close, the trust gap.**
   `additive-only`/`doc-set-authorship` — is unchanged: the verifier
   re-runs `git diff --name-status` independently every iteration, never
   trusting the executor's self-report.
-- **`classify_additive_diff` (`acs_lib.py:294-325`) is untouched** — the
+- **`classify_additive_diff` (`acs_lib/lanes.py`) is untouched** — the
   additive-only diff-status enforcement itself is not this ADR's subject; it
   is independently re-run every iteration exactly as before.
 - **ADR-0063's reversal for `audience-style` stands untouched.** ADR-0079

@@ -1,4 +1,4 @@
-"""Behavior tests for acs_lib.py's settings validation/resolution and repo-identity helpers.
+"""Behavior tests for acs_lib's settings validation/resolution and repo-identity helpers.
 
 Originating ticket: MAR-173. slugify's fallback/truncation arms, write_json's
 serialization-failure unlink, _git's OSError-to-None fallback, main_repo_root's

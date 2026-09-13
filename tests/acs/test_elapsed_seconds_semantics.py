@@ -116,7 +116,7 @@ class TestSharedPrimitiveStructural(unittest.TestCase):
 
 
 class TestUpdateMetricsNoneGuard(unittest.TestCase):
-    """acs_lib.py:1561's int(...) + run_seconds(...) must not raise TypeError on None."""
+    """acs_lib/metrics.py's int(...) + run_seconds(...) must not raise TypeError on None."""
 
     def test_update_metrics_does_not_raise_on_none_elapsed_run(self):
         import shutil

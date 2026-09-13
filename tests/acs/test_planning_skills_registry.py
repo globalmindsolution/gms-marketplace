@@ -4,7 +4,7 @@ Originating ticket: MAR-77. `create-design` moves out of `WORKFLOW_SKILLS`
 into a new `PLANNING_SKILLS` list; `HOOKED_SKILLS` becomes the explicit
 three-way concatenation `PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS`
 so every existing `HOOKED_SKILLS` consumer (dispatch.py, skill-start.py,
-clarify.py, metrics_aggregate.py, handoff.py, acs_lib.py's own GATES/
+clarify.py, metrics_aggregate.py, handoff.py, acs_lib's own GATES/
 compute_ticket_totals/session-end sweep) keeps seeing `create-design` with
 no code change of its own. `metrics_render.py`'s coverage of the same
 invariant is not duplicated here — see

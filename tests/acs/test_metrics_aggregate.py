@@ -5,7 +5,7 @@ PURE aggregate(workspace, repo_id) -> dict function against workspaces synthesiz
 tempfile.TemporaryDirectory mirroring the live archive/MAR-6 artifact shapes (spec 01:199-246,
 design.md:182-202). Every test maps to an AC; field-by-field assertions.
 
-The helper module lives beside acs_lib.py; we add that scripts dir to sys.path and import it the
+The helper module lives beside the acs_lib package; we add that scripts dir to sys.path and import it the
 same way the other hooks/scripts do (they share the directory).
 """
 

@@ -1,4 +1,4 @@
-"""Behavior tests for acs_lib.py's hook entry points and post-merge lifecycle
+"""Behavior tests for acs_lib's hook entry points and post-merge lifecycle
 helpers.
 
 Originating ticket: MAR-173. run_pre's malformed-stdin fallback, tracker-warning

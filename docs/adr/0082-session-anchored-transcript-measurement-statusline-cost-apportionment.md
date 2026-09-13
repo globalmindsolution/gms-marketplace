@@ -7,7 +7,7 @@
 `acs`'s cost/time tracking had two independent defects, both instances of the
 same bug: "unknown" was rendered as "zero."
 
-1. **Time.** `run_seconds(entry)` (`plugins/acs/hooks/scripts/acs_lib.py`)
+1. **Time.** `run_seconds(entry)` (`plugins/acs/hooks/scripts/acs_lib/metrics.py`)
    returned `0` for a run with no `ended_at` (in-progress) or an invalid
    interval, and `compute_ticket_totals` summed that `0` into
    `totals.working_seconds` while still incrementing `totals.runs` — so an
@@ -383,7 +383,7 @@ This decision rests on five Claude Code interfaces that are **not a published
 contract**: hook-envelope fields, the transcript JSONL record shape,
 `attributionSkill`/`attributionAgent`, the subagent transcript directory
 layout, and the statusLine payload keys. They were spelled out independently in
-five scripts (`usage_reader.py`, `cost_sampler.py`, `acs_lib.py`,
+five scripts (`usage_reader.py`, `cost_sampler.py`, `acs_lib/`,
 `statusline.py`, `subagent-statusline.py`), so an upstream rename broke
 measurement in five places, each degrading its own way.
 

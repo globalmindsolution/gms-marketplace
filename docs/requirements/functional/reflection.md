@@ -138,7 +138,7 @@ Requirements:
   one exception is a user-confirmed de-escalation (MAR-108), offered only at
   an iteration or run boundary, never mid-iteration, requiring an explicit
   `AskUserQuestion` confirmation recorded via `clarify.py` before the
-  dedicated `confirm_deescalation` writer (`acs_lib.py`) is called with that
+  dedicated `confirm_deescalation` writer (`acs_lib/state.py`) is called with that
   ledger reference. `confirm_deescalation` is unreachable without a resolved,
   answered `clarify_ref`, and every such drop is durably audited exactly like
   an upward event (`direction: "down"`, non-null `confirmation_ref`) — no

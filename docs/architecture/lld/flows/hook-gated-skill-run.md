@@ -170,7 +170,7 @@ The iteration ceiling for the reflection loop is **lane-driven**:
   rounds (MAR-71, slice 1b of MAR-69).
 
 The ceiling is determined by `verify_depth(ticket.lane, ticket.stakes)` in
-`acs_lib.py` (see `VERIFY_ITERATION_CAP`). High-stakes tickets ALWAYS use full
+`acs_lib/lanes.py` (see `VERIFY_ITERATION_CAP`). High-stakes tickets ALWAYS use full
 verify regardless of size (stakes floor; AC-2).
 
 This initial ceiling is the **starting** value only. At the start of each

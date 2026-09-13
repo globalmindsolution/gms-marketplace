@@ -46,7 +46,7 @@ across all active and `archive/` ticket partitions and sets
 produces the identical result.
 
 This decision is recorded in `MAR-8/design.md` lines 307-322 and 677-681, and
-implemented in `plugins/acs/hooks/scripts/acs_lib.py` (MAR-13 spec 01).
+implemented in `plugins/acs/hooks/scripts/acs_lib/` (MAR-13 spec 01).
 
 ## Consequences
 

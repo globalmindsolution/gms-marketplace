@@ -62,7 +62,7 @@ amendment should reconcile the two.
   be kept in sync by hand with `code/SKILL.md`'s plan contract — they are a
   duplicated, not derived, mirror.
 - The predicate deliberately *mirrors* `structure_lint`'s heading-scan and
-  ambiguous-name safeguard rather than importing it, so `acs_lib.py` stays
+  ambiguous-name safeguard rather than importing it, so `acs_lib/` stays
   import-free and pure (no first-import disk touch). A future change to
   `structure_lint`'s semantics does not automatically propagate here.
 - An ineligible plan is visible (the script prints its failing checks) but

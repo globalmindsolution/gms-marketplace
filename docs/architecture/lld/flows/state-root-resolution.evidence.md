@@ -5,4 +5,4 @@ Companion `.evidence.md` file for
 code-evidence citation, keyed by the body's existing heading identity ->
 `[path:line]`.
 
-- Intro — `default_state_root(cwd)` helper: `acs_lib.py:709-745`
+- Intro — `default_state_root(cwd)` helper: `acs_lib/repo.py`
