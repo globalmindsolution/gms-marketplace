@@ -319,6 +319,21 @@ fixed in the runner rather than the dataset:
   `--plugin-dir`; the same stray `cd` finds no `.acs/settings.json` above
   it, and `skill-start.py` refuses where it used to write elsewhere.
 
+- **Setup budgets are per prompt, and sized to the slowest predecessor.**
+  `/acs:analyze-ticket` took 780-840s on the two-line seeded ticket across
+  the 2026-09-14 gate runs and over 900s once, which left a PIPE-code run
+  unmeasured for nothing `/acs:code` did. Scenario set 1.10.0 gives each
+  setup prompt of the code scenarios 1800s.
+
+What the same gate found in the plugin, and what changed: of the two
+measured SMALL-lane `/acs:code` runs one failed at the light lane's
+iteration cap on a single coverage finding — the executor had topped up
+coverage by appending manual CLI invocations, the verifier re-measured from
+the suite and found 44%, and a cap of 1 gave the executor no round to fix
+it. ADR-0034 was amended: light is 2 execute→verify rounds (the pass plus
+the one iteration on findings it always described), and the executor's
+charter says how coverage is measured.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

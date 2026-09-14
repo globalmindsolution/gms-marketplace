@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.9.0",
+  "scenario_set_version": "1.10.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -49,12 +49,12 @@
           "time",
           "quality"
         ],
-        "why": "The dominant cost centre — plan/execute/verify with up to three iterations. This is the scenario whose cost and iteration count a release most plausibly regresses, and the only one that yields verify-iteration and coverage signal. 1.7.0: the prompt names the skill and the setup runs its two gated predecessors. The 1.0.0-1.6.0 prompt (\"TKT-1 is ready to implement. Please implement it.\") routed to /acs:ship, whose first step on a fresh ticket is /acs:analyze-ticket — the session then stopped, /acs:code never ran, and both 2026-09-14 diagnostic runs exited clean with no code ledger at all. This scenario measures /acs:code's body, not the routing decision (that is ROUTE-code's job), so it now states the invocation and brings the sandbox to the state /acs:code's gate requires: an analysed ticket with a plan. 1.8.0: `ticket_patch` gives the profile's TKT-1 a description and acceptance criteria — the profile mints it with the bare title `Add user login` (pinned by tier 1's goldens), and on 2026-09-14 both /acs:analyze-ticket setups concluded such a ticket is not ready for planning (five open questions, no code to ground it in), so /acs:create-impl-plan asked and stopped, and both runs were unmeasured. The patch is what a real ticket carries; the scenario measures /acs:code, not analyze-ticket's judgement of an empty ticket.",
+        "why": "The dominant cost centre — plan/execute/verify with up to three iterations. This is the scenario whose cost and iteration count a release most plausibly regresses, and the only one that yields verify-iteration and coverage signal. 1.7.0: the prompt names the skill and the setup runs its two gated predecessors. The 1.0.0-1.6.0 prompt (\"TKT-1 is ready to implement. Please implement it.\") routed to /acs:ship, whose first step on a fresh ticket is /acs:analyze-ticket — the session then stopped, /acs:code never ran, and both 2026-09-14 diagnostic runs exited clean with no code ledger at all. This scenario measures /acs:code's body, not the routing decision (that is ROUTE-code's job), so it now states the invocation and brings the sandbox to the state /acs:code's gate requires: an analysed ticket with a plan. 1.8.0: `ticket_patch` gives the profile's TKT-1 a description and acceptance criteria — the profile mints it with the bare title `Add user login` (pinned by tier 1's goldens), and on 2026-09-14 both /acs:analyze-ticket setups concluded such a ticket is not ready for planning (five open questions, no code to ground it in), so /acs:create-impl-plan asked and stopped, and both runs were unmeasured. The patch is what a real ticket carries; the scenario measures /acs:code, not analyze-ticket's judgement of an empty ticket. 1.10.0: each setup prompt gets 1800s. The budget is per prompt, and /acs:analyze-ticket alone took 780-840s on this two-line ticket across the 2026-09-14 gate runs and 900s+ once, which unmeasured a run for nothing the skill under test did.",
         "setup_prompts": [
           "/acs:analyze-ticket TKT-1",
           "/acs:create-impl-plan TKT-1"
         ],
-        "setup_timeout_seconds": 900,
+        "setup_timeout_seconds": 1800,
         "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('create-impl-plan') or {}).get('status') == 'completed' else 1)\""
       },
       {
@@ -97,12 +97,12 @@
           "time",
           "quality"
         ],
-        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that. 1.7.0: explicit invocation and gated-predecessor setup, as for PIPE-code.",
+        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that. 1.7.0: explicit invocation and gated-predecessor setup, as for PIPE-code. 1.10.0: 1800s per setup prompt, as for PIPE-code \u2014 analyze-ticket on the app ticket has more to read than on the seeded one.",
         "setup_prompts": [
           "/acs:analyze-ticket TKT-1",
           "/acs:create-impl-plan TKT-1"
         ],
-        "setup_timeout_seconds": 900,
+        "setup_timeout_seconds": 1800,
         "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('create-impl-plan') or {}).get('status') == 'completed' else 1)\""
       },
       {

@@ -354,7 +354,8 @@ growth path.
      also never spawned — the coordinator authors `plan.md` directly, against the
      same artifact contract; **light
      verify**: a single verifier pass that may iterate at most **once** on
-     blocking findings (`VERIFY_ITERATION_CAP["light"] = 1`). The verifier
+     blocking findings (`VERIFY_ITERATION_CAP["light"] = 2` execute→verify
+     rounds, ADR-0034 as amended 2026-09-14). The verifier
      still gates; there is no human-approval gate.
   2. **SMALL** (small size, not high stakes) — same fast-lane fold and **light
      verify** (1-iteration cap) as TRIVIAL.
@@ -789,8 +790,9 @@ its own mechanisms (acs via stdlib Python + hooks; future plugins via their own 
   subagent is the **in-loop quality gate on every lane** — it always runs; the
   human-in-the-loop checkpoint is the PR review, not an inline approval. What
   scales with the lane is **verify depth**, not whether the verifier runs:
-  `verify_depth(size, stakes)` returns `light` (a single verifier pass, iteration
-  cap 1) for TRIVIAL/SMALL low/normal-stakes tickets and `full` (the up-to-3
+  `verify_depth(size, stakes)` returns `light` (a single verifier pass plus at
+  most one iteration on its findings — cap 2) for TRIVIAL/SMALL low/normal-stakes
+  tickets and `full` (the up-to-3
   iteration loop + 16-dimension, multi-lens review + e2e when configured) for
   STANDARD/COMPLEX and **all** high-stakes tickets. The code TDD/coverage gate
   **always** runs in full in every lane and is never trimmed by depth selection.

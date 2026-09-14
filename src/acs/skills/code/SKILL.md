@@ -182,7 +182,10 @@ check described in the next section — it is never lowered):
 2. Call `verify_depth(ticket.lane, ticket.stakes)` (defined in `acs_lib/lanes.py`)
    to obtain `"light"` or `"full"`.
 3. Set the reflection-loop iteration ceiling from `VERIFY_ITERATION_CAP[depth]`:
-   - `"light"` (TRIVIAL/SMALL at low/normal stakes) → ceiling = **1** iteration.
+   - `"light"` (TRIVIAL/SMALL at low/normal stakes) → ceiling = **2** iterations
+     — the single pass plus at most one iteration on blocking findings
+     (ADR-0034 decision 3; a cap of 1 left no round to fix what the verifier
+     found).
    - `"full"` (STANDARD/COMPLEX, or any high-stakes) → ceiling = **3** iterations.
 4. When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
    conservatively to `"full"` (mirrors `verify_depth`'s own default).
@@ -395,7 +398,7 @@ user-confirmed, boundary-gated sequence, and `confirm_deescalation` cannot be
 reached without a resolved, answered `clarify_ref`.
 
 Run execute -> verify for at most verify_depth-determined iterations
-(light: cap 1; full: cap 3). There is no plan phase and **no planner subagent
+(light: cap 2; full: cap 3). There is no plan phase and **no planner subagent
 in any lane**: `/acs:create-impl-plan` authored the plan before this skill
 started, and this run reads it (Plan input resolution). The lane read for the
 depth fork is the SAME freshly recomputed `derive_lane(...)` value used at

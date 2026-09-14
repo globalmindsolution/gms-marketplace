@@ -93,3 +93,25 @@ Implement D4 (C-9, design.md:59-63, 255-276): **lane-driven verify depth**.
   as the new standing behavioral contract.
 - `docs/architecture/lld/flows/hook-gated-skill-run.md` updated with prose
   annotation describing the lane-driven depth.
+
+## Amendment — light = 2 execute→verify rounds (2026-09-14)
+
+Decision 3 says light verify "may iterate **at most once** on blocking
+findings". When this ADR was written an iteration was a plan→execute→verify
+triad, and the MAR-71 amendment (above) redefined it as one execute→verify
+round without revisiting the cap value. Under that definition a cap of 1 is
+the single pass with **no** iteration on findings: the first blocking finding
+ends the run `failed`, and the executor never sees it. The 2026-09-14 release
+gate measured exactly that — of two measured SMALL-lane `/acs:code` runs, one
+failed at the cap on a single coverage finding (the executor had topped up
+coverage by appending manual CLI invocations; the verifier re-measured from
+the suite and found 44%), a finding one remediation round fixes.
+
+`VERIFY_ITERATION_CAP["light"]` is therefore **2**: the pass decision 3
+describes plus the one iteration it allows. Nothing else moves — full stays
+at 3, high stakes still force full, the TDD/coverage gate is untouched, and
+the verifier remains the gate in every lane. "Cap 2 for light" was listed
+under Alternatives as offering no quality advantage; that judgement predates
+the MAR-71 redefinition and is withdrawn for the round-based count. The same
+correction was already applied to `/acs:create-impl-plan`'s fast lane under
+ADR-0074 (one revision of the coordinator's draft).

@@ -92,7 +92,13 @@ never quietly do code work under a docs-only ticket.
    - Match the existing style of the files you touch.
    - Only remove orphans your own change created; do not remove pre-existing
      dead code — mention it in the execute-report `problems` field instead.
-3. **Measure coverage** with the repo's own tooling against `coverage_target`.
+3. **Measure coverage** with the repo's own tooling against `coverage_target`
+   — one instrumented run of the test suite, the same measurement the
+   verifier repeats. A path reached only through a subprocess (a CLI the
+   tests spawn) is uncovered until a test reaches it in-process; never top
+   the number up by appending manual invocations to the data file, since
+   the verifier re-measures from the suite alone and the gap is a blocking
+   finding.
    If the target genuinely cannot be reached (e.g. untestable generated code),
    record the achieved number and the concrete reason — never pad with
    meaningless tests and never lower the bar yourself; the coordinator owns the

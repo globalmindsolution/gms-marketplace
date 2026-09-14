@@ -2736,8 +2736,11 @@ class TestVerifyDepth(unittest.TestCase):
 
     # --- iteration-cap constant values (AC-3/AC-4/AC-7) ---
 
-    def test_cap_light_is_1(self):
-        self.assertEqual(lib.VERIFY_ITERATION_CAP["light"], 1)
+    def test_cap_light_is_2(self):
+        # The single pass plus at most one iteration on blocking findings
+        # (ADR-0034 decision 3, amended 2026-09-14: a cap of 1 left no round
+        # to fix what the verifier found).
+        self.assertEqual(lib.VERIFY_ITERATION_CAP["light"], 2)
 
     def test_cap_full_is_3(self):
         self.assertEqual(lib.VERIFY_ITERATION_CAP["full"], 3)
@@ -3749,7 +3752,7 @@ class TestInLoopEscalation(AcsWorkspaceCase):
         function's output."""
         ticket = self._ticket
         prior_ceiling = lib.VERIFY_ITERATION_CAP[lib.verify_depth(ticket["lane"], ticket["stakes"])]
-        self.assertEqual(prior_ceiling, 1)  # SMALL/normal -> light -> 1
+        self.assertEqual(prior_ceiling, 2)  # SMALL/normal -> light -> 2
 
         new_lane, new_depth, new_ceiling = lib.escalate_lane(
             ticket["lane"], "standard", "normal",
@@ -3875,7 +3878,7 @@ class TestRecordEscalationEvent(AcsWorkspaceCase):
             "to_stakes": "high",
             "trigger": "b",
             "source": "recommend_stakes: matched auth/session.py against high_stakes_paths",
-            "ceiling_before": 1,
+            "ceiling_before": 2,
             "ceiling_after": 3,
             "direction": "up",
             "confirmation_ref": None,

@@ -1313,7 +1313,8 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded
   into `/create-impl-plan`'s plan by the plan's author, on EVERY lane. The
-  TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
+  TDD/coverage hard-fail and verifier-as-gate (light cap 2 — one pass plus
+  one remediation round, ADR-0034 as amended 2026-09-14; no inline human
   gate) are preserved unchanged in every lane.
 - Subagents: `code-executor`, `code-verifier`. `/code` ships **no planner**:
   the plan phase and `code-planner.md` moved to `/create-impl-plan` (§2b),

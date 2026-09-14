@@ -80,9 +80,10 @@ Requirements:
   lane-conditional executor — each runs a fixed iteration cap of 3 in every
   lane; only `/acs:code`'s cap is lane-driven (below).
   - The cycle runs at most **lane-driven iterations**:
-    - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **1 iteration** (light
-      verify — single verifier pass that may iterate once on blocking findings;
-      cap = `VERIFY_ITERATION_CAP["light"]` = 1).
+    - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **2 iterations** (light
+      verify — the single verifier pass plus at most one iteration on blocking
+      findings; cap = `VERIFY_ITERATION_CAP["light"]` = 2, ADR-0034 as amended
+      2026-09-14 — a cap of 1 left no round to fix what the verifier found).
     - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
       **3 iterations** (full verify — execute → verify loop against the plan
       `/acs:create-impl-plan` approved before it starts, never a
@@ -115,7 +116,7 @@ Requirements:
   explicit user/agent request), the coordinator recomputes the ceiling via
   `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raises the
   in-flight ceiling **monotonically** — it is never lowered. A ticket that
-  starts at a TRIVIAL/SMALL ceiling (1 iteration) and escalates to
+  starts at a TRIVIAL/SMALL ceiling (2 iterations) and escalates to
   STANDARD/COMPLEX (3 iterations) immediately acquires the full 3-iteration
   ceiling for all remaining iterations. The absolute invariants above (verifier
   always runs in every lane; TDD/coverage gate immutable in every lane) hold

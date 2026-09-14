@@ -550,7 +550,7 @@ fourteen skills that run an execute → verify loop (the twelve authoring
 skills, `/acs:code` and `/acs:create-docs`) report it.
 
 `<cap>` is a constant **3** for thirteen of those fourteen. Only `/acs:code`
-derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 1 on light depth
+derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 2 on light depth
 and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
 
 **Sanctioned substitutions.** A skill that runs without a ticket drops

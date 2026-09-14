@@ -80,7 +80,12 @@ def verify_depth(lane, stakes):
     return "full"
 
 
-VERIFY_ITERATION_CAP: dict = {"light": 1, "full": 3}
+#: Execute -> verify rounds per depth. Light is the single pass plus at most
+#: one iteration on blocking findings (ADR-0034 decision 3, as amended
+#: 2026-09-14): a cap of 1 gave a light-lane run no round in which to fix
+#: what its verifier found, and the release-gate measurement lost one run in
+#: two to a single fixable coverage finding.
+VERIFY_ITERATION_CAP: dict = {"light": 2, "full": 3}
 
 
 # ---------------------------------------------------------------------------

@@ -198,6 +198,18 @@ the notes.
   what the analysis skill already promised, and what a headless run (a
   measurement, an unattended `/acs:ship`) needs to get past the step at all.
   The 2026-09-14 PIPE-code diagnostic lost its second run to exactly this.
+- **`/acs:code`'s light lane gets one remediation round (ADR-0034 amended).**
+  `VERIFY_ITERATION_CAP["light"]` is 2 execute→verify rounds: the single
+  verifier pass the ADR describes plus the one iteration on blocking findings
+  it allows. Since MAR-71 redefined an iteration as an execute→verify round,
+  the old cap of 1 was the pass with no iteration — the first blocking
+  finding ended a TRIVIAL/SMALL run `failed` and the executor never saw it.
+  The 2026-09-14 release gate lost one of two measured SMALL-lane runs to a
+  single coverage finding this way. Full stays at 3, high stakes still force
+  full, and the TDD/coverage gate is untouched. The code executor's charter
+  now also says how coverage is measured: one instrumented run of the test
+  suite, the same measurement the verifier repeats — never topped up by
+  appending manual CLI invocations to the data file.
 
 ### Deprecated
 

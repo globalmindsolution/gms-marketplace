@@ -117,8 +117,8 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
             self.window_norm,
             r"(?i)not.{0,60}(triad|plan\W{0,4}execute\W{0,4}verify)")
 
-    def test_cap_values_unchanged_light_one_full_three(self):
-        self.assertIn("ceiling = **1** iteration", self.window)
+    def test_cap_values_light_two_full_three(self):
+        self.assertIn("ceiling = **2** iterations", self.window)
         self.assertIn("ceiling = **3** iterations", self.window)
 
 

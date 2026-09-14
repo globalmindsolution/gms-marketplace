@@ -83,7 +83,7 @@
       "expect": {
         "exit_code": 0,
         "stdout_json": {
-          "ceiling": 1,
+          "ceiling": 2,
           "depth": "light",
           "lane": "TRIVIAL",
           "rank": 0
@@ -106,7 +106,7 @@
       "expect": {
         "exit_code": 0,
         "stdout_json": {
-          "ceiling": 1,
+          "ceiling": 2,
           "depth": "light",
           "lane": "TRIVIAL",
           "rank": 0
@@ -152,7 +152,7 @@
       "expect": {
         "exit_code": 0,
         "stdout_json": {
-          "ceiling": 1,
+          "ceiling": 2,
           "depth": "light",
           "lane": "SMALL",
           "rank": 1
@@ -175,7 +175,7 @@
       "expect": {
         "exit_code": 0,
         "stdout_json": {
-          "ceiling": 1,
+          "ceiling": 2,
           "depth": "light",
           "lane": "SMALL",
           "rank": 1
@@ -360,7 +360,7 @@
       "expect": {
         "exit_code": 0,
         "stdout_json": {
-          "ceiling": 1,
+          "ceiling": 2,
           "depth": "light",
           "lane": "SMALL",
           "rank": 1
