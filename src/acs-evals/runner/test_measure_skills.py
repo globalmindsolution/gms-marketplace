@@ -849,6 +849,29 @@ class AlreadyMeasuredTest(unittest.TestCase):
         self.assertIsNone(self._reuse(None))
 
 
+class SelectScenariosTest(unittest.TestCase):
+
+    SET = {"scenario_set_version": "1.6.0",
+           "pipeline": {"runs_per_scenario": 3,
+                        "scenarios": [{"id": "PIPE-code"},
+                                      {"id": "PIPE-code-app"},
+                                      {"id": "PIPE-docs-sync"}]}}
+
+    def test_a_glob_selects_and_the_original_is_untouched(self):
+        got = measure_skills.select_scenarios(self.SET, "PIPE-code*")
+        self.assertEqual([s["id"] for s in got["pipeline"]["scenarios"]],
+                         ["PIPE-code", "PIPE-code-app"])
+        self.assertEqual(got["pipeline"]["runs_per_scenario"], 3)
+        self.assertEqual(len(self.SET["pipeline"]["scenarios"]), 3,
+                         "the hashes come from the full set, which must "
+                         "survive the selection")
+
+    def test_an_exact_id_selects_one(self):
+        got = measure_skills.select_scenarios(self.SET, "PIPE-code")
+        self.assertEqual([s["id"] for s in got["pipeline"]["scenarios"]],
+                         ["PIPE-code"])
+
+
 class BuildRecordTest(unittest.TestCase):
 
     def test_a_measurement_names_its_build_by_content(self):

@@ -267,6 +267,20 @@ def already_measured(doc, build, hashes, scope):
                doc.get("generated_at", "?")))
 
 
+def select_scenarios(scenarios, pattern):
+    """A copy of `scenarios` keeping only the pipeline scenarios whose id
+    matches `pattern` (a glob). The original is untouched, because the
+    experiment's hashes are taken from the full set: a diagnostic run of one
+    scenario is a subset of the experiment, not a different one."""
+    import fnmatch
+    conf = dict(scenarios["pipeline"])
+    conf["scenarios"] = [s for s in conf["scenarios"]
+                         if fnmatch.fnmatch(s["id"], pattern)]
+    out = dict(scenarios)
+    out["pipeline"] = conf
+    return out
+
+
 def read_json(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -1041,6 +1055,9 @@ def main():
                     help="override runs per probe (1 is cheap and NOISY — a "
                          "single run cannot satisfy the routing decision rule)")
     ap.add_argument("--probe", default=None, help="glob-filter routing probes")
+    ap.add_argument("--scenario", default=None,
+                    help="glob-filter pipeline scenarios (a diagnostic: the "
+                         "measurement is marked incomplete)")
     ap.add_argument("--checkpoint", default=None,
                     help="where paid records land as they complete, so an "
                          "interrupted run resumes instead of re-spending "
@@ -1057,10 +1074,16 @@ def main():
         scenarios = json.load(fh)
     with open(ROUTING) as fh:
         all_probes = json.load(fh)["probes"]
+    # The experiment's identity is the FULL set, whatever subset this run
+    # exercises: a filtered run is a diagnostic of the experiment, not a
+    # different experiment.
+    hashes = set_hashes(scenarios, all_probes)
     probes = all_probes
     if args.probe:
         import fnmatch
         probes = [p for p in probes if fnmatch.fnmatch(p["id"], args.probe)]
+    if args.scenario:
+        scenarios = select_scenarios(scenarios, args.scenario)
 
     print(plan(scenarios, probes, args.routing_only, args.pipeline_only,
                args.runs))
@@ -1089,13 +1112,13 @@ def main():
     # A run declares its scope up front -- full, routing, or pipeline.
     scope = ("routing" if args.routing_only
              else "pipeline" if args.pipeline_only else "full")
-    hashes = set_hashes(scenarios, all_probes)
 
     # The same build, the same experiment, already measured to completion:
     # there is nothing left to learn from spending again, so the run does
-    # not. A probe filter or a runs override is a diagnostic, never a
-    # measurement, and always spends; --force re-measures on purpose.
-    if not args.force and not args.probe and args.runs is None:
+    # not. A probe or scenario filter or a runs override is a diagnostic,
+    # never a measurement, and always spends; --force re-measures on purpose.
+    if (not args.force and not args.probe and not args.scenario
+            and args.runs is None):
         reason = already_measured(read_json(args.out), build, hashes, scope)
         if reason:
             print("%s: %s.\nnothing to spend -- judge it with: python3 "
@@ -1154,7 +1177,7 @@ def main():
                          else len(scenarios["pipeline"]["scenarios"]))
     incomplete = (len(records) != expected_routing + expected_pipeline
                   or any(r["aggregate"]["runs"] == 0 for r in records)
-                  or bool(args.probe))
+                  or bool(args.probe) or bool(args.scenario))
 
     doc = {
         "schema": "acs-evals/measurement/1",
