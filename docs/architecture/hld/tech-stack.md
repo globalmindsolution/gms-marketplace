@@ -28,4 +28,4 @@
   on PATH is the only assumption.
 - **Docs altitude**: requirements (`docs/0*.md`) → PRD (`docs/product/`) →
   this doc set (`docs/architecture/`) → implementation contract
-  (`plugins/acs/docs/INTERNALS.md`) → authoring standard (`AUTHORING.md`).
+  (`src/acs/docs/INTERNALS.md`) → authoring standard (`AUTHORING.md`).

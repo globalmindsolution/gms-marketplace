@@ -22,8 +22,8 @@ from tempfile import TemporaryDirectory
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
-HOOKS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-SHIP_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "ship", "SKILL.md")
+HOOKS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SHIP_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "ship", "SKILL.md")
 
 sys.path.insert(0, TESTS_ACS)
 sys.path.insert(0, HOOKS_DIR)

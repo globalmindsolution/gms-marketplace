@@ -25,10 +25,10 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PRD = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
-SETTINGS_SCHEMA = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-DOCS_SYNC_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md")
-CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "SKILL.md")
-SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+SETTINGS_SCHEMA = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+DOCS_SYNC_EXECUTOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md")
+CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "SKILL.md")
+SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
 
 
 def read(path):

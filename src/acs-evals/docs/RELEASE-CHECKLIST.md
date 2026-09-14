@@ -18,7 +18,7 @@ yourself first is how you find out before the cut does.
 
       ```bash
       cd src/acs-evals
-      export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs
+      export ACS_PLUGIN_ROOT=$PWD/../../src/acs
       make gate
       ```
 

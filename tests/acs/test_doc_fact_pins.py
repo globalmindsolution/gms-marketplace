@@ -15,9 +15,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 ROADMAP = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
-ACS_README = os.path.join(REPO_ROOT, "plugins", "acs", "README.md")
-SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
-sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+ACS_README = os.path.join(REPO_ROOT, "src", "acs", "README.md")
+SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 
 import acs_lib as lib  # noqa: E402
 
@@ -57,7 +57,7 @@ class RoadmapSpecTemplateRetirementTest(unittest.TestCase):
 
 
 class ReadmeSkillCountPinTest(unittest.TestCase):
-    """AC-2: plugins/acs/README.md's skill-table heading is pinned against
+    """AC-2: src/acs/README.md's skill-table heading is pinned against
     the on-disk skill directory count, never a hardcoded literal.
 
     The design-phase entry-point fold moved the row half of this pin with the
@@ -129,7 +129,7 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
     """
 
     STRATEGY = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
-    SKILLS = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+    SKILLS = os.path.join(REPO_ROOT, "src", "acs", "skills")
 
     def _carriers(self):
         found = set()
@@ -333,14 +333,14 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
 
     `acs_lib.py` became the package `acs_lib/`, and 47 files went on citing the
     vanished file -- some with line numbers into it. Nothing caught that either.
-    Any reference to a path under plugins/acs/hooks/scripts must resolve, unless
+    Any reference to a path under src/acs/hooks/scripts must resolve, unless
     it is listed below as a deliberate mention of history.
     """
 
-    SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+    SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
     #: (path, needle) -> why this mention of a non-existent file is correct.
     ALLOWED = {
-        ("plugins/acs/CHANGELOG.md", "acs_lib.py"):
+        ("src/acs/CHANGELOG.md", "acs_lib.py"):
             "a changelog records what past releases did; rewriting it would falsify history",
         ("tests/acs/acs_case.py", "acs_lib.py"):
             "describes the MAR-522 split itself (what reading acs_lib.py used to give)",

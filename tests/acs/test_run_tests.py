@@ -1,6 +1,6 @@
 """Unit tests for the tests+coverage CI runner /acs:setup ships into consumer repos.
 
-run-tests.py (plugins/acs/templates/ci/run-tests.py) runs in the consumer's CI
+run-tests.py (src/acs/templates/ci/run-tests.py) runs in the consumer's CI
 with ZERO acs dependencies — stdlib only. It reads `tests.command` from the
 committed `.acs/settings.json`, exports `ACS_COVERAGE` (= test_coverage_percent),
 runs optional `setup` then the command, and exits with the command's status.
@@ -18,7 +18,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RUNNER = os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "run-tests.py")
+RUNNER = os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "run-tests.py")
 
 
 class RunTestsCase(unittest.TestCase):

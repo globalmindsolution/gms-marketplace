@@ -1,7 +1,7 @@
 # Skill Requirements
 
 Twenty-seven skills in total, grouped into five phases by the registry
-`plugins/acs/workflows/phases.yaml` — every skill directory appears in
+`src/acs/workflows/phases.yaml` — every skill directory appears in
 exactly one group, or under `aliases`:
 
 - **Design** — `/create-prd`, `/create-requirements`, `/create-architecture`,
@@ -19,7 +19,7 @@ exactly one group, or under `aliases`:
 
 The phase a skill sits in is a grouping, not an order. The order the Build,
 Test and Ship steps run in for a ticket is declared in
-`plugins/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
+`src/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
@@ -285,7 +285,7 @@ closing the loop on failures with a regression ticket.
   post-hook, and no skill-start ticket allocation.
 - **`/acs:test` is a deprecated alias** kept for one release: the directory
   survives and forwards to `/acs:run-e2e-tests`.
-  `plugins/acs/workflows/phases.yaml` lists it under `aliases`, never in a
+  `src/acs/workflows/phases.yaml` lists it under `aliases`, never in a
   phase, and `pipeline-state.json` still accepts a `steps.test` entry so a
   pre-rename ledger validates and the workflow walk still finds it.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
@@ -959,7 +959,7 @@ tickets where the change is architecturally significant.
 
 > **Section numbering.** The numbers below are stable identifiers for these
 > per-skill blocks, not the run order. The order the Build/Test/Ship steps
-> run in is declared in `plugins/acs/workflows/ship.yaml`
+> run in is declared in `src/acs/workflows/ship.yaml`
 > ([workflow.md](workflow.md#pipeline)); the lettered sections (2a–2d, 3a)
 > are the Build/Test skills added by the skills-independence refactor, which
 > land between the originally-numbered ones.

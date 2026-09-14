@@ -1,10 +1,10 @@
 """MAR-119 spec 01 — code-verifier standards re-anchor (D3a Option A) +
 code/SKILL.md `standards_path` wiring.
 
-Prose-contract tests over `plugins/acs/agents/code-verifier.md` dimension 7
+Prose-contract tests over `src/acs/agents/code-verifier.md` dimension 7
 "Technical standards" (re-anchored to read `standards/` at `standards_path`,
 changeset-scoped block/surface verdict, graceful degradation) and
-`plugins/acs/skills/code/SKILL.md`'s settings-fields + Verify sections (which
+`src/acs/skills/code/SKILL.md`'s settings-fields + Verify sections (which
 must read and pass `standards_path` to the verifier).
 
 Stdlib-only (os, re, unittest). Run:
@@ -16,7 +16,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 
 def read(path):

@@ -16,7 +16,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL = os.path.join(PLUGIN, "skills", "release", "SKILL.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")

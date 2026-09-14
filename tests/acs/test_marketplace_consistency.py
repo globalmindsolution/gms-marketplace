@@ -16,8 +16,8 @@ Mechanism: EXTRACT-AND-RUN (C-2 option A).
   lands).  If extraction drifts or Edit 1 is not yet applied, the guard fails
   loudly — this converts silent false-green into a visible red.
 
-Coverage note: MAR-29 touches zero files under plugins/acs/ (only ci.yml and
-this test file), so the 90% coverage gate against plugins/acs/ production code
+Coverage note: MAR-29 touches zero files under src/acs/ (only ci.yml and
+this test file), so the 90% coverage gate against src/acs/ production code
 is unaffected.
 
 TDD: T2 and T4 are RED against the pre-Edit-1 ci.yml body (git-subdir entries
@@ -348,12 +348,12 @@ class MarketplaceConsistencyTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_live_acs_entry_name_matches(self):
-        """T8: Read the real marketplace.json and plugins/acs/.claude-plugin/plugin.json.
+        """T8: Read the real marketplace.json and src/acs/.claude-plugin/plugin.json.
         Assert the acs entry's name matches the plugin.json name.
         This is the smoke test against the live repo state (AC-2, AC-6).
         """
         mkt_path = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
-        pj_path = os.path.join(REPO_ROOT, "plugins", "acs", ".claude-plugin", "plugin.json")
+        pj_path = os.path.join(REPO_ROOT, "src", "acs", ".claude-plugin", "plugin.json")
 
         with open(mkt_path, encoding="utf-8") as fh:
             mkt = json.load(fh)

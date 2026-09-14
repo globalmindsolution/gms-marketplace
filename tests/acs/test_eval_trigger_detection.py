@@ -26,10 +26,10 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
-sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402  (the registry is the single source for legs)
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 from scenarios import s04_skill_triggers as s04  # noqa: E402

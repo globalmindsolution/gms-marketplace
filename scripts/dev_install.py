@@ -5,7 +5,7 @@ The problem
 -----------
 Claude Code caches an installed plugin at
 ``<cache>/<marketplace>/<plugin>/<version>`` and records that path in
-``installed_plugins.json``. ``plugins/acs/.claude-plugin/plugin.json`` declares
+``installed_plugins.json``. ``src/acs/.claude-plugin/plugin.json`` declares
 ``0.4.9`` -- the same string the released tag declares -- so installing this
 working tree resolves to the directory the RELEASE already occupies. The
 install short-circuits, the stale release is served, and nothing says so. That
@@ -17,7 +17,7 @@ The fix
 Give the working tree a version no release can collide with, derived from the
 tree's own contents:
 
-    0.5.0-dev.<12 hex of a hash over every file under plugins/acs>
+    0.5.0-dev.<12 hex of a hash over every file under src/acs>
 
 Edit any byte of the plugin and the version changes, so the cache key changes,
 so a stale hit is impossible by construction rather than by remembering to
@@ -51,7 +51,7 @@ import shutil
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGIN_SRC = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN_SRC = os.path.join(REPO_ROOT, "src", "acs")
 
 
 def _evals_harness():

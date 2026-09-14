@@ -124,7 +124,7 @@ deterministic tests (`tests/<plugin>/`) and static shape checks; it never
 executes evals.
 
 The **free** tier of the acs eval runs automatically as the `acs-free-evals`
-pre-commit hook whenever `evals/` or `plugins/acs/` change — locally on
+pre-commit hook whenever `evals/` or `src/acs/` change — locally on
 `git commit` (run `pre-commit install` once per clone) and in the *Pre-commit
 hooks* CI job — with `ACS_EVAL_SOURCE=1` so it tests the source being
 committed. There is **no dedicated eval CI workflow**; the **paid** tier is
@@ -142,7 +142,7 @@ release candidate and run:
 
 ```bash
 cd ../src/acs-evals
-make eval-source   # deterministic golden cases against ../../plugins/acs — the gate
+make eval-source   # deterministic golden cases against ../../src/acs — the gate
 make measure       # routing / behavioral measurement vs the promoted baseline
 make perf          # performance measurement
 ```

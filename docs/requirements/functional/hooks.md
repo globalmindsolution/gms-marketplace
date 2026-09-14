@@ -7,7 +7,7 @@ recorded outcome deterministic, without relying on the model's memory or
 goodwill.
 
 Hooks do **not** enforce the pipeline's order. That order is declared in
-`plugins/acs/workflows/ship.yaml` and walked by `/ship`
+`src/acs/workflows/ship.yaml` and walked by `/ship`
 ([workflow.md](workflow.md#pipeline)); a pre-hook's contribution to order is
 one advisory stderr line, never a refusal.
 
@@ -255,4 +255,4 @@ completed" event exists):
   checkout left `in_progress` as `interrupted` and releases its lock, so
   abnormal endings still write state.
 
-See `plugins/acs/docs/INTERNALS.md` for the full implementation contract.
+See `src/acs/docs/INTERNALS.md` for the full implementation contract.

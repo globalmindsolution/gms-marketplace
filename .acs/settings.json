@@ -79,7 +79,7 @@
         "pointer": "/version"
       },
       {
-        "file": "plugins/acs/.claude-plugin/plugin.json",
+        "file": "src/acs/.claude-plugin/plugin.json",
         "pointer": "/version"
       }
     ],
@@ -96,7 +96,7 @@
         "value_format": "v{version}"
       }
     ],
-    "changelog_path": "plugins/acs/CHANGELOG.md",
+    "changelog_path": "src/acs/CHANGELOG.md",
     "tag_format": "v{version}",
     "base_branch": "main",
     "release_branch_format": "release/v{version}",

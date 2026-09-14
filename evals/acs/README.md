@@ -82,7 +82,7 @@ runner and the acs plugin under test.
 `installed_scripts_dir()` resolves the hook-scripts directory of the installed
 acs build (`~/.claude/plugins/cache/<marketplace>/acs/<version>/hooks/scripts`),
 picking the newest version. Falls back to the in-repo source tree
-(`plugins/acs/hooks/scripts`, i.e. `SOURCE_SCRIPTS`) when no installed build is
+(`src/acs/hooks/scripts`, i.e. `SOURCE_SCRIPTS`) when no installed build is
 present.
 
 `ACS_EVAL_SOURCE=1` forces the in-repo source tree regardless of what is

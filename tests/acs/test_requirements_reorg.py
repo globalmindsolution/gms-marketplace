@@ -318,8 +318,8 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     the demoted advisory sub-check (b)."""
 
     SCOPED_FILES = (
-        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md"),
-        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-verifier.md"),
+        os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md"),
+        os.path.join(REPO_ROOT, "src", "acs", "agents", "code-verifier.md"),
     )
 
     LITERAL_PATH_RE = re.compile(

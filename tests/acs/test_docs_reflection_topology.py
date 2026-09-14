@@ -27,7 +27,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 APPLY_WORK = {"create-ticket", "create-pr", "merge-pr"}  # MAR-55/60 inline set
 # Pair-running skills the docs count SEPARATELY from the twelve authoring
@@ -268,8 +268,8 @@ class RoadmapTopologyTest(unittest.TestCase):
 
     def test_ls_skills_and_agents_counts(self):
         body = self._body()
-        m1 = re.search(r"`ls plugins/acs/skills` = (\d+)", body)
-        m2 = re.search(r"`ls plugins/acs/agents` = (\d+)", body)
+        m1 = re.search(r"`ls src/acs/skills` = (\d+)", body)
+        m2 = re.search(r"`ls src/acs/agents` = (\d+)", body)
         self.assertIsNotNone(m1, "roadmap.md ls-skills count not found")
         self.assertIsNotNone(m2, "roadmap.md ls-agents count not found")
         self.assertEqual(int(m1.group(1)), D["n_skills"])

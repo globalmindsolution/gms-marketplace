@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
 
 # v1 scope only: principles/standards deliberately unconfigured so the
 # eligible set is exactly the pair (D7-A).

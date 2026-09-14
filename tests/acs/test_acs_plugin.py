@@ -23,7 +23,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -173,12 +173,12 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     carry its footprint."""
 
     DELETED_PATHS = [
-        os.path.join("plugins", "acs", "skills", "create-spec", "SKILL.md"),
-        os.path.join("plugins", "acs", "agents", "create-spec-planner.md"),
-        os.path.join("plugins", "acs", "agents", "create-spec-executor.md"),
-        os.path.join("plugins", "acs", "agents", "create-spec-verifier.md"),
-        os.path.join("plugins", "acs", "hooks", "scripts", "pre-create-spec.py"),
-        os.path.join("plugins", "acs", "hooks", "scripts", "post-create-spec.py"),
+        os.path.join("src", "acs", "skills", "create-spec", "SKILL.md"),
+        os.path.join("src", "acs", "agents", "create-spec-planner.md"),
+        os.path.join("src", "acs", "agents", "create-spec-executor.md"),
+        os.path.join("src", "acs", "agents", "create-spec-verifier.md"),
+        os.path.join("src", "acs", "hooks", "scripts", "pre-create-spec.py"),
+        os.path.join("src", "acs", "hooks", "scripts", "post-create-spec.py"),
     ]
 
     def test_create_spec_absent_from_registries(self):
@@ -193,7 +193,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
 
     def test_pipeline_state_schema_drops_create_spec(self):
         schema_path = os.path.join(
-            REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         enum = schema["properties"]["steps"]["propertyNames"]["enum"]
@@ -201,7 +201,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
 
     def test_settings_schema_drops_spec_template_and_sections(self):
         schema_path = os.path.join(
-            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
@@ -218,7 +218,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         which is the drift MAR-516 exists to close.
         """
         schema_path = os.path.join(
-            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
@@ -422,7 +422,7 @@ class TestPipelineSequence(AcsWorkspaceCase):
         import os
         plugin = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "plugins", "acs")
+            "src", "acs")
         skill_path = os.path.join(plugin, "skills", "code", "SKILL.md")
         with open(skill_path, encoding="utf-8") as fh:
             body = fh.read()
@@ -515,7 +515,7 @@ class TestDocsSyncGates(AcsWorkspaceCase):
 
     def test_pipeline_state_schema_includes_docs_sync(self):
         schema_path = os.path.join(
-            REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         enum = schema["properties"]["steps"]["propertyNames"]["enum"]
@@ -1465,7 +1465,7 @@ class ToolchainTests(unittest.TestCase):
 # MAR-9 — pipeline-default CLAUDE.md guidance + exempt non-ticket merge-pr --pr
 # ---------------------------------------------------------------------------
 
-TEMPLATE_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
+TEMPLATE_DIR = os.path.join(REPO_ROOT, "src", "acs", "templates")
 
 
 class TestManagedBlock(unittest.TestCase):
@@ -1782,7 +1782,7 @@ class TestManagedBlock(unittest.TestCase):
         # AC-4: durable-invariant CHANGELOG assertion — findable anywhere in the
         # file body, never pinned to the `[Unreleased]` heading (that pinned
         # style breaks at the next release cut).
-        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-104)", body)
@@ -1791,7 +1791,7 @@ class TestManagedBlock(unittest.TestCase):
         # AC-7: durable-invariant CHANGELOG assertion — findable anywhere in
         # the file body, never pinned to [Unreleased] or a line window (the
         # anti-pattern that broke at the v0.3.5 and v0.3.6 release cuts).
-        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-106)", body)
@@ -2385,7 +2385,7 @@ class TestDueDateSchema(unittest.TestCase):
     and applied with `re.match`, so the tests track the real schema rule.
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "ticket.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -2483,7 +2483,7 @@ class TestSizeStakesLaneSchema(unittest.TestCase):
     Uses the same stdlib-only approach as TestDueDateSchema (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "ticket.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -2888,7 +2888,7 @@ class TestHighStakesPathsSettings(unittest.TestCase):
     Uses the same stdlib-only approach as TestDueDateSchema (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
 
     SEED_LIST = [
         "auth/**",
@@ -2976,7 +2976,7 @@ class TestQualityPathSettings(unittest.TestCase):
     TestHighStakesPathsSettings (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -3047,7 +3047,7 @@ class TestOperationsPathSettings(unittest.TestCase):
     jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -3119,7 +3119,7 @@ class TestPrinciplesPathSettings(unittest.TestCase):
     TestOperationsPathSettings (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -3191,7 +3191,7 @@ class TestStandardsPathSettings(unittest.TestCase):
     jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -4208,13 +4208,13 @@ class TestConfirmDeescalation(AcsWorkspaceCase):
     # --- AC-6 (this spec's share): durable-invariant CHANGELOG assertion ---
 
     def test_mar108_changelog_entry_present(self):
-        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-108)", body)
 
     def test_mar109_changelog_entry_present(self):
-        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-109)", body)

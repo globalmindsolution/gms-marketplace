@@ -516,7 +516,7 @@ class BuildUnderTestIsActuallyLoadedTest(unittest.TestCase):
     """
 
     class _Build:
-        root = "/somewhere/plugins/acs"
+        root = "/somewhere/src/acs"
         version = "0.4.10-rc1"
 
     def test_a_routing_probe_loads_the_resolved_build(self):

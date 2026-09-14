@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - CI installs it; local runs may not
     HAS_JSONSCHEMA = False
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 XSD = os.path.join(PLUGIN, "schemas", "acs-messages.xsd")
 STATE_SCHEMA = os.path.join(PLUGIN, "schemas", "skill-state.schema.json")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")

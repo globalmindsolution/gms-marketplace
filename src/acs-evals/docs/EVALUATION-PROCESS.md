@@ -26,7 +26,7 @@ sees the diff.**
 One command, run from `src/acs-evals/` in a clean checkout.
 
 ```bash
-export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
+export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
 make gate
 ```
 
@@ -62,7 +62,7 @@ right, the installed build tells you the packaging is.
 | Trigger | Tier | Who |
 |---|---|---|
 | Before any version bump | full gate, both build sources | Release engineer |
-| On a PR that touches `plugins/acs/` | `make eval` | Author |
+| On a PR that touches `src/acs/` | `make eval` | Author |
 | After publishing a release | full gate against the *installed* build | Release engineer |
 | When adding a plugin surface | `make eval` + new cases | Dataset maintainer |
 

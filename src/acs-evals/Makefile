@@ -5,21 +5,21 @@
 # the dataset.
 #
 # This suite lives at src/acs-evals/ inside the gms-marketplace repo, so the
-# plugin source it grades is a sibling: ../../plugins/acs.
+# plugin source it grades is a sibling: ../acs.
 #
 # ACS_PLUGIN_ROOT selects the build under test. Leave it unset and the runner
 # resolves the newest INSTALLED acs build, which is what a consumer actually
 # runs; set it to point at a working tree instead. `make eval-source` is that
 # second form, pre-spelled for the sibling source.
 #
-#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs
+#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../acs
 
 PYTHON  ?= python3
 MUTANTS ?= 40
 CATCH_RUNS ?= 1
 WORKSPACE ?= ../../.acs/state-machine/globalmindsolution-gms-marketplace
 #: The plugin source this checkout carries, as `eval-source` points at it.
-SOURCE  := $(CURDIR)/../../plugins/acs
+SOURCE  := $(CURDIR)/../acs
 RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
@@ -48,8 +48,8 @@ eval: ## Run the deterministic tier (502 cases, zero cost, no model)
 # resolution: runner/harness.py still prefers the INSTALLED build by default,
 # on purpose — packaging drift between source and installed is a defect this
 # dataset exists to catch, and a source-only gate would never see it.
-eval-source: ## Run the deterministic tier against this checkout's plugins/acs
-	ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs $(PYTHON) runner/run_golden.py --json $(JSON)
+eval-source: ## Run the deterministic tier against this checkout's src/acs
+	ACS_PLUGIN_ROOT=$(CURDIR)/../acs $(PYTHON) runner/run_golden.py --json $(JSON)
 
 #: Extra flags for `measure` (e.g. MEASURE_ARGS=--force to re-measure a build
 #: that already has a complete measurement on disk).

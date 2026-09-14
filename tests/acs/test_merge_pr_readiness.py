@@ -19,7 +19,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -27,7 +27,7 @@ import acs_lib as lib  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import AcsWorkspaceCase, fake_gh  # noqa: E402
 
-MERGE_PR_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "merge-pr", "SKILL.md")
+MERGE_PR_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "merge-pr", "SKILL.md")
 
 
 def check(name, conclusion="SUCCESS", required=True, status="COMPLETED"):

@@ -65,7 +65,7 @@ C4Component
 ## Skill-side anatomy (per hooked skill)
 
 Every coordinator follows the same protocol components (defined once in
-`plugins/acs/docs/INTERNALS.md`): Start (skill-start) → Resume/reconcile →
+`src/acs/docs/INTERNALS.md`): Start (skill-start) → Resume/reconcile →
 work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).

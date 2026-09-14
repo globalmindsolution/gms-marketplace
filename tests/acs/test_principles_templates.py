@@ -1,6 +1,6 @@
 """Contract tests for the principles/ doc-set template (MAR-117 spec 01).
 
-Pins AC-9: principles.md ships under plugins/acs/templates/principles/ with
+Pins AC-9: principles.md ships under src/acs/templates/principles/ with
 the design's required sections (D2 Option A — a single coarse file) and no
 runtime {placeholder} tokens. Written TDD-first (RED before the file exists);
 turns GREEN once spec 01 lands. Mirrors tests/acs/test_quality_templates.py,
@@ -14,7 +14,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "principles", "principles.md")
 
 
@@ -29,7 +29,7 @@ class TestPrinciplesTemplateExists(unittest.TestCase):
 
     def test_principles_file_exists(self):
         self.assertTrue(os.path.isfile(TEMPLATE_PATH),
-                         "plugins/acs/templates/principles/principles.md must exist")
+                         "src/acs/templates/principles/principles.md must exist")
 
 
 class TestPrinciplesRequiredSections(unittest.TestCase):

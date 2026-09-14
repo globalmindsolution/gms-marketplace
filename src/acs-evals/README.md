@@ -1,6 +1,6 @@
 # acs-evals — golden dataset for the `acs` plugin
 
-The evaluation suite for the [`acs`](../../plugins/acs) Claude Code plugin. It
+The evaluation suite for the [`acs`](../../src/acs) Claude Code plugin. It
 holds a **golden dataset**: a curated, versioned corpus of inputs paired with
 the outputs the plugin actually produced, so a release can be checked against
 recorded behaviour instead of against someone's memory of it.
@@ -44,7 +44,7 @@ One command runs the gate:
 
 ```bash
 cd src/acs-evals
-export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
+export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
 make gate
 ```
 
@@ -132,7 +132,7 @@ Exit status is 0 only when every selected case matches. Stdlib only, Python
 
 **Which build gets tested.** `ACS_PLUGIN_ROOT` wins if set; otherwise the newest
 installed build under `~/.claude/plugins/cache/*/acs/*/`; otherwise a
-marketplace checkout under `~/.claude/plugins/marketplaces/*/plugins/acs`. The
+marketplace checkout under `~/.claude/plugins/marketplaces/*/src/acs`. The
 banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
 
@@ -140,7 +140,7 @@ That resolution governs **both tiers**. Tier 1 runs the resolved build's CLIs
 directly. Tier 3 hands the same root to `claude --plugin-dir`, so its sessions
 load the build the run names — no plugin cache is touched and nothing needs
 restoring afterwards. Every `make` target except `eval` defaults the root to
-this checkout's `../../plugins/acs`, so the suite grades the source it sits
+this checkout's `../../src/acs`, so the suite grades the source it sits
 next to; `eval` is left alone because which build the gate judges is the
 question, not a detail.
 
@@ -152,7 +152,7 @@ against the skills the resolved build ships, and refuses to spend if they
 differ — so the banner is an assertion rather than a caption.
 
 ```bash
-ACS_PLUGIN_ROOT=$PWD/../../plugins/acs python3 runner/run_golden.py   # or: make eval-source
+ACS_PLUGIN_ROOT=$PWD/../../src/acs python3 runner/run_golden.py   # or: make eval-source
 ```
 
 ### Tier 2 — agentic routing (not yet runnable)

@@ -1,6 +1,6 @@
 """MAR-113 — /acs:setup Step 4 documents and defaults operations_path (AC-3).
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`.
+Prose-contract unit test for `src/acs/skills/setup/SKILL.md`.
 `operations_path` must be defaulted like `architecture_path`/`quality_path` in
 the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
@@ -22,7 +22,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 
 

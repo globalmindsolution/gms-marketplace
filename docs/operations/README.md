@@ -11,7 +11,7 @@ consolidated.
 
 | Doc | What it holds | Status |
 |-----|---------------|--------|
-| Release process | Version/tag/CHANGELOG flow | currently in the [root README](../../README.md#releasing--updating) + [CHANGELOG](../../plugins/acs/CHANGELOG.md) |
+| Release process | Version/tag/CHANGELOG flow | currently in the [root README](../../README.md#releasing--updating) + [CHANGELOG](../../src/acs/CHANGELOG.md) |
 | Validation runbook | Step-by-step end-to-end install/run checks | the [M2-0 validation spike](../product/m2-0-validation-spike.md) is the first such runbook |
 | [observability.md](observability.md) | Metrics/status surfaces and how to read them (the `acs:metrics` dashboard, status lines — PRD goal G7) | ✅ |
 | `incident-response.md` | What to do when a release misbehaves; rollback (re-pin to the previous `v<version>` tag) | planned |

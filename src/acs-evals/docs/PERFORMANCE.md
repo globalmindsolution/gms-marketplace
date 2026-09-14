@@ -173,7 +173,7 @@ generator; one far looser makes it decorative.
 
 A measurement records the **content digest** of the plugin tree it
 exercised (`build.digest`, from `harness.build_digest`): every byte under
-`plugins/acs` that can change behaviour — skills, agents, hooks, schemas,
+`src/acs` that can change behaviour — skills, agents, hooks, schemas,
 templates, workflows, the docs a skill reads at runtime — and nothing a
 release cut rewrites (`plugin.json`'s version label, `CHANGELOG.md`). The
 version string cannot do this job, because an unreleased tree shares one with

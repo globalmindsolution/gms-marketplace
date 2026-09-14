@@ -1,9 +1,9 @@
 """Bidirectional drift guard for the skillName enum (MAR-176).
 
-`plugins/acs/schemas/acs-messages.xsd`'s `skillName` enumeration, the identical
-copies in `plugins/acs/schemas/skill-state.schema.json` and
+`src/acs/schemas/acs-messages.xsd`'s `skillName` enumeration, the identical
+copies in `src/acs/schemas/skill-state.schema.json` and
 `clarifications.schema.json`, and `validate_xml.py`'s hardcoded `SKILLS` mirror
-must each equal the live set of directories under `plugins/acs/skills/` plus
+must each equal the live set of directories under `src/acs/skills/` plus
 the single documented backward-compat exemption, `create-spec` (retired in
 v0.4.6 / MAR-156 / ADR 0066, retained deliberately per MAR-164). Every
 "expected" value here is recomputed from disk or from the source files at run
@@ -20,7 +20,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
@@ -35,7 +35,7 @@ import validate_xml  # noqa: E402
 XS_NS = "{http://www.w3.org/2001/XMLSchema}"
 
 # The single documented backward-compat exemption (AC-1/AC-4 of MAR-176):
-# retired from plugins/acs/skills/ in MAR-156, retained in every skill-name
+# retired from src/acs/skills/ in MAR-156, retained in every skill-name
 # enum deliberately per MAR-164.
 BACKWARD_COMPAT_EXEMPTION = "create-spec"
 
@@ -46,7 +46,7 @@ def read(path):
 
 
 def shipped_skill_dirs():
-    """Every directory directly under plugins/acs/skills/ -- the live skill set."""
+    """Every directory directly under src/acs/skills/ -- the live skill set."""
     return {
         name for name in os.listdir(SKILLS_DIR)
         if os.path.isdir(os.path.join(SKILLS_DIR, name))

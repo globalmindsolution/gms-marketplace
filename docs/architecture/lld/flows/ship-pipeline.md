@@ -2,7 +2,7 @@
 
 `/ship` adds orchestration only, and since the skills-independence refactor it
 adds it by **reading a declaration**: the step order lives in
-`plugins/acs/workflows/ship.yaml` (or the consumer's
+`src/acs/workflows/ship.yaml` (or the consumer's
 `.acs/workflows/ship.yaml`, which replaces it wholesale), and the coordinator
 loops over `acs.py workflow next`, which evaluates that DAG against the
 ticket's existing `pipeline-state.json`. No new state: the ledger is still the
@@ -148,7 +148,7 @@ is the separate, per-child pipeline diagrammed above.
 > **NOTE (skills-independence refactor — supersedes the step-order clauses of
 > the MAR-159 and MAR-160 notes above; their mechanisms stand):** the steps and
 > their conditions are no longer stated in `ship/SKILL.md` prose at all. They
-> are declared in `plugins/acs/workflows/ship.yaml` — `analyze-ticket` →
+> are declared in `src/acs/workflows/ship.yaml` — `analyze-ticket` →
 > `create-impl-plan` (`requires: design_approved`) → `create-api-contract`
 > (`when: api_surface_changed`) → `create-test-docs` → `code`
 > (`exclusive: true`, `boundary: full_verify_stop`,

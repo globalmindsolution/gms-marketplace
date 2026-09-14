@@ -24,10 +24,10 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
-CODE_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-executor.md")
-CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "SKILL.md")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
+CODE_EXECUTOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "code-executor.md")
+CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "SKILL.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

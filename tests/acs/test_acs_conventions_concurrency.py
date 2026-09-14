@@ -19,7 +19,7 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 WORKFLOW_PATHS = [
-    os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "acs-conventions.yml"),
+    os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "acs-conventions.yml"),
     os.path.join(REPO_ROOT, ".github", "workflows", "acs-conventions.yml"),
 ]
 

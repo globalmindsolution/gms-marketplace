@@ -1,7 +1,7 @@
 """Contract tests for the standards/ doc-set templates (MAR-118 spec 01).
 
 Pins AC-9: coding-standards.md, conventions.md, and review-checklist.md ship
-under plugins/acs/templates/standards/ with required sections and no runtime
+under src/acs/templates/standards/ with required sections and no runtime
 {placeholder} tokens. Written TDD-first (RED before the three files exist);
 turns GREEN once spec 01 lands. Mirrors test_operations_templates.py's
 per-file TestXRequiredSections shape (standards/ ships three files like
@@ -13,7 +13,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 
 def read(path):
@@ -31,15 +31,15 @@ class TestStandardsTemplatesExist(unittest.TestCase):
 
     def test_coding_standards_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("coding-standards")),
-                         "plugins/acs/templates/standards/coding-standards.md must exist")
+                         "src/acs/templates/standards/coding-standards.md must exist")
 
     def test_conventions_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("conventions")),
-                         "plugins/acs/templates/standards/conventions.md must exist")
+                         "src/acs/templates/standards/conventions.md must exist")
 
     def test_review_checklist_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("review-checklist")),
-                         "plugins/acs/templates/standards/review-checklist.md must exist")
+                         "src/acs/templates/standards/review-checklist.md must exist")
 
 
 class TestCodingStandardsRequiredSections(unittest.TestCase):

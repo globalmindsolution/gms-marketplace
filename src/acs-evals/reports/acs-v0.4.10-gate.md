@@ -74,7 +74,7 @@ These cases pass because they pin what the build **actually does**, which differ
 ## Reproducing this run
 
 ```bash
-export ACS_PLUGIN_ROOT=/root/.claude/plugins/marketplaces/gms-marketplace/plugins/acs
+export ACS_PLUGIN_ROOT=/root/.claude/plugins/marketplaces/gms-marketplace/src/acs
 make eval          # or: python3 runner/run_golden.py --json results/latest.json
 make report        # regenerates this file
 ```

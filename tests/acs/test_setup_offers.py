@@ -1,6 +1,6 @@
 """MAR-89 — /acs:setup offers version-pinned per-role model, per-role effort, and explicit e2e (G21).
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. A fresh
+Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. A fresh
 `/acs:setup` must actively OFFER every user-configurable setting, so no
 capability is reachable only by hand-editing `.acs/settings.json`. This module
 pins the three previously-gapped offers:
@@ -48,7 +48,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 

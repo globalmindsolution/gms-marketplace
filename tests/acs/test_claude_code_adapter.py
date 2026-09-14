@@ -34,7 +34,7 @@ import acs_case  # noqa: E402
 import claude_code_adapter as cc  # noqa: E402
 
 PLUGIN_SCRIPTS = os.path.join(
-    os.path.dirname(os.path.dirname(TESTS_ACS)), "plugins", "acs", "hooks", "scripts")
+    os.path.dirname(os.path.dirname(TESTS_ACS)), "src", "acs", "hooks", "scripts")
 
 
 class TestHookEnvelope(unittest.TestCase):

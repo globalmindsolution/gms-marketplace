@@ -14,7 +14,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -22,8 +22,8 @@ import acs_lib as lib  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import AcsWorkspaceCase  # noqa: E402
 
-SKILL_MD = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-ticket", "SKILL.md")
-CHANGELOG_MD = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+SKILL_MD = os.path.join(REPO_ROOT, "src", "acs", "skills", "create-ticket", "SKILL.md")
+CHANGELOG_MD = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
 
 
 def _normalize(text):

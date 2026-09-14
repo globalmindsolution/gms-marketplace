@@ -1,7 +1,7 @@
 # HLD — Data model (workspace state)
 
 All entities are JSON files under `<workspace>/<repo-id>/`; schemas ship with
-the plugin (`plugins/acs/schemas/`). Pretty-printed, atomically written,
+the plugin (`src/acs/schemas/`). Pretty-printed, atomically written,
 human-auditable.
 
 ```mermaid

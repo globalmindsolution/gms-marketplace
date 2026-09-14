@@ -14,7 +14,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 # Version-homed units the table must cover at minimum (AC-4/AC-8 coverage floor).
 MIN_VERSIONS = {

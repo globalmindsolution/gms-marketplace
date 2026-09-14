@@ -1,9 +1,9 @@
 # LLD — Interface contracts
 
 The binding shapes live in machine-validated files; this page is the index.
-Canonical detail: `plugins/acs/docs/INTERNALS.md`.
+Canonical detail: `src/acs/docs/INTERNALS.md`.
 
-## Coordinator ↔ subagent (XML, `plugins/acs/schemas/acs-messages.xsd`)
+## Coordinator ↔ subagent (XML, `src/acs/schemas/acs-messages.xsd`)
 
 | Message | Direction | Key content |
 |---------|-----------|-------------|
@@ -168,7 +168,7 @@ every fail-open branch (not a write tool, no partition, no active executor)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
 lock. Unlike `escalations`, the item shape **is** declared in
-`plugins/acs/schemas/skill-state.schema.json`; run-entry items already declare
+`src/acs/schemas/skill-state.schema.json`; run-entry items already declare
 `additionalProperties: true`, so that declaration documents the entry rather
 than tightening what a run entry may carry.
 
@@ -187,7 +187,7 @@ The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
 `code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
 reference in `create-pr-state` (or the product skill's state). Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
-`plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
+`src/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this
 release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
 true` (unchanged; MAR-73, slice 3 of MAR-69).

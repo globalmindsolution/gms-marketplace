@@ -28,7 +28,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
@@ -238,7 +238,7 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
         self.assertEqual(
             stated_count, live_count,
             "ADR 0012's MAR-164 amendment states %d participants but "
-            "grep -c over plugins/acs/agents/ finds %d live carriers of %r "
+            "grep -c over src/acs/agents/ finds %d live carriers of %r "
             "today — the assertion must self-recompute so it cannot re-drift"
             % (stated_count, live_count, CANONICAL_HEADING))
 

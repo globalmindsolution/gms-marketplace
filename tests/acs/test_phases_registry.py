@@ -1,4 +1,4 @@
-"""workflows/phases.yaml is the skill registry: every plugins/acs/skills/<dir>
+"""workflows/phases.yaml is the skill registry: every src/acs/skills/<dir>
 appears exactly once -- in a phase list, as an `aliases` key (a directory that
 forwards to a registered skill) or as an `internal` key (a leg that stays
 Skill-invocable but is not user-facing) -- only the five groups exist, and the
@@ -29,7 +29,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
@@ -112,7 +112,7 @@ class TestPhasesRegistry(unittest.TestCase):
 
     def test_every_registry_name_has_a_skill_directory(self):
         """No exceptions: every phase entry, alias key and internal leg has its
-        own plugins/acs/skills/<dir> on disk."""
+        own src/acs/skills/<dir> on disk."""
         dirs = set(skill_dirs())
         missing = [n for n in self.names if n not in dirs]
         self.assertEqual(missing, [], "registered without a skills/<dir>: %s" % missing)
@@ -229,7 +229,7 @@ class TestLoadPhasesRefusals(unittest.TestCase):
         self.assertRefuses(self.BASE + "aliases:\n  a: b\n", 9, "also a registered skill")
 
     def test_an_internal_leg_without_a_skill_directory_is_refused(self):
-        """`zzz` has no plugins/acs/skills/zzz, so it cannot be a leg."""
+        """`zzz` has no src/acs/skills/zzz, so it cannot be a leg."""
         self.assertRefuses(self.BASE + "internal:\n  zzz: a\n", 9, "has no skills/zzz directory")
 
     def test_an_internal_leg_pointing_outside_the_phase_lists_is_refused(self):

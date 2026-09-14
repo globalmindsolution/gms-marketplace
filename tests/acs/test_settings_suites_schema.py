@@ -1,6 +1,6 @@
 """MAR-114 — settings.suites schema fragment + e2e deprecation (AC-1, AC-2).
 
-Structure-contract unit test over `plugins/acs/schemas/settings.schema.json`.
+Structure-contract unit test over `src/acs/schemas/settings.schema.json`.
 AC-1: a new top-level `suites` property, generalizing `e2e`, with the reserved
 name "e2e" auto-populated at load. AC-2: the `e2e` property's description is
 updated to mark it a DEPRECATED compatibility alias for `suites.e2e`, while its
@@ -17,7 +17,7 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
 # Captured pre-change e2e shape (required/properties/additionalProperties),

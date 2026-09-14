@@ -58,8 +58,8 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 28 skills + 31 agent files on disk (verified `ls plugins/acs/skills` = 28,
-  `ls plugins/acs/agents` = 31); the reflection (execute→verify) protocol is
+- 28 skills + 31 agent files on disk (verified `ls src/acs/skills` = 28,
+  `ls src/acs/agents` = 31); the reflection (execute→verify) protocol is
   active on the fourteen skills that run a loop — the twelve authoring
   skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
   since ADR 0092 (the per-iteration re-plan went first — MAR-71 for
@@ -260,7 +260,7 @@ the `acs:metrics` skill land in E1 before the skill ships. **Note (delivered):**
 `acs:metrics` (delivery KPIs — throughput, funnel, coverage, review iterations)
 shipped alongside a separate `acs:usage` skill (AI spend/tokens/time), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
-(`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
+(`src/acs/skills/metrics/SKILL.md`, `src/acs/skills/usage/SKILL.md`).
 
 - **E4.1** — Skill skeleton + data-source wiring (`metrics.json`, `tickets-index.json`, `pipeline-state.json`, `code-state.json`, `create-pr-state.json`).
 - **E4.2** — Six dashboard panels implemented and rendered via `show_widget` inline in the Claude Code session.
@@ -554,7 +554,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)** Of thread (i)/(iii) above,
   the `create-spec` extension target and `formats.spec_template` were
   retired outright in v0.4.6 when MAR-156/ADR 0066 deleted `/acs:create-spec`
-  (`plugins/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
+  (`src/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
   bullet records what shipped in v0.4.5, not current capability. The
   advisory→blocking promotion for the other 8 producer verifiers and
   `formats.design_template` remain live (the former now lives in

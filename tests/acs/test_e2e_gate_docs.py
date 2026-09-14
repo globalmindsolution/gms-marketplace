@@ -13,7 +13,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 MERGE_PR_PATH = os.path.join(PLUGIN, "skills", "merge-pr", "SKILL.md")
 DEPLOYMENT_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "deployment.md")
 FLOW_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows",

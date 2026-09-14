@@ -173,7 +173,7 @@ class TheShippedManifestNamesTheSourceItPinsTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(here, os.pardir, "dataset",
                                                "manifest.json")))
         source = os.path.join(here, os.pardir, os.pardir, os.pardir,
-                              "plugins", "acs")
+                              "src", "acs")
         if not os.path.isdir(source):
             self.skipTest("plugin source is not a sibling of this checkout")
         self.assertEqual(manifest.get("recorded_against_fingerprint"),

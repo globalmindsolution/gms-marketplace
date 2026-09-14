@@ -34,7 +34,7 @@ control*, not a test.
 
 ## Coverage today (per skill)
 
-25 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
+25 shipped skills exist under `src/acs/skills/` — one directory per skill.
 The on-disk `skills/*/SKILL.md` set is test-pinned by
 `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
 sorted `SKILL.md` glob vs sorted `ALL_SKILLS`) to equal `ALL_SKILLS` — a
@@ -51,12 +51,12 @@ and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
 the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
-[`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
+[`acs_lib/_common.py:28-54`](../../src/acs/hooks/scripts/acs_lib/_common.py) splits them
 into **17 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and the subagent roles `workflows/phases.yaml`
 declares for it) and **11 unhooked** (`UNHOOKED_SKILLS`). Figures anchored
 **as of the doc-set fold** (ADR 0094, which folded the four doc-set legs into
-`/acs:create-docs`); re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `28`)
+`/acs:create-docs`); re-derive with `ls -1 src/acs/skills | wc -l` (→ `28`)
 and a Python one-liner importing `acs_lib` and printing `len(HOOKED_SKILLS)`,
 `len(UNHOOKED_SKILLS)` (→ `17 11`).
 
@@ -87,7 +87,7 @@ never hand-picked:
   sentence — nothing in this document pins them.
   `tests/acs/test_eval_trigger_detection.py`'s `S04ProbeSetTest` already
   derives exactly this comparison (the distinct `expected` skills in
-  `s04.CASES` versus the `plugins/acs/skills/*/` directories minus its
+  `s04.CASES` versus the `src/acs/skills/*/` directories minus its
   `UNPROBED` allowlist) and fails when the two drift, so running that module
   IS the check; `UNPROBED` is the list of reasons above, in code.
   A case is decided one of two ways: by the first `Skill` tool_use its
@@ -194,7 +194,7 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 1. **Assert artifacts, never prose.** A scenario passes because the right JSON
    state exists with the right values — not because the model "said" the right
    thing. Validate produced artifacts against
-   [`plugins/acs/schemas/*.schema.json`](../../plugins/acs/schemas/).
+   [`src/acs/schemas/*.schema.json`](../../src/acs/schemas/).
 2. **Push checks down the pyramid.** Prefer a deterministic assertion (layers
    1–4) over a paid eval whenever the property is structural.
 3. **One run, many assertions.** The live-agent run is the expensive part —

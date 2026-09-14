@@ -41,7 +41,7 @@ ADR_0087 = os.path.join(
     REPO_ROOT, "docs", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
 )
 ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
-CHANGELOG = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+CHANGELOG = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
 
 
 def read(path):

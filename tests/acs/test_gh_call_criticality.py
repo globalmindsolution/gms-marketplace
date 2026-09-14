@@ -3,7 +3,7 @@
 Unit tests for GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT, and
 the pure gh_failure_hint(stderr_text) predicate (Option F / decision D3).
 These are the only tests exercising T1's new, measured statements in
-plugins/acs/hooks/scripts/acs_lib/repo.py; T2's and T3's outputs are prose,
+src/acs/hooks/scripts/acs_lib/repo.py; T2's and T3's outputs are prose,
 covered by their own doc/anti-drift test modules rather than by line
 coverage.
 
@@ -16,7 +16,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 from acs_lib import (  # noqa: E402

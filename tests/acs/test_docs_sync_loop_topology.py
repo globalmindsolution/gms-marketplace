@@ -18,7 +18,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 AGENTS = os.path.join(PLUGIN, "agents")
 EXECUTOR = os.path.join(AGENTS, "docs-sync-executor.md")

@@ -1,4 +1,4 @@
-"""Behavioral tests for plugins/acs/hooks/scripts/consistency_findings.py (spec 02).
+"""Behavioral tests for src/acs/hooks/scripts/consistency_findings.py (spec 02).
 
 Pure stdlib unittest, direct-function-call style (imports and calls the real
 functions; the module is executable code, not agent prompt text). Cases map to
@@ -14,7 +14,7 @@ import unittest
 
 _SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "plugins", "acs", "hooks", "scripts",
+    "src", "acs", "hooks", "scripts",
 )
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)

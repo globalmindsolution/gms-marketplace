@@ -1,6 +1,6 @@
 """/acs:run-e2e-tests: deterministic run mechanics.
 
-Prose-contract unit test for `plugins/acs/skills/run-e2e-tests/SKILL.md` —
+Prose-contract unit test for `src/acs/skills/run-e2e-tests/SKILL.md` —
 today's home of the suite-runner prose that shipped as `/acs:test` and that the
 skills-independence refactor renamed (`skills/test/` is now a one-paragraph
 alias; `tests/acs/test_run_e2e_tests.py` pins the rename and the alias).
@@ -20,7 +20,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md")
 METRICS_SKILL_PATH = os.path.join(PLUGIN, "skills", "metrics", "SKILL.md")
 
@@ -55,7 +55,7 @@ class RunE2eTestsSkillFileExistsCase(unittest.TestCase):
     def test_skill_file_exists(self):
         self.assertTrue(
             os.path.isfile(SKILL_PATH),
-            msg="plugins/acs/skills/run-e2e-tests/SKILL.md must exist",
+            msg="src/acs/skills/run-e2e-tests/SKILL.md must exist",
         )
 
 

@@ -26,7 +26,7 @@ docstring — that is where the traceability lives.
 
 ## Module size
 
-Every module under `plugins/acs/` stays **below 800 lines**. This is enforced,
+Every module under `src/acs/` stays **below 800 lines**. This is enforced,
 not aspirational: `tests/acs/test_module_line_budget.py` fails the suite on any
 file at or over the budget, so crossing it is a red build rather than a review
 comment.
@@ -61,7 +61,7 @@ clarification payload):
    deliberately with no allowlist mechanism.
 2. **Run all mutation testing on a copy taken outside the repo, synchronously
    — never in-tree, never backgrounded.** Two interrupted in-tree runs each
-   left a MUTANT in `plugins/acs/hooks/scripts/clarify.py`, and one left an
+   left a MUTANT in `src/acs/hooks/scripts/clarify.py`, and one left an
    orphaned background mutator that corrupted a coordinator diagnosis into
    instructing a wrong fix (MAR-177). **Not enforceable by a test** — a
    completed in-tree run restores the file and leaves no durable trace, so
