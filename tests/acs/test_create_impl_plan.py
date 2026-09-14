@@ -629,3 +629,27 @@ class LightLaneRevisesOnceTest(unittest.TestCase):
     def test_a_draft_failing_after_its_revision_still_fails_the_run(self):
         self.assertRegex(self.norm, r"(?i)still failing after its revision ends the run `failed`")
 
+
+class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
+    """analyze-ticket promises that with no user answer create-impl-plan
+    plans against the ticket as written; the plan skill has to keep that
+    promise rather than re-ask the open proposals (the 2026-09-14 PIPE-code
+    diagnostic lost a run to a plan run that asked and had no one to answer)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.norm = norm(read(IMPL_PLAN_SKILL))
+        cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-ticket", "SKILL.md")))
+
+    def test_the_plan_skill_carries_open_proposals_instead_of_asking(self):
+        self.assertIn("Entries the analysis left open are proposals, not blockers.", self.norm)
+        self.assertRegex(self.norm, r"(?i)never re-ask them and never return `needs_input` for them")
+        self.assertIn("`C-<n> open — planned as written`", self.norm)
+
+    def test_the_grouped_question_rule_is_scoped_to_the_plans_own_questions(self):
+        self.assertIn("When ≥2 of your own clarifications are open", self.norm)
+
+    def test_the_two_skills_state_the_same_contract(self):
+        self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
+        self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
+

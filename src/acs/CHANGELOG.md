@@ -190,6 +190,15 @@ the notes.
   coverage target, caught by the verifier, with "re-run the skill" as the
   only remedy.
 
+- **`/acs:create-impl-plan` no longer asks about proposals the analysis left
+  open.** With `analysis.md` at `ready_for_planning: true`, the refined- and
+  missing-criterion proposals `/acs:analyze-ticket` recorded as open ledger
+  entries are carried into the plan's Risks as `C-<n> open — planned as
+  written` instead of being re-asked or returned as `needs_input` — which is
+  what the analysis skill already promised, and what a headless run (a
+  measurement, an unattended `/acs:ship`) needs to get past the step at all.
+  The 2026-09-14 PIPE-code diagnostic lost its second run to exactly this.
+
 ### Deprecated
 
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.

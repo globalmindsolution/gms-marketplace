@@ -1014,6 +1014,14 @@ an approved `plan.md`.
   revises its own draft once before the verifier judges again (ceiling 2
   verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
   not fail the run on its first verdict.
+- MUST plan against the ticket as written when `analysis.md` says
+  `ready_for_planning: true`: the ledger entries `/analyze-ticket` left open
+  alongside that verdict (refined-criteria and missing-criterion proposals)
+  are carried in the plan's Risks as `C-<n> open — planned as written`, never
+  re-asked and never a `needs_input` — the analysis skill's own contract
+  ("with no user answer … `/acs:create-impl-plan` plans against the ticket as
+  written"). Only the plan's own genuine ambiguities and the oversize
+  question are asked.
 - Subagents: `create-impl-plan-executor`, `-verifier` (execute → verify, no
   planner — ADR-0092; the executor's survey inherited the `code-planner`
   charter).

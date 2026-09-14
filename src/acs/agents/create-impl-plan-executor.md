@@ -287,7 +287,11 @@ outcomes, problems, clarifications) lives only in the report.
   `ls`, `grep`) and running existing tests/builds to learn the tooling.
 - Never invent a decision: a gap your survey cannot close from the inputs is
   a `problems` entry and, when it blocks the rendering, a `needs_input` return
-  with precise questions — never a silent choice made in the draft.
+  with precise questions — never a silent choice made in the draft. A ledger
+  entry `/acs:analyze-ticket` left `open` under a `ready_for_planning: true`
+  analysis is NOT such a gap: it is a proposal the user may still take, and
+  the ticket as written is the contract you plan against — name it under
+  `## Risks` as `C-<n> open — planned as written` and carry on.
 - Never pad: a section written to satisfy a heading rather than an executor is
   the completeness finding the verifier exists to catch.
 

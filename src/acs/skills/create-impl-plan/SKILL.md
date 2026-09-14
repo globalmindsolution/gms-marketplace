@@ -458,9 +458,9 @@ rather than planning around it.
 **Clarification ledger first.** Before asking the user anything, run
 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <id>`
 and reuse any recorded answer — re-asking an answered question is a defect.
-When ≥2 clarifications are open, present them in ONE grouped interaction (a
-single AskUserQuestion containing all open questions as a numbered list), not
-serial round-trips. Record each answer as its own `clarify.py add` entry (one
+When ≥2 of your own clarifications are open, present them in ONE grouped
+interaction (a single AskUserQuestion containing all open questions as a
+numbered list), not serial round-trips. Record each answer as its own `clarify.py add` entry (one
 `C-<n>` per question, `--source` preserved). Never skip a question, merge two
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
@@ -468,6 +468,23 @@ interactively or relayed in a `/acs:ship` brief — with
 `clarify.py add --skill create-impl-plan --question "..." --answer "..." --ticket <id>`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
+
+**Entries the analysis left open are proposals, not blockers.**
+`analysis.md`'s front matter `ready_for_planning: true` is
+`/acs:analyze-ticket`'s verdict that the ticket can be planned as written;
+the ledger entries it recorded and left `open` alongside that verdict —
+refined-criteria rewrites, missing-criterion suggestions, a design
+recommendation — are for the user to take or leave, and that skill's own
+contract is that with no answer this skill plans against the ticket as
+written. So never re-ask them and never return `needs_input` for them: plan
+against the ticket's acceptance criteria as written, name each such entry in
+the plan's Risks section as `C-<n> open — planned as written`, and pass them
+to the verifier in `<context>` so the plan is judged against the ticket, not
+the proposal. The 2026-09-14 measurement lost a run to the alternative: a
+completed analysis with two open proposals, a plan run that asked instead of
+planning, and no one to answer. What you ask about is what your own survey
+finds genuinely ambiguous (next paragraph), the oversize question, and
+nothing else.
 
 When the ticket or a spec is genuinely ambiguous — it contradicts another
 spec or the design, leaves behavior undefined, or admits several plausible
