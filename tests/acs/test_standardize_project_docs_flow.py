@@ -85,12 +85,19 @@ class FlowDocTest(unittest.TestCase):
             (ln.strip() for ln in m.group(1).splitlines() if ln.strip()), "")
         self.assertEqual(first_line, "sequenceDiagram")
 
-    def test_flow_doc_names_all_seven_participants(self):
+    def test_flow_doc_names_all_six_participants(self):
+        # Seven until ADR-0092 retired the planner: the audit and the frozen
+        # allowlist are iteration 1's executor's, recorded in its authoring
+        # notes, so no PL participant remains to draw.
         body = read(FLOW_DOC)
-        for participant in ("Dev", "CC", "SP", "PL", "EX", "VF", "Repo"):
+        for participant in ("Dev", "CC", "SP", "EX", "VF", "Repo"):
             self.assertIn(
-                participant, body,
+                "participant %s as" % participant if participant != "Dev" else "actor Dev as",
+                body,
                 "flow doc must name participant %r" % participant)
+        self.assertNotIn("standardize-project-planner", body)
+        self.assertNotIn('phase="plan"', body)
+        self.assertIn("iter-1-authoring.md", body)
 
     def test_flow_doc_states_never_trust_contract(self):
         body = read(FLOW_DOC)
