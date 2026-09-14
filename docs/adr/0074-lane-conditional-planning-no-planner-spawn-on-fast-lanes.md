@@ -136,3 +136,23 @@ XML to validate and no `iter-<n>-execute.xml` snapshot to persist (D-4
 reads "execute" where it said "plan"). D-3 — no retro-spawn when a run
 escalates mid-flight — applies to the executor unchanged. The verifier runs
 in every lane, as before.
+
+## Amendment — the fast lane affords one revision of the coordinator's draft (2026-09-14)
+
+The 2026-09-14 PIPE-code diagnostic showed the cost of reading "ceiling 1"
+literally on a coordinator-authored plan: `/acs:create-impl-plan` on a SMALL
+ticket drafted a plan whose test strategy could not reach the coverage
+target, the verifier found exactly that, and the run ended `failed` with
+"re-run the skill" as the remedy — for a fix the coordinator could have made
+in one pass, at the price of one more verifier call. The cap was inherited
+from `/acs:code`, where every round re-runs executors; here a round is a
+draft and a verdict.
+
+Decision, narrowly: on TRIVIAL/SMALL, `/acs:create-impl-plan`'s coordinator
+revises its own draft **once** against the verifier's blocking findings and
+the verifier judges again — a ceiling of **two verify rounds**, which is
+ADR-0034's own wording ("light verify … may iterate at most once on blocking
+findings") applied where the iteration is cheap. A draft still failing after
+its revision ends the run `failed` as before. D-1 (no executor spawn on the
+fast lane), D-3 and D-4 are unchanged; `/acs:code`'s `VERIFY_ITERATION_CAP`
+is untouched.

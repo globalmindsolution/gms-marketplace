@@ -599,3 +599,33 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LightLaneRevisesOnceTest(unittest.TestCase):
+    """ADR-0074's 2026-09-14 amendment: on TRIVIAL/SMALL the coordinator's
+    draft gets one revision against the verifier's blocking findings before
+    the run fails — two verify rounds, not the cap-1 inherited from /acs:code
+    where every round re-runs executors. The 2026-09-14 PIPE-code diagnostic
+    lost a run to the literal reading (a fixable test strategy, one verdict,
+    `failed`)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.norm = norm(read(IMPL_PLAN_SKILL))
+
+    def test_the_fast_lane_revises_the_draft_once(self):
+        self.assertRegex(self.norm, r"(?i)revises its own draft ONCE")
+        self.assertIn("ceiling **2** verify rounds", self.norm)
+        self.assertNotIn("ceiling **1**", self.norm)
+        self.assertNotIn("light: 1 / full: 3", self.norm)
+
+    def test_the_full_lane_keeps_three_executor_rounds(self):
+        self.assertRegex(self.norm, r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\*")
+        self.assertIn("full: 3 execute → verify rounds", self.norm)
+
+    def test_the_findings_loop_names_the_coordinator_as_the_fast_lane_reviser(self):
+        self.assertRegex(self.norm, r"(?i)on TRIVIAL/SMALL, where there is no executor, revise the draft yourself")
+
+    def test_a_draft_failing_after_its_revision_still_fails_the_run(self):
+        self.assertRegex(self.norm, r"(?i)still failing after its revision ends the run `failed`")
+

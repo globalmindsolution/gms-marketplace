@@ -1010,7 +1010,10 @@ an approved `plan.md`.
 - MUST write `plan.md` to the ticket's docs folder (the partition when
   `artifacts.tickets_path` is `null`). On TRIVIAL/SMALL the coordinator
   authors it with no executor spawn and no approval step, exactly as before
-  (ADR-0074).
+  (ADR-0074); the verifier judges it, and on blocking findings the coordinator
+  revises its own draft once before the verifier judges again (ceiling 2
+  verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
+  not fail the run on its first verdict.
 - Subagents: `create-impl-plan-executor`, `-verifier` (execute → verify, no
   planner — ADR-0092; the executor's survey inherited the `code-planner`
   charter).

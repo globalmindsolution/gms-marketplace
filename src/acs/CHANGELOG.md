@@ -180,6 +180,16 @@ the notes.
   grades its sibling `../acs`. Entries above this one refer to `plugins/acs`
   paths as they were at the time; the tree they describe is `src/acs` now.
 
+- **`/acs:create-impl-plan` on TRIVIAL/SMALL revises its own draft once
+  before failing.** The coordinator-authored plan used to end the run
+  `failed` on the verifier's first blocking finding (ceiling 1, inherited from
+  `/acs:code`); it now revises the draft against every finding and the
+  verifier judges again (ceiling 2 verify rounds, one extra verifier call),
+  per ADR-0074's 2026-09-14 amendment. The 2026-09-14 PIPE-code diagnostic
+  lost a run to exactly this: a plan whose test strategy could not reach the
+  coverage target, caught by the verifier, with "re-run the skill" as the
+  only remedy.
+
 ### Deprecated
 
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.

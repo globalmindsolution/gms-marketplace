@@ -182,9 +182,14 @@ or hand-edited. Then:
 - **TRIVIAL/SMALL** — light: **zero** `acs:create-impl-plan-executor`
   spawns. The coordinator authors the
   `plan.md` draft itself against the IDENTICAL artifact contract below, and the
-  verifier still runs once (ceiling **1**). The verifier is the in-loop quality gate in
-  EVERY lane; light differs only in who authors and how many iterations are
-  allowed, never in whether the plan is judged.
+  verifier judges it; on blocking findings the coordinator revises its own
+  draft ONCE against every finding and the verifier judges again (ceiling
+  **2** verify rounds — ADR-0034's light depth "may iterate at most once on
+  blocking findings", and here the second round costs one verifier call, not
+  an executor pass; a draft still failing after its revision ends the run
+  `failed`). The verifier is the in-loop quality gate in EVERY lane; light
+  differs only in who authors and how many rounds are allowed, never in
+  whether the plan is judged.
 
 **What an iteration counts:** one execute → verify round.
 
@@ -345,7 +350,10 @@ the verifier did not report.
 ALL blocking findings block — zero blocking findings = pass. On findings:
 persist the verify output, then AUTOMATICALLY re-execute, passing every
 finding to the next iteration's executor in `<context>` with no plan phase
-in between. After the lane's ceiling (light: 1 / full: 3) with findings
+in between — on TRIVIAL/SMALL, where there is no executor, revise the draft
+yourself against every finding and re-run verify. After the lane's ceiling
+(light: 2 verify rounds of the coordinator's draft / full: 3 execute →
+verify rounds) with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
 the artifact it requires was never written, and on a re-plan the ticket keeps
