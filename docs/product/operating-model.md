@@ -235,11 +235,11 @@ reading is unchanged — but the role does not invoke it directly.
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
 | Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |
-| Standards | create-docs principles,standards (legs: create-principles, create-standards) | Principal |
-| Test strategy & regression | create-docs quality (leg: create-quality), run-e2e-tests | Evals engineer |
+| Standards | create-docs principles,standards | Principal |
+| Test strategy & regression | create-docs quality, run-e2e-tests | Evals engineer |
 | Release | release | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
-| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations (leg: create-operations) | Ops hat / evals engineer |
+| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations | Ops hat / evals engineer |
 | Governance | setup, install-hooks, org policy | Principal |
 
 ---

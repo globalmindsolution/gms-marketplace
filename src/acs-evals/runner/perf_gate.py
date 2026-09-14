@@ -108,9 +108,16 @@ def summarize(probe):
         # so it leaves the denominator entirely and is reported on its own
         # axis. A skill that ran and reported `failed` is the real thing this
         # floor is for, and stays in.
+        #
+        # A hit is the measured skill's OWN ledger saying `completed`. A clean
+        # session exit is not enough: on 2026-09-14 two PIPE-code sessions
+        # exited 0 after routing to /acs:ship, which ran /acs:analyze-ticket
+        # and stopped — /acs:code never ran, its ledger did not exist, and
+        # `status != "failed"` scored both as completions of a skill that was
+        # never exercised.
         scored = [r for r in runs if not r.get("unmeasured")]
         hits = sum(1 for r in scored
-                   if r.get("ok") and r.get("status") != "failed")
+                   if r.get("ok") and r.get("status") == "completed")
         agg["unmeasured"] = len(runs) - len(scored)
     agg["reliability"] = {
         "hits": hits, "total": len(scored),

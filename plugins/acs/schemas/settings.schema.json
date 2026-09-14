@@ -60,22 +60,22 @@
       "default": "docs/adr"
     },
     "quality_path": {
-      "description": "Location of the quality/ doc set (test strategy, coverage policy) bootstrapped and maintained by /acs:create-quality. Unset = acs does not maintain this set for this repo.",
+      "description": "Location of the quality/ doc set (test strategy, coverage policy) bootstrapped and maintained by /acs:create-docs quality. Unset = acs does not maintain this set for this repo.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": "docs/quality"
     },
     "operations_path": {
-      "description": "Location of the operations/ doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by /acs:create-operations. Unset = acs does not maintain the set for this repo.",
+      "description": "Location of the operations/ doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by /acs:create-docs operations. Unset = acs does not maintain the set for this repo.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": "docs/operations"
     },
     "principles_path": {
-      "description": "Location of the principles/ doc set (engineering principles and rationale) bootstrapped and maintained by /acs:create-principles. Unset = acs does not maintain this set for this repo.",
+      "description": "Location of the principles/ doc set (engineering principles and rationale) bootstrapped and maintained by /acs:create-docs principles. Unset = acs does not maintain this set for this repo.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": "docs/principles"
     },
     "standards_path": {
-      "description": "Location of the standards/ doc set (coding standards and conventions) bootstrapped and maintained by /acs:create-standards. Unset = acs does not maintain this set for this repo.",
+      "description": "Location of the standards/ doc set (coding standards and conventions) bootstrapped and maintained by /acs:create-docs standards. Unset = acs does not maintain this set for this repo.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": "docs/standards"
     },
@@ -180,7 +180,7 @@
         "overrides": {
           "type": "object",
           "propertyNames": {
-            "enum": ["analyze-ticket", "code", "create-api-contract", "create-architecture", "create-design", "create-e2e-tests", "create-impl-plan", "create-operations", "create-pr", "create-prd", "create-principles", "create-project", "create-quality", "create-requirements", "create-standards", "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
+            "enum": ["analyze-ticket", "code", "create-api-contract", "create-architecture", "create-design", "create-docs", "create-e2e-tests", "create-impl-plan", "create-pr", "create-prd", "create-project", "create-requirements", "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "standardize-project"]
           },
           "additionalProperties": {
             "type": "object",

@@ -225,13 +225,13 @@ class ScopeGuardTest(unittest.TestCase):
 
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
-        self.assertIn("25 x SKILL.md", body)
-        self.assertIn("45 x agent .md (39 reachable)", body)
+        self.assertIn("28 x SKILL.md", body)
+        self.assertIn("43 x agent .md (all reachable)", body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (25)", body)
-        self.assertIn("45 files, 39 reachable", body)
+        self.assertIn("acs Skills (28)", body)
+        self.assertIn("43 files, all reachable", body)
 
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))

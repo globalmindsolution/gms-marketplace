@@ -152,25 +152,6 @@
       }
     },
     {
-      "id": "SKILL-create-operations",
-      "kind": "skill_manifest",
-      "skill": "create-operations",
-      "title": "create-operations: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
-      "expect": {
-        "present": true,
-        "frontmatter": {
-          "name": "create-operations"
-        },
-        "frontmatter_nonempty": [
-          "description"
-        ],
-        "frontmatter_absent": [
-          "disable-model-invocation"
-        ]
-      },
-      "severity": "critical"
-    },
-    {
       "id": "SKILL-create-pr",
       "kind": "skill_manifest",
       "skill": "create-pr",
@@ -207,25 +188,6 @@
       }
     },
     {
-      "id": "SKILL-create-principles",
-      "kind": "skill_manifest",
-      "skill": "create-principles",
-      "title": "create-principles: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
-      "expect": {
-        "present": true,
-        "frontmatter": {
-          "name": "create-principles"
-        },
-        "frontmatter_nonempty": [
-          "description"
-        ],
-        "frontmatter_absent": [
-          "disable-model-invocation"
-        ]
-      },
-      "severity": "critical"
-    },
-    {
       "id": "SKILL-create-project",
       "kind": "skill_manifest",
       "skill": "create-project",
@@ -234,25 +196,6 @@
         "present": true,
         "frontmatter": {
           "name": "create-project"
-        },
-        "frontmatter_nonempty": [
-          "description"
-        ],
-        "frontmatter_absent": [
-          "disable-model-invocation"
-        ]
-      },
-      "severity": "critical"
-    },
-    {
-      "id": "SKILL-create-quality",
-      "kind": "skill_manifest",
-      "skill": "create-quality",
-      "title": "create-quality: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
-      "expect": {
-        "present": true,
-        "frontmatter": {
-          "name": "create-quality"
         },
         "frontmatter_nonempty": [
           "description"
@@ -280,25 +223,6 @@
           "disable-model-invocation"
         ]
       }
-    },
-    {
-      "id": "SKILL-create-standards",
-      "kind": "skill_manifest",
-      "skill": "create-standards",
-      "title": "create-standards: ships as an internal leg of /acs:create-docs, dispatchable by it, with a routing description",
-      "expect": {
-        "present": true,
-        "frontmatter": {
-          "name": "create-standards"
-        },
-        "frontmatter_nonempty": [
-          "description"
-        ],
-        "frontmatter_absent": [
-          "disable-model-invocation"
-        ]
-      },
-      "severity": "critical"
     },
     {
       "id": "SKILL-create-test-docs",

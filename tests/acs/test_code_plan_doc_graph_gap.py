@@ -229,11 +229,11 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
     def test_dr2_participant_count_matches_live_recomputation(self):
         live_count = live_canonical_block_count()
         m = re.search(
-            r"\*\*(\d+)\*\*\s+planner\s+agents\s+actually\s+carry\s+the\s+canonical",
+            r"\*\*(\d+)\*\*\s+(?:planner\s+)?agents\s+actually\s+carry\s+the\s+canonical",
             self.amendment_norm)
         self.assertIsNotNone(
             m, "amendment must state the reconciled participant count "
-            "next to '**N** planner agents actually carry the canonical'")
+            "next to '**N** agents actually carry the canonical'")
         stated_count = int(m.group(1))
         self.assertEqual(
             stated_count, live_count,

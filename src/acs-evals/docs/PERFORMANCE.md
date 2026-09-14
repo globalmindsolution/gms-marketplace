@@ -34,7 +34,19 @@ bought once can be re-judged under new thresholds without paying again.
 **Reliability** — routing accuracy per skill (does a natural request reach the
 right skill, and does a description of an internal leg's subject reach its
 entry point rather than the leg), and whether pipeline runs reach a completed
-status at all.
+status at all. A pipeline run counts as completed only when the session exited
+clean **and the measured skill's own ledger** (`<ticket>/<skill>-state.json`,
+`runs[-1].status`) says `completed` — a clean exit alone is not enough. On
+2026-09-14 two `PIPE-code` sessions exited 0 after routing the old free-text
+prompt to `/acs:ship`, which ran `/acs:analyze-ticket` and stopped: `/acs:code`
+never ran, its ledger did not exist, and "not failed" scored both as
+completions of a skill that was never exercised. Scenario set 1.7.0 therefore
+also names the skill in the prompt (`/acs:code TKT-1`) and brings the sandbox
+to the state its gate requires (`/acs:analyze-ticket`, `/acs:create-impl-plan`
+as `setup_prompts`) — the scenario measures the skill's body, and the routing
+decision is `ROUTE-code`'s to measure. Every pipeline session's stream-json
+transcript is kept under `<out dir>/transcripts/` (`--transcripts` moves or
+disables it), so a run that came back wrong is read, not re-bought.
 
 **Cost** — `cost_usd` per run. For pipeline scenarios this comes from acs's own
 ledger, `<ticket>/<skill>-state.json`, which is the same document `/acs:usage`
@@ -208,16 +220,19 @@ than a reader thinks, so it may never be green by having run nothing.
 ## Cost of the tier itself
 
 `make measure-plan` prints it before anything is spent. At the shipped scenario
-set that is **159 sessions**: 30 routing probes (27 routing, 3 controls) × 5
+set that is **220 sessions**: 35 routing probes (32 routing, 3 controls) × 5
 runs (each a few seconds, killed at the first `Skill` call, or at `init` for
-the explicit probes and controls) plus 3 pipeline scenarios × 3 runs (one of
-which is a full `/acs:code` TDD cycle). `make measure-routing` runs the cheap
-half alone. Scenario set 1.4.0 adds two scenarios on the fixture app
-(`PIPE-code-app`, `PIPE-docs-sync-app`; 165 sessions in all) and gives
-`PIPE-docs-sync` the `/acs:code` setup prompt its gate requires — a
-scenario whose measured skill needs prior pipeline state names that state's
-prompts in `setup_prompts`, run first in the same sandbox and recorded on the
-run's `setup` list, never folded into the measured cost or time.
+the explicit probes and controls) plus 5 pipeline scenarios × 3 runs, each
+run preceded by its scenario's setup prompts (two of the runs are full
+`/acs:code` TDD cycles, and two more run one as setup). `make measure-routing`
+runs the cheap half alone. Scenario set 1.4.0 added the two scenarios on the
+fixture app (`PIPE-code-app`, `PIPE-docs-sync-app`) and gave `PIPE-docs-sync`
+the `/acs:code` setup prompt its gate requires — a scenario whose measured
+skill needs prior pipeline state names that state's prompts in
+`setup_prompts`, run first in the same sandbox and recorded on the run's
+`setup` list, never folded into the measured cost or time. 1.7.0 spells those
+prompts out as the explicit gated steps (`/acs:analyze-ticket`,
+`/acs:create-impl-plan`, `/acs:code`) rather than a request that routes.
 
 ### A setup that falls short leaves a hole, not a failure
 

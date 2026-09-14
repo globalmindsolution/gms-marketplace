@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 32 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 53 files, all reachable (16 triad-keeping skills × 3 + code's executor and verifier + 3 apply-work executors). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set (ADR-0092) |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 28 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 43 files, all reachable (12 triad-keeping skills × 3 + code's executor and verifier + create-docs' executor and verifier + 3 apply-work executors). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set (ADR-0092) |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | Workflow files | `plugins/acs/workflows/{phases,ship}.yaml` | 2 (the skill registry and the default delivery pipeline; a consumer may override the latter at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 14 |
@@ -34,7 +34,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the twenty hooked skills, and
+   (exit 0) for anything that is not one of the seventeen hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -227,7 +227,7 @@ places:
 |---|---|---|
 | a phase list | a user-facing skill, in one of the five groups `design`, `build`, `test`, `ship`, `utility` | 25 skills |
 | a key under `aliases` | a directory that forwards to another skill, kept for one release | 1 — `test: run-e2e-tests` |
-| a key under `internal` | an **internal leg**: the value names the one user-facing entry point it serves | 6 — see below |
+| a key under `internal` | an **internal leg**: the value names the one user-facing entry point it serves | 2 — see below |
 
 The `internal` map is the design-phase **entry-point fold**, and it is a fold,
 not a collapse. A leg keeps everything that makes it a skill — its SKILL.md,
@@ -235,18 +235,22 @@ its planner/executor/verifier trio, its `pre-`/`post-` hook scripts, its
 registered `GATES` entry, its settings key and its sentinel — and its entry
 point invokes it as a genuine Skill-tool call, so every one of those fires
 exactly as it would on a standalone run. What the map declares is narrower:
-who may invoke it. A leg is not a command a user runs, it carries
-`disable-model-invocation: true`, and it is absent from every phase list:
+who may invoke it. A leg is not a command a user runs (its description says
+so, which is what steers a plain request to the entry point), and it is
+absent from every phase list:
 
 ```yaml
 internal:
-  create-quality: create-docs
-  create-operations: create-docs
-  create-principles: create-docs
-  create-standards: create-docs
   create-project: project
   standardize-project: project
 ```
+
+The four doc-set legs `/acs:create-docs` used to fan out — `create-quality`,
+`create-operations`, `create-principles`, `create-standards` — are no longer
+legs, or skills: ADR-0094 folded them **into** `create-docs`, which is now a
+hooked product skill that bootstraps any of the four sets itself (one
+delivery ticket per set, from the `acs_lib.DOC_SETS` table). That was a
+collapse, taken because the four differed only in a table row.
 
 `load_phases()` refuses, each refusal naming the line that caused it: an
 `internal` key with no `skills/<dir>`; an `internal` value that is not a
@@ -264,7 +268,7 @@ absent), `entry_point_of(skill)` (a leg's entry point, else `None`),
 ship-eligible, and `allowed_ship_skills()` is unaffected by the fold.
 
 **Grouping a leg's run.** `phase_of` resolves an internal leg **through** its
-entry point, so `phase_of("create-quality")` is `"design"` (via `create-docs`)
+entry point, so `phase_of("create-project")` is `"design"` (via `project`)
 and `phase_of("standardize-project")` is `"design"` (via `project`). That is
 what keeps a leg's run inside a phase for any consumer that groups by phase —
 `/acs:metrics` above all — instead of falling outside the five groups the
@@ -425,9 +429,9 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 
 **All twelve triad-keeping skills exception (MAR-71, slice 1b of MAR-69, for
 `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`;
-MAR-302 for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
-`/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, and
-`/acs:create-principles`; completed for `/acs:create-architecture`,
+MAR-302 for `/acs:standardize-project`; MAR-305 for `/acs:create-prd` and
+the four doc-set legs that are since one planner-less skill,
+`/acs:create-docs` — ADR-0094; completed for `/acs:create-architecture`,
 `/acs:create-design`, and `/acs:create-requirements`):** for every triad
 skill, the plan step above runs exactly once, before this loop starts, and
 is not part of any iteration — it is never re-entered on iteration 2+. The
@@ -444,7 +448,8 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration); `/acs:create-docs` writes no plan artifact at all — its executor's authoring notes are the row below (ADR-0094)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
+| authoring | `iter-<n>-authoring.md` (`/acs:create-docs` only — the class-D author's notes, ADR-0092/ADR-0094) | executor | the mode (bootstrap / re-run) with its evidence; the Upstream inventory — every upstream fact the set was tailored on, cited with a verbatim excerpt, which the verifier corroborates through `citation_check.py`; ADR-0012 consistency findings; decisions and assumptions |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
@@ -670,20 +675,21 @@ All coordinator <-> subagent communication uses the three message shapes in
 
 ## Subagents
 
-53 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 53 reachable —
+43 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 43 reachable —
 every one of them: the files on disk are exactly the roles `workflows/phases.yaml`
 declares under `agents` (ADR-0092), which is what
-`tests/acs/test_docs_reflection_topology.py` asserts. The sixteen
+`tests/acs/test_docs_reflection_topology.py` asserts. The twelve
 **triad-keeping skills** (`analyze-ticket`,
 `create-impl-plan`, `create-api-contract`, `create-test-docs`,
 `create-e2e-tests`, `create-prd`, `create-design`, `create-architecture`,
-`create-project`, `create-quality`, `create-operations`, `create-principles`,
-`create-standards`, `docs-sync`, `standardize-project`, `create-requirements`)
-spawn all three roles. Six of those sixteen are the registry's **internal
-legs** (`create-quality`, `create-operations`, `create-principles`,
-`create-standards`, `create-project`, `standardize-project`): the entry-point
-fold left their trios untouched, which is exactly why it is a fold and not a
-collapse — the agent count did not move. **`/acs:code` is planner-less**: its plan phase became
+`create-project`, `docs-sync`, `standardize-project`, `create-requirements`)
+spawn all three roles. Two of those twelve are the registry's **internal
+legs** (`create-project`, `standardize-project`): the entry-point fold left
+their trios untouched, which is exactly why it is a fold and not a collapse.
+**`/acs:create-docs` is planner-less** (ADR-0092 class D, ADR-0094): one
+executor authors any of the four doc sets from its templates and one verifier
+judges it, the set riding in the task constraints — 2 files for four sets
+where the four former legs shipped 12. **`/acs:code` is planner-less**: its plan phase became
 `/acs:create-impl-plan`, `code-planner.md` moved with it, and code ships only
 an executor and a verifier — 2 files, not 3, and no orphan. The three
 **apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and

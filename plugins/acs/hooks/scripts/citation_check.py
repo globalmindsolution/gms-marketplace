@@ -5,9 +5,10 @@ No third-party dependency, but it is not standalone: the heading scanner
 lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
 which must sit beside this file on sys.path.
 
-The 4 bootstrap-doc planners (create-quality, create-standards,
-create-operations, create-principles) record upstream-fact citations in an
-`Upstream inventory` section of `iter-<n>-plan.md`: one line per citation,
+The doc-set executor (/acs:create-docs, every set) records upstream-fact
+citations in an `Upstream inventory` section of its authoring notes,
+`iter-<n>-authoring.md` (the former planners wrote them to `iter-<n>-plan.md`,
+which this checker reads just the same): one line per citation,
 each naming a claim, a backtick-quoted relative path under a declared root,
 and a straight-double-quoted verbatim excerpt. This script is the
 deterministic ($0, stdlib-only) mechanical floor the verifier invokes to

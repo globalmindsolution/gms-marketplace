@@ -2,6 +2,17 @@
 
 **Status**: Accepted · **Date**: 2026-09-12
 
+> **Forward pointer — ADR-0094 (2026-09-14).** For the four doc-set legs the
+> "not a collapse" decision below was reversed on the evidence this ADR asked
+> for: a `diff` showed the four differed only in a table row, so ADR-0094
+> folded them into `/acs:create-docs` outright (one hooked skill, an
+> `acs_lib.DOC_SETS` table, one executor + verifier pair, no planner). The
+> registry `internal` map, the entry-point fold pattern and `/acs:project`'s
+> auto-detected mode all stand — for the two project legs, which genuinely
+> differ. The open item recorded under Consequences was closed on 2026-09-13
+> when every skill became model-invocable (ADR-0092's fold repair) and the
+> legs' probes moved to the explicit + negative pair.
+
 ## Context
 
 The design phase had grown to twelve user-facing commands, six of which a

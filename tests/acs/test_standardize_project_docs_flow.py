@@ -119,8 +119,8 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
         # Build/Test skills + the `test` -> `run-e2e-tests` alias directory).
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Thirty-one skills", intro,
-                      "skills.md intro must read 'Thirty-one skills'")
+        self.assertIn("Twenty-seven skills", intro,
+                      "skills.md intro must read 'Twenty-seven skills'")
         for stale in ("Twenty-three skills", "Twenty-five skills"):
             self.assertNotIn(stale, intro,
                              "skills.md intro must NOT still read %r" % stale)
@@ -147,16 +147,15 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             "standardize-project section must mention recommended_follow_ups "
             "or 'recommended follow-up'")
 
-    def test_workflow_product_skills_bullet_reads_twelve(self):
+    def test_workflow_product_skills_bullet_reads_nine(self):
         body = self._skills_req()
         window = window_to_next_h2(body, "Every **workflow** skill MUST:")
-        self.assertIn("Twelve", window)
+        self.assertIn("Nine **workflow/product skills**", window)
         self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
             "docs-sync", "code", "create-prd", "create-design",
-            "create-architecture", "create-project", "create-quality",
-            "create-operations", "create-principles", "create-standards",
+            "create-architecture", "create-project", "create-docs",
             "standardize-project", "create-requirements",
         ):
             self.assertIn(name, window,
@@ -182,9 +181,9 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("25 x SKILL.md", body)
+        self.assertIn("28 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("45 x agent .md (39 reachable)", body)
+        self.assertIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
     def test_c4_container_triad_skill_list_names_all_twelve(self):
@@ -197,9 +196,9 @@ class C4CountAndListFilesTest(unittest.TestCase):
                "the enumerated list")
         enumerated = m.group(1)
         for suffix in (
-            "prd", "architecture", "project", "quality", "operations",
-            "principles", "standards", "design", "standardize-project",
-            "create-requirements",
+            "prd", "architecture", "project", "design", "create-requirements",
+            "standardize-project", "docs-sync", "analyze-ticket",
+            "create-impl-plan", "api-contract", "test-docs", "e2e-tests",
         ):
             self.assertIn(
                 suffix, enumerated,
@@ -213,14 +212,14 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("standardize-project", body)
         self.assertIn("12 active triads (36 agents", body)
         self.assertNotIn("11 active triads (33 agents", body)
-        self.assertIn("39 reachable agents", body)
+        self.assertIn("43 agent files, all reachable", body)
         self.assertNotIn("36 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (25)", body)
+        self.assertIn("acs Skills (28)", body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("45 files, 39 reachable", body)
+        self.assertIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
         self.assertIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)

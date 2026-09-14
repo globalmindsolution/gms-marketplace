@@ -54,11 +54,11 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         self.assertEqual(self._ids(), [ticket_id])
 
     def test_a_second_product_leg_still_gets_its_own_ticket(self):
-        """Two doc-bootstrap legs run concurrently with no id in their args;
+        """Two doc sets run concurrently with no id in their args;
         neither may adopt the other's ticket through the session pointer."""
-        first = self.run_script("skill-start.py", "--skill", "create-quality", "--allocate")
+        first = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "quality", "--allocate")
         self.assertEqual(first.returncode, 0, first.stderr)
-        second = self.run_script("skill-start.py", "--skill", "create-operations", "--allocate")
+        second = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "operations", "--allocate")
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertNotEqual(json.loads(first.stdout)["ticket_id"],
                             json.loads(second.stdout)["ticket_id"])
@@ -87,7 +87,7 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         self.assertEqual(len(self._ids()), 2)
 
     def test_a_product_leg_never_derives_its_ticket_from_args(self):
-        """The six product-level skills each route resume through a separate
+        """The product-level skills each route resume through a separate
         --ticket call with no --allocate, so args-derived reuse buys them
         nothing -- and would let a delivery ticket be adopted by a flow that
         never owned it."""
@@ -97,8 +97,8 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         delivery = json.loads(first.stdout)["ticket_id"]
         lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], delivery))
 
-        leg = self.run_script("skill-start.py", "--skill", "create-quality",
-                              "--allocate", "--args", delivery)
+        leg = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set",
+                              "quality", "--allocate", "--args", delivery)
         self.assertEqual(leg.returncode, 0, leg.stderr)
         self.assertNotEqual(json.loads(leg.stdout)["ticket_id"], delivery,
                             "a product-level leg adopted a delivery ticket")
@@ -122,13 +122,13 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
     def test_an_explicit_ticket_flag_still_resumes_for_any_skill(self):
         """The narrowing is on --args only: --ticket is unambiguous by
         construction and stays the supported resume path everywhere."""
-        first = self.run_script("skill-start.py", "--skill", "create-quality", "--allocate")
+        first = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "quality", "--allocate")
         self.assertEqual(first.returncode, 0, first.stderr)
         leg = json.loads(first.stdout)["ticket_id"]
         lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], leg))
 
-        again = self.run_script("skill-start.py", "--skill", "create-quality",
-                                "--allocate", "--ticket", leg)
+        again = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set",
+                                "quality", "--allocate", "--ticket", leg)
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(json.loads(again.stdout)["ticket_id"], leg)
         self.assertEqual(self._ids(), [leg])

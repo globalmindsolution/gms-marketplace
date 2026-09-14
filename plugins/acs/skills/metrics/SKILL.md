@@ -88,8 +88,8 @@ The PM delivery view renders exactly nine panels:
    the entry-point fold changed nothing about that. Where a run is grouped by
    PHASE, `workflows/phases.yaml` is the source and `acs_lib.phase_of`
    resolves a leg **through** its entry point, so a leg reports under its
-   entry point's phase (`phase_of("create-quality")` is `design`, via
-   `create-docs`) rather than falling outside the five groups.
+   entry point's phase (`phase_of("create-project")` is `design`, via
+   `project`) rather than falling outside the five groups.
 4. **Coverage achieved vs target** — per ticket; a `null`/`"n/a"` coverage
    renders as "no data" for that ticket, never a crash or a fabricated number.
 5. **Review iterations before the verifier passed** — per-ticket integer.

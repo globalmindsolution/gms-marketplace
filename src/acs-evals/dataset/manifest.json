@@ -1,11 +1,11 @@
 {
-  "dataset_version": "1.1.0",
+  "dataset_version": "1.2.0",
   "target_plugin": "acs",
   "target_release": "v0.5.0",
   "recorded_against": "0.4.9",
-  "recorded_against_fingerprint": "fac10cbbcd9f7fb5",
-  "recorded_on": "2026-09-13",
-  "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.5.0 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and \u2014 as of 1.1.0 \u2014 the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills, ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
+  "recorded_against_fingerprint": "2f8d72a3e115eb91",
+  "recorded_on": "2026-09-14",
+  "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.5.0 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and \u2014 as of 1.1.0 \u2014 the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills (28 as of 1.2.0, after ADR 0094 folded the four doc-set legs into /acs:create-docs), ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
   "tiers": {
     "deterministic": "dataset/cases/*.json, run by runner/run_golden.py. No model, no network, $0.",
     "agentic": "evals/**/case.yaml, run by `claude plugin eval`. Spawns sessions; costs money."

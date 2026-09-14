@@ -338,27 +338,16 @@ def _require_architecture_doc_set(ctx):
 #: set, asserted against GATES by tests/acs/test_acs_lib_gates.py, so adding a
 #: producer with this precondition is a row plus a two-line gate, and the two
 #: cannot drift apart.
-ARCHITECTURE_DEPENDENT_SKILLS = ("create-quality", "create-operations",
-                                 "create-principles", "create-standards")
+ARCHITECTURE_DEPENDENT_SKILLS = ("create-docs",)
 
 
-def gate_create_quality(ctx, payload):
-    """Pre-hook gate for /acs:create-quality -- requires the architecture doc set."""
-    return _require_architecture_doc_set(ctx)
+def gate_create_docs(ctx, payload):
+    """Pre-hook gate for /acs:create-docs -- requires the architecture doc set.
 
-
-def gate_create_operations(ctx, payload):
-    """Pre-hook gate for /acs:create-operations -- requires the architecture doc set."""
-    return _require_architecture_doc_set(ctx)
-
-
-def gate_create_principles(ctx, payload):
-    """Pre-hook gate for /acs:create-principles -- requires the architecture doc set."""
-    return _require_architecture_doc_set(ctx)
-
-
-def gate_create_standards(ctx, payload):
-    """Pre-hook gate for /acs:create-standards -- requires the architecture doc set."""
+    One gate for every doc set (ADR-0094): each set's only precondition is
+    the architecture set, so the check runs once, at the Skill call, and a
+    missing architecture set refuses the whole request before any delivery
+    ticket is minted."""
     return _require_architecture_doc_set(ctx)
 
 
@@ -369,10 +358,7 @@ GATES = {
     "create-requirements": gate_create_requirements,
     "create-architecture": gate_create_architecture,
     "create-project": gate_create_project,
-    "create-quality": gate_create_quality,
-    "create-operations": gate_create_operations,
-    "create-principles": gate_create_principles,
-    "create-standards": gate_create_standards,
+    "create-docs": gate_create_docs,
     "create-ticket": gate_create_ticket,
     "create-design": gate_create_design,
     "analyze-ticket": gate_analyze_ticket,

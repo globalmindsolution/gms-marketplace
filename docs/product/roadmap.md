@@ -58,14 +58,13 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 32 skills + 53 agent files on disk (verified `ls plugins/acs/skills` = 32,
-  `ls plugins/acs/agents` = 53); the reflection (plan→execute→verify) protocol is
-  active on the sixteen triad-keeping skills (`/acs:code` now plans once per
+- 28 skills + 43 agent files on disk (verified `ls plugins/acs/skills` = 28,
+  `ls plugins/acs/agents` = 43); the reflection (plan→execute→verify) protocol is
+  active on the twelve triad-keeping skills (`/acs:code` now plans once per
   run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
   coordinator-authored with zero `code-planner` spawns (MAR-72);
   `/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
-  `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`,
-  `/acs:create-operations`, `/acs:create-principles`, `/acs:create-architecture`,
+  `/acs:create-prd`, `/acs:create-architecture`,
   `/acs:create-design`, and `/acs:create-requirements` likewise now plan
   once per run (MAR-300, MAR-301, MAR-302, MAR-305, and the completion of
   this migration); all twelve triad skills now share this shape), while
@@ -120,11 +119,13 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 31 green across 39 probes (matches
-  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
-  which is 31 of the 32 shipped skill directories: only the `test` alias is
-  unprobed, since `run-e2e-tests` carries its probe. The six ADR 0091 legs
-  moved from description probes to explicit + no-auto-route pairs). The 20
+  routes to the right skill — target all 27 green across 31 probes (matches
+  `s04_skill_triggers.py`'s 27-skill routing coverage, up from the original 12,
+  which is 27 of the 28 shipped skill directories: only the `test` alias is
+  unprobed, since `run-e2e-tests` carries its probe. The two ADR 0091 legs
+  of `/acs:project` moved from description probes to explicit + no-auto-route
+  pairs; the four doc-set legs were folded into `/acs:create-docs` by ADR 0094
+  and its description probe covers them). The 20
   description probes measured before the refactor are green; everything added
   since — the 3 MAR-575 probes, the 6 new Build/Test and umbrella probes, and
   the 6 legs' explicit + negative pairs — is authored and first measured by the
@@ -369,17 +370,18 @@ accountability)** is a documentation artifact **satisfied at this amendment's
 landing release** — no separate epic; re-checked each release the skill set
 changes.
 
-**Amendment — design-phase entry-point fold (ADR 0091).** The phase coverage
-above is unchanged, but the **commands** that reach three of those phases are
-not what the wave notes say. `create-quality`, `create-operations`,
-`create-principles`, `create-standards`, `create-project` and
-`standardize-project` are now internal legs: quality/operate and
-standards/principles are reached through `/acs:create-docs <set|all>`, and
-bootstrap/standardization through `/acs:project`, which picks its mode from
-declared on-disk evidence rather than making the user choose greenfield vs
-brownfield. Every leg kept its own gate, triad, delivery ticket and PR, so no
-wave's delivered scope moved and no phase lost its operating skill — read the
-`/acs:create-quality`-style spellings in the wave notes below as skill names,
+**Amendment — design-phase entry-point fold (ADR 0091) and the doc-set fold
+(ADR 0094).** The phase coverage above is unchanged, but the **commands** that
+reach three of those phases are not what the wave notes say. `create-project`
+and `standardize-project` are internal legs of `/acs:project`, which picks its
+mode from declared on-disk evidence rather than making the user choose
+greenfield vs brownfield; each leg kept its own gate, triad, delivery ticket
+and PR. `create-quality`, `create-operations`, `create-principles` and
+`create-standards` went further: ADR 0094 folded them into
+`/acs:create-docs <set|all>` outright — one hooked skill, one executor +
+verifier pair, one delivery ticket per set — so no wave's delivered scope moved
+and no phase lost its operating skill. Read the `/acs:create-quality`-style
+spellings in the wave notes below as the doc set `/acs:create-docs` delivers,
 not as commands. `/acs:test` likewise reads as `/acs:run-e2e-tests` since the
 skills-independence refactor left `test` behind as a one-release alias.
 
@@ -648,7 +650,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 53 vs 53 reachable). **(ii) is
+  disk equals reachable-agent count (today 43 vs 43 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic

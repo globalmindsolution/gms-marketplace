@@ -5,18 +5,19 @@ the coordinator invokes the same flow directly — see `ship-pipeline.md`.)
 
 This flow is **also** exactly what an `internal` leg of `/acs:create-docs` or
 `/acs:project` runs (`workflows/phases.yaml`). The design-phase entry-point
-fold changed only who may invoke those six skills, never how they run: the
+fold changed only who may invoke those two skills, never how they run: the
 entry point invokes each leg as a genuine Skill-tool call, so the
 `PreToolUse(Skill)` gate, `skill-start.py`, the triad and the `post-` hook all
-fire for real, precisely as drawn below. Read every `/acs:create-quality`-style
+fire for real, precisely as drawn below. Read every `/acs:create-project`-style
 name in this file as the skill, not as a command a user types.
 
 The diagram below shows the **full reflection triad** (planner → executor →
 verifier), which is how the twelve triad-keeping skills run (`create-prd`,
-`create-architecture`, `create-project`, `create-quality`,
-`create-operations`, `create-principles`, `create-standards`,
-`create-design`, `code`, `docs-sync`, `standardize-project`,
-`create-requirements` — `/acs:code` is the example traced here; the diagram's
+`create-architecture`, `create-project`, `create-design`, `docs-sync`,
+`standardize-project`, `create-requirements`, `analyze-ticket`,
+`create-impl-plan`, `create-api-contract`, `create-test-docs`,
+`create-e2e-tests`); `code` and `create-docs` run the same loop without the
+planner — `/acs:code` is the example traced here; the diagram's
 `PL->>WS` plan write is therefore labeled `plan.md`, `/acs:code`'s single
 per-ticket plan artifact (MAR-70) — the other eleven triad skills write
 `iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
@@ -25,9 +26,9 @@ MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
 `/acs:code`; every other triad skill now shares that same shape — no triad
 skill draws the plan step **inside** the `loop reflection` block any longer.
 `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301),
-`/acs:standardize-project` (MAR-302), `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles`
-(MAR-305), and finally `/acs:create-architecture`, `/acs:create-design`, and
+`/acs:standardize-project` (MAR-302), `/acs:create-prd` (MAR-305 — which also
+covered the four doc-set legs since folded into the planner-less
+`/acs:create-docs`, ADR 0094), and finally `/acs:create-architecture`, `/acs:create-design`, and
 `/acs:create-requirements` have all joined `/acs:code` outside the loop:
 their plan phase likewise runs once, before the loop, with iteration-2+
 findings routed straight to their executor's `<context>`. Those same two

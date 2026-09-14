@@ -139,6 +139,36 @@ RETIRED_BY_SKILLS_INDEPENDENCE = {
 }
 
 
+# Clauses the doc-set fold (ADR-0094) reworded: the four per-set skill
+# sections became one /acs:create-docs section, reflection.md's triad list
+# lost the four legs, and configuration.md's *_path rows now name the set as
+# `/acs:create-docs <set>` rather than a leg command that no longer exists.
+RETIRED_BY_DOC_SET_FOLD = {
+    'skills.md': (
+        "- MUST take the **PRD's non-functional requirements** and the full",
+        '- MUST take the **PRD** and the full `architecture_path` set as upstream',
+        '- MUST take the **PRD**, the full `architecture_path` set, and the',
+    ),
+    'reflection.md': (
+        'create-principles, create-standards, standardize-project, create-requirements) MUST apply the',
+    ),
+    'configuration.md': (
+        '| `operations_path` | string (repo-relative path) or `null` | `"docs/operations"` | No | Location of the `operations/` doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by `/acs:create-operations`. Unset = acs does not maintain this set for this repo. |',
+        '| `principles_path` | string (repo-relative path) or `null` | `"docs/principles"` | No | Location of the `principles/` doc set (engineering principles + rationale) bootstrapped and maintained by `/acs:create-principles`. Unset = acs does not maintain this set for this repo. |',
+        '| `quality_path` | string (repo-relative path) or `null` | `"docs/quality"` | No | Location of the `quality/` doc set (test strategy, coverage policy) bootstrapped and maintained by `/acs:create-quality`. Unset = acs does not maintain this set for this repo. |',
+        '| `standards_path` | string (repo-relative path) or `null` | `"docs/standards"` | No | Location of the `standards/` doc set (coding standards & conventions — `coding-standards.md`, `conventions.md`, `review-checklist.md`) bootstrapped and maintained by `/acs:create-standards`, which also reads `principles_path` (when set) as an upstream grounding input. Unset = acs does not maintain this set for this repo. |',
+    ),
+}
+
+
+def _retired():
+    """Every allowlist, merged: a clause is exempt when any fold retired it."""
+    merged = {}
+    for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD):
+        for source, clauses in table.items():
+            merged[source] = merged.get(source, ()) + tuple(clauses)
+    return merged
+
 class ContentPreservationTest(unittest.TestCase):
     """AC-4: every MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]-tagged clause (or an
     equivalent clause-level unit — a markdown table data row) inventoried
@@ -164,7 +194,7 @@ class ContentPreservationTest(unittest.TestCase):
         missing = []
         duplicated = []
         for source, clauses in self.fixture.items():
-            retired = RETIRED_BY_SKILLS_INDEPENDENCE.get(source, ())
+            retired = _retired().get(source, ())
             for clause in clauses:
                 if clause in retired:
                     continue
@@ -187,7 +217,7 @@ class ContentPreservationTest(unittest.TestCase):
         still in the tree would silently exempt a clause the reorg guard is
         supposed to be watching."""
         still_present = []
-        for source, clauses in RETIRED_BY_SKILLS_INDEPENDENCE.items():
+        for source, clauses in _retired().items():
             for clause in clauses:
                 if self._homes(clause):
                     still_present.append((source, clause))

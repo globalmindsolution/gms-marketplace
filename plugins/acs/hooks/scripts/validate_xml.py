@@ -79,9 +79,8 @@ XSD_PATH = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), "schemas",
 # sync by tests/acs/test_message_schema_skill_enum.py.
 SKILLS = {"analyze-ticket", "code", "create-api-contract", "create-architecture",
           "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
-          "create-operations", "create-pr", "create-prd", "create-principles",
-          "create-project", "create-quality", "create-requirements",
-          "create-standards", "create-test-docs", "create-ticket", "docs-sync",
+          "create-pr", "create-prd", "create-project", "create-requirements",
+          "create-test-docs", "create-ticket", "docs-sync",
           "handoff", "install-hooks", "merge-pr", "metrics", "project", "release",
           "run-e2e-tests", "setup", "ship", "standardize-project", "test",
           "update", "usage", "create-spec"}

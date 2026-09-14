@@ -105,7 +105,7 @@ schema is authored from the CLI's `--help` output rather than a passing run.
 What *is* verified without a model is the routing **surface**: that every
 skill ships, carries a description, and stays invocable — no skill sets
 `disable-model-invocation`, and a leg its entry point dispatches must not
-(`SKILL-*`, critical for the six legs). **Whether a real request reaches the
+(`SKILL-*`, critical for the two `/acs:project` legs). **Whether a real request reaches the
 right skill is not pinned by the deterministic tier.** Do not record routing as
 verified on the strength of a tier-1 gate.
 

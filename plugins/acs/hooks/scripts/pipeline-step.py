@@ -44,8 +44,7 @@ TICKET_ID = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+$")
 #: outside it produces a ledger the schema rejects -- four test modules load
 #: that schema and assert against it.
 PIPELINE_STEPS = (
-    "create-prd", "create-architecture", "create-project", "create-quality",
-    "create-operations", "create-principles", "create-standards",
+    "create-prd", "create-architecture", "create-project", "create-docs",
     "create-requirements", "create-ticket", "create-design", "analyze-ticket",
     "create-impl-plan", "create-api-contract", "create-test-docs", "code",
     "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",

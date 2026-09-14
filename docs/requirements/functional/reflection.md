@@ -15,17 +15,19 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: plan → execute → verify
 
-The twelve **triad-keeping skills** (code, docs-sync, create-prd, create-design,
-create-architecture, create-project, create-quality, create-operations,
-create-principles, create-standards, standardize-project, create-requirements) MUST apply the
-Reflection pattern as a
-**plan–execute–verify cycle**, with a **different subagent for each phase**.
+The twelve **triad-keeping skills** (analyze-ticket, create-impl-plan,
+create-api-contract, create-test-docs, create-e2e-tests, docs-sync, create-prd,
+create-design, create-architecture, create-project, standardize-project,
+create-requirements) MUST apply the Reflection pattern as a
+**plan–execute–verify cycle**, with a **different subagent for each phase**;
+`code` and `create-docs` apply it as **execute–verify** with no planner —
+`code` against a plan `/acs:create-impl-plan` wrote (ADR-0089), `create-docs`
+because its deliverable is a template-bootstrapped document and a plan to
+write one is a second copy of the writing (ADR-0092 class D, ADR-0094).
 All twelve now run a plan-once shape of this cycle, where the plan phase
 runs exactly once per run before the loop rather than per iteration:
-`/acs:code`, `/acs:docs-sync`, `/acs:create-project`,
-`/acs:standardize-project`, `/acs:create-prd`, `/acs:create-quality`,
-`/acs:create-standards`, `/acs:create-operations`, `/acs:create-principles`,
-`/acs:create-architecture`, `/acs:create-design`, and
+`/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
+`/acs:create-prd`, `/acs:create-architecture`, `/acs:create-design`, and
 `/acs:create-requirements` — see the `code` conditional-triad note
 immediately below and the Exception bullet under Requirements for the full
 statement.
@@ -67,9 +69,9 @@ Requirements:
   on the next iteration — execute → verify only, with no re-plan and no
   second planner spawn (MAR-71, slice 1b of MAR-69, for `/acs:code`;
   MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`; MAR-302
-  for `/acs:standardize-project`; MAR-305 for `/acs:create-prd`,
-  `/acs:create-quality`, `/acs:create-standards`, `/acs:create-operations`,
-  and `/acs:create-principles`; and completing the migration for
+  for `/acs:standardize-project`; MAR-305 for `/acs:create-prd` and the
+  four doc-set legs since folded into the planner-less `/acs:create-docs`
+  (ADR-0094); and completing the migration for
   `/acs:create-architecture`, `/acs:create-design`, and
   `/acs:create-requirements`). For `/acs:code` on TRIVIAL/SMALL specifically
   there is no planner to feed back into in the first place — the plan was
@@ -145,14 +147,17 @@ Requirements:
   lane change, up or down, is ever silent.
 
 - Subagent naming convention: `<skill>-planner`, `<skill>-executor`,
-  `<skill>-verifier`. 53 agent files exist on disk in total — exactly the
+  `<skill>-verifier`. 43 agent files exist on disk in total — exactly the
   roles `workflows/phases.yaml` declares (ADR-0092), so none is orphaned —
   three role files for each hooked skill prefix except `code`, whose
-  planner moved to `create-impl-plan` with the plan phase itself (ADR-0089);
+  planner moved to `create-impl-plan` with the plan phase itself (ADR-0089),
+  `create-docs`, whose executor and verifier serve all four doc sets with no
+  planner (ADR-0094), and the three apply-work skills, which ship an executor
+  only;
   before that refactor there were fifteen skill prefixes with agent files, and
-  there are twenty now. **Sixteen** skills actively spawn the full
-  plan→execute→verify triad: the **twelve** listed in the heading above minus
-  `code` — which now runs execute → verify against a plan another skill
+  there are seventeen now. **Twelve** skills actively spawn the full
+  plan→execute→verify triad: the **twelve** listed in the heading above —
+  not `code` — which now runs execute → verify against a plan another skill
   approved — plus the five Build/Test skills the refactor added
   (`analyze-ticket`, `create-impl-plan`, `create-api-contract`,
   `create-test-docs`, `create-e2e-tests`). Three prefixes belong to the

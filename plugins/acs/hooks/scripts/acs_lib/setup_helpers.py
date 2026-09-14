@@ -15,9 +15,9 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import (DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
-                      DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, PROJECT_MODE_SENTINEL,
-                      PROJECT_MODE_SETTINGS_KEY)
+from ._common import (DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
+                      DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES,
+                      PROJECT_MODE_SENTINEL, PROJECT_MODE_SETTINGS_KEY, TICKET_ID_RE)
 from .settings import enforcement_value
 from .repo import ticket_id_from_text
 
@@ -37,13 +37,14 @@ def _sentinel_present(checkout_root, base, sentinel):
     return os.path.isfile(os.path.join(checkout_root, base, sentinel))
 
 
-def doc_set_present_on_disk(checkout_root, settings, skill):
-    """D4.2(a): a doc-bootstrap skill's doc set counts as shipped only when its
-    own first output file exists at its configured path -- a populated but
-    otherwise-produced directory does not count (fails toward re-bootstrapping)."""
+def doc_set_present_on_disk(checkout_root, settings, doc_set):
+    """D4.2(a): a doc set counts as shipped only when its own first output
+    file (DOC_SETS[<set>]["files"][0]) exists at its configured path -- a
+    populated but otherwise-produced directory does not count (fails toward
+    re-bootstrapping)."""
     return _sentinel_present(checkout_root,
-                             settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[skill]) or None,
-                             DOC_BOOTSTRAP_SENTINEL[skill])
+                             settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[doc_set]) or None,
+                             DOC_BOOTSTRAP_SENTINEL[doc_set])
 
 
 def project_mode(settings, checkout_root):
@@ -116,18 +117,19 @@ def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
     deps clear) plus D4.3 batching: group eligible candidates so a soft
     dependency edge never shares a batch with its eligible peer, in either
     direction. candidates defaults to the declared fan-out set
-    (DOC_BOOTSTRAP_FANOUT_V1, every doc-bootstrap leg since the design-phase
-    consolidation); an explicit candidates argument exists so a narrower
+    (DOC_BOOTSTRAP_FANOUT_V1, every declared doc set); an explicit candidates argument exists so a narrower
     request (`/acs:create-docs quality,operations`) and the general-case N-way
     semantics stay unit-testable. Names not present in
     DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
     tickets = (tickets_index or {}).get("tickets") or {}
 
-    def _open_ticket(skill):
-        title = DELIVERY_TICKET_TITLES.get(skill)
+    def _open_ticket(doc_set):
+        # A delivery ticket names its set (`doc_set`, since ADR-0094); one
+        # minted before that carries only the set's title, so both match.
+        title = DOC_SET_TITLES.get(doc_set)
         return any(
-            isinstance(t, dict) and t.get("title") == title
-            and t.get("type") == "task" and t.get("status") != "done"
+            isinstance(t, dict) and t.get("type") == "task" and t.get("status") != "done"
+            and (t.get("doc_set") == doc_set or t.get("title") == title)
             for t in tickets.values()
         )
 
@@ -169,37 +171,41 @@ DOC_SET_ALL = "all"
 
 #: /acs:create-docs's parsed argument. candidates is None for "no argument"
 #: (fanout_batches then applies its own declared default), [] for a refusal or
-#: an explicitly empty selection, else the declared leg names to fan out.
-#: rejected names every token that is no declared doc set; notices carries the
-#: one-line messages the skill writes to stderr, in order.
-DocSetRequest = collections.namedtuple("DocSetRequest", "candidates rejected notices")
+#: an explicitly empty selection, else the doc-set names to fan out. rejected
+#: names every token that is no declared doc set; notices carries the one-line
+#: messages the skill writes to stderr, in order; resume is the delivery
+#: ticket id when the argument is exactly one (the run rejoins that set's
+#: partition instead of fanning anything out), else None.
+DocSetRequest = collections.namedtuple("DocSetRequest",
+                                       "candidates rejected notices resume",
+                                       defaults=(None,))
 
 _LEGACY_FOR_NOTE = (
     "acs create-docs: --for is deprecated and accepted for one release only -- "
     "the positional form is the spelling now, e.g. /acs:create-docs quality,operations")
 
 
-def _short_doc_set(skill):
-    """A declared leg's short spelling: its name minus the create- prefix."""
-    return skill[len("create-"):] if skill.startswith("create-") else skill
+def _short_doc_set(name):
+    """A set name from either spelling: `create-quality` (the name of the leg
+    skill each set used to be, accepted for one release) minus its prefix,
+    or the set name itself."""
+    return name[len("create-"):] if name.startswith("create-") else name
 
 
 def doc_set_spellings():
     """Every accepted spelling of the positional <set|all> argument, in
-    declared order -- `all` first, then each declared leg's short spelling.
-    Derived from DOC_BOOTSTRAP_FANOUT_V1, so widening the declared set needs no
-    second edit here (and no prose list in the skill)."""
-    return [DOC_SET_ALL] + [_short_doc_set(skill) for skill in DOC_BOOTSTRAP_FANOUT_V1]
+    declared order -- `all` first, then each declared doc set. Derived from
+    DOC_SETS, so widening the table needs no second edit here (and no prose
+    list in the skill)."""
+    return [DOC_SET_ALL] + list(DOC_BOOTSTRAP_FANOUT_V1)
 
 
 def canonical_doc_set(name):
-    """Resolve one user-typed doc-set token to its declared leg name, or None
-    when the token names no declared doc set. Both spellings resolve: `quality`
-    and `create-quality` alike."""
-    for skill in DOC_BOOTSTRAP_FANOUT_V1:
-        if name in (skill, _short_doc_set(skill)):
-            return skill
-    return None
+    """Resolve one user-typed doc-set token to its declared set name, or None
+    when the token names no declared doc set. Both spellings resolve:
+    `quality` and the former leg name `create-quality` alike."""
+    short = _short_doc_set(name)
+    return short if short in DOC_BOOTSTRAP_FANOUT_V1 else None
 
 
 def _unknown_doc_set_note(rejected):
@@ -215,7 +221,7 @@ def parse_doc_set_arg(args_text):
     rather than in skill prose.
 
     Accepts a comma-separated list of declared doc sets in either spelling
-    (`quality` or `create-quality`), or `all` on its own; `all` beside a set
+    (`quality` or the former leg name `create-quality`), or `all` on its own; `all` beside a set
     name is refused rather than guessed at. An unknown set refuses the WHOLE
     run (candidates == [], rejected non-empty, a notice naming every accepted
     spelling) -- never a partial fan-out of the recognized remainder. The
@@ -229,6 +235,10 @@ def parse_doc_set_arg(args_text):
     text = (args_text or "").strip()
     if not text:
         return DocSetRequest(None, [], [])
+    if TICKET_ID_RE.fullmatch(text):
+        # `/acs:create-docs SHOP-2`: rejoin that set's run (the id came from a
+        # handoff's continue_with, or a partition left in_progress).
+        return DocSetRequest(None, [], [], resume=text)
 
     if _FANOUT_FOR_RE.search(text):
         notices = [_LEGACY_FOR_NOTE]
@@ -271,8 +281,7 @@ def parse_fanout_for_arg(args_text):
         DOC_BOOTSTRAP_FANOUT_V1 default;
       otherwise candidates is the requested names that resolve to a declared
         doc-bootstrap leg (order-preserving, de-duplicated, canonicalized to
-        the full skill name so `--for quality` and `--for create-quality`
-        agree) and rejected is every requested name that resolves to no
+        the set name so `--for quality` and `--for create-quality` agree) and rejected is every requested name that resolves to no
         declared doc set. A rejected name is reported and never fanned out; it
         is deliberately kept OUT of fanout_batches's candidates, whose own
         contract is to skip unknown names silently (see above)."""

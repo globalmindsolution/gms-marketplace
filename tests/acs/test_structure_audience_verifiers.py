@@ -75,35 +75,11 @@ VERIFIERS = {
         "completeness",
         ("alternatives", "consistency", "feasibility", "nfr", "completeness"),
     ),
-    "create-principles-verifier.md": (
+    "create-docs-verifier.md": (
         "consistency",
         (
             "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-standards-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-quality-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-operations-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
+            "required-sections", "authoring-conformance", "docs-only-changeset",
             "consistency",
         ),
     ),
@@ -121,7 +97,7 @@ VERIFIERS = {
     ),
 }
 
-# every audience-style-gated verifier: the 8 producers.
+# every audience-style-gated verifier: the 5 producers (create-docs judges all four doc sets).
 AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
@@ -131,10 +107,7 @@ SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
     "create-design": False,
-    "create-principles": False,
-    "create-standards": True,
-    "create-quality": True,
-    "create-operations": True,
+    "create-docs": True,
 }
 
 

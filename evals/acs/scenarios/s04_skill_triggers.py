@@ -1,35 +1,25 @@
-"""s04 — routing evals for 31 of the 32 skills (paid, E1.2).
+"""s04 — routing evals for 27 of the 28 skills (paid, E1.2).
 
-Three kinds of probe, 39 in all, covering 31 of the 32 skill directories:
+Three kinds of probe, 31 in all, covering 27 of the 28 skill directories:
 
 1. Description-trigger (23 model-invocable skills): a natural-language request
    that describes the intent *without naming the skill* must route to that
    skill. A miss is a real finding — the skill's `description` frontmatter
    isn't discriminating that request from its neighbors.
 
-2. Explicit-invocation (the 8 user-only skills — `install-hooks`, `update`,
-   and the six ADR 0091 legs of /acs:create-docs and /acs:project):
-   the explicit `/acs:<skill>` command must still route to the skill. The
-   model is forbidden from auto-routing to these, so a description probe
-   can't reach them — but the explicit path the user types must work.
+2. Explicit-invocation (the two internal legs of /acs:project,
+   `create-project` and `standardize-project`): the explicit `/acs:<skill>`
+   command must still route to the leg, because a user types it to resume an
+   interrupted delivery ticket.
 
-3. Negative-routing (same 8 user-only skills): a bare description of their
-   intent must NOT auto-route to them, proving `disable-model-invocation` is
-   honored — the model should pick a different skill or no skill at all.
+3. Negative-routing (the same two legs): a bare description of their intent
+   must NOT auto-route to them — their entry point should pick it up. What
+   delivers that is each leg's description, never a frontmatter flag.
 
-OPEN ITEM — `disable-model-invocation` is no longer just those two skills.
-The design-phase entry-point fold (ADR 0091) gave the flag to all six internal
-legs as well (`create-quality`, `create-operations`, `create-principles`,
-`create-standards`, `create-project`, `standardize-project`), so eight skills
-carry it, not two — re-derive with
-`grep -l 'disable-model-invocation: true' plugins/acs/skills/*/SKILL.md`. Those
-six still have DESCRIPTION probes below, which by rule 2 above can no longer
-reach them: they are expected to miss on the next paid run and need moving to
-the explicit-invocation + negative-routing pair. That reclassification changes
-the measured routing-coverage claim the PRD and roadmap carry, so it is
-deliberately left to a fresh paid measurement rather than done blind — the
-probe set below is unchanged by the fold, on purpose. Tracked in
-docs/quality/testing-strategy.md's Trigger bullet.
+The four doc-set legs /acs:create-docs used to fan out (`create-quality`,
+`create-operations`, `create-principles`, `create-standards`) were folded INTO
+it (ADR 0094), so they are neither skills nor probes any more: the
+create-docs description probe is the one that covers all four sets.
 
 A description probe is decided by the first `Skill` tool_use the model makes; an
 explicit probe is decided by the session's registration list, before any model
@@ -61,7 +51,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 31 of 32 (25 by description, 6 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
+    "summary": "right skill routes for 27 of 28 (25 by description, 2 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -69,7 +59,7 @@ META = {
 #   - 25 skills are probed by description, with a request that avoids naming
 #     the skill. Every shipped skill is model-invocable, so that is the
 #     default; no skill sets disable-model-invocation.
-#   - The 6 internal legs of /acs:create-docs and /acs:project are probed by
+#   - The 2 internal legs of /acs:project are probed by
 #     the explicit `/acs:<skill>` command instead, because that command must
 #     keep resolving: a user invokes a leg directly to resume an interrupted
 #     delivery ticket, which is what its argument-hint offers. What a leg must
@@ -103,22 +93,10 @@ CASES = [
     ("create-project", True,
      "/acs:create-project",
      "create-project"),
-    ("create-quality", True,
-     "/acs:create-quality",
-     "create-quality"),
-    ("create-operations", True,
-     "/acs:create-operations",
-     "create-operations"),
-    ("create-principles", True,
-     "/acs:create-principles",
-     "create-principles"),
-    ("create-standards", True,
-     "/acs:create-standards",
-     "create-standards"),
     ("create-docs", True,
-     "Bootstrap the quality and the operations doc sets in one parallel "
-     "fan-out instead of running one and then the other, each landing as its "
-     "own docs-only pull request.",
+     "Bootstrap the quality and the operations doc sets from their templates, "
+     "tailored to our architecture, each landing as its own docs-only pull "
+     "request.",
      "create-docs"),
     ("standardize-project", True,
      "/acs:standardize-project",
@@ -205,9 +183,9 @@ CASES = [
      "update"),
 ]
 
-# Negative-routing cases for the six internal legs: a bare description of a
+# Negative-routing cases for the two internal legs: a bare description of a
 # leg's intent must NOT route to the leg, because its entry point
-# (/acs:create-docs, /acs:project) is the documented front door and is what
+# (/acs:project) is the documented front door and is what
 # should pick it up. PASS when the model picks anything other than the
 # forbidden skill — the entry point, another skill, or no skill at all (None).
 #
@@ -224,22 +202,6 @@ NEGATIVE = [
      "Scaffold the repository skeleton — build config, test framework, CI — "
      "from the approved architecture docs.",
      "create-project"),
-    ("create-quality", True,
-     "Author and maintain the test-strategy and coverage-policy docs for this "
-     "product's quality doc set.",
-     "create-quality"),
-    ("create-operations", True,
-     "Author and maintain the release-process, runbooks, observability, and "
-     "incident-response docs for this product's operations doc set.",
-     "create-operations"),
-    ("create-principles", True,
-     "Author and maintain the engineering principles and rationale doc set "
-     "for this product.",
-     "create-principles"),
-    ("create-standards", True,
-     "Author and maintain the coding standards and conventions doc set — "
-     "style, naming, and the review checklist — for this product's codebase.",
-     "create-standards"),
     ("standardize-project", True,
      "Audit this existing repo against our approved doc set and readiness "
      "tooling, then additively scaffold whatever's missing without ever "

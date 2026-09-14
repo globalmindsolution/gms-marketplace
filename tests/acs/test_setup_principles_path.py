@@ -79,15 +79,15 @@ class Mar117PrinciplesPathInitCase(unittest.TestCase):
         )
 
     def test_step4_names_create_principles_as_consumer(self):
-        """The principles_path bullet names /acs:create-principles as the
+        """The principles_path bullet names /acs:create-docs principles as the
         consuming skill, mirroring how the quality_path bullet names
         /acs:create-quality."""
         m = re.search(r"`principles_path`", self.step4)
         self.assertIsNotNone(m)
         window = self.step4[m.start():m.start() + 300]
         self.assertIn(
-            "create-principles", window,
-            msg="the `principles_path` bullet must name /acs:create-principles "
+            "create-docs principles", window,
+            msg="the `principles_path` bullet must name /acs:create-docs principles "
                 "as the consumer (AC-7)",
         )
 
@@ -110,31 +110,24 @@ class Mar117PrinciplesPathInitCase(unittest.TestCase):
         )
 
 
-class Mar117PrinciplesRegistryCase(unittest.TestCase):
-    """AC-8: create-principles is registered in PRODUCT_SKILLS and
-    PRODUCT_TICKET_TITLES, and consequently joins the derived HOOKED_SKILLS."""
+class PrinciplesRegistryCase(unittest.TestCase):
+    """AC-8, after ADR-0094: the principles set is a row of acs_lib.DOC_SETS -- the
+    one skill that delivers it, create-docs, is the registered product skill
+    and joins the derived HOOKED_SKILLS; the set's delivery-ticket title is
+    the row's."""
 
-    def test_create_principles_in_product_skills(self):
-        self.assertIn(
-            "create-principles", acs_lib.PRODUCT_SKILLS,
-            msg="'create-principles' must be registered in PRODUCT_SKILLS (AC-8)",
-        )
+    def test_principles_is_a_declared_doc_set(self):
+        self.assertIn("principles", acs_lib.DOC_SETS)
+        self.assertEqual(acs_lib.DOC_SETS["principles"]["settings_key"], "principles_path")
 
-    def test_create_principles_in_product_ticket_titles(self):
-        self.assertEqual(
-            acs_lib.PRODUCT_TICKET_TITLES.get("create-principles"),
-            "Product principles doc set",
-            msg="PRODUCT_TICKET_TITLES['create-principles'] must equal "
-                "'Product principles doc set' (AC-8)",
-        )
+    def test_principles_delivery_ticket_title(self):
+        self.assertEqual(acs_lib.DOC_SET_TITLES.get("principles"), "Product principles doc set")
 
-    def test_create_principles_in_hooked_skills(self):
-        self.assertIn(
-            "create-principles", acs_lib.HOOKED_SKILLS,
-            msg="'create-principles' must join HOOKED_SKILLS via the derived "
-                "PRODUCT_SKILLS + WORKFLOW_SKILLS expression (AC-8)",
-        )
-
+    def test_create_docs_in_product_and_hooked_skills(self):
+        self.assertIn("create-docs", acs_lib.PRODUCT_SKILLS)
+        self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
+        self.assertNotIn("create-principles", acs_lib.HOOKED_SKILLS,
+                         "the leg skill was folded into create-docs (ADR-0094)")
 
 if __name__ == "__main__":
     unittest.main()

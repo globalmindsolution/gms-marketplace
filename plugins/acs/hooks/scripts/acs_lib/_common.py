@@ -25,7 +25,7 @@ import claude_code_adapter as cc  # noqa: E402
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-quality", "create-operations", "create-principles", "create-standards", "create-requirements"]
+PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-docs", "create-requirements"]
 # The ticket-flow skills. The five Build/Test additions (analyze-ticket,
 # create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests)
 # join here rather than in a sixth list: they are ticket-scoped like the rest,
@@ -45,21 +45,22 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # there (workflows/phases.yaml `aliases`), so an existing /acs:test invocation
 # keeps working.
 # `project` is the design-phase fold's umbrella over create-project and
-# standardize-project: like create-docs it owns no agents, no gate and no hook
-# scripts -- it picks a mode (project_mode, below) and invokes that leg's own
-# Start as a Skill-tool call -- so it is UNHOOKED and must never join
-# HOOKED_SKILLS (dispatch.py would then look for a pre-project.py that does
-# not exist, and skill-start.py would offer --skill project, which allocates
-# nothing).
+# standardize-project: it owns no agents, no gate and no hook scripts -- it
+# picks a mode (project_mode, below) and invokes that leg's own Start as a
+# Skill-tool call -- so it is UNHOOKED and must never join HOOKED_SKILLS
+# (dispatch.py would then look for a pre-project.py that does not exist, and
+# skill-start.py would offer --skill project, which allocates nothing).
+# `create-docs` is NOT like it any more (ADR-0094): it absorbed its four doc
+# legs, so it is the hooked product skill that bootstraps a doc set itself,
+# one delivery ticket per set.
 UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage",
-                   "test", "run-e2e-tests", "release", "create-docs", "project"]
+                   "test", "run-e2e-tests", "release", "project"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. A schema-mirror equality test is what stops this list from drifting.
 # `test` is kept beside `run-e2e-tests` so a ledger written before the rename
 # still validates and still orders sensibly.
-PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-quality",
-                        "create-operations", "create-principles", "create-standards",
+PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-docs",
                         "create-requirements", "create-ticket", "create-design", "analyze-ticket",
                         "create-impl-plan", "create-api-contract", "create-test-docs", "code",
                         "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",
@@ -83,10 +84,10 @@ PRODUCT_TICKET_TITLES = {
     "create-prd": "Product definition (PRD)",
     "create-architecture": "Product architecture doc set",
     "create-project": "Project scaffold",
-    "create-quality": "Product quality doc set",
-    "create-operations": "Product operations doc set",
-    "create-principles": "Product principles doc set",
-    "create-standards": "Product standards doc set",
+    # /acs:create-docs mints one delivery ticket PER DOC SET, titled from
+    # DOC_SETS below (skill-start.py --doc-set); this row is the fallback a
+    # caller that names no set would get, and skill-start refuses that.
+    "create-docs": "Product doc set",
     "create-requirements": "Product requirements doc set",
 }
 
@@ -97,46 +98,95 @@ DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
 DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
                                **{"standardize-project": "Brownfield project standardization"})
 
-# Declared (never inferred) doc-bootstrap dependency edges for the fan-out
-# eligibility predicate below. "hard" gates eligibility outright; "soft" only
-# excludes a candidate from sharing a fan-out BATCH with an eligible peer it
-# is tagged against -- it never makes the candidate ineligible on its own.
-# No hard edge exists today: every list below is empty, stated explicitly.
-DOC_BOOTSTRAP_DEPENDENCIES = {
-    "create-quality": {"hard": [], "soft": []},
-    "create-operations": {"hard": [], "soft": []},
-    "create-principles": {"hard": [], "soft": []},
-    "create-standards": {"hard": [], "soft": ["create-principles"]},
+# ---------------------------------------------------------------------------
+# The product doc sets /acs:create-docs bootstraps and maintains (ADR-0094)
+# ---------------------------------------------------------------------------
+#: One row per doc set, and the ONLY declaration of what a set is: the
+#: settings key that locates it (unset = the consumer opted out), the title of
+#: the delivery ticket each run mints, the template directory under
+#: templates/, the files the executor writes (in order; the FIRST is the
+#: sentinel that says "this set has shipped") with the sections each must
+#: carry, the audience register its prose is judged against, the upstream
+#: inputs it is grounded in (which part of the PRD; the architecture set;
+#: whether the principles set is read when present), and its dependency edges:
+#: "hard" gates eligibility outright, "soft" only keeps a set out of the same
+#: fan-out batch as an eligible peer. /acs:create-docs reads this table, the
+#: executor and verifier receive it as task constraints, and nothing restates
+#: it in prose. Adding a fifth doc set is one row here plus its templates.
+DOC_SETS = {
+    "quality": {
+        "settings_key": "quality_path",
+        "title": "Product quality doc set",
+        "template_dir": "quality",
+        "files": {
+            "test-strategy.md": ["Testing philosophy", "Coverage policy",
+                                 "Suite inventory", "CI gates", "Flaky-test policy"],
+            "coverage-policy.md": ["Target and hard-fail rule", "Exclusions",
+                                   "Measurement per stack", "Escalation"],
+        },
+        "audience": "QA (test/verification runbook register)",
+        "upstream": {"prd": "Non-functional requirements", "architecture": True,
+                     "principles": False},
+        "hard": [], "soft": [],
+    },
+    "operations": {
+        "settings_key": "operations_path",
+        "title": "Product operations doc set",
+        "template_dir": "operations",
+        "files": {
+            "release-process.md": ["Versioning and release-cut steps", "Changelog discipline",
+                                   "Branch and tag conventions", "Rollback procedure"],
+            "runbooks.md": ["Standard operating procedures", "On-call escalation path",
+                            "Incident triage steps"],
+            "observability.md": ["Logging, metrics, and alerting conventions", "Dashboards",
+                                 "SLO/SLA notes"],
+            "incident-response.md": ["Severity levels", "Roles during an incident",
+                                     "Postmortem process"],
+            "test-scheduling.md": ["The /acs:test scheduling recipe", "Example cron/CI snippets",
+                                   "Where results land"],
+        },
+        "audience": "ops/SRE (runbook register)",
+        "upstream": {"prd": "Non-functional requirements", "architecture": True,
+                     "principles": False},
+        "hard": [], "soft": [],
+    },
+    "principles": {
+        "settings_key": "principles_path",
+        "title": "Product principles doc set",
+        "template_dir": "principles",
+        "files": {"principles.md": ["Principles", "Rationale"]},
+        "audience": "engineers (concise normative rules)",
+        "upstream": {"prd": "whole", "architecture": True, "principles": False},
+        "hard": [], "soft": [],
+    },
+    "standards": {
+        "settings_key": "standards_path",
+        "title": "Product standards doc set",
+        "template_dir": "standards",
+        "files": {
+            "coding-standards.md": ["Language and style conventions", "Error handling",
+                                    "Testing conventions"],
+            "conventions.md": ["Naming conventions", "Project layout", "Formatting"],
+            "review-checklist.md": ["Pre-review checklist", "Reviewer checklist"],
+        },
+        "audience": "engineers (concise normative rules)",
+        # The one set with an extra upstream read: architecture -> principles
+        # -> standards is an altitude gradient, an abstract principle realized
+        # by a concrete standard. Read when principles_path is set AND the set
+        # exists on disk; otherwise grounding N/A for the run, never a block.
+        "upstream": {"prd": "whole", "architecture": True, "principles": True},
+        "hard": [], "soft": ["principles"],
+    },
 }
 
-# Explicit skill -> settings-key map for the doc-bootstrap skills, resolved
-# by lookup rather than string-built from the skill name.
-DOC_BOOTSTRAP_SETTINGS_KEY = {
-    "create-quality": "quality_path",
-    "create-operations": "operations_path",
-    "create-principles": "principles_path",
-    "create-standards": "standards_path",
-}
-
-# Each doc-bootstrap skill's own first output file (its output contract),
-# used as the D4.2(a) sentinel for "has this doc set actually shipped."
-DOC_BOOTSTRAP_SENTINEL = {
-    "create-quality": "test-strategy.md",
-    "create-operations": "release-process.md",
-    "create-principles": "principles.md",
-    "create-standards": "coding-standards.md",
-}
-
-# The declared fan-out set: every doc-bootstrap leg /acs:create-docs may fan
-# out. D7-A shipped this as the create-quality + create-operations pair; the
-# design-phase consolidation made /acs:create-docs <set|all> the only
-# user-facing doc command, so the set is now all four legs -- ONE constant
-# edit, because DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_SETTINGS_KEY and
-# DOC_BOOTSTRAP_SENTINEL already covered four. A fifth doc-bootstrap skill
-# becomes fan-out-eligible by being added here AND to those three
-# (fanout_batches indexes them unguarded) -- all data changes, no code change.
-DOC_BOOTSTRAP_FANOUT_V1 = ("create-quality", "create-operations",
-                           "create-principles", "create-standards")
+#: Views of DOC_SETS, keyed by set name, that the fan-out predicate and the
+#: skill read. Derived, never restated: widening the table widens every one.
+DOC_BOOTSTRAP_FANOUT_V1 = tuple(DOC_SETS)
+DOC_BOOTSTRAP_DEPENDENCIES = {name: {"hard": list(row["hard"]), "soft": list(row["soft"])}
+                              for name, row in DOC_SETS.items()}
+DOC_BOOTSTRAP_SETTINGS_KEY = {name: row["settings_key"] for name, row in DOC_SETS.items()}
+DOC_BOOTSTRAP_SENTINEL = {name: next(iter(row["files"])) for name, row in DOC_SETS.items()}
+DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
 """Iteration cap keyed by verify depth (AC-3: light=1; AC-4: full=3).
 
 Used by the /acs:code coordinator to bound the reflection loop:

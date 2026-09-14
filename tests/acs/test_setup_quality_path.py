@@ -71,14 +71,14 @@ class Mar112QualityPathInitCase(unittest.TestCase):
         )
 
     def test_step4_names_create_quality_as_consumer(self):
-        """The quality_path bullet names /acs:create-quality as the consuming
+        """The quality_path bullet names /acs:create-docs quality as the consuming
         skill, mirroring how the adr_path bullet names /acs:code."""
         m = re.search(r"`quality_path`", self.step4)
         self.assertIsNotNone(m)
         window = self.step4[m.start():m.start() + 300]
         self.assertIn(
-            "create-quality", window,
-            msg="the `quality_path` bullet must name /acs:create-quality as "
+            "create-docs quality", window,
+            msg="the `quality_path` bullet must name /acs:create-docs quality as "
                 "the consumer (AC-3)",
         )
 

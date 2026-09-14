@@ -84,6 +84,29 @@ the notes.
   build is already on disk, so re-running the gate after a fix costs exactly
   one measurement of the changed build.
 
+- **⚠️ BREAKING: the four doc-set legs are folded into `/acs:create-docs`
+  (ADR-0094).** `create-quality`, `create-operations`, `create-principles`
+  and `create-standards` no longer exist as skills; `/acs:create-docs
+  <set|all>` is a hooked product skill that bootstraps any of the four sets
+  itself, from one declared table (`acs_lib.DOC_SETS`: settings key,
+  delivery-ticket title, template directory, output files with their
+  required sections, audience, upstream inputs, dependency edges). One
+  `create-docs-executor` authors a set and one `create-docs-verifier` judges
+  it — there is no planner (ADR-0092 class D) — with the set riding in the
+  task constraints; the executor's authoring notes
+  (`iter-<n>-authoring.md`) replace the former plan artifact, and the
+  verifier's `plan-conformance` dimension is `authoring-conformance`. Each
+  set still gets its own delivery ticket, worktree, branch and docs-only PR
+  (`skill-start.py --skill create-docs --doc-set <set> --allocate`; the ticket
+  records its `doc_set`), sets run in capped parallel, and a set resumes by
+  its ticket id: `/acs:create-docs <ticket-id>`. The one gate — the
+  architecture doc set — fires once at the Skill call. 32 skills → 28, 53
+  agent files → 43, 20 hooked skills → 17. **Migration:** replace
+  `/acs:create-<set>` with `/acs:create-docs <set>` (the old spelling still
+  parses as a set name for one release); replace
+  `models.overrides.create-<set>` with `models.overrides.create-docs`; a
+  delivery ticket minted before this release resumes by its id as before.
+
 - **⚠️ BREAKING: `/acs:code` no longer plans.** Its Plan, Plan approval, Plan revocation and Plan-artifact-resolution steps moved to `/acs:create-impl-plan` (and `agents/code-planner.md` with them, as `agents/create-impl-plan-planner.md`). `/acs:code` keeps execute → verify, the escalation triggers, the coverage gate and the full-verify boundary; its executor writes tests from `test-cases.md` when present, its verifier gains a contract-conformance check when `api-contract.md` exists, and an execution that finds the plan wrong ends `failed` with `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back to `/acs:create-impl-plan`. **Migration:** run `/acs:create-impl-plan <id>` before `/acs:code <id>`; `/acs:ship` does it for you.
 
 ### Deprecated

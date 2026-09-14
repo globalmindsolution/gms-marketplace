@@ -44,6 +44,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -530,9 +531,13 @@ def route_once(prompt, cwd, timeout, env, build=None):
     return routed, detection, attempted, round(time.time() - started, 3)
 
 
-def session_once(prompt, cwd, timeout, env, build=None):
+def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None):
     """One full `claude -p` session. The envelope, the wall clock, and the
     sequence of skills the run invoked.
+
+    With `keep_dir` the transcript is kept there (as
+    `<stamp>-<prompt slug>.jsonl`, named in `out["transcript"]`) instead of
+    deleted, so a run that came back wrong can be read rather than re-bought.
 
     The transcript goes to a FILE rather than a pipe, for two reasons. It keeps
     `subprocess.run`'s timeout enforcement, which a read loop over a pipe
@@ -575,10 +580,31 @@ def session_once(prompt, cwd, timeout, env, build=None):
             out["error"] = "session reported is_error"
         return out
     finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        kept = keep_transcript(path, keep_dir, prompt) if keep_dir else None
+        if kept:
+            out["transcript"] = kept
+        else:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def keep_transcript(path, keep_dir, prompt):
+    """Move a session transcript into `keep_dir`; the new path, or None."""
+    slug = re.sub(r"[^a-z0-9]+", "-", prompt.lower()).strip("-")[:48] or "session"
+    stamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    try:
+        os.makedirs(keep_dir, exist_ok=True)
+        dest = os.path.join(keep_dir, "%s-%s.jsonl" % (stamp, slug))
+        n = 1
+        while os.path.exists(dest):
+            n += 1
+            dest = os.path.join(keep_dir, "%s-%s-%d.jsonl" % (stamp, slug, n))
+        shutil.move(path, dest)
+        return dest
+    except OSError:
+        return None
 
 
 # --------------------------------------------------------------------------
@@ -874,7 +900,8 @@ def setup_holds(scenario, sandbox, env):
     return proc.returncode == 0
 
 
-def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
+def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
+                     transcripts=None):
     conf = scenarios["pipeline"]
     runs_per = limit or conf.get("runs_per_scenario", 3)
     out = []
@@ -906,7 +933,7 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
                 setup = []
                 for text in scenario.get("setup_prompts", []):
                     s_run = session_once(fill(text), sb.repo, setup_timeout,
-                                         env, build)
+                                         env, build, keep_dir=transcripts)
                     setup.append(s_run)
                     if not s_run["ok"]:
                         break
@@ -924,7 +951,7 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
                 else:
                     run = session_once(fill(scenario["prompt"]), sb.repo,
                                        scenario.get("timeout_seconds", 1800),
-                                       env, build)
+                                       env, build, keep_dir=transcripts)
                 if setup:
                     run["setup"] = setup
                 ledger = read_ledger(sb, scenario["skill"])
@@ -949,14 +976,25 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None):
         # Print the skill trail of any run that did not complete. Written to
         # the measurement either way, but a run that times out is the one
         # someone reads the console for, and "what was it doing" should not
-        # need a JSON query to answer.
+        # need a JSON query to answer. "Complete" is the same rule the gate
+        # scores by: the session exited clean AND the measured skill's own
+        # ledger says `completed` — a clean exit that routed elsewhere is a
+        # non-completion, and the trail is exactly what shows where it went.
         for i, run in enumerate(runs):
-            if run.get("ok") or run.get("unmeasured"):
+            if run.get("unmeasured"):
+                continue
+            if run.get("ok") and run.get("status") == "completed":
                 continue
             trail = run.get("skills_invoked") or []
-            print("      run %d %s: %s" % (
-                i, run.get("error") or "did not complete",
-                summarize_trail(trail) if trail else "invoked no skill"))
+            if run.get("ok"):
+                why = "the session ended but %s's ledger says %s" % (
+                    scenario["skill"], run.get("status") or "it never ran")
+            else:
+                why = run.get("error") or "did not complete"
+            print("      run %d %s: %s%s" % (
+                i, why,
+                summarize_trail(trail) if trail else "invoked no skill",
+                ("  [%s]" % run["transcript"]) if run.get("transcript") else ""))
         if checkpoint:
             checkpoint.add(rec)
         out.append(rec)
@@ -1068,6 +1106,11 @@ def main():
     ap.add_argument("--force", action="store_true",
                     help="measure again even when --out already holds a "
                          "complete measurement of this exact build")
+    ap.add_argument("--transcripts", default=None,
+                    help="keep every pipeline session's stream-json "
+                         "transcript in this directory, so a run that came "
+                         "back wrong can be read instead of re-bought "
+                         "(default: <dir of --out>/transcripts; '' disables)")
     args = ap.parse_args()
 
     with open(SCENARIOS) as fh:
@@ -1164,8 +1207,12 @@ def main():
         records += measure_routing(build, scenarios, probes, env, args.runs,
                                    checkpoint)
     if not args.routing_only:
+        transcripts = args.transcripts
+        if transcripts is None and args.out:
+            transcripts = os.path.join(
+                os.path.dirname(os.path.abspath(args.out)), "transcripts")
         records += measure_pipeline(build, scenarios, env, args.runs,
-                                    checkpoint)
+                                    checkpoint, transcripts or None)
 
     # A run is marked incomplete only when it did not finish what its scope
     # set out to do (a probe filter, or a probe that produced no runs). A

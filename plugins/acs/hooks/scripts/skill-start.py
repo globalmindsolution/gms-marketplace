@@ -23,6 +23,7 @@ Usage:
   skill-start.py --skill code [--ticket SHOP-123] [--args "$ARGUMENTS"]
   skill-start.py --skill create-ticket --allocate [--title "..."] [--type task]
   skill-start.py --skill create-prd --allocate
+  skill-start.py --skill create-docs --allocate --doc-set quality
 """
 
 import argparse
@@ -134,9 +135,9 @@ def _resume_id_for_allocate(args, ctx):
       is invoked with the user's prompt verbatim as its args. That fires
       exactly when the cited ticket is live, i.e. when it overwrites active
       work.
-    * Only /acs:create-ticket derives an id from `--args` at all. The six
+    * Only /acs:create-ticket derives an id from `--args` at all. The
       product-level skills each route resume through a separate `--ticket`
-      call with no `--allocate` (see create-quality/SKILL.md's "each run gets
+      call with no `--allocate` (see create-docs/SKILL.md's "each run gets
       its own delivery ticket"), so args-derived reuse buys them nothing and is
       pure exposure.
     """
@@ -161,6 +162,10 @@ def main():
     parser.add_argument("--allocate", action="store_true",
                         help="allocate a new ticket id + partition (create-ticket / product-level skills), unless --ticket (or, for create-ticket, --args) names a live partition to resume")
     parser.add_argument("--title", help="ticket title when allocating")
+    parser.add_argument("--doc-set", dest="doc_set", choices=sorted(lib.DOC_SETS),
+                        help="the doc set a /acs:create-docs run delivers (required with "
+                             "--skill create-docs --allocate; the delivery ticket is titled "
+                             "from DOC_SETS and records it)")
     parser.add_argument("--type", dest="ttype", choices=lib.TICKET_TYPES, default="task",
                         help="ticket type when allocating (default: task)")
     parser.add_argument("--pr", help="exempt non-ticket PR ref (--pr N / #N / PR URL); "
@@ -198,9 +203,16 @@ def main():
     flow = "product" if args.skill in lib.PRODUCT_SKILLS else "ticket"
 
     reused = False
+    if args.doc_set and args.skill != "create-docs":
+        sys.stderr.write("acs skill-start: --doc-set is only valid with --skill create-docs\n")
+        sys.exit(2)
     if args.allocate:
         if args.skill not in lib.DELIVERY_TICKET_SKILLS and args.skill != "create-ticket":
             sys.stderr.write("acs skill-start: --allocate is only valid for /create-ticket and product-level skills\n")
+            sys.exit(2)
+        if args.skill == "create-docs" and not args.doc_set:
+            sys.stderr.write("acs skill-start: --skill create-docs --allocate needs --doc-set <%s>: "
+                             "each run delivers exactly one doc set\n" % "|".join(lib.DOC_SETS))
             sys.exit(2)
         existing_id = _resume_id_for_allocate(args, ctx)
         if existing_id:
@@ -245,9 +257,11 @@ def main():
                 sys.exit(2)
             tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
             os.makedirs(tdir, exist_ok=True)
-            title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)")
+            title = args.title or (lib.DOC_SET_TITLES[args.doc_set] if args.doc_set
+                                   else lib.DELIVERY_TICKET_TITLES.get(args.skill, "(ticket under analysis)"))
             ttype = "task" if args.skill in lib.DELIVERY_TICKET_SKILLS else args.ttype
-            ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
+            ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress",
+                                        doc_set=args.doc_set)
             lib.save_ticket(tdir, ticket)
             try:
                 lib.update_index(workspace, repo_id, ticket, archived=False)

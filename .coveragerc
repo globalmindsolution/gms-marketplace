@@ -20,7 +20,7 @@ source = ${ACS_COV_ROOT}/plugins/acs/hooks/scripts
 # with evals/ in: 93% (9344 stmts) -- no scenario omit needed to clear the 90 gate.
 source_dirs = ${ACS_COV_ROOT}/evals
 data_file = ${ACS_COV_ROOT}/.coverage
-# The 39 true pre-*/post-* argument forwarders (~6 stmts each: sys.path insert, import, run_pre/
+# The 33 true pre-*/post-* argument forwarders (~6 stmts each: sys.path insert, import, run_pre/
 # run_post call — e.g. plugins/acs/hooks/scripts/pre-code.py, 10 lines, no def main()).
 # post-merge-pr.py is deliberately NOT omitted: it has a real --pr branch
 # (plugins/acs/hooks/scripts/post-merge-pr.py:21-39) and is measured at 21 stmts / 100%.
@@ -32,16 +32,13 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-operations.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-principles.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-quality.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-requirements.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-standards.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
@@ -52,16 +49,13 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-operations.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-principles.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-quality.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-requirements.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-standards.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py

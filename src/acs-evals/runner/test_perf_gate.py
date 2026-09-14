@@ -200,6 +200,45 @@ class TestUnmeasuredRuns(unittest.TestCase):
         self.assertIn("2 of 3 runs measured nothing", detail)
 
 
+class TestPipelineHits(unittest.TestCase):
+    """A pipeline hit is the measured skill's OWN ledger saying `completed`.
+
+    The 2026-09-14 PIPE-code diagnostic is why: two sessions exited 0 after
+    routing "TKT-1 is ready to implement" to /acs:ship, which ran
+    /acs:analyze-ticket and stopped. /acs:code never ran, so its ledger did
+    not exist, and `status != "failed"` scored both as completions of a
+    skill that was never exercised.
+    """
+
+    def _probe(self, ok, status):
+        probe = {"id": "PIPE-code", "kind": "pipeline", "skill": "acs:code",
+                 "runs": [{"ok": ok, "seconds": 10.0, "cost_usd": 1.0,
+                           "status": status,
+                           "quality": {"verify_iterations": None,
+                                       "coverage_percent": None,
+                                       "blocking_findings": None}}]}
+        return pg.summarize(probe)["reliability"]
+
+    def test_a_clean_session_with_no_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, None)["hits"], 0)
+
+    def test_a_failed_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, "failed")["hits"], 0)
+
+    def test_a_handed_off_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, "handed_off")["hits"], 0)
+
+    def test_a_completed_ledger_on_a_clean_session_is_a_hit(self):
+        rel = self._probe(True, "completed")
+        self.assertEqual((rel["hits"], rel["total"]), (1, 1))
+
+    def test_a_completed_ledger_on_a_broken_session_is_not_a_hit(self):
+        # The ledger can say completed while the session itself died after
+        # (a post-hook crash, a kill during the report); the session's exit
+        # is still part of what the consumer experienced.
+        self.assertEqual(self._probe(False, "completed")["hits"], 0)
+
+
 class TestAbsoluteGates(unittest.TestCase):
     """Floors that hold with no baseline — definitions, not measurements."""
 

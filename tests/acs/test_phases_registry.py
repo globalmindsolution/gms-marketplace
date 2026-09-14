@@ -53,10 +53,6 @@ EXPECTED_GROUPS = {
 #: agents, hooks and gate and stays Skill-invocable, but only the entry point it
 #: maps to is user-facing.
 EXPECTED_INTERNAL = {
-    "create-quality": "create-docs",
-    "create-operations": "create-docs",
-    "create-principles": "create-docs",
-    "create-standards": "create-docs",
     "create-project": "project",
     "standardize-project": "project",
 }
@@ -99,7 +95,7 @@ class TestPhasesRegistry(unittest.TestCase):
                 self.assertNotIn(leg, lib.registered_skills(self.phases))
 
     def test_entry_point_of_names_the_entry_point_or_none(self):
-        self.assertEqual(lib.entry_point_of("create-quality", self.phases), "create-docs")
+        self.assertEqual(lib.entry_point_of("create-project", self.phases), "project")
         self.assertEqual(lib.entry_point_of("standardize-project", self.phases), "project")
         self.assertIsNone(lib.entry_point_of("create-docs", self.phases))
         self.assertIsNone(lib.entry_point_of("not-a-skill", self.phases))
@@ -153,7 +149,7 @@ class TestPhasesRegistry(unittest.TestCase):
             with self.subTest(leg=leg):
                 self.assertEqual(lib.phase_of(leg, self.phases),
                                  lib.phase_of(entry, self.phases))
-        self.assertEqual(lib.phase_of("create-quality", self.phases), "design")
+        self.assertEqual(lib.phase_of("create-project", self.phases), "design")
         self.assertEqual(lib.phase_of("standardize-project", self.phases), "design")
 
     def test_no_internal_leg_is_ship_eligible(self):
@@ -166,7 +162,7 @@ class TestPhasesRegistry(unittest.TestCase):
     def test_registered_skills_excludes_aliases_and_internal_legs(self):
         self.assertNotIn("test", lib.registered_skills(self.phases))
         self.assertIn("run-e2e-tests", lib.registered_skills(self.phases))
-        self.assertNotIn("create-quality", lib.registered_skills(self.phases))
+        self.assertNotIn("create-project", lib.registered_skills(self.phases))
         self.assertIn("create-docs", lib.registered_skills(self.phases))
 
     def test_the_registry_validates_against_its_schema_with_jsonschema(self):
@@ -304,7 +300,7 @@ class TestInternalMapIsDocumented(unittest.TestCase):
         registry = self.internals.split("### `workflows/phases.yaml`")[1]
         registry = registry.split("### `workflows/ship.yaml`")[0]
         self.assertIn("/acs:metrics", registry)
-        self.assertIn('phase_of("create-quality")', registry)
+        self.assertIn('phase_of("create-project")', registry)
         for leg in self.legs:
             with self.subTest(leg=leg):
                 self.assertEqual(lib.phase_of(leg), lib.phase_of(self.legs[leg]))

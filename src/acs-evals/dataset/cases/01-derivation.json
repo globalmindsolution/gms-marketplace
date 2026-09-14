@@ -705,12 +705,12 @@
         "stdout_json": {
           "batches": [
             [
-              "create-quality",
-              "create-operations",
-              "create-principles"
+              "quality",
+              "operations",
+              "principles"
             ],
             [
-              "create-standards"
+              "standards"
             ]
           ]
         }

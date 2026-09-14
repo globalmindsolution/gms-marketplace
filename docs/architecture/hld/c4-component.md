@@ -71,39 +71,42 @@ User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
 The work loop has two shapes. The **twelve triad-keeping skills** (create-prd,
-create-architecture, create-project, create-quality, create-operations,
-create-principles, create-standards, create-design, code, docs-sync,
-standardize-project, create-requirements) run the full plan→execute→verify
-reflection loop, spawning a separate planner, executor, and verifier subagent
-per phase — so **12 active triads (36 agents in triads)**. All twelve now
-spawn the planner once per run instead of per iteration — timing only;
-counts above hold (MAR-71/300/301/302/305, completed for
-`/acs:create-architecture`/`/acs:create-design`/`/acs:create-requirements`).
-The **three apply-work skills** (create-ticket, create-pr, merge-pr) run
-**inline** (MAR-60): the coordinator does the work directly, or delegates
-to **at most one** executor — never a planner or verifier, any lane.
-Correctness is gated instead: create-ticket by schema + Step-2
-confirmation; create-pr/merge-pr by `/code`'s verifier. 3 reachable
-apply-work executors give **39 reachable agents**; the 6 plan/verify
-files of the apply-work skills remain on disk but are orphaned. Within the
-12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
+create-architecture, create-project, create-design, docs-sync,
+standardize-project, create-requirements, analyze-ticket, create-impl-plan,
+create-api-contract, create-test-docs, create-e2e-tests) run the full
+plan→execute→verify reflection loop, spawning a separate planner, executor,
+and verifier subagent per phase — so **12 active triads (36 agents in triads)**;
+`code` and `create-docs` run execute→verify with no planner (ADR 0089,
+ADR 0094). The **three apply-work skills** (create-ticket, create-pr,
+merge-pr) run **inline** (MAR-60): the coordinator does the work directly,
+or delegates to **at most one** executor — never a planner or verifier, any
+lane; correctness is gated instead (create-ticket by schema + Step-2
+confirmation; create-pr/merge-pr by `/code`'s verifier). 36 triad agents,
+the 4 of `code`'s and `create-docs`'s executor + verifier pairs, and the 3
+apply-work executors give **43 agent files, all reachable**; the apply-work
+skills' plan/verify files were deleted under ADR 0092, so no agent file is
+orphaned. All twelve triads spawn the planner once per run, not per
+iteration — timing only, counts unchanged (MAR-71/300/301/302/305). Within
+the 12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
 planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the
 coordinator authors the plan artifact itself, with zero planner spawns (ADR
 0074). The execute and verify legs stay unconditional in every lane — for
 `/code`, and for every other skill among the twelve triad-keeping ones — so
 the counts above are unaffected.
 
-`/acs:create-docs` and `/acs:project` are unhooked coordinators, and neither
-is a triad-keeping skill: like `/acs:ship` they have no triad, no gate and no
-hook scripts of their own. They are the **entry points** of the design-phase
-fold (`workflows/phases.yaml`'s `internal` map, ADR 0091), and they spawn the
+Neither `/acs:create-docs` nor `/acs:project` is a triad-keeping skill.
+`/acs:project` is an unhooked coordinator: like `/acs:ship` it has no triad,
+no gate and no hook scripts of its own. It is the **entry point** of the design-phase
+fold (`workflows/phases.yaml`'s `internal` map, ADR 0091), and it spawns the
 *existing* triads above as ordinary plan→execute→verify runs on their own
-delivery tickets — `/acs:create-docs` over its four doc-bootstrap legs
-(`create-quality`, `create-operations`, `create-principles`,
-`create-standards`), fanned out in cross-skill batches walked in slices of at
-most `max_parallel` (default 2) legs; `/acs:project` over exactly one of its
+delivery tickets — over exactly one of its
 two legs (`create-project` or `standardize-project`), chosen by
-`acs_lib.project_mode` from declared on-disk evidence. Because the fold moved
+`acs_lib.project_mode` from declared on-disk evidence. `/acs:create-docs`,
+once an unhooked umbrella over four such legs, is since ADR 0094 a hooked
+product skill of its own: one executor + verifier pair authors and judges any
+of the four doc sets (the set rides in the task constraints), one delivery
+ticket per set, the eligible sets run in slices of at most `max_parallel`
+(default 2). Because the fold moved
 no triad, no gate and no agent file, the triad-keeping list and the 12/36/39
 counts above are unaffected by it (MAR-1; fold per ADR 0091).
 

@@ -1,160 +1,107 @@
-# Flow — /acs:create-docs cross-skill fan-out
+# Flow — `/acs:create-docs`: one skill, four doc sets, one delivery ticket per set
 
-`/acs:create-docs` is an unhooked coordinator (like `/acs:ship`) that spawns
-**existing doc-bootstrap skills as ordinary delivery tickets**, running each
-one's own plan→execute→verify phases in a **parallel worktree**, one delivery
-ticket per leg. It reuses the worktree-per-ticket primitive that already exists
-for cross-*ticket* parallelism; what is new is the cross-*skill*, phase-level
-fan-out from a single coordinator: each phase batch (the slice's planners, then
-its executors, then its verifiers) runs in parallel before the next batch
-starts. `fanout_batches()` (`acs_lib`, in `acs_lib/setup_helpers.py`) computes
-the eligible batches from `DOC_BOOTSTRAP_DEPENDENCIES` and
-`DOC_BOOTSTRAP_SETTINGS_KEY` against the consumer repo's settings and on-disk
-doc state (`doc_set_present_on_disk()`), gated on the declared set
-`DOC_BOOTSTRAP_FANOUT_V1` — today all **four** doc-bootstrap legs:
-`create-quality`, `create-operations`, `create-principles`,
-`create-standards`.
+`/acs:create-docs <set|all>` bootstraps or maintains the four product doc sets
+— `quality`, `operations`, `principles`, `standards` — and is, since ADR-0094,
+the skill that does the work rather than an umbrella over four leg skills. The
+sets are rows of `acs_lib.DOC_SETS`; one executor and one verifier serve every
+set, the set riding in the task constraints; there is no planner (ADR-0092
+class D). What this flow keeps from ADR-0085 is the mechanics that were never
+about the legs: the declared eligibility predicate, capped parallel slices, a
+worktree per unit of work, one delivery ticket and one docs-only PR per set,
+and no fan-out ledger of its own.
 
-## The entry-point fold
+## Eligibility and batching (pure, before anything is spent)
 
-`/acs:create-docs` is the **only user-facing command** for those four doc
-sets. Each leg is an `internal` entry in `workflows/phases.yaml`, carries
-`disable-model-invocation: true`, and is absent from every phase list. That is
-an entry-point fold, not a collapse — a leg keeps its own SKILL.md, agent
-trio, `pre-`/`post-` hook scripts, registered gate, settings key and sentinel,
-and the umbrella invokes it as a genuine Skill-tool call, which is precisely
-what makes the rest of this flow (every hook firing "for real" below) true.
-`phase_of` resolves a leg through `create-docs`, so all four still report under
-`design`.
+`fanout_batches(settings, tickets_index, checkout_root, candidates)` is the
+**declared, not inferred** predicate. A set is eligible when its settings path
+is configured (a `null` path is the consumer's opt-out), its sentinel file — the
+first file of its `DOC_SETS` row — is absent at that path, no non-`done`
+delivery ticket for it is in flight (matched by the ticket's `doc_set`, or its
+title for tickets minted before the field existed), and every **hard**
+dependency is unconfigured or shipped. A **soft** dependency only keeps two
+sets out of the same batch: `standards` declares one on `principles`, so the
+default request batches as `[[quality, operations, principles], [standards]]`,
+which the cap walks as `quality` + `operations`, then `principles`, then
+`standards`. Nothing here re-derives or reorders those batches.
 
-## Batches, slices and the concurrency cap
-
-The coordinator never launches all four legs at once. It walks the batches
-`fanout_batches` returns in **slices of at most `max_parallel` legs** —
-`DEFAULT_MAX_PARALLEL` is 2, and the resolved `workflows/ship.yaml` (or the
-consumer's `.acs/workflows/ship.yaml`) wins when it declares its own value.
-
-The batch split is data, never prose: `create-standards` declares a **soft**
-edge on `create-principles` in `DOC_BOOTSTRAP_DEPENDENCIES`, which excludes
-the two from sharing a batch. On a fully configured repo with nothing shipped
-yet, `fanout_batches` therefore returns
-`[[create-quality, create-operations, create-principles], [create-standards]]`,
-which the cap walks as three slices: `create-quality` + `create-operations`,
-then `create-principles`, then `create-standards`. Nothing here re-derives or
-hard-codes that order.
-
-## Sequence — happy path (one slice, both its legs succeed)
-
-The diagram below is the **first slice** of that default run — two legs, the
-cap's width. A later slice is the identical shape with its own legs.
+## The run, two sets in one slice
 
 ```mermaid
 sequenceDiagram
-    actor Dev as Developer
-    participant CD as acs:create-docs (coordinator, unhooked)
-    participant WS as workspace (tickets-index.json, metrics.json — repo-level)
-    participant PLQ as create-quality-planner
-    participant PLO as create-operations-planner
-    participant EXQ as create-quality-executor
-    participant EXO as create-operations-executor
-    participant VFQ as create-quality-verifier
-    participant VFO as create-operations-verifier
+    autonumber
+    participant Dev as Developer
+    participant Hook as PreToolUse(Skill) gate
+    participant CD as /acs:create-docs coordinator
+    participant WS as workspace + git
+    participant EXQ as create-docs-executor (quality)
+    participant EXO as create-docs-executor (operations)
+    participant VFQ as create-docs-verifier (quality)
+    participant VFO as create-docs-verifier (operations)
 
-    Dev->>CD: /acs:create-docs (all, or a comma-separated set list)
-    CD->>WS: read settings + DOC_BOOTSTRAP_DEPENDENCIES + tickets-index.json + max_parallel
-    CD->>CD: fanout_batches -> batches, first slice (max_parallel=2) = create-quality, create-operations
-    CD->>CD: create worktree-Q and worktree-O outside the consumer repo
-
-    CD->>CD: Skill acs:create-quality
-    note over CD: PreToolUse(Skill) fires for real (ship/SKILL.md precedent) — cwd is the session checkout, gate_create_quality passes
-    CD->>WS: skill-start.py --skill create-quality --allocate, mints MAR-101, lock, pointer, update_index — run in the session checkout (D3.2-ii)
-
-    CD->>CD: Skill acs:create-operations
-    note over CD: PreToolUse(Skill) fires for real (ship/SKILL.md precedent) — cwd is the session checkout, gate_create_operations passes
-    CD->>WS: skill-start.py --skill create-operations --allocate, mints MAR-102, lock, pointer, update_index — run in the session checkout (D3.2-ii)
-    CD->>WS: enter worktree-Q, git checkout -b MAR-101 (Branch step, before create-quality Execute)
-    CD->>WS: enter worktree-O, git checkout -b MAR-102 (Branch step, before create-operations Execute)
-
-    par create-quality plan
-        CD->>PLQ: task phase=plan, ticket-id=MAR-101
-        PLQ-->>CD: iter-1-plan.md, quality
-    and create-operations plan
-        CD->>PLO: task phase=plan, ticket-id=MAR-102
-        PLO-->>CD: iter-1-plan.md, operations
+    Dev->>Hook: Skill(acs:create-docs) "quality,operations"
+    Hook->>Hook: pre-create-docs.py: architecture doc set exists? (once, for every set)
+    Hook-->>CD: exit 0
+    CD->>CD: parse_doc_set_arg -> candidates, fanout_batches -> [[quality, operations]], first slice (max_parallel=2)
+    CD->>WS: git worktree add --detach worktree-Q, git worktree add --detach worktree-O
+    CD->>WS: skill-start.py --skill create-docs --doc-set quality --allocate (session checkout) -> MAR-101, lock, pointer, ticket.doc_set=quality
+    CD->>WS: skill-start.py --skill create-docs --doc-set operations --allocate -> MAR-102
+    CD->>WS: enter worktree-Q, git checkout -b task/MAR-101-product-quality-doc-set
+    CD->>WS: enter worktree-O, git checkout -b task/MAR-102-product-operations-doc-set
+    par quality execute, iteration 1
+        CD->>EXQ: <task phase="execute"> doc_set=quality, output-files, required_sections:*, audience, prd_slice, template_dir
+        EXQ->>WS: read PRD (NFRs), architecture set, decide mode, write iter-1-authoring.md (Upstream inventory, consistency findings), write docs/quality/* from templates, iter-1-execute.json
+    and operations execute, iteration 1
+        CD->>EXO: <task phase="execute"> doc_set=operations ...
+        EXO->>WS: same, for docs/operations/*
     end
-
-    par create-quality execute, iteration 1
-        CD->>EXQ: task phase=execute, ticket-id=MAR-101
-        EXQ-->>CD: docs/quality writes on MAR-101 branch, worktree-Q
-    and create-operations execute, iteration 1
-        CD->>EXO: task phase=execute, ticket-id=MAR-102
-        EXO-->>CD: docs/operations writes on MAR-102 branch, worktree-O
+    par quality verify, iteration 1
+        CD->>VFQ: <task phase="verify"> same constraints, inputs name iter-1-authoring.md
+        VFQ->>WS: citation_check.py --plan iter-1-authoring.md, structure_lint.py per file, iter-1-verify.md
+    and operations verify, iteration 1
+        CD->>VFO: <task phase="verify"> ...
     end
-
-    par create-quality verify, iteration 1
-        CD->>VFQ: task phase=verify, ticket-id=MAR-101
-        VFQ-->>CD: zero blocking findings
-    and create-operations verify, iteration 1
-        CD->>VFO: task phase=verify, ticket-id=MAR-102
-        VFO-->>CD: zero blocking findings
-    end
-
-    CD->>WS: commit + push + gh pr create in worktree-Q, post-create-quality.py, update_metrics guarded
-    CD->>WS: commit + push + gh pr create in worktree-O, post-create-operations.py, update_metrics guarded
-    CD-->>Dev: report, MAR-101 PR A in_review, MAR-102 PR B in_review, review each then merge-pr
+    CD->>WS: findings? -> next iteration's executor <context> (max 3), zero -> Delivery
+    CD->>WS: commit + push + gh pr create in worktree-Q, post-create-docs.py --ticket MAR-101
+    CD->>WS: commit + push + gh pr create in worktree-O, post-create-docs.py --ticket MAR-102
+    CD-->>Dev: quality MAR-101 PR A in_review, operations MAR-102 PR B in_review
 ```
 
-## Sequence — one leg fails, isolation and resume
+Every write the executor makes lands in that set's worktree on that set's
+branch — the constraints carry worktree-absolute output paths — so the
+disjoint-file-map precondition `/acs:code`'s parallel-executor rule requires
+holds by construction, and the session checkout is never dirtied.
+
+## Failure isolation and resume
 
 ```mermaid
 sequenceDiagram
-    actor Dev as Developer
-    participant CD as acs:create-docs (coordinator, unhooked)
-    participant WS as workspace
-    participant EXO as create-operations-executor
-    participant VFO as create-operations-verifier
+    autonumber
+    participant Dev as Developer
+    participant CD as /acs:create-docs coordinator
+    participant WS as workspace + git
 
-    Dev->>CD: /acs:create-docs
-    CD->>WS: Starts for MAR-101 (create-quality) and MAR-102 (create-operations) as above
-    note over CD: both legs' Starts and plan phases already completed, per happy-path diagram
-
-    par create-quality iteration 1..3
-        CD->>WS: create-quality reaches zero findings, commit, push, gh pr create, post-create-quality.py
-        WS-->>CD: MAR-101 in_review, PR A open
-    and create-operations iteration 1..3
-        CD->>EXO: task phase=execute, iteration=3
-        EXO-->>CD: docs/operations writes, worktree-O
-        CD->>VFO: task phase=verify, iteration=3
-        VFO-->>CD: blocking findings remain at the iteration cap
-        CD->>WS: create-operations-state.json run status=failed, commit to local MAR-102 branch only, no push, no PR, post-create-operations.py releases lock
-    end
-
-    CD-->>Dev: report, MAR-101 completed PR A in_review, MAR-102 failed verifier cap reached iteration 3, findings in phases/create-operations/result.json
-    note over CD: no shared failure state, MAR-101's run/PR/ledger are untouched by MAR-102's failure
-
-    Dev->>Dev: address the verifier findings
-    Dev->>CD: /acs:create-operations MAR-102 (the leg's own internal entry point, resume only)
-    note over CD: standalone resume, unchanged contract, create-operations/SKILL.md Resume & reconcile section, reconcile=true, no re-invocation of the umbrella
-    CD-->>Dev: create-operations completes, MAR-102 PR B in_review
+    CD->>WS: quality reaches zero findings, commit, push, gh pr create, post-create-docs.py --ticket MAR-101
+    CD->>WS: operations still has findings at iteration 3: result status=failed, commit to local MAR-102 branch only, no push, no PR, post-create-docs.py --ticket MAR-102 releases its lock
+    CD-->>Dev: quality MAR-101 completed (PR A in_review), operations MAR-102 failed, findings in phases/create-docs/result.json
+    Dev->>CD: /acs:create-docs MAR-102
+    CD->>WS: skill-start.py --skill create-docs --ticket MAR-102 (resume, ticket.doc_set says which set)
+    CD->>WS: reconcile from phases/create-docs/: last verify had findings -> next execute with them as <context>
+    CD-->>Dev: operations MAR-102 completed, PR B in_review
 ```
 
-Properties: each leg is an ordinary, independently-resumable delivery ticket
-— its own branch, its own PR, its own verifier state; the umbrella holds no
-shared failure state across legs, so one leg's iteration-cap failure never
-blocks or rolls back a sibling leg's success. A crashed or failed leg resumes
-exactly the way a standalone run already does, via its own skill's Resume &
-reconcile path — `/acs:create-docs` is never re-invoked for a single-leg
-resume. Resuming a leg directly is the one thing a leg's own
-`/acs:<leg> <ticket-id>` form is still for after the entry-point fold: the
-fold removed the leg from the user-facing surface, not from the Skill tool,
-and the entry point never resumes a leg on its behalf.
+A failed set's run status, ticket, partition and lock are its own; the other
+set's PR and ledger are never touched. There is no batch ledger: each set's
+`pipeline-state.json` (`flow: "product"`, step `create-docs`) is its complete
+resume record, and re-running `/acs:create-docs` with set names simply
+re-derives eligibility — a set with an open delivery ticket or a shipped
+sentinel is not re-offered.
 
-Each leg's worktree is entered at that leg's own Delivery step's Branch
-sub-step, before that leg's Execute phase; that Branch entry point precedes
-the later Delivery commit/push/PR steps, which run in the same worktree once
-entered. The shared session checkout is used for every leg's Start and
-`skill-start.py --allocate` call (D3.2-ii); each leg's execute and verify
-phases, and Delivery steps 2-4, then run in that leg's own worktree on its own
-branch. None of this is per-slice state: a slice is only how many legs are in
-flight at once, so the properties above hold across the whole run, not just
-within one slice.
+## What the fold changed, in one table
+
+| Before (ADR-0085 / ADR-0091) | Now (ADR-0094) |
+|---|---|
+| Four leg skills, each with a SKILL.md, a planner/executor/verifier trio, `pre-`/`post-` scripts, a `GATES` row | One skill; `DOC_SETS` rows; one executor + one verifier; `pre-`/`post-create-docs.py`; one `GATES` row |
+| Umbrella unhooked; each leg's gate fired on its own `Skill(acs:<leg>)` call; fail-fast carve-out for the shared gate | Skill hooked; the one gate fires once at the Skill call, so there is no shared failure to carve out |
+| A planner wrote `iter-1-plan.md` per leg, the executor followed it | The executor authors from the templates and writes `iter-<n>-authoring.md` (mode, Upstream inventory, consistency findings, decisions); the verifier corroborates it |
+| Resume: `/acs:create-<leg> <ticket-id>` | Resume: `/acs:create-docs <ticket-id>` — the ticket records its `doc_set` |
+| `fanout_batches` keyed by leg skill name | Keyed by set name; the former leg name still parses for one release |

@@ -2,6 +2,16 @@
 
 **Status**: Accepted · **Date**: 2026-08-31
 
+> **Forward pointer — ADR-0094 (2026-09-14).** The legs are gone: the four
+> doc-set skills this umbrella fanned out were folded *into* `/acs:create-docs`,
+> which is now a hooked product skill with one executor + verifier pair for
+> every set. The mechanics decided below — the declared eligibility predicate,
+> capped parallel slices, worktree-per-unit delivery, one delivery ticket and
+> PR per set, no batch ledger, per-set failure isolation — all stand, re-keyed
+> from leg skill names to set names. D2's "legs stay real, Skill-invocable
+> skills" premise and the shared-gate fail-fast carve-out do not: there is
+> one gate, fired once at the Skill call.
+
 > **Forward pointer — ADR-0091 (2026-09-12).** Every decision below stands
 > — the unhooked umbrella, the phase-level interleave, worktree-per-leg
 > delivery, the declared dependency/eligibility predicate, the no-new-ledger

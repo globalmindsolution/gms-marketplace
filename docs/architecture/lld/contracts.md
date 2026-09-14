@@ -252,36 +252,37 @@ The `standards` chain level has a documentary counterpart in this repo at
 guidance rather than as a runtime-verified conformance level.
 
 `DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib`, declared in `acs_lib/_common.py`)
-declares, per doc-bootstrap skill, which upstream doc sets it depends on, and
-`DOC_BOOTSTRAP_SETTINGS_KEY` maps each entry to the settings key that must
-resolve before that skill is eligible; `fanout_batches()`
-(`acs_lib/setup_helpers.py`) is the pure helper `/acs:create-docs` calls
-against this table to compute its eligible cross-skill batches (MAR-1). The
-default eligible set is the declared tuple `DOC_BOOTSTRAP_FANOUT_V1`, which is
-now **all four** doc-bootstrap legs — `create-quality`, `create-operations`,
-`create-principles`, `create-standards` — so the N-way case that used to need
-`fanout_batches`'s explicit `candidates` argument is the default path; that
-argument now carries a *narrowing* request (the entry point's `<set|all>`
-argument) rather than a widening one. Widening the set further stays a data
-change across all four declared constants, never a code or prose change.
+declares, per doc set, which upstream doc sets it depends on — a derived view
+of `acs_lib.DOC_SETS`, the one table that says what a set is (settings key,
+delivery-ticket title, template directory, output files with their required
+sections, audience, upstream inputs, dependency edges; ADR-0094). Its sibling
+views `DOC_BOOTSTRAP_SETTINGS_KEY` and `DOC_BOOTSTRAP_SENTINEL` are keyed by
+set name too, and `fanout_batches()` (`acs_lib/setup_helpers.py`) is the pure
+helper `/acs:create-docs` calls against them to compute its eligible batches
+(MAR-1). The default eligible set is `DOC_BOOTSTRAP_FANOUT_V1` — every
+declared set, `quality`, `operations`, `principles`, `standards` — so the
+N-way case is the default path and the `candidates` argument carries a
+*narrowing* request (the skill's `<set|all>` argument). Adding a fifth set is
+one `DOC_SETS` row plus its templates, never a code or prose change.
 
 Each declared dependency is either **hard** (an existing gate already enforces
 it) or **soft** (prose-only, ungated) — the principles→standards edge above is
-the soft case: `create-standards` degrades gracefully when `principles/` is
-absent and its own gate requires only the architecture set, so the conformance
-chain's "each level verified against the one above it" holds as a hard property
-everywhere except this one declared-soft edge. With the set at four, that edge
-is now load-bearing on the default path: it is what splits the default batches
-into `[[create-quality, create-operations, create-principles],
-[create-standards]]` instead of one flat batch. The distinction is documented
-once in `DOC_BOOTSTRAP_DEPENDENCIES`'s own table and cross-referenced from here
-so a reader of either doc finds the other.
+the soft case: the `standards` set degrades gracefully when `principles/` is
+absent and the one gate every set shares requires only the architecture set,
+so the conformance chain's "each level verified against the one above it"
+holds as a hard property everywhere except this one declared-soft edge. With
+four sets, that edge is load-bearing on the default path: it is what splits
+the default batches into `[[quality, operations, principles], [standards]]`
+instead of one flat batch. The distinction is documented once on `DOC_SETS`
+and cross-referenced from here so a reader of either doc finds the other.
 
-`parse_doc_set_arg()` is the companion pure parser and the entry point's whole
+`parse_doc_set_arg()` is the companion pure parser and the skill's whole
 argument contract: a comma-separated list of doc sets in either spelling
-(`quality` or `create-quality`), or `all` on its own (`all` beside a set name is
-refused, never guessed at). It returns `candidates` (canonical leg names, or
-`None` for "no argument", handed straight to `fanout_batches`), `rejected`, and
+(`quality` or the former leg name `create-quality`), `all` on its own (`all`
+beside a set name is refused, never guessed at), or exactly one delivery-ticket
+id, which resumes that set's run. It returns `candidates` (set names, or
+`None` for "no argument", handed straight to `fanout_batches`), `rejected`,
+`resume`, and
 `notices` — the exact stderr lines, in order. A token naming no doc set refuses
 the WHOLE run rather than fanning out the recognized remainder, so no requested
 name is ever silently dropped. `parse_fanout_for_arg()` remains the legacy

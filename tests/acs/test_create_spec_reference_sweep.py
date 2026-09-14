@@ -48,17 +48,11 @@ CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
-CREATE_QUALITY_SKILL = os.path.join(SKILLS_DIR, "create-quality", "SKILL.md")
-CREATE_OPERATIONS_SKILL = os.path.join(SKILLS_DIR, "create-operations", "SKILL.md")
-CREATE_PRINCIPLES_SKILL = os.path.join(SKILLS_DIR, "create-principles", "SKILL.md")
-CREATE_STANDARDS_SKILL = os.path.join(SKILLS_DIR, "create-standards", "SKILL.md")
+CREATE_DOCS_SKILL = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
 CREATE_DESIGN_EXECUTOR = os.path.join(AGENTS_DIR, "create-design-executor.md")
 CREATE_TICKET_EXECUTOR = os.path.join(AGENTS_DIR, "create-ticket-executor.md")
 
-RULE2_IDENTICAL_FILES = [
-    CREATE_ARCHITECTURE_SKILL, CREATE_QUALITY_SKILL, CREATE_OPERATIONS_SKILL,
-    CREATE_PRINCIPLES_SKILL, CREATE_STANDARDS_SKILL,
-]
+RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL, CREATE_DOCS_SKILL]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
 RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES

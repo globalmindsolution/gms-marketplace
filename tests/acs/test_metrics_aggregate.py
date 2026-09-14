@@ -302,8 +302,8 @@ class Panel3ApiDuration(unittest.TestCase):
                  "api_duration_basis": "apportioned"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-quality-state.json"), {
-                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "create-docs-state.json"), {
+                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 500.0,
                      "api_duration_basis": "apportioned"},
@@ -311,18 +311,18 @@ class Panel3ApiDuration(unittest.TestCase):
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
-            # union = {test, code, create-quality}; create-quality is a product-level skill now
+            # union = {test, code, create-docs}; create-docs is a product-level skill now
             # listed in PIPELINE_STEP_ORDER (before create-ticket/code/test), so it orders first;
             # code before test follows PIPELINE_STEP_ORDER's own relative position for both.
-            self.assertEqual(row["step_order"], ["create-quality", "code", "test"])
+            self.assertEqual(row["step_order"], ["create-docs", "code", "test"])
 
     def test_step_api_duration_present_without_steps_entry_hooked_only_skill(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_pipeline(ws, "MAR-6", steps={}, archived=True)
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-quality-state.json"), {
-                "skill": "create-quality", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "create-docs-state.json"), {
+                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 750.0,
                      "api_duration_basis": "apportioned"},
@@ -330,10 +330,10 @@ class Panel3ApiDuration(unittest.TestCase):
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
-            self.assertNotIn("create-quality", row["steps"])
-            self.assertEqual(row["step_api_duration"]["create-quality"],
+            self.assertNotIn("create-docs", row["steps"])
+            self.assertEqual(row["step_api_duration"]["create-docs"],
                              {"ms": 750.0, "basis": "apportioned"})
-            self.assertIn("create-quality", row["step_order"])
+            self.assertIn("create-docs", row["step_order"])
 
     def test_steps_entry_present_without_step_api_duration_the_test_step_case(self):
         with TemporaryDirectory() as ws:

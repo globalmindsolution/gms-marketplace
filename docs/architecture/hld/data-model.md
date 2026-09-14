@@ -289,9 +289,9 @@ MAR-1's/MAR-3's rollouts). This capability is not yet surfaced by
 (MAR-5 → MAR-6 + MAR-7); MAR-7 is the sibling ticket that consumes these
 fields in the rendered view.
 
-**Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
-`/acs:create-standards`'s, `/acs:create-operations`'s, and
-`/acs:create-principles`'s plan artifacts (`phases/<skill>/iter-1-plan.md`
+**Amendment (MAR-305).** `/acs:create-prd`'s plan artifact — and, until ADR
+0094 folded them into the planner-less `/acs:create-docs`, the four doc-set
+legs' — (`phases/<skill>/iter-1-plan.md`
 each) now have the same "exactly one per run, authored before the loop,
 never rewritten in place on a later iteration" cardinality as `/acs:code`'s
 `plan.md`, `/acs:docs-sync`'s, `/acs:create-project`'s, and

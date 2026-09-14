@@ -2,8 +2,8 @@
 
 | Layer | Technology | Why |
 |-------|------------|-----|
-| acs Skills (25) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (25 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
-| Subagents (45 files, 39 reachable) | Markdown agent definitions | Separate contexts per reflection phase for the twelve triad-keeping skills (36 agents); the three apply-work skills run inline with at most one executor each (3 agents), leaving 6 plan/verify files orphaned; tool allowlists in frontmatter |
+| acs Skills (28) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` (28 skills; tabp has 2 skills (screen-cvs, /tabp:usage) via Cowork + Claude Code, counted separately) |
+| Subagents (43 files, all reachable) | Markdown agent definitions | Separate contexts per reflection phase for the twelve triad-keeping skills (36 agents); executor + verifier pairs for `code` and `create-docs`, which have no planner (4 agents; ADR 0089, ADR 0094); the three apply-work skills run inline with at most one executor each (3 agents) — their plan/verify files were deleted under ADR 0092, so no agent file is orphaned; tool allowlists in frontmatter |
 | Hooks & helpers | **Python ≥ 3.9, stdlib only** | Deterministic gating/persistence with zero consumer-machine installs |
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
 | Messaging | XML validated against `acs-messages.xsd` (in-process stdlib structural validation by default — no per-message subprocess; xmllint opt-in only via `ACS_XML_AUTHORITATIVE=1`) | Fail-fast malformed coordinator↔subagent traffic |

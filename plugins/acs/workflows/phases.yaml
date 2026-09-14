@@ -46,12 +46,10 @@ aliases:
   test: run-e2e-tests
 # Internal legs: each keeps its SKILL.md, agents, hooks, gate and sentinels and
 # stays Skill-invocable, but the entry point named here is the only user-facing
-# command for it — an entry-point fold, not a collapse.
+# command for it — an entry-point fold, not a collapse. (The four doc legs
+# create-docs used to fan out were collapsed INTO it — ADR-0094 — so it is a
+# skill of its own now, not an entry point over legs.)
 internal:
-  create-quality: create-docs
-  create-operations: create-docs
-  create-principles: create-docs
-  create-standards: create-docs
   create-project: project
   standardize-project: project
 # Subagent roles each skill owns, per ADR-0092. A skill declares the machinery
@@ -63,9 +61,10 @@ internal:
 #     BEFORE the action, not a review after it;
 #   * authoring skills lose their planner — when the deliverable IS the plan
 #     or the analysis, a planning phase to plan it is a second copy of the
-#     work. They still declare one below: that removal changes behaviour, so
+#     work. Most still declare one below: that removal changes behaviour, so
 #     it lands one skill at a time, each editing its own line here, and the
-#     line is the record of which skills have been through it;
+#     line is the record of which skills have been through it (create-docs
+#     was the first: its executor authors each doc set from the templates);
 #   * code keeps an executor and a verifier; its plan phase is its own skill.
 agents:
   analyze-ticket: [planner, executor, verifier]
@@ -73,16 +72,13 @@ agents:
   create-api-contract: [planner, executor, verifier]
   create-architecture: [planner, executor, verifier]
   create-design: [planner, executor, verifier]
+  create-docs: [executor, verifier]
   create-e2e-tests: [planner, executor, verifier]
   create-impl-plan: [planner, executor, verifier]
-  create-operations: [planner, executor, verifier]
   create-pr: [executor]
   create-prd: [planner, executor, verifier]
-  create-principles: [planner, executor, verifier]
   create-project: [planner, executor, verifier]
-  create-quality: [planner, executor, verifier]
   create-requirements: [planner, executor, verifier]
-  create-standards: [planner, executor, verifier]
   create-test-docs: [planner, executor, verifier]
   create-ticket: [executor]
   docs-sync: [planner, executor, verifier]

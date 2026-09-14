@@ -109,9 +109,9 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 
 > **NOTE (MAR-160):** the reproduced list above is a historical quote of
 > `design.md:244-245` and was never kept in lockstep with every
-> later-registered skill's pre-/post- pair (e.g. `create-quality`,
-> `create-operations`, `create-principles`, `create-standards`,
-> `create-requirements`, `standardize-project` are also absent from it).
+> later-registered skill's pre-/post- pair (e.g. `create-docs` — since ADR
+> 0094 the one hooked skill behind the four doc sets — `create-requirements`,
+> `standardize-project` are also absent from it).
 > `pre-docs-sync.py` / `post-docs-sync.py` belong to this same
 > runtime-agnostic bucket by the identical construction (Bash-invoked,
 > reads/writes workspace JSON) — flagged here rather than folded into the
@@ -122,12 +122,11 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > gaps this note otherwise flags.
 >
 > **The design-phase entry-point fold (ADR 0091) adds no gap to close.** The
-> six skills it made internal legs of `/acs:create-docs` and `/acs:project`
-> **kept** their `pre-`/`post-` pairs, so the four already flagged above
-> (`create-quality`, `create-operations`, `create-principles`,
-> `create-standards`) plus `create-project` and `standardize-project` sit in
+> two skills it made internal legs of `/acs:project` **kept** their
+> `pre-`/`post-` pairs, so `create-project` and `standardize-project` sit in
 > this same runtime-agnostic bucket, unchanged — the fold narrowed who may
-> invoke a leg, never how it is hooked. The two **entry points** are unhooked
+> invoke a leg, never how it is hooked. ADR 0094 replaced the four doc legs'
+> pairs with `pre-`/`post-create-docs.py`, in the same bucket. The two **entry points** are unhooked
 > umbrellas and own no hook scripts at all: there is no `pre-create-docs.py`
 > and no `pre-project.py`, and none should be added, so neither belongs in the
 > lists above or in the gap this note flags.

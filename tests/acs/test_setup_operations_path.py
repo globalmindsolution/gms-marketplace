@@ -73,15 +73,15 @@ class Mar113OperationsPathInitCase(unittest.TestCase):
         )
 
     def test_step4_names_create_operations_as_consumer(self):
-        """The operations_path bullet names /acs:create-operations as the
+        """The operations_path bullet names /acs:create-docs operations as the
         consuming skill, mirroring how the quality_path bullet names
         /acs:create-quality."""
         m = re.search(r"`operations_path`", self.step4)
         self.assertIsNotNone(m)
         window = self.step4[m.start():m.start() + 300]
         self.assertIn(
-            "create-operations", window,
-            msg="the `operations_path` bullet must name /acs:create-operations "
+            "create-docs operations", window,
+            msg="the `operations_path` bullet must name /acs:create-docs operations "
                 "as the consumer (AC-3)",
         )
 

@@ -269,7 +269,7 @@ def save_ticket(tdir, ticket):
 
 
 def new_ticket_doc(ticket_id, title, ttype, **kw):
-    return {
+    doc = {
         "id": ticket_id,
         "title": title,
         "type": ttype,
@@ -296,6 +296,12 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
+    if kw.get("doc_set"):
+        # A /acs:create-docs delivery ticket names the set it delivers, so a
+        # resume knows what it is resuming without parsing the title.
+        doc["doc_set"] = kw["doc_set"]
+    return doc
+
 
 
 def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):
@@ -364,6 +370,8 @@ def update_index(workspace, repo_id, ticket, archived=None):
             "due_date": ticket.get("due_date"),
             "updated_at": now_iso(),
         })
+        if ticket.get("doc_set"):
+            entry["doc_set"] = ticket["doc_set"]
         if archived is not None:
             entry["archived"] = archived
         write_json(path, data)

@@ -20,7 +20,7 @@ context and consequences.
 | [0009](0009-clarification-ledger-and-grounding.md) | Clarification ledger + grounding rules | Accepted |
 | [0010](0010-explicit-semver-distribution.md) | Explicit-semver distribution with an update assistant | Accepted |
 | [0011](0011-sdlc-doc-sets-quality-and-operations.md) | Full-SDLC doc sets (quality, operations) + standing test runs | Proposed |
-| [0012](0012-design-time-doc-consistency.md) | Design-time doc-consistency gap & staleness analysis | Proposed |
+| [0012](0012-design-time-doc-consistency.md) | Design-time doc-consistency gap & staleness analysis | Proposed — carrier count corrected by [0094](0094-doc-set-legs-fold-into-create-docs.md) (four doc-set planners folded into `create-docs-executor`) |
 | [0013](0013-metrics-derives-panels-from-artifacts.md) | acs:metrics derives panels 4-6 from phase artifacts, not a schema extension | Accepted |
 | [0014](0014-metrics-helper-emits-json-skill-renders.md) | metrics helper emits aggregate JSON; the skill renders show_widget | Accepted |
 | [0015](0015-metrics-single-show-widget-call.md) | acs:metrics renders all six panels in a single show_widget call | Accepted |
@@ -91,15 +91,16 @@ context and consequences.
 | [0082](0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md) | Session-anchored transcript measurement with statusLine-sourced real-cost apportionment, superseding an acs-owned price table | Accepted |
 | [0083](0083-bootstrap-doc-skills-remediation-loop-execute-verify-only.md) | The 5 bootstrap-doc skills' (`create-prd`/`-quality`/`-standards`/`-operations`/`-principles`) remediation loops become execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name all 5, and superseding ADR-0080's/ADR-0081's loop-topology-unchanged statements (their corroboration-mechanism statements stand) (append-only; ADR-0004/ADR-0080/ADR-0081 themselves unedited) | Superseded by 0092 |
 | [0084](0084-create-architecture-design-requirements-remediation-loop-execute-verify-only.md) | `/acs:create-architecture`'s, `/acs:create-design`'s, and `/acs:create-requirements`'s remediation loops become execute → verify only, completing the plan-once migration across all twelve triad-keeping skills, amending ADR-0004's `/acs:code` carve-out to also name these three (append-only; ADR-0004 itself unedited) | Superseded by 0092 |
-| [0085](0085-doc-bootstrap-parallel-fan-out.md) | Doc-bootstrap parallel fan-out: new unhooked umbrella skill `/acs:create-docs`, phase-level subagent-batch interleave, worktree-per-leg delivery, declared dependency table + eligibility helpers in `acs_lib/`, v1 eligible set = `create-quality` + `create-operations` | Accepted |
+| [0085](0085-doc-bootstrap-parallel-fan-out.md) | Doc-bootstrap parallel fan-out: new unhooked umbrella skill `/acs:create-docs`, phase-level subagent-batch interleave, worktree-per-leg delivery, declared dependency table + eligibility helpers in `acs_lib/`, v1 eligible set = `create-quality` + `create-operations` | Amended by 0091 and 0094 (mechanics stand; the legs are gone) |
 | [0086](0086-in-repo-anchored-state-machine.md) | In-repo, main-checkout-anchored state (`.acs/state-machine`), superseding ADR-0003 | Accepted |
 | [0087](0087-ticket-id-allocation-fail-closed-reconciliation.md) | Ticket-id allocation: fail-closed reconciliation gate plus a confirmable ranked local-evidence proposal | Accepted |
 | [0088](0088-gh-only-github-transport-and-criticality-classification.md) | gh is acs's only GitHub transport; failures are classified, not routed around | Accepted |
 | [0089](0089-pipeline-order-declared-in-ship-yaml.md) | Pipeline order is declared in `workflows/ship.yaml`; every skill is independently runnable; hooks keep input checks and safety brakes, and `_require_completed` is deleted | Accepted |
 | [0090](0090-ticket-artifacts-in-repo-docs-tree.md) | Ticket and design artifacts live in the repo docs tree (`docs/tickets/<ID>/`) with a derived status; the workspace keeps the run ledger | Accepted |
-| [0091](0091-design-phase-entry-point-fold.md) | The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas (`/acs:create-docs`, `/acs:project`), and an auto-detected project mode | Accepted |
+| [0091](0091-design-phase-entry-point-fold.md) | The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas (`/acs:create-docs`, `/acs:project`), and an auto-detected project mode | Amended by 0094 (the doc-set legs were collapsed after all; `/acs:project`'s fold stands) |
 | [0092](0092-skill-machinery-declared-per-skill.md) | Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default (supersedes 0077, 0078, 0079, 0083, 0084) | Proposed |
 | [0093](0093-one-declaration-per-contract.md) | One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds | Proposed |
+| [0094](0094-doc-set-legs-fold-into-create-docs.md) | The four doc-set legs fold into `/acs:create-docs`: one hooked skill, a declared `DOC_SETS` table, one executor + verifier pair for every set, no planner (ADR-0092 class D applied), one delivery ticket per set | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

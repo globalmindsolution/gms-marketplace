@@ -299,7 +299,7 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
     by the fail-closed handler as exit 2 "unexpected error in gate" -- these
     drive the real dispatcher end-to-end and prove that failure mode is gone."""
 
-    PRODUCERS = ("create-quality", "create-operations", "create-principles", "create-standards")
+    PRODUCERS = ("create-docs",)
 
     def test_passes_with_architecture_present(self):
         hld = os.path.join(self.repo, "docs", "architecture", "hld")

@@ -1574,12 +1574,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -1640,12 +1641,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         },
         "__acs_evals_extra__": 1
       },
@@ -1707,12 +1709,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -1763,12 +1766,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -1830,12 +1834,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -1888,12 +1893,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -1953,12 +1959,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2011,12 +2018,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2076,12 +2084,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2138,12 +2147,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2203,12 +2213,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2264,12 +2275,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2329,12 +2341,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2386,12 +2399,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2451,12 +2465,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2516,12 +2531,13 @@
           "test": " not-a-match "
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2582,12 +2598,13 @@
           " not-a-match ": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2600,6 +2617,206 @@
     },
     {
       "id": "SC-PHASES-018",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "agents.* violates minItems",
+      "constraint": "minItems",
+      "instance_path": "agents.*",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-project": "project",
+          "standardize-project": "project"
+        },
+        "agents": {
+          "sample": []
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-019",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "agents.*.0 violates enum",
+      "constraint": "enum",
+      "instance_path": "agents.*.0",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-project": "project",
+          "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "__acs_evals_not_in_enum__"
+          ]
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-020",
+      "kind": "schema",
+      "schema": "phases.schema.json",
+      "title": "agents rejects a property NAME that violates pattern",
+      "constraint": "pattern",
+      "instance_path": "agents",
+      "json": {
+        "version": 1,
+        "phases": {
+          "design": [
+            "create-prd",
+            "create-requirements",
+            "create-architecture",
+            "create-docs",
+            "project",
+            "create-ticket",
+            "create-design"
+          ],
+          "build": [
+            "analyze-ticket",
+            "create-api-contract",
+            "create-impl-plan",
+            "create-test-docs",
+            "code",
+            "docs-sync"
+          ],
+          "test": [
+            "create-e2e-tests",
+            "run-e2e-tests"
+          ],
+          "ship": [
+            "create-pr",
+            "merge-pr",
+            "release"
+          ],
+          "utility": [
+            "setup",
+            "install-hooks",
+            "update",
+            "handoff",
+            "metrics",
+            "usage",
+            "ship"
+          ]
+        },
+        "aliases": {
+          "test": "run-e2e-tests"
+        },
+        "internal": {
+          "create-project": "project",
+          "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ],
+          " not-a-match ": [
+            "planner"
+          ]
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "does not match pattern",
+          "property name"
+        ]
+      }
+    },
+    {
+      "id": "SC-PHASES-021",
       "kind": "schema",
       "schema": "phases.schema.json",
       "title": "internal.* violates pattern",
@@ -2648,12 +2865,13 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": " not-a-match ",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
-          "create-project": "project",
+          "create-project": " not-a-match ",
           "standardize-project": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {
@@ -2664,7 +2882,7 @@
       }
     },
     {
-      "id": "SC-PHASES-019",
+      "id": "SC-PHASES-022",
       "kind": "schema",
       "schema": "phases.schema.json",
       "title": "internal rejects a property NAME that violates pattern",
@@ -2713,13 +2931,14 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project",
-          " not-a-match ": "create-docs"
+          " not-a-match ": "project"
+        },
+        "agents": {
+          "sample": [
+            "planner"
+          ]
         }
       },
       "expect": {

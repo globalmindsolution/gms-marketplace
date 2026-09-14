@@ -93,8 +93,7 @@ _PROJECT_RESPONSES = {
 # (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
 # for one release as the alias directory.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-quality", "create-operations", "create-principles",
-                 "create-standards", "create-requirements", "create-ticket",
+                 "create-docs", "create-requirements", "create-ticket",
                  "create-design", "analyze-ticket", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "docs-sync", "create-e2e-tests", "create-pr",
@@ -103,7 +102,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # separately maintained copy by design -- this module never imports the
 # registry for it). `project` is the design-phase fold's umbrella over the
 # two project legs: no agents, no gate, no hook scripts.
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs", "project"]
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "project"]
 ROLES = ["planner", "executor", "verifier"]
 
 # Which agent roles each skill owns — READ FROM THE REGISTRY, never derived
@@ -905,7 +904,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-project", "create-quality", "create-operations")
+    SKILLS = ("create-prd", "create-architecture", "create-project", "create-docs")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -3503,10 +3502,11 @@ class TestChangelogMar107Entry(unittest.TestCase):
 
 
 class TestCreateQualityDocConformance(unittest.TestCase):
-    """MAR-112 spec 04 (AC-7): doc-conformance for the /acs:create-quality
-    doc-set closure — skills.md's new product-level section, configuration.md's
-    quality_path row, and c4-component.md's own +1 triad/reachable-agent/
-    pre-post-pair arithmetic. Structural string/regex assertions only."""
+    """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
+    closure — skills.md's product-level section (since ADR-0094 the
+    /acs:create-docs section, which delivers the quality set), configuration.md's
+    quality_path row, and c4-component.md's own reachable-agent/pre-post-pair
+    arithmetic. Structural string/regex assertions only."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -3517,25 +3517,26 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_has_create_quality_section(self):
-        """AC-7: skills.md carries a '/acs:create-quality' (product-level)
-        section naming quality_path, create-quality-planner, and
-        create-quality-state.json."""
+    def test_skills_md_has_create_docs_section(self):
+        """AC-7, after ADR-0094: skills.md carries a '/acs:create-docs'
+        (product-level) section naming quality_path, create-docs-executor,
+        and create-docs-state.json — the quality set's closure now lives in
+        the one skill that delivers it."""
         body = self._skills_req()
-        heading = "## `/acs:create-quality` (product-level)"
+        heading = "## `/acs:create-docs` (product-level)"
         self.assertIn(heading, body,
                       "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-quality' (product-level) section (MAR-112 AC-7)")
+                      "'/acs:create-docs' (product-level) section (MAR-112 AC-7)")
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
         self.assertIn("quality_path", section,
-                      "the create-quality section must name quality_path (MAR-112 AC-7)")
-        self.assertIn("create-quality-planner", section,
-                      "the create-quality section must name create-quality-planner (MAR-112 AC-7)")
-        self.assertIn("create-quality-state.json", section,
-                      "the create-quality section must name create-quality-state.json (MAR-112 AC-7)")
+                      "the create-docs section must name quality_path (MAR-112 AC-7)")
+        self.assertIn("create-docs-executor", section,
+                      "the create-docs section must name create-docs-executor (MAR-112 AC-7)")
+        self.assertIn("create-docs-state.json", section,
+                      "the create-docs section must name create-docs-state.json (MAR-112 AC-7)")
 
     def test_configuration_md_has_quality_path_row(self):
         """AC-7: configuration.md's Keys table has a quality_path row with
@@ -3574,8 +3575,8 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         body = self._c4_component()
         triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
-                      "c4-component.md must read '39 reachable agents' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must read '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3652,25 +3653,20 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_has_create_operations_section(self):
-        """AC-7: skills.md carries a '/acs:create-operations' (product-level)
-        section naming operations_path, create-operations-planner, and
-        create-operations-state.json."""
+    def test_skills_md_names_the_operations_set_in_the_create_docs_section(self):
+        """AC-7, after ADR-0094: the operations set's closure lives in the
+        '/acs:create-docs' (product-level) section, which names
+        operations_path, create-docs-executor and create-docs-state.json."""
         body = self._skills_req()
-        heading = "## `/acs:create-operations` (product-level)"
-        self.assertIn(heading, body,
-                      "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-operations' (product-level) section (MAR-113 AC-7)")
+        heading = "## `/acs:create-docs` (product-level)"
+        self.assertIn(heading, body)
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
-        self.assertIn("operations_path", section,
-                      "the create-operations section must name operations_path (MAR-113 AC-7)")
-        self.assertIn("create-operations-planner", section,
-                      "the create-operations section must name create-operations-planner (MAR-113 AC-7)")
-        self.assertIn("create-operations-state.json", section,
-                      "the create-operations section must name create-operations-state.json (MAR-113 AC-7)")
+        self.assertIn("operations_path", section)
+        self.assertIn("create-docs-executor", section)
+        self.assertIn("create-docs-state.json", section)
 
     def test_configuration_md_has_operations_path_row(self):
         """AC-7: configuration.md's Keys table has an operations_path row with
@@ -3709,8 +3705,8 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         body = self._c4_component()
         triad_idx = body.index("12 active triads (36 agents")
         window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
-                      "c4-component.md must advance to '39 reachable agents' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must advance to '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

@@ -67,10 +67,10 @@ not choose — a default the user did not pick is a default, not a value to reco
 | `prd_path` | `docs/product` | `/acs:create-prd` |
 | `architecture_path` | `docs/architecture` | `/acs:create-architecture` |
 | `adr_path` | `docs/adr` | `/acs:create-architecture` |
-| `quality_path` | `docs/quality` | `/acs:create-quality` |
-| `operations_path` | `docs/operations` | `/acs:create-operations` |
-| `principles_path` | `docs/principles` | `/acs:create-principles` |
-| `standards_path` | `docs/standards` | `/acs:create-standards` |
+| `quality_path` | `docs/quality` | `/acs:create-docs quality` |
+| `operations_path` | `docs/operations` | `/acs:create-docs operations` |
+| `principles_path` | `docs/principles` | `/acs:create-docs principles` |
+| `standards_path` | `docs/standards` | `/acs:create-docs standards` |
 | `suites` | `{}` | `/acs:run-e2e-tests` runs each named suite; the reserved name `e2e` is auto-populated from the `e2e` key below — never hand-duplicate it |
 | `artifacts.tickets_path`, `contracts_path`, `workflow.advisories` | `docs/tickets`, `docs/api`, `true` | where the ticket's own documents (`ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`) and the machine-readable API contracts live IN THE REPO — `null` on either keeps them in the workspace partition / the ticket folder, and an existing repo moves its artifacts across once with `acs.py artifacts migrate` — plus whether a pre-hook prints the one-line "normally follows … in ship.yaml" notice when a skill runs out of the declared order (`false` silences it; it never blocks either way) |
 | `tracker` | `{"provider": "local"}` | `/acs:create-ticket`, `/acs:create-pr`; `github`/`jira` need their own block and a working CLI (`detect`'s `toolchain`) |

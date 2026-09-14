@@ -24,14 +24,10 @@
       <xs:enumeration value="create-docs"/>
       <xs:enumeration value="create-e2e-tests"/>
       <xs:enumeration value="create-impl-plan"/>
-      <xs:enumeration value="create-operations"/>
       <xs:enumeration value="create-pr"/>
       <xs:enumeration value="create-prd"/>
-      <xs:enumeration value="create-principles"/>
       <xs:enumeration value="create-project"/>
-      <xs:enumeration value="create-quality"/>
       <xs:enumeration value="create-requirements"/>
-      <xs:enumeration value="create-standards"/>
       <xs:enumeration value="create-test-docs"/>
       <xs:enumeration value="create-ticket"/>
       <xs:enumeration value="docs-sync"/>

@@ -27,7 +27,7 @@ APPLY_WORK = {"create-ticket", "create-pr", "merge-pr"}  # MAR-55/60 inline set
 # Hooked skills whose plan phase lives in ANOTHER skill, so they ship no
 # planner file at all: /acs:code's plan phase became /acs:create-impl-plan in
 # the skills-independence refactor, and code-planner.md moved with it.
-PLANNERLESS = {"code"}
+PLANNERLESS = {"code", "create-docs"}  # execute -> verify only (ADR-0089, ADR-0094)
 
 
 def read(path):
@@ -123,8 +123,9 @@ def derive():
 D = derive()
 
 NEW_TRIAD_SUFFIXES = (
-    "create-quality", "create-operations", "create-principles",
-    "create-standards", "standardize-project", "create-requirements",
+    "standardize-project", "create-requirements", "analyze-ticket",
+    "create-impl-plan", "create-api-contract", "create-test-docs",
+    "create-e2e-tests",
 )
 
 
@@ -376,13 +377,13 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         # `test` -> `run-e2e-tests` rename, which keeps the old directory as a
         # forwarding alias for one release.
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Thirty-one skills", body)
+        self.assertIn("Twenty-seven skills", body)
         self.assertNotIn("Twenty-three skills", body)
         self.assertNotIn("Twenty-five skills", body)
 
     def test_twelve_triad_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twelve **workflow/product skills**", body)
+        self.assertIn("Nine **workflow/product skills**", body)
         self.assertNotIn("Eleven **workflow/product skills**", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)
