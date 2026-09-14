@@ -99,7 +99,7 @@ context and consequences.
 | [0090](0090-ticket-artifacts-in-repo-docs-tree.md) | Ticket and design artifacts live in the repo docs tree (`docs/tickets/<ID>/`) with a derived status; the workspace keeps the run ledger | Accepted |
 | [0091](0091-design-phase-entry-point-fold.md) | The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas (`/acs:create-docs`, `/acs:project`), and an auto-detected project mode | Amended by 0094 (the doc-set legs were collapsed after all; `/acs:project`'s fold stands) |
 | [0092](0092-skill-machinery-declared-per-skill.md) | Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default (supersedes 0077, 0078, 0079, 0083, 0084) | Accepted — classes B–E landed (0094 for `create-docs`; stage 2, 2026-09-14, for the other twelve authoring skills) |
-| [0093](0093-one-declaration-per-contract.md) | One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds | Proposed |
+| [0093](0093-one-declaration-per-contract.md) | One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds | Accepted (implemented 2026-09-14) |
 | [0094](0094-doc-set-legs-fold-into-create-docs.md) | The four doc-set legs fold into `/acs:create-docs`: one hooked skill, a declared `DOC_SETS` table, one executor + verifier pair for every set, no planner (ADR-0092 class D applied), one delivery ticket per set | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept

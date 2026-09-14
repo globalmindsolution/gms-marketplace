@@ -20,8 +20,8 @@ phase="execute" ticket-id="..." iteration="n">` message conforming to
 - `<inputs>` — file paths: `<partition>/ticket.json` (its parent directory IS
   the partition), `<partition>/phases/create-ticket/iter-<n>-plan.md`, and the
   settings/template files you need.
-- `<constraints>` — the rendered-format rules, tracker provider, and sync
-  on/off.
+- `<constraints>` — `formats` (the rendered-format rules), `tracker_provider`
+  (`local`|`github`|`jira`) and `tracker_sync` (`on`|`off`).
 - `<context>` — the final type, `needs_design` (`true` for epics — stated,
   never user-confirmed; otherwise `false`, never offered), and the
   user-confirmed decisions (child list, divergence confirmation, conflict

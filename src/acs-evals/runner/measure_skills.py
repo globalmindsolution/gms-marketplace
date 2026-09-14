@@ -100,6 +100,32 @@ def explicit_skill(prompt):
 RESULT_LOOKAHEAD = 40
 
 
+class QuotaExhausted(RuntimeError):
+    """The CLI refused a session because the account's usage allowance is spent.
+
+    Not a routing result and not a pipeline failure: nothing about the plugin
+    was exercised. The measurement stops at the first one rather than paying
+    for a sandbox per run to record the same refusal N more times as
+    `unmeasured` -- which is what happened on 2026-09-14, when two PIPE-code
+    runs were "measured" in 12 seconds against a limit that had already reset
+    by the time anyone read the output.
+    """
+
+
+QUOTA_RE = re.compile(r"session limit|usage limit", re.IGNORECASE)
+
+
+def quota_message(envelope):
+    """The CLI's limit message when `envelope` (a result event or a tool
+    result block) is one, else None."""
+    if not isinstance(envelope, dict) or not envelope.get("is_error"):
+        return None
+    text = envelope.get("result", envelope.get("content"))
+    if not isinstance(text, str):
+        text = json.dumps(text) if text is not None else ""
+    return text.strip() if QUOTA_RE.search(text) else None
+
+
 def _skill_refusal(block):
     """Did the CLI refuse to DISPATCH this Skill call?
 
@@ -170,6 +196,11 @@ def classify(lines, prompt):
         if not isinstance(event, dict):
             continue
         kind = event.get("type")
+        # The CLI declining the whole session for a spent usage allowance
+        # arrives as the final `result` event. Not a route and not a miss:
+        # the caller stops the measurement on it (QuotaExhausted).
+        if kind == "result" and quota_message(event):
+            return None, "quota_exhausted", None
         if (want is not None and kind == "system"
                 and event.get("subtype") == "init"):
             if "slash_commands" not in event:
@@ -577,7 +608,12 @@ def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None):
         out["turns"] = envelope.get("num_turns")
         out["ok"] = returncode == 0 and not envelope.get("is_error")
         if envelope.get("is_error"):
-            out["error"] = "session reported is_error"
+            limit = quota_message(envelope)
+            if limit:
+                out["error"] = "quota exhausted: %s" % limit
+                out["quota_exhausted"] = True
+            else:
+                out["error"] = "session reported is_error"
         return out
     finally:
         kept = keep_transcript(path, keep_dir, prompt) if keep_dir else None
@@ -842,6 +878,10 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
             for _ in range(runs_per):
                 routed, detection, attempted, seconds = route_once(
                     probe["prompt"], sb.repo, timeout, env, build)
+                if detection == "quota_exhausted":
+                    raise QuotaExhausted(
+                        "%s: the claude CLI refused the session (usage limit)"
+                        % probe["id"])
                 run = {"ok": True, "routed_to": routed,
                        "detection": detection, "seconds": seconds,
                        "cost_usd": None, "turns": None}
@@ -954,6 +994,8 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                     s_run = session_once(fill(text), sb.repo, setup_timeout,
                                          env, build, keep_dir=transcripts)
                     setup.append(s_run)
+                    if s_run.get("quota_exhausted"):
+                        raise QuotaExhausted("%s setup: %s" % (scenario["id"], s_run["error"]))
                     if not s_run["ok"]:
                         break
                 unmeasured = None
@@ -973,6 +1015,8 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                     run = session_once(fill(scenario["prompt"]), sb.repo,
                                        scenario.get("timeout_seconds", 1800),
                                        env, build, keep_dir=transcripts)
+                    if run.get("quota_exhausted"):
+                        raise QuotaExhausted("%s: %s" % (scenario["id"], run["error"]))
                 if setup:
                     run["setup"] = setup
                 ledger = read_ledger(sb, scenario["skill"])
@@ -1224,16 +1268,29 @@ def main():
               % (len(checkpoint.done), checkpoint.path))
 
     records = []
-    if not args.pipeline_only:
-        records += measure_routing(build, scenarios, probes, env, args.runs,
-                                   checkpoint)
-    if not args.routing_only:
-        transcripts = args.transcripts
-        if transcripts is None and args.out:
-            transcripts = os.path.join(
-                os.path.dirname(os.path.abspath(args.out)), "transcripts")
-        records += measure_pipeline(build, scenarios, env, args.runs,
-                                    checkpoint, transcripts or None)
+    try:
+        if not args.pipeline_only:
+            records += measure_routing(build, scenarios, probes, env, args.runs,
+                                       checkpoint)
+        if not args.routing_only:
+            transcripts = args.transcripts
+            if transcripts is None and args.out:
+                transcripts = os.path.join(
+                    os.path.dirname(os.path.abspath(args.out)), "transcripts")
+            records += measure_pipeline(build, scenarios, env, args.runs,
+                                        checkpoint, transcripts or None)
+    except QuotaExhausted as exc:
+        # The instrument, not the plugin, gave out. No measurement is written
+        # (it would be a document of refusals), the checkpoint is kept so the
+        # next run resumes where this one stopped, and the exit code says why.
+        sys.stderr.write(
+            "\nerror: %s\nThe usage allowance is spent; nothing further was "
+            "spent here and no measurement was written. %d record(s) already "
+            "measured are checkpointed%s and are reused, not re-spent, when "
+            "the run is repeated after the limit resets.\n"
+            % (exc, len(checkpoint.done) if checkpoint.path else len(records),
+               (" at %s" % checkpoint.path) if checkpoint.path else ""))
+        return 4
 
     # A run is marked incomplete only when it did not finish what its scope
     # set out to do (a probe filter, or a probe that produced no runs). A

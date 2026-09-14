@@ -1,6 +1,6 @@
 # 0093 — One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds
 
-**Status**: Proposed · **Date**: 2026-09-13
+**Status**: Accepted · **Date**: 2026-09-13
 
 ## Context
 
@@ -124,3 +124,39 @@ emit it and it becomes the round-trip it was meant to be, or it is dropped and
 - This ADR is about the contracts, not the machinery that emits them. It
   composes with **ADR-0092**: fewer subagents mean fewer delegation payloads,
   and a typed payload makes the ones that remain checkable.
+
+## Amendment — implemented (2026-09-14)
+
+All four decisions landed in one change:
+
+1. `validate_xml.py` derives its whole model from `acs-messages.xsd` at
+   import (`xml.etree`, no new dependency): root elements, child sequences
+   with their occurrence bounds, text-only leaves, every attribute with its
+   type and `use`, every enumeration and pattern. The module-level names
+   tests read (`SKILLS`, `ALLOWED_ATTRS`, …) survive as computed views of
+   the loaded schema. The parity corpus gained two classes — a constraint
+   name outside the vocabulary and a `plan` phase — and
+   `tests/acs/test_message_schema_derivation.py` pins the derivation and
+   the vocabulary's use. `create-spec` stays in the XSD as the one
+   deprecated member, with its comment, and nowhere else.
+2. `constraintName` is a union of the names the shipped skills and agents
+   consume and the pattern `required_sections:.+`. Four keys the prose only
+   described got literal spellings (`tc_ids`, `formats`, `tracker_sync`,
+   `base_branch`), and one inconsistency the typing exposed was fixed on the
+   spot: the coverage constraint was emitted as `coverage-target` and
+   `coverage-threshold` and read as `coverage_target`, so no reader ever
+   matched it — the failure mode the Context section describes, found by
+   declaring the vocabulary.
+3. `skill-state.schema.json` declares the load-bearing `states` members
+   (`verifier_passed`, `plan_approved`, `plan_path`, `file_map`, `pr`,
+   `review`, `tests`, `merged`, `merge_strategy`, `readiness` and the
+   apply skills' members), `runs[].escalations` with the 13-field event its
+   writers build, and `findings[].severity`; each keeps
+   `additionalProperties: true`, so an undeclared member still validates —
+   declaring it is the cost of making it load-bearing.
+4. `result/@lens` is wired, not dropped: `code-verifier.md` sets it from the
+   `verify_lens` constraint, and the SubagentStop hook, which already read
+   it, can now find a lens spawn's verdict. Two other dead declarations
+   went the other way — `phaseName` lost `plan` (ADR-0092) and `coordinate`
+   (ADR-0089), and the lifecycle, adapter and statusline role tables lost
+   `planner` — so nothing the schema declares is emitted by nothing.

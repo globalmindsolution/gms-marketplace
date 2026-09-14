@@ -129,6 +129,28 @@ the notes.
   accepted but inert. A run interrupted mid-plan before this release does not
   resume from its `iter-1-plan.md`: re-run the skill and it surveys afresh.
 
+- **⚠️ BREAKING: the message contract has one declaration, and delegation
+  keys are typed (ADR-0093).** `validate_xml.py` no longer carries its own
+  copy of `schemas/acs-messages.xsd`: it derives every element, attribute,
+  enumeration and pattern from the XSD at load time, so the two cannot drift
+  (the `result/@lens` drift of 2026-09-13 cannot recur). `constraint/@name`
+  is now the `constraintName` vocabulary — the names the shipped agents
+  actually consume, plus the open `required_sections:<file>` form — so a
+  misspelled key fails validation at the coordinator instead of reaching the
+  subagent as an absent value; a message naming a constraint outside the
+  vocabulary is refused, and the fix is to name it correctly (or to add it
+  to the XSD first). The coverage constraint is `coverage_target` everywhere
+  (it was emitted as `coverage-target` and `coverage-threshold` in three
+  places, which no reader matched). `phaseName` is `execute|verify` — the
+  `plan` and `coordinate` phases are gone, nothing emits them since ADR-0092
+  and ADR-0089 — and a `-planner` agent name no longer parses as an acs role.
+  The code verifier carries `verify_lens` back as `lens="…"` on its
+  `<result>`, which is how the SubagentStop hook finds a lens spawn's verdict
+  file (it was declared and emitted by nothing). `skill-state.schema.json`
+  declares `states` (`verifier_passed`, `plan_approved`, `pr`, `review`,
+  `tests`, `merged`, `readiness`, …), `runs[].escalations` (the 13-field
+  event) and `findings[].severity`; undeclared members still validate.
+
 ### Deprecated
 
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.

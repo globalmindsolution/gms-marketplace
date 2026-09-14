@@ -175,7 +175,7 @@ class EveryShippedSkillValidatesTest(unittest.TestCase):
         for name in sorted(shipped_skill_dirs()):
             with self.subTest(skill=name):
                 message = (
-                    '<task skill="%s" phase="plan" ticket-id="MAR-1" iteration="1">'
+                    '<task skill="%s" phase="execute" ticket-id="MAR-1" iteration="1">'
                     '<objective>x</objective></task>' % name
                 )
                 errors = validate_xml.validate_structurally(message)
@@ -184,7 +184,7 @@ class EveryShippedSkillValidatesTest(unittest.TestCase):
     def test_docs_sync_task_accepted_verbatim(self):
         # The exact reproduction of the ticket's live symptom.
         message = (
-            '<task skill="docs-sync" phase="plan" ticket-id="MAR-1" iteration="1">'
+            '<task skill="docs-sync" phase="execute" ticket-id="MAR-1" iteration="1">'
             '<objective>x</objective></task>'
         )
         errors = validate_xml.validate_structurally(message)
@@ -192,7 +192,7 @@ class EveryShippedSkillValidatesTest(unittest.TestCase):
 
     def test_retained_create_spec_still_accepted(self):
         message = (
-            '<task skill="create-spec" phase="plan" ticket-id="MAR-1" iteration="1">'
+            '<task skill="create-spec" phase="execute" ticket-id="MAR-1" iteration="1">'
             '<objective>x</objective></task>'
         )
         errors = validate_xml.validate_structurally(message)
@@ -200,7 +200,7 @@ class EveryShippedSkillValidatesTest(unittest.TestCase):
 
     def test_unknown_skill_still_rejected(self):
         message = (
-            '<task skill="nope" phase="plan" ticket-id="MAR-1" iteration="1">'
+            '<task skill="nope" phase="execute" ticket-id="MAR-1" iteration="1">'
             '<objective>x</objective></task>'
         )
         errors = validate_xml.validate_structurally(message)
@@ -213,7 +213,7 @@ class XmllintParityTest(unittest.TestCase):
 
     def _assert_xmllint_accepts(self, skill):
         message = (
-            '<task skill="%s" phase="plan" ticket-id="MAR-1" iteration="1">'
+            '<task skill="%s" phase="execute" ticket-id="MAR-1" iteration="1">'
             '<objective>x</objective></task>' % skill
         )
         proc = subprocess.run(

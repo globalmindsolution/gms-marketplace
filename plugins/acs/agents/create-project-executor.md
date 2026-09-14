@@ -29,7 +29,7 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
     <file>/abs/workspace/owner-name/SHOP-3/ticket.json</file>
   </inputs>
   <constraints>
-    <constraint name="coverage-target">90</constraint>
+    <constraint name="coverage_target">90</constraint>
   </constraints>
   <context>on iteration >= 2, the verifier findings your scaffold must fix</context>
 </task>
@@ -88,7 +88,7 @@ Work in this order:
    ticket id per `formats.branch_name`). If it already exists from a prior iteration,
    check it out and continue on it.
 2. Create every file in the notes' manifest. Wire the coverage threshold to the
-   coverage-target constraint exactly (e.g. `fail_under`, `--cov-fail-under`,
+   `coverage_target` constraint exactly (e.g. `fail_under`, `--cov-fail-under`,
    `coverageThreshold`) — `/acs:code`'s TDD gates depend on this from ticket #1.
 3. Install dependencies with the notes' package manager; pin versions where the notes pin
    them.

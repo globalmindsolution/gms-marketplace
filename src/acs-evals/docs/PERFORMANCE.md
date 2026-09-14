@@ -255,6 +255,15 @@ plugin one. The patch is applied through `acs.py ticket save --from -`
 setup prompts run; a patch that cannot be applied marks the run
 `unmeasured`, for the same reason a failed `setup_assert` does.
 
+One refusal is neither of those: the claude CLI declining a session because
+the account's usage allowance is spent (`You've hit your session limit`).
+Nothing about the plugin was exercised, so the run is not `unmeasured` and
+not a failure — the measurement **stops at the first one**, writes nothing,
+keeps its checkpoint, and exits 4 saying so. Repeating the command after the
+limit resets resumes from the checkpoint. Before this, each refused run cost
+a sandbox and was recorded as `unmeasured`; two PIPE-code runs were
+"measured" that way in twelve seconds on 2026-09-14.
+
 When either gives way the run is marked `unmeasured`, and the difference
 matters more than it looks:
 

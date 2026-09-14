@@ -234,7 +234,7 @@ narrowed allowlist together):
     <file>.pre-commit-config.yaml</file>
   </inputs>
   <constraints>
-    <constraint name="coverage-target">90</constraint>
+    <constraint name="coverage_target">90</constraint>
     <constraint name="no-doc-set-authorship">principles_path/standards_path content is never a scaffold target — a missing set is always a recommended_follow_ups entry, never authored or invoked inline.</constraint>
     <constraint name="e2e-opt-in">settings.e2e unset means the e2e readiness dimension is N/A — no e2e scaffold, no gate.</constraint>
   </constraints>

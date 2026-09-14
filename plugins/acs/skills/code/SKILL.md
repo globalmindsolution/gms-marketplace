@@ -620,7 +620,11 @@ used for executors above — each `<task phase="verify">` carrying one
 additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
 table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
 writes its own `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
-artifact (never the shared `iter-<n>-verify.md` name). After all 4 lenses
+artifact (never the shared `iter-<n>-verify.md` name) and returns its
+`<result>` with `lens="<A|B|C|D>"` set to the lens it was given — that
+attribute is how you tell the four results apart and how the SubagentStop
+hook finds each lens's verdict file; a lens result without it fails
+validation of its verdict. After all 4 lenses
 return, the coordinator itself performs the merge pass — never a subagent:
 
 1. Collect every `<finding>` across the 4 lens results.

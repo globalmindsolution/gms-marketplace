@@ -11,12 +11,95 @@
     },
     "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "states": {
-      "description": "The skill's current result data, consumed by the next skill (e.g. specs implemented, tests/coverage, verifier_passed, pr reference). Re-runs update it in place.",
-      "type": "object"
+      "description": "The skill's current result data, consumed by the next skill. Re-runs update it in place. The load-bearing members are declared (ADR-0093): `verifier_passed` is /acs:create-pr's merge gate, `plan_approved` /acs:code's plan-conformance activation, `pr` what /acs:merge-pr merges, `tests` and `review` what the PR body and /acs:metrics report; a skill adding a member declares it here. Per-skill members not listed stay open (additionalProperties).",
+      "type": "object",
+      "properties": {
+        "verifier_passed": {
+          "description": "DERIVED by post-code.py from the verifier's own verdict document (MAR-527), never trusted from the result document; /acs:create-pr's brake refuses unless it is true.",
+          "type": "boolean"
+        },
+        "plan_approved": {
+          "description": "Written by plan-approval.py alone (MAR-73); false on TRIVIAL/SMALL and on an ineligible plan.",
+          "type": "boolean"
+        },
+        "plan_path": {"type": "string"},
+        "file_map": {
+          "description": "/acs:create-impl-plan: executor task number -> the files that task may write (the file-map guard's declared map).",
+          "type": "object",
+          "additionalProperties": {"type": "array", "items": {"type": "string"}}
+        },
+        "pr": {
+          "description": "/acs:create-pr records it; /acs:merge-pr reads it. `number` and `url` come from the forge, `branch` is the ticket branch, `base` the branch the PR targets.",
+          "type": "object",
+          "required": ["number", "url", "branch", "base"],
+          "properties": {
+            "number": {"type": "integer", "minimum": 1},
+            "url": {"type": "string"},
+            "branch": {"type": "string"},
+            "base": {"type": "string"}
+          },
+          "additionalProperties": true
+        },
+        "review": {
+          "description": "The reflection loop as it ran: `iterations` is derived from the verify artifacts on disk, `guard_denials` from runs[-1].guard_events (both MAR-523/MAR-578, never trusted from the document); `findings_open` is what /acs:docs-sync reports.",
+          "type": "object",
+          "properties": {
+            "iterations": {"type": "integer", "minimum": 0},
+            "guard_denials": {"type": "integer", "minimum": 0},
+            "findings_open": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": true
+        },
+        "tests": {
+          "description": "Derived from the last iteration's execute reports (MAR-523): `passed`/`failed`/`coverage_percent` from recorded command output, `coverage_target` from settings.test_coverage_percent.",
+          "type": "object",
+          "properties": {
+            "passed": {"type": "integer", "minimum": 0},
+            "failed": {"type": "integer", "minimum": 0},
+            "coverage_percent": {"type": "number", "minimum": 0, "maximum": 100},
+            "coverage_target": {"type": "number", "minimum": 0, "maximum": 100}
+          },
+          "additionalProperties": true
+        },
+        "merged": {
+          "description": "/acs:merge-pr: true only when the PR is confirmed MERGED on the forge.",
+          "type": "boolean"
+        },
+        "merge_strategy": {"enum": ["squash", "merge", "rebase"]},
+        "readiness": {
+          "description": "/acs:merge-pr's four readiness verdicts: `pass`, `fail: <reason>`, or (protections only) `behind: <reason>`.",
+          "type": "object",
+          "properties": {
+            "ci": {"type": "string"},
+            "approvals": {"type": "string"},
+            "conflicts": {"type": "string"},
+            "protections": {"type": "string"}
+          },
+          "additionalProperties": true
+        },
+        "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
+        "type": {"enum": ["epic", "story", "task"]},
+        "needs_design": {"type": "boolean"},
+        "children": {"type": "array", "items": {"type": "string"}},
+        "docs_committed": {"type": "array", "items": {"type": "string"}},
+        "commits": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
     },
     "findings": {
-      "description": "Anything worth passing on: review findings, user clarifications, gotchas. Latest run's view (replaced on re-run).",
-      "type": "array"
+      "description": "Anything worth passing on: review findings, user clarifications, gotchas. Latest run's view (replaced on re-run). Each entry carries a `severity` because the release gate and /acs:create-pr's brake read `blocking` as a verdict (ADR-0093).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity"],
+        "properties": {
+          "severity": {"enum": ["blocking", "info"]},
+          "dimension": {"type": "string"},
+          "detail": {"type": "string"},
+          "file": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
     },
     "errors": {"type": "array"},
     "runs": {
@@ -116,6 +199,33 @@
                 },
                 "reason": {"enum": ["outside_map", "control_input", "unreadable_payload"]},
                 "declared_count": {"type": "integer", "minimum": 0}
+              },
+              "additionalProperties": true
+            }
+          },
+          "escalations": {
+            "description": "Lane-escalation audit trail (MAR-57, MAR-106, MAR-108): one 13-field event per lane change, appended in firing order by acs_lib.state.record_escalation_event. Upward events come from `acs.py lane apply` (direction `up`, confirmation_ref null); a downward event comes only from confirm_deescalation (direction `down`, confirmation_ref the answered C-<n> ledger entry). Optional and forward-only: a run that never escalated carries none.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["ts", "from_lane", "to_lane", "from_size", "from_stakes", "to_size", "to_stakes", "trigger", "source", "ceiling_before", "ceiling_after", "direction", "confirmation_ref"],
+              "properties": {
+                "ts": {"type": "string"},
+                "from_lane": {"oneOf": [{"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]}, {"type": "null"}]},
+                "to_lane": {"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]},
+                "from_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
+                "from_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
+                "to_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
+                "to_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
+                "trigger": {
+                  "description": "`a` (verifier finding), `b` (high_stakes_paths match), `c` (explicit request), or `user_confirmed_deescalation`.",
+                  "type": "string"
+                },
+                "source": {"type": "string"},
+                "ceiling_before": {"type": "integer", "minimum": 1},
+                "ceiling_after": {"type": "integer", "minimum": 1},
+                "direction": {"enum": ["up", "down"]},
+                "confirmation_ref": {"oneOf": [{"type": "string", "pattern": "^C-[0-9]+$"}, {"type": "null"}]}
               },
               "additionalProperties": true
             }

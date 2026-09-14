@@ -4,10 +4,26 @@
 Skills validate every task/result/handoff message so malformed messages fail fast
 instead of silently degrading the pipeline (docs/requirements/functional/reflection.md).
 
+One declaration per contract (ADR-0093): `schemas/acs-messages.xsd` is the
+ONLY statement of the message vocabulary. This module carries no parallel
+copy of it. At import it parses the XSD with the stdlib `xml.etree` and
+derives everything it enforces — the root elements, each element's child
+sequence (order, minOccurs, maxOccurs), which elements are text-only leaves,
+every attribute with its type and whether it is required, and every
+enumeration and pattern (`skillName`, `phaseName`, `ticketId`,
+`resultStatus`, `handoffStatus`, `verifyLens`, `severity`,
+`constraintName`). Change the XSD and the validator changes with it; there is
+no second table and nothing that can drift.
+
+The module-level names `SKILLS`, `PHASES`, `RESULT_STATUSES`,
+`HANDOFF_STATUSES`, `VERIFY_LENSES`, `CONSTRAINT_NAMES`, `CHILD_ORDER`,
+`REQUIRED_CHILDREN`, `ALLOWED_ATTRS` and `TEXT_LEAVES` are DERIVED VIEWS of the
+loaded schema, kept because callers and tests read them by those names. They
+are computed, never written by hand.
+
 Strategy (stdlib-only requirement):
   Default fast path: every message is validated IN-PROCESS by validate_structurally(),
-  a pure stdlib (xml.etree) structural validator raised to XSD-equivalent coverage.
-  No subprocess is spawned per message on the default path.
+  against the model derived from the XSD. No subprocess is spawned per message.
 
   Opt-in authoritative check: when the caller sets ACS_XML_AUTHORITATIVE=1 in the
   environment AND xmllint is found on PATH AND acs-messages.xsd is present,
@@ -16,25 +32,13 @@ Strategy (stdlib-only requirement):
   the in-process engine runs silently.  This preserves AC-5 (strict stdlib): no
   mandatory third-party dependency; a stdlib-only interpreter always gets a verdict.
 
-  Gap-closure audit (MAR-61): the in-process validator matches xmllint for these
-  violation classes: bad root element, missing/invalid attribute, bad ticket-id
-  pattern, out-of-order children, wrong list-item tag, bad status/severity enum,
-  duplicate maxOccurs=1 sequence children (cardinality), xs:decimal grammar for
-  cost-usd (no exponent, no inf/nan, no underscores), and — closing the content
-  model — undeclared attributes (the XSD declares no anyAttribute/wildcard) and
-  element children inside text-only (xs:string) leaves.  The SKILLS, ALLOWED_ATTRS
-  and TEXT_LEAVES tables below mirror acs-messages.xsd and MUST be kept in sync
-  with it.  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is
-  the binding proof — every listed class produces identical pass/fail verdicts
-  under both paths.  If the XSD gains a construct not in that corpus, extend the
-  corpus so any in-process/xmllint divergence fails the build.  Two drift guards
-  recompute a mirror from its source live rather than freezing a baseline:
-  tests/acs/test_message_schema_skill_enum.py for SKILLS (versus the skills
-  directory and the two identical schema copies), and
-  tests/acs/test_message_schema_attrs.py for ALLOWED_ATTRS (versus the XSD's own
-  attribute declarations, in both directions).  The second exists because this
-  table silently drifted: the XSD gained `lens` on <result> and the mirror did
-  not, so every lens-tagged verify result was refused as undeclared.
+  The AC-2 parity corpus (tests/acs/test_acs_plugin.py:TestValidators) is the
+  binding proof that the in-process engine and xmllint agree: bad root element,
+  missing/invalid attribute, bad ticket-id pattern, out-of-order children,
+  wrong list-item tag, bad enumeration value, duplicate maxOccurs=1 children,
+  undeclared attributes (the XSD declares no anyAttribute/wildcard), element
+  children inside text-only leaves, and a constraint name outside the
+  `constraintName` vocabulary.
 
 Usage:
   validate_xml.py <file.xml> [more.xml ...]
@@ -72,94 +76,114 @@ import xml.etree.ElementTree as ET
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 XSD_PATH = os.path.join(os.path.dirname(os.path.dirname(SCRIPT_DIR)), "schemas", "acs-messages.xsd")
 
-# Every shipped plugins/acs/skills/ directory, plus the single documented
-# backward-compat exemption "create-spec" (retired MAR-156, retained MAR-164).
-# Mirrors acs-messages.xsd's skillName enum (and the identical copies in
-# skill-state.schema.json / clarifications.schema.json) exactly -- kept in
-# sync by tests/acs/test_message_schema_skill_enum.py.
-SKILLS = {"analyze-ticket", "code", "create-api-contract", "create-architecture",
-          "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
-          "create-pr", "create-prd", "create-project", "create-requirements",
-          "create-test-docs", "create-ticket", "docs-sync",
-          "handoff", "install-hooks", "merge-pr", "metrics", "project", "release",
-          "run-e2e-tests", "setup", "ship", "standardize-project", "test",
-          "update", "usage", "create-spec"}
-PHASES = {"plan", "execute", "verify", "coordinate"}
-RESULT_STATUSES = {"completed", "failed", "needs_input"}
-# acs-messages.xsd's verifyLens enumeration: which of the four full-depth
-# review lenses a verify result belongs to. Optional -- a light-verify result
-# carries no lens.
-VERIFY_LENSES = {"A", "B", "C", "D"}
-HANDOFF_STATUSES = {"completed", "failed", "interrupted", "handed_off", "needs_input"}
-TICKET_RE = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+$")
-
-CHILD_ORDER = {
-    "task": ["objective", "inputs", "constraints", "context"],
-    "result": ["outputs", "findings", "errors", "questions", "stop-reason"],
-    "handoff": ["summary", "artifacts", "questions", "next-step"],
-}
-REQUIRED_CHILDREN = {"task": ["objective"], "result": [], "handoff": ["summary"]}
-
-# Closed content model (mirrors acs-messages.xsd). The XSD declares no
-# anyAttribute / wildcard anywhere, so any attribute not listed here is invalid.
-# Keep in sync with the XSD when it changes.
-ALLOWED_ATTRS = {
-    "task": {"skill", "phase", "ticket-id", "iteration"},
-    "result": {"skill", "phase", "ticket-id", "iteration", "status", "lens"},
-    "handoff": {"skill", "ticket-id", "status"},
-    "finding": {"severity", "dimension", "file"},
-    "constraint": {"name"},
-}
-# Elements typed xs:string in the XSD: text-only, no element children allowed.
-TEXT_LEAVES = frozenset({
-    "objective", "context", "stop-reason", "summary", "next-step",
-    "file", "question", "error",
-})
+XS = "{http://www.w3.org/2001/XMLSchema}"
 
 
-def _attr_errors(root):
-    errors = []
-    tag = root.tag
+# ---------------------------------------------------------------------------
+# Schema model, derived from the XSD
+# ---------------------------------------------------------------------------
 
-    def need(name, check, what):
-        value = root.get(name)
-        if value is None:
-            errors.append("<%s> is missing required attribute %r" % (tag, name))
-        elif not check(value):
-            errors.append("<%s %s=%r> is invalid (%s)" % (tag, name, value, what))
+def _simple_type(node):
+    """{'enum': [...], 'patterns': [...]} for one xs:simpleType.
 
-    need("skill", lambda v: v in SKILLS, "one of: %s" % ", ".join(sorted(SKILLS)))
-    need("ticket-id", lambda v: bool(TICKET_RE.match(v)), "pattern <PREFIX>-<n>, e.g. SHOP-123")
-    if tag in ("task", "result"):
-        need("phase", lambda v: v in PHASES, "one of: %s" % ", ".join(sorted(PHASES)))
-        iteration = root.get("iteration")
-        if iteration is not None and (not iteration.isdigit() or int(iteration) < 1):
-            errors.append("<%s iteration=%r> must be a positive integer" % (tag, iteration))
-    if tag == "result":
-        need("status", lambda v: v in RESULT_STATUSES, "one of: %s" % ", ".join(sorted(RESULT_STATUSES)))
-        lens = root.get("lens")
-        if lens is not None and lens not in VERIFY_LENSES:
-            errors.append("<result lens=%r> is invalid (one of: %s)"
-                          % (lens, ", ".join(sorted(VERIFY_LENSES))))
-    if tag == "handoff":
-        need("status", lambda v: v in HANDOFF_STATUSES, "one of: %s" % ", ".join(sorted(HANDOFF_STATUSES)))
-
-    # Closed content model: reject any attribute the XSD does not declare.
-    errors.extend(_undeclared_attr_errors(root))
-    return errors
+    Inline union members are flattened (a value is valid when it matches ANY
+    member); named `memberTypes` are resolved by `_load_schema` afterwards.
+    """
+    enum, patterns = [], []
+    for restriction in node.iter(XS + "restriction"):
+        enum.extend(e.get("value") for e in restriction.findall(XS + "enumeration"))
+        patterns.extend(p.get("value") for p in restriction.findall(XS + "pattern"))
+    members = []
+    for union in node.iter(XS + "union"):
+        members.extend((union.get("memberTypes") or "").split())
+    return {"enum": enum, "patterns": patterns, "members": members}
 
 
-def _undeclared_attr_errors(elem):
-    """Reject attributes not declared for *elem* in the closed XSD content model."""
-    allowed = ALLOWED_ATTRS.get(elem.tag)
-    if allowed is None:
-        # Elements with no declared attributes (e.g. inputs, outputs, file,
-        # objective, ...) permit none.
-        allowed = frozenset()
-    return ["<%s> has undeclared attribute %r (allowed: %s)"
-            % (elem.tag, name, ", ".join(sorted(allowed)) or "none")
-            for name in elem.keys() if name not in allowed]
+def _element_model(el, named_complex, elements):
+    """Register the model of `el` (an xs:element) under its tag, recursing into
+    the child elements its content model declares.
 
+    A model is {"children": [(tag, min, max_or_None)], "attrs": {name: (type,
+    required)}, "text_only": bool}.
+    """
+    tag = el.get("name")
+    etype = el.get("type")
+    model = {"children": [], "attrs": {}, "text_only": False}
+    ctype = el.find(XS + "complexType")
+    if ctype is None and etype in named_complex:
+        ctype = named_complex[etype]
+    if ctype is None:
+        # A plain typed element (xs:string and friends) is a text-only leaf.
+        model["text_only"] = True
+        elements[tag] = model
+        return model
+    simple_content = ctype.find(XS + "simpleContent")
+    if simple_content is not None:
+        # simpleContent = text with attributes; element children are invalid.
+        model["text_only"] = True
+        for holder in simple_content.iter():
+            for attr in holder.findall(XS + "attribute"):
+                model["attrs"][attr.get("name")] = (attr.get("type"), attr.get("use") == "required")
+    for attr in ctype.findall(XS + "attribute"):
+        model["attrs"][attr.get("name")] = (attr.get("type"), attr.get("use") == "required")
+    sequence = ctype.find(XS + "sequence")
+    if sequence is not None:
+        for child in sequence.findall(XS + "element"):
+            lo = int(child.get("minOccurs", "1"))
+            hi = child.get("maxOccurs", "1")
+            model["children"].append((child.get("name"), lo, None if hi == "unbounded" else int(hi)))
+            _element_model(child, named_complex, elements)
+    elements[tag] = model
+    return model
+
+
+def _load_schema(path=XSD_PATH):
+    """(simple_types, elements, roots) parsed from the XSD file."""
+    root = ET.parse(path).getroot()
+    simple = {}
+    for node in root.findall(XS + "simpleType"):
+        simple[node.get("name")] = _simple_type(node)
+    for name, spec in simple.items():
+        for member in spec.pop("members"):
+            other = simple.get(member)
+            if other is not None:
+                spec["enum"].extend(v for v in other["enum"] if v not in spec["enum"])
+                spec["patterns"].extend(p for p in other["patterns"] if p not in spec["patterns"])
+    named_complex = {node.get("name"): node for node in root.findall(XS + "complexType")}
+    elements = {}
+    roots = []
+    for el in root.findall(XS + "element"):
+        _element_model(el, named_complex, elements)
+        roots.append(el.get("name"))
+    return simple, elements, roots
+
+
+SIMPLE_TYPES, ELEMENTS, ROOTS = _load_schema()
+
+
+def _enum(type_name):
+    return list(SIMPLE_TYPES.get(type_name, {}).get("enum", []))
+
+
+# Derived views of the schema (see the module docstring).
+SKILLS = frozenset(_enum("skillName"))
+PHASES = frozenset(_enum("phaseName"))
+RESULT_STATUSES = frozenset(_enum("resultStatus"))
+HANDOFF_STATUSES = frozenset(_enum("handoffStatus"))
+VERIFY_LENSES = frozenset(_enum("verifyLens"))
+CONSTRAINT_NAMES = frozenset(_enum("constraintName"))
+CONSTRAINT_NAME_PATTERNS = tuple(SIMPLE_TYPES.get("constraintName", {}).get("patterns", []))
+TICKET_RE = re.compile("^(?:%s)$" % "|".join(SIMPLE_TYPES["ticketId"]["patterns"]))
+CHILD_ORDER = {tag: [c[0] for c in ELEMENTS[tag]["children"]] for tag in ROOTS}
+REQUIRED_CHILDREN = {tag: [c[0] for c in ELEMENTS[tag]["children"] if c[1] > 0] for tag in ROOTS}
+ALLOWED_ATTRS = {tag: frozenset(model["attrs"]) for tag, model in ELEMENTS.items() if model["attrs"]}
+TEXT_LEAVES = frozenset(tag for tag, model in ELEMENTS.items()
+                        if model["text_only"] and not model["attrs"])
+
+
+# ---------------------------------------------------------------------------
+# Value typing
+# ---------------------------------------------------------------------------
 
 def _is_xs_decimal(value):
     """Return True iff *value* conforms to the xs:decimal lexical space.
@@ -173,69 +197,92 @@ def _is_xs_decimal(value):
     return bool(re.fullmatch(r"[+-]?(\d+\.?\d*|\d*\.\d+)", value))
 
 
-def _child_errors(root):
-    errors = []
-    tag = root.tag
-    allowed = CHILD_ORDER[tag]
-    seen = [child.tag for child in root]
+def _type_problem(type_name, value):
+    """None when *value* is lexically valid for the schema type, else why not."""
+    if type_name in (None, "xs:string"):
+        return None
+    if type_name == "xs:positiveInteger":
+        return None if value.isdigit() and int(value) >= 1 else "must be a positive integer"
+    if type_name == "xs:nonNegativeInteger":
+        return None if value.isdigit() else "must be a non-negative integer"
+    if type_name == "xs:decimal":
+        return None if _is_xs_decimal(value) else (
+            "must be a valid xs:decimal (digits with optional sign and/or decimal "
+            "point; no exponent, no inf/nan, no underscores)")
+    if type_name == "xs:boolean":
+        return None if value in ("true", "false", "1", "0") else "must be true|false"
+    spec = SIMPLE_TYPES.get(type_name)
+    if spec is None:
+        return None
+    if value in spec["enum"]:
+        return None
+    if any(re.fullmatch(p, value) for p in spec["patterns"]):
+        return None
+    if spec["enum"] and spec["patterns"]:
+        return "one of: %s, or matching %s" % (", ".join(sorted(spec["enum"])),
+                                              " | ".join(spec["patterns"]))
+    if spec["enum"]:
+        return "one of: %s" % ", ".join(sorted(spec["enum"]))
+    if type_name == "ticketId":
+        return "pattern <PREFIX>-<n>, e.g. SHOP-123"
+    return "must match %s" % " | ".join(spec["patterns"])
+
+
+# ---------------------------------------------------------------------------
+# Structural validation
+# ---------------------------------------------------------------------------
+
+def _validate_element(elem, errors):
+    tag = elem.tag
+    model = ELEMENTS.get(tag)
+    if model is None:
+        # An element the schema does not declare: its parent already reported
+        # it; its attributes are all undeclared.
+        errors.extend("<%s> has undeclared attribute %r (allowed: none)" % (tag, name)
+                      for name in elem.keys())
+        return
+    for name, (atype, required) in model["attrs"].items():
+        value = elem.get(name)
+        if value is None:
+            if required:
+                errors.append("<%s> is missing required attribute %r" % (tag, name))
+            continue
+        problem = _type_problem(atype, value)
+        if problem:
+            errors.append("<%s %s=%r> is invalid (%s)" % (tag, name, value, problem))
+    # Closed content model: the XSD declares no anyAttribute / wildcard.
+    errors.extend("<%s> has undeclared attribute %r (allowed: %s)"
+                  % (tag, name, ", ".join(sorted(model["attrs"])) or "none")
+                  for name in elem.keys() if name not in model["attrs"])
+    if model["text_only"]:
+        if len(elem):
+            errors.append("<%s> is a text-only element and may not contain child <%s>"
+                          % (tag, list(elem)[0].tag))
+        return
+    allowed = [c[0] for c in model["children"]]
+    seen = [child.tag for child in elem]
+    is_list = len(model["children"]) == 1 and model["children"][0][2] is None
     for child_tag in seen:
         if child_tag not in allowed:
-            errors.append("<%s> contains unexpected element <%s> (allowed: %s)"
-                          % (tag, child_tag, ", ".join(allowed)))
-    for required in REQUIRED_CHILDREN[tag]:
-        if required not in seen:
-            errors.append("<%s> is missing required element <%s>" % (tag, required))
-
-    # Cardinality: every element in the xs:sequence has maxOccurs=1 (the XSD
-    # default).  Count occurrences of each known child and reject duplicates.
-    for child_tag in allowed:
+            if is_list:
+                errors.append("<%s> may only contain <%s>; found <%s>"
+                              % (tag, allowed[0], child_tag))
+            else:
+                errors.append("<%s> contains unexpected element <%s> (allowed: %s)"
+                              % (tag, child_tag, ", ".join(allowed)))
+    for child_tag, lo, hi in model["children"]:
         count = seen.count(child_tag)
-        if count > 1:
-            errors.append("<%s> contains %d occurrences of <%s>; at most 1 is allowed"
-                          % (tag, count, child_tag))
-
+        if count < lo:
+            errors.append("<%s> is missing required element <%s>" % (tag, child_tag))
+        if hi is not None and count > hi:
+            errors.append("<%s> contains %d occurrences of <%s>; at most %d is allowed"
+                          % (tag, count, child_tag, hi))
     positions = [allowed.index(t) for t in seen if t in allowed]
     if positions != sorted(positions):
-        errors.append("<%s> children out of order; expected order: %s" % (tag, ", ".join(allowed)))
-
-    for list_tag, item_tag in (("inputs", "file"), ("outputs", "file"), ("artifacts", "file"),
-                               ("constraints", "constraint"), ("findings", "finding"),
-                               ("errors", "error"), ("questions", "question")):
-        for container in root.findall(list_tag):
-            for item in container:
-                if item.tag != item_tag:
-                    errors.append("<%s> may only contain <%s>; found <%s>" % (list_tag, item_tag, item.tag))
-                if item_tag == "constraint" and item.get("name") is None:
-                    errors.append("<constraint> is missing required attribute 'name'")
-                if item_tag == "finding":
-                    severity = item.get("severity")
-                    if severity is not None and severity not in ("blocking", "info"):
-                        errors.append("<finding severity=%r> must be blocking|info" % severity)
-
-    # Closed content model: text-only (xs:string) leaves admit no element
-    # children, and every descendant's attributes must be declared.
-    for elem in root.iter():
-        if elem is root:
-            continue
-        errors.extend(_undeclared_attr_errors(elem))
-        if elem.tag in TEXT_LEAVES and len(elem):
-            child = list(elem)[0].tag
-            errors.append("<%s> is a text-only element and may not contain child <%s>"
-                          % (elem.tag, child))
-    for metrics in root.findall("metrics"):
-        for attr in ("tokens-input", "tokens-output"):
-            value = metrics.get(attr)
-            if value is not None and not value.isdigit():
-                errors.append("<metrics %s=%r> must be a non-negative integer" % (attr, value))
-        cost = metrics.get("cost-usd")
-        if cost is not None:
-            if not _is_xs_decimal(cost):
-                errors.append(
-                    "<metrics cost-usd=%r> must be a valid xs:decimal "
-                    "(digits with optional sign and/or decimal point; "
-                    "no exponent, no inf/nan, no underscores)" % cost
-                )
-    return errors
+        errors.append("<%s> children out of order; expected order: %s"
+                      % (tag, ", ".join(allowed)))
+    for child in elem:
+        _validate_element(child, errors)
 
 
 def validate_structurally(text):
@@ -245,9 +292,12 @@ def validate_structurally(text):
         root = ET.fromstring(text)
     except ET.ParseError as exc:
         return ["not well-formed XML: %s" % exc]
-    if root.tag not in CHILD_ORDER:
-        return ["root element must be <task>, <result>, or <handoff>; found <%s>" % root.tag]
-    return _attr_errors(root) + _child_errors(root)
+    if root.tag not in ROOTS:
+        return ["root element must be %s; found <%s>"
+                % (", ".join("<%s>" % r for r in ROOTS[:-1]) + ", or <%s>" % ROOTS[-1], root.tag)]
+    errors = []
+    _validate_element(root, errors)
+    return errors
 
 
 def validate_with_xmllint(path):

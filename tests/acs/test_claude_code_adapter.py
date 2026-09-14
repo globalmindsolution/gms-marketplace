@@ -143,7 +143,9 @@ class TestAttribution(unittest.TestCase):
         self.assertIsNone(cc.strip_skill_prefix(None))
 
     def test_agent_role_maps_each_observed_suffix(self):
-        self.assertEqual(cc.agent_role("acs:code-planner"), "planner")
+        # `-planner` is no suffix acs emits (ADR-0092); an old transcript's
+        # planner rows attribute as `other`, like any non-acs agent.
+        self.assertEqual(cc.agent_role("acs:code-planner"), "other")
         self.assertEqual(cc.agent_role("acs:code-executor"), "executor")
         self.assertEqual(cc.agent_role("acs:docs-sync-verifier"), "verifier")
 

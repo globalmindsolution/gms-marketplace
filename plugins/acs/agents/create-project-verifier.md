@@ -30,7 +30,7 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
     <file>/abs/workspace/owner-name/SHOP-3/ticket.json</file>
   </inputs>
   <constraints>
-    <constraint name="coverage-target">90</constraint>
+    <constraint name="coverage_target">90</constraint>
   </constraints>
 </task>
 ```
@@ -50,7 +50,7 @@ word for a command you can run yourself.
 3. `tests` — run the notes' test command; exit 0, every test (including the smoke test)
    passes, zero skipped-by-default surprises.
 4. `coverage-tooling` — run the coverage command; it must produce a numeric figure and the
-   configured threshold must equal the coverage-target constraint
+   configured threshold must equal the `coverage_target` constraint
    (`test_coverage_percent`). Prove the gate bites: the config file must fail the run
    below threshold (check `fail_under` / `--cov-fail-under` / `coverageThreshold` wiring).
 5. `vertical-slice` — the entrypoint exists, starts or runs as the notes describe, and the

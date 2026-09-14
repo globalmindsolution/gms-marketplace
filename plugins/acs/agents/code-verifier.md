@@ -425,6 +425,12 @@ Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHIN
 after it. Self-check it first:
 `echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
+When your `<task>` carried `verify_lens`, set `lens="A|B|C|D"` (the same
+value) on your `<result>` — the coordinator matches the four lens results by
+it, and the SubagentStop hook reads it to locate your lens verdict file
+(`iter-<n>-verdict-lens-<lens>.json`); a lens result without it is read as a
+light-depth verdict and refused. A light-depth result carries no `lens`.
+
 ```xml
 <result skill="code" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>

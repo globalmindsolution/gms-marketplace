@@ -13,18 +13,23 @@ Canonical detail: `plugins/acs/docs/INTERNALS.md`.
 
 Validation: `validate_xml.py` on every send/receive; one re-request, then fail.
 By default validation runs **in-process** via `validate_structurally()` (pure
-stdlib `xml.etree`, raised to XSD-equivalent coverage) — no subprocess is
-spawned per message. `xmllint` is invoked only opt-in when
+stdlib `xml.etree`) against a model **derived from `acs-messages.xsd` at load
+time** — the XSD is the contract's only declaration (ADR 0093), so the
+in-process path cannot drift from it — and no subprocess is spawned per
+message. `<constraint name>` is typed: the name must be one of the XSD's
+`constraintName` vocabulary (or the `required_sections:<file>` form), so a
+misspelled delegation key fails at the coordinator instead of arriving at the
+subagent as an absent value. `xmllint` is invoked only opt-in when
 `ACS_XML_AUTHORITATIVE=1` AND `xmllint` is on `PATH` AND the XSD is present; its
 absence never blocks a verdict. A `validate_batch()` Python API validates a list
 of messages in one in-process loop (MAR-61).
 
 **`<metrics>` removed (MAR-1, ADR 0082).** The self-estimated
 `<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
-gone from `<result>`'s content model — both `acs-messages.xsd` and, the
-actual in-process enforcement path, `validate_xml.py`'s
-`CHILD_ORDER["result"]`/`ALLOWED_ATTRS` tables reject a stray `<metrics>`
-element post-change. Token/cost figures are no longer part of the
+gone from `<result>`'s content model — `acs-messages.xsd` does not declare
+it, and the in-process enforcement path, `validate_xml.py`, derives its
+content model from the XSD, so a stray `<metrics>` element is rejected as an
+undeclared child post-change. Token/cost figures are no longer part of the
 subagent-to-coordinator message contract at all; they are measured from the
 run's own transcript and the statusLine cost sample at `finalize_run` time
 (see the Run-entry / totals contract below).

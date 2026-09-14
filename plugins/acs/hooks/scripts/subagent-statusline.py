@@ -42,7 +42,7 @@ ROLE_RE = re.compile(
     r"create-design|create-spec|code|create-pr|merge-pr)-(%s)\b"
     % "|".join(role for _, role in cc.ROLE_SUFFIXES)
 )
-PHASE = {"planner": "plan", "executor": "execute", "verifier": "verify"}
+PHASE = {"executor": "execute", "verifier": "verify"}
 STATUS_GLYPH = {"running": "▶", "in_progress": "▶", "pending": "○",
                 "completed": "✓", "done": "✓", "failed": "✗", "error": "✗"}
 

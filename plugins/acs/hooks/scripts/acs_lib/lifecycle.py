@@ -48,8 +48,9 @@ from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessio
 from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
 from . import verdict
 
-#: agent_type suffix -> the phase name its artifact is filed under.
-ROLE_PHASES = {"planner": "plan", "executor": "execute", "verifier": "verify"}
+#: agent_type suffix -> the phase name its artifact is filed under. Two roles
+#: since ADR-0092: no skill spawns a planner, so no `-planner` agent can stop.
+ROLE_PHASES = {"executor": "execute", "verifier": "verify"}
 
 #: How many times one hook may refuse the same thing before giving up and
 #: letting it through with a warning. A hook that can block forever is a hung

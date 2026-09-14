@@ -144,8 +144,8 @@ run, not yours.
 
 Your prompt contains an XML `<task skill="create-e2e-tests" phase="execute"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`, `<constraints>`
-(at least `e2e_command`, `e2e_root`, the `TC-<n>` ids in scope and
-`audience_style_profile`), and optional `<context>`. You share NO memory with
+(at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>` ids in scope —
+and `audience_style_profile`), and optional `<context>`. You share NO memory with
 the coordinator — every fact comes from the files in `<inputs>`
 or the `<context>` text.
 

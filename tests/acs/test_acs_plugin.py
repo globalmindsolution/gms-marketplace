@@ -625,7 +625,7 @@ class TestValidators(AcsWorkspaceCase):
         '<task skill="code" phase="execute" ticket-id="SHOP-1">'
         '<objective>Implement feature X</objective>'
         '<inputs><file>/src/foo.py</file></inputs>'
-        '<constraints><constraint name="c1">no breaking changes</constraint></constraints>'
+        '<constraints><constraint name="coverage_target">90</constraint><constraint name="required_sections:hld/overview.md">Goals; Constraints</constraint></constraints>'
         '<context>background info</context>'
         '</task>'
     )
@@ -672,7 +672,7 @@ class TestValidators(AcsWorkspaceCase):
     # (iii) out-of-order children — constraints before objective in task
     MALFORMED_OUT_OF_ORDER = (
         '<task skill="code" phase="execute" ticket-id="SHOP-1">'
-        '<constraints><constraint name="c1">x</constraint></constraints>'
+        '<constraints><constraint name="coverage_target">90</constraint></constraints>'
         '<objective>obj</objective>'
         '</task>'
     )
@@ -808,7 +808,7 @@ class TestValidators(AcsWorkspaceCase):
     )
     MALFORMED_UNDECLARED_ATTR_CONSTRAINT = (
         '<task skill="code" phase="execute" ticket-id="SHOP-1"><objective>x</objective>'
-        '<constraints><constraint name="n" extra="z">c</constraint></constraints></task>'
+        '<constraints><constraint name="branch" extra="z">c</constraint></constraints></task>'
     )
     # (ix) text-only (xs:string) leaves admit no element children.
     MALFORMED_CHILD_IN_FILE = (
@@ -818,6 +818,23 @@ class TestValidators(AcsWorkspaceCase):
     MALFORMED_CHILD_IN_OBJECTIVE = (
         '<task skill="code" phase="execute" ticket-id="SHOP-1">'
         '<objective>x<nested/></objective></task>'
+    )
+
+    # (x) typed delegation keys (ADR-0093): constraint/@name is the
+    # constraintName vocabulary, so a misspelled key fails at the coordinator
+    # instead of reaching the executor as an absent value.
+    MALFORMED_UNKNOWN_CONSTRAINT_NAME = (
+        '<task skill="code" phase="execute" ticket-id="SHOP-1">'
+        '<objective>obj</objective>'
+        '<constraints><constraint name="coverage-tgt">90</constraint></constraints>'
+        '</task>'
+    )
+    # (xi) the planner role and phase are gone (ADR-0092, ADR-0093): a plan
+    # message is no longer part of the vocabulary.
+    MALFORMED_PLAN_PHASE = (
+        '<task skill="code" phase="plan" ticket-id="SHOP-1">'
+        '<objective>obj</objective>'
+        '</task>'
     )
 
     VALID_CORPUS = [
@@ -854,6 +871,9 @@ class TestValidators(AcsWorkspaceCase):
         # (ix) text-only leaves admit no element children
         ("child_in_file", MALFORMED_CHILD_IN_FILE),
         ("child_in_objective", MALFORMED_CHILD_IN_OBJECTIVE),
+        # (x) typed delegation keys; (xi) no plan phase
+        ("unknown_constraint_name", MALFORMED_UNKNOWN_CONSTRAINT_NAME),
+        ("plan_phase", MALFORMED_PLAN_PHASE),
     ]
 
     def _load_validate_xml(self):

@@ -100,8 +100,8 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the written suite files, the executor's authoring notes
 (`iter-<n>-authoring.md`), the execute report, `test-cases.md`,
 `api-contract.md` when it exists, and the repo's existing e2e suites),
-`<constraints>` (at least `e2e_command`, `e2e_root`, the `TC-<n>` ids in scope
-and `audience_style_profile`), and optional `<context>` (prior findings). You
+`<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
+ids in scope — and `audience_style_profile`), and optional `<context>` (prior findings). You
 share NO memory with the coordinator or the executor — read everything
 yourself from the `<inputs>` paths.
 

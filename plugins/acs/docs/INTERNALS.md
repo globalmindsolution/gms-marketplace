@@ -675,6 +675,16 @@ All coordinator <-> subagent communication uses the three message shapes in
 - The coordinator validates every message it sends and receives
   (`validate_xml.py`); a malformed message is re-requested once, then the run
   fails with the validation error in `errors`.
+- The XSD is the contract's ONLY declaration (ADR-0093): `validate_xml.py`
+  derives every element, attribute, enumeration and pattern from it at load
+  time, so there is no table to keep in sync. `<constraint name>` is typed —
+  the `constraintName` vocabulary in the XSD (plus the open
+  `required_sections:<file>` form) is the complete set of delegation keys a
+  coordinator may hand a subagent; a name outside it fails validation at the
+  coordinator, and a new key is an edit to the XSD first. `phase` is
+  `execute` or `verify` (no skill has a plan phase). A lens spawn's verify
+  result carries its lens back as `lens="A|B|C|D"`, which is how the
+  SubagentStop hook finds that lens's verdict file.
 - Subagents receive the `<task>` inside their prompt and must return the
   `<result>` as the final content of their reply — nothing after it.
 - `<handoff>` is only for step-coordinator -> /ship returns: compact (~1 KB),

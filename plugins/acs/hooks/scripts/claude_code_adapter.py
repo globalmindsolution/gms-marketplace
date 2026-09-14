@@ -193,9 +193,10 @@ RECORD_ATTRIBUTION_AGENT = "attributionAgent"
 
 #: Observed prefix on every attributionSkill value acs emits ("acs:code").
 SKILL_PREFIX = "acs:"
-#: Observed agent-name suffixes, mapped to acs's reflection-role vocabulary.
-ROLE_SUFFIXES = (("-planner", "planner"),
-                 ("-executor", "executor"),
+#: Observed agent-name suffixes, mapped to acs's reflection-role vocabulary
+#: (executor and verifier only since ADR-0092; `planner` survives in recorded
+#: role_usage rows from older runs, never as a spawnable agent).
+ROLE_SUFFIXES = (("-executor", "executor"),
                  ("-verifier", "verifier"))
 
 

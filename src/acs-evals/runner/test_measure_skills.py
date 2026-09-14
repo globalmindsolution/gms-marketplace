@@ -1080,3 +1080,42 @@ class SetupBudgetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QuotaExhaustedTest(unittest.TestCase):
+    """The CLI refusing a session for a spent usage allowance is the
+    instrument giving out, not a result: it is recognised, and the caller
+    stops rather than paying a sandbox per run to record it N more times."""
+
+    LIMIT = "You've hit your session limit \u00b7 resets 10:30am (UTC)"
+
+    def test_a_limit_envelope_is_recognised(self):
+        self.assertEqual(measure_skills.quota_message(
+            {"is_error": True, "result": self.LIMIT}), self.LIMIT)
+        self.assertEqual(measure_skills.quota_message(
+            {"is_error": True, "result": "Usage limit reached for this week"}),
+            "Usage limit reached for this week")
+
+    def test_other_errors_and_clean_results_are_not(self):
+        for envelope in ({"is_error": False, "result": self.LIMIT},
+                         {"is_error": True, "result": "no such skill"},
+                         {"is_error": True, "result": "rate limited, try again"},
+                         {"is_error": True}, None, "text"):
+            self.assertIsNone(measure_skills.quota_message(envelope), envelope)
+
+    def test_a_routing_session_refused_for_quota_is_neither_route_nor_miss(self):
+        result_event = json.dumps({"type": "result", "subtype": "success",
+                                   "is_error": True, "result": self.LIMIT,
+                                   "num_turns": 1, "total_cost_usd": 0})
+        lines = [_init(), _assistant(_text(self.LIMIT)), result_event]
+        self.assertEqual(classify(lines, "Implement the login feature"),
+                         (None, "quota_exhausted", None))
+
+    def test_a_tool_result_mentioning_a_rate_limit_still_routes(self):
+        # A tool-level throttle is a routed probe whose call got a transient
+        # error; only the session-level allowance message stops the run.
+        lines = [_init(), _assistant(_skill("acs:code")),
+                 _result(content="rate limited, try again", is_error=True)]
+        self.assertEqual(classify(lines, "Implement the login feature"),
+                         ("acs:code", "skill_tool_use", None))
+

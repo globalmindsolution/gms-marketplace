@@ -433,7 +433,12 @@ class NegativeGuardsBackwardCompatTest(unittest.TestCase):
         self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
 
     def test_validate_xml_py_set_member_present(self):
-        self.assertIn('"create-spec"', read(VALIDATE_XML_PY))
+        # Since ADR-0093 the validator derives SKILLS from the XSD instead of
+        # spelling it: the retained member is read through that view.
+        sys.path.insert(0, HOOKS_SCRIPTS)
+        import validate_xml  # noqa: E402
+        self.assertIn("create-spec", validate_xml.SKILLS)
+        self.assertNotIn('"create-spec"', read(VALIDATE_XML_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))

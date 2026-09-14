@@ -258,6 +258,12 @@ itself with zero executor spawns.
 - The format SHOULD carry, at minimum: ticket id, skill, phase, task
   description, references to workspace input files, and (on the way back)
   status, findings, error details, and output file references.
+- The XSD is the contract's only declaration (ADR 0093): the validator
+  derives its model from it at load time, `<constraint name>` is typed to
+  the XSD's `constraintName` vocabulary so a misspelled delegation key
+  fails at the coordinator, and the state-file schema declares the
+  load-bearing `states` members, the `escalations` audit event and each
+  finding's `severity`.
 
 **[ASSUMPTION]** Illustrative shape — the concrete schema is to be defined
 during design:

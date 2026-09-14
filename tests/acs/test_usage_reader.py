@@ -195,7 +195,7 @@ class TestMetaJsonNeverOpened(UsageReaderCase):
         ])
         self.write_subagent("agent-1.jsonl", [
             _record("2026-01-01T00:00:06Z", usage=_usage(2, 2, 0, 0),
-                     attribution_agent="acs:code-planner"),
+                     attribution_agent="acs:code-executor"),
         ])
         # A directory named like a meta.json sidecar: any attempt to open()
         # it as a file raises IsADirectoryError.
@@ -205,8 +205,8 @@ class TestMetaJsonNeverOpened(UsageReaderCase):
         result = usage_reader.read_transcript_usage(
             self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
         self.assertFalse(result["degraded"])
-        planner = next(r for r in result["role_usage"] if r["role"] == "planner")
-        self.assertEqual(planner["input"], 2)
+        executor = next(r for r in result["role_usage"] if r["role"] == "executor")
+        self.assertEqual(executor["input"], 2)
 
 
 class TestDegradedNeverRaises(UsageReaderCase):

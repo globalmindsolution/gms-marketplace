@@ -3,11 +3,17 @@
   acs-messages.xsd — formal schema for coordinator <-> subagent XML messages.
 
   Three root elements:
-    * task    — coordinator -> subagent assignment (also /ship -> step-coordinator briefs,
-                phase="coordinate")
+    * task    — coordinator -> subagent assignment (phase="execute" or "verify";
+                no skill has a plan phase since ADR-0092)
     * result  — subagent -> coordinator outcome
     * handoff — step-coordinator -> /ship compact handoff (bounded to ~1 KB of text;
                 full detail lives in the workspace state files)
+
+  This file is the ONLY declaration of the message vocabulary (ADR-0093):
+  hooks/scripts/validate_xml.py derives everything it enforces from it at
+  load time, so an element, attribute, enumeration or constraint name added
+  here is accepted everywhere the moment it is declared, and nothing else
+  has to be kept in sync.
 
   Validate with:  python3 hooks/scripts/validate_xml.py <file>
   (uses xmllint - -schema when available, stdlib structural checks otherwise)
@@ -45,17 +51,21 @@
       <xs:enumeration value="update"/>
       <xs:enumeration value="usage"/>
       <!-- create-spec retired (MAR-156); enum value retained deliberately
-           for backward compatibility (MAR-164). Do not remove. -->
+           for backward compatibility (MAR-164) — a deprecated member kept
+           for state files written by older builds, and the one entry here
+           that is a statement about history rather than the live
+           vocabulary. Do not remove. -->
       <xs:enumeration value="create-spec"/>
     </xs:restriction>
   </xs:simpleType>
 
+  <!-- The two reflection phases. `plan` is gone with the planner role
+       (ADR-0092) and `coordinate` with the subagent-per-step /ship
+       (ADR-0089): nothing emits either, so neither is declared (ADR-0093). -->
   <xs:simpleType name="phaseName">
     <xs:restriction base="xs:string">
-      <xs:enumeration value="plan"/>
       <xs:enumeration value="execute"/>
       <xs:enumeration value="verify"/>
-      <xs:enumeration value="coordinate"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -66,11 +76,13 @@
   </xs:simpleType>
 
   <!-- Which of the four full-depth review lenses a verify result belongs to
-       (agents/code-verifier.md). Declared here because the SubagentStop hook
-       reads it to find that lens's verdict file: without a carrier the hook
-       could never recover the lens, so every lens spawn was refused and all
-       four lenses raced to write the one shared verdict filename the lens
-       naming exists to prevent them sharing. -->
+       (agents/code-verifier.md). The coordinator hands the lens to the
+       verifier as the `verify_lens` constraint; the verifier carries it back
+       on its result as this attribute, and the SubagentStop hook reads it
+       to find that lens's verdict file: without a carrier the hook could
+       never recover the lens, so every lens spawn was refused and all four
+       lenses raced to write the one shared verdict filename the lens naming
+       exists to prevent them sharing. -->
   <xs:simpleType name="verifyLens">
     <xs:restriction base="xs:string">
       <xs:enumeration value="A"/>
@@ -105,6 +117,73 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <!-- The delegation vocabulary (ADR-0093): every parameter a coordinator may
+       hand a subagent as <constraint name="...">. Typed so that a misspelled
+       name fails validation at the coordinator, where it can be fixed,
+       instead of reaching the subagent as an absent value it has a
+       plausible behaviour for. A new parameter is an edit here first: the
+       set of things one agent may tell another is a contract, not a
+       convention. `required_sections:<file>` is the one open form — a
+       per-file section list for multi-file doc sets. -->
+  <xs:simpleType name="constraintName">
+    <xs:union>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="adr_path"/>
+          <xs:enumeration value="amend_rule"/>
+          <xs:enumeration value="architecture"/>
+          <xs:enumeration value="architecture_path"/>
+          <xs:enumeration value="audience_style_profile"/>
+          <xs:enumeration value="base_branch"/>
+          <xs:enumeration value="branch"/>
+          <xs:enumeration value="commit_message"/>
+          <xs:enumeration value="contracts_mode"/>
+          <xs:enumeration value="coverage_target"/>
+          <xs:enumeration value="decisions"/>
+          <xs:enumeration value="default_branch"/>
+          <xs:enumeration value="diagrams"/>
+          <xs:enumeration value="doc_set"/>
+          <xs:enumeration value="doc_set_path"/>
+          <xs:enumeration value="docs_only"/>
+          <xs:enumeration value="e2e-opt-in"/>
+          <xs:enumeration value="e2e_command"/>
+          <xs:enumeration value="e2e_per_iteration"/>
+          <xs:enumeration value="e2e_root"/>
+          <xs:enumeration value="e2e_setup"/>
+          <xs:enumeration value="e2e_teardown"/>
+          <xs:enumeration value="formats"/>
+          <xs:enumeration value="functional_subdir"/>
+          <xs:enumeration value="merge_strategy"/>
+          <xs:enumeration value="naming"/>
+          <xs:enumeration value="nfr"/>
+          <xs:enumeration value="no-doc-set-authorship"/>
+          <xs:enumeration value="non_functional_subdir"/>
+          <xs:enumeration value="output-files"/>
+          <xs:enumeration value="partition"/>
+          <xs:enumeration value="pr_title"/>
+          <xs:enumeration value="prd_path"/>
+          <xs:enumeration value="prd_slice"/>
+          <xs:enumeration value="principles-optional"/>
+          <xs:enumeration value="principles_path"/>
+          <xs:enumeration value="required_sections"/>
+          <xs:enumeration value="requirements_path"/>
+          <xs:enumeration value="standards_path"/>
+          <xs:enumeration value="suites"/>
+          <xs:enumeration value="tc_ids"/>
+          <xs:enumeration value="template_dir"/>
+          <xs:enumeration value="tracker_provider"/>
+          <xs:enumeration value="tracker_sync"/>
+          <xs:enumeration value="verify_lens"/>
+        </xs:restriction>
+      </xs:simpleType>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:pattern value="required_sections:.+"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:union>
+  </xs:simpleType>
+
   <xs:complexType name="fileList">
     <xs:sequence>
       <xs:element name="file" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
@@ -117,7 +196,7 @@
         <xs:complexType>
           <xs:simpleContent>
             <xs:extension base="xs:string">
-              <xs:attribute name="name" type="xs:string" use="required"/>
+              <xs:attribute name="name" type="constraintName" use="required"/>
             </xs:extension>
           </xs:simpleContent>
         </xs:complexType>

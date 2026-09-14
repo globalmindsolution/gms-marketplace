@@ -97,7 +97,12 @@ win — change them first, then the implementation.
    the **final message is only** an XML `<result>` per
    `schemas/acs-messages.xsd` — nothing after it. Malformed XML gets
    re-requested once, then the run fails; don't make the coordinator parse
-   prose.
+   prose. Every constraint the agent reads must be a name in the XSD's
+   `constraintName` vocabulary (ADR-0093): name it there before naming it in
+   the charter, spell it identically in the SKILL.md that emits it, and never
+   invent a per-agent spelling — the validator refuses a name outside the
+   vocabulary, and `tests/acs/test_message_schema_derivation.py` refuses a
+   vocabulary entry no prose consumes.
 3. **Mandate the phase artifact.** An authoring executor writes
    `iter-<n>-authoring.md` (its survey, then the findings it addressed) before
    the deliverable, and every executor `iter-<n>-execute[-<k>].json`; the

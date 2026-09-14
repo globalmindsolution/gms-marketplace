@@ -24,8 +24,8 @@ with:
   `<partition>` from its directory), `code-state.json`, `specs/*.md`, `design.md`
   when the ticket has one, and the resolved body template file. READ EVERY ONE
   before acting;
-- `<constraints>` — at least the rendered `pr_title`, the base branch, the ticket
-  branch, `tracker_provider`;
+- `<constraints>` — at least the rendered `pr_title`, `base_branch`, `branch`
+  (the ticket branch), `tracker_provider`;
 - `<context>` — on iteration 2+, the verifier findings to fix.
 
 ## GitHub call failure policy

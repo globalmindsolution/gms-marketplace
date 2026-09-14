@@ -218,7 +218,7 @@ Messaging rules (`schemas/acs-messages.xsd`):
   `<objective>`, `<inputs>` (file refs) and `<constraints>`.
 - Every phase's `<constraints>` carry `e2e_command` (and `e2e_setup` /
   `e2e_teardown` when configured), `e2e_root` (the location resolved above),
-  the `TC-<n>` ids in scope, and
+  `tc_ids` (the `TC-<n>` ids in scope, comma-separated), and
   `<constraint name="audience_style_profile">this repo's existing e2e suites</constraint>`.
 - Validate EVERY message you send and receive:
 

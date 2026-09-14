@@ -148,7 +148,7 @@ constraints. Example (iteration 1, repo-relative input paths):
     <file>docs/product/prd.md</file>
   </inputs>
   <constraints>
-    <constraint name="coverage-threshold">90</constraint>
+    <constraint name="coverage_target">90</constraint>
     <constraint name="decisions">pin every choice in the notes before building; flag anything tech-stack.md leaves open as a needs_input question, do not guess</constraint>
   </constraints>
 </task>
