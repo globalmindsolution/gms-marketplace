@@ -1,6 +1,6 @@
 ---
 name: release
-description: Assemble/verify the CHANGELOG section for a release version from the merged-ticket archive, plus a base_branch git-history fallback for tickets merged without an archive entry, bump the version-location files plus any extra refs configured in this repo's .acs/settings.json release block, date the section, and open an exempt release/* PR for a mandatory human merge — automating the manual release-cut steps for a repo already configured for release cuts. Fails fast if no release block is configured. Never runs git tag or gh release create itself — the privileged tag/publish step stays in the block's publish_driver. Not for opening a ticket's own PR (see /acs:create-pr) or landing/merging a PR (see /acs:merge-pr). Use when cutting a new version of a repo configured for release cuts.
+description: Assemble/verify the CHANGELOG section for a release version from the merged-ticket archive, plus a base_branch git-history fallback for tickets merged without an archive entry, bump the version-location files plus any extra refs configured in this repo's .acs/settings.json release block, date the section, and open an exempt release/* PR for a mandatory human merge — automating the manual release-cut steps for a repo already configured for release cuts. Fails fast if no release block is configured. Runs the repo's configured release.pre_release_gate before the cut and stops on its first failure. Never runs git tag or gh release create itself — the privileged tag/publish step stays in the block's publish_driver. Not for opening a ticket's own PR (see /acs:create-pr) or landing/merging a PR (see /acs:merge-pr). Use when cutting a new version of a repo configured for release cuts.
 argument-hint: "<version>"
 ---
 
@@ -86,9 +86,48 @@ rather than hardcoded literals). Branch exactly:
 This probe is the entire idempotency/re-run-safety mechanism this skill
 owns — no `.lock` file, no state file, because there is no partition.
 
-## Step 3 — Fresh cut: draft → bump → branch → PR → STOP
+## Step 3 — Fresh cut: gate → draft → bump → branch → PR → STOP
 
 Only reached when Step 2 found no in-flight/done cut.
+
+0. **Run this repo's pre-release gate, and stop on the first failure.** A
+   release is cut only from a build whose gate passed, so this runs before
+   anything is edited. Read `release_block.get("pre_release_gate")` — the
+   same block you resolved in Step 1:
+
+   - **Set** (a non-empty list of command strings): run each command
+     **verbatim, in the listed order, from `<checkout_root>`**, and read its
+     exit code. The first non-zero exit ends the run: report status
+     `failed`, name the command that failed, quote the tail of its output,
+     and STOP — nothing has been drafted, bumped, branched or pushed, so
+     there is nothing to undo. Fix what the gate reported and re-run
+     `/acs:release <version>`. Never skip a command, reorder them,
+     substitute one of your own, add a flag that relaxes one, or read a
+     timeout as a pass. There is no flag that bypasses this step.
+
+     A gate command can run for hours (this marketplace's tier-3
+     measurement does). Run such a command detached, with its output and
+     exit code captured to files, and wait for the exit code to appear
+     before reading it — never proceed while it is still running:
+
+     ```bash
+     ( cd <checkout_root> && <command> ) > <log> 2>&1; echo $? > <log>.rc
+     ```
+
+     Keep, per command, its exit code and the last twenty lines of its
+     output: step 4 embeds them in the PR body as the cut's evidence.
+
+   - **Absent**: this repo declares no `release.pre_release_gate`, so there
+     is nothing to run. Say so, say that a gate belongs in
+     `.acs/settings.json` if the repo has one, and continue — the one case
+     that proceeds without a gate having passed.
+
+   Never substitute a command of your own. This skill ships to consumer
+   repos whose gate you cannot know: it used to hardcode `python3
+   evals/run_evals.py --plugin acs --paid`, which names a path most
+   consumers do not have, and which stopped being even this marketplace's
+   gate when MAR-579 retired the per-ticket paid tier. Running the wrong
+   command is worse than running none.
 
 1. **Draft:**
 
@@ -164,30 +203,16 @@ Only reached when Step 2 found no in-flight/done cut.
    cuts, tag portion block-rendered) — not rendered via `pr-conventions.py`,
    since there is no ticket to derive `settings.formats.pr_title` from and
    `release/*` is already exempt from the conventions gate. The PR body
-   embeds: the coverage report (N/M/K + missing ticket ids), the
-   `draft_section` text as the proposed CHANGELOG entry, and a reminder
-   that `files_changed` were edited by this PR.
+   embeds: a **Pre-release gate** section — each `pre_release_gate`
+   command with its exit code and output tail from step 0, or the
+   statement that this repo declares none — the coverage report (N/M/K +
+   missing ticket ids), the `draft_section` text as the proposed CHANGELOG
+   entry, and a note that `files_changed` were edited by this PR.
 
-5. **STOP — remind this repo's pre-release gate.** The final action is
-   reporting the PR URL and reminding the human to run the gate before
-   merging. Read `release_block.get("pre_release_gate")` — the same block you
-   already resolved in Start, so there is nothing new to load:
-
-   - **Set** (a non-empty list of command strings): name them verbatim, in
-     order, as the gate to run before merging.
-   - **Absent**: say that this repo declares no `release.pre_release_gate`, so
-     you cannot name its gate, and that one should be added to
-     `.acs/settings.json` if the repo has one.
-
-   Never substitute a command of your own. This skill ships to consumer repos
-   whose gate you cannot know: it used to hardcode `python3
-   evals/run_evals.py --plugin acs --paid`, which names a path most consumers
-   do not have, and which stopped being even this marketplace's gate when
-   MAR-579 retired the per-ticket paid tier. A reminder naming the wrong
-   command is worse than one naming none.
-
-   You do **not** run the gate yourself and do **not** wait for it — it is a
-   reminder step, not a blocking check.
+5. **STOP.** The final action is reporting the PR URL and, in one line,
+   that the gate passed before the cut (name the commands) or that none is
+   declared. The PR is handed to a human for review and merge; you never
+   merge, tag or publish (SAFETY invariants below).
 
 ## SAFETY invariants
 
@@ -199,6 +224,9 @@ These invariants hold unconditionally, in every step, with no exception:
   `.github/workflows/release.yml`, reused **unchanged** — no edit to that
   file in this ticket), triggered only by a human merging the `release/*`
   PR to the block's `base_branch`.
+- The skill **NEVER** cuts past a failing gate: when
+  `release.pre_release_gate` is set, every command in it has exited 0
+  before any file is edited, or the run ends `failed` with nothing written.
 - The skill **NEVER** force-pushes (no forced push of any kind) and
   **NEVER** pushes directly to the block's `base_branch` — every write
   lands on the fresh `<release_branch>` (the block's `release_branch_format`
@@ -222,9 +250,10 @@ These invariants hold unconditionally, in every step, with no exception:
 ## Delegation
 
 You perform Steps 1-3 directly, exactly as `/acs:test` does its own work
-inline — you do everything yourself with Bash. You **MAY** delegate the
-mechanical edit step (Step 3.2-3.3: running `bump` and the `git
-checkout`/`commit`/`push` sequence) to **at most one** generic executor
+inline — you do everything yourself with Bash; the gate (Step 3.0) is
+never delegated, because its exit codes are the decision. You **MAY**
+delegate the mechanical edit step (Step 3.2-3.3: running `bump` and the
+`git checkout`/`commit`/`push` sequence) to **at most one** generic executor
 subagent (a plain `Task` tool call, `subagent_type: "general-purpose"` —
 not a dedicated release-executor). The delegated subagent operates on the
 same resolved values the coordinator already computed — the
@@ -247,9 +276,9 @@ ticket:
 
 - **Run**: v<version> cut attempt
 - **Status**: <status> — <one line>
-- **Results**: no-op (already in flight/done — <tag_exists|open_pr detail>) | PR opened: <url>
-- **Findings**: coverage <N> merged / <M> covered / <K> missing (or "none — no-op path")
+- **Results**: no-op (already in flight/done — <tag_exists|open_pr detail>) | gate failed at `<command>` (exit <rc>) — nothing written | PR opened: <url>
+- **Findings**: gate <passed: N commands | none declared | failed at <command>>; coverage <N> merged / <M> covered / <K> missing (or "none — no-op path")
 - **Artifacts**: release PR body at <url> (no workspace artifact — release_notes.py's write targets are exactly the files named by the resolved release block's version_locations + extra_refs + changelog_path; the durable record is the PR itself)
 - **Metrics**: n/a
-- **Next**: run this repo's pre-release gate (the commands from `release.pre_release_gate`, verbatim; or, when it declares none, say so) then request human review — or, on a no-op, nothing further to do
+- **Next**: request human review of the release PR — or, on a gate failure, fix what it reported and re-run `/acs:release <version>` — or, on a no-op, nothing further to do
 ```

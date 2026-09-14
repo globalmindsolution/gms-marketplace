@@ -17,7 +17,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from harness import fingerprint, skill_surface  # noqa: E402
+from harness import (RELEASE_CUT_FILES, build_digest, fingerprint,  # noqa: E402
+                     skill_surface)
 from run_golden import baseline_mismatch  # noqa: E402
 
 
@@ -62,6 +63,74 @@ class SurfaceFingerprintTest(unittest.TestCase):
     def test_a_root_with_no_skills_has_no_fingerprint(self):
         """None, not a hash of nothing -- an absent surface is not a match."""
         self.assertIsNone(fingerprint(tempfile.mkdtemp()))
+
+
+def _write(root, rel, text):
+    path = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+class BuildDigestTest(unittest.TestCase):
+    """Two builds are the same build when every behaviour-bearing byte is.
+
+    The surface fingerprint above cannot answer that: it reads a rewritten
+    SKILL.md, a deleted agent or a changed hook as the same build, and every
+    one of those is what a tier-3 measurement is taken to judge.
+    """
+
+    def _build(self):
+        root = make_build({"code": False, "ship": False})
+        _write(root, "agents/code-verifier.md", "verify")
+        _write(root, "hooks/scripts/acs.py", "print('hi')")
+        _write(root, ".claude-plugin/plugin.json", '{"version": "0.4.9"}')
+        _write(root, "CHANGELOG.md", "## [Unreleased]")
+        return root
+
+    def test_a_rewritten_skill_body_is_a_different_build(self):
+        a = self._build()
+        before_fp, before = fingerprint(a), build_digest(a)
+        with open(os.path.join(a, "skills", "code", "SKILL.md"), "a") as fh:
+            fh.write("\nDo it differently.\n")
+        self.assertEqual(before_fp, fingerprint(a),
+                         "the surface is the same -- which is the blind spot")
+        self.assertNotEqual(before, build_digest(a))
+
+    def test_a_deleted_agent_is_a_different_build(self):
+        a = self._build()
+        before = build_digest(a)
+        os.remove(os.path.join(a, "agents", "code-verifier.md"))
+        self.assertNotEqual(before, build_digest(a))
+
+    def test_a_changed_hook_is_a_different_build(self):
+        a = self._build()
+        before = build_digest(a)
+        _write(a, "hooks/scripts/acs.py", "print('changed')")
+        self.assertNotEqual(before, build_digest(a))
+
+    def test_the_release_cut_is_the_same_build(self):
+        """/acs:release bumps the version and dates the changelog AFTER the
+        gate passed on this content; the measurement is still of it."""
+        a = self._build()
+        before = build_digest(a)
+        _write(a, ".claude-plugin/plugin.json", '{"version": "0.5.0"}')
+        _write(a, "CHANGELOG.md", "## [0.5.0] - 2026-09-14")
+        self.assertEqual(before, build_digest(a))
+        self.assertEqual(RELEASE_CUT_FILES,
+                         {".claude-plugin/plugin.json", "CHANGELOG.md"},
+                         "exactly the two files a cut rewrites, no more")
+
+    def test_bytecode_is_not_a_change(self):
+        a = self._build()
+        before = build_digest(a)
+        _write(a, "hooks/scripts/__pycache__/acs.cpython-311.pyc", "x")
+        _write(a, "hooks/scripts/acs.pyc", "x")
+        self.assertEqual(before, build_digest(a))
+
+    def test_the_same_content_elsewhere_is_the_same_build(self):
+        self.assertEqual(build_digest(self._build()),
+                         build_digest(self._build()))
 
 
 class BaselineMismatchTest(unittest.TestCase):

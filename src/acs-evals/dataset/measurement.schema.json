@@ -31,6 +31,14 @@
         },
         "root": {
           "type": "string"
+        },
+        "fingerprint": {
+          "type": ["string", "null"],
+          "description": "harness.fingerprint of the skill surface: which skills exist and which a model may route to."
+        },
+        "digest": {
+          "type": ["string", "null"],
+          "description": "harness.build_digest of the plugin tree: every byte that can change behaviour, nothing a release cut rewrites. perf_gate refuses a measurement whose digest is not the build under test's."
         }
       }
     },

@@ -11,21 +11,30 @@ the step-by-step the maintainer follows.
 
 ## Steps
 
-1. **Run the pre-release quality gate — acs-evals.** It lives in this repo at
-   [`src/acs-evals/`](../../src/acs-evals/README.md). Point it at the release
-   candidate and run:
+1. **The pre-release quality gate — acs-evals — runs before the cut, and
+   the cut stops on its first failure.** It lives in this repo at
+   [`src/acs-evals/`](../../src/acs-evals/README.md) and is declared as
+   `release.pre_release_gate` in `.acs/settings.json`; `/acs:release
+   <version>` runs it verbatim, in order, from the checkout root before it
+   drafts, bumps, branches or pushes anything. To run it by hand first —
+   which is how you find out before the cut does:
    ```bash
    cd src/acs-evals
    make eval-source   # golden cases against ../../plugins/acs — the gate
-   make measure       # routing / behavioral measurement vs the promoted baseline
-   make perf          # performance measurement
+   make measure       # tier 3 — SPENDS MONEY; a no-op when this exact build is already measured
+   make perf          # judge the measurement; refuses one taken of any other build
    ```
+   A measurement records the content digest of the tree it exercised, so
+   `make perf` judges a measurement of *this* build or fails as
+   `UNMEASURED (stale)`, and `make measure` spends nothing on a build whose
+   complete measurement is already on disk — re-running the gate after a fix
+   costs exactly one measurement of the changed build.
    Then run plain `make eval` as well, once the tag is cut and the build is
    installed: it resolves the newest *installed* acs build and is the only run
    that catches packaging drift between source and what a consumer receives.
-   Treat a clean `make eval` as the gate. Investigate any failing case, and any
-   regression `make measure` / `make perf` reports, before continuing — do not
-   tag on red. (The free in-repo smoke already ran on every commit via
+   Investigate any failing case, and any regression `make measure` /
+   `make perf` reports, before continuing — do not tag on red, and do not
+   cut past the gate: `/acs:release` will not. (The free in-repo smoke already ran on every commit via
    pre-commit. The in-repo paid suite,
    `python3 evals/run_evals.py --plugin acs --paid`, is an on-demand tool kept
    for the forge-tier scenarios, not the gate.) When you do run that on-demand

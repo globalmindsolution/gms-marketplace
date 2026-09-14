@@ -45,7 +45,6 @@ sessions, where the plugin has to be genuinely installed.
 
 import argparse
 import datetime
-import hashlib
 import json
 import os
 import shutil
@@ -53,6 +52,28 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN_SRC = os.path.join(REPO_ROOT, "plugins", "acs")
+
+
+def _evals_harness():
+    """The eval suite's harness, loaded by path.
+
+    `harness` is also the module name of `evals/acs/harness.py`, and a test
+    run that imported that one first would hand it back from `sys.modules`
+    under a plain import. Loading by path under a private name sidesteps
+    the collision instead of depending on import order.
+    """
+    import importlib.util
+    path = os.path.join(REPO_ROOT, "src", "acs-evals", "runner", "harness.py")
+    spec = importlib.util.spec_from_file_location("acs_evals_harness", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+#: One definition of "the same tree", shared with the eval suite's build
+#: identity (`harness.build_digest`), so the dev version and a measurement
+#: agree about when the plugin changed.
+tree_digest = _evals_harness().tree_digest
 MARKETPLACE = "gms-marketplace"
 PLUGIN = "acs"
 KEY = "%s@%s" % (PLUGIN, MARKETPLACE)
@@ -75,26 +96,13 @@ def tree_hash(root):
     """A stable digest of every file under `root`.
 
     Path and content both feed the hash, so a rename is a change. Sorted, so
-    the digest does not depend on directory-iteration order.
+    the digest does not depend on directory-iteration order. The definition
+    is the eval suite's `harness.tree_digest` -- one notion of "the same
+    tree" for the dev version here and for a measurement's build identity
+    there -- with nothing excluded: a rewritten `plugin.json` must mint a new
+    dev version, and the tests pin that this installer never rewrites it.
     """
-    digest = hashlib.sha256()
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-        for name in sorted(filenames):
-            if name.endswith(".pyc"):
-                continue
-            path = os.path.join(dirpath, name)
-            rel = os.path.relpath(path, root).replace(os.sep, "/")
-            digest.update(rel.encode("utf-8"))
-            digest.update(b"\0")
-            with open(path, "rb") as fh:
-                while True:
-                    chunk = fh.read(1 << 16)
-                    if not chunk:
-                        break
-                    digest.update(chunk)
-            digest.update(b"\0")
-    return digest.hexdigest()
+    return tree_digest(root, exclude=(), skip_dirs=SKIP_DIRS)
 
 
 def dev_version(root=PLUGIN_SRC):

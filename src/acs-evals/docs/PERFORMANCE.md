@@ -157,6 +157,39 @@ record the measurement in `calibrated_from`, and set `basis` to `calibrated`.
 A threshold tighter than the noise floor makes the gate a random number
 generator; one far looser makes it decorative.
 
+## A measurement names its build, and the gate holds it to it
+
+A measurement records the **content digest** of the plugin tree it
+exercised (`build.digest`, from `harness.build_digest`): every byte under
+`plugins/acs` that can change behaviour — skills, agents, hooks, schemas,
+templates, workflows, the docs a skill reads at runtime — and nothing a
+release cut rewrites (`plugin.json`'s version label, `CHANGELOG.md`). The
+version string cannot do this job, because an unreleased tree shares one with
+the release it supersedes; the skill-surface fingerprint tier 1 uses cannot
+either, because it reads a rewritten SKILL.md or a deleted agent as the same
+build, and those are exactly what tier 3 is run to judge.
+
+Two rules follow, and together they are what makes the gate a gate:
+
+- **`make perf` judges a measurement of THIS build or refuses.** A
+  measurement whose digest is not the build under test's — or that records
+  none — is `UNMEASURED (stale)`, a failing state, and `results/perf.json`
+  says so. The plugin changed since the numbers were taken, so the numbers
+  are about something else.
+- **`make measure` is a no-op for a build already measured.** When
+  `results/measurements.json` is a complete measurement of the identical
+  build against the identical scenario set, covering the requested scope,
+  nothing is spent: re-running it would buy noise, and a gate that re-spent
+  hours on every re-run would get skipped. Any change to the tree, the
+  scenario set, or the scope spends; `--force` (or
+  `make measure MEASURE_ARGS=--force`) measures the same build again on
+  purpose, which is what calibration does.
+
+`/acs:release` runs this repo's gate — `make eval-source`, `make measure`,
+`make perf` — before it edits anything, and stops on the first non-zero exit.
+Fix what the gate reported, re-run the cut, and only the changed build is
+measured again.
+
 ## The verdicts
 
 | State | Condition |

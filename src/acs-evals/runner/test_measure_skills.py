@@ -787,6 +787,87 @@ class SkillTrailTest(unittest.TestCase):
             "acs:update(refused)")
 
 
+class AlreadyMeasuredTest(unittest.TestCase):
+    """`make measure` is a no-op for a build already measured -- and only then.
+
+    The release gate runs `make measure` before every cut. Re-spending four
+    hours on a build whose complete measurement is already on disk would get
+    the gate skipped; spending nothing on a build that merely LOOKS measured
+    would get a release quoting another build's numbers. The reuse rule has
+    to be exact.
+    """
+
+    class _Build:
+        version = "0.5.0"
+        digest = "c0ffeec0ffeec0ff"
+
+    HASHES = {"routing": "r1", "pipeline": "p1"}
+
+    def _doc(self, **over):
+        doc = {"build": {"version": "0.5.0", "digest": "c0ffeec0ffeec0ff"},
+               "set_hashes": dict(self.HASHES), "scope": "full",
+               "incomplete": False, "generated_at": "2026-09-14T00:00:00Z"}
+        doc.update(over)
+        return doc
+
+    def _reuse(self, doc, scope="full"):
+        return measure_skills.already_measured(doc, self._Build(),
+                                               dict(self.HASHES), scope)
+
+    def test_the_identical_build_and_experiment_are_reused(self):
+        reason = self._reuse(self._doc())
+        self.assertIn("2026-09-14", reason, "say when it was taken")
+        self.assertIn("c0ffeec0ffeec0ff", reason)
+
+    def test_other_content_spends(self):
+        self.assertIsNone(self._reuse(self._doc(
+            build={"version": "0.5.0", "digest": "d15ea5ed15ea5ed1"})))
+
+    def test_a_document_that_cannot_name_its_build_spends(self):
+        self.assertIsNone(self._reuse(self._doc(build={"version": "0.5.0"})))
+
+    def test_a_changed_experiment_spends(self):
+        self.assertIsNone(self._reuse(self._doc(
+            set_hashes={"routing": "r1", "pipeline": "p2"})))
+
+    def test_an_incomplete_measurement_spends(self):
+        self.assertIsNone(self._reuse(self._doc(incomplete=True)))
+
+    def test_a_full_measurement_covers_a_half_request(self):
+        self.assertIsNotNone(self._reuse(self._doc(), scope="routing"))
+
+    def test_a_half_measurement_does_not_cover_the_full_request(self):
+        self.assertIsNone(self._reuse(self._doc(scope="routing"), scope="full"))
+
+    def test_a_half_measurement_covers_its_own_half_only(self):
+        self.assertIsNotNone(self._reuse(self._doc(scope="routing"),
+                                         scope="routing"))
+        self.assertIsNone(self._reuse(self._doc(scope="routing"),
+                                      scope="pipeline"))
+
+    def test_no_document_spends(self):
+        self.assertIsNone(self._reuse(None))
+
+
+class BuildRecordTest(unittest.TestCase):
+
+    def test_a_measurement_names_its_build_by_content(self):
+        class B:
+            version, root = "0.5.0", "/src/acs"
+            fingerprint, digest = "fac10cbbcd9f7fb5", "c077424d2d52ac47"
+        rec = measure_skills.build_record(B())
+        self.assertEqual(rec, {"version": "0.5.0", "root": "/src/acs",
+                               "fingerprint": "fac10cbbcd9f7fb5",
+                               "digest": "c077424d2d52ac47"})
+
+    def test_identity_is_version_and_content(self):
+        class B:
+            version, digest = "0.5.0", "c077424d2d52ac47"
+        self.assertEqual(measure_skills.identity_of(B()),
+                         "0.5.0[c077424d2d52ac47]")
+        self.assertIsNone(measure_skills.identity_of(None))
+
+
 class CheckpointBuildIdentityTest(unittest.TestCase):
     """A checkpoint is reusable only for the build that bought it.
 
@@ -798,11 +879,11 @@ class CheckpointBuildIdentityTest(unittest.TestCase):
 
     class _Build:
         version = "0.4.9"
-        fingerprint = "aaaaaaaaaaaaaaaa"
+        digest = "aaaaaaaaaaaaaaaa"
 
     class _Other:
-        version = "0.4.9"          # same version string, different surface
-        fingerprint = "bbbbbbbbbbbbbbbb"
+        version = "0.4.9"          # same version string, different content
+        digest = "bbbbbbbbbbbbbbbb"
 
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix="acs-cp-")
@@ -822,7 +903,7 @@ class CheckpointBuildIdentityTest(unittest.TestCase):
         self.assertIn("ROUTE-code", cp.done)
         self.assertIsNone(cp.dropped)
 
-    def test_a_different_surface_on_the_same_version_is_dropped(self):
+    def test_different_content_on_the_same_version_is_dropped(self):
         self._write(self._Build())
         cp = measure_skills.Checkpoint(self.path, self._Other())
         self.assertEqual(cp.done, {})

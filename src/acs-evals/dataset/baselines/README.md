@@ -9,6 +9,8 @@ and `pick_baseline` takes the newest).
 
 A baseline is not a separate artifact — it is `results/measurements.json` from a
 run that was reviewed and kept, exactly as `reports/` holds a promoted report.
+It carries the measurement's `build.digest`, the content digest of the tree it
+exercised, so a reader can tell which build the numbers to beat came from.
 
 Promote one only when all three hold:
 

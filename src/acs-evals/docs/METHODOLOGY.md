@@ -48,7 +48,7 @@ generated file cannot survive unnoticed.
 
 The dataset is **not** a random sample; it is a targeted selection:
 
-1. Everything the v0.4.10 changelog changed (MAR-520 – MAR-530).
+1. Everything the v0.5.0 changelog changed (MAR-520 – MAR-530, then the skills-independence refactor).
 2. The pipeline spine every release depends on regardless of the changelog.
 3. The packaged surfaces a source-tree test suite cannot see — skills, schemas.
 

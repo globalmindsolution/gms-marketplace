@@ -21,7 +21,7 @@ git fetch acs-evals claude/acs-evals-review-az3x51
 git log FETCH_HEAD -- dataset/cases/06-gates.json   # not src/acs-evals/dataset/...
 ```
 
-Built as the release gate for **v0.4.10**.
+Built as the release gate for **v0.5.0**.
 
 ## Why this exists, and how it differs from the plugin's own tests
 
@@ -55,10 +55,15 @@ make gate
 measurement of skill quality, reliability, cost and time). It stops at the
 first failure.
 
-`perf` fails with **UNMEASURED** until `make measure` has been run, and that is
-deliberate: a green contract gate says nothing about whether skills got worse,
-slower or more expensive, and this suite may not imply otherwise by having run
-nothing. `make gate-deterministic` is the tier-1-only path.
+`perf` fails with **UNMEASURED** until `make measure` has been run against
+this exact build — a measurement records the content digest of the tree it
+exercised, and one taken of any other tree is **UNMEASURED (stale)** — and
+that is deliberate: a green contract gate says nothing about whether skills
+got worse, slower or more expensive, and this suite may not imply otherwise by
+having run nothing, or by quoting numbers taken before the change. `make
+measure` in turn spends nothing when this build's complete measurement is
+already on disk, so the gate is safe to re-run. `make gate-deterministic` is
+the tier-1-only path.
 
 ```
 make help      every target
@@ -88,7 +93,7 @@ golden is re-recorded deliberately, and **minor** drift is triage rather than a
 hold — so `make gate` exits non-zero on the first two and zero on the third.
 
 Latest report: [`reports/acs-v0.4.10-gate.md`](reports/acs-v0.4.10-gate.md) —
-**356/356 passed**, 0 known divergences, against acs `0.4.9` (the pre-`v0.4.10`
+**356/356 passed**, 0 known divergences, against acs `0.4.9` (the pre-`v0.5.0`
 unreleased tree).
 
 Run it **both ways** before a release. With `ACS_PLUGIN_ROOT` set you are
@@ -179,7 +184,7 @@ is pinned deterministically in tier 1 as `SKILL-*`.
 
 ## What the dataset covers
 
-502 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
+502 deterministic cases across the surfaces v0.5.0 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |

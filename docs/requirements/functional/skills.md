@@ -331,6 +331,13 @@ an exempt `release/*` PR for a mandatory human merge.
   It is not part of the gated pipeline.
 - **Fails fast** when no `release` block is configured in `.acs/settings.json`
   — before shelling out to `release_notes.py` at all.
+- **Runs the repo's pre-release gate before the cut.** When the block
+  declares `pre_release_gate`, every command runs verbatim, in order, from
+  the checkout root before anything is drafted, bumped, branched or pushed;
+  the first non-zero exit ends the run `failed` with nothing written, and
+  nothing bypasses the step. The release PR body carries each command's exit
+  code and output tail as the cut's evidence. A repo that declares no gate
+  is told so and proceeds.
 - **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
   durable record of a release cut is the release PR itself; `workspace` is
   read-only input (to enumerate the merged-ticket archive), never a write

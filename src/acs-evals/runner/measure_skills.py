@@ -215,17 +215,64 @@ def classify(lines, prompt):
 
 
 def identity_of(build):
-    """`<version>[<fingerprint>]` -- what makes two builds the same build.
+    """`<version>[<digest>]` -- what makes two builds the same build.
 
     The version string alone is not enough: source and the release it
-    supersedes share one, which is why `harness.fingerprint` hashes the skill
-    surface. Returns None when there is no build to identify, which leaves
-    every identity check inert rather than guessing.
+    supersedes share one. Nor is `harness.fingerprint`: it hashes the skill
+    surface -- which skills exist, which a model may route to -- and so reads
+    a rewritten SKILL.md, a deleted agent or a changed hook as the same build,
+    when every one of those is exactly what a measurement is taken to judge.
+    The content digest of the plugin tree (`harness.build_digest`) is the
+    identity; the version rides along because it is what a human recognises.
+    Returns None when there is no build, which leaves every identity check
+    inert rather than guessing.
     """
     if build is None:
         return None
-    fp = getattr(build, "fingerprint", None)
-    return "%s[%s]" % (getattr(build, "version", "?"), fp or "?")
+    return "%s[%s]" % (getattr(build, "version", "?"),
+                       getattr(build, "digest", None) or "?")
+
+
+def build_record(build):
+    """The `build` block of a measurement: what it exercised, by content."""
+    return {"version": build.version, "root": build.root,
+            "fingerprint": getattr(build, "fingerprint", None),
+            "digest": getattr(build, "digest", None)}
+
+
+def already_measured(doc, build, hashes, scope):
+    """Why `doc` already answers what this run would spend to ask, or None.
+
+    A complete measurement of the identical build, against the identical
+    experiment, covering the requested scope, IS the answer: running it again
+    buys noise, and a release gate that re-spent four hours on every re-run
+    would be skipped. Anything less -- another build, a changed scenario set,
+    an incomplete run, a narrower scope, a document too old to name its
+    build -- is not, and the run spends.
+    """
+    if not isinstance(doc, dict) or doc.get("incomplete"):
+        return None
+    recorded = doc.get("build") or {}
+    digest = recorded.get("digest")
+    if not digest or digest != getattr(build, "digest", None):
+        return None
+    if doc.get("set_hashes") != hashes:
+        return None
+    have = doc.get("scope", "full")
+    if have != "full" and have != scope:
+        return None
+    return ("a complete %s-scoped measurement of this exact build (acs %s, "
+            "content %s) already exists, taken %s"
+            % (have, recorded.get("version", "?"), digest,
+               doc.get("generated_at", "?")))
+
+
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 
 class Checkpoint:
@@ -1001,6 +1048,9 @@ def main():
     ap.add_argument("--skip-preflight", action="store_true",
                     help="spend without first proving the sandbox can see the "
                          "plugin (only for debugging the pre-flight itself)")
+    ap.add_argument("--force", action="store_true",
+                    help="measure again even when --out already holds a "
+                         "complete measurement of this exact build")
     args = ap.parse_args()
 
     with open(SCENARIOS) as fh:
@@ -1033,8 +1083,25 @@ def main():
         return 2
 
     env = dict(os.environ)
-    print("\nbuild under test: acs %s\n" % build.version)
+    print("\nbuild under test: acs %s\n" % identity_of(build))
     started = time.time()
+
+    # A run declares its scope up front -- full, routing, or pipeline.
+    scope = ("routing" if args.routing_only
+             else "pipeline" if args.pipeline_only else "full")
+    hashes = set_hashes(scenarios, all_probes)
+
+    # The same build, the same experiment, already measured to completion:
+    # there is nothing left to learn from spending again, so the run does
+    # not. A probe filter or a runs override is a diagnostic, never a
+    # measurement, and always spends; --force re-measures on purpose.
+    if not args.force and not args.probe and args.runs is None:
+        reason = already_measured(read_json(args.out), build, hashes, scope)
+        if reason:
+            print("%s: %s.\nnothing to spend -- judge it with: python3 "
+                  "runner/perf_gate.py --measurement %s\n(--force measures "
+                  "the same build again)" % (args.out, reason, args.out))
+            return 0
 
     # The instrument is checked before the plugin is: a sandbox that cannot
     # see the plugin would otherwise report every probe as a miss and charge
@@ -1077,14 +1144,11 @@ def main():
         records += measure_pipeline(build, scenarios, env, args.runs,
                                     checkpoint)
 
-    # A run declares its scope up front — full, routing, or pipeline — and is
-    # marked incomplete only when it did not finish what it set out to do (a
-    # probe filter, or a probe that produced no runs). A routing-scoped run is
-    # a whole measurement of the cheap half, not half a measurement: it may be
-    # promoted as a routing-scoped baseline, which the gate then compares
-    # routing probes against and nothing else.
-    scope = ("routing" if args.routing_only
-             else "pipeline" if args.pipeline_only else "full")
+    # A run is marked incomplete only when it did not finish what its scope
+    # set out to do (a probe filter, or a probe that produced no runs). A
+    # routing-scoped run is a whole measurement of the cheap half, not half a
+    # measurement: it may be promoted as a routing-scoped baseline, which the
+    # gate then compares routing probes against and nothing else.
     expected_routing = 0 if args.pipeline_only else len(probes)
     expected_pipeline = (0 if args.routing_only
                          else len(scenarios["pipeline"]["scenarios"]))
@@ -1096,9 +1160,9 @@ def main():
         "schema": "acs-evals/measurement/1",
         "generated_at": datetime.datetime.now(datetime.timezone.utc)
                                 .strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "build": {"version": build.version, "root": build.root},
+        "build": build_record(build),
         "scenario_set_version": scenarios["scenario_set_version"],
-        "set_hashes": set_hashes(scenarios, all_probes),
+        "set_hashes": hashes,
         "scope": scope,
         "environment": {"claude_cli_version": claude_version(),
                         "host": sys.platform,

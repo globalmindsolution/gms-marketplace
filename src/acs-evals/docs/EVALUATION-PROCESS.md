@@ -189,8 +189,12 @@ make measure        # SPENDS MONEY; needs `claude` on PATH
 make perf           # judge it; pure, offline, re-runnable
 ```
 
-`make perf` reports **UNMEASURED** and fails until a measurement exists. That is
-the design: absence is not a pass. Full rules, verdicts and limitations in
+`make perf` reports **UNMEASURED** and fails until a measurement exists, and
+**UNMEASURED (stale)** when the one that exists was taken of another build —
+a measurement records the content digest of the tree it exercised. That is
+the design: absence is not a pass, and neither is someone else's number.
+`make measure` is a no-op for a build whose complete measurement is already on
+disk, so re-running the gate is free until the plugin changes. Full rules, verdicts and limitations in
 [`PERFORMANCE.md`](PERFORMANCE.md).
 
 Triage differs from tier 1 in one way. An **absolute** failure — a routing

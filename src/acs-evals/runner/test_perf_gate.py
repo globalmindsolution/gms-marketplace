@@ -16,6 +16,7 @@ comes only from `make measure`.
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -87,11 +88,20 @@ def unmeasured_pipeline(pid="PIPE-docs-sync", skill="acs:docs-sync",
     return probe
 
 
-def measurement(probes, version="0.4.10", sset="1.0.0", incomplete=False):
+def measurement(probes, version="0.5.0", sset="1.0.0", incomplete=False,
+                digest=None):
+    build = {"version": version}
+    if digest:
+        build["digest"] = digest
     return {"schema": "acs-evals/measurement/1",
-            "build": {"version": version}, "scenario_set_version": sset,
+            "build": build, "scenario_set_version": sset,
             "environment": {"claude_cli_version": "2.1.263"},
             "incomplete": incomplete, "probes": probes}
+
+
+class _Build:
+    def __init__(self, version="0.5.0", digest="c0ffee", root="/src/acs"):
+        self.version, self.digest, self.root = version, digest, root
 
 
 class TestSummarise(unittest.TestCase):
@@ -398,6 +408,72 @@ class TestComparability(unittest.TestCase):
         _, _, detail = pg.verdict(m, None, PROVISIONAL,
                                   pg.compare(m, None, PROVISIONAL))
         self.assertIn("incomplete", detail)
+
+
+class TestBuildIdentity(unittest.TestCase):
+    """The gate judges a measurement of THIS build, or refuses to judge.
+
+    A release quoting numbers taken before its own changes is the failure a
+    gate that runs before every cut exists to prevent, so the comparison is
+    on the tree's content digest -- not the version string, which an
+    unreleased tree shares with the release it supersedes.
+    """
+
+    def test_the_same_content_is_judged(self):
+        m = measurement([routing()], digest="c0ffee")
+        self.assertIsNone(pg.stale_measurement(m, _Build(digest="c0ffee")))
+
+    def test_the_version_label_does_not_matter_when_the_content_does(self):
+        # A cut bumps plugin.json AFTER the gate passed on this content; the
+        # measurement it passed on is still a measurement of it.
+        m = measurement([routing()], version="0.4.9", digest="c0ffee")
+        self.assertIsNone(pg.stale_measurement(
+            m, _Build(version="0.5.0", digest="c0ffee")))
+
+    def test_changed_content_is_refused_and_both_builds_are_named(self):
+        m = measurement([routing()], digest="c0ffee")
+        why = pg.stale_measurement(m, _Build(digest="d15ea5e"))
+        self.assertIn("c0ffee", why)
+        self.assertIn("d15ea5e", why)
+        self.assertIn("/src/acs", why, "name the tree it resolved, so a "
+                      "mismatch caused by resolving the wrong tree is obvious")
+
+    def test_a_measurement_with_no_digest_is_refused(self):
+        m = measurement([routing()])
+        self.assertIn("no content digest", pg.stale_measurement(m, _Build()))
+
+    def test_no_build_in_hand_is_refused_not_assumed(self):
+        m = measurement([routing()], digest="c0ffee")
+        self.assertIn("ACS_PLUGIN_ROOT", pg.stale_measurement(m, None))
+
+    def test_a_stale_verdict_fails_as_unmeasured(self):
+        state, headline, detail = pg.stale_verdict("the plugin changed")
+        self.assertEqual(state, "fail")
+        self.assertIn("UNMEASURED", headline)
+        self.assertIn("the plugin changed", detail)
+        self.assertIn("not unchanged", detail)
+
+    def test_a_root_that_is_not_a_build_resolves_to_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            build, why = pg.build_under_test(d)
+        self.assertIsNone(build)
+        self.assertIn("acs.py", why)
+
+    def test_the_result_file_records_a_stale_verdict(self):
+        """A perf.json left over from the last judged measurement would say
+        PASSED about a build the gate just refused to judge."""
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "perf.json")
+            state, headline, detail = pg.stale_verdict("why")
+            pg.write_result(path, measurement([routing()]), None, None,
+                            PROVISIONAL, state, headline, detail, [],
+                            stale="why")
+            with open(path) as fh:
+                got = json.load(fh)
+        self.assertEqual(got["state"], "fail")
+        self.assertEqual(got["stale"], "why")
+        self.assertEqual(got["findings"], [])
 
 
 if __name__ == "__main__":

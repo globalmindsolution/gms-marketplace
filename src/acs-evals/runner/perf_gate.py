@@ -35,6 +35,9 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import Build, BuildError, resolve_build  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DATASET = os.path.join(ROOT, "dataset")
@@ -344,6 +347,59 @@ def compare(measurement, baseline, thresholds):
 # The verdict
 # --------------------------------------------------------------------------
 
+def build_under_test(explicit=None):
+    """(build, None), or (None, why) when no build resolves.
+
+    `--build` names a root outright; otherwise `ACS_PLUGIN_ROOT`, then the
+    installed build, exactly as `measure_skills` resolves the build it
+    measures -- so the two agree about what "this build" means.
+    """
+    try:
+        if explicit:
+            return Build(os.path.abspath(os.path.expanduser(explicit))), None
+        return resolve_build(), None
+    except BuildError as exc:
+        return None, str(exc)
+
+
+def stale_measurement(measurement, build):
+    """Why `measurement` is not a measurement of `build`, or None.
+
+    A measurement names the content digest of the tree it exercised. Judging
+    it against a build whose digest differs would let a release quote numbers
+    taken before its own changes -- the one thing a gate that runs before
+    every cut exists to stop. A measurement recorded before digests existed
+    cannot be tied to any build, so it is stale too, and so is one judged
+    with no build in hand: "unknown" is not "unchanged".
+    """
+    if build is None:
+        return ("no acs build could be resolved to check the measurement "
+                "against; set ACS_PLUGIN_ROOT or pass --build")
+    recorded = measurement.get("build") or {}
+    have = recorded.get("digest")
+    want = getattr(build, "digest", None)
+    if not have:
+        return ("the measurement (acs %s) records no content digest, so it "
+                "cannot be tied to any build; it predates 2026-09-14 -- "
+                "measure again" % recorded.get("version", "?"))
+    if want and have != want:
+        return ("the measurement is of acs %s[%s]; the build under test is "
+                "acs %s[%s] at %s -- the plugin changed since it was taken, "
+                "so measure again"
+                % (recorded.get("version", "?"), have,
+                   getattr(build, "version", "?"), want,
+                   getattr(build, "root", "?")))
+    return None
+
+
+def stale_verdict(reason):
+    """The verdict for a measurement that is not of this build."""
+    return ("fail", "Skill performance: UNMEASURED (stale)",
+            "%s. Quality, reliability, cost and time of THIS build are "
+            "unknown -- not unchanged. Run `make measure` before quoting "
+            "this gate." % reason)
+
+
 def verdict(measurement, baseline, thresholds, findings):
     """(state, headline, detail) — mirrors docs/RUBRIC.md's four states.
 
@@ -496,6 +552,9 @@ def main():
                     default=os.path.join(DATASET, "thresholds.json"))
     ap.add_argument("--json", dest="out", default=None,
                     help="write the machine-readable result here")
+    ap.add_argument("--build", default=None,
+                    help="plugin root the measurement must be of (default: "
+                         "ACS_PLUGIN_ROOT, else the resolved build)")
     args = ap.parse_args()
 
     thresholds = load(args.thresholds) or {}
@@ -508,13 +567,26 @@ def main():
         print("\n  looked for: %s" % args.measurement)
         return 2
 
+    build, unresolved = build_under_test(args.build)
+    stale = stale_measurement(measurement, build)
+    if stale:
+        state, headline, detail = stale_verdict(stale)
+        print(headline)
+        print("  " + detail)
+        if unresolved:
+            print("\n  " + unresolved.replace("\n", "\n  "))
+        write_result(args.out, measurement, None, None, thresholds, state,
+                     headline, detail, [], stale=stale)
+        return 2
+
     baseline, refusal = pick_baseline(measurement, args.baseline)
     findings = compare(measurement, baseline, thresholds)
     state, headline, detail = verdict(measurement, baseline, thresholds,
                                       findings)
 
-    print("acs skill performance  |  build under test: acs %s  |  scenario set %s"
-          % ((measurement.get("build") or {}).get("version", "?"),
+    print("acs skill performance  |  build under test: acs %s[%s]  |  "
+          "scenario set %s"
+          % (build.version, build.digest,
              measurement.get("scenario_set_version", "?")))
     if refusal:
         print("NOTE: %s" % refusal)
@@ -534,26 +606,39 @@ def main():
     print(headline)
     print("  " + detail)
 
-    if args.out:
-        directory = os.path.dirname(os.path.abspath(args.out))
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(args.out, "w") as fh:
-            json.dump({
-                "schema": "acs-evals/perf-result/1",
-                "generated_at": datetime.datetime.now(datetime.timezone.utc)
-                                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "build": measurement.get("build"),
-                "scenario_set_version": measurement.get("scenario_set_version"),
-                "baseline": (baseline or {}).get("build"),
-                "baseline_refused": refusal,
-                "thresholds_basis": thresholds.get("basis"),
-                "state": state, "headline": headline, "detail": detail,
-                "findings": findings,
-            }, fh, indent=2)
-            fh.write("\n")
-
+    write_result(args.out, measurement, baseline, refusal, thresholds, state,
+                 headline, detail, findings)
     return 0 if state != "fail" else 1
+
+
+def write_result(path, measurement, baseline, refusal, thresholds, state,
+                 headline, detail, findings, stale=None):
+    """The machine-readable verdict, when a path was given.
+
+    A stale verdict is written too: the release PR reads this file, and a
+    file left over from the last judged measurement would say PASSED about a
+    build the gate just refused to judge.
+    """
+    if not path:
+        return
+    directory = os.path.dirname(os.path.abspath(path))
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump({
+            "schema": "acs-evals/perf-result/1",
+            "generated_at": datetime.datetime.now(datetime.timezone.utc)
+                                    .strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "build": measurement.get("build"),
+            "scenario_set_version": measurement.get("scenario_set_version"),
+            "baseline": (baseline or {}).get("build"),
+            "baseline_refused": refusal,
+            "stale": stale,
+            "thresholds_basis": thresholds.get("basis"),
+            "state": state, "headline": headline, "detail": detail,
+            "findings": findings,
+        }, fh, indent=2)
+        fh.write("\n")
 
 
 if __name__ == "__main__":

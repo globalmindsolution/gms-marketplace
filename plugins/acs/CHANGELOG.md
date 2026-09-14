@@ -69,6 +69,21 @@ the notes.
   command rather than the wrong one. **Migration:** none required; add the key
   to `.acs/settings.json` to have your own gate named.
 
+- **`/acs:release` runs `pre_release_gate` before every cut, and stops on its
+  first failure.** The commands the `release` block accepts are no longer a
+  closing reminder: the skill runs each verbatim, in order, from the checkout
+  root before a fresh cut edits anything, and the first non-zero exit fails
+  the run before the version bump — so a release is cut only from a build
+  whose gate passed, and the release PR body carries each command's exit code
+  and output tail as the cut's evidence. Nothing bypasses the step. A repo
+  that declares no gate is told so and proceeds. This marketplace's gate is
+  `make -C src/acs-evals eval-source`, `measure` and `perf`: the tier-3
+  measurement now records the content digest of the tree it exercised,
+  `perf` refuses a measurement of any other build (`UNMEASURED (stale)`),
+  and `measure` is a no-op when a complete measurement of the identical
+  build is already on disk, so re-running the gate after a fix costs exactly
+  one measurement of the changed build.
+
 - **⚠️ BREAKING: `/acs:code` no longer plans.** Its Plan, Plan approval, Plan revocation and Plan-artifact-resolution steps moved to `/acs:create-impl-plan` (and `agents/code-planner.md` with them, as `agents/create-impl-plan-planner.md`). `/acs:code` keeps execute → verify, the escalation triggers, the coverage gate and the full-verify boundary; its executor writes tests from `test-cases.md` when present, its verifier gains a contract-conformance check when `api-contract.md` exists, and an execution that finds the plan wrong ends `failed` with `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back to `/acs:create-impl-plan`. **Migration:** run `/acs:create-impl-plan <id>` before `/acs:code <id>`; `/acs:ship` does it for you.
 
 ### Deprecated
