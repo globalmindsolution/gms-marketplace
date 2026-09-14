@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.8.0",
+  "scenario_set_version": "1.9.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -20,14 +20,14 @@
         "id": "PIPE-create-ticket",
         "skill": "acs:create-ticket",
         "profile": "seeded",
-        "prompt": "We need a CSV export on the reports page. Please raise a ticket for it.",
+        "prompt": "We need a CSV export on the reports page. Please raise a ticket for it. You decide every field \u2014 type, priority, size, stakes and the acceptance criteria; no due date \u2014 record each as an assumption and do not wait for my confirmation.",
         "timeout_seconds": 600,
         "measures": [
           "reliability",
           "cost",
           "time"
         ],
-        "why": "The cheapest full skill body in the pipeline, and the one every other ticket depends on. Establishes the floor of what a skill run costs."
+        "why": "The cheapest full skill body in the pipeline, and the one every other ticket depends on. Establishes the floor of what a skill run costs. 1.9.0: the prompt delegates the ticket-record decisions. /acs:create-ticket\u0027s Step 2 is a deliberate human-in-the-loop checkpoint (MAR-55 invariant (c)): it presents the proposal and blocks for confirmation, and headless it hands off with `needs_input`. The 1.0.0-1.8.0 prompt gave it nothing to decide from, so all 3 runs of the 2026-09-14 gate measurement asked story-or-task, due date and AC changes, ran handoff.py and stopped at ~$0.30 \u2014 0/3 with the skill behaving exactly as designed. The skill\u0027s own rule for a user who says \"you decide\" is to record assumptions and continue; the prompt now says so, which is what a real headless caller (/acs:ship, a CI job) must say too. What the scenario measures is unchanged: the body that runs after the gate."
       },
       {
         "id": "PIPE-code",

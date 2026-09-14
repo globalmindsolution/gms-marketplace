@@ -280,6 +280,32 @@ was measured against. Both happened in the 2026-09-13 measurement, which is
 why this exists: `PIPE-docs-sync` reported 2/3 and `PIPE-docs-sync-app` 0/3
 for a skill that had, on the app profile, never once been reached.
 
+### The prompt is the whole prompt, and the workspace is editable
+
+Two harness defects the 2026-09-14 release-gate measurement exposed, both
+fixed in the runner rather than the dataset:
+
+- **stdin.** `claude -p` appends a non-tty stdin to its prompt, and a child
+  process inherits its parent's stdin. The gate ran `make measure` from a
+  shell loop reading its command list from a file, so 25 of the 27 pipeline
+  sessions were prompted with the scenario text plus the three gate commands
+  and spent their first turns looking for a `src/acs-evals` the sandbox does
+  not have. Every `claude` the runner spawns now gets `stdin=DEVNULL` —
+  pipeline sessions, routing probes and the registration read alike — so the
+  prompt a scenario states is the prompt the session sees, whatever the
+  caller's stdin.
+- **`--add-dir`.** Under `acceptEdits` a headless session may edit only its
+  working directory and the directories it was given. The acs workspace sits
+  beside the sandbox repo (`workspace_path: ../ws`), so a coordinator's
+  Edit/Write into its own partition was refused; one PIPE-docs-sync run was
+  interrupted exactly there. Pipeline sessions now receive the sandbox
+  workspace as an additional directory.
+
+Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
+ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
+a design requirement that a headless prompt with nothing decided can only
+ever hand off on (0/3 on 2026-09-14, the skill behaving as designed).
+
 ## The fixture app
 
 The pipeline scenarios on the `app` profiles run on `dataset/fixtures/app`

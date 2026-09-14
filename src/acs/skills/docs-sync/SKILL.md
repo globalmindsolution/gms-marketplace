@@ -100,6 +100,33 @@ re-deriving from the live diff (input 1) remains docs-sync's own grounding
 for every other doc category. Neither input substitutes for the other —
 every phase (executor and verifier alike) reads all six, independently.
 
+**Constraints the task carries.** Every placeholder the executor's and the
+verifier's charters read comes from the `<task>`'s `<constraints>`, and only
+names in the `constraintName` vocabulary of `schemas/acs-messages.xsd`
+validate — never invent a variant such as `commit_message_format` or
+`contracts_root`. Pass, on every phase:
+
+```xml
+<constraints>
+  <constraint name="partition">/abs/workspace/owner-repo/SHOP-123</constraint>
+  <constraint name="checkout_root">/abs/path/to/the/checkout</constraint>
+  <constraint name="branch">task/SHOP-123-add-user-login</constraint>
+  <constraint name="default_branch">main</constraint>
+  <constraint name="commit_message">{ticket_id} {summary}</constraint>
+  <constraint name="requirements_path">docs/requirements</constraint>
+  <constraint name="functional_subdir">functional</constraint>
+  <constraint name="non_functional_subdir">non-functional</constraint>
+</constraints>
+```
+
+`checkout_root` is `context.checkout_root`; `branch` is the ticket branch
+confirmed above; `default_branch` is the base the diff is taken against;
+`commit_message` is `settings.formats.commit_message`; the requirements
+trio is `settings.requirements_path` plus `settings.requirements_layout`.
+Add the other doc roots the executor's charter names when the setting is
+non-null — `prd_path`, `architecture_path`, `adr_path`, `contracts_path`,
+`standards_path` — each as its own `<constraint>` under that exact name.
+
 ## Reflection loop — execute → verify, no planner
 
 The loop is execute → verify, max 3 iterations. There is no plan phase:

@@ -8,12 +8,15 @@ prompt is decided by the `init` event's `slash_commands`; an explicit probe
 whose stream never reports a registration list is `unmeasured`, never a pass.
 """
 
+import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -1078,9 +1081,6 @@ class SetupBudgetTest(unittest.TestCase):
                     "budget" % (s["id"], twin["id"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class QuotaExhaustedTest(unittest.TestCase):
     """The CLI refusing a session for a spent usage allowance is the
@@ -1119,3 +1119,117 @@ class QuotaExhaustedTest(unittest.TestCase):
         self.assertEqual(classify(lines, "Implement the login feature"),
                          ("acs:code", "skill_tool_use", None))
 
+
+class PromptIsTheWholePromptTest(unittest.TestCase):
+    """`claude -p` appends a non-tty stdin to the prompt, and a child inherits
+    its parent's stdin. The 2026-09-14 gate ran `make measure` from a shell
+    loop reading its command list from a file: 25 of 27 pipeline sessions were
+    prompted with the scenario text plus the three gate commands, and spent
+    their first turns hunting for a `src/acs-evals` the sandbox does not have.
+    Every spawn therefore closes stdin, whatever the caller's is."""
+
+    class _Done:
+        returncode = 0
+        stdout = ""
+
+    def _capture_run(self, calls):
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            return self._Done()
+        return fake_run
+
+    def test_a_pipeline_session_never_reads_the_caller_s_stdin(self):
+        calls = []
+        with mock.patch.object(measure_skills.subprocess, "run",
+                               self._capture_run(calls)):
+            measure_skills.session_once("do the thing", os.getcwd(), 5, {})
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0][1].get("stdin"), subprocess.DEVNULL)
+
+    def test_a_routing_probe_never_reads_the_caller_s_stdin(self):
+        calls = []
+
+        class _Proc:
+            def __init__(self):
+                self.stdout = io.StringIO("")
+
+            def kill(self):
+                pass
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        def fake_popen(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            return _Proc()
+
+        with mock.patch.object(measure_skills.subprocess, "Popen", fake_popen):
+            measure_skills.route_once("Implement the login feature",
+                                      os.getcwd(), 5, {})
+            measure_skills.registered_skills(None, os.getcwd(), {}, timeout=5)
+        self.assertEqual(len(calls), 2)
+        for _cmd, kwargs in calls:
+            self.assertIs(kwargs.get("stdin"), subprocess.DEVNULL)
+
+
+class WorkspaceIsEditableTest(unittest.TestCase):
+    """Under `acceptEdits` a headless session may edit only its working
+    directory and the directories it was given; the acs workspace sits beside
+    the sandbox repo. A PIPE-docs-sync run on 2026-09-14 was interrupted
+    exactly there: the coordinator's task XML failed validation, its Edit of
+    the file in its own partition was refused, and it gave up on the loop."""
+
+    def test_the_session_argv_adds_the_directories_it_is_given(self):
+        cmd = session_cmd("do the thing", add_dirs=("/tmp/x/ws",))
+        self.assertEqual(cmd[cmd.index("--add-dir") + 1], "/tmp/x/ws")
+
+    def test_by_default_nothing_is_added(self):
+        self.assertNotIn("--add-dir", session_cmd("do the thing"))
+        self.assertNotIn("--add-dir", route_cmd("do the thing"))
+
+    def test_the_pipeline_passes_the_sandbox_workspace(self):
+        seen = []
+
+        class FakeSandbox:
+            ticket_id = "TKT-1"
+
+            def __init__(self, build, profile="bare", keep=False):
+                self.repo, self.ws = "/sb/repo", "/sb/ws"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_session(prompt, cwd, timeout, env, build=None, keep_dir=None,
+                         add_dirs=()):
+            seen.append(add_dirs)
+            return {"ok": True, "seconds": 1.0, "cost_usd": 0.1, "turns": 1,
+                    "error": None}
+
+        ledger = {"status": "completed", "stop_reason": "", "role_usage": [],
+                  "quality": {}, "ledger_cost_usd": None}
+        scenarios = {"pipeline": {"runs_per_scenario": 1, "scenarios": [
+            {"id": "PIPE-x", "skill": "acs:x", "profile": "seeded",
+             "prompt": "do it", "setup_prompts": ["prepare"],
+             "timeout_seconds": 5}]}}
+        with mock.patch.object(measure_skills, "Sandbox", FakeSandbox), \
+                mock.patch.object(measure_skills, "session_once", fake_session), \
+                mock.patch.object(measure_skills, "read_ledger",
+                                  lambda sb, skill: ledger), \
+                mock.patch.object(measure_skills, "apply_ticket_patch",
+                                  lambda scenario, sb: True), \
+                mock.patch.object(measure_skills, "setup_holds",
+                                  lambda scenario, sb, env: True), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            measure_skills.measure_pipeline(None, scenarios, {})
+        self.assertEqual(seen, [("/sb/ws",), ("/sb/ws",)],
+                         "setup and measured sessions alike may edit the workspace")
+
+
+if __name__ == "__main__":
+    unittest.main()

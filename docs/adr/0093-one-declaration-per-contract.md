@@ -160,3 +160,17 @@ All four decisions landed in one change:
    went the other way — `phaseName` lost `plan` (ADR-0092) and `coordinate`
    (ADR-0089), and the lifecycle, adapter and statusline role tables lost
    `planner` — so nothing the schema declares is emitted by nothing.
+
+## Amendment — the vocabulary's first field test (2026-09-14, later)
+
+The first `/acs:docs-sync` run against the typed vocabulary was refused at
+its own coordinator: the task named `checkout_root` and `contracts_path`,
+which the executor's charter reads as placeholders but no `constraintName`
+member spelled, and a `commit_message_format` that nothing reads. Both real
+names were added (`contracts_path` sits with the other `*_path` settings),
+and the docs-sync SKILL.md now lists the constraint block its tasks carry.
+Decision 2's derivation held — the names were missing from the declaration
+because the prose that consumed them never emitted them literally, which is
+the gap `tests/acs/test_message_schema_derivation.py` closes from now on:
+every placeholder a charter reads must be emitted by its coordinator under a
+declared name.

@@ -453,8 +453,17 @@ def route_cmd(prompt, build=None):
     return cmd + plugin_args(build) if build is not None else cmd
 
 
-def session_cmd(prompt, build=None):
+def session_cmd(prompt, build=None, add_dirs=()):
     """The argv for a full pipeline session. Pure, for the same reason.
+
+    `add_dirs` are passed as `--add-dir`: under `acceptEdits` the session may
+    edit files only inside its working directory and the directories added
+    this way, and a headless session has nobody to ask for anything else. The
+    acs workspace sits BESIDE the sandbox repo (`workspace_path: ../ws`), so
+    without it every Edit/Write a coordinator aims at its own partition is
+    refused. That is what interrupted a PIPE-docs-sync run on 2026-09-14: the
+    coordinator's task XML failed validation, its Edit to fix the file was
+    denied, and it abandoned the reflection loop and finished inline.
 
     `stream-json` rather than `json`, so the run's SKILL SEQUENCE is on the
     record. The 2026-09-13 measurement had PIPE-code fall from 3/3 to 1/3 with
@@ -467,6 +476,8 @@ def session_cmd(prompt, build=None):
     cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
            "--permission-mode", "acceptEdits",
            "--allowedTools", " ".join(PIPELINE_TOOLS)]
+    for directory in add_dirs:
+        cmd += ["--add-dir", directory]
     return cmd + plugin_args(build) if build is not None else cmd
 
 
@@ -540,7 +551,7 @@ def route_once(prompt, cwd, timeout, env, build=None):
     """
     cmd = route_cmd(prompt, build)
     started = time.time()
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True,
                             cwd=cwd, env=env)
     deadline = started + timeout
@@ -562,9 +573,20 @@ def route_once(prompt, cwd, timeout, env, build=None):
     return routed, detection, attempted, round(time.time() - started, 3)
 
 
-def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None):
+def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None,
+                 add_dirs=()):
     """One full `claude -p` session. The envelope, the wall clock, and the
     sequence of skills the run invoked.
+
+    Every `claude` this module spawns gets `stdin=DEVNULL` — here, in the
+    routing probes, and in the registration read. `claude -p` appends
+    whatever it finds on a non-tty stdin to the prompt, and a child inherits
+    the parent's stdin unless told otherwise. The 2026-09-14 release gate ran
+    `make measure` from a shell loop reading its command list from a file, so
+    25 of the 27 pipeline sessions were prompted with the scenario text PLUS
+    the three gate commands, and most of them spent their first turns
+    investigating a `src/acs-evals` that does not exist in the sandbox. The
+    prompt a scenario states is the whole prompt, whatever the caller's stdin.
 
     With `keep_dir` the transcript is kept there (as
     `<stamp>-<prompt slug>.jsonl`, named in `out["transcript"]`) instead of
@@ -579,7 +601,7 @@ def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None):
     PIPE-code runs died at 1800s on 2026-09-13 and the measurement recorded
     nothing about either.
     """
-    cmd = session_cmd(prompt, build)
+    cmd = session_cmd(prompt, build, add_dirs)
     started = time.time()
     handle, path = tempfile.mkstemp(prefix="acs-session-", suffix=".jsonl")
     out = {"ok": False, "seconds": None, "cost_usd": None, "turns": None,
@@ -587,9 +609,9 @@ def session_once(prompt, cwd, timeout, env, build=None, keep_dir=None):
     try:
         with os.fdopen(handle, "w") as sink:
             try:
-                proc = subprocess.run(cmd, stdout=sink, stderr=subprocess.DEVNULL,
-                                      text=True, cwd=cwd, timeout=timeout,
-                                      env=env)
+                proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=sink,
+                                      stderr=subprocess.DEVNULL, text=True,
+                                      cwd=cwd, timeout=timeout, env=env)
                 returncode = proc.returncode
             except subprocess.TimeoutExpired:
                 returncode, out["error"] = None, "timeout"
@@ -709,7 +731,7 @@ def registered_skills(build, cwd, env, timeout=60):
     an explicit routing probe is.
     """
     cmd = route_cmd("/acs:usage", build)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True,
                             cwd=cwd, env=env)
     deadline = time.time() + timeout
@@ -992,7 +1014,8 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                 setup = []
                 for text in ([] if not patch_ok else scenario.get("setup_prompts", [])):
                     s_run = session_once(fill(text), sb.repo, setup_timeout,
-                                         env, build, keep_dir=transcripts)
+                                         env, build, keep_dir=transcripts,
+                                         add_dirs=(sb.ws,))
                     setup.append(s_run)
                     if s_run.get("quota_exhausted"):
                         raise QuotaExhausted("%s setup: %s" % (scenario["id"], s_run["error"]))
@@ -1014,7 +1037,8 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                 else:
                     run = session_once(fill(scenario["prompt"]), sb.repo,
                                        scenario.get("timeout_seconds", 1800),
-                                       env, build, keep_dir=transcripts)
+                                       env, build, keep_dir=transcripts,
+                                       add_dirs=(sb.ws,))
                     if run.get("quota_exhausted"):
                         raise QuotaExhausted("%s: %s" % (scenario["id"], run["error"]))
                 if setup:
@@ -1098,8 +1122,8 @@ def claude_version():
     if not shutil.which("claude"):
         return None
     try:
-        proc = subprocess.run(["claude", "--version"], capture_output=True,
-                              text=True, timeout=30)
+        proc = subprocess.run(["claude", "--version"], stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, timeout=30)
         return proc.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None

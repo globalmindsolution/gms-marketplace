@@ -353,6 +353,25 @@ the notes.
 
 - **The gate-bearing result fields are computed, not read** (MAR-523, eighth child of epic MAR-501/E1, completing the derived-state pair with MAR-527). `run_post` trusted `states.verifier_passed`, `states.tests.*`, `states.pr` and `states.review.iterations` verbatim from a result document the **coordinator** wrote — so the `/acs:create-pr` gate checked whether a model had written `true`, not whether a verifier had passed, and the metrics ledger recorded whatever number the prose carried. Each now has a recorded source: `verifier_passed` from the verifier's `verdict.json` for the highest iteration (whose own `passed` is derived from its findings); `tests` from the **last** iteration's `iter-<n>-execute*.json` reports, which record the command and its outcome, with `coverage_target` from `settings.test_coverage_percent` — a setting, so never anyone's claim; `pr` from `gh pr list --head <branch>`; `review.iterations` from the verify artifacts on disk. **The computed value wins**, and a disagreement is recorded rather than silently resolved: `runs[-1].derived_states` carries the values, a one-line provenance for every key considered — including the ones it declined to compute and why — and the supplied-vs-derived pairs it overrode, which also go to stderr. A derivation that **cannot** run leaves the coordinator's value rather than inventing one; `verifier_passed` is the single exception, because it answers "may the next step run" and the safe answer with no evidence is no. **⚠️ MIGRATION:** a `/acs:code` run whose verifier wrote no `verdict.json` now derives `verifier_passed: false` and **cannot open the `/acs:create-pr` gate**, which is the point of the ticket — but it also means a ticket already past `/acs:code` when this lands must re-run `/acs:code` (its verifier now writes the verdict) before `/acs:create-pr` will open. `verifier_passed` is derived for `code` only, so no other skill's post hook starts failing over a verdict it never writes.
 - **Every shipped module is under 800 lines, and a test says so** (MAR-531 / #507, ninth child of epic MAR-501/E1). E1's success criterion "every module under `acs/` is below 800 lines" was a sentence on the epic, and a sentence is not a check: `metrics_render.py` (1682), `metrics_aggregate.py` (1288) and `release_notes.py` (821) were over it and named in no child, so on a plugin-wide reading E1 would have closed with its own criterion unmet. **The scope is decided plugin-wide** (recorded on #417): `plugins/acs/` is the plugin root and those three live under it; reading the criterion as covering only the package MAR-522 created would make it true by construction and say nothing about the plugin's maintainability. Each module is split along the seams the ticket names, into **sibling modules rather than packages**, so `python3 …/metrics_render.py` keeps working for the three SKILL.md files that invoke these by path: `metrics_render` → `_common` / `_terminal` / `_html` / `_panels` / `_tables`; `metrics_aggregate` → `_common` / `_panels` / `_usage` / `_rows`; `release_notes` → `_config` / `_git` / `_tickets`. Each entry point re-exports its **whole** pre-split surface, private helpers included, because the golden tests reach them by name — 94, 45 and 63 names respectively, all still resolving. **No behavior change**, verified rather than asserted: the pre-split modules were imported alongside the new ones and every renderer's output compared byte-for-byte on the full fixture, the empty, no-data and degraded shapes included. `tests/acs/test_module_line_budget.py` now enforces the budget over every shipped module, so the criterion cannot rot back into prose. **Migration:** none — no command, flag, output or JSON contract changed.
+- **`/acs:docs-sync` names the constraints its executor and verifier read,
+  and the vocabulary carries them.** The first docs-sync run against the
+  typed vocabulary (ADR-0093) briefed its executor with
+  `<constraint name="checkout_root">` and `contracts_path` — the two
+  placeholders the charters read that no vocabulary name spelled — plus an
+  invented `commit_message_format`; the validator refused the task, and the
+  coordinator abandoned the loop. `checkout_root` and `contracts_path` are
+  now `constraintName` members (the latter alongside every other `*_path`
+  setting), and the skill's "Inputs" section lists the constraint block a
+  docs-sync `<task>` carries, name by name, so nothing is left to be
+  guessed at the coordinator.
+- **`/acs:create-ticket` treats a request that delegates the ticket-record
+  decisions as its confirmation.** Step 2 is a deliberate human-in-the-loop
+  checkpoint and stays one; but a request that says "you decide" already
+  answers it, and a headless run that still handed off on "story or task?"
+  produced nothing (3 of 3 runs of the 2026-09-14 gate measurement). Such a
+  request now records each settled field as a `--source assumption`
+  clarification and continues — `docs_only` is never set to `true` this
+  way, and a PRD divergence still needs the user.
 
 ## [0.4.9] - 2026-09-03
 

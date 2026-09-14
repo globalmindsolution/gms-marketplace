@@ -136,8 +136,10 @@
           <xs:enumeration value="audience_style_profile"/>
           <xs:enumeration value="base_branch"/>
           <xs:enumeration value="branch"/>
+          <xs:enumeration value="checkout_root"/>
           <xs:enumeration value="commit_message"/>
           <xs:enumeration value="contracts_mode"/>
+          <xs:enumeration value="contracts_path"/>
           <xs:enumeration value="coverage_target"/>
           <xs:enumeration value="decisions"/>
           <xs:enumeration value="default_branch"/>
