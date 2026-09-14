@@ -192,8 +192,25 @@ class No0084MisattributionTest(unittest.TestCase):
                 continue
             self.assertNotIn("0084", read(path), "%s wrongly cites 0084" % path)
 
-    def test_adr_readme_0084_baseline_unchanged(self):
-        self.assertEqual(read(ADR_README).count("0084"), 2)
+    def test_adr_readme_0084_mentions_are_all_real_references(self):
+        """Every '0084' in the index is a real ADR reference, not the typo.
+
+        This was `assertEqual(count("0084"), 2)` — a literal baseline standing
+        in for "nobody reintroduced the misattribution". It broke the moment
+        0084 was legitimately cited a third time (ADR-0092's row, which names
+        the five ADRs it supersedes), which is a count changing for a correct
+        reason. The guard now checks what it always meant: each occurrence
+        sits inside an ADR reference — a `0084-…` link or filename, or a
+        supersession citation — and none is a bare number standing where 0086
+        belongs.
+        """
+        body = read(ADR_README)
+        for match in re.finditer(r"0084", body):
+            window = body[max(0, match.start() - 60):match.end() + 60]
+            self.assertRegex(
+                window, r"0084-[a-z0-9-]+\.md|supersedes[^|]*0084|Superseded by",
+                "bare '0084' at offset %d is not an ADR reference: %r"
+                % (match.start(), window))
 
 
 class NoNewMarCitationTest(unittest.TestCase):
