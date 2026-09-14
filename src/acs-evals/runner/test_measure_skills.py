@@ -1277,5 +1277,65 @@ class MintedTicketLedgerTest(unittest.TestCase):
         self.assertEqual(out["status"], "failed")
 
 
+class StagedBuildTest(unittest.TestCase):
+    """The build under test is measured from a copy outside any checkout.
+
+    Resolved in place, this marketplace's build is `src/acs` inside the
+    checkout running the measurement, and every command a skill embeds names
+    that path. Two PIPE-create-ticket sessions on 2026-09-14 took it for the
+    project, `cd`'d into the checkout before `skill-start.py --allocate`, and
+    minted MAR-580 and MAR-581 in the marketplace's own workspace from inside
+    a sandbox. Staged under a temp directory there is no checkout above the
+    build for a stray `cd` to find."""
+
+    def setUp(self):
+        self.src = tempfile.mkdtemp(prefix="acs-src-")
+        os.makedirs(os.path.join(self.src, ".claude-plugin"))
+        with open(os.path.join(self.src, ".claude-plugin", "plugin.json"), "w") as fh:
+            json.dump({"name": "acs", "version": "9.9.9"}, fh)
+        os.makedirs(os.path.join(self.src, "hooks", "scripts", "__pycache__"))
+        with open(os.path.join(self.src, "hooks", "scripts", "acs.py"), "w") as fh:
+            fh.write("print('hi')\n")
+        with open(os.path.join(self.src, "hooks", "scripts", "__pycache__", "acs.cpython-311.pyc"), "wb") as fh:
+            fh.write(b"\x00")
+        os.makedirs(os.path.join(self.src, "skills", "code"))
+        with open(os.path.join(self.src, "skills", "code", "SKILL.md"), "w") as fh:
+            fh.write("---\nname: code\ndescription: x\n---\n")
+        from harness import Build
+        self.build = Build(self.src)
+        self.staged = None
+
+    def tearDown(self):
+        shutil.rmtree(self.src, ignore_errors=True)
+        if self.staged is not None:
+            shutil.rmtree(self.staged.stage_base, ignore_errors=True)
+
+    def test_the_copy_lives_outside_the_source_tree_and_keeps_its_identity(self):
+        self.staged = measure_skills.stage_build(self.build)
+        self.assertFalse(self.staged.root.startswith(self.src))
+        self.assertEqual(self.staged.digest, self.build.digest)
+        self.assertEqual(self.staged.version, self.build.version)
+        self.assertEqual(self.staged.source_root, self.src)
+        self.assertEqual(measure_skills.plugin_args(self.staged),
+                         ["--plugin-dir", self.staged.root])
+
+    def test_bytecode_is_not_copied(self):
+        self.staged = measure_skills.stage_build(self.build)
+        self.assertFalse(os.path.exists(
+            os.path.join(self.staged.root, "hooks", "scripts", "__pycache__")))
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.staged.root, "skills", "code", "SKILL.md")))
+
+    def test_nothing_above_the_staged_build_is_an_acs_checkout(self):
+        self.staged = measure_skills.stage_build(self.build)
+        d = os.path.dirname(self.staged.root)
+        while True:
+            self.assertFalse(os.path.exists(os.path.join(d, ".acs", "settings.json")), d)
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+
+
 if __name__ == "__main__":
     unittest.main()

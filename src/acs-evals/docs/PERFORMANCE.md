@@ -308,6 +308,17 @@ fixed in the runner rather than the dataset:
   including runs whose transcripts end with the post-hook's `completed`. The
   reader now finds the one ticket directory the run created.
 
+- **The build is staged outside any checkout.** Resolved in place, this
+  marketplace's build is `src/acs` inside the checkout running the
+  measurement, and every command a skill embeds names that path. Two of
+  three PIPE-create-ticket sessions took it for the project, `cd`'d into the
+  checkout before `skill-start.py --allocate`, and minted two tickets in the
+  marketplace's own workspace from inside a sandbox — locked, in progress,
+  invisible to the measurement. The runner now copies the build to a temp
+  directory (same content digest, so the same identity) and passes that as
+  `--plugin-dir`; the same stray `cd` finds no `.acs/settings.json` above
+  it, and `skill-start.py` refuses where it used to write elsewhere.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

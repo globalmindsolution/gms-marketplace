@@ -412,6 +412,38 @@ class Checkpoint:
                 pass
 
 
+def stage_build(build):
+    """A copy of the build under test in a directory that is not a checkout.
+
+    The build is resolved from wherever it lives -- for this marketplace,
+    `src/acs` inside the very checkout that runs the measurement. Every
+    command a skill's prose embeds then names that path, and on 2026-09-14
+    two of three PIPE-create-ticket sessions read it as the project: they
+    ran `cd /home/user/gms-marketplace` before `skill-start.py --allocate`,
+    the hooks resolved THAT checkout's `.acs/settings.json`, and MAR-580 and
+    MAR-581 were minted -- locked, in progress -- in the marketplace's own
+    workspace, from inside a sandbox. Staged under a temp directory the
+    build has no checkout above it: the same stray `cd` finds no settings
+    and `skill-start.py` refuses, visibly, instead of writing elsewhere. The
+    content digest is unchanged by the copy, so the build's identity is too.
+    """
+    from harness import SKIP_DIRS, Build  # runner/ is on sys.path
+    base = tempfile.mkdtemp(prefix="acs-build-")
+    root = os.path.join(base, "acs")
+    # Leave out exactly what the digest leaves out, so the copy is the same
+    # tree by the one definition of "same" the repo has.
+    shutil.copytree(build.root, root,
+                    ignore=shutil.ignore_patterns("*.pyc", *sorted(SKIP_DIRS)))
+    staged = Build(root)
+    if staged.digest != build.digest:
+        shutil.rmtree(base, ignore_errors=True)
+        raise BuildError("staging %s changed its content digest (%s -> %s)"
+                         % (build.root, build.digest, staged.digest))
+    staged.source_root = build.root
+    staged.stage_base = base
+    return staged
+
+
 def plugin_args(build):
     """Make the session load the build under test, rather than hoping it does.
 
@@ -1256,13 +1288,25 @@ def main():
         return 2
 
     try:
-        build = resolve_build()
+        build = stage_build(resolve_build())
     except BuildError as exc:
         sys.stderr.write("error: %s\n" % exc)
         return 2
 
     env = dict(os.environ)
-    print("\nbuild under test: acs %s\n" % identity_of(build))
+    # The child must find the build only through --plugin-dir; an inherited
+    # ACS_PLUGIN_ROOT would still name the source checkout.
+    env.pop("ACS_PLUGIN_ROOT", None)
+    print("\nbuild under test: acs %s\n  from %s, staged at %s\n"
+          % (identity_of(build), build.source_root, build.root))
+    try:
+        return _measure(args, build, env, scenarios, probes, all_probes, hashes)
+    finally:
+        shutil.rmtree(build.stage_base, ignore_errors=True)
+
+
+def _measure(args, build, env, scenarios, probes, all_probes, hashes):
+    """The measurement proper, once the build is staged; main() cleans up."""
     started = time.time()
 
     # A run declares its scope up front -- full, routing, or pipeline.
