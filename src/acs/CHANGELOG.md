@@ -37,6 +37,27 @@ the notes.
 
 - **Three settings keys**: `artifacts.tickets_path` (default `docs/tickets`; explicit `null` keeps every artifact in the workspace partition), `contracts_path` (default `docs/api`; `null` = the ticket folder only) and `workflow.advisories` (default `true`).
 
+- **The file-map guard's denials are a durable audit trail** (MAR-578, #530).
+  Every deny appends one event to `runs[-1].guard_events` on the executor's
+  `<skill>-state.json` (`ts`, `skill`, `iteration`, `tool`, `target`,
+  `reason` ∈ `outside_map|control_input|unreadable_payload`,
+  `declared_count`), never on a fail-open branch and never able to change the
+  verdict; `acs.py guard events --ticket <id> [--skill code]` prints them, and
+  `/acs:code`'s result contract derives `states.review.guard_denials` from
+  them.
+- **The eval sandbox no longer hides acs from claude** (MAR-574, #525): the
+  measurement harness's `HOME` override used to leave the plugin unregistered
+  in every measured session, so routing probes scored misses that were the
+  instrument's.
+- **The paid eval suite reports only real failures** (MAR-575, #531): a run
+  whose setup never reached the state its scenario declares is `unmeasured`
+  and blocks on its own coverage axis, instead of counting as a plugin
+  failure or vanishing.
+- **The dogfood repo's per-ticket paid e2e gate is retired** (MAR-579, #529)
+  in favour of the acs-evals tiers: `.acs/settings.json`'s release gate is
+  `make -C src/acs-evals eval-source`, `measure` and `perf`, and no ticket
+  pays for a model run of its own.
+
 ### Changed
 
 - **⚠️ BREAKING: six Design-phase skills became internal legs (ADR 0091).**
