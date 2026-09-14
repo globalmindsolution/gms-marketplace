@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the planner's file-by-file approach, the declared executor file map, the spec fold, and plan approval on the STANDARD/COMPLEX lanes. Writes plan.md to the ticket's docs folder. Use after /acs:analyze-ticket and before /acs:code, which requires the plan.
+description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the spec fold, and plan approval on the STANDARD/COMPLEX lanes. Writes plan.md to the ticket's docs folder. Use after /acs:analyze-ticket and before /acs:code, which requires the plan.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -10,7 +10,8 @@ into the implementation plan `/acs:code` executes — the spec analysis, the
 executor decomposition with its file map, the test strategy, the
 documentation map, the risks, and the verifier checklist — published as
 `plan.md` for the ticket and, on the STANDARD/COMPLEX lanes, recorded as an
-approved plan. You orchestrate planner/executor/verifier subagents, persist
+approved plan. You orchestrate executor/verifier subagents — execute → verify,
+no planner (ADR-0092) — persist
 every phase artifact to the ticket partition, and finish by writing the
 result document and running the post-hook — always, even on failure.
 
@@ -53,7 +54,7 @@ Parse the printed context JSON. Fields you will use:
   states), `architecture_path`, `requirements_path`, `adr_path`,
   `standards_path`, `artifacts.tickets_path` (where the plan is published),
   `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
-- `models` — per-role `{model, effort}` for planner/executor/verifier.
+- `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-create-impl-plan.py`.
 
@@ -128,19 +129,20 @@ continuing:
 2. Re-resolve the plan artifact (above) and read it if it exists. Trust
    nothing you cannot see in a file: a plan recorded published that is not on
    disk is not published.
-3. Continue from the first unfinished phase (planner artifact present but no
-   draft → re-run execute against it; draft present but unverified → verify).
-4. A resumed run reuses `<partition>/phases/create-impl-plan/iter-1-plan.md`
-   and never spawns a second planner; the plan phase runs (once) only when
-   that artifact is absent.
+3. Continue from the first unfinished phase (an execute with no verify →
+   verify it; a verify with findings and no later execute → execute with
+   those findings as `<context>`).
+4. There is no plan artifact to reuse: the executor's authoring notes
+   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/create-impl-plan/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-Read these yourself and name them by path in the planner's `<inputs>` (never
+Read these yourself and name them by path in the executor's `<inputs>` (never
 inline a file body):
 
 1. The ticket — `ticket` from the context JSON (its file is whatever
@@ -160,36 +162,38 @@ inline a file body):
 `api-contract.md` is NOT an input: `/acs:create-api-contract` runs AFTER this
 skill and covers the API surface this plan declares.
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan once, before the loop, then run execute → verify until the verifier
-returns zero blocking findings or the ceiling is reached.
+Run execute → verify until the verifier returns zero blocking findings or the
+ceiling is reached. There is no plan phase: on STANDARD/COMPLEX iteration 1's
+executor surveys — spec intake, the decomposition with its file map, the test
+strategy, the documentation map, the risks, the verifier checklist — into its
+authoring notes and renders the draft from them; on TRIVIAL/SMALL the
+coordinator authors the draft itself. The verifier judges the draft fresh in
+every lane.
 
 **Lane fork (the same shape `/acs:code` uses).** Recompute
 `derive_lane(ticket.size, ticket.stakes, ticket.needs_design, ticket.type)`
 (`acs_lib/lanes.py`) fresh — never the cached `ticket.lane`, which can be stale
 or hand-edited. Then:
 
-- **STANDARD/COMPLEX** — spawn **exactly one** `acs:create-impl-plan-planner`
-  across the whole run, however many iterations the loop uses, then
-  execute → verify with a ceiling of **3** iterations.
-- **TRIVIAL/SMALL** — light: **zero** `acs:create-impl-plan-planner` spawns and
-  zero `acs:create-impl-plan-executor` spawns. The coordinator authors the
+- **STANDARD/COMPLEX** — execute → verify with a ceiling of **3**
+  iterations; iteration 1's executor surveys before it writes.
+- **TRIVIAL/SMALL** — light: **zero** `acs:create-impl-plan-executor`
+  spawns. The coordinator authors the
   `plan.md` draft itself against the IDENTICAL artifact contract below, and the
   verifier still runs once (ceiling **1**). The verifier is the in-loop quality gate in
   EVERY lane; light differs only in who authors and how many iterations are
   allowed, never in whether the plan is judged.
 
-**What an iteration counts.** One iteration is one execute → verify round; the
-plan phase runs exactly once, before the loop, and is not part of any iteration
-— the ceilings count execute+verify rounds, not plan+execute+verify triads.
+**What an iteration counts:** one execute → verify round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`schemas/acs-messages.xsd`):
 
 - Send each subagent one `<task skill="create-impl-plan"
-  phase="plan|execute|verify" ticket-id="<id>" iteration="n">` carrying
+  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`. The subagent
   returns a `<result>` as its final content.
 - Validate EVERY message you send and receive:
@@ -202,26 +206,24 @@ Messaging rules (`schemas/acs-messages.xsd`):
   the run and record the error in the result document's `errors`.
 - Persist every phase output to
   `<partition>/phases/create-impl-plan/iter-<n>-<phase>.xml` at the phase
-  boundary, BEFORE starting the next phase. On TRIVIAL/SMALL no planner or
-  executor subagent is spawned, so no `<task phase="plan">` or
-  `<task phase="execute">` message is sent and none is persisted; the draft
-  itself remains the durable record.
-- Spawn subagents with the Agent tool: `acs:create-impl-plan-planner`
-  (STANDARD/COMPLEX only), `acs:create-impl-plan-executor`
+  boundary, BEFORE starting the next phase. On TRIVIAL/SMALL no executor
+  subagent is spawned, so no `<task phase="execute">` message is sent and
+  none is persisted; the draft itself remains the durable record.
+- Spawn subagents with the Agent tool: `acs:create-impl-plan-executor`
   (STANDARD/COMPLEX only), `acs:create-impl-plan-verifier` (every lane) —
   fall back to the un-namespaced name only if the runtime rejects the
   namespaced one. Apply `context.models.<role>.model` / `.effort` at spawn
   when not `"inherit"`; if the runtime rejects the model or effort, FAIL the
   run with that exact error — no silent fallback.
 
-### Plan (once, before the loop)
+### Execute (per iteration) — survey, then author the plan draft
 
-The planner surveys and decides; it does not write the deliverable. Task it
-with `<inputs>` of the ticket file, `analysis.md` and `design.md` when they
-exist, every `<partition>/specs/*.md`, and the consumer-repo source/docs the
-ticket touches. Its artifact is
-`<partition>/phases/create-impl-plan/iter-1-plan.md`, and it covers, in the
-order `create-impl-plan-planner.md` defines:
+On STANDARD/COMPLEX, iteration 1's executor surveys and decides before it
+writes the deliverable. Task it with `<inputs>` of the ticket file,
+`analysis.md` and `design.md` when they exist, every `<partition>/specs/*.md`,
+and the consumer-repo source/docs the ticket touches. Its authoring notes are
+`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`, and they cover,
+in the order `create-impl-plan-executor.md`'s survey defines:
 
 - Analysis of the ticket and of every spec: implementation order (follow the
   spec numbering when specs exist), ambiguities and explicit clarifying
@@ -241,9 +243,9 @@ order `create-impl-plan-planner.md` defines:
   file path references) — `/acs:docs-sync` independently re-derives every
   other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
   from the diff after `/acs:code` completes.
-  The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
-  check (`create-impl-plan-planner.md`'s item 4, edges E1-E4) — not the full
-  shared design-time step `create-design`'s planner runs — riding the same
+  The executor also performs a bounded, touched-area ADR-0012 doc-graph-gap
+  check (`create-impl-plan-executor.md`'s survey item 4, edges E1-E4) — not the
+  full shared design-time step `create-design`'s executor runs — riding the same
   `problems` carrier as the existing Boy-scout drift item.
 - Risks and the verifier checklist `/acs:code`'s verifier will run on top of
   its standing dimensions.
@@ -254,9 +256,9 @@ Before producing the standard plan content, check whether
 `<partition>/specs/` already has `.md` content.
 
 When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
-the plan's author (the `create-impl-plan-planner` on STANDARD/COMPLEX, the
-coordinator on TRIVIAL/SMALL) ADDITIONALLY produces, as part of the plan
-artifact, the spec content a standalone
+the plan's author (the `create-impl-plan-executor` on STANDARD/COMPLEX, the
+coordinator on TRIVIAL/SMALL) ADDITIONALLY produces, as part of the draft,
+the spec content a standalone
 create-spec planner would once have produced. This content covers, in order:
 
 - **Scope** — what the ticket delivers; acceptance criteria quoted verbatim.
@@ -269,7 +271,7 @@ create-spec planner would once have produced. This content covers, in order:
   (`settings.test_coverage_percent`) stated explicitly; e2e impact stated.
 - **Out of scope** — adjacent work excluded.
 
-**Oversize signal pointer.** `create-impl-plan-planner.md`'s charter item 2
+**Oversize signal pointer.** `create-impl-plan-executor.md`'s survey item 2
 also compares this decomposition against the reviewable-diff bar; when it
 fires, the split seams recorded above are what `/acs:create-ticket split`
 reads (see User interaction for the split-answer termination).
@@ -285,11 +287,10 @@ If specs already exist, the fold does NOT activate — the plan's author reads
 the existing specs normally, on every lane. The fold only activates when
 `<partition>/specs/` is absent or empty.
 
-### Execute (per iteration) — author the plan draft
-
-Send the executor a `<task phase="execute">` naming the planner artifact, the
-resolved `plan_path`, and (on iteration 2+) the verifier's findings in
-`<context>`. The executor writes the plan draft to
+**The draft.** Send the executor a `<task phase="execute">` naming the
+resolved `plan_path` and (on iteration 2+) the iteration-1 authoring notes
+and the verifier's findings in `<context>`. The executor writes the plan
+draft to
 `<partition>/phases/create-impl-plan/plan.md` — one draft per run, revised in
 place across iterations, never renumbered — with EXACTLY these six top-level
 headings, in this order:
@@ -306,11 +307,11 @@ statement of which intake mode applied (pre-existing specs, or folded).
 **"Minimal" never means empty.** On TRIVIAL/SMALL the coordinator skips the
 separate-subagent authorship step — never a section: a section that is empty,
 a placeholder, or "see ticket" fails the verifier's completeness sub-check,
-which judges this artifact identically whether the planner, the executor or
-the coordinator wrote it. At minimum every lane carries the AC-to-test
+which judges this artifact identically whether the executor or the
+coordinator wrote it. At minimum every lane carries the AC-to-test
 mapping, the executor file map, the test/coverage commands and tooling, the
 `docs/product/prd.md`/`docs/product/roadmap.md` factual assessment, and the
-verifier checklist. The remaining planner charter items — the Boy-scout drift
+verifier checklist. The remaining survey items — the Boy-scout drift
 survey, the E1-E4 doc-graph-gap check, the spec-simplicity gate and the
 oversize signal — are best-effort on TRIVIAL/SMALL only; their omission is
 never a finding there.
@@ -343,7 +344,7 @@ the verifier did not report.
 
 ALL blocking findings block — zero blocking findings = pass. On findings:
 persist the verify output, then AUTOMATICALLY re-execute, passing every
-finding to the next iteration's executor in `<context>` with no planner spawn
+finding to the next iteration's executor in `<context>` with no plan phase
 in between. After the lane's ceiling (light: 1 / full: 3) with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
@@ -465,7 +466,7 @@ spec or the design, leaves behavior undefined, or admits several plausible
 implementations with different user-visible outcomes — ask the user before
 publishing. Do not guess on decisions that change behavior.
 
-**Split-answer termination (ADR 0069).** When the planner's artifact carries
+**Split-answer termination (ADR 0069).** When the executor's authoring notes carry
 the open oversize question, record the user's answer with `clarify.py add`,
 the same as any other question above. On "accept one large PR": continue
 planning against the current decomposition — nothing else changes. On

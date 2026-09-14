@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 28 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 43 files, all reachable (12 triad-keeping skills × 3 + code's executor and verifier + create-docs' executor and verifier + 3 apply-work executors). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set (ADR-0092) |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 31 files, all reachable (14 executor + verifier pairs — the twelve authoring skills, `code` and `create-docs` — plus 3 apply-work executors; no skill has a planner since ADR-0092). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
@@ -100,9 +100,9 @@ onto the plugin hooks API like this:
 
    **Failure polarity is split, because the two questions carry opposite
    risks.** Deciding *whether the guard applies* fails OPEN — not an acs
-   partition, no executor active (a planner, a verifier and the coordinator all
+   partition, no executor active (a verifier and the coordinator both
    write outside any task's map legitimately), **no map declared** (a TRIVIAL
-   lane runs no planner), or a call that names no path. A bug there must not
+   lane spawns no executor and declares no map), or a call that names no path. A bug there must not
    deny every write on the machine. Deciding *whether this write is inside the
    map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
    read all deny, because a deny control that fails open is silently absent
@@ -231,7 +231,7 @@ places:
 
 The `internal` map is the design-phase **entry-point fold**, and it is a fold,
 not a collapse. A leg keeps everything that makes it a skill — its SKILL.md,
-its planner/executor/verifier trio, its `pre-`/`post-` hook scripts, its
+its executor/verifier pair, its `pre-`/`post-` hook scripts, its
 registered `GATES` entry, its settings key and its sentinel — and its entry
 point invokes it as a genuine Skill-tool call, so every one of those fires
 exactly as it would on a standalone run. What the map declares is narrower:
@@ -400,13 +400,17 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 2. if context.reconcile: reconcile recorded state against reality before continuing
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations):
-     plan    -> spawn <skill>-planner   (XML <task phase="plan">,   returns <result>)
-                (for /acs:create-impl-plan — which carved /acs:code's plan phase out into
-                 its own skill — this line is lane-conditional: STANDARD/COMPLEX spawn the
-                 planner as shown; on TRIVIAL/SMALL the coordinator writes plan.md directly,
-                 with no XML plan message sent or returned — D-4)
      execute -> spawn <skill>-executor(s) (XML <task phase="execute">; parallel executors
-                allowed when outputs cannot conflict; decomposition is coordinator-only)
+                allowed when outputs cannot conflict; decomposition is coordinator-only).
+                There is no plan phase (ADR-0092): iteration 1's executor SURVEYS first —
+                mode, inputs, evidence, open questions — records the survey in its
+                authoring notes (iter-<n>-authoring.md), and authors from them; an
+                open decision comes back as needs_input BEFORE any file is written.
+                (For /acs:create-impl-plan — which carved /acs:code's plan phase out into
+                 its own skill — this line is lane-conditional: STANDARD/COMPLEX spawn the
+                 executor as shown and it renders the plan.md draft; on TRIVIAL/SMALL the
+                 coordinator writes plan.md directly, with no XML execute message sent or
+                 returned — D-4)
      verify  -> spawn <skill>-verifier  (XML <task phase="verify">,  returns <result> with findings)
      - every subagent WRITES ITS OWN PHASE ARTIFACT (see below) and references it
        in <outputs>; the XML stays compact
@@ -427,18 +431,21 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
-**All twelve triad-keeping skills exception (MAR-71, slice 1b of MAR-69, for
-`/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for `/acs:create-project`;
-MAR-302 for `/acs:standardize-project`; MAR-305 for `/acs:create-prd` and
-the four doc-set legs that are since one planner-less skill,
-`/acs:create-docs` — ADR-0094; completed for `/acs:create-architecture`,
-`/acs:create-design`, and `/acs:create-requirements`):** for every triad
-skill, the plan step above runs exactly once, before this loop starts, and
-is not part of any iteration — it is never re-entered on iteration 2+. The
-loop body for all twelve is execute → verify only: on iteration 2+, verifier
+**No skill has a plan phase (ADR-0092).** The per-iteration re-plan went
+first (MAR-71, slice 1b of MAR-69, for `/acs:code`; MAR-300 for
+`/acs:docs-sync`; MAR-301 for `/acs:create-project`; MAR-302 for
+`/acs:standardize-project`; MAR-305 for `/acs:create-prd`; then
+`/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements`),
+leaving a plan step that ran once before the loop. ADR-0092 followed that to
+its conclusion: for a skill whose deliverable IS a document, a plan for it is
+a second copy of the writing, so the planner role is gone — `/acs:create-docs`
+first (ADR-0094), the other twelve authoring skills in ADR-0092's stage 2 —
+and the survey a planner used to make is iteration 1's executor's first job,
+recorded in its authoring notes. The loop body for every one of the fourteen
+skills that run one (the twelve authoring skills, `/acs:code` and
+`/acs:create-docs`) is execute → verify only: on iteration 2+, verifier
 findings feed straight into the next iteration's **executor** `<context>`,
-never back into a re-plan step, and the executor authors the remediation.
-There is no longer a triad-keeping skill that re-plans per iteration.
+with no plan phase in between, and the executor authors the remediation.
 
 ### Phase artifacts (written by the subagents themselves)
 
@@ -448,8 +455,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `<partition>/phases/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| plan | `iter-<n>-plan.md` (skill-qualified: `/acs:code`'s planner writes a single per-ticket `plan.md` instead — MAR-70 — written once per run, before the loop, never rewritten in place on a later iteration — MAR-71, slice 1b of MAR-69; every other triad skill keeps the `iter-<n>-plan.md` **name** (`n` always 1) but writes it exactly once per run — before the loop, never rewritten on a later iteration: `/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301), `/acs:standardize-project` (MAR-302), `/acs:create-prd` (MAR-305), and `/acs:create-architecture`, `/acs:create-design`, `/acs:create-requirements` (completing the migration); `/acs:create-docs` writes no plan artifact at all — its executor's authoring notes are the row below (ADR-0094)) | planner (on TRIVIAL/SMALL, `/acs:code`'s `plan.md` is written by the **coordinator**, not the planner, against the same contract — MAR-72) | the complete plan: analysis, task breakdown (executor tasks + inputs), files/areas touched, risks, what the verifier must check |
-| authoring | `iter-<n>-authoring.md` (`/acs:create-docs` only — the class-D author's notes, ADR-0092/ADR-0094) | executor | the mode (bootstrap / re-run) with its evidence; the Upstream inventory — every upstream fact the set was tailored on, cited with a verbatim excerpt, which the verifier corroborates through `citation_check.py`; ADR-0012 consistency findings; decisions and assumptions |
+| authoring | `iter-<n>-authoring.md` (every authoring skill — the class-D author's notes, ADR-0092/ADR-0094; there is no `plan` row: no skill writes `iter-<n>-plan.md` any more. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its executor's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70; on TRIVIAL/SMALL the **coordinator** writes `plan.md` directly and no executor runs — MAR-72)) | executor | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the verifier corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the verifier's `authoring-conformance` dimension judges the draft against these notes |
 | execute | `iter-<n>-execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>-verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
@@ -500,14 +506,16 @@ levels: between steps (gates), within /ship (ledger), and mid-skill
 
 ### Why not Claude Code's native plan mode
 
-The reflection plan phase deliberately does NOT use plan mode
-(`EnterPlanMode`/`ExitPlanMode`): plan mode's contract is *interactive user
-approval*, but planners run as spawned subagents (no user to approve; under
-`/ship` the whole step is headless — that is what the `needs_input` handoff is
-for), plugin agents cannot set `permissionMode`, and resumability comes from
-the phase artifacts + gates, not from plan-mode state. The planner's
-read-only discipline is enforced by its tool allowlist and charter instead
-(Write is permitted solely for its own `phases/<skill>/` artifacts). A user
+The reflection loop deliberately does NOT use plan mode
+(`EnterPlanMode`/`ExitPlanMode`) for the executor's survey: plan mode's
+contract is *interactive user approval*, but the executor and the verifier run
+as spawned subagents (no user to approve; under `/ship` the whole step is
+headless — that is what the `needs_input` handoff is for), plugin agents cannot
+set `permissionMode`, and resumability comes from the phase artifacts + gates,
+not from plan-mode state. The verifier's read-only discipline is enforced by
+its tool allowlist and charter instead (Write is permitted solely for its own
+`phases/<skill>/` artifacts); the executor's survey is bounded by the file
+map guard and its own charter. A user
 may still wrap a *direct* skill invocation in plan mode for pre-approval —
 that is orthogonal to the pipeline and changes nothing in this contract.
 
@@ -538,9 +546,10 @@ property, not a list: it covers the inline apply-work skills (`create-ticket`,
 `create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `metrics`,
 `usage`, `test`, `release`, `install-hooks`), and the orchestrators that drive
 other skills' loops without running one of their own (`ship`, `handoff`). The
-twelve triad-keeping skills report it.
+fourteen skills that run an execute → verify loop (the twelve authoring
+skills, `/acs:code` and `/acs:create-docs`) report it.
 
-`<cap>` is a constant **3** for eleven of those twelve. Only `/acs:code`
+`<cap>` is a constant **3** for thirteen of those fourteen. Only `/acs:code`
 derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 1 on light depth
 and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
 
@@ -645,7 +654,7 @@ runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-ticket` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; the planner's impact map; a not-ready analysis returns `needs_input` |
+| `analyze-ticket` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s executor plans from the impact map; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | `analysis.md`, `design.md`, the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code`'s input gate; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts under `contracts_path` | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; the code-verifier checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the executor writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
@@ -675,27 +684,31 @@ All coordinator <-> subagent communication uses the three message shapes in
 
 ## Subagents
 
-43 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 43 reachable —
+31 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 31 reachable —
 every one of them: the files on disk are exactly the roles `workflows/phases.yaml`
 declares under `agents` (ADR-0092), which is what
-`tests/acs/test_docs_reflection_topology.py` asserts. The twelve
-**triad-keeping skills** (`analyze-ticket`,
-`create-impl-plan`, `create-api-contract`, `create-test-docs`,
-`create-e2e-tests`, `create-prd`, `create-design`, `create-architecture`,
-`create-project`, `docs-sync`, `standardize-project`, `create-requirements`)
-spawn all three roles. Two of those twelve are the registry's **internal
-legs** (`create-project`, `standardize-project`): the entry-point fold left
-their trios untouched, which is exactly why it is a fold and not a collapse.
-**`/acs:create-docs` is planner-less** (ADR-0092 class D, ADR-0094): one
-executor authors any of the four doc sets from its templates and one verifier
-judges it, the set riding in the task constraints — 2 files for four sets
-where the four former legs shipped 12. **`/acs:code` is planner-less**: its plan phase became
-`/acs:create-impl-plan`, `code-planner.md` moved with it, and code ships only
-an executor and a verifier — 2 files, not 3, and no orphan. The three
-**apply-work skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and
-use only their executor, and ship only that: their six planner/verifier files
-were orphaned from the day the skills were inlined (MAR-60) and ADR-0092
-deleted them. No agent file is orphaned.
+`tests/acs/test_docs_reflection_topology.py` asserts. There are two roles,
+**executor** and **verifier**; no skill has a planner. The twelve
+**authoring skills** (`analyze-ticket`, `create-impl-plan`,
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`, `create-prd`,
+`create-design`, `create-architecture`, `create-project`, `docs-sync`,
+`standardize-project`, `create-requirements`) each ship the pair: the executor
+surveys on iteration 1, records the survey in its authoring notes and authors
+the deliverable from them; the verifier judges the deliverable fresh, against
+those notes among its other dimensions (ADR-0092 class D, stage 2). Two of
+those twelve are the registry's **internal legs** (`create-project`,
+`standardize-project`): the entry-point fold left their pairs untouched,
+which is exactly why it is a fold and not a collapse. **`/acs:create-docs`**
+was the first to drop its planner (ADR-0094): one executor authors any of the
+four doc sets from its templates and one verifier judges it, the set riding
+in the task constraints — 2 files for four sets where the four former legs
+shipped 12. **`/acs:code`** ships an executor and a verifier: its plan phase
+became `/acs:create-impl-plan`, whose executor's survey inherited the former
+`code-planner.md` charter. The three **apply-work skills** (`create-ticket`,
+`create-pr`, `merge-pr`) run inline and use only their executor, and ship
+only that: their six planner/verifier files were orphaned from the day the
+skills were inlined (MAR-60) and ADR-0092 deleted them. No agent file is
+orphaned.
 Conventions:
 
 - Frontmatter: `name`, `description` (when the coordinator spawns it), and
@@ -704,9 +717,9 @@ Conventions:
   skill-start into `context.models` and applied by the coordinator at spawn
   time. An unknown model id or unsupported effort fails at spawn — surface the
   error, never silently fall back.
-- Planners and verifiers are read-only with ONE exception: each writes its
-  own phase artifact under `<partition>/phases/<skill>/` (plan file /
-  verification report — see Phase artifacts above). Only executors mutate
+- Verifiers are read-only with ONE exception: each writes its own phase
+  artifact under `<partition>/phases/<skill>/` (the verification report — see
+  Phase artifacts above). Only executors mutate
   real targets (the repo for /code and the product-level skills, the
   workspace artifacts — specs, and the ticket-document DRAFTS under
   `<partition>/phases/<skill>/` — for the rest; a document in the ticket
@@ -870,8 +883,8 @@ state** — never by asking a model to skip politely, and never by
 invocation-time options that would bypass the audit trail (ADR 0008). Since the
 skills-independence refactor those conditions live in two places, and only two:
 a step's `when` / `requires` predicate in `workflows/ship.yaml`, and ticket
-flags set during `/acs:create-ticket` analysis (planner-recommended,
-user-confirmed) that the skills themselves read. A `when`-false step is
+flags set during `/acs:create-ticket` analysis (recommended by the
+coordinator's analysis, user-confirmed) that the skills themselves read. A `when`-false step is
 RECORDED as `steps.<id>.status = "skipped"` with its reason — the skip is data
 in the ledger, auditable afterwards, not an absence. Current conditional
 controls:
@@ -933,7 +946,7 @@ lives there with id (`C-n`), asking skill, status
 (`open | answered | assumed | withdrawn`), source (`user | assumption`), and
 rationale for assumptions.
 
-1. **Research first.** A planner/executor never asks what the repo, docs,
+1. **Research first.** An executor never asks what the repo, docs,
    PRD, design, or ledger can answer — researchable facts are researched and
    cited (grounding rules); only genuinely open decisions (user preference or
    business trade-off that changes what gets built) become questions.
@@ -976,19 +989,21 @@ induction invariant, not a periodic chore:
   against both the PRD and the actual codebase.
 - **Inductive step** — every ticket carries its own architecture delta on
   the SAME branch/PR: /create-design conforms or lists required doc changes;
-  `/acs:docs-sync`'s planner names the HLD files and `lld/flows/` diagrams
-  to update, from the diff, after `/acs:code` completes; `docs-sync`'s
+  `/acs:docs-sync`'s executor names the HLD files and `lld/flows/` diagrams
+  to update, from the diff, in its authoring notes after `/acs:code`
+  completes; `docs-sync`'s
   verifier derives the architectural impact from the diff itself (a
   positive, evidenced conclusion — never a default) and blocks before
   `/acs:create-pr` runs when impact exists without matching doc changes.
 - **Drift repair (boy-scout)** — commits that bypass the pipeline can still
-  desynchronize docs. Both the design planner and the implementation planner
-  (`create-impl-plan-planner.md`, formerly `code-planner.md`) compare
-  the touched area's docs against current code and schedule stale sections
-  for repair as part of the ticket (on TRIVIAL/SMALL this survey is
-  **best-effort** and coordinator-carried instead of planner-carried, since
-  no implementation planner is spawned on those lanes — MAR-72; its omission
-  there is never a finding); widespread drift triggers a recommended
+  desynchronize docs. Both the design executor's and the implementation
+  executor's surveys (`create-impl-plan-executor.md`, which inherited the
+  former `code-planner.md` charter) compare the touched area's docs against
+  current code and schedule stale sections for repair as part of the ticket
+  (on TRIVIAL/SMALL this survey is **best-effort** and coordinator-carried
+  instead of executor-carried, since no executor is spawned on those lanes —
+  MAR-72; its omission there is never a finding); widespread drift triggers a
+  recommended
   /create-architecture re-run (the full reconcile, shipped as its own
   delivery ticket + docs PR).
 
@@ -1013,7 +1028,7 @@ The PR is the unit of review, and **the ticket is the PR boundary** — every
 spec of a ticket lands on one branch in one PR. Size is therefore controlled
 at two levers, with an escalation between them:
 
-1. **Ticket sizing (controls PR size).** `/create-ticket`'s planner applies a
+1. **Ticket sizing (controls PR size).** `/create-ticket`'s coordinator applies a
    PR-size rubric to the type decision: a story/task should yield one
    reviewable PR — rule of thumb ~≤400 changed lines, one concern, ≤~7
    acceptance criteria, grounded in the codebase survey. Above the bar →
@@ -1024,14 +1039,15 @@ at two levers, with an escalation between them:
 3. **Sizing today.** The mid-decomposition "stop and recommend a
    split" step this bullet described through the standalone spec-authoring era belonged
    to the deleted spec-authoring planner (ADR 0066 supersedes ADR 0006);
-   `create-impl-plan-planner.md` (the former `code-planner.md`, which moved
-   with the plan phase) migrated the narrower **Spec-simplicity gate** — when
+   `create-impl-plan-executor.md`'s survey (which inherited the former
+   `code-planner.md` charter when the plan phase moved and ADR-0092 retired
+   the planner role) migrated the narrower **Spec-simplicity gate** — when
    a materially simpler decomposition satisfying the same acceptance criteria
    exists, it is surfaced as a question, never a stop — plus (ADR 0069) a
    non-blocking **oversize signal** on the same charter item: when the
    decomposition itself exceeds `create-ticket/SKILL.md`'s sizing rubric's
-   `~4-spec`/`~400-line`/`~7-AC` rubric, the implementation planner records
-   the split seams in the plan artifact and surfaces a `<question>` through the
+   `~4-spec`/`~400-line`/`~7-AC` rubric, the implementation executor records
+   the split seams in its authoring notes and the plan draft and surfaces a `<question>` through the
    clarification ledger — never a stop.
    Oversized-ticket control is therefore a two-lever chain again: lever 1,
    `/create-ticket`'s upfront PR-size rubric, before any decomposition
@@ -1040,7 +1056,7 @@ at two levers, with an escalation between them:
    `failed` status and a `/acs:create-ticket split <id>` next step instead
    of continuing silently.
 
-The numbers are deliberate rules of thumb for the planners' judgment, not
+The numbers are deliberate rules of thumb for the authors' judgment, not
 hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.

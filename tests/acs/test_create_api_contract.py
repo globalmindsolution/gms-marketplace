@@ -15,7 +15,7 @@ checks the claim against that layer:
     is what `states.traced_acs` records and what /acs:create-test-docs reads;
   * `contracts_path` modes — including the refusal to invent a contract format
     a repo does not already keep;
-  * the triad's shape (one planner, execute -> verify, artifacts, grounding).
+  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_create_api_contract -v
 """
@@ -37,7 +37,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("planner", "executor", "verifier")
+ROLES = ("executor", "verifier")
 
 STATES_KEYS = ("contract_path", "items", "traced_acs")
 
@@ -270,10 +270,10 @@ class TestTraceability(unittest.TestCase):
     def test_the_skill_states_the_two_way_trace(self):
         self.assertRegex(self.body, r"traces back to an\s+acceptance criterion AND to the plan item")
 
-    def test_the_planner_reports_gaps_in_both_directions(self):
-        planner = agent("planner")
-        self.assertRegex(planner, r"traces to no acceptance criterion")
-        self.assertRegex(planner, r"no item covers is a gap in the plan")
+    def test_the_executor_survey_reports_gaps_in_both_directions(self):
+        executor = agent("executor")
+        self.assertRegex(executor, r"traces to no acceptance criterion")
+        self.assertRegex(executor, r"no item covers is a gap in the plan")
 
     def test_the_verifier_checks_the_table_against_the_execute_report(self):
         verifier = agent("verifier")
@@ -303,7 +303,7 @@ class TestContractsPathModes(unittest.TestCase):
 
     def test_it_refuses_to_invent_a_contract_format(self):
         self.assertRegex(self.body, r"Do NOT invent the convention")
-        self.assertRegex(agent("planner"),
+        self.assertRegex(agent("executor"),
                          r"never propose introducing a contract format")
 
     def test_the_mode_is_declared_to_every_subagent(self):
@@ -396,9 +396,8 @@ class TestPublishing(unittest.TestCase):
 class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
-        for role in ("planner", "verifier"):
-            fm, _ = frontmatter(agent(role), role)
-            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        fm, _ = frontmatter(agent("verifier"), "verifier")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
         fm, _ = frontmatter(agent("executor"), "executor")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -411,7 +410,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-api-contract/iter-<n>-plan.md", agent("planner"))
+        self.assertIn("phases/create-api-contract/iter-<n>-authoring.md", agent("executor"))
         self.assertIn("phases/create-api-contract/iter-<n>-execute.json", agent("executor"))
         self.assertIn("phases/create-api-contract/iter-<n>-verify.md", agent("verifier"))
 
@@ -429,9 +428,18 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
         self.assertIn("police grounding", agent("verifier"))
 
-    def test_one_planner_per_run_and_a_capped_loop(self):
+    def test_no_planner_and_a_capped_loop(self):
+        """ADR-0092 class D: the deliverable is the document, so a plan for it
+        would be a second copy of the work — execute -> verify only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"Plan once, before the loop")
+        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertNotIn("acs:create-api-contract-planner", body)
+        self.assertNotIn("iter-1-plan.md", body)
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-api-contract-planner.md")))
+        executor = agent("executor")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
+        self.assertRegex(agent("verifier"), r"(?m)^8\. `authoring-conformance`")
         self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
         self.assertIn("never spawn subagents", body.lower())
 

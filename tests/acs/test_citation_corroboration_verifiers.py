@@ -527,7 +527,8 @@ class LoopTopologyMigratedTest(unittest.TestCase):
                     "%s/SKILL.md must no longer carry the per-iteration "
                     "re-spawn sentence (MAR-305 drops it)" % skill)
         norm = re.sub(r"\s+", " ", read(os.path.join(SKILLS, "create-prd", "SKILL.md")))
-        self.assertRegex(norm, r"(?i)exactly one.{0,80}acs:create-prd-planner")
+        self.assertNotIn("acs:create-prd-planner", norm)
+        self.assertRegex(norm, r"(?i)no planner")
         docs = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
         self.assertNotIn("acs:create-docs-planner", docs)
         self.assertRegex(docs, r"(?i)no planner")

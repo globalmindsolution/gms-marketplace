@@ -106,25 +106,25 @@ when the user takes the defaults for everything else.
 decision. Offer three shapes with AskUserQuestion:
 
 1. **Recommended (default)** — the version-pinned ids, never the coarse tier
-   aliases: `planner: claude-opus-5`, `executor: claude-sonnet-5`,
-   `verifier: claude-opus-5` (opus for strong reasoning on planning and review,
-   the faster/cheaper sonnet for the mechanical execution role). Pinned ids
+   aliases: `executor: claude-sonnet-5`, `verifier: claude-opus-5` (opus for
+   strong reasoning on review, the faster/cheaper sonnet for the authoring and
+   execution role). Pinned ids
    (MAR-81) land a fresh init on a stable, explicit model rather than a runtime
    alias. Pick this and move on if unsure — a repo that wants a stronger
    execution role takes **Custom**.
 2. **Inherit the session model** — set nothing; every role runs on whatever the
    user's Claude Code session is using.
-3. **Custom** — set any of the three roles individually.
+3. **Custom** — set either role individually.
 
 **Reasoning effort per role** is its own choice, not merely the object-shape
 note: for every role the user pins, offer a level —
 `low | medium | high | xhigh | max | inherit` (`inherit` leaves it to the
-model's default). The pinned default sets `high` for planner/executor/verifier.
+model's default). The pinned default sets `high` for executor/verifier.
 
 On a **re-run**, show the currently-resolved per-role models and where each came
 from, and ask only whether to change them — never force a re-pick.
 
-Shape per role (`planner`, `executor`, `verifier`): a model string, or
+Shape per role (`executor`, `verifier`; `planner` is accepted but inert): a model string, or
 `{"model": "...", "effort": "..."}`, plus per-skill
 `models.overrides.<skill>.<role>`. Any non-empty model string is accepted (so a
 newer model name works without a skill update); resolution is per field:

@@ -5,7 +5,7 @@ Validates a single finding dict against the fixed shape ADR 0012 defines:
 `{kind: "gap"|"staleness", upstream, downstream, description, recommendation}`.
 This is a pure shape-validation utility for the test suite (and any future
 prose tooling) — it performs no doc-graph detection itself; that stays in the
-planner prose per ADR 0012's "no new tooling" decision.
+executor prose per ADR 0012's "no new tooling" decision.
 
 Stdlib-only, Python >= 3.9. No `acs_lib` import, no I/O, no CLI/`main()`, no
 hook wiring — mirrors the "Stdlib-only" framing in `codeowners.py`.

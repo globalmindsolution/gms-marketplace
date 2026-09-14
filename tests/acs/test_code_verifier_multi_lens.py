@@ -371,7 +371,7 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
     FULL_VERIFY_ANCHORS = [
         "full verify (the",
         "(≤ 3 iterations)",
-        "plan→execute→verify loop",
+        "never a per-iteration re-plan",
         "e2e when configured) for",
     ]
 

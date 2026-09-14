@@ -151,7 +151,7 @@ the pre-hook prints a one-line advisory on stderr and the skill runs anyway.
 #### Internal legs — not commands you run
 
 These two are the `internal` map of `workflows/phases.yaml`. Each keeps its
-SKILL.md, its planner/executor/verifier trio, its `pre-`/`post-` hook scripts,
+SKILL.md, its executor/verifier pair, its `pre-`/`post-` hook scripts,
 its registered gate and its sentinel, and its entry point invokes it as a
 genuine Skill-tool call so all of that fires exactly as it would standalone.
 What changed is only who invokes them: each says in its description that it
@@ -172,7 +172,7 @@ scaffold ticket in `tickets-index.json`).
 |-------|----------------------|--------------|
 | `/acs:analyze-ticket` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
 | `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
-| `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the planner agent, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
+| `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the executor's survey (the former planner charter), the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
 | `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
 | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | TDD implementation on a ticket branch against the coverage target, writing tests from `test-cases.md` when present; reconciles factual product-doc claims; verifier review loop (max 3 iterations). |
 | `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
@@ -288,7 +288,7 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 | `prd_path` | `"docs/product"` | PRD doc set location in the repo |
 | `architecture_path` | `"docs/architecture"` | HLD/LLD doc set location in the repo |
 | `adr_path` | unset | When set, `/acs:docs-sync` commits accepted decision records here |
-| `models` | inherit | Per-role model + reasoning effort (`planner`/`executor`/`verifier`, per-skill overrides) |
+| `models` | inherit | Per-role model + reasoning effort (`executor`/`verifier`, per-skill overrides; a `planner` entry is still accepted but no skill spawns one — ADR-0092) |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
 | `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |
 

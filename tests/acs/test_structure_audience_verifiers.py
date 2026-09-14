@@ -68,7 +68,7 @@ VERIFIERS = {
             "doc-set-completeness", "prd-coverage", "codebase-match",
             "mermaid-diagrams", "internal-consistency",
             "diagram-prose-agreement", "hld-lld-consistency",
-            "plan-conformance", "docs-only-changeset",
+            "authoring-conformance", "docs-only-changeset",
         ),
     ),
     "create-design-verifier.md": (
@@ -86,7 +86,7 @@ VERIFIERS = {
     "create-requirements-verifier.md": (
         "Interactive-confirm discipline",
         (
-            "Required-file-presence", "Mode-conformance", "Plan-conformance",
+            "Required-file-presence", "Mode-conformance", "Authoring-conformance",
             "Iteration 2+ regression check",
             "Coverage (≥90%, 0 silent omissions)", "Citation (100%)",
             "DRAFT marker", "No-fabrication",
@@ -151,7 +151,7 @@ def verify_phase_region(skill_md_body, skill_name):
     spawned/passed to the verifier: from the first line naming the Verify
     phase (`### Verify`, `### Phase: verify`, or the numbered `**Verify**`
     Phases-list item) to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
+    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|[23]\.\s+\*\*Verify\*\*.*)$",
                   skill_md_body)
     assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
     rest = skill_md_body[m.end():]

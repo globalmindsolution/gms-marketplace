@@ -99,7 +99,7 @@ class Mar143FilesExistCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(SKILL_PATH), SKILL_PATH)
 
     def test_triad_agents_exist(self):
-        for role in ("planner", "executor", "verifier"):
+        for role in ("executor", "verifier"):
             path = os.path.join(PLUGIN, "agents", "create-requirements-%s.md" % role)
             self.assertTrue(os.path.isfile(path), path)
 
@@ -142,8 +142,8 @@ class Mar143CountBumpCase(unittest.TestCase):
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
         self.assertIn("28 x SKILL.md", body)
-        self.assertIn("43 x agent .md (all reachable)", body)
-        self.assertIn("twelve triad-keeping skills", body)
+        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertIn("twelve authoring skills", body)
         self.assertIn("create-requirements", body)
         self.assertIn("dispatch + 15 pre + 15 post hooks", body)
 
@@ -157,9 +157,9 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_c4_component_bumped_counts_present(self):
         body = self._c4_component()
-        self.assertIn("twelve triad-keeping skills", body)
-        self.assertIn("12 active triads (36 agents in triads)", body)
-        self.assertIn("43 agent files, all reachable", body)
+        self.assertIn("twelve authoring skills", body)
+        self.assertIn("12 authoring pairs (24 agents in pairs)", body)
+        self.assertIn("31 agent files, all reachable", body)
         self.assertIn("create-requirements", body)
 
     def test_c4_component_stale_counts_absent(self):

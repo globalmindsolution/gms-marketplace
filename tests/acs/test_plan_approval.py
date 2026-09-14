@@ -652,7 +652,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         `### Plan approval` and `### Docs-only tickets`, so slicing at the
         old boundary would silently widen every slice-based assertion below
         to include revocation prose too."""
-        plan_idx = self.skill_body.index("### Plan (once, before the loop)")
+        plan_idx = self.skill_body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.skill_body.index("### Plan approval")
         revocation_idx = self.skill_body.index("### Plan revocation")
         self.assertGreater(approval_idx, plan_idx)

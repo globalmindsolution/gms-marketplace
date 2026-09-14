@@ -35,7 +35,7 @@ If skill-start exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `partition`, `ticket_id`, `ticket`, `settings` (`prd_path`,
 `architecture_path`, `formats`, `tracker`), `models`
-(`planner`/`executor`/`verifier`), `reconcile`, `handoff_summary`,
+(`executor`/`verifier`), `reconcile`, `handoff_summary`,
 `post_hook`, `pipeline`, `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled
@@ -59,10 +59,10 @@ BEFORE continuing:
 - Distrust the record where it is cheap to re-check (a doc "written" but
   missing or truncated counts as not done).
 - Continue from the first unfinished phase of the recorded iteration.
-- A resumed run reuses the existing
-  `<partition>/phases/create-architecture/iter-1-plan.md` and never spawns a
-  second planner; the plan phase runs (once) only when that artifact is
-  absent.
+- There is no plan artifact to reuse: an execute with no verify → verify
+  it; a verify with findings and no later execute → execute with those
+  findings as `<context>`. The executor's authoring notes
+  (`iter-<n>-authoring.md`) belong to their iteration.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/create-architecture/handoff-context.md` (if present),
@@ -106,35 +106,37 @@ The executor writes EXACTLY this doc set under
 
 Rules: ALL diagrams are Mermaid (diffable, GitHub-rendered). C4 level 4
 (code) is deliberately out of scope — the code and its API docs serve that
-level. The planner selects the main runtime flows for `lld/flows/` and the
-user confirms the list before execution.
+level. Iteration 1's executor selects the main runtime flows for
+`lld/flows/` in its authoring notes and the user confirms the list before
+the doc set is written (User interaction).
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:create-architecture-planner` across the whole run, however many
-iterations the loop below uses. The loop itself is execute -> verify, max 3
-iterations. Decomposition is YOURS alone — subagents never spawn subagents.
+The loop is execute -> verify, max 3 iterations. There is no plan phase:
+iteration 1's executor decides the mode, inventories the PRD and the
+codebase, fixes the canonical component vocabulary and the flow list in its
+authoring notes, and authors the doc set from them; the verifier judges the
+result fresh. On iterations 2-3 the verifier's findings go verbatim into the
+next executor `<task>` `<context>` and the executor authors the remediation.
+Decomposition is YOURS alone — subagents never spawn subagents.
 
-**What an iteration counts.** One iteration is one execute -> verify round;
-the plan phase runs once, before the loop, and is not part of any
-iteration, so the cap counts execute+verify rounds, not a
-plan+execute+verify triad. `/acs:create-architecture` has no lane-driven
-verify-depth selection: the cap is a fixed 3 in every lane.
+**What an iteration counts:** one execute -> verify round.
+`/acs:create-architecture` has no lane-driven verify-depth selection: the
+cap is a fixed 3 in every lane.
 
 Spawn subagents with the Agent tool: subagent_type
-`acs:create-architecture-planner` / `acs:create-architecture-executor` /
+`acs:create-architecture-executor` /
 `acs:create-architecture-verifier` (fall back to the un-namespaced name if
 the runtime rejects the namespaced one). Apply
 `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if
 the runtime rejects the model or effort, FAIL the run with that error — no
 silent fallback.
 
-Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
+Communicate in XML per `schemas/acs-messages.xsd`. Example execute task:
 
 ```xml
-<task skill="create-architecture" phase="plan" ticket-id="SHOP-2" iteration="1">
-  <objective>Read the PRD and inventory the codebase; decide reverse-engineer vs greenfield; produce a file-by-file plan for the doc set and propose the key runtime flows for lld/flows/.</objective>
+<task skill="create-architecture" phase="execute" ticket-id="SHOP-2" iteration="1">
+  <objective>Read the PRD and inventory the codebase; decide reverse-engineer vs greenfield; record the per-file outline, the canonical component vocabulary and the proposed runtime flows for lld/flows/ in the authoring notes; then write the doc set from them.</objective>
   <inputs>
     <file>docs/product/prd.md</file>
     <file>docs/product/roadmap.md</file>
@@ -142,8 +144,7 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example plan task:
   </inputs>
   <constraints>
     <constraint name="diagrams">Mermaid only: C4Context/C4Container/C4Component or flowchart, erDiagram, sequenceDiagram; C4 level 4 out of scope.</constraint>
-    <constraint name="naming">Fix the canonical container/component names in the plan; HLD and LLD must share this vocabulary.</constraint>
-    <constraint name="read-only">The plan phase mutates nothing.</constraint>
+    <constraint name="naming">Fix the canonical container/component names in the authoring notes; HLD and LLD must share this vocabulary.</constraint>
     <constraint name="required_sections:hld/overview.md">System context; Goals; Quality attributes; Constraints</constraint>
     <constraint name="required_sections:hld/tech-stack.md">Languages; Frameworks; Conventions</constraint>
     <constraint name="required_sections:hld/project-structure.md">Directory layout</constraint>
@@ -164,35 +165,34 @@ with the validation error recorded in `errors`.
 
 Persist every phase output to
 `<partition>/phases/create-architecture/iter-<n>-<phase>.xml` at the phase
-boundary, BEFORE starting the next phase. The plan phase runs once, so its
-message pair persists once as `iter-1-plan.xml` and its artifact is
-`<partition>/phases/create-architecture/iter-1-plan.md`; execute and verify
-keep persisting per iteration, and every iteration's executor and verifier
-`<inputs>` name that same `iter-1-plan.md`.
+boundary, BEFORE starting the next phase. The executor's own artifacts are
+`iter-<n>-authoring.md` (Mode; Inventory; Target doc set with the per-file
+outline; Flow selection; Delivery step; Risks & open decisions; Verifier
+checklist — the Upstream inventory cites every PRD and codebase fact
+verbatim) and `iter-<n>-execute.json`; every iteration's verifier `<inputs>`
+name that iteration's authoring notes.
 
 Phases:
 
-1. **Plan** (once, before the loop) — spawned exactly once per run, before
-   iteration 1: the plan is authored once and there is no per-iteration
-   re-plan; on iterations 2-3 the verifier's findings route straight to the
-   executor's `<task>` `<context>` (see phase 2 below), where the executor
-   authors the remediation. The planner returns the mode decision, the
-   codebase/PRD inventory, the per-file outline, the canonical component
-   vocabulary, and the proposed flow list. The planner also runs the shared
-   ADR-0012 design-time doc-consistency step; any findings surface through
-   the "Clarification ledger first" mechanism below (User interaction).
-   Confirm the flow list (and any open reverse-engineering points) with the
-   user (see User interaction), then persist the plan.
-2. **Execute** — executors write the doc set on the ticket branch (create
-   the branch first — see Delivery). Decomposition is YOURS alone; subagents
-   never spawn subagents. You MAY run two executors in parallel — one for
-   `hld/*`, one for `lld/*` — ONLY when the plan has pinned the shared
-   container/component vocabulary so their outputs cannot conflict; their
-   `<task phase="execute">` inputs include the persisted plan XML and the
-   PRD. Otherwise run a single executor. On iterations 2-3 the verifier's
-   findings go verbatim into the executor `<task>`'s `<context>`, with no
-   planner spawn in between.
-3. **Verify** — after ALL executors finish, spawn the verifier on the
+1. **Execute** — iteration 1's executor decides the mode, inventories the
+   codebase and the PRD, fixes the canonical component vocabulary, proposes
+   the flow list in its authoring notes, and runs the shared ADR-0012
+   design-time doc-consistency step; any findings surface through the
+   "Clarification ledger first" mechanism below (User interaction). Unless
+   the task `<context>` says the flow list is already confirmed, it returns
+   `needs_input` with the list: confirm it (and any open reverse-engineering
+   points) with the user, then re-run execute for the same iteration with
+   the answers in `<context>`. The executor then writes the doc set on the
+   ticket branch (create the branch first — see Delivery). Decomposition is
+   YOURS alone; subagents never spawn subagents. Iteration 1 runs a single
+   executor (the notes and the set are one act). On iterations 2-3 you MAY
+   run two executors in parallel — one for `hld/*`, one for `lld/*` — ONLY
+   because the iteration-1 notes pinned the shared container/component
+   vocabulary so their outputs cannot conflict; their `<task
+   phase="execute">` inputs include those notes and the PRD. Otherwise run a
+   single executor. On iterations 2-3 the verifier's findings go verbatim
+   into the executor `<task>`'s `<context>`, with no plan phase in between.
+2. **Verify** — after ALL executors finish, spawn the verifier on the
    combined result. It judges fresh from artifacts only (never the
    executors' reasoning) and checks, all blocking:
    - the design **satisfies the PRD**: goals, product-level NFRs,
@@ -209,14 +209,14 @@ Phases:
 
    The verify task's `<constraints>` also carry each in-scope file's
    `required_sections:<file>` and the `audience_style_profile` declared in
-   the Plan task example above — the single-diagram HLD files and
+   the execute task example above — the single-diagram HLD files and
    `lld/flows/<flow>.md` stay outside the structure floor (covered instead
    by dim-1 `doc-set-completeness` and the diagram-lint gate).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, persist
 `iter-<n>-verify.xml`, then feed them verbatim into the next iteration's
-executor `<task>` `<context>` — not a new plan — with no planner spawn in
-between, and re-run execute -> verify. After iteration 3 with findings
+executor `<task>` `<context>` — with no plan phase in between, and re-run
+execute -> verify. After iteration 3 with findings
 remaining: stop, final status `failed`, findings recorded in the result
 document; commit whatever was written to the local ticket branch so
 nothing is lost, but do NOT push or open the PR.
@@ -307,7 +307,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
 Ask clarifying questions when genuinely ambiguous (AskUserQuestion or plain
-questions) — at minimum: confirm the planner's flow list for `lld/flows/`,
+questions) — at minimum: confirm the executor's flow list for `lld/flows/`,
 and confirm open reverse-engineering points on existing codebases. Do not
 ask about things the PRD or the code already answers.
 

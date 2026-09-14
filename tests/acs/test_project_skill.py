@@ -210,10 +210,13 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertIn(leg, acs_lib.GATES)
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % leg)))
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % leg)))
-                for role in ("planner", "executor", "verifier"):
+                for role in ("executor", "verifier"):
                     self.assertTrue(
                         os.path.isfile(os.path.join(AGENTS_DIR, "%s-%s.md" % (leg, role))),
                         "%s-%s.md must survive the fold" % (leg, role))
+                self.assertFalse(
+                    os.path.exists(os.path.join(AGENTS_DIR, "%s-planner.md" % leg)),
+                    "%s lost its planner under ADR-0092, not the fold" % leg)
                 body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
                 self.assertIn("skill-start.py", body)
                 self.assertIn("--skill %s" % leg, body)

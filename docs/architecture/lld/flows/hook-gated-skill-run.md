@@ -7,46 +7,45 @@ This flow is **also** exactly what an `internal` leg of `/acs:create-docs` or
 `/acs:project` runs (`workflows/phases.yaml`). The design-phase entry-point
 fold changed only who may invoke those two skills, never how they run: the
 entry point invokes each leg as a genuine Skill-tool call, so the
-`PreToolUse(Skill)` gate, `skill-start.py`, the triad and the `post-` hook all
+`PreToolUse(Skill)` gate, `skill-start.py`, the reflection loop and the `post-` hook all
 fire for real, precisely as drawn below. Read every `/acs:create-project`-style
 name in this file as the skill, not as a command a user types.
 
-The diagram below shows the **full reflection triad** (planner → executor →
-verifier), which is how the twelve triad-keeping skills run (`create-prd`,
-`create-architecture`, `create-project`, `create-design`, `docs-sync`,
-`standardize-project`, `create-requirements`, `analyze-ticket`,
-`create-impl-plan`, `create-api-contract`, `create-test-docs`,
-`create-e2e-tests`); `code` and `create-docs` run the same loop without the
-planner — `/acs:code` is the example traced here; the diagram's
-`PL->>WS` plan write is therefore labeled `plan.md`, `/acs:code`'s single
-per-ticket plan artifact (MAR-70) — the other eleven triad skills write
-`iter-n-plan.md` there instead. Because `/acs:code` is the traced example and
-MAR-71 (slice 1b of MAR-69) moved its plan phase out of the loop, the `CO->>PL`
-/ `PL->>WS` steps below happen **once, before** the `loop reflection` block for
-`/acs:code`; every other triad skill now shares that same shape — no triad
-skill draws the plan step **inside** the `loop reflection` block any longer.
-`/acs:docs-sync` (MAR-300), `/acs:create-project` (MAR-301),
-`/acs:standardize-project` (MAR-302), `/acs:create-prd` (MAR-305 — which also
-covered the four doc-set legs since folded into the planner-less
-`/acs:create-docs`, ADR 0094), and finally `/acs:create-architecture`, `/acs:create-design`, and
-`/acs:create-requirements` have all joined `/acs:code` outside the loop:
-their plan phase likewise runs once, before the loop, with iteration-2+
-findings routed straight to their executor's `<context>`. Those same two
-steps (`CO->>PL` / `PL->>WS`) are additionally **lane-conditional** for
-`/acs:code` specifically since MAR-72: they fire on STANDARD/COMPLEX only;
-on TRIVIAL/SMALL the coordinator writes `plan.md` itself and there is no
-`PL` participant leg at all for that run (ADR 0074) — see the `alt` branch
-below. None of the other eleven triad skills has a lane-conditional planner
-— each runs a fixed iteration cap of 3 in every lane. The three **apply-work
-skills** (`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead
-(MAR-60): the coordinator performs the steps directly or delegates to **at most
-one executor**, with **no planner and no verifier subagent** in any lane —
-their correctness is gated upstream by `/code`'s verifier (`create-pr`,
-`merge-pr`) or by the schema plus the user-confirmation gate (`create-ticket`).
-Immediately after the plan step and before the reflection loop, on
-STANDARD/COMPLEX only, `/acs:code` also runs `plan-approval.py`, which
-records a deterministic plan-approval verdict and gates nothing this release
-(MAR-73, slice 3 of MAR-69). The `code-verifier` now reads that record itself
+The diagram below shows the **reflection loop** (execute → verify), which is
+how the twelve authoring skills run (`create-prd`, `create-architecture`,
+`create-project`, `create-design`, `docs-sync`, `standardize-project`,
+`create-requirements`, `analyze-ticket`, `create-impl-plan`,
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
+`code` and `create-docs` run it too. No skill has a plan phase (ADR 0092):
+for an authoring skill, iteration 1's executor surveys first, records the
+survey in `iter-n-authoring.md`, and authors the deliverable from it; the
+verifier judges the deliverable against those notes among its other
+dimensions. `/acs:code` is the example traced here: it enters the loop with
+the `plan.md` that `/acs:create-impl-plan` approved as an input (ADR 0089),
+so its executor writes no authoring notes. The per-iteration re-plan left
+the loop first (MAR-71, slice 1b of MAR-69, for `/acs:code`; MAR-300 for
+`/acs:docs-sync`; MAR-301 for `/acs:create-project`; MAR-302 for
+`/acs:standardize-project`; MAR-305 for `/acs:create-prd`, which also
+covered the four doc-set legs since folded into `/acs:create-docs`, ADR
+0094; then `/acs:create-architecture`, `/acs:create-design` and
+`/acs:create-requirements`), and ADR 0092 then retired the plan phase
+itself, so iteration-2+ findings route straight to the executor's
+`<context>` in every skill. One execute leg is **lane-conditional**:
+`/acs:create-impl-plan`'s, since MAR-72 — its executor (whose survey is the
+former `code-planner` charter) is spawned on STANDARD/COMPLEX only; on
+TRIVIAL/SMALL the coordinator writes `plan.md` itself and there is no `EX`
+participant leg at all for that run (ADR 0074) — see the `opt` branch
+below. No other skill has a lane-conditional executor — each runs a fixed
+iteration cap of 3 in every lane. The three **apply-work skills**
+(`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead (MAR-60):
+the coordinator performs the steps directly or delegates to **at most one
+executor**, with **no verifier subagent** in any lane — their correctness is
+gated upstream by `/code`'s verifier (`create-pr`, `merge-pr`) or by the
+schema plus the user-confirmation gate (`create-ticket`). Immediately after
+the plan is authored and before the reflection loop, on STANDARD/COMPLEX
+only, `/acs:create-impl-plan` also runs `plan-approval.py`, which records a
+deterministic plan-approval verdict and gates nothing this release (MAR-73,
+slice 3 of MAR-69). The `code-verifier` reads that record itself
 for dimension 15 (plan conformance) — never a coordinator-relayed value — and
 when dimension 15 blocks because the *plan* is wrong rather than the
 changeset, the boundary-gated revocation path copies `plan.md` to
@@ -62,7 +61,6 @@ sequenceDiagram
     participant PRE as acs_lib.GATES[skill] (in-process)
     participant CO as Coordinator (SKILL.md)
     participant SS as skill-start.py
-    participant PL as <skill>-planner
     participant EX as <skill>-executor(s)
     participant VF as <skill>-verifier
     participant POST as post-<skill>.py
@@ -84,23 +82,20 @@ sequenceDiagram
         opt reconcile / handoff resume
             CO->>WS: read runs[-1], phase artifacts, re-verify recorded work
         end
-        alt /acs:code on TRIVIAL/SMALL (MAR-72)
-            CO->>WS: plan.md (coordinator-authored, no planner spawn)
-        else STANDARD/COMPLEX, or any other triad-keeping skill
-            CO->>PL: XML <task phase="plan">
-            PL->>WS: plan.md
-            PL-->>CO: XML <result> (validated)
+        opt /acs:create-impl-plan on TRIVIAL/SMALL (MAR-72, ADR 0074)
+            CO->>WS: plan.md (coordinator-authored, no executor spawn — the loop below runs verify only)
         end
-        opt open questions
+        opt open questions (an executor returns needs_input before writing any file)
             CO->>Dev: clarify (ledger first, record answers)
         end
-        opt /acs:code plan approval on STANDARD/COMPLEX (MAR-73, slice 3 of MAR-69)
+        opt /acs:create-impl-plan plan approval on STANDARD/COMPLEX (MAR-73, slice 3 of MAR-69)
             CO->>PA: plan-approval.py --ticket <ticket-id>
             PA->>WS: plan-approval.json + code-state.json states.plan_approved
             PA-->>CO: stdout JSON (eligible, plan_approved, failures)
         end
         loop reflection (execute → verify, max 3 iterations)
             CO->>EX: XML <task phase="execute"> (parallel if file maps disjoint)
+            EX->>WS: iter-n-authoring.md (authoring skills: iteration 1 the survey, later the findings addressed)
             EX->>WS: iter-n-execute.json (+ repo edits, commits)
             EX-->>CO: XML <result>
             CO->>VF: XML <task phase="verify">
@@ -113,7 +108,7 @@ sequenceDiagram
             opt /acs:code plan revocation on a blocking plan-conformance finding (MAR-74, slice 4 of MAR-69)
                 CO->>Dev: confirm revocation (clarify.py-recorded answer, never automatic)
                 CO->>WS: cp plan.md plan-superseded-<k>.md (byte-identical, never a move)
-                CO->>WS: revised plan.md (coordinator-authored, no planner re-spawn)
+                CO->>WS: revised plan.md (coordinator-authored, no executor re-spawn)
                 CO->>PA: plan-approval.py --ticket <ticket-id>
                 PA->>WS: fresh plan-approval.json (new digest)
             end
@@ -130,11 +125,11 @@ hard-fail → `failed`, `/create-pr` gate stays closed; crash → `in_progress`
 left behind, SessionEnd marks `interrupted`, next run reconciles.
 
 The `CO->>WS: persist iter-n-*.xml at each boundary` step above is itself
-lane-conditional for `/acs:code`'s plan phase (**D-4**, MAR-72): on
-TRIVIAL/SMALL no `<task phase="plan">` message is ever sent and no
-`<result>` is returned, so there is no plan XML to validate and no
-`iter-<n>-plan.xml` snapshot to persist — the execute/verify XML persistence
-in the `loop reflection` block above is unaffected in every lane.
+lane-conditional for `/acs:create-impl-plan`'s execute phase (**D-4**,
+MAR-72): on TRIVIAL/SMALL no `<task phase="execute">` message is ever sent
+and no `<result>` is returned, so there is no execute XML to validate and no
+`iter-<n>-execute.xml` snapshot to persist — the verify XML persistence in
+the `loop reflection` block above is unaffected in every lane.
 
 **Cost/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
 additional, undrawn responsibility, detailed in full in the dedicated
@@ -165,8 +160,8 @@ The iteration ceiling for the reflection loop is **lane-driven**:
 - **TRIVIAL/SMALL lanes** (low/normal stakes): cap = **1** iteration — light
   verify (single verifier pass that may iterate once on blocking findings).
 - **STANDARD/COMPLEX lanes** (or any high-stakes ticket): cap = **3** iterations
-  — full verify (execute → verify loop, with the plan authored once
-  before it starts rather than a per-iteration plan→execute→verify loop, + full
+  — full verify (execute → verify loop against the plan approved before it
+  starts, never a per-iteration re-plan, + full
   16-dimension review + e2e when configured); the cap counts execute+verify
   rounds (MAR-71, slice 1b of MAR-69).
 
@@ -184,9 +179,10 @@ Completed iterations are preserved (no restart). De-escalation is never
 automatic. If escalation crosses the fast→full fold boundary (TRIVIAL/SMALL →
 STANDARD/COMPLEX), the iteration ceiling and verify depth are raised to the
 escalated lane's values; there is no stage re-entry and no re-spawn of any
-prior phase — including no retro-spawn of a `code-planner` for a run that
-started on a fast lane (**D-3**, MAR-72): the escalation raises verify depth
-and the iteration ceiling only; it never spawns a planner after the fact.
+prior phase — including no retro-spawn of `/acs:create-impl-plan`'s executor
+for a run that started on a fast lane (**D-3**, MAR-72): the escalation
+raises verify depth and the iteration ceiling only; it never spawns a plan
+author after the fact.
 Completed iterations are preserved (`code/SKILL.md`'s "In-loop
 escalation check" section).
 
@@ -218,12 +214,13 @@ completed for SHOP-123` — suppressed by `settings.workflow.advisories: false`
 and by any read it cannot complete. The order itself is enforced one layer up,
 by `/acs:ship`'s walk over `acs.py workflow next` (`ship-pipeline.md`).
 
-Two other participants in the diagram moved with the refactor. The `PL` /
-`PA` legs belong to `/acs:create-impl-plan` now, not `/acs:code`: the plan
-phase, `code-planner.md` (as `create-impl-plan-planner.md`) and
-`plan-approval.py`'s invocation all moved there, so a `/acs:code` run draws no
-`CO->>PL` step at all and enters the reflection loop directly with the
-approved plan as an input. And `WS` splits in two: the phase artifacts,
+Two other participants in the diagram moved with the refactor. The
+plan-authoring `EX` leg and the `PA` leg belong to `/acs:create-impl-plan`
+now, not `/acs:code`: the plan phase, `code-planner.md` (as
+`create-impl-plan-planner.md`, and since ADR 0092 the survey section of
+`create-impl-plan-executor.md`) and `plan-approval.py`'s invocation all
+moved there, so a `/acs:code` run draws no plan-authoring step at all and
+enters the reflection loop directly with the approved plan as an input. And `WS` splits in two: the phase artifacts,
 verdicts, ledger and lock stay in the workspace partition, while the plan and
 the other human-facing ticket documents are written to
 `<settings.artifacts.tickets_path>/<ID>/` in the repo (ADR-0090).

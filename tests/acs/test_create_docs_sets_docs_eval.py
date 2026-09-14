@@ -136,7 +136,8 @@ class ArchitectureDocsTest(unittest.TestCase):
 
     def test_c4_component_places_create_docs_outside_the_triads(self):
         body = read(os.path.join(self.HLD, "c4-component.md"))
-        self.assertIn("`code` and `create-docs` run execute→verify with no planner", body)
+        self.assertIn("every one of the fourteen runs execute→verify with no planner", body)
+        self.assertNotIn("triad-keeping", body)
         self.assertNotIn("39 reachable", body)
         self.assertNotIn("remain on disk but are orphaned", body)
         # The fold made create-docs a hooked skill; the doc must not still

@@ -900,6 +900,20 @@ def setup_holds(scenario, sandbox, env):
     return proc.returncode == 0
 
 
+def apply_ticket_patch(scenario, sandbox):
+    """Merge `scenario["ticket_patch"]` into the sandbox's ticket, via the
+    plugin's own `acs.py ticket save` (a PATCH, index re-synced). True when
+    there is nothing to apply or it applied; False when the plugin refused."""
+    patch = scenario.get("ticket_patch")
+    if not patch:
+        return True
+    if not sandbox.ticket_id:
+        return False
+    out = sandbox.run("acs.py", "ticket", "save", "--ticket", sandbox.ticket_id,
+                      "--from", "-", stdin=json.dumps(patch))
+    return out["exit_code"] == 0
+
+
 def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                      transcripts=None):
     conf = scenarios["pipeline"]
@@ -920,6 +934,11 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
             with Sandbox(build, profile=scenario["profile"]) as sb:
                 def fill(text):
                     return text.replace("TKT-1", sb.ticket_id) if sb.ticket_id else text
+                # A scenario may enrich the profile's ticket before anything
+                # runs (a description, acceptance criteria): the profile's
+                # title is pinned by tier 1's goldens, so the patch lives in
+                # the scenario and goes through the plugin's own PATCH path.
+                patch_ok = apply_ticket_patch(scenario, sb)
                 # Setup prompts bring the sandbox to the state the measured
                 # skill needs (docs-sync after a real /acs:code run, say).
                 # Their cost and time are recorded separately, never folded
@@ -931,14 +950,16 @@ def measure_pipeline(build, scenarios, env, limit=None, checkpoint=None,
                     "setup_timeout_seconds",
                     scenario.get("timeout_seconds", 1800))
                 setup = []
-                for text in scenario.get("setup_prompts", []):
+                for text in ([] if not patch_ok else scenario.get("setup_prompts", [])):
                     s_run = session_once(fill(text), sb.repo, setup_timeout,
                                          env, build, keep_dir=transcripts)
                     setup.append(s_run)
                     if not s_run["ok"]:
                         break
                 unmeasured = None
-                if setup and not setup[-1]["ok"]:
+                if not patch_ok:
+                    unmeasured = "ticket_patch could not be applied"
+                elif setup and not setup[-1]["ok"]:
                     unmeasured = ("setup prompt failed: %s"
                                   % (setup[-1].get("error") or "session not ok"))
                 elif setup and not setup_holds(scenario, sb, env):

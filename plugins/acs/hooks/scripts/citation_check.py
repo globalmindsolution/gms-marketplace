@@ -7,19 +7,19 @@ which must sit beside this file on sys.path.
 
 The doc-set executor (/acs:create-docs, every set) records upstream-fact
 citations in an `Upstream inventory` section of its authoring notes,
-`iter-<n>-authoring.md` (the former planners wrote them to `iter-<n>-plan.md`,
-which this checker reads just the same): one line per citation,
+`iter-<n>-authoring.md` (the retired planners wrote them to `iter-<n>-plan.md`;
+this checker reads either file just the same): one line per citation,
 each naming a claim, a backtick-quoted relative path under a declared root,
 and a straight-double-quoted verbatim excerpt. This script is the
 deterministic ($0, stdlib-only) mechanical floor the verifier invokes to
 independently re-open every cited file and confirm the excerpt is really
-there, rather than trusting the planner's citation on its word.
+there, rather than trusting the author's citation on its word.
 
 The resolved-citations manifest printed to stdout is one JSON object per
 citation — {"claim", "path", "line", "excerpt"}. Its "line" key is the
 citation's line number in the PLAN file only; it is purely informational and
 is never a locus in the cited file. The advisory :line / :line-start-line-end
-suffix a planner may append to the cited path is stripped during extraction
+suffix an author may append to the cited path is stripped during extraction
 (_strip_line_ref) and is not retained anywhere, so a consumer that needs the
 substantiating passage inside the cited file must locate it by searching for
 the entry's own verbatim "excerpt" text.
@@ -128,7 +128,7 @@ def _has_dotdot(path):
 
 
 def _is_unsafe_path(path):
-    """Screen planner-authored path text before any filesystem call: absolute,
+    """Screen author-written path text before any filesystem call: absolute,
     `..`-escaping, or containing an embedded NUL byte."""
     return os.path.isabs(path) or _has_dotdot(path) or "\x00" in path
 

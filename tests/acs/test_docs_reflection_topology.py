@@ -4,12 +4,18 @@ Several acs docs still described the reflection topology from before the
 producer-skill additions (create-quality, create-operations,
 create-principles, create-standards, standardize-project). This module
 DERIVES the live topology counts (skills on disk, agent files on disk,
-`acs_lib.HOOKED_SKILLS`, triad-vs-apply-work classification, and the live
-`s04_skill_triggers.py` CASES count) and positively pins the five affected
-docs to those derived figures, so the counts cannot silently drift again.
+`acs_lib.HOOKED_SKILLS`, the executor + verifier pairs the registry declares,
+and the live `s04_skill_triggers.py` CASES count) and positively pins the
+five affected docs to those derived figures, so the counts cannot silently
+drift again.
+
+ADR-0092 retired the planner role from every skill, so the "triad" the
+original pins counted no longer exists: the unit is now the executor +
+verifier PAIR, and the count of skills that own one is read from the
+registry (`workflows/phases.yaml`), never hardcoded.
 
 Stdlib-only (ast, glob, importlib, os, re, unittest). Run:
-  python3 -m unittest tests.acs.test_mar123_docs_topology -v
+  python3 -m unittest tests.acs.test_docs_reflection_topology -v
 """
 
 import ast
@@ -24,10 +30,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 APPLY_WORK = {"create-ticket", "create-pr", "merge-pr"}  # MAR-55/60 inline set
-# Hooked skills whose plan phase lives in ANOTHER skill, so they ship no
-# planner file at all: /acs:code's plan phase became /acs:create-impl-plan in
-# the skills-independence refactor, and code-planner.md moved with it.
-PLANNERLESS = {"code", "create-docs"}  # execute -> verify only (ADR-0089, ADR-0094)
+# Pair-running skills the docs count SEPARATELY from the twelve authoring
+# skills: /acs:code runs against a plan another skill approved (ADR-0089),
+# /acs:create-docs was the first class-D skill (ADR-0094).
+NON_AUTHORING_PAIRS = {"code", "create-docs"}
 
 
 def read(path):
@@ -96,23 +102,26 @@ def derive():
     acs_lib = _load_acs_lib()
     hooked = list(acs_lib.HOOKED_SKILLS)
     n_hooked = len(hooked)
-    triad = [s for s in hooked if s not in APPLY_WORK and s not in PLANNERLESS]
-    n_triad = len(triad)
     # Reachable = every role some skill DECLARES it owns. Read from the
-    # registry (ADR-0092) rather than recomputed from hardcoded APPLY_WORK /
-    # PLANNERLESS sets, which were a third copy of the same fact and the
-    # reason the doc and the disk could disagree.
+    # registry (ADR-0092) rather than recomputed from hardcoded sets, which
+    # were a third copy of the same fact and the reason the doc and the disk
+    # could disagree.
     declared_roles = acs_lib.skill_agents()
     reachable = sum(len(roles) for roles in declared_roles.values())
     orphaned = n_agents - reachable
+    pairs = sorted(s for s, roles in declared_roles.items()
+                   if sorted(roles) == ["executor", "verifier"])
+    authoring = [s for s in pairs if s not in NON_AUTHORING_PAIRS]
     return {
         "n_skills": n_skills,
         "agent_files": agent_files,
         "n_agents": n_agents,
         "hooked": hooked,
         "n_hooked": n_hooked,
-        "triad": triad,
-        "n_triad": n_triad,
+        "pairs": pairs,
+        "n_pairs": len(pairs),
+        "authoring": authoring,
+        "n_authoring": len(authoring),
         "reachable": reachable,
         "declared_roles": declared_roles,
         "orphaned": orphaned,
@@ -137,11 +146,18 @@ class TopologyDerivationTest(unittest.TestCase):
         prefixes = set()
         for path in D["agent_files"]:
             base = os.path.splitext(os.path.basename(path))[0]
-            for role in ("-planner", "-executor", "-verifier"):
+            for role in ("-executor", "-verifier"):
                 if base.endswith(role):
                     prefixes.add(base[: -len(role)])
                     break
         self.assertEqual(prefixes, set(D["hooked"]))
+
+    def test_no_planner_file_and_no_planner_declaration(self):
+        """ADR-0092: the planner role is gone from the registry and the disk."""
+        for path in D["agent_files"]:
+            self.assertFalse(os.path.basename(path).endswith("-planner.md"), path)
+        for skill, roles in D["declared_roles"].items():
+            self.assertNotIn("planner", roles, skill)
 
     def test_agent_count_matches_the_role_inventory(self):
         """The files on disk are exactly the roles the registry declares.
@@ -171,6 +187,15 @@ class TopologyDerivationTest(unittest.TestCase):
         """
         self.assertEqual(D["orphaned"], 0)
 
+    def test_pairs_are_the_twelve_authoring_skills_plus_code_and_create_docs(self):
+        self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_PAIRS)
+        self.assertEqual(D["n_authoring"], 12)
+        for suffix in NEW_TRIAD_SUFFIXES:
+            self.assertIn(suffix, D["authoring"])
+        executors_only = [s for s, roles in D["declared_roles"].items()
+                          if roles == ["executor"]]
+        self.assertEqual(set(executors_only), APPLY_WORK)
+
 
 class InternalsTopologyTest(unittest.TestCase):
     def _body(self):
@@ -193,14 +218,15 @@ class InternalsTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d files" % D["n_agents"], body)
         self.assertIn("%d reachable" % D["reachable"], body)
-        self.assertIn("%d triad-keeping" % D["n_triad"], body)
+        self.assertIn("%d executor + verifier pairs" % D["n_pairs"], body)
         self.assertIn("%d agent files named" % D["n_agents"], body)
 
     def test_stale_forms_absent(self):
         body = self._body()
         for stale in ("nine hooked skills", "six triad-keeping skills",
+                      "twelve triad-keeping skills", "triad-keeping",
                       "9 pre + 9 post", "21 reachable", "27 agent files",
-                      "27 files"):
+                      "27 files", "43 agent files", "43 files"):
             self.assertNotIn(stale, body, "stale form %r still in INTERNALS.md" % stale)
 
 
@@ -218,20 +244,22 @@ class OverviewTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk" % D["n_agents"], body)
         self.assertIn("%d are reachable" % D["reachable"], body)
-        self.assertIn("%d triad" % (D["n_triad"] * 3), body)
+        self.assertIn("%d for the twelve" % (D["n_authoring"] * 2), body)
 
-    def test_triad_enumeration_names_new_skills(self):
+    def test_pair_enumeration_names_new_skills(self):
         body = self._body()
         window = section(body, "## Packaging requirements")
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, window,
-                          "overview.md Packaging requirements must name -%s" % suffix)
+                          "packaging-distribution.md Packaging requirements must name -%s" % suffix)
 
-    def test_stale_six_triad_absent(self):
+    def test_stale_triad_forms_absent(self):
         body = self._body()
         self.assertNotIn("six **triad-keeping skills**", body)
+        self.assertNotIn("triad-keeping", body)
         self.assertNotIn("27 agent files", body)
         self.assertNotIn("21 are reachable", body)
+        self.assertNotIn("43 agent files", body)
 
 
 class RoadmapTopologyTest(unittest.TestCase):
@@ -263,7 +291,8 @@ class RoadmapTopologyTest(unittest.TestCase):
     def test_stale_forms_absent(self):
         body = self._body()
         for stale in ("16 skills + 27 agent files", "= 16,", "= 27);",
-                      "six triad-keeping skills", "today 27 vs 21 reachable"):
+                      "six triad-keeping skills", "twelve triad-keeping skills",
+                      "today 27 vs 21 reachable", "today 43 vs 43 reachable"):
             self.assertNotIn(stale, body, "stale form %r still in roadmap.md" % stale)
 
 
@@ -281,15 +310,18 @@ class ReflectionTopologyTest(unittest.TestCase):
         self.assertNotIn("fourteen skill prefixes", body)
         self.assertIn("fifteen skill prefixes", body)
 
-    def test_twelve_triad_keeping(self):
+    def test_twelve_authoring_fourteen_pairs(self):
         body = self._body()
         self.assertIn("**twelve**", body)
+        self.assertIn("**Fourteen**", body)
         self.assertNotIn("**eleven**", body)
         self.assertNotIn("**six**", body)
+        self.assertNotIn("triad", body)
 
-    def test_triad_enumeration_names_new_skills(self):
+    def test_pattern_heading_is_execute_verify_and_names_new_skills(self):
         body = self._body()
-        window = section(body, "## Reflection pattern: plan")
+        self.assertNotIn("## Reflection pattern: plan", body)
+        window = section(body, "## Reflection pattern: execute")
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, window,
                           "reflection.md pattern heading must name -%s" % suffix)
@@ -308,10 +340,10 @@ class PrdTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files vs %d reachable" % (D["n_agents"], D["reachable"]), body)
 
-    def test_must_have_reachable_and_active_triad(self):
+    def test_must_have_reachable_and_authoring_pairs(self):
         body = self._body()
         self.assertIn("only %d are reachable" % D["reachable"], body)
-        self.assertIn("%d active triad agents" % (D["n_triad"] * 3), body)
+        self.assertIn("%d agents in the twelve authoring skills" % (D["n_authoring"] * 2), body)
 
     def test_discoverability_bullet_skill_count(self):
         body = self._body()
@@ -327,7 +359,8 @@ class PrdTopologyTest(unittest.TestCase):
         body = self._body()
         for stale in ("the **16** skills", "16-skill routing coverage",
                       "currently 27 agent files vs 21 reachable",
-                      "The six triad-keeping skills",
+                      "The six triad-keeping skills", "twelve triad-keeping skills",
+                      "active triad agents",
                       "27 agent files exist on disk (9 skills"):
             self.assertNotIn(stale, body, "stale form %r still in prd.md" % stale)
 
@@ -366,9 +399,9 @@ class SkillsMdUnchangedTest(unittest.TestCase):
     """AC-4 (MAR-123) baseline, bumped by MAR-129: skills.md's count moves
     22 -> 23 for the new /acs:release unhooked skill; then 23 -> 24 by
     MAR-143, which registers the HOOKED create-requirements skill into the
-    product/triad enumeration (eleven -> twelve triad-keeping skills). The
-    'Unchanged' name is historical (MAR-123 itself did not touch skills.md);
-    these pins track the current epic state, not a frozen MAR-123 snapshot."""
+    product enumeration. The 'Unchanged' name is historical (MAR-123 itself
+    did not touch skills.md); these pins track the current epic state, not a
+    frozen MAR-123 snapshot."""
 
     def test_skill_count_word_present(self):
         # 25 -> 31 with the skills-independence refactor: five new hooked
@@ -381,10 +414,12 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         self.assertNotIn("Twenty-three skills", body)
         self.assertNotIn("Twenty-five skills", body)
 
-    def test_twelve_triad_list_intact(self):
+    def test_twelve_authoring_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         self.assertIn("Nine **workflow/product skills**", body)
         self.assertNotIn("Eleven **workflow/product skills**", body)
+        self.assertIn("twelve **authoring skills**", body)
+        self.assertNotIn("triad", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)
 

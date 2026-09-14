@@ -126,15 +126,15 @@ class ReflectionConditionalTriadTest(unittest.TestCase):
     def test_twelve_survives_and_code_marked_conditional_triad(self):
         self.assertIn("**twelve**", self.body)
         self.assertNotIn("**eleven**", self.body)
-        self.assertRegex(self.norm, r"(?i)`code`.{0,40}conditional triad")
+        self.assertRegex(self.norm, r"(?i)`/acs:create-impl-plan`.{0,160}lane-conditional")
 
     def test_loop_back_bullet_states_fast_lane_no_planner_case(self):
         self.assertRegex(
             self.norm,
-            r"(?i)TRIVIAL/SMALL.{0,300}no planner to feed back into")
+            r"(?i)TRIVIAL/SMALL.{0,300}no executor to feed back into")
         self.assertRegex(
             self.norm,
-            r"(?i)never retro-spawns? a planner")
+            r"(?i)never retro-spawns? (one|an executor)")
 
     def test_mermaid_has_lane_conditional_edge_and_prose_names_spawn(self):
         block, after = mermaid_block_and_after(self.body)
@@ -143,7 +143,7 @@ class ReflectionConditionalTriadTest(unittest.TestCase):
             norm(after),
             r"(?i)lane-conditional.{0,80}MAR-72|MAR-72.{0,80}lane-conditional")
         self.assertRegex(norm(after), r"(?i)STANDARD/COMPLEX")
-        self.assertRegex(norm(after), r"(?i)zero.{0,20}`?code-planner`?.{0,10}spawns?")
+        self.assertRegex(norm(after), r"(?i)zero.{0,20}executor.{0,10}spawns?")
 
 
 class G14ScopingTest(unittest.TestCase):
@@ -207,15 +207,14 @@ class ProductDocFactsTest(unittest.TestCase):
         body_norm = norm(read(PRD))
         self.assertRegex(
             body_norm,
-            r"(?i)no separate planner subagent.{0,500}code-planner.{0,200}"
+            r"(?i)no separate plan-authoring subagent.{0,500}create-impl-plan.{0,200}"
             r"(never spawned|not spawned|zero.{0,20}spawn|also never spawned)")
 
     def test_roadmap_names_fast_lane_no_planner_behavior(self):
         body_norm = norm(read(ROADMAP))
         self.assertRegex(
             body_norm,
-            r"(?i)plans once per run.{0,300}TRIVIAL/SMALL.{0,200}"
-            r"(coordinator-authored|zero.{0,20}(code-planner|spawn))")
+            r"(?i)lane rule.{0,200}(coordinator-authored|zero.{0,20}spawn).{0,60}TRIVIAL/SMALL")
 
 
 class FoldMovedOutOfCodeTest(unittest.TestCase):

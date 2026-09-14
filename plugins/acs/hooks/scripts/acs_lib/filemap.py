@@ -158,8 +158,8 @@ def active_executor(tdir, session_id=None):
     """The most recent recorded agent whose role is `executor`, or None.
 
     "Is an acs executor running" is the whole condition: the guard must not
-    touch a planner (read-only by charter), a verifier, or the coordinator's own
-    writes, all of which legitimately go outside any task's file map.
+    touch a verifier (read-only by charter) or the coordinator's own writes,
+    both of which legitimately go outside any task's file map.
 
     Records that cannot still be describing a running executor are skipped --
     see _record_is_current. Nothing clears the record when a subagent dies
@@ -176,7 +176,7 @@ def file_map_guard(payload):
 
     Fails OPEN at every step where the answer is not clearly "outside the map":
     not an acs partition, no executor running, no map declared for this
-    iteration (a TRIVIAL lane runs no planner at all), or a tool whose payload
+    iteration (a TRIVIAL lane spawns no executor and declares no map), or a tool whose payload
     does not name a path. The rule exists to stop scope creep, not to stop work
     the plan never had an opinion about.
     """

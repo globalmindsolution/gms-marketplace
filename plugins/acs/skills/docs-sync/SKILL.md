@@ -9,8 +9,8 @@ You are the coordinator of /acs:docs-sync. Your job: independently re-derive
 what documentation the ticket's changeset requires and commit any missing or
 incorrect doc updates as additional commits on the SAME ticket branch that
 `/acs:code` and `/acs:create-pr` use — never a new branch, never a second PR.
-You orchestrate planner/executor/verifier subagents over XML; you never write
-doc content yourself.
+You orchestrate executor/verifier subagents over XML — execute → verify, no
+planner (ADR-0092); you never write doc content yourself.
 
 `/code`'s own step 4 no longer authors general doc updates — it only
 reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
@@ -68,14 +68,15 @@ silently switch branches.
 - If `context.handoff_summary` exists: read it plus
   `<partition>/phases/docs-sync/handoff-context.md` (when present), do a
   light reconcile, and continue from where it points.
-- Fresh run (`reconcile` false): start at iteration 1, plan phase.
-- A resumed run reuses the existing
-  `<partition>/phases/docs-sync/iter-1-plan.md` and never spawns a second
-  planner; the plan phase runs (once) only when that artifact is absent.
+- Fresh run (`reconcile` false): start at iteration 1, execute phase.
+- There is no plan artifact to reuse: an execute with no verify → verify it;
+  a verify with findings and no later execute → execute with those findings
+  as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+  belong to their iteration.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-The planner's `<task>` `<inputs>` MUST literally enumerate, and the planner
+The executor's `<task>` `<inputs>` MUST literally enumerate, and the executor
 MUST read, exactly these artifacts — never a bare hand-off summary:
 
 1. `git diff <default_branch>...HEAD` on the ticket branch (the ground-truth
@@ -94,25 +95,25 @@ MUST read, exactly these artifacts — never a bare hand-off summary:
 `docs_updated`/`problems` may legitimately be near-empty for doc categories
 `/code` no longer touches — reading them still tells docs-sync what `/code`'s
 retained MAR-65 step 4 changed and any recorded doc-related friction
-(including Boy-scout drift items carried verbatim from the code planner);
+(including Boy-scout drift items carried verbatim from the implementation plan);
 re-deriving from the live diff (input 1) remains docs-sync's own grounding
 for every other doc category. Neither input substitutes for the other —
-every phase (planner, executor, and verifier alike) reads all six,
-independently.
+every phase (executor and verifier alike) reads all six, independently.
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:docs-sync-planner` across the whole run, however many iterations the
-loop below uses. The loop itself is execute → verify, max 3 iterations.
-Decomposition is YOURS alone — subagents never spawn subagents.
+The loop is execute → verify, max 3 iterations. There is no plan phase:
+iteration 1's executor re-derives the doc impact from the six inputs, writes
+its authoring notes (the doc-delta list, each item justified by the diff),
+and commits the doc updates from them; the verifier re-derives the impact
+itself and judges the result fresh. On iterations 2-3 the verifier's
+findings go verbatim into the next executor `<task>` `<context>` and the
+executor authors the remediation. Decomposition is YOURS alone — subagents
+never spawn subagents.
 
-**What an iteration counts.** One iteration is one execute → verify round;
-the plan phase runs once, before the loop, and is not part of any
-iteration — so the cap counts execute+verify rounds, not
-plan+execute+verify triads. docs-sync has no lane-driven verify-depth
-selection: the cap is a fixed 3 in every lane, and this ticket does not
-introduce one.
+**What an iteration counts:** one execute → verify round. docs-sync has no
+lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and
+this ticket does not introduce one.
 
 For every phase:
 
@@ -134,35 +135,32 @@ For every phase:
    the run with that exact error — no silent fallback.
 4. Persist the phase's `<task>` and `<result>` to
    `<partition>/phases/docs-sync/iter-<n>-<phase>.xml` at the phase
-   boundary, BEFORE starting the next phase. The plan phase runs once, so
-   its message pair persists once as `iter-1-plan.xml` and its artifact is
-   `<partition>/phases/docs-sync/iter-1-plan.md`; execute and verify keep
-   persisting per iteration.
-
-### Phase: plan (once, before the loop) — `acs:docs-sync-planner`
-
-Spawned exactly once per run, before iteration 1 — the plan is authored
-once and there is no per-iteration re-plan. On iterations 2-3 the
-verifier's findings route straight to the executor's `<task>` `<context>`
-(see `docs-sync-executor.md`'s input contract), where the executor authors
-the remediation.
-
-Objective: from the six inputs above, produce a doc-delta plan in its
-`<result>` — which doc files need which specific changes and why, each
-cross-referenced to the diff lines / `docs_updated` entries / `problems`
-entries that justify it. No writes beyond its own plan artifact.
+   boundary, BEFORE starting the next phase. The executor's own artifacts
+   are `iter-<n>-authoring.md` (Diff analysis; Doc-delta list; Cross-check
+   against docs_updated/problems; Open questions) and
+   `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name that
+   iteration's authoring notes.
 
 ### Phase: execute — `acs:docs-sync-executor`
 
-Objective: apply the planned doc updates as additional commits on the SAME
+Objective, iteration 1: from the six inputs above, record the doc-delta
+list in the authoring notes — which doc files need which specific changes
+and why, each cross-referenced to the diff lines / `docs_updated` entries /
+`problems` entries that justify it — and then apply those doc updates as
+additional commits on the SAME
 ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
 using the FIXED v1 structure — the existing `iter-<n>-execute.json` /
 `iter-<n>-verify.md` artifact shape every hooked skill already writes
 (`/acs:create-impl-plan`, which carved the plan phase out of `/acs:code`,
-writes `plan.md` instead of `iter-<n>-plan.md`; the other hooked skills'
-plan artifacts are unaffected). No new artifact type, no settings-driven
-template, no new `settings.schema.json` keys.
+publishes `plan.md`; every other authoring skill's executor writes its
+`iter-<n>-authoring.md`). No new artifact type, no settings-driven template,
+no new `settings.schema.json` keys.
+
+If the executor returns `needs_input` with `<questions>` (which of two
+conflicting docs is authoritative, whether a doc edit is in scope), resolve
+them in User interaction and re-run execute for the same iteration with the
+answers in `<context>`.
 
 ### Phase: verify — `acs:docs-sync-verifier`
 
@@ -172,8 +170,8 @@ independent-re-derivation rule) and checks each committed doc change is
 accurate, complete against the diff, and consistent with `docs_updated` /
 `problems` / the final verify.md. ALL findings block; zero findings = pass.
 On findings: persist, then AUTOMATICALLY re-execute, passing every finding
-to the next iteration's executor `<task>` as `<context>`, with no planner
-spawn in between — the executor authors the remediation. After iteration 3
+to the next iteration's executor `<task>` as `<context>`, with no plan
+phase in between — the executor authors the remediation. After iteration 3
 with findings remaining: stop, final status `failed`.
 
 ## User interaction
@@ -194,8 +192,8 @@ decision with `--source assumption --rationale "..."`. Before a needs_input
 handoff, record the outgoing questions as `open` (`clarify.py add` without
 `--answer`).
 
-The doc-delta plan's own `<questions>` (a planner uncertain whether a doc
-change is in scope, or which of two conflicting docs is authoritative) go
+The executor's own `<questions>` (uncertain whether a doc change is in
+scope, or which of two conflicting docs is authoritative) go
 through this same ledger-first path before the coordinator settles them and
 carries the answer into the execute `<task>` via `<context>`.
 

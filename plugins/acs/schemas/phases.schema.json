@@ -27,7 +27,7 @@
       "default": {}
     },
     "agents": {
-      "description": "{skill: [role, ...]}; the subagent roles that skill owns, per ADR-0092. A skill declares the machinery its work needs -- nothing is inferred from whether it is hooked, and a skill omitted here owns no subagents at all. A planner appears only where planning and doing are genuinely separate work, which for a skill whose deliverable IS a plan or an analysis they are not.",
+      "description": "{skill: [role, ...]}; the subagent roles that skill owns, per ADR-0092. A skill declares the machinery its work needs -- nothing is inferred from whether it is hooked, and a skill omitted here owns no subagents at all. No skill declares a planner: for a skill whose deliverable IS a plan or an analysis, planning and doing are the same work, so the executor surveys first and authors from the survey (the role stays in the enum so a stale declaration is rejected by the registry test, not by a schema error).",
       "type": "object",
       "propertyNames": {
         "$ref": "#/$defs/skillName"

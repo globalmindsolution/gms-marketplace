@@ -39,7 +39,7 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py"
 ARCH_DIMENSIONS = (
     "doc-set-completeness", "prd-coverage", "codebase-match", "mermaid-diagrams",
     "internal-consistency", "diagram-prose-agreement", "hld-lld-consistency",
-    "plan-conformance", "docs-only-changeset",
+    "authoring-conformance", "docs-only-changeset",
 )
 DESIGN_DIMENSIONS = ("alternatives", "consistency", "feasibility", "nfr", "completeness")
 

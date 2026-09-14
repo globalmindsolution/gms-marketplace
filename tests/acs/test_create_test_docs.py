@@ -19,7 +19,7 @@ markdown and would otherwise drift away from the deterministic layer:
     post-create-test-docs.py's docstring;
   * independence: order lives in workflows/ship.yaml and the gate requires no
     predecessor run;
-  * the triad's shape (one planner, execute -> verify, artifacts, grounding).
+  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_create_test_docs -v
 """
@@ -42,7 +42,7 @@ import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 import validate_xml  # noqa: E402
 
-ROLES = ("planner", "executor", "verifier")
+ROLES = ("executor", "verifier")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("cases", "e2e_cases", "untraced_acs")
@@ -433,9 +433,8 @@ class TestPublishing(unittest.TestCase):
 class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
-        for role in ("planner", "verifier"):
-            fm, _ = frontmatter(agent(role), role)
-            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        fm, _ = frontmatter(agent("verifier"), "verifier")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
         fm, _ = frontmatter(agent("executor"), "executor")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -448,7 +447,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-test-docs/iter-<n>-plan.md", agent("planner"))
+        self.assertIn("phases/create-test-docs/iter-<n>-authoring.md", agent("executor"))
         self.assertIn("phases/create-test-docs/iter-<n>-execute.json", agent("executor"))
         self.assertIn("phases/create-test-docs/iter-<n>-verify.md", agent("verifier"))
 
@@ -474,16 +473,24 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
         self.assertIn("police grounding", agent("verifier"))
 
-    def test_one_planner_per_run_and_a_capped_loop(self):
+    def test_no_planner_and_a_capped_loop(self):
+        """ADR-0092 class D: the deliverable is the document, so a plan for it
+        would be a second copy of the work — execute -> verify only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"Plan once, before the loop")
+        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertNotIn("acs:create-test-docs-planner", body)
+        self.assertNotIn("iter-1-plan.md", body)
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-test-docs-planner.md")))
+        executor = agent("executor")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
+        self.assertRegex(agent("verifier"), r"(?m)^8\. `authoring-conformance`")
         self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
         self.assertIn("never spawn subagents", body.lower())
 
     def test_nobody_in_the_triad_writes_or_runs_tests(self):
         """This skill specifies cases; /acs:code and /acs:create-e2e-tests
         write them, and neither is run here."""
-        self.assertRegex(agent("planner"), r"NEVER write test CODE")
         self.assertRegex(agent("executor"), r"NEVER write test code")
         for role in ROLES:
             with self.subTest(role=role):

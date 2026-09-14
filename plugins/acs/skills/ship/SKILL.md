@@ -26,9 +26,9 @@ Ground rules, non-negotiable:
   ONE advisory line on stderr (`acs: <skill> normally follows … in ship.yaml;
   …`) and proceeds at exit 0. Following the walk means you rarely see it —
   and when you do, it is information, never a stop. Only exit 2 stops you.
-- You have **no planner/executor/verifier** of your own. Each step skill —
+- You have **no executor/verifier** of your own. Each step skill —
   invoked directly via the Skill tool — runs its OWN reflection cycle (it
-  spawns its own planner/executor/verifier); you never do the step's work.
+  spawns its own executor/verifier); you never do the step's work.
 - Keep your own context tiny. Never read step transcripts, phase XML files,
   plans, or diffs. You read exactly four kinds of things: the `workflow next`
   JSON, `pipeline-state.json`, the ticket document, and the compact
@@ -158,7 +158,7 @@ or a ready step is `exclusive: true` and must run alone.
 
 Invoke the Skill tool directly and follow that step skill to completion as
 its coordinator, in your own context, holding the Agent tool the step needs
-to spawn its own planner/executor/verifier. Keep what you pass lean — the
+to spawn its own executor/verifier. Keep what you pass lean — the
 ticket id is enough.
 
 You do not prompt a subagent; you run the step skill yourself. A few
@@ -238,8 +238,8 @@ fan-out shape `/acs:create-docs` already uses (`skills/create-docs/SKILL.md`,
    session-marker reason.
 3. **Reflection loops, in parallel batches, from this coordinator.** Once
    every leg has started, spawn each phase's existing agents for all legs in
-   ONE message: every leg's planner together, then (once those return) every
-   leg's executor, then every leg's verifier — the same mechanism `/acs:code`
+   ONE message: every leg's executor together, then (once those return)
+   every leg's verifier — the same mechanism `/acs:code`
    already uses to run several executors in parallel. Each leg keeps its own
    iteration cap, its own phase artifacts, and its own Finish contract,
    unchanged. Each leg commits on its own leg branch, in its own worktree.
@@ -266,7 +266,7 @@ fan-out shape `/acs:create-docs` already uses (`skills/create-docs/SKILL.md`,
 ## Full-verify pipeline boundary
 
 A ready step may carry `boundary: full_verify_stop`. Today exactly one does
-(`code`), and it is the one step whose full reflection cycle — planner, every
+(`code`), and it is the one step whose full reflection cycle — every
 executor, and (on a full-verify lane) up to three multi-lens verifier
 iterations — lands entirely inside your own coordinator context, because you
 run it as its coordinator (see "Single mode"). On a light-verify lane that is

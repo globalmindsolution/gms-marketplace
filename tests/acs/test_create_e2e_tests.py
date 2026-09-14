@@ -39,7 +39,7 @@ sys.path.insert(0, HOOKS)
 import acs_lib as lib  # noqa: E402
 import validate_xml  # noqa: E402
 
-ROLES = ("planner", "executor", "verifier")
+ROLES = ("executor", "verifier")
 
 #: The result-document keys the post-hook documents and the next step reads.
 STATES_KEYS = ("suites_written", "cases_covered")
@@ -200,7 +200,7 @@ class TestNeverWritesProductCode(unittest.TestCase):
         self.assertRegex(self.body, r"NOTHING under the product's source tree")
 
     def test_an_executor_needing_a_source_change_returns_needs_input(self):
-        self.assertRegex(self.body, r"returns `needs_input` naming the\nfile")
+        self.assertRegex(self.body, r"returns `needs_input` naming the\s+file")
         self.assertRegex(agent("executor"),
                          r"(?s)status=\"needs_input\".*?product change")
 
@@ -314,9 +314,8 @@ class TestResultDocument(unittest.TestCase):
 class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
-        for role in ("planner", "verifier"):
-            fm, _ = frontmatter(agent(role), role)
-            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        fm, _ = frontmatter(agent("verifier"), "verifier")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
         fm, _ = frontmatter(agent("executor"), "executor")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -329,7 +328,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-e2e-tests/iter-<n>-plan.md", agent("planner"))
+        self.assertIn("phases/create-e2e-tests/iter-<n>-authoring.md", agent("executor"))
         self.assertIn("phases/create-e2e-tests/iter-<n>-execute.json", agent("executor"))
         self.assertIn("phases/create-e2e-tests/iter-<n>-verify.md", agent("verifier"))
 
@@ -355,14 +354,22 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
         self.assertIn("police grounding", agent("verifier"))
 
-    def test_one_planner_per_run_and_a_capped_loop(self):
+    def test_no_planner_and_a_capped_loop(self):
+        """ADR-0092 class D: the deliverable is the document, so a plan for it
+        would be a second copy of the work — execute -> verify only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"Plan once, before the loop")
+        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertNotIn("acs:create-e2e-tests-planner", body)
+        self.assertNotIn("iter-1-plan.md", body)
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-e2e-tests-planner.md")))
+        executor = agent("executor")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
+        self.assertRegex(agent("verifier"), r"(?m)^7\. `authoring-conformance`")
         self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
         self.assertIn("never spawn subagents", body.lower())
 
     def test_only_the_verifier_runs_the_suite_and_only_once(self):
-        self.assertRegex(agent("planner"), r"NEVER run the e2e suite here")
         self.assertRegex(agent("executor"), r"NEVER run the e2e suite")
         verifier = agent("verifier")
         self.assertRegex(verifier, r"Run the command ONCE")

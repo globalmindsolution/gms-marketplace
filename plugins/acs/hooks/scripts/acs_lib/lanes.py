@@ -208,7 +208,7 @@ def recommend_stakes(paths, settings):
       settings -- the merged settings dict; high_stakes_paths resolved from it
                   (falls back to DEFAULT_SETTINGS seed list if absent or settings is None).
 
-    Returns 'high' or 'normal'. This is a RECOMMENDATION only; the caller (SKILL.md planner)
+    Returns 'high' or 'normal'. This is a RECOMMENDATION only; the caller (the skill's coordinator)
     presents it to the user. The function never silently floors a previously-confirmed value.
     """
     globs = (settings or {}).get("high_stakes_paths", DEFAULT_SETTINGS["high_stakes_paths"])

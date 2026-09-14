@@ -130,7 +130,7 @@ class CreatePrdSkillContractTest(unittest.TestCase):
         return read(os.path.join(PLUGIN, "skills", "create-prd", "SKILL.md"))
 
     def test_execute_region_states_mapping_table_duty(self):
-        window = section(self._skill_md(), "### Execute")
+        window = section(self._skill_md(), "### Execute — the write")
         self.assertIn("Release versions", window)
         self.assertIn("mapping table", window)
 

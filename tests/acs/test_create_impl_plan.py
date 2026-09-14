@@ -27,10 +27,10 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_EXECUTOR = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")
 IMPL_PLAN_VERIFIER = os.path.join(AGENTS_DIR, "create-impl-plan-verifier.md")
-IMPL_PLAN_AGENTS = [IMPL_PLAN_PLANNER, IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
+IMPL_PLAN_AGENTS = [IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
 
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
 CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
@@ -153,14 +153,14 @@ class PlanPhaseContractTest(unittest.TestCase):
         self.assertRegex(
             self.norm, r"(?i)never.{0,60}(empty|placeholder|see ticket)")
 
-    def test_plan_section_heading_is_once_before_the_loop(self):
+    def test_no_plan_section_survives(self):
         self.assertNotIn("### Plan (per iteration)", self.body)
-        self.assertRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
+        self.assertNotRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
+        self.assertRegex(self.body, r"(?m)^### Execute \(per iteration\) — survey, then author the plan draft$")
 
-    def test_plan_runs_once_before_the_loop(self):
-        self.assertRegex(
-            self.norm,
-            r"(?i)plan.{0,80}once.{0,80}(before the loop|up front|per run)")
+    def test_the_executor_surveys_on_iteration_one(self):
+        self.assertRegex(self.norm, r"(?i)There is no plan phase")
+        self.assertRegex(self.norm, r"(?i)iteration 1'?s executor surveys")
 
 
 class LaneForkTest(unittest.TestCase):
@@ -176,7 +176,7 @@ class LaneForkTest(unittest.TestCase):
     def test_fast_lane_no_spawn_contract_colocated(self):
         for m in re.finditer(r"TRIVIAL/SMALL", self.norm):
             window = self.norm[max(0, m.start() - 400):m.end() + 400]
-            if (re.search(r"(?i)zero.{0,60}(create-impl-plan-planner|planner).{0,20}spawn",
+            if (re.search(r"(?i)zero.{0,60}create-impl-plan-executor.{0,20}spawn",
                           window)
                     and "coordinator" in window.lower()
                     and "plan.md" in window):
@@ -186,34 +186,27 @@ class LaneForkTest(unittest.TestCase):
             "zero-planner-spawn phrase, 'coordinator' and 'plan.md' within one "
             "bounded window")
 
-    def test_exactly_one_clause_is_lane_qualified_standard_complex(self):
-        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
-            window = self.norm[max(0, m.start() - 200):m.end() + 200]
-            if ("acs:create-impl-plan-planner" in window
-                    and re.search(r"(?i)\bwhole run\b", window)):
-                self.assertRegex(
-                    window, r"(?i)STANDARD/COMPLEX",
-                    "the 'exactly one ... planner ... whole run' clause must "
-                    "be lane-qualified to STANDARD/COMPLEX")
-                return
-        self.fail("no 'exactly one ... acs:create-impl-plan-planner ... whole "
-                  "run' clause found")
+    def test_no_planner_clause_survives_and_the_survey_is_lane_qualified(self):
+        self.assertNotIn("acs:create-impl-plan-planner", self.body)
+        self.assertNotIn("iter-1-plan.md", self.body)
+        self.assertRegex(
+            self.norm,
+            r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\* "
+            r"iterations; iteration 1'?s executor surveys before it writes")
 
     def test_planner_states_standard_complex_only_spawn(self):
         self.assertRegex(
             self.planner_norm,
             r"(?i)spawned only.{0,40}STANDARD.{0,10}(/|or).{0,10}COMPLEX")
 
-    def test_no_plan_xml_message_on_fast_lanes(self):
+    def test_no_execute_xml_message_on_fast_lanes(self):
         self.assertRegex(
             self.norm,
-            r'(?i)no.{0,20}<task phase="plan">.{0,100}(message is sent|is sent)')
+            r'(?i)no executor subagent is spawned, so no `<task phase="execute">` message is sent')
+        self.assertNotIn('<task phase="plan">', self.body)
 
     def test_iteration_counts_execute_verify_rounds(self):
-        self.assertRegex(self.norm, r"(?i)execute\s*(->|→|\+|and)\s*verify")
-        self.assertRegex(
-            self.norm,
-            r"(?i)not.{0,60}(triad|plan\W{0,4}execute\W{0,4}verify)")
+        self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one execute → verify round")
 
 
 class PublishTest(unittest.TestCase):
@@ -301,7 +294,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         return slice_between(self.body, "### Plan approval", "### Plan revocation")
 
     def test_subsection_sits_between_plan_and_revocation(self):
-        plan_idx = self.body.index("### Plan (once, before the loop)")
+        plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.body.index("### Plan approval")
         revocation_idx = self.body.index("### Plan revocation")
         docs_only_idx = self.body.index("### Docs-only tickets")
@@ -524,7 +517,7 @@ class DocGraphGapTest(unittest.TestCase):
             r"(no finding|never fails|never blocks)")
 
     def test_skill_pointer_names_the_planner_item_without_restating_it(self):
-        self.assertIn("create-impl-plan-planner", self.bullet)
+        self.assertIn("create-impl-plan-executor", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
         self.assertRegex(self.bullet_norm, r"(?i)bounded")
         self.assertRegex(self.bullet_norm, r"(?i)touched-area")

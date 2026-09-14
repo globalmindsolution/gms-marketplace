@@ -37,11 +37,11 @@ SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skill
 # the remaining planners, and create-docs-executor -- since ADR-0094 the four
 # doc-set legs are one skill with no planner, so its executor runs the step.
 PLANNERS = [
-    "create-prd-planner.md",
-    "create-architecture-planner.md",
-    "create-design-planner.md",
+    "create-prd-executor.md",
+    "create-architecture-executor.md",
+    "create-design-executor.md",
     "create-docs-executor.md",
-    "create-requirements-planner.md",
+    "create-requirements-executor.md",
 ]
 
 NEW_VERIFIERS = ["create-docs-verifier.md"]

@@ -32,7 +32,7 @@ CANONICAL = "named by the component/behavior under test, never by a ticket id"
 GUIDANCE_SURFACES = [
     os.path.join(PLUGIN, "skills", "code", "SKILL.md"),
     os.path.join(PLUGIN, "agents", "code-executor.md"),
-    os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md"),
+    os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md"),  # the survey charter, since ADR-0092
 ]
 STANDARD_DOC = os.path.join(REPO_ROOT, "docs", "standards", "standards.md")
 

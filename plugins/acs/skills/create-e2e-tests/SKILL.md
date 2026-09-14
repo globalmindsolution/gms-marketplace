@@ -8,8 +8,8 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-e2e-tests. Your job: turn the e2e-typed
 rows of ONE ticket's `test-cases.md` into real end-to-end suites — written in
 this repo's e2e harness, under this repo's e2e location, named after the ticket,
-and committed on the ticket branch. You orchestrate planner/executor/verifier
-subagents over XML; you never write the suite code yourself.
+and committed on the ticket branch. You orchestrate executor/verifier subagents over XML — execute → verify, no
+planner (ADR-0092); you never write the suite code yourself.
 
 You write tests; you never write product code. Not one line, not "a small fix
 to make the test pass": the implementation is `/acs:code`'s, and a suite that
@@ -64,7 +64,7 @@ Parse the printed context JSON. Fields you will use:
   time, so read `suites["e2e"]` and never the raw alias), `artifacts.tickets_path`
   (where `test-cases.md` lives), `quality_path`, `architecture_path`,
   `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for planner/executor/verifier.
+- `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-create-e2e-tests.py`.
 
@@ -166,19 +166,20 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    this run's to finish.
 3. Re-read `test-cases.md` — its e2e rows may have changed since the prior run,
    and a suite covering a case that no longer exists is a suite to remove.
-4. Continue from the first unfinished phase — planner artifact present but no
-   suite → re-run execute against it; suites present but unverified → verify.
-5. A resumed run reuses `<partition>/phases/create-e2e-tests/iter-1-plan.md` and
-   never spawns a second planner; the plan phase runs (once) only when that
-   artifact is absent.
+4. Continue from the first unfinished phase — an execute with no verify →
+   verify it; a verify with findings and no later execute → execute with
+   those findings as `<context>`; nothing on disk → iteration 1 execute.
+5. There is no plan artifact to reuse: the executor's authoring notes
+   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/create-e2e-tests/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-Read these yourself and name them by path in the planner's `<inputs>` (never
+Read these yourself and name them by path in the executor's `<inputs>` (never
 inline a file body):
 
 1. `test-cases.md` — the e2e rows are the specification: preconditions, steps,
@@ -196,23 +197,24 @@ inline a file body):
    runnable by THAT command with no new runner, no new flag and no new
    dependency; needing one is a question for the user, not a silent addition.
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan once, before the loop, then run execute → verify until the verifier
-returns zero blocking findings or the cap is reached. The cap is a fixed **3**
-in every lane — `/acs:create-e2e-tests` has no lane-driven verify depth.
+Run execute → verify until the verifier returns zero blocking findings or the
+cap is reached. The cap is a fixed **3** in every lane — `/acs:create-e2e-tests`
+has no lane-driven verify depth. There is no plan phase: iteration 1's
+executor surveys the inputs, writes its authoring notes, and authors the suites
+from them; the verifier judges the result fresh. On iterations 2-3 the
+verifier's findings go verbatim into the next executor `<task>` `<context>`
+and the executor authors the remediation.
 
-**What an iteration counts.** One iteration is one execute → verify round; the
-plan phase runs exactly once, before the loop, and is not part of any
-iteration — the cap counts execute+verify rounds, not plan+execute+verify
-triads.
+**What an iteration counts:** one execute → verify round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`schemas/acs-messages.xsd`):
 
 - Send each subagent one `<task skill="create-e2e-tests"
-  phase="plan|execute|verify" ticket-id="<id>" iteration="n">` carrying
+  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`.
 - Every phase's `<constraints>` carry `e2e_command` (and `e2e_setup` /
   `e2e_teardown` when configured), `e2e_root` (the location resolved above),
@@ -229,24 +231,12 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Persist every phase's `<task>` and `<result>` to
   `<partition>/phases/create-e2e-tests/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-e2e-tests-planner`,
-  `acs:create-e2e-tests-executor`, `acs:create-e2e-tests-verifier` — fall back
+- Spawn subagents with the Agent tool: `acs:create-e2e-tests-executor`,
+  `acs:create-e2e-tests-verifier` — fall back
   to the un-namespaced name only if the runtime rejects the namespaced one.
   Apply `context.models.<role>.model` / `.effort` at spawn when not
   `"inherit"`; if the runtime rejects the model or effort, FAIL the run with
   that exact error — no silent fallback.
-
-### Phase: plan (once, before the loop) — `acs:create-e2e-tests-planner`
-
-Objective: from the e2e cases, the existing suites and the product surface,
-decide the suite layout — which file(s), which test per `TC-<n>`, which
-fixtures and setup each needs, what the assertion for each expected result
-actually is, and what each case needs that the harness does not yet provide —
-and write it to `<partition>/phases/create-e2e-tests/iter-1-plan.md`. The
-planner reads and plans; its only write is that artifact.
-
-If the planner returns `<questions>`, resolve them in User interaction BEFORE
-executing, and carry the answers into the execute `<task>` via `<context>`.
 
 ### Phase: execute — `acs:create-e2e-tests-executor`
 
@@ -255,29 +245,40 @@ enforces it, and an undeclared map means no enforcement at all:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
-  --iteration <n> --task 1 --file <e2e root>/<suite file> --file <e2e root>/fixtures/<...>
+  --iteration <n> --task 1 --file <e2e root>/
 ```
 
-Declare exactly the suite and fixture paths the plan lists — every one of them
-under the resolved e2e location, including any existing suite file the plan
-adopts — and NOTHING under the product's source tree.
-That is the mechanical half of "this skill never writes product code": an
-executor that finds it needs a source change returns `needs_input` naming the
-file, and you take it to the user rather than widening the map. Re-declare
-before each iteration's remediation executor; the guard reads the highest
-declared iteration.
+Declare the resolved e2e location itself — the guard matches a directory
+entry as a prefix, so every suite and fixture path the executor decides on
+is writable under it and NOTHING under the product's source tree is. That is
+the mechanical half of "this skill never writes product code": an executor
+that finds it needs a source change returns `needs_input` naming the file,
+and you take it to the user rather than widening the map. Re-declare before
+each iteration's remediation executor; the guard reads the highest declared
+iteration.
 
-Objective: write the suites the plan lays out, in the repo's harness and style,
-each test carrying its `TC-<n>` id, each assertion checking the case's stated
-expected result. One suite per run, revised in place across iterations.
+Objective, iteration 1: from the e2e cases, the existing suites and the
+product surface, decide the suite layout — which file(s), which test per
+`TC-<n>`, which fixtures and setup each needs, what the assertion for each
+expected result actually is, and what each case needs that the harness does
+not yet provide — record that decision in the authoring notes
+(`<partition>/phases/create-e2e-tests/iter-<n>-authoring.md`), then write the
+suites from those notes, in the repo's harness and style, each test carrying
+its `TC-<n>` id, each assertion checking the case's stated expected result.
+One suite per run, revised in place across iterations. The notes are what
+the verifier checks the suites against.
+
+If the executor returns `needs_input` with `<questions>`, resolve them in User
+interaction and re-run execute for the same iteration with the answers in
+`<context>`.
 
 On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no planner spawn in between.
+else — no plan phase in between.
 
 ### Phase: verify — `acs:create-e2e-tests-verifier`
 
 Spawn `acs:create-e2e-tests-verifier` AFTER the suites are written, with
-`<inputs>` of the suite files, the planner artifact, `test-cases.md`, the API
+`<inputs>` of the suite files, the authoring notes (`iter-<n>-authoring.md`), `test-cases.md`, the API
 contract when it exists, and the existing suites it must match. It judges
 fresh — never forward the executor's reasoning — and writes
 `<partition>/phases/create-e2e-tests/iter-<n>-verify.md`.

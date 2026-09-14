@@ -59,28 +59,28 @@ internal:
 #   * apply-with-a-gate (create-pr, create-ticket, merge-pr) keeps an executor
 #     and no planner or verifier: its judgement is a readiness gate that runs
 #     BEFORE the action, not a review after it;
-#   * authoring skills lose their planner — when the deliverable IS the plan
+#   * authoring skills have no planner — when the deliverable IS the plan
 #     or the analysis, a planning phase to plan it is a second copy of the
-#     work. Most still declare one below: that removal changes behaviour, so
-#     it lands one skill at a time, each editing its own line here, and the
-#     line is the record of which skills have been through it (create-docs
-#     was the first: its executor authors each doc set from the templates);
+#     work. Their executor surveys first (iteration 1, recorded in its
+#     authoring notes) and authors from the survey; their verifier judges the
+#     deliverable against those notes (create-docs was the first, with
+#     ADR-0094; the other twelve followed in ADR-0092's stage 2);
 #   * code keeps an executor and a verifier; its plan phase is its own skill.
 agents:
-  analyze-ticket: [planner, executor, verifier]
+  analyze-ticket: [executor, verifier]
   code: [executor, verifier]
-  create-api-contract: [planner, executor, verifier]
-  create-architecture: [planner, executor, verifier]
-  create-design: [planner, executor, verifier]
+  create-api-contract: [executor, verifier]
+  create-architecture: [executor, verifier]
+  create-design: [executor, verifier]
   create-docs: [executor, verifier]
-  create-e2e-tests: [planner, executor, verifier]
-  create-impl-plan: [planner, executor, verifier]
+  create-e2e-tests: [executor, verifier]
+  create-impl-plan: [executor, verifier]
   create-pr: [executor]
-  create-prd: [planner, executor, verifier]
-  create-project: [planner, executor, verifier]
-  create-requirements: [planner, executor, verifier]
-  create-test-docs: [planner, executor, verifier]
+  create-prd: [executor, verifier]
+  create-project: [executor, verifier]
+  create-requirements: [executor, verifier]
+  create-test-docs: [executor, verifier]
   create-ticket: [executor]
-  docs-sync: [planner, executor, verifier]
+  docs-sync: [executor, verifier]
   merge-pr: [executor]
-  standardize-project: [planner, executor, verifier]
+  standardize-project: [executor, verifier]

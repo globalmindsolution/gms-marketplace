@@ -18,7 +18,7 @@ markdown and would otherwise drift away from the deterministic layer:
   * the two recommendations (stakes, refined ACs / needs_design) going through
     their CLIs — `acs.py lane apply`, `acs.py ticket save` — and never through
     a hand-written ticket field;
-  * the triad's shape (one planner, execute -> verify, artifacts, grounding).
+  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_analyze_ticket -v
 """
@@ -40,7 +40,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("planner", "executor", "verifier")
+ROLES = ("executor", "verifier")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
@@ -397,9 +397,8 @@ class TestTriadShape(unittest.TestCase):
     these keep this triad honest on its own)."""
 
     def test_role_tool_restrictions(self):
-        for role in ("planner", "verifier"):
-            fm, _ = frontmatter(agent(role), role)
-            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        fm, _ = frontmatter(agent("verifier"), "verifier")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
         fm, _ = frontmatter(agent("executor"), "executor")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -412,7 +411,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/analyze-ticket/iter-<n>-plan.md", agent("planner"))
+        self.assertIn("phases/analyze-ticket/iter-<n>-authoring.md", agent("executor"))
         self.assertIn("phases/analyze-ticket/iter-<n>-execute.json", agent("executor"))
         self.assertIn("phases/analyze-ticket/iter-<n>-verify.md", agent("verifier"))
 
@@ -430,15 +429,25 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
         self.assertIn("police grounding", agent("verifier"))
 
-    def test_one_planner_per_run_and_a_capped_loop(self):
+    def test_no_planner_and_a_capped_loop(self):
+        """ADR-0092 class D: the deliverable is the analysis, so a plan for it
+        would be a second copy of the work — execute -> verify only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"Plan once, before the loop")
+        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertNotIn("acs:analyze-ticket-planner", body)
+        self.assertNotIn("iter-1-plan.md", body)
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-ticket-planner.md")))
         self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
         self.assertIn("never spawn subagents", body.lower())
 
-    def test_the_planner_does_not_plan_the_implementation(self):
-        """The boundary with /acs:create-impl-plan, stated where it is enforced."""
-        self.assertRegex(agent("planner"), r"NEVER plan the implementation")
+    def test_the_executor_surveys_first_and_does_not_plan_the_implementation(self):
+        """The survey the planner used to do is the executor's first job, and
+        the boundary with /acs:create-impl-plan is stated where it is enforced."""
+        body = agent("executor")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", body)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", body)
+        self.assertRegex(body, r"NEVER plan the implementation")
+        self.assertRegex(agent("verifier"), r"(?m)^7\. `authoring-conformance`")
 
     def test_the_verifier_re_derives_rather_than_trusting_the_draft(self):
         body = agent("verifier")

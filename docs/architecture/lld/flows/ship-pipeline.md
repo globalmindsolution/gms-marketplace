@@ -106,8 +106,8 @@ is the separate, per-child pipeline diagrammed above.
 > The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
 > `[create-design]` bracketing above is still conditional — on
 > `ticket.needs_design`, independent of lane — but there is no
-> bracketed spec-authoring step on any lane: `/code`'s plan's author (the
-> planner on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
+> bracketed spec-authoring step on any lane: the plan's author (the
+> `create-impl-plan-executor` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
 > self-authors the five-section spec content (Scope, Approach, API/data
 > changes, Test plan, Out of scope) inside its plan phase on EVERY lane when
 > `<partition>/specs/` is absent or empty, and reads pre-existing specs
@@ -128,8 +128,8 @@ is the separate, per-child pipeline diagrammed above.
 > (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
 >
 > **NOTE (MAR-160):** The pipeline gains one more step, `docs-sync`, inserted
-> between `code`/`test` and `create-pr` — a new hooked triad skill
-> (`docs-sync-planner`/`-executor`/`-verifier`) that independently re-derives
+> between `code`/`test` and `create-pr` — a new hooked skill
+> (`docs-sync-executor`/`-verifier`; no planner since ADR 0092) that independently re-derives
 > doc impact from `git diff <default_branch>...HEAD`, `/code`'s
 > `result.json`, and the final code-verify artifact, committing any doc
 > updates as additional commits on the SAME ticket branch (never a new

@@ -109,6 +109,26 @@ the notes.
 
 - **⚠️ BREAKING: `/acs:code` no longer plans.** Its Plan, Plan approval, Plan revocation and Plan-artifact-resolution steps moved to `/acs:create-impl-plan` (and `agents/code-planner.md` with them, as `agents/create-impl-plan-planner.md`). `/acs:code` keeps execute → verify, the escalation triggers, the coverage gate and the full-verify boundary; its executor writes tests from `test-cases.md` when present, its verifier gains a contract-conformance check when `api-contract.md` exists, and an execution that finds the plan wrong ends `failed` with `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back to `/acs:create-impl-plan`. **Migration:** run `/acs:create-impl-plan <id>` before `/acs:code <id>`; `/acs:ship` does it for you.
 
+- **⚠️ BREAKING: no skill has a planner any more (ADR-0092, stage 2).** The
+  twelve authoring skills — `analyze-ticket`, `create-impl-plan`,
+  `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `create-prd`,
+  `create-design`, `create-architecture`, `create-requirements`,
+  `create-project`, `standardize-project` and `docs-sync` — run execute →
+  verify like `create-docs` already did: iteration 1's executor surveys first
+  (the former planner charter moved into a `## Survey` section of each
+  executor), records the survey in `iter-<n>-authoring.md`, and authors the
+  deliverable from it; an open decision returns `needs_input` before any file
+  is written; each verifier gains an `authoring-conformance` dimension that
+  judges the deliverable against those notes and re-opens their citations.
+  The twelve `agents/<skill>-planner.md` files are deleted (31 agent files
+  remain, all declared in `workflows/phases.yaml`), no skill writes
+  `iter-<n>-plan.md` any more, and `/acs:create-impl-plan` keeps ADR-0074's
+  lane rule with its executor in the planner's place (spawned on
+  STANDARD/COMPLEX; TRIVIAL/SMALL stay coordinator-authored). A
+  `models.planner` / `models.overrides.<skill>.planner` entry is still
+  accepted but inert. A run interrupted mid-plan before this release does not
+  resume from its `iter-1-plan.md`: re-run the skill and it surveys afresh.
+
 ### Deprecated
 
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.

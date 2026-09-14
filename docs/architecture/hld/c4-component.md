@@ -70,54 +70,58 @@ work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
-The work loop has two shapes. The **twelve triad-keeping skills** (create-prd,
+The work loop has two shapes. The **twelve authoring skills** (create-prd,
 create-architecture, create-project, create-design, docs-sync,
 standardize-project, create-requirements, analyze-ticket, create-impl-plan,
-create-api-contract, create-test-docs, create-e2e-tests) run the full
-plan→execute→verify reflection loop, spawning a separate planner, executor,
-and verifier subagent per phase — so **12 active triads (36 agents in triads)**;
-`code` and `create-docs` run execute→verify with no planner (ADR 0089,
-ADR 0094). The **three apply-work skills** (create-ticket, create-pr,
-merge-pr) run **inline** (MAR-60): the coordinator does the work directly,
-or delegates to **at most one** executor — never a planner or verifier, any
-lane; correctness is gated instead (create-ticket by schema + Step-2
-confirmation; create-pr/merge-pr by `/code`'s verifier). 36 triad agents,
-the 4 of `code`'s and `create-docs`'s executor + verifier pairs, and the 3
-apply-work executors give **43 agent files, all reachable**; the apply-work
-skills' plan/verify files were deleted under ADR 0092, so no agent file is
-orphaned. All twelve triads spawn the planner once per run, not per
-iteration — timing only, counts unchanged (MAR-71/300/301/302/305). Within
-the 12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
-planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the
-coordinator authors the plan artifact itself, with zero planner spawns (ADR
-0074). The execute and verify legs stay unconditional in every lane — for
-`/code`, and for every other skill among the twelve triad-keeping ones — so
-the counts above are unaffected.
+create-api-contract, create-test-docs, create-e2e-tests), `code` and
+`create-docs` run the execute→verify reflection loop, spawning a separate
+executor and verifier subagent per phase —
+**12 authoring pairs (24 agents in pairs)** plus the 2 + 2 of `code` and
+`create-docs`. No skill has a plan
+phase: every one of the fourteen runs execute→verify with no planner (ADR
+0092; `code` against the plan `/acs:create-impl-plan` approved, ADR 0089;
+`create-docs` first, ADR 0094; the other twelve in ADR 0092's stage 2) —
+iteration 1's executor surveys and records `iter-<n>-authoring.md` before it
+writes, and the verifier judges the deliverable against those notes. The
+**three apply-work skills** (create-ticket, create-pr, merge-pr) run
+**inline** (MAR-60): the coordinator does the work directly, or delegates to
+**at most one** executor — never a verifier, any lane; correctness is gated
+instead (create-ticket by schema + Step-2 confirmation; create-pr/merge-pr by
+`/code`'s verifier). 24 agents in the authoring pairs, the 4 of `code`'s and
+`create-docs`'s executor + verifier pairs, and the 3 apply-work executors
+give **31 agent files, all reachable**; the apply-work skills' plan/verify
+files and the twelve authoring planners were deleted under ADR 0092, so no
+agent file is orphaned. Within the fourteen, `/create-impl-plan`'s execute
+leg is lane-conditional since MAR-72: its executor (whose survey is the
+former `code-planner` charter) is spawned on STANDARD/COMPLEX; on
+TRIVIAL/SMALL the coordinator authors the plan artifact itself, with zero
+executor spawns (ADR 0074). The verify leg stays unconditional in every lane,
+for every skill that runs the loop — so the counts above are unaffected.
 
-Neither `/acs:create-docs` nor `/acs:project` is a triad-keeping skill.
-`/acs:project` is an unhooked coordinator: like `/acs:ship` it has no triad,
-no gate and no hook scripts of its own. It is the **entry point** of the design-phase
-fold (`workflows/phases.yaml`'s `internal` map, ADR 0091), and it spawns the
-*existing* triads above as ordinary plan→execute→verify runs on their own
-delivery tickets — over exactly one of its
-two legs (`create-project` or `standardize-project`), chosen by
+`/acs:project` is an unhooked coordinator: like `/acs:ship` it has no
+executor/verifier pair, no gate and no hook scripts of its own. It is the
+**entry point** of the design-phase fold (`workflows/phases.yaml`'s
+`internal` map, ADR 0091), and it spawns the *existing* pairs above as
+ordinary execute→verify runs on their own delivery tickets — over exactly
+one of its two legs (`create-project` or `standardize-project`), chosen by
 `acs_lib.project_mode` from declared on-disk evidence. `/acs:create-docs`,
 once an unhooked umbrella over four such legs, is since ADR 0094 a hooked
 product skill of its own: one executor + verifier pair authors and judges any
 of the four doc sets (the set rides in the task constraints), one delivery
 ticket per set, the eligible sets run in slices of at most `max_parallel`
-(default 2). Because the fold moved
-no triad, no gate and no agent file, the triad-keeping list and the 12/36/39
-counts above are unaffected by it (MAR-1; fold per ADR 0091).
+(default 2). Because the fold moved no pair, no gate and no agent file, the
+authoring-skill list and the 12/24/31 counts above are unaffected by it
+(MAR-1; fold per ADR 0091).
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
 `/code`'s loop body is execute → verify with the plan authored once before the
 loop — MAR-71, slice 1b of MAR-69 — so this ceiling counts execute+verify
-rounds, and exactly one `code-planner` is spawned per run **on STANDARD/COMPLEX
-only — on TRIVIAL/SMALL the coordinator authors `plan.md` itself and no
-`code-planner` is spawned** (MAR-72, ADR 0074)), spec authoring
-folds into the plan phase on every lane whenever
+rounds, and exactly one plan-authoring `create-impl-plan-executor` is spawned
+per `/create-impl-plan` run **on STANDARD/COMPLEX only — on TRIVIAL/SMALL the
+coordinator authors `plan.md` itself and no executor is spawned** (MAR-72,
+ADR 0074)), spec authoring folds into `/create-impl-plan`'s plan on every
+lane whenever
 `<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
 recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is

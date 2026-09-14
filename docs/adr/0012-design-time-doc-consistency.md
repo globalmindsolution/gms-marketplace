@@ -143,19 +143,22 @@ question type, no new `problems` field, and no new lifecycle.
 
 **Reconciling DR-2**: the Decision's participant list (`:21-45`) still names
 the pre-MAR-156 count. Today, **5** agents actually carry the canonical
-`### Design-time doc-consistency step (ADR 0012)` block: the four planners
-`create-prd-planner`, `create-architecture-planner`, `create-design-planner`
-and `create-requirements-planner`, plus `create-docs-executor`, which
-carries the same block for the four product doc sets it authors. (As
-written on 2026-08-30 this paragraph counted **8** planner agents:
+`### Design-time doc-consistency step (ADR 0012)` block: the executors of
+the five doc-producing skills — `create-prd-executor`,
+`create-architecture-executor`, `create-design-executor`,
+`create-requirements-executor` and `create-docs-executor` (ADR-0092 removed
+those skills' planners, and the block moved into each executor's survey,
+which is where the doc graph is read now). (As written on 2026-08-30 this
+paragraph counted **8** planner agents:
 `create-quality-planner`, `create-operations-planner`,
 `create-principles-planner` and `create-standards-planner` were four of
 them, and ADR-0094 folded those four legs into the planner-less
 `/acs:create-docs`, whose executor took over the block — count corrected
-2026-09-14.) `create-impl-plan-planner.md` (formerly `code-planner.md`) is
-**not** one of the 5 — it carries the extended Boy-scout bullet above, not
-the canonical block, and this amendment does not add it to that carrier
-list.
+2026-09-14.) `create-impl-plan-executor.md` (which inherited the plan
+charter from `create-impl-plan-planner.md`, itself formerly
+`code-planner.md`) is **not** one of the 5 — it carries the extended
+Boy-scout bullet above, not the canonical block, and this amendment does not
+add it to that carrier list.
 
 ## Amendment — MAR-167
 

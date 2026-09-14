@@ -63,8 +63,10 @@ continuing:
   committed, pushed, or already has a PR (`gh pr list --head <branch>`).
 - Distrust the record where it is cheap to re-check.
 - Continue from the first unfinished phase of the recorded iteration.
-- A resumed run reuses the existing `iter-1-plan.md` and never spawns a second
-  planner; the plan phase runs (once) only when that artifact is absent.
+- There is no plan artifact to reuse: an execute with no verify → verify it; a
+  verify with findings and no later execute → execute with those findings as
+  `<context>`. The iteration-1 authoring notes (`iter-1-authoring.md`) carry the
+  frozen allowlist every later iteration reads.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/standardize-project/handoff-context.md` (if present), do a light
@@ -85,7 +87,7 @@ extension of `create-project` could not host (D5 Option C's rejection,
 
 ## Inputs & mode
 
-The audit inputs, read before spawning the planner:
+The audit inputs, read before spawning the executor:
 
 - `<architecture_path>/hld/project-structure.md` — the structural target (D4, MAR-120's
   `/acs:create-architecture` output). **May not exist** on a given consumer repo. When
@@ -124,8 +126,8 @@ The audit inputs, read before spawning the planner:
       `recommended_follow_ups` entry instead of an in-place modification.
 
   When the repo's existing build/test/CI tooling is genuinely ambiguous (no package
-  manifest, or multiple candidate stacks/CI providers), the planner surfaces this as an
-  open question rather than guessing.
+  manifest, or multiple candidate stacks/CI providers), the executor surfaces this as an
+  open question (`needs_input`) rather than guessing.
 
 **No bootstrap/re-run mode split.** Unlike the doc-set producers, `standardize-project`
 has no `bootstrap` vs `re-run` distinction on its own output — there is no fixed doc set
@@ -138,21 +140,21 @@ scaffold and reports zero gaps.
 
 Unlike the fixed-file-set producers (`create-standards`' exactly 3 files,
 `create-principles`' exactly 1), `standardize-project`'s scaffold surface is VARIABLE per
-audited repo — computed fresh by the planner's audit, not a static table. This section
-pins the FIXED parts of the contract: the allowlist CATEGORIES the planner may draw from
+audited repo — computed fresh by the executor's iteration-1 audit, not a static table.
+This section pins the FIXED parts of the contract: the allowlist CATEGORIES the executor may draw from
 (never the literal path list, which varies per run) and the `recommended_follow_ups`
 shape.
 
-**Additive-surface allowlist categories.** The planner emits, and the verifier enforces
+**Additive-surface allowlist categories.** The executor's iteration-1 audit emits, and the verifier enforces
 every iteration (via spec 01's `classify_additive_diff` helper), an allowlist drawn ONLY
 from:
 
 1. New CI workflow file(s) the executor adds (e.g. under `.github/workflows/`) — `A`
    (added) status only.
-2. New or additively-appended tooling config the skill itself owns and the plan names
+2. New or additively-appended tooling config the skill itself owns and the notes name
    explicitly — coverage-tool config, pre-commit config, e2e runner scaffold config. `A`
    (new file) is always allowed; `M` (modify, an additive append such as a new
-   key/hook/script) is allowed ONLY for the specific paths the plan names as append
+   key/hook/script) is allowed ONLY for the specific paths the notes name as append
    targets — every path NOT named this way defaults to requiring `A`.
 3. The delivery branch/commit/PR metadata itself is governed by `pr-conventions.py` and
    the Delivery section below, not by this file-diff allowlist — it is not a path in the
@@ -161,13 +163,15 @@ from:
 Everything else the executor's diff touches must be `A` status (a wholly new file) —
 never `R`, `D`, or an `M` outside the two categories above.
 
-**The allowlist is frozen.** The planner authors the Additive-surface allowlist exactly
-once, in `iter-1-plan.md`; that allowlist is authoritative for the whole run — the
+**The allowlist is frozen.** The executor authors the Additive-surface allowlist exactly
+once, in its iteration-1 authoring notes (`iter-1-authoring.md`), before it scaffolds
+anything; that allowlist is authoritative for the whole run — the
 executor's writable surface is monotonically non-increasing across iterations 1-3: it
-can shrink (a category the plan named can become moot once scaffolded), never grow. This
-freeze bounds, and does not close, the trust gap: the allowlist remains planner-authored
-prose, not a mechanically derived allowlist — closing that gap is a named future
-follow-up, not built by this ticket.
+can shrink (a category the notes named can become moot once scaffolded), never grow. This
+freeze bounds, and does not close, the trust gap: the allowlist remains
+executor-authored prose, not a mechanically derived allowlist — the verifier checks it
+against the two categories above every iteration, and closing the gap mechanically is
+a named future follow-up, not built by this ticket.
 
 **Deviation from the design's broader allowlist — resolved report-only.** The design's
 own allowlist text additionally lists `<principles_path>/**` and `<standards_path>/**`
@@ -194,13 +198,16 @@ Option A / C-5) — the user decides whether to act on it. This covers both doc-
 AND structural gaps versus `hld/project-structure.md` (AC-6) — both categories flow
 through this same one array, never a second output channel.
 
-## Reflection loop
+## Reflection loop — execute -> verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:standardize-project-planner` across the whole run, however many iterations the loop
-below uses. The loop itself is execute -> verify, at most 3 iterations. Spawn subagents
-via the Agent tool: `subagent_type` `acs:standardize-project-planner` /
-`acs:standardize-project-executor` / `acs:standardize-project-verifier` (fall back to the
+The loop is execute -> verify, at most 3 iterations. There is no plan phase: iteration
+1's executor AUDITS the repo (read-only) and writes its authoring notes — the gap list,
+the frozen Additive-surface allowlist, the `recommended_follow_ups` candidates — and
+then scaffolds the allowlisted gaps from them; the verifier judges the result fresh. On
+iterations 2-3 the verifier's findings go verbatim into the next executor `<task>`
+`<context>` and the executor authors the remediation. Spawn subagents via the Agent
+tool: `subagent_type` `acs:standardize-project-executor` /
+`acs:standardize-project-verifier` (fall back to the
 un-namespaced name if the runtime rejects the namespaced one). Apply
 `context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
 silent fallback) if the runtime rejects the model/effort. Communicate in XML per
@@ -209,18 +216,16 @@ message, re-request once, then fail with the validation error recorded in `error
 Persist every phase output to `<partition>/phases/standardize-project/iter-<n>-<phase>.xml`
 before starting the next phase.
 
-**What an iteration counts.** One iteration is one execute -> verify round; the plan
-phase runs once, before the loop, and is not part of any iteration, so the cap counts
-execute+verify rounds, not a plan+execute+verify triad. `standardize-project` has no
-lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this ticket
-introduces none.
+**What an iteration counts:** one execute -> verify round. `standardize-project` has
+no lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this
+ticket introduces none.
 
-Example plan task (illustrates the audit-inputs contract and the narrowed allowlist
-together):
+Example iteration-1 execute task (illustrates the audit-inputs contract and the
+narrowed allowlist together):
 
 ```xml
-<task skill="standardize-project" phase="plan" ticket-id="SHOP-9" iteration="1">
-  <objective>Audit this repo against principles_path, standards_path, hld/project-structure.md, and acs-readiness tooling; produce a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups.</objective>
+<task skill="standardize-project" phase="execute" ticket-id="SHOP-9" iteration="1">
+  <objective>Audit this repo against principles_path, standards_path, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups; then scaffold the allowlisted gaps.</objective>
   <inputs>
     <file>docs/architecture/hld/project-structure.md</file>
     <file>docs/principles/</file>
@@ -230,7 +235,6 @@ together):
   </inputs>
   <constraints>
     <constraint name="coverage-target">90</constraint>
-    <constraint name="read-only">The plan phase mutates nothing.</constraint>
     <constraint name="no-doc-set-authorship">principles_path/standards_path content is never a scaffold target — a missing set is always a recommended_follow_ups entry, never authored or invoked inline.</constraint>
     <constraint name="e2e-opt-in">settings.e2e unset means the e2e readiness dimension is N/A — no e2e scaffold, no gate.</constraint>
   </constraints>
@@ -239,20 +243,21 @@ together):
 
 Phases:
 
-1. **Plan** (once, before the loop) — the planner AUDITS (read-only): reads the
-   doc-set/target/readiness-tooling inputs above, produces a gap list classified into
-   scaffold-able (CI/tooling config) vs recommended-follow-up-only (missing doc sets,
-   missing `hld/project-structure.md`, structural gaps against it), the additive-surface
-   allowlist the verifier will enforce, and the `recommended_follow_ups` candidates.
-   Persist the plan to `<partition>/phases/standardize-project/iter-1-plan.md`; this
-   allowlist is frozen for the whole run (see Additive-surface contract). On iterations
-   2-3 the verifier's findings go verbatim into the executor's `<task>` `<context>`, with
-   no planner spawn in between (see Execute below).
-2. **Execute** — the executor writes ONLY the allowlisted new files and named additive
-   config appends — never edits, renames, or deletes any pre-existing source file, and
-   never writes under `<principles_path>/**` or `<standards_path>/**`. Decomposition is
-   the coordinator's alone; subagents never spawn subagents.
-3. **Verify** — after all executors finish, spawn the verifier on the combined result.
+1. **Execute** — iteration 1's executor first AUDITS (read-only): it reads the
+   doc-set/target/readiness-tooling inputs above and writes its authoring notes
+   (`<partition>/phases/standardize-project/iter-1-authoring.md`): a gap list
+   classified into scaffold-able (CI/tooling config) vs recommended-follow-up-only
+   (missing doc sets, missing `hld/project-structure.md`, structural gaps against it),
+   the additive-surface allowlist the verifier will enforce, and the
+   `recommended_follow_ups` candidates. That allowlist is frozen for the whole run (see
+   Additive-surface contract). Then the executor writes ONLY the allowlisted new files
+   and named additive config appends — never edits, renames, or deletes any
+   pre-existing source file, and never writes under `<principles_path>/**` or
+   `<standards_path>/**`. Decomposition is the coordinator's alone; subagents never
+   spawn subagents. On iterations 2-3 the verifier's findings go verbatim into the
+   executor's `<task>` `<context>`, with no plan phase in between, and every later
+   executor reads the frozen iteration-1 notes.
+2. **Verify** — after all executors finish, spawn the verifier on the combined result.
    It judges fresh from artifacts only — never the executors' reasoning — and re-runs,
    itself, EVERY iteration (never reusing a prior iteration's result, never trusting the
    execute report's `files_changed` list as a substitute):
@@ -261,7 +266,7 @@ Phases:
 git -C <checkout_root> diff --name-status <default_branch>...HEAD
 ```
 
-   passing that raw output plus the planner's allowlist entries to spec 01's
+   passing that raw output plus the iteration-1 notes' allowlist entries to spec 01's
    `classify_additive_diff` helper in `acs_lib/lanes.py`. Every returned violation — any `R`,
    any `D`, any out-of-allowlist `M` — becomes `severity="blocking"
    dimension="additive-only"`, citing the exact path and status. The verifier's full
@@ -275,7 +280,7 @@ Zero blocking verifier findings = pass — proceed to Delivery. `additive-only` 
 blocking, only when the verifier's four-condition conjunction holds (fail-closed
 otherwise) — see `standardize-project-verifier.md` for the exact conjunction. On
 remaining blocking findings, they go verbatim into the executor's `<task>` `<context>`,
-with no planner spawn in between, and the run continues execute -> verify. When an
+with no plan phase in between, and the run continues execute -> verify. When an
 executor instead returns `status="failed"` whose `<errors>` unambiguously name the
 reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
 convert it into a `{title, rationale, target_path}` entry in the result document's
@@ -373,7 +378,7 @@ entries to subagents in `<context>`. If the user is unavailable, record the deci
 with `--source assumption --rationale "..."`. Before a needs_input handoff, record
 outgoing questions as `open`.
 Ask clarifying questions when genuinely ambiguous — at minimum, any ambiguity the
-planner surfaces about the repo's build/CI/test tooling (see Inputs & mode); do not ask
+executor's audit surfaces about the repo's build/CI/test tooling (see Inputs & mode); do not ask
 about anything the repo's own config already answers. If genuinely unreachable, return a
 `<handoff skill="standardize-project" ticket-id="<id>" status="needs_input">` with
 `<questions>` instead of guessing.

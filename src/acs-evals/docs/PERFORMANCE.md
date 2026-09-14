@@ -244,6 +244,17 @@ the cheap skill being measured) and a `setup_assert` — a shell command, run in
 the sandbox with `ACS_PARTITION` and `ACS_TICKET_ID` bound, that states the
 precondition in the dataset rather than assuming it.
 
+Scenario set 1.8.0 adds a third precondition, `ticket_patch`: the fields the
+`ticketed` profile's minted ticket lacks. That profile mints "Add user login"
+with an empty description and no acceptance criteria (the title is pinned by
+tier-1 goldens), so `/acs:analyze-ticket` correctly reported the ticket not
+ready for planning, `/acs:create-impl-plan` asked its open questions and
+stopped, and `PIPE-code` ran unmeasured — a dataset defect that read as a
+plugin one. The patch is applied through `acs.py ticket save --from -`
+(PATCH semantics, so it can never touch the axes or the lane) before the
+setup prompts run; a patch that cannot be applied marks the run
+`unmeasured`, for the same reason a failed `setup_assert` does.
+
 When either gives way the run is marked `unmeasured`, and the difference
 matters more than it looks:
 

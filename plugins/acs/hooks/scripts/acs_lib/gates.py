@@ -181,7 +181,7 @@ def gate_analyze_ticket(ctx, payload):
 
 def gate_create_impl_plan(ctx, payload):
     """Input: the ticket resolves; epics are refused. No analysis is required
-    (the planner reads analysis.md and design.md when present)."""
+    (the executor's survey reads analysis.md and design.md when present)."""
     ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-impl-plan")
     if ticket.get("type") == "epic":
         _refuse_epic(ticket_id, "create-impl-plan", "planned")
@@ -216,7 +216,7 @@ def gate_code(ctx, payload):
     # Inputs: the ticket resolves and is not an epic, and an implementation plan
     # exists -- /acs:create-impl-plan carved the plan phase out of /acs:code, so
     # code now REQUIRES the artifact it used to author. No lane branch, no
-    # create-spec precondition (the fold is the planner's concern), and no
+    # create-spec precondition (the fold is create-impl-plan's concern), and no
     # predecessor-completed check: the order lives in ship.yaml. Epics are
     # refused before the plan is looked for, because an epic never has one.
     ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")

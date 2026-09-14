@@ -39,7 +39,7 @@ import acs_lib as lib  # noqa: E402
 # skills-independence refactor, so two of the three survivors moved with them;
 # the line-hit counts per file are unchanged (2, 1, 2).
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 
 # --- This spec's sweep-set files ---

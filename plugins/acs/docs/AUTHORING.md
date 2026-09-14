@@ -77,37 +77,41 @@ win — change them first, then the implementation.
 
 | Field | Rule |
 |-------|------|
-| `name` | `<skill>-<role>`, role ∈ planner/executor/verifier. Never reuse an agent across skills — the per-skill charter is the point. |
+| `name` | `<skill>-<role>`, role ∈ executor/verifier (no skill has a planner since ADR-0092). Never reuse an agent across skills — the per-skill charter is the point. |
 | `description` | One sentence: role, owning skill, and "Spawned by the /acs:<skill> coordinator with an XML task; not for direct invocation." |
-| `tools` | Planner/verifier: `Read, Glob, Grep, Bash, Write` (Write *solely* for their own `phases/<skill>/` artifact — restate this in the body; Bash is for read-only inspection and running tests/builds). The allowlist deliberately omits `Agent` and `Skill`. Executor: omit `tools` (it needs broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside an executor would re-enter the hook pipeline. |
+| `tools` | Verifier: `Read, Glob, Grep, Bash, Write` (Write *solely* for its own `phases/<skill>/` artifact — restate this in the body; Bash is for read-only inspection and running tests/builds). The allowlist deliberately omits `Agent` and `Skill`. Executor: omit `tools` (it needs broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside an executor would re-enter the hook pipeline. |
 | `disallowedTools` | `Agent, Skill` on every executor (see above). |
 | `model` / `effort` | **Never set.** The coordinator resolves `settings.json` `models.<role>` / `models.overrides.<skill>.<role>` and applies them at spawn; frontmatter values would silently fight user configuration. |
 
 ### Body (the system prompt)
 
 1. **One phase, one charter.** State what this role does *for this skill* —
-   not generic "you are a planner" filler. The three roles must be
-   meaningfully different; if a planner and verifier body read the same, the
-   verifier will rubber-stamp.
+   not generic "you are an executor" filler. The two roles must be
+   meaningfully different; if an executor's survey section and the verifier
+   body read the same, the verifier will rubber-stamp. An authoring skill's
+   executor carries a `## Survey — what you establish before you write
+   (iteration 1)` section — what a planner used to establish — and a `## The
+   authoring notes (mandatory, every iteration)` section that records it.
 2. **Spell out the I/O contract.** Input: an XML `<task>` (objective, file
    `<inputs>`, constraints, prior-iteration findings in `<context>`). Output:
    the **final message is only** an XML `<result>` per
    `schemas/acs-messages.xsd` — nothing after it. Malformed XML gets
    re-requested once, then the run fails; don't make the coordinator parse
    prose.
-3. **Mandate the phase artifact.** Planner writes `iter-<n>-plan.md`,
-   executor `iter-<n>-execute[-<k>].json`, verifier `iter-<n>-verify.md`
-   (see INTERNALS.md "Phase artifacts") and references it in `<outputs>`.
-   Resumption depends on these files existing even when the run dies right
-   after the phase. Exception: `/acs:create-impl-plan`'s planner writes a
-   single per-ticket `plan.md` instead (MAR-70), written once per run, before
-   the loop (MAR-71, slice 1b of MAR-69) — `plan.md` is the only name ever read
-   or written, in every case, including on resume; every other triad skill
-   keeps the generic rule. Since MAR-72, on TRIVIAL/SMALL that `plan.md` is
-   written by the **coordinator**, not a planner subagent — an agent author
-   must not assume a `-planner` body is always the writer of the plan artifact.
-   `/acs:code` itself is planner-less since the plan phase moved out: it ships
-   an executor and a verifier only, and READS the plan artifact.
+3. **Mandate the phase artifact.** An authoring executor writes
+   `iter-<n>-authoring.md` (its survey, then the findings it addressed) before
+   the deliverable, and every executor `iter-<n>-execute[-<k>].json`; the
+   verifier writes `iter-<n>-verify.md` (see INTERNALS.md "Phase artifacts")
+   and references it in `<outputs>`. Resumption depends on these files
+   existing even when the run dies right after the phase. There is no
+   `iter-<n>-plan.md` any more (ADR-0092). Exception: `/acs:create-impl-plan`'s
+   deliverable is itself a plan — its executor's draft is the single
+   per-ticket `plan.md` (MAR-70), and `plan.md` is the only name ever read or
+   written for it, in every case, including on resume. Since MAR-72, on
+   TRIVIAL/SMALL that `plan.md` is written by the **coordinator** and no
+   executor is spawned — an agent author must not assume an executor body is
+   always the writer of the plan artifact. `/acs:code` ships an executor and a
+   verifier only, and READS the plan artifact.
 4. **No memory assumptions.** The subagent shares nothing with the
    coordinator: every fact it needs must come from `<inputs>` file paths it
    reads itself. Never write "as discussed" or rely on the ticket being "the
@@ -136,11 +140,11 @@ win — change them first, then the implementation.
 |-----------|-------------|----------|
 | Hooked skills + `/ship` | `disallowed-tools: Edit, NotebookEdit` | coordinators orchestrate; only executors mutate sources |
 | `/setup`, `/handoff` | none | user-present utility skills |
-| Planners / verifiers | `tools: Read, Glob, Grep, Bash, Write` | read-only discipline + own phase artifact; no spawning, no skill calls |
+| Verifiers | `tools: Read, Glob, Grep, Bash, Write` | read-only discipline + own phase artifact; no spawning, no skill calls |
 | Executors | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline |
 
-Be honest about what this buys: with Bash granted (planners need read commands,
-verifiers must run tests/builds, executors run everything), these lists are
+Be honest about what this buys: with Bash granted (verifiers must run
+tests/builds, executors run everything), these lists are
 **guardrails against accidental scope creep, not a sandbox** — a shell can
 touch anything. The *enforced* boundaries remain the deterministic layer:
 pre-hook input gates and safety brakes, the file-map guard, locks, and the fact
@@ -193,9 +197,9 @@ registry is `workflows/phases.yaml`. In order:
    and `plugins/acs/skills/` agree in both directions, so an unregistered
    directory fails CI before anything else does.
 2. **Write `skills/<name>/SKILL.md`** to the rules above, plus
-   `agents/<name>-{planner,executor,verifier}.md` when the skill keeps the
-   triad (apply-work skills ship only an executor; a skill whose plan phase
-   lives elsewhere ships no planner).
+   `agents/<name>-{executor,verifier}.md` when the skill runs a reflection
+   loop (apply-work skills ship only an executor; no skill ships a planner —
+   ADR-0092).
 3. **Decide whether it is HOOKED.** A hooked skill gets: an entry in the
    matching list in `acs_lib/_common.py` (`PRODUCT_SKILLS` /
    `WORKFLOW_SKILLS` / `PLANNING_SKILLS` — never a sixth list), a gate in

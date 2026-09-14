@@ -199,7 +199,7 @@ Index 0 = TRIVIAL (lowest) … index 3 = COMPLEX (highest).
 Used by lane_rank() for comparisons only; never use this list to produce
 a lane value — derive_lane() is the single authoritative producer (ADR 0030:56-61).
 """
-"""The six planner headings code/SKILL.md's Plan step requires on every lane."""
+"""The six plan headings create-impl-plan/SKILL.md requires on every lane."""
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""
 """The two mandatory verbatim clauses the fold requires (code/SKILL.md:398-401)."""

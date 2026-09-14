@@ -54,8 +54,7 @@ findings:
    `## Risks`, `## Verifier checklist`) are all present, in order, and
    SUBSTANTIVE: a section that is empty, a placeholder, or "see ticket" is a
    finding. Judge a coordinator-authored draft (TRIVIAL/SMALL) identically to
-   a planner-and-executor-authored one — authorship is never grounds for a
-   waiver.
+   an executor-authored one — authorship is never grounds for a waiver.
 3. **Structure (fold only)** — when the draft states the fold was active,
    run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
    --sections "Scope; Approach; API/data changes; Test plan; Out of scope"
@@ -90,10 +89,18 @@ findings:
 8. **Documentation map** — the `docs/product/prd.md` / `docs/product/roadmap.md`
    factual assessment is a positive, evidenced conclusion (including "no
    factual impact"), and every Boy-scout drift item and E1-E4 doc-graph gap the
-   planner found is carried verbatim with its citation.
+   executor's survey found is carried verbatim with its citation.
 9. **Grounding** — every claim in the draft cites the file, command or
    `file:line` it rests on. An asserted repo fact with no citation is a
    finding: unverifiable work is unverified work.
+10. **Authoring-conformance** (STANDARD/COMPLEX only) — the draft is a
+    faithful rendering of the executor's authoring notes
+    (`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`): every task,
+    test, documentation-map item and risk in the notes appears in the draft,
+    nothing in the draft lacks a basis in the notes or the inputs, and every
+    entry in the notes cites a file you can open or a command you can re-run.
+    Missing notes on these lanes are a blocking finding on their own; on
+    TRIVIAL/SMALL there are no notes and this dimension is N/A.
 
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.

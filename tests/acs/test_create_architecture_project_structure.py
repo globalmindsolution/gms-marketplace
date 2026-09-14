@@ -24,7 +24,7 @@ AGENTS = os.path.join(PLUGIN, "agents")
 DOCS = os.path.join(REPO_ROOT, "docs")
 
 SKILL_PATH = os.path.join(SKILLS, "create-architecture", "SKILL.md")
-PLANNER_PATH = os.path.join(AGENTS, "create-architecture-planner.md")
+PLANNER_PATH = os.path.join(AGENTS, "create-architecture-executor.md")  # the survey charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(AGENTS, "create-architecture-executor.md")
 VERIFIER_PATH = os.path.join(AGENTS, "create-architecture-verifier.md")
 SKILLS_MD_PATH = os.path.join(DOCS, "requirements", "functional", "skills.md")
@@ -226,19 +226,19 @@ class ScopeGuardTest(unittest.TestCase):
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
         self.assertIn("28 x SKILL.md", body)
-        self.assertIn("43 x agent .md (all reachable)", body)
+        self.assertIn("31 x agent .md (all reachable)", body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
         self.assertIn("acs Skills (28)", body)
-        self.assertIn("43 files, all reachable", body)
+        self.assertIn("31 files, all reachable", body)
 
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("twelve triad-keeping skills", overview)
-        self.assertIn("twelve triad-keeping skills", hook_flow)
+        self.assertIn("twelve authoring skills", overview)
+        self.assertIn("twelve authoring skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

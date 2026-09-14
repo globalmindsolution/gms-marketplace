@@ -733,22 +733,23 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: user-confirmation gate token lane must survive")
 
     # ------------------------------------------------------------------ Group 6
-    # AC-6: the six triad-keeping skills still reference planner and verifier.
-    # /acs:code kept its verifier but lost its planner to /acs:create-impl-plan
-    # in the skills-independence refactor, so the plan-owning skill stands in
-    # for it here and code is checked for the roles it actually has.
+    # AC-6: the authoring skills still reference their executor and verifier.
+    # ADR-0092 removed every authoring skill's planner (the deliverable IS the
+    # plan), so the pair is what each of them must still name — and no planner
+    # reference may survive in their prose.
 
-    def test_triad_skills_still_reference_planner_and_verifier(self):
-        """AC-6: workflow/product skills must still reference their planner+verifier."""
+    def test_authoring_skills_still_reference_executor_and_verifier(self):
+        """AC-6: workflow/product skills must still reference their executor+verifier."""
         for skill in ("create-impl-plan", "create-prd", "docs-sync",
                       "create-design", "create-architecture", "create-project"):
             body = read(self.skill_path(skill))
-            self.assertIsNotNone(
+            self.assertIsNone(
                 re.search(r"acs:" + skill + r"-planner", body),
-                "AC-6 [%s]: must still reference acs:%s-planner" % (skill, skill))
-            self.assertIsNotNone(
-                re.search(r"acs:" + skill + r"-verifier", body),
-                "AC-6 [%s]: must still reference acs:%s-verifier" % (skill, skill))
+                "AC-6 [%s]: must not reference acs:%s-planner (ADR-0092)" % (skill, skill))
+            for role in ("executor", "verifier"):
+                self.assertIsNotNone(
+                    re.search(r"acs:" + skill + r"-" + role, body),
+                    "AC-6 [%s]: must still reference acs:%s-%s" % (skill, skill, role))
 
     def test_code_references_its_executor_and_verifier(self):
         """AC-6, /acs:code after the plan carve-out: no planner reference may
@@ -1285,7 +1286,8 @@ class TestGeneralizedFold(unittest.TestCase):
         return read(self.skill_path("create-impl-plan"))
 
     def _planner_body(self):
-        return read(self.agent_path("create-impl-plan-planner.md"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan-executor.md"))
 
     def test_fold_activating_condition_has_no_lane_qualifier(self):
         """AC-2: the fold section states the activating condition as
@@ -1910,7 +1912,8 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
     def _planner_body(self):
         # The documentation map is the plan planner's charter item 4; the plan
         # phase moved to /acs:create-impl-plan.
-        return read(self.agent_path("create-impl-plan", "planner"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan", "executor"))
 
     # --- AC-1: prd.md and roadmap.md named in SKILL.md step 4 ---
 
@@ -2368,7 +2371,8 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
 
     def _planner(self):
         # The plan phase (and its planner) moved to /acs:create-impl-plan.
-        return read(self.agent_path("create-impl-plan", "planner"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan", "executor"))
 
     def _verifier(self):
         return read(self.agent_path("code", "verifier"))
@@ -2542,7 +2546,7 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
         charter moved to create-impl-plan-planner.md) must each contain
         'Simplicity First'."""
         for agent in ("code-executor", "code-verifier",
-                      "create-impl-plan-planner"):
+                      "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Simplicity First", body,
                           "%s.md must contain 'Simplicity First' (MAR-2 AC-6)" % agent)
@@ -2550,7 +2554,7 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
     def test_all_three_agents_carry_surgical_changes(self):
         """AC-6: the same three agents must each contain 'Surgical Changes'."""
         for agent in ("code-executor", "code-verifier",
-                      "create-impl-plan-planner"):
+                      "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Surgical Changes", body,
                           "%s.md must contain 'Surgical Changes' (MAR-2 AC-6)" % agent)
@@ -3559,7 +3563,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("12 authoring pairs (24 agents", body,
                       "c4-component.md must read '12 active triads "
                       "(36 agents in triads)' (MAR-112/113 AC-7, superseded "
                       "by MAR-143/MAR-160)")
@@ -3573,10 +3577,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
-        window = body[triad_idx:triad_idx + 800]
-        self.assertIn("43 agent files, all reachable", window,
-                      "c4-component.md must read '43 agent files, all reachable' "
+        triad_idx = body.index("12 authoring pairs (24 agents")
+        window = body[triad_idx:triad_idx + 1600]
+        self.assertIn("31 agent files, all reachable", window,
+                      "c4-component.md must read '31 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3689,7 +3693,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("12 authoring pairs (24 agents", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3703,10 +3707,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
-        window = body[triad_idx:triad_idx + 800]
-        self.assertIn("43 agent files, all reachable", window,
-                      "c4-component.md must advance to '43 agent files, all reachable' "
+        triad_idx = body.index("12 authoring pairs (24 agents")
+        window = body[triad_idx:triad_idx + 1600]
+        self.assertIn("31 agent files, all reachable", window,
+                      "c4-component.md must advance to '31 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3945,8 +3949,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
                         "## Finish", "## Completion report"):
             self.assertIn(heading, body, heading)
 
-    def test_three_agent_files_exist(self):
-        for role in ("planner", "executor", "verifier"):
+    def test_the_agent_files_exist(self):
+        for role in ("executor", "verifier"):
             self.assertTrue(
                 os.path.isfile(os.path.join(PLUGIN, "agents", "docs-sync-%s.md" % role)),
                 "docs-sync-%s.md must exist" % role)
@@ -3957,8 +3961,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
 
     # ------------------------------------------------------------------ AC-3
 
-    def test_planner_documents_five_input_contract(self):
-        body = self._agent_body("planner")
+    def test_executor_documents_five_input_contract(self):
+        body = self._agent_body("executor")
         for token in ("git diff", "result.json", "docs_updated", "problems"):
             self.assertIn(token, body, token)
         self.assertRegex(body, r"iter-.*-verify\.md")

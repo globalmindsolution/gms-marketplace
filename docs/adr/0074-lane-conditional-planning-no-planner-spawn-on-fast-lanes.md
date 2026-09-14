@@ -122,3 +122,17 @@ by skipping the new skill. `/acs:create-impl-plan` runs on every lane, because
 `/acs:code` now refuses without a plan; on TRIVIAL/SMALL it is the same
 coordinator-authored plan it always was, just recorded as its own step in the
 ledger instead of as a phase inside `/code`.
+
+## Amendment — ADR-0092 stage 2 (2026-09-14)
+
+The planner subagent this ADR conditions on no longer exists: ADR-0092
+retired the planner role from every skill, and `/acs:create-impl-plan`'s
+former `create-impl-plan-planner.md` charter is now the survey section of
+`create-impl-plan-executor.md`. The decision holds with that substitution
+and nothing else changed: on STANDARD/COMPLEX the coordinator spawns the
+**executor**, whose survey renders the `plan.md` draft; on TRIVIAL/SMALL the
+coordinator authors `plan.md` itself with zero executor spawns, no execute
+XML to validate and no `iter-<n>-execute.xml` snapshot to persist (D-4
+reads "execute" where it said "plan"). D-3 — no retro-spawn when a run
+escalates mid-flight — applies to the executor unchanged. The verifier runs
+in every lane, as before.

@@ -30,7 +30,7 @@ skills only, and never `/merge-pr` or `/release`.
 | — `/create-ticket` | design | before `/ship` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
 | — `/create-design` | design | before `/ship`, when `needs_design` | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. |
 | `analyze-ticket` | build | always | Read the ticket, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the walk branches on. A not-ready analysis returns `needs_input`. |
-| `create-impl-plan` | build | `requires: design_approved` | The plan phase carved out of `/code`: planner agent, spec fold, executor file map, plan approval and the plan-revocation path, ending in an approved `plan.md`. |
+| `create-impl-plan` | build | `requires: design_approved` | The plan phase carved out of `/code`: the executor's survey (the former planner charter), spec fold, executor file map, plan approval and the plan-revocation path, ending in an approved `plan.md`. |
 | `create-api-contract` | build | `when: api_surface_changed` | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
 | `create-test-docs` | build | always | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. |
 | `code` | build | always (`exclusive`) | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. Its verifier reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
@@ -195,7 +195,7 @@ implemented.
   bounded fix-loop counter; a step carrying `on_replan` is re-run (and then
   its dependants) when the ticket's `code` run ends with
   `stop_reason: plan_superseded`.
-- `/ship` has no planner/executor/verifier of its own; each invoked skill
+- `/ship` has no executor/verifier of its own; each invoked skill
   runs its own reflection cycle.
 
 ### Context handoff between steps
@@ -205,7 +205,7 @@ every skill's transcript in one context:
 
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
-  planner/executor/verifier). Between steps it reads only `pipeline-state.json`,
+  executor/verifier). Between steps it reads only `pipeline-state.json`,
   the ticket's own document (`ticket.md` in the docs tree, or `ticket.json`
   when `artifacts.tickets_path` is `null`), the output of
   `acs.py workflow next`, and the step's `<handoff>` / `result.json` — never
@@ -278,20 +278,23 @@ Done.
 
 ## Inside each step: Reflection
 
-Every one of the sixteen **triad-keeping** skills
-MUST internally run a **plan → execute → verify** cycle using a dedicated
-subagent per phase (e.g. `docs-sync-planner`, `docs-sync-executor`,
-`docs-sync-verifier`) — with
-one exception: for `/create-impl-plan`, the plan phase's dedicated subagent is
+Every one of the fourteen skills that run a reflection loop (the twelve
+**authoring** skills plus `/acs:code` and `/acs:create-docs`)
+MUST internally run an **execute → verify** cycle using a dedicated
+subagent per phase (e.g. `docs-sync-executor`, `docs-sync-verifier`). No
+skill has a plan phase (ADR 0092): an authoring skill's executor surveys
+first and records the survey in `iter-<n>-authoring.md`, which the verifier
+judges the deliverable against — with
+one exception: for `/create-impl-plan`, the execute phase's dedicated subagent is
 spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors the
-plan artifact itself, with zero planner spawns (MAR-72, ADR 0074). `/acs:code`
-is the one hooked skill with **no planner of its own** — its plan phase became
+plan artifact itself, with zero executor spawns (MAR-72, ADR 0074). `/acs:code`
+has **no plan of its own** — its plan phase became
 `/create-impl-plan` — and runs execute → verify against that approved plan;
 the execute and verify phases keep dedicated subagents in every lane, for
-`/acs:code` and for every triad-keeping skill.
+`/acs:code` and for every other skill that runs the loop.
 The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator, optionally delegating to at most
-one `<skill>-executor` subagent, spawns no planner and no verifier in any
+one `<skill>-executor` subagent, spawns no verifier in any
 lane. The coordinator orchestrates these subagents and communicates with
 them in XML. Details in [reflection.md](reflection.md).
 
@@ -308,8 +311,9 @@ Changeset review happens **inside `/code`**, performed by the
 - When the verifier produces blocking findings, the coordinator MUST
   automatically run another remediation iteration: **re-execute, re-verify**
   (TDD still applies) — passing every finding to the next iteration's
-  executor(s) in `<context>` with no intervening planner spawn; the plan is
-  authored once, before iteration 1 (MAR-71, slice 1b of MAR-69).
+  executor(s) in `<context>` with no intervening plan phase; the plan
+  `/create-impl-plan` approved is an input, authored before iteration 1
+  (MAR-71, slice 1b of MAR-69; ADR 0089).
 - **All findings block** — there is no severity threshold; the loop runs
   until the verifier reports **zero findings**. When an `e2e` layer is
   configured ([configuration.md](configuration.md)), a **green e2e
@@ -441,8 +445,8 @@ flagging any requested capability that diverges from it.
   positive, evidenced architectural-impact determination from each diff —
   impact without matching doc changes in the same changeset is a blocking
   finding, and "no impact" is a conclusion, never a default. Drift from
-  commits that bypassed the pipeline is repaired **boy-scout style**: design
-  and code planners check the touched area's docs against current code and
+  commits that bypassed the pipeline is repaired **boy-scout style**: the
+  design and implementation executors' surveys check the touched area's docs against current code and
   schedule stale sections for repair with the ticket; widespread drift
   triggers a recommended `/create-architecture` re-run.
 

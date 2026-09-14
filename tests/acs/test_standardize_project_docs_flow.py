@@ -163,7 +163,8 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
 
     def test_models_config_bullet_reads_twelve_triad_keeping(self):
         body = self._skills_req()
-        self.assertIn("the twelve\n  triad-keeping skills only", body)
+        self.assertIn("the fourteen\n  reflection-loop skills only", body)
+        self.assertNotIn("the twelve\n  triad-keeping skills only", body)
         self.assertNotIn("the eleven\n  triad-keeping skills only", body)
         self.assertNotIn("the six\n  triad-keeping skills only", body)
 
@@ -183,16 +184,18 @@ class C4CountAndListFilesTest(unittest.TestCase):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
         self.assertIn("28 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("43 x agent .md (all reachable)", body)
+        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertNotIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
     def test_c4_container_triad_skill_list_names_all_twelve(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
         self.assertNotIn("ten triad-keeping skills", body)
         self.assertNotIn("eleven triad-keeping skills", body)
-        m = re.search(r"triad for the twelve triad-keeping skills \(([^)]*)\)", body)
+        self.assertNotIn("twelve triad-keeping skills", body)
+        m = re.search(r"pair for the twelve authoring skills \(([^)]*)\)", body)
         self.assertIsNotNone(
-            m, "c4-container.md must state 'twelve triad-keeping skills' with "
+            m, "c4-container.md must state 'twelve authoring skills' with "
                "the enumerated list")
         enumerated = m.group(1)
         for suffix in (
@@ -207,34 +210,41 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_component_triad_and_reachable_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
-        self.assertIn("twelve triad-keeping skills", body)
+        self.assertIn("twelve authoring skills", body)
+        self.assertNotIn("twelve triad-keeping skills", body)
         self.assertNotIn("eleven triad-keeping skills", body)
         self.assertIn("standardize-project", body)
-        self.assertIn("12 active triads (36 agents", body)
+        self.assertIn("12 authoring pairs (24 agents", body)
+        self.assertNotIn("12 active triads (36 agents", body)
         self.assertNotIn("11 active triads (33 agents", body)
-        self.assertIn("43 agent files, all reachable", body)
+        self.assertIn("31 agent files, all reachable", body)
+        self.assertNotIn("43 agent files, all reachable", body)
         self.assertNotIn("36 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
         self.assertIn("acs Skills (28)", body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("43 files, all reachable", body)
+        self.assertIn("31 files, all reachable", body)
+        self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("twelve triad-keeping skills (36 agents)", body)
+        self.assertIn("twelve authoring skills (24 agents)", body)
+        self.assertNotIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)
 
     def test_overview_and_hook_gated_name_standardize_project(self):
         overview = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md"))
         self.assertNotIn("ten triad-keeping skills", overview)
         window = section(overview, "## Quality attributes (drive the design)")
-        self.assertIn("twelve triad-keeping skills", window)
+        self.assertIn("twelve authoring skills", window)
+        self.assertNotIn("twelve triad-keeping skills", window)
         self.assertIn("standardize-project", window)
 
         hook_gated = read(os.path.join(
             REPO_ROOT, "docs", "architecture", "lld", "flows", "hook-gated-skill-run.md"))
         self.assertNotIn("ten triad-keeping skills", hook_gated)
-        self.assertIn("twelve triad-keeping skills", hook_gated)
+        self.assertNotIn("twelve triad-keeping skills", hook_gated)
+        self.assertIn("twelve authoring skills", hook_gated)
         self.assertIn("standardize-project", hook_gated)
 
 

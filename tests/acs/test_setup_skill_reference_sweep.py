@@ -408,7 +408,6 @@ T2_T3_SETUP_PATHS = (
     "plugins/acs/skills/ship/SKILL.md",
     "plugins/acs/skills/standardize-project/SKILL.md",
     "plugins/acs/skills/update/SKILL.md",
-    "plugins/acs/agents/standardize-project-planner.md",
     "plugins/acs/agents/standardize-project-executor.md",
     "plugins/acs/agents/standardize-project-verifier.md",
     "plugins/acs/README.md",

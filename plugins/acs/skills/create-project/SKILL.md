@@ -60,9 +60,10 @@ Three cases:
   `<partition>/phases/create-project/handoff-context.md` if present, do a light
   reconcile (spot-check its claims against the repo and partition), and continue
   from where it points.
-- A resumed run reuses the existing `<partition>/phases/create-project/iter-1-plan.md`
-  and never spawns a second planner; the plan phase runs (once) only when that
-  artifact is absent.
+- There is no plan artifact to reuse: an execute with no verify -> verify it; a
+  verify with findings and no later execute -> execute with those findings as
+  `<context>`. The executor's iteration-1 authoring notes (`iter-1-authoring.md`)
+  carry the file manifest and commands every later iteration reads.
 
 ## Greenfield gate
 
@@ -90,20 +91,21 @@ If substantive sources exist, REFUSE politely:
    all `states.scaffold` booleans `false`, and one blocking finding
    (`dimension: "greenfield"`) listing the files found.
 
-## Reflection loop
+## Reflection loop — execute -> verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:create-project-planner` across the whole run, however many iterations
-the loop below uses. The loop itself is execute -> verify, at most 3
-iterations. Decomposition is YOURS alone — subagents never spawn subagents.
-Before the loop: `mkdir -p <partition>/phases/create-project`.
+The loop is execute -> verify, at most 3 iterations. There is no plan phase:
+iteration 1's executor reads the architecture doc set, pins the scaffold —
+layout, package/build config, test and coverage tooling, lint, CI, the
+vertical slice, the exact verification commands — in its authoring notes,
+and then builds it; the verifier re-runs the commands and judges the result
+fresh. On iterations 2-3 the verifier's findings go verbatim into the next
+executor `<task>` `<context>` and the executor authors the remediation.
+Decomposition is YOURS alone — subagents never spawn subagents. Before the
+loop: `mkdir -p <partition>/phases/create-project`.
 
-**What an iteration counts.** One iteration is one execute -> verify round;
-the plan phase runs once, before the loop, and is not part of any
-iteration, so the cap counts execute+verify rounds, not a
-plan+execute+verify triad. create-project has no lane-driven verify-depth
-selection: the cap is a fixed 3 in every lane, and this ticket introduces
-none.
+**What an iteration counts:** one execute -> verify round. create-project
+has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+lane, and this ticket introduces none.
 
 Messaging rules for every phase:
 
@@ -119,29 +121,24 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
   recording the validation error in result.json `errors`.
 - Persist every phase output to `<partition>/phases/create-project/iter-<n>-<phase>.xml`
   at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
-  `iter-<n>-execute-a.xml`, `-b.xml`, ...). The plan phase runs once, so its message
-  pair persists once as `iter-1-plan.xml` and its artifact is
-  `<partition>/phases/create-project/iter-1-plan.md`; execute and verify keep
-  persisting per iteration.
-- Spawn with the Agent tool, `subagent_type` `acs:create-project-planner` /
+  `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
+  `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
+  Commands; Vertical slice; Delivery; Risks; Verifier checklist) and
+  `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name the
+  iteration-1 notes.
+- Spawn with the Agent tool, `subagent_type`
   `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
   un-namespaced name only if the runtime rejects the namespaced one.
 
-### Plan (once, before the loop)
+### Execute — iteration 1 pins the scaffold before it builds
 
-Spawned exactly once per run, before iteration 1 — the plan is authored once
-and there is no per-iteration re-plan; on iterations 2-3 the verifier's
-findings route straight to the executor's `<task>` `<context>` (see
-`create-project-executor.md`'s input contract), where the executor authors
-the remediation.
-
-Spawn the planner. Resolve doc paths from `settings.architecture_path` and
+Spawn the executor. Resolve doc paths from `settings.architecture_path` and
 `settings.prd_path` (defaults shown); put `settings.test_coverage_percent` in the
 constraints. Example (iteration 1, repo-relative input paths):
 
 ```xml
-<task skill="create-project" phase="plan" ticket-id="SHOP-3" iteration="1">
-  <objective>Produce a complete scaffold plan for this greenfield repo per the architecture doc set; write it to the workspace partition as phases/create-project/iter-1-plan.md and list it in outputs.</objective>
+<task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
+  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes phases/create-project/iter-1-authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
   <inputs>
     <file>docs/architecture/hld/tech-stack.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
@@ -152,13 +149,12 @@ constraints. Example (iteration 1, repo-relative input paths):
   </inputs>
   <constraints>
     <constraint name="coverage-threshold">90</constraint>
-    <constraint name="writes">workspace partition only; the repo is not touched in this phase</constraint>
-    <constraint name="decisions">pin every choice; flag anything tech-stack.md leaves open as a question, do not guess</constraint>
+    <constraint name="decisions">pin every choice in the notes before building; flag anything tech-stack.md leaves open as a needs_input question, do not guess</constraint>
   </constraints>
 </task>
 ```
 
-The plan MUST pin, concretely, with nothing left open:
+The notes MUST pin, concretely, with nothing left open, before the executor builds:
 
 - directory layout mirroring the C4 container/component views;
 - package/build configuration files and the package manager;
@@ -178,10 +174,12 @@ The plan MUST pin, concretely, with nothing left open:
 - the EXACT verification commands (install, build, lint, test-with-coverage) — the
   contract for both the verifier and the CI workflow.
 
-Persist the planner's `<result>` to `iter-1-plan.xml` before executing. Findings
-never return to a planner — see Verify below for where iteration 2+ findings go.
+If the executor returns `needs_input` with `<questions>` (a choice `tech-stack.md`
+leaves open), resolve them in User interaction and re-run execute for the same
+iteration with the answers in `<context>`. Findings never return to a plan phase —
+see Verify below for where iteration 2+ findings go.
 
-### Execute
+### Execute — the build
 
 Iteration 1 only — create the delivery branch before any executor runs (you do all
 git operations; executors never commit). Branch name per `settings.formats.branch_name`
@@ -193,11 +191,12 @@ git -C <checkout_root> checkout -b task/SHOP-3-project-scaffold
 ```
 
 Spawn executor(s) with `<task skill="create-project" phase="execute" ticket-id="..."
-iteration="n">`: `<inputs>` reference the scaffold plan; on iterations 2-3 the
-verifier's findings go verbatim into the executor `<task>`'s `<context>`, with no
-planner spawn in between. `<constraints>` pin the exact file set each executor
-owns. Executors mutate ONLY `<checkout_root>`. You MAY run several executors in
-parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
+iteration="n">`: on iterations 2-3 `<inputs>` reference the iteration-1 authoring
+notes and the verifier's findings go verbatim into the executor `<task>`'s
+`<context>`, with no plan phase in between. `<constraints>` pin the exact file set
+each executor owns. Executors mutate ONLY `<checkout_root>`. Iteration 1 runs a single
+executor (the notes and the build are one act); on iterations 2-3 you MAY run several
+executors in parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
 pre-commit config plus the CI workflow, another owns the directory layout, vertical
 slice, README, and `.gitignore`. The verifier runs only after ALL executors finish
 and judges the combined result. Persist executor `<result>`s to
@@ -208,7 +207,7 @@ and judges the combined result. Persist executor `<result>`s to
 Spawn the verifier with `<task skill="create-project" phase="verify" ...>` whose
 inputs are artifacts only — the scaffold plan and the repo tree, never executor
 reasoning; it judges fresh. The verifier MUST actually run, from `<checkout_root>`,
-the exact commands the plan pinned, and see them pass:
+the exact commands the notes pinned, and see them pass:
 
 1. dependency install — exit 0;
 2. build — exit 0;
@@ -224,7 +223,7 @@ installs and its hooks pass on the tree.
 A scaffold that does not run green FAILS verification — every failing command is a
 blocking finding. ALL findings block: zero findings = pass. On findings, persist
 `iter-<n>-verify.xml`, then AUTOMATICALLY re-execute, passing every finding to the
-next iteration's executor `<task>` as `<context>`, with no planner spawn in between
+next iteration's executor `<task>` as `<context>`, with no plan phase in between
 — the executor authors the remediation. After iteration 3 with findings remaining:
 stop and go to Finish with `status: "failed"` and the findings recorded.
 
@@ -296,7 +295,7 @@ gh pr checks <number> --watch
 
    If CI fails: each failing check is a blocking finding. If the 3-iteration budget
    is not exhausted, run another execute -> verify iteration to remediate (findings
-   to the executor's `<context>`; no planner re-spawn), push to the same branch, and
+   to the executor's `<context>`; no plan phase), push to the same branch, and
    re-watch. Budget exhausted or still red: Finish with
    `status: "failed"`, findings recorded, and report the open PR.
 
@@ -327,7 +326,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 Ask the user when genuinely ambiguous — e.g. `hld/tech-stack.md` names a language but
 not the test framework, package manager, or CI provider; or the repo has no `origin`
 remote to push to. Use AskUserQuestion (or plain questions) with concrete options and
-fold the answers into the planner's `<context>`. Do not re-ask anything the
+fold the answers into the executor's `<context>`. Do not re-ask anything the
 architecture doc set already pins.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do NOT

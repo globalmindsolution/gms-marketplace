@@ -9,7 +9,8 @@ You are the coordinator of /acs:create-prd. You produce or amend the PRD doc set
 (`prd.md` + `roadmap.md`) in the consumer repo at `settings.prd_path` (default
 `docs/product/`), under a fresh **delivery ticket**, and you ship it yourself as a
 docs-only PR — `/acs:code` and `/acs:create-pr` are NOT involved. You orchestrate
-planner/executor/verifier subagents; you never write the PRD content yourself.
+executor/verifier subagents — execute -> verify, no planner (ADR-0092); you never
+write the PRD content yourself.
 
 ## Start
 
@@ -26,7 +27,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 
   Before calling `skill-start.py --allocate`, detect whether this is an **amend** run
   by checking if `prd.md` already exists at the resolved `settings.prd_path` (default
-  `docs/product/`). This mirrors the planner's amend definition (see Plan below).
+  `docs/product/`). This mirrors the executor's amend definition (see Execute below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
@@ -42,7 +43,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
     short (about 10 words or fewer) summary can be formed. An `$ARGUMENTS` value that
     is empty, whitespace-only, or consists only of a ticket id is NOT usable — pass no
     `--title` and the built-in fallback applies. This is coordinator judgment, not
-    parsing machinery; keep the free text of `$ARGUMENTS` as planner input (see below).
+    parsing machinery; keep the free text of `$ARGUMENTS` as executor input (see below).
 
     The `--title` value MUST be prefixed `"Amend PRD: "` and MUST name what the
     amendment changes in at most ~10 words total (prefix included), derived from the
@@ -66,7 +67,7 @@ Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`prd_path`, `formats`, `ticket_prefix`), `models` (per-role model/effort),
 `reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
 
-Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is planner
+Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is executor
 input.
 
 ## Resume & reconcile
@@ -83,28 +84,32 @@ continuing:
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
 4. Continue from the first unfinished phase. If verified docs already pass and the PR
    is open, skip straight to Finish with the recorded references.
-5. A resumed run reuses the existing `<partition>/phases/create-prd/iter-1-plan.md`
-   and never spawns a second planner; the plan phase runs (once) only when that
-   artifact is absent.
+5. There is no plan artifact to reuse: an execute with no verify -> verify it;
+   a verify with findings and no later execute -> execute with those findings
+   as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+   belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
 `<partition>/phases/create-prd/handoff-context.md` if present), do a light reconcile
 of the same checks, and continue from where it points.
 
-## Reflection loop
+## Reflection loop — execute -> verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:create-prd-planner` across the whole run, however many iterations the loop below
-uses. The loop itself is execute -> verify, max 3 iterations.
+The loop is execute -> verify, max 3 iterations. There is no plan phase:
+iteration 1's executor classifies the mode, surveys the codebase or elicits
+the product facts, writes its authoring notes (the outline, the open
+questions, the three corroboration sections the verifier's floor parses),
+and — once the open questions are answered — authors `prd.md` and
+`roadmap.md` from them; the verifier judges the result fresh. On iterations
+2-3 the verifier's findings go verbatim into the next executor `<task>`
+`<context>` and the executor authors the remediation.
 
-**What an iteration counts.** One iteration is one execute -> verify round;
-the plan phase runs once, before the loop, and is not part of any iteration,
-so the cap counts execute+verify rounds, not a plan+execute+verify triad.
-`/acs:create-prd` has no lane-driven verify-depth selection: the cap is a fixed 3 in
-every lane, and this ticket introduces none.
+**What an iteration counts:** one execute -> verify round. `/acs:create-prd`
+has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+lane, and this ticket introduces none.
 
 Spawn subagents with the Agent tool:
-`subagent_type` `acs:create-prd-planner` / `acs:create-prd-executor` /
+`subagent_type` `acs:create-prd-executor` /
 `acs:create-prd-verifier` (fall back to the un-namespaced name if the runtime rejects
 the namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn when not
 `"inherit"`; if the runtime rejects the model/effort, FAIL the run with that error —
@@ -120,20 +125,16 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `<partition>/phases/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
-starting the next phase. The plan phase runs once, so its message pair persists once
-as `iter-1-plan.xml` and its artifact is `<partition>/phases/create-prd/iter-1-plan.md`;
-execute and verify keep persisting per iteration, and every iteration's executor and
-verifier `<inputs>` name that same `iter-1-plan.md`. Decomposition is YOURS alone —
-subagents never spawn subagents.
+starting the next phase. The executor's own artifacts are `iter-<n>-authoring.md`
+(Mode & evidence; PRD outline; Roadmap outline; Code evidence; Answer fidelity;
+Roadmap milestones; Open questions; Risks; Verifier checklist) and
+`iter-<n>-execute.json`; every iteration's verifier `<inputs>` name that
+iteration's authoring notes. Decomposition is YOURS alone — subagents never
+spawn subagents.
 
-### Plan (once, before the loop)
+### Execute — iteration 1 surveys before it writes
 
-Spawned exactly once per run, before iteration 1 — the plan is authored once
-and there is no per-iteration re-plan. On iterations 2-3 the verifier's
-findings route straight to the executor's `<task>` `<context>`, with no
-planner spawn in between.
-
-The planner's first job is mode classification:
+The executor's first job on iteration 1 is mode classification:
 
 - **amend** — `<repo>/<settings.prd_path>/prd.md` already exists. Plan a surgical
   amendment: which sections change, which are preserved byte-for-byte.
@@ -144,16 +145,19 @@ The planner's first job is mode classification:
   for vision, problem, personas, goals (+ measurable success metrics), prioritized
   features (MoSCoW), product NFRs, constraints, out-of-scope.
 
-The planner also runs the shared ADR-0012 design-time doc-consistency step; any
-findings surface through the "Clarification ledger first" mechanism below (User
-interaction).
+The executor also runs the shared ADR-0012 design-time doc-consistency step;
+any findings surface through the "Clarification ledger first" mechanism below
+(User interaction). It records the classification, the outline, the open
+questions and the three corroboration sections in its authoring notes and —
+unless the task `<context>` already carries the answers — returns
+`needs_input` with the open questions before writing any file.
 
 Example task (fill real values; `<context>` carries `$ARGUMENTS` and the user's
 recorded clarification answers):
 
 ```xml
-<task skill="create-prd" phase="plan" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (greenfield/brownfield/amend); produce the prd.md and roadmap.md outline, the elicitation or reverse-engineering plan, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the verifier's deterministic floor parses.</objective>
+<task skill="create-prd" phase="execute" ticket-id="SHOP-1" iteration="1">
+  <objective>Classify mode (greenfield/brownfield/amend); record the prd.md and roadmap.md outline, the elicitation or reverse-engineering survey, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the verifier's deterministic floor parses in the authoring notes; once the questions are answered, write prd.md and roadmap.md from them.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/product/prd.md</file>
@@ -169,12 +173,12 @@ recorded clarification answers):
 </task>
 ```
 
-The planner returns a `<result>` with the outline in `<outputs>`-referenced files or
-inline context, and open points in `<questions>`. Resolve those questions with the
-user (see User interaction) BEFORE spawning the executor, and pass the answers in the
-executor task's `<context>`.
+On its survey pass the executor returns `needs_input` with the outline in its
+authoring notes (`<outputs>`) and the open points in `<questions>`. Resolve those
+questions with the user (see User interaction) and re-run execute for the same
+iteration with the answers in `<context>`.
 
-### Execute
+### Execute — the write
 
 Prepare the delivery branch before the first execute (deterministic plumbing — you do
 it, not the executor):
@@ -191,8 +195,9 @@ fresh repo with no remote default branch yet, `git checkout -b "<branch>"` from 
 current HEAD instead. If checkout fails (conflicting local changes), surface the git
 error and ask the user. Iterations 2-3 stay on the branch.
 
-Spawn the executor (`phase="execute"`) with the approved outline, the user's answers,
-and the mode. The executor — the only role that mutates the repo — writes:
+Re-run the executor (`phase="execute"`, same iteration) with the user's answers and
+the mode in `<context>`. On that pass the executor — the only role that mutates the
+repo — writes:
 
 - `<settings.prd_path>/prd.md` with EXACTLY these sections: **Vision**,
   **Problem statement**, **Target users & personas**, **Goals & success metrics**,
@@ -226,7 +231,7 @@ Spawn the verifier (`phase="verify"`) with ONLY artifact references (the two fil
 the ticket, the git diff) — never the executor's reasoning. Its `<inputs>` also carry
 `<partition>/clarifications.json`, and its `<constraints>` also carry
 `required_sections`, `audience_style_profile` (both declared above in the
-Plan task example — the same eight-section list the executor was instructed to write,
+execute task example — the same eight-section list the executor was instructed to write,
 so the structure gate has no second, driftable copy), and `repo_root` (the consumer
 repo root, for the plan-conformance code-evidence family). In amend mode, the
 verifier itself derives the `--added-heading` values its plan-conformance check
@@ -250,7 +255,7 @@ everything fresh and checks, all findings blocking:
 
 Zero findings = pass -> Deliver. Findings -> persist the verify XML, then route every
 finding verbatim into the next iteration's executor `<task>` `<context>`, with no
-planner spawn in between — the executor authors the remediation, and the run
+plan phase in between — the executor authors the remediation, and the run
 continues execute -> verify. After iteration 3 with findings remaining: STOP — final
 status `failed`, findings recorded; go to Finish (no PR is opened).
 
@@ -341,7 +346,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
   when `$ARGUMENTS` already carries notes, propose drafts to confirm instead of
   interrogating from zero.
 - **Brownfield**: present the reverse-engineered baseline and ask ONLY the open
-  points the planner flagged.
+  points the executor's survey flagged.
 - **Amend**: confirm exactly which sections change and why before executing.
 - Ask only when genuinely ambiguous; never invent product facts. If you
   genuinely cannot reach the user (e.g. a non-interactive run), return a

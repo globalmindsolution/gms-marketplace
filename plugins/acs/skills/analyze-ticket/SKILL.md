@@ -9,8 +9,10 @@ You are the coordinator of /acs:analyze-ticket. Your job: turn ONE ticket into
 `analysis.md` — the problem restated, the impact map across components, files
 and tests, the questions the ticket leaves open, the assumptions and risks,
 refined acceptance criteria, and a verdict on whether the ticket is ready to be
-planned. You orchestrate planner/executor/verifier subagents over XML; you
-never write the analysis content yourself.
+planned. You orchestrate executor/verifier subagents over XML — execute →
+verify, no planner (ADR-0092: when the deliverable is the analysis, a plan
+for it is a second copy of the work); you never write the analysis content
+yourself.
 
 You analyze; you never implement and you never plan. No production code, no
 tests, no repo docs other than `analysis.md`: `/acs:create-impl-plan` decides
@@ -59,7 +61,7 @@ Parse the printed context JSON. Fields you will use:
   published), `prd_path`, `requirements_path`, `architecture_path`,
   `high_stakes_paths` (the globs behind the stakes recommendation),
   `contracts_path`, `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for planner/executor/verifier.
+- `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-analyze-ticket.py`.
 
@@ -130,19 +132,20 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 3. Read the clarification ledger (`clarify.py list --ticket <id>`): questions
    the prior run asked are already recorded, and answers that arrived since are
    the point of the resume.
-4. Continue from the first unfinished phase — planner artifact present but no
-   draft → re-run execute against it; draft present but unverified → verify.
-5. A resumed run reuses `<partition>/phases/analyze-ticket/iter-1-plan.md` and
-   never spawns a second planner; the plan phase runs (once) only when that
-   artifact is absent.
+4. Continue from the first unfinished phase — an execute with no verify →
+   verify it; a verify with findings and no later execute → execute with
+   those findings as `<context>`; nothing on disk → iteration 1 execute.
+5. There is no plan artifact to reuse: the executor's authoring notes
+   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/analyze-ticket/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-Read these yourself and name them by path in the planner's `<inputs>` (never
+Read these yourself and name them by path in the executor's `<inputs>` (never
 inline a file body):
 
 1. The ticket — `ticket` from the context JSON (its file is whatever
@@ -162,23 +165,24 @@ inline a file body):
 6. The clarification ledger (`clarify.py list --ticket <id>`) — answers already
    recorded are inputs, not questions to ask again.
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan once, before the loop, then run execute → verify until the verifier
-returns zero blocking findings or the cap is reached. The cap is a fixed **3**
-in every lane — `/acs:analyze-ticket` has no lane-driven verify depth.
+Run execute → verify until the verifier returns zero blocking findings or the
+cap is reached. The cap is a fixed **3** in every lane — `/acs:analyze-ticket`
+has no lane-driven verify depth. There is no plan phase: iteration 1's
+executor surveys the ticket against the codebase, writes its authoring notes,
+and authors the draft from them; the verifier judges the result fresh. On
+iterations 2-3 the verifier's findings go verbatim into the next executor
+`<task>` `<context>` and the executor authors the remediation.
 
-**What an iteration counts.** One iteration is one execute → verify round; the
-plan phase runs exactly once, before the loop, and is not part of any
-iteration — the cap counts execute+verify rounds, not plan+execute+verify
-triads.
+**What an iteration counts:** one execute → verify round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`schemas/acs-messages.xsd`):
 
 - Send each subagent one `<task skill="analyze-ticket"
-  phase="plan|execute|verify" ticket-id="<id>" iteration="n">` carrying
+  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`. The subagent
   returns a `<result>` as its final content.
 - Every phase's `<constraints>` carry `required_sections` (the seven headings
@@ -195,30 +199,31 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Persist every phase's `<task>` and `<result>` to
   `<partition>/phases/analyze-ticket/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:analyze-ticket-planner`,
-  `acs:analyze-ticket-executor`, `acs:analyze-ticket-verifier` — fall back to
+- Spawn subagents with the Agent tool: `acs:analyze-ticket-executor`,
+  `acs:analyze-ticket-verifier` — fall back to
   the un-namespaced name only if the runtime rejects the namespaced one. Apply
   `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if
   the runtime rejects the model or effort, FAIL the run with that exact error —
   no silent fallback.
 
-### Phase: plan (once, before the loop) — `acs:analyze-ticket-planner`
-
-Objective: from the ticket, the design when one binds, the product docs and the
-codebase, survey what this ticket actually touches and produce the analysis
-plan in `<partition>/phases/analyze-ticket/iter-1-plan.md`: the candidate
-impact surface (components, files, tests, configuration) with the evidence for
-each entry, the API-surface assessment and its evidence, the risks worth
-naming, which acceptance criteria are ambiguous or untestable as written, and
-the genuinely open questions. The planner reads and plans; its only write is
-that artifact.
-
-If the planner returns `<questions>`, resolve them in User interaction BEFORE
-executing, and carry the answers into the execute `<task>` via `<context>`.
-
 ### Phase: execute — `acs:analyze-ticket-executor`
 
-Objective: write the analysis draft to
+Objective, iteration 1: from the ticket, the design when one binds, the
+product docs and the codebase, survey what this ticket actually touches and
+record that survey as the authoring notes,
+`<partition>/phases/analyze-ticket/iter-<n>-authoring.md` — the candidate
+impact surface (components, files, tests, configuration) with the evidence
+for each entry, the API-surface assessment and its evidence, the design
+significance, which acceptance criteria are ambiguous or untestable as
+written, the risks worth naming, and the genuinely open questions — then
+write the analysis draft from those notes. The notes are what the verifier
+checks the draft against; a draft with no notes is a blocking finding.
+
+If the executor returns `needs_input` with `<questions>`, resolve them in User
+interaction and re-run execute for the same iteration with the answers in
+`<context>`.
+
+Then write the analysis draft to
 `<partition>/phases/analyze-ticket/analysis.md` — one draft per run, revised in
 place across iterations, never renumbered — with EXACTLY this front matter and
 these seven headings, in this order:
@@ -249,12 +254,13 @@ column is a repo-relative path (that column is the input to the stakes step
 below), and that the front-matter values agree with the sections beneath them.
 
 On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no planner spawn in between.
+else — no plan phase in between.
 
 ### Phase: verify — `acs:analyze-ticket-verifier`
 
 Spawn `acs:analyze-ticket-verifier` AFTER the draft is written, with `<inputs>`
-of the draft, the planner artifact, the ticket file, `design.md` when it binds,
+of the draft, the authoring notes (`iter-<n>-authoring.md`), the ticket file,
+`design.md` when it binds,
 and the repo paths the impact map names. It judges fresh — never forward the
 executor's reasoning — re-derives the impact map from the codebase itself, and
 writes `<partition>/phases/analyze-ticket/iter-<n>-verify.md`.

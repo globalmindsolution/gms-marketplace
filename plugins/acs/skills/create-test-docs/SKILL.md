@@ -8,8 +8,8 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-test-docs. Your job: turn ONE ticket's
 acceptance criteria — read through its implementation plan and, when the ticket
 has one, its API contract — into `test-cases.md`: the enumerated cases that
-decide whether this ticket is done, each traced to the criterion it proves. You
-orchestrate planner/executor/verifier subagents over XML; you never write the
+decide whether this ticket is done, each traced to the criterion it proves. You orchestrate executor/verifier subagents over XML — execute → verify, no
+planner (ADR-0092); you never write the
 case content yourself.
 
 You specify tests; you never write them and you never implement. No production
@@ -59,7 +59,7 @@ Parse the printed context JSON. Fields you will use:
   published), `suites` (the configured suites a case's target may name, with the
   reserved `e2e` entry), `quality_path` (the repo's test strategy and coverage
   policy), `contracts_path`, `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for planner/executor/verifier.
+- `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-create-test-docs.py`.
 
@@ -134,19 +134,20 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    not published.
 3. Re-read the ticket's criteria and the plan — both may have moved since the
    prior run, and a case set that traced an older criterion list is stale.
-4. Continue from the first unfinished phase — planner artifact present but no
-   draft → re-run execute against it; draft present but unverified → verify.
-5. A resumed run reuses `<partition>/phases/create-test-docs/iter-1-plan.md` and
-   never spawns a second planner; the plan phase runs (once) only when that
-   artifact is absent.
+4. Continue from the first unfinished phase — an execute with no verify →
+   verify it; a verify with findings and no later execute → execute with
+   those findings as `<context>`; nothing on disk → iteration 1 execute.
+5. There is no plan artifact to reuse: the executor's authoring notes
+   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `<partition>/phases/create-test-docs/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-Read these yourself and name them by path in the planner's `<inputs>` (never
+Read these yourself and name them by path in the executor's `<inputs>` (never
 inline a file body):
 
 1. The ticket — `ticket` from the context JSON: title, description, and EVERY
@@ -173,23 +174,24 @@ inline a file body):
    already in use. A case's target suite must be a place this repo actually
    has, and its style must be the style the repo already writes.
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan once, before the loop, then run execute → verify until the verifier
-returns zero blocking findings or the cap is reached. The cap is a fixed **3**
-in every lane — `/acs:create-test-docs` has no lane-driven verify depth.
+Run execute → verify until the verifier returns zero blocking findings or the
+cap is reached. The cap is a fixed **3** in every lane — `/acs:create-test-docs`
+has no lane-driven verify depth. There is no plan phase: iteration 1's
+executor surveys the inputs, writes its authoring notes, and authors the case-set draft
+from them; the verifier judges the result fresh. On iterations 2-3 the
+verifier's findings go verbatim into the next executor `<task>` `<context>`
+and the executor authors the remediation.
 
-**What an iteration counts.** One iteration is one execute → verify round; the
-plan phase runs exactly once, before the loop, and is not part of any
-iteration — the cap counts execute+verify rounds, not plan+execute+verify
-triads.
+**What an iteration counts:** one execute → verify round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`schemas/acs-messages.xsd`):
 
 - Send each subagent one `<task skill="create-test-docs"
-  phase="plan|execute|verify" ticket-id="<id>" iteration="n">` carrying
+  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`.
 - Every phase's `<constraints>` carry `required_sections` (the four headings
   below) and `<constraint name="audience_style_profile">implementers and
@@ -206,24 +208,27 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Persist every phase's `<task>` and `<result>` to
   `<partition>/phases/create-test-docs/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-test-docs-planner`,
-  `acs:create-test-docs-executor`, `acs:create-test-docs-verifier` — fall back
+- Spawn subagents with the Agent tool: `acs:create-test-docs-executor`,
+  `acs:create-test-docs-verifier` — fall back
   to the un-namespaced name only if the runtime rejects the namespaced one.
   Apply `context.models.<role>.model` / `.effort` at spawn when not
   `"inherit"`; if the runtime rejects the model or effort, FAIL the run with
   that exact error — no silent fallback.
 
-### Phase: plan (once, before the loop) — `acs:create-test-docs-planner`
+### Phase: execute — `acs:create-test-docs-executor`
 
-Objective: from the criteria, the plan, the contract and the repo's existing
-tests, decide the CASE SET — for every acceptance criterion and every contract
-item, which cases prove it, at which level, and against which suite — and write
-it to `<partition>/phases/create-test-docs/iter-1-plan.md`. The planner also
-names the criteria it cannot make testable and the questions that blocks. The
-planner reads and plans; its only write is that artifact.
+Objective, iteration 1: from the criteria, the plan, the contract and the
+repo's existing tests, decide the CASE SET — for every acceptance criterion
+and every contract item, which cases prove it, at which level, and against
+which suite — and record that decision in the authoring notes
+(`<partition>/phases/create-test-docs/iter-<n>-authoring.md`), naming too the
+criteria that cannot be made testable and the questions that blocks. Then
+render `test-cases.md` from those notes. The notes are what the verifier
+checks the draft against.
 
-If the planner returns `<questions>`, resolve them in User interaction BEFORE
-executing, and carry the answers into the execute `<task>` via `<context>`.
+If the executor returns `needs_input` with `<questions>`, resolve them in User
+interaction and re-run execute for the same iteration with the answers in
+`<context>`.
 
 ### Phase: execute — `acs:create-test-docs-executor`
 
@@ -270,12 +275,12 @@ contracts matter here, because machines read them:
   the one defect in this document that cannot be caught downstream.
 
 On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no planner spawn in between.
+else — no plan phase in between.
 
 ### Phase: verify — `acs:create-test-docs-verifier`
 
 Spawn `acs:create-test-docs-verifier` AFTER the draft is written, with
-`<inputs>` of the draft, the planner artifact, the ticket document, the plan and
+`<inputs>` of the draft, the authoring notes (`iter-<n>-authoring.md`), the ticket document, the plan and
 contract when they exist, and the repo's test directories. It judges fresh —
 never forward the executor's reasoning — re-derives the traceability from the
 ticket's criteria itself, and writes

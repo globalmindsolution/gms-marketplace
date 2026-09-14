@@ -14,8 +14,8 @@ and `<requirements_path>/<non_functional_subdir>/` via `settings.requirements_la
 (defaults `functional`/`non-functional`; never hardcode these literals — always
 read them from settings). You ship it yourself as a docs-only PR on a fresh
 delivery ticket — `/acs:code` and `/acs:create-pr` are NOT involved. You
-orchestrate planner/executor/verifier subagents; you never write requirement
-content yourself.
+orchestrate executor/verifier subagents — execute -> verify, no planner
+(ADR-0092); you never write requirement content yourself.
 
 ## Start
 
@@ -33,7 +33,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   Before calling `skill-start.py --allocate`, detect whether this is an **amend**
   run by checking if the resolved `<requirements_path>/<functional_subdir>/` or
   `<non_functional_subdir>/` already holds files (a substantially-populated set).
-  This mirrors the planner's amend definition (see Plan below).
+  This mirrors the executor's amend definition (see Execute below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
@@ -68,7 +68,7 @@ Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`requirements_path`, `requirements_layout`, `formats`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`.
 
-Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is planner input.
+Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is executor input.
 
 ## Resume & reconcile
 
@@ -85,31 +85,33 @@ continuing:
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
 4. Continue from the first unfinished phase. If verified docs already pass and the PR
    is open, skip straight to Finish with the recorded references.
-5. A resumed run reuses the existing `<partition>/phases/create-requirements/iter-1-plan.md`
-   and never spawns a second planner; the plan phase runs (once) only when that
-   artifact is absent.
+5. There is no plan artifact to reuse: an execute with no verify → verify it;
+   a verify with findings and no later execute → execute with those findings
+   as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+   belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
 `<partition>/phases/create-requirements/handoff-context.md` if present), do a light
 reconcile of the same checks, and continue from where it points.
 
-## Reflection loop
+## Reflection loop — execute -> verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:create-requirements-planner` across the whole run, however many
-iterations the loop below uses. The loop itself is execute -> verify, max 3
-iterations. Spawn subagents with the Agent tool: `subagent_type`
-`acs:create-requirements-planner` / `acs:create-requirements-executor` /
+The loop is execute -> verify, max 3 iterations. There is no plan phase:
+iteration 1's executor classifies the mode, enumerates or elicits the
+feature areas, writes its authoring notes (the outline, the open points),
+and — once the DRAFT baseline is confirmed — authors the area files from
+them; the verifier judges the result fresh. On iterations 2-3 the verifier's
+findings go verbatim into the next executor `<task>` `<context>` and the
+executor authors the remediation. Spawn subagents with the Agent tool:
+`subagent_type` `acs:create-requirements-executor` /
 `acs:create-requirements-verifier` (fall back to the un-namespaced name if the runtime
 rejects the namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn
 when not `"inherit"`; if the runtime rejects the model/effort, FAIL the run with that
 error — no silent fallback.
 
-**What an iteration counts.** One iteration is one execute -> verify round;
-the plan phase runs once, before the loop, and is not part of any
-iteration, so the cap counts execute+verify rounds, not a
-plan+execute+verify triad. `/acs:create-requirements` has no lane-driven
-verify-depth selection: the cap is a fixed 3 in every lane.
+**What an iteration counts:** one execute -> verify round.
+`/acs:create-requirements` has no lane-driven verify-depth selection: the
+cap is a fixed 3 in every lane.
 
 All messages follow `schemas/acs-messages.xsd`. Validate EVERY message you send and
 receive:
@@ -121,21 +123,15 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `<partition>/phases/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
-BEFORE starting the next phase. The plan phase runs once, so its message pair
-persists once as `iter-1-plan.xml` and its artifact is
-`<partition>/phases/create-requirements/iter-1-plan.md`; execute and verify keep
-persisting per iteration, and every iteration's executor and verifier `<inputs>`
-name that same `iter-1-plan.md`. Decomposition is YOURS alone — subagents never
-spawn subagents.
+BEFORE starting the next phase. The executor's own artifacts are
+`iter-<n>-authoring.md` (Mode & evidence; Requirement outline; Open
+questions; Risks; Verifier checklist) and `iter-<n>-execute.json`; every
+iteration's verifier `<inputs>` name that iteration's authoring notes.
+Decomposition is YOURS alone — subagents never spawn subagents.
 
-### Plan (once, before the loop)
+### Execute — iteration 1 surveys before it writes
 
-Spawned exactly once per run, before iteration 1 — the plan is authored once
-and there is no per-iteration re-plan; on iterations 2-3 the verifier's
-findings route straight to the executor's `<task>` `<context>` (see Execute
-below), where the executor authors the remediation.
-
-The planner's first job is mode classification, keyed on whether
+The executor's first job on iteration 1 is mode classification, keyed on whether
 `<requirements_path>` already holds functional/non-functional content:
 
 - **brownfield** (headline) — the requirements set is absent or sparse AND the
@@ -151,19 +147,24 @@ The planner's first job is mode classification, keyed on whether
   DRAFT-marked. Plan the elicitation: per candidate feature area, the behavior
   it must have (a functional requirement), and per candidate quality concern,
   the constraint it must meet (a non-functional requirement) — mirroring
-  create-prd's greenfield elicitation plan. Never silently fall through to
+  create-prd's greenfield elicitation. Never silently fall through to
   brownfield and never invent a product fact the user has not confirmed.
 
-The planner also runs the shared ADR-0012 design-time doc-consistency step; any
-findings surface through the "Clarification ledger first" mechanism below (User
-interaction).
+The executor also runs the shared ADR-0012 design-time doc-consistency step;
+any findings surface through the "Clarification ledger first" mechanism below
+(User interaction). It records the classification, the outline and the open
+points in its authoring notes and — unless the task `<context>` already
+carries the confirmation — returns `needs_input` with the DRAFT baseline
+before writing any area file (see Interactive-confirm below).
 
-**G36 declaration (AC-6).** Every plan/execute/verify task's `<constraints>` carries:
+**G36 declaration (AC-6).** Every execute/verify task's `<constraints>` carries:
 
 - `required_sections` — declared **per produced area file**, from the
-  planner-approved outline. There is no single fixed section skeleton across all
-  files (each feature/item file's sections follow the existing living-requirements
-  prose format); the planner names the concrete heading list for each file it plans.
+  confirmed outline in the executor's authoring notes. There is no single fixed
+  section skeleton across all files (each feature/item file's sections follow
+  the existing living-requirements prose format); the executor names the
+  concrete heading list for each file in its notes, and the coordinator carries
+  that list into the iteration's verify task and every later execute task.
 - `audience_style_profile` — always `engineers (behavioral-contract prose)`, the
   same constraint-passing mechanism `create-principles/SKILL.md` and
   `create-principles-verifier.md` use for their own G36 gate.
@@ -172,18 +173,18 @@ interaction).
 `<non_functional_subdir>/<item>.md` open with the `DRAFT — human-confirm-required`
 marker line, then follow the existing living-requirements prose format — the
 `MUST` / `SHOULD` / `MAY` / `[OPEN]` / `[ASSUMPTION]` vocabulary — with NO fixed
-universal heading skeleton (design Decision B-revised). The planner names the
-concrete `required_sections` heading list per file in its outline; this
+universal heading skeleton (design Decision B-revised). The executor names the
+concrete `required_sections` heading list per file in its notes' outline; this
 subsection documents that as the finalized per-file format rather than an
 implicit convention. No new template file is introduced — the
 functional/non-functional model itself is the format.
 
-Example task (fill real values; `<context>` carries `$ARGUMENTS` — this phase
-runs only once, so there is no later-iteration findings context to carry):
+Example iteration-1 task (fill real values; `<context>` carries `$ARGUMENTS`
+and, on the re-run after interactive-confirm, the user's recorded answers):
 
 ```xml
-<task skill="create-requirements" phase="plan" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (brownfield/greenfield/amend); enumerate or elicit feature areas; produce the per-area outline and the open questions for the user.</objective>
+<task skill="create-requirements" phase="execute" ticket-id="SHOP-1" iteration="1">
+  <objective>Classify mode (brownfield/greenfield/amend); enumerate or elicit feature areas; record the per-area outline and the open questions in the authoring notes; once the baseline is confirmed, write the area files from them.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/requirements/README.md</file>
@@ -200,12 +201,12 @@ runs only once, so there is no later-iteration findings context to carry):
 </task>
 ```
 
-The planner returns a `<result>` with the outline in `<outputs>`-referenced files or
-inline context, and open points in `<questions>`. Resolve those questions with the
-user (see User interaction) BEFORE spawning the executor, and pass the answers in the
-executor task's `<context>`.
+On its survey pass the executor returns `needs_input` with the outline in its
+authoring notes (`<outputs>`) and the open points in `<questions>`. Resolve
+those questions with the user (see User interaction) and re-run execute for
+the same iteration with the answers in `<context>`.
 
-### Execute
+### Execute — the write
 
 Prepare the delivery branch before the first execute (deterministic plumbing — you do
 it, not the executor):
@@ -222,13 +223,14 @@ git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAUL
 (conflicting local changes), surface the git error and ask the user. Iterations 2-3
 stay on the branch.
 
-**Interactive-confirm, before you spawn the executor.** Present the planner's
-DRAFT baseline — which feature areas will be elicited, extracted, or augmented,
-and which are `[OPEN]` — and the open points via the clarify ledger (see User
-interaction below), batched in one interaction when ≥2 questions are open.
-An elicited, extracted, or augmented requirement is a **DRAFT baseline, never
-authoritative without confirmation**: this confirmation step MUST complete
-before you spawn the executor.
+**Interactive-confirm, between the executor's survey and its write.** Present
+the executor's DRAFT baseline — which feature areas will be elicited,
+extracted, or augmented, and which are `[OPEN]` — and the open points via the
+clarify ledger (see User interaction below), batched in one interaction when
+≥2 questions are open. An elicited, extracted, or augmented requirement is a
+**DRAFT baseline, never authoritative without confirmation**: this
+confirmation step MUST complete before the executor writes an area file — it
+is what the `needs_input` round-trip above exists for.
 
 **The DRAFT / interactive-confirm discipline applies uniformly to all three
 modes.** A requirement — elicited (greenfield), extracted (brownfield), or
@@ -258,7 +260,7 @@ verifier pass. You MAY run multiple executors in parallel only when their target
 area files cannot conflict (e.g. disjoint feature areas); the verifier always runs
 after all executors finish and judges the combined result. On iterations 2-3 the
 verifier's findings go verbatim into the executor `<task>`'s `<context>`, with no
-planner spawn in between.
+plan phase in between.
 
 ### Verify
 
@@ -283,8 +285,8 @@ non-blocking):
 - iteration 2+: every prior finding from `<context>` is actually fixed.
 
 Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed them
-verbatim into the next iteration's executor `<task>` `<context>` — not a new
-plan — with no planner spawn in between, and re-run execute -> verify. After
+verbatim into the next iteration's executor `<task>` `<context>` — with no
+plan phase in between, and re-run execute -> verify. After
 iteration 3 with findings remaining: STOP — final status `failed`, findings
 recorded; go to Finish (no PR is opened).
 
@@ -368,7 +370,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
 - **Brownfield**: present the reverse-engineered baseline (DRAFT, code-cited,
-  human-confirm-required) and ask ONLY the open points the planner flagged — an
+  human-confirm-required) and ask ONLY the open points the executor's survey flagged — an
   extracted requirement is never authoritative without confirmation.
 - **Amend**: confirm exactly which absent/ungrounded area files are augmented and
   why before executing; every other area file is untouched.

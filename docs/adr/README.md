@@ -20,7 +20,7 @@ context and consequences.
 | [0009](0009-clarification-ledger-and-grounding.md) | Clarification ledger + grounding rules | Accepted |
 | [0010](0010-explicit-semver-distribution.md) | Explicit-semver distribution with an update assistant | Accepted |
 | [0011](0011-sdlc-doc-sets-quality-and-operations.md) | Full-SDLC doc sets (quality, operations) + standing test runs | Proposed |
-| [0012](0012-design-time-doc-consistency.md) | Design-time doc-consistency gap & staleness analysis | Proposed — carrier count corrected by [0094](0094-doc-set-legs-fold-into-create-docs.md) (four doc-set planners folded into `create-docs-executor`) |
+| [0012](0012-design-time-doc-consistency.md) | Design-time doc-consistency gap & staleness analysis | Proposed — carrier count corrected by [0094](0094-doc-set-legs-fold-into-create-docs.md) (four doc-set planners folded into `create-docs-executor`); the carriers are the five executors since [0092](0092-skill-machinery-declared-per-skill.md) stage 2 |
 | [0013](0013-metrics-derives-panels-from-artifacts.md) | acs:metrics derives panels 4-6 from phase artifacts, not a schema extension | Accepted |
 | [0014](0014-metrics-helper-emits-json-skill-renders.md) | metrics helper emits aggregate JSON; the skill renders show_widget | Accepted |
 | [0015](0015-metrics-single-show-widget-call.md) | acs:metrics renders all six panels in a single show_widget call | Accepted |
@@ -98,7 +98,7 @@ context and consequences.
 | [0089](0089-pipeline-order-declared-in-ship-yaml.md) | Pipeline order is declared in `workflows/ship.yaml`; every skill is independently runnable; hooks keep input checks and safety brakes, and `_require_completed` is deleted | Accepted |
 | [0090](0090-ticket-artifacts-in-repo-docs-tree.md) | Ticket and design artifacts live in the repo docs tree (`docs/tickets/<ID>/`) with a derived status; the workspace keeps the run ledger | Accepted |
 | [0091](0091-design-phase-entry-point-fold.md) | The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas (`/acs:create-docs`, `/acs:project`), and an auto-detected project mode | Amended by 0094 (the doc-set legs were collapsed after all; `/acs:project`'s fold stands) |
-| [0092](0092-skill-machinery-declared-per-skill.md) | Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default (supersedes 0077, 0078, 0079, 0083, 0084) | Proposed |
+| [0092](0092-skill-machinery-declared-per-skill.md) | Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default (supersedes 0077, 0078, 0079, 0083, 0084) | Accepted — classes B–E landed (0094 for `create-docs`; stage 2, 2026-09-14, for the other twelve authoring skills) |
 | [0093](0093-one-declaration-per-contract.md) | One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds | Proposed |
 | [0094](0094-doc-set-legs-fold-into-create-docs.md) | The four doc-set legs fold into `/acs:create-docs`: one hooked skill, a declared `DOC_SETS` table, one executor + verifier pair for every set, no planner (ADR-0092 class D applied), one delivery ticket per set | Accepted |
 

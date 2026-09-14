@@ -22,7 +22,7 @@ SKILLS = os.path.join(PLUGIN, "skills")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
-PLANNER_PATH = os.path.join(AGENTS, "standardize-project-planner.md")
+PLANNER_PATH = os.path.join(AGENTS, "standardize-project-executor.md")  # the audit charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-executor.md")
 VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-verifier.md")
 

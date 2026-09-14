@@ -1,6 +1,6 @@
 # 0092 — Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default
 
-**Status**: Proposed · **Date**: 2026-09-13
+**Status**: Accepted · **Date**: 2026-09-13
 
 ## Context
 
@@ -161,3 +161,50 @@ executor, which is where it lands rather than where it dies.
   unreachable, so deleting them is pure subtraction and needs no measurement.
   Every other change here alters behaviour and is measured before and after, or
   the simplification is just a different guess.
+
+## Amendment — stage 2 landed (2026-09-14)
+
+Class D is applied in full. `/acs:create-docs` went first (ADR-0094); the
+other twelve authoring skills — `analyze-ticket`, `create-impl-plan`,
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`, `create-prd`,
+`create-design`, `create-architecture`, `create-requirements`,
+`create-project`, `standardize-project`, `docs-sync` — followed in one
+change, each editing its own `agents:` line in `workflows/phases.yaml`.
+`plugins/acs/agents/` holds **31** files: 14 executor + verifier pairs and
+the 3 apply-work executors. The count differs from the 37 the table above
+projected because ADR-0094 collapsed the four doc-set legs into one pair
+(−6) in between.
+
+What "no planner" turned out to mean in practice, since the shape is the
+same in all twelve:
+
+- The planner's charter did not disappear; it moved into a
+  `## Survey — what you establish before you write (iteration 1)` section of
+  the executor. Iteration 1's executor surveys first, records the survey in
+  `iter-<n>-authoring.md` (the notes ADR-0094 introduced), and authors the
+  deliverable from it. An open decision comes back as `needs_input` **before
+  any file is written** — the same stop the planner used to provide, one
+  spawn earlier.
+- The verifier gains an `authoring-conformance` dimension: the deliverable
+  is what the notes surveyed, every citation in the notes re-opens, and a
+  draft with no notes behind it is a blocking finding on its own. The
+  deterministic floors that used to parse `iter-1-plan.md`
+  (`prd_conformance_check.py`, `citation_check.py`,
+  `/acs:standardize-project`'s frozen allowlist, `/acs:create-project`'s
+  pinned scaffold) parse the notes instead — the file they read moved, the
+  check did not.
+- `/acs:create-impl-plan` keeps ADR-0074's lane rule with its executor in
+  the planner's place: on STANDARD/COMPLEX the executor's survey (the former
+  `code-planner` charter, spec-simplicity gate and oversize signal included)
+  renders the `plan.md` draft; on TRIVIAL/SMALL the coordinator authors it
+  and no executor is spawned.
+- `/acs:create-e2e-tests` declares its file map as the e2e root directory
+  rather than a planner's file list — `path_in_filemap` matches directory
+  entries as prefixes for it.
+- `models.planner` and `models.overrides.<skill>.planner` stay accepted and
+  are inert, as the Consequences above said they would be.
+
+The measurement this ADR's last consequence asks for is the release gate's:
+the stage-2 tree is measured against the last passing baseline before it
+ships, on the same scenarios, and the comparison is recorded with the
+release.

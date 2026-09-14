@@ -31,7 +31,7 @@ sys.path.insert(0, TESTS_ACS)
 
 import evidence_sidecar  # noqa: E402
 
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
@@ -187,13 +187,13 @@ class PlanSkillFoldPointerTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
         start = cls.body.index("**Spec authoring fold")
-        end = cls.body.index("### Execute (per iteration)")
+        end = cls.body.index("### Verify (per iteration)")
         cls.fold = cls.body[start:end]
 
     def test_fold_slice_points_at_planner_charter_item_2(self):
         self.assertIn("oversize", self.fold.lower())
-        self.assertIn("create-impl-plan-planner.md", self.fold)
-        self.assertIn("charter item 2", self.fold)
+        self.assertIn("create-impl-plan-executor.md", self.fold)
+        self.assertIn("survey item 2", self.fold)
 
     def test_provenance_clauses_survive_verbatim_in_slice(self):
         self.assertIn(

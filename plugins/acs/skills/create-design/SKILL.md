@@ -9,8 +9,9 @@ You are the coordinator of /acs:create-design. Your job: turn a design-significa
 ticket (`needs_design: true`) into an approved `design.md` in the ticket's docs
 folder — context, at least two genuinely-weighed options, a decision with
 rationale, the architecture of the change, risks, and rollout — verified by a fresh
-verifier before it gates `/acs:code`. You orchestrate planner/executor/verifier
-subagents over XML; you never write the design content yourself.
+verifier before it gates `/acs:code`. You orchestrate executor/verifier
+subagents over XML — execute → verify, no planner (ADR-0092); you never write
+the design content yourself.
 
 The pre-hook (`pre-create-design.py`) checks this skill's INPUTS, not its place in
 any order: settings exist, the ticket resolves to a live, unlocked partition, and
@@ -35,7 +36,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-desi
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
   `architecture_path`, `prd_path`, optional `adr_path`, `standards_path`),
-  `models` (resolved planner/executor/verifier model+effort), `reconcile`,
+  `models` (resolved executor/verifier model+effort), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
 
@@ -84,14 +85,16 @@ file-map guard denies any subagent a write under the ticket docs tree.
 - If `context.handoff_summary` exists: read it plus
   `<partition>/phases/create-design/handoff-context.md` (when present), do a light
   reconcile (spot-check the named artifacts), and continue from where it points.
-- A resumed run reuses the existing `<partition>/phases/create-design/iter-1-plan.md`
-  and never spawns a second planner; the plan phase runs (once) only when that
-  artifact is absent.
-- Fresh run (`reconcile` false): start at iteration 1, plan phase.
+- There is no plan artifact to reuse: continue from the first unfinished
+  phase — an execute with no verify → verify it; a verify with findings and
+  no later execute → execute with those findings as `<context>`. The
+  executor's authoring notes (`iter-<n>-authoring.md`) belong to their
+  iteration.
+- Fresh run (`reconcile` false): start at iteration 1, execute phase.
 
-## Inputs — gather before planning
+## Inputs — gather before the loop
 
-Read (you and your planner; reference by path in XML, do not inline file bodies):
+Read (you and your executor; reference by path in XML, do not inline file bodies):
 
 1. The ticket document (`ticket.md` in the docs folder, or `ticket.json` in the
    partition — whichever `acs.py artifacts show` reports as `source_path`):
@@ -106,29 +109,30 @@ Read (you and your planner; reference by path in XML, do not inline file bodies)
    absent, note that in design.md and design against the codebase directly.
 3. The PRD at `<checkout_root>/<settings.prd_path>/prd.md` when present —
    product-level NFRs and constraints bound the design.
-4. The consumer repo's code and docs relevant to the ticket (planner identifies
-   the exact files).
+4. The consumer repo's code and docs relevant to the ticket (the executor's
+   survey identifies the exact files).
 
-## Reflection loop
+## Reflection loop — execute → verify, no planner
 
-Plan runs exactly once per run, before iteration 1 — spawn exactly one
-`acs:create-design-planner` across the whole run, however many iterations
-the loop below uses. The loop itself is execute → verify, max 3 iterations.
-Decomposition is YOURS alone — subagents never spawn subagents.
+The loop is execute → verify, max 3 iterations. There is no plan phase:
+iteration 1's executor surveys the ticket, the architecture doc set and the
+codebase, writes its authoring notes, and authors the design draft from
+them; the verifier judges the result fresh. On iterations 2-3 the
+verifier's findings go verbatim into the next executor `<task>` `<context>`
+and the executor authors the remediation. Decomposition is YOURS alone —
+subagents never spawn subagents.
 
-**What an iteration counts.** One iteration is one execute → verify round;
-the plan phase runs once, before the loop, and is not part of any
-iteration, so the cap counts execute+verify rounds, not a
-plan+execute+verify triad. `/acs:create-design` has no lane-driven
-verify-depth selection: the cap is a fixed 3 in every lane.
+**What an iteration counts:** one execute → verify round.
+`/acs:create-design` has no lane-driven verify-depth selection: the cap is
+a fixed 3 in every lane.
 
 For every phase:
 
 1. Compose a `<task>` per `schemas/acs-messages.xsd`:
 
    ```xml
-   <task skill="create-design" phase="plan" ticket-id="SHOP-123" iteration="1">
-     <objective>Survey the ticket, architecture doc set, and codebase; identify the open design decisions, candidate options (>=2 per decision), and the genuinely-open points needing user input.</objective>
+   <task skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1">
+     <objective>Survey the ticket, architecture doc set, and codebase; record the open design decisions, candidate options (>=2 per decision) and the genuinely-open points needing user input in the authoring notes; then write the design draft from them.</objective>
      <inputs>
        <file>/abs/repo/docs/tickets/SHOP-123/ticket.md</file>
        <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
@@ -159,34 +163,30 @@ For every phase:
 
 4. Persist the phase's `<task>` and `<result>` to
    `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
-   BEFORE starting the next phase. The plan phase runs once, so its message
-   pair persists once as `iter-1-plan.xml` and its artifact is
-   `<partition>/phases/create-design/iter-1-plan.md`; execute and verify keep
-   persisting per iteration, and every iteration's executor and verifier
-   `<inputs>` name that same `iter-1-plan.md`.
-
-### Phase: plan (once, before the loop) — `acs:create-design-planner`
-
-Spawned exactly once per run, before iteration 1 — the plan is authored
-once and there is no per-iteration re-plan; on iterations 2-3 the
-verifier's findings route straight to the executor's `<task>` `<context>`
-(see Phase: execute below), where the executor authors the remediation.
-
-Objective: from ticket + architecture docs + codebase, produce a design plan in
-its `<result>`: the decisions to make, >=2 candidate options per major decision
-with preliminary trade-offs, affected components/flows/data, NFR checklist
-(security, performance at minimum), and any `<questions>` that are genuinely open
-(user-preference or business trade-offs, not researchable facts). The planner
-also runs the shared ADR-0012 design-time doc-consistency step; any findings
-surface through the "Clarification ledger first" mechanism below (User
-interaction). The planner reads; it never writes files.
-
-If the planner returns `<questions>`, resolve them in "User interaction" below
-BEFORE executing, and pass the answers into the execute `<task>` via `<context>`.
+   BEFORE starting the next phase. The executor's own artifacts are
+   `iter-<n>-authoring.md` (its survey: Analysis; Decisions & candidate
+   options with trade-offs; NFR checklist; Architecture conformance call;
+   Open questions; Risks; Verifier checklist) and `iter-<n>-execute.json`;
+   every iteration's verifier `<inputs>` name that iteration's authoring
+   notes.
 
 ### Phase: execute — `acs:create-design-executor`
 
-Objective: write the design draft at `<partition>/phases/create-design/design.md`
+Objective, iteration 1: from ticket + architecture docs + codebase, survey
+the decisions to make, >=2 candidate options per major decision with
+preliminary trade-offs, the affected components/flows/data, the NFR
+checklist (security, performance at minimum), and the genuinely open points
+(user-preference or business trade-offs, not researchable facts) — recorded
+in the authoring notes — then write the design draft from them. The executor
+also runs the shared ADR-0012 design-time doc-consistency step; any findings
+surface through the "Clarification ledger first" mechanism below (User
+interaction).
+
+If the executor returns `needs_input` with `<questions>`, resolve them in
+"User interaction" below and re-run execute for the same iteration with the
+answers in `<context>`.
+
+Then the draft: write it at `<partition>/phases/create-design/design.md`
 (the executor mutates ONLY the workspace partition — never the consumer repo, and
 never the ticket docs tree, which the file-map guard denies it; the coordinator
 publishes the verified draft to `<design_path>` in Publish below). Required
@@ -262,7 +262,7 @@ conflict (e.g. one drafting the design draft, one writing a research note to
 touch the draft in the same iteration. The verifier runs after ALL executors
 finish and judges the combined result. On iterations 2-3 the verifier's
 findings go verbatim into the executor `<task>`'s `<context>`, with no
-planner spawn in between.
+plan phase in between.
 
 ### Phase: verify — `acs:create-design-verifier`
 
@@ -299,7 +299,7 @@ conditions `### Decision records` on `settings.adr_path` being set.
 
 ALL findings block — zero findings = pass. On findings: persist the verify XML,
 feed every finding verbatim into the next iteration's executor `<task>`
-`<context>` — not a new plan — with no planner spawn in between, and re-run
+`<context>` — with no plan phase in between, and re-run
 execute → verify. After iteration 3 with findings remaining: stop; final
 status `failed`, findings recorded in result.json.
 

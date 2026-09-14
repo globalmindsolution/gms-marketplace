@@ -230,7 +230,9 @@ RECOMMENDED_MODELS = {
 
 #: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
 MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
-#: The three reflection roles a model/effort pair can be configured for.
+#: The reflection roles a model/effort pair can be configured for. `planner`
+#: stays accepted so an existing settings.json keeps validating, but no skill
+#: spawns one since ADR-0092 -- the entry is inert.
 MODEL_ROLES = ("planner", "executor", "verifier")
 
 
