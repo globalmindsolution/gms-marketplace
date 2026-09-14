@@ -301,6 +301,13 @@ fixed in the runner rather than the dataset:
   interrupted exactly there. Pipeline sessions now receive the sandbox
   workspace as an additional directory.
 
+- **The minted ticket's ledger.** A scenario whose skill mints the ticket
+  (PIPE-create-ticket on the `seeded` profile) starts with no ticket id, and
+  the ledger read looked for `create-ticket-state.json` at the partition
+  root — never where the skill wrote it. Every such run scored "never ran",
+  including runs whose transcripts end with the post-hook's `completed`. The
+  reader now finds the one ticket directory the run created.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

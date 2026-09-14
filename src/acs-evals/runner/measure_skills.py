@@ -41,6 +41,7 @@ Two measurement notes that decide how the numbers may be read:
 
 import argparse
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -669,6 +670,30 @@ def keep_transcript(path, keep_dir, prompt):
 # Reading acs's own ledger
 # --------------------------------------------------------------------------
 
+def ledger_path(sandbox, skill):
+    """Where `skill` left its `<skill>-state.json`, or None.
+
+    A ticketed sandbox knows its ticket, so the ledger is at
+    `<partition>/<ticket>/<skill>-state.json`. A scenario whose skill MINTS
+    the ticket (PIPE-create-ticket on the `seeded` profile) starts with none:
+    the partition root is not a ticket directory and no ledger is ever there,
+    which is why that scenario reported "never ran" for every run, including
+    the ones whose transcripts end with the post-hook's `completed`. The
+    sandbox is fresh per run, so the ticket the skill minted is the one ticket
+    directory under the partition; when a profile ever seeds more, the newest
+    ledger is the run's.
+    """
+    name = "%s-state.json" % skill.split(":")[-1]
+    if getattr(sandbox, "ticket_id", None):
+        path = os.path.join(sandbox.ticket_dir(), name)
+        return path if os.path.exists(path) else None
+    partition = getattr(sandbox, "partition", None) or sandbox.ticket_dir()
+    found = glob.glob(os.path.join(partition, "*", name))
+    if not found:
+        return None
+    return max(found, key=os.path.getmtime)
+
+
 def read_ledger(sandbox, skill):
     """The quality, cost and reliability signals acs recorded for itself.
 
@@ -682,9 +707,8 @@ def read_ledger(sandbox, skill):
                "verify_iterations": None, "coverage_percent": None,
                "coverage_target": None, "blocking_findings": None,
                "tests_passed": None}}
-    tdir = sandbox.ticket_dir()
-    path = os.path.join(tdir, "%s-state.json" % skill.split(":")[-1])
-    if not os.path.exists(path):
+    path = ledger_path(sandbox, skill)
+    if path is None:
         return out
     try:
         with open(path) as fh:

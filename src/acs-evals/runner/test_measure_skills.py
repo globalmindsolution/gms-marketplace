@@ -1231,5 +1231,51 @@ class WorkspaceIsEditableTest(unittest.TestCase):
                          "setup and measured sessions alike may edit the workspace")
 
 
+class MintedTicketLedgerTest(unittest.TestCase):
+    """PIPE-create-ticket's skill mints the ticket, so the sandbox starts with
+    no ticket id and the ledger lives under a directory only the run knows.
+    Reading `<partition>/create-ticket-state.json` found nothing on every run
+    of the 2026-09-14 gate, scoring transcripts that end in the post-hook's
+    `completed` as "never ran"."""
+
+    class FakeSandbox:
+        def __init__(self, partition, ticket_id=None):
+            self.partition, self.ticket_id = partition, ticket_id
+
+        def ticket_dir(self, ticket_id=None):
+            return os.path.join(self.partition, ticket_id or self.ticket_id or "")
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="acs-ledger-")
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def ledger(self, ticket, skill, doc):
+        d = os.path.join(self.base, ticket)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "%s-state.json" % skill), "w") as fh:
+            json.dump(doc, fh)
+
+    def test_a_minted_ticket_s_ledger_is_found_without_a_ticket_id(self):
+        self.ledger("TKT-1", "create-ticket",
+                    {"runs": [{"status": "completed", "stop_reason": "done"}]})
+        out = measure_skills.read_ledger(self.FakeSandbox(self.base),
+                                         "acs:create-ticket")
+        self.assertEqual(out["status"], "completed")
+
+    def test_no_ticket_at_all_is_still_never_ran(self):
+        out = measure_skills.read_ledger(self.FakeSandbox(self.base),
+                                         "acs:create-ticket")
+        self.assertIsNone(out["status"])
+
+    def test_a_known_ticket_id_is_read_directly(self):
+        self.ledger("TKT-1", "code", {"runs": [{"status": "failed"}]})
+        self.ledger("TKT-2", "code", {"runs": [{"status": "completed"}]})
+        out = measure_skills.read_ledger(self.FakeSandbox(self.base, "TKT-1"),
+                                         "acs:code")
+        self.assertEqual(out["status"], "failed")
+
+
 if __name__ == "__main__":
     unittest.main()
