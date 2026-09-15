@@ -1448,5 +1448,65 @@ class ChildEnvTest(unittest.TestCase):
         self.assertEqual(base, {"CLAUDE_EFFORT": "xhigh"})
 
 
+class NoModelTurnTest(unittest.TestCase):
+    """A stream that ends before the model ever speaks is the instrument
+    failing — an API that gave no response — not a model that chose not to
+    route. ROUTE-create-docs was scored 4/5 on 2026-09-15 on exactly that:
+    the kept stream was six lines, none a model turn."""
+
+    def test_a_stream_with_no_model_turn_is_not_a_miss(self):
+        lines = [_init(), json.dumps({"type": "system", "subtype": "api_retry",
+                                      "attempt": 1, "no_response": {"waited_ms": 182000}})]
+        self.assertEqual(classify(lines, "Bootstrap the quality doc set"),
+                         (None, "no_model_turn", None))
+
+    def test_a_model_that_answered_without_routing_still_misses(self):
+        lines = [_init(), _assistant(_text("Want me to run it?")),
+                 json.dumps({"type": "result", "subtype": "success", "num_turns": 1})]
+        self.assertEqual(classify(lines, "Define this product properly"),
+                         (None, "skill_tool_use", None))
+
+    def test_an_explicit_probe_keeps_its_own_unmeasured_reading(self):
+        self.assertEqual(classify([], "/acs:usage"), (None, "unmeasured", None))
+
+    def test_the_runner_retries_once_then_records_a_hole(self):
+        outcomes = iter([(None, "no_model_turn", None, 180.0),
+                         ("acs:create-docs", "skill_tool_use", None, 2.0),
+                         (None, "no_model_turn", None, 180.0),
+                         (None, "no_model_turn", None, 180.0)])
+
+        def fake_route(prompt, cwd, timeout, env, build=None, keep_path=None):
+            with open(keep_path, "w") as fh:
+                fh.write("{}\n")
+            return next(outcomes)
+
+        scenarios = {"routing": {"runs_per_probe": 2, "timeout_seconds": 5}}
+        probes = [{"id": "ROUTE-create-docs", "skill": "acs:create-docs",
+                   "prompt": "Bootstrap the quality doc set", "must_route": True,
+                   "profile": "ticketed"}]
+        base = tempfile.mkdtemp(prefix="acs-route-hole-")
+        saved = (measure_skills.Sandbox, measure_skills.route_once)
+        measure_skills.Sandbox, measure_skills.route_once = _FakeSandbox, fake_route
+        _FakeSandbox.events, _FakeSandbox.live = [], []
+        try:
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                recs = measure_skills.measure_routing(None, scenarios, probes, {},
+                                                      transcripts=base)
+        finally:
+            measure_skills.Sandbox, measure_skills.route_once = saved
+            shutil.rmtree(base, ignore_errors=True)
+        runs = recs[0]["runs"]
+        # Run 0: first attempt no turn, retry routed -> a hit, nothing kept.
+        self.assertEqual(runs[0]["routed_to"], "acs:create-docs")
+        self.assertNotIn("unmeasured", runs[0])
+        # Run 1: no turn twice -> a hole with its stream kept, not a miss.
+        self.assertFalse(runs[1]["ok"])
+        self.assertIn("unmeasured", runs[1])
+        self.assertIn("transcript", runs[1])
+        agg = recs[0]["aggregate"]
+        self.assertEqual((agg["reliability"]["hits"], agg["reliability"]["total"]), (1, 1))
+        self.assertEqual(agg["unmeasured"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

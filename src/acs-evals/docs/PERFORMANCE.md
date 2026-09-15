@@ -378,6 +378,15 @@ charter says how coverage is measured.
   session-binding variables (session id, messaging socket, compaction
   state) before any session is spawned.
 
+- **A session with no model turn is the instrument failing.** An API that
+  gives no response leaves a stream with an `init`, an `api_retry` carrying
+  `no_response`, and nothing after it; `ROUTE-create-docs` was scored 4/5 on
+  2026-09-15 on exactly that. `classify` now reads such a stream as
+  `no_model_turn`, the runner retries the run once, and a second silence is
+  recorded as an unmeasured run — a hole on the coverage axis, never a miss
+  — with its stream kept. The probe's stderr rides in the same stream, so a
+  kept miss shows the CLI's own words.
+
 **The create-prd routing split, and what was done about it.** On the
 2026-09-15 gate `ROUTE-create-prd` came back 4/5 after 20 straight hits
 across four measurements; the miss was a reply with no Skill call, and the

@@ -515,5 +515,31 @@ class TestBuildIdentity(unittest.TestCase):
         self.assertEqual(got["findings"], [])
 
 
+class RoutingHoleTest(unittest.TestCase):
+    """A routing run the instrument never delivered to the model leaves the
+    reliability denominator and is reported on the coverage axis, exactly as
+    a pipeline run whose setup fell short."""
+
+    def test_an_unmeasured_routing_run_is_a_hole_not_a_miss(self):
+        probe = {"id": "ROUTE-create-docs", "kind": "routing", "skill": "acs:create-docs",
+                 "expect": {"must_route": True, "skill": "acs:create-docs"},
+                 "runs": [{"ok": True, "routed_to": "acs:create-docs", "seconds": 2.0},
+                          {"ok": False, "routed_to": None, "seconds": 180.0,
+                           "unmeasured": "no model turn, twice"},
+                          {"ok": True, "routed_to": "acs:create-docs", "seconds": 2.5}]}
+        agg = pg.summarize(probe)
+        self.assertEqual((agg["reliability"]["hits"], agg["reliability"]["total"]), (2, 2))
+        self.assertEqual(agg["unmeasured"], 1)
+        self.assertEqual(agg["seconds"]["max"], 2.5)
+
+    def test_a_reply_that_did_not_route_is_still_a_miss(self):
+        probe = {"id": "ROUTE-create-prd", "kind": "routing", "skill": "acs:create-prd",
+                 "expect": {"must_route": True, "skill": "acs:create-prd"},
+                 "runs": [{"ok": True, "routed_to": None, "seconds": 2.4}]}
+        agg = pg.summarize(probe)
+        self.assertEqual((agg["reliability"]["hits"], agg["reliability"]["total"]), (0, 1))
+        self.assertEqual(agg["unmeasured"], 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

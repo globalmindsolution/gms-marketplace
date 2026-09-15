@@ -99,8 +99,11 @@ def summarize(probe):
             if want is None:
                 return run.get("routed_to") is not None
             return run.get("routed_to") == want
-        hits = sum(1 for r in runs if fired(r) == bool(must))
-        scored = runs
+        # A routing run the instrument never delivered to the model (an API
+        # that gave no response, twice) is a hole here too, not a miss.
+        scored = [r for r in runs if not r.get("unmeasured")]
+        hits = sum(1 for r in scored if fired(r) == bool(must))
+        agg["unmeasured"] = len(runs) - len(scored)
     else:
         # A run whose setup never established the precondition did not measure
         # the skill. Counting it as a failure blames the plugin for the

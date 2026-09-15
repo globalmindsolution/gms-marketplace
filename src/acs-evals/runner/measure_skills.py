@@ -189,6 +189,7 @@ def classify(lines, prompt):
     want = explicit_skill(prompt)
     pending = None          # (tool_use_id, skill) awaiting its result
     since = 0
+    model_turns = 0
     for line in lines:
         try:
             event = json.loads(line)
@@ -234,6 +235,7 @@ def classify(lines, prompt):
                 return pending[1], "skill_tool_use_unresolved", pending[1]
             continue
         if kind == "assistant":
+            model_turns += 1
             for block in blocks:
                 if not isinstance(block, dict):
                     continue
@@ -244,6 +246,14 @@ def classify(lines, prompt):
     if pending is not None:
         # The stream ended before the result did.
         return pending[1], "skill_tool_use_unresolved", pending[1]
+    if want is None and model_turns == 0:
+        # The session ended before the model ever spoke -- an API that gave
+        # no response (the stream then carries an `api_retry` with
+        # `no_response` and nothing after it), not a model that chose not
+        # to route. On 2026-09-15 ROUTE-create-docs was scored 4/5 on exactly
+        # this: the kept stream was six lines long and none of them was a
+        # model turn. The caller retries it as the instrument failing.
+        return None, "no_model_turn", None
     return None, ("unmeasured" if want is not None else "skill_tool_use"), None
 
 
@@ -621,9 +631,11 @@ def route_once(prompt, cwd, timeout, env, build=None, keep_path=None):
     cmd = route_cmd(prompt, build)
     started = time.time()
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True,
+                            stderr=subprocess.STDOUT, text=True,
                             cwd=cwd, env=env)
     deadline = started + timeout
+    # stderr rides along in the same stream: the decision skips any line
+    # that is not JSON, and a kept miss then shows the CLI's own words.
     # Every line the decision reads is also written to `keep_path`, so a
     # probe that came back wrong can be read instead of guessed at. Until
     # 2026-09-15 a routing miss left nothing behind: ROUTE-create-prd split
@@ -1016,6 +1028,12 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None,
                 routed, detection, attempted, seconds = route_once(
                     probe["prompt"], sb.repo, timeout, env, build,
                     keep_path=stream_path)
+                if detection == "no_model_turn":
+                    # The instrument, not the model: one retry, then the run
+                    # is a hole in the measurement rather than a miss.
+                    routed, detection, attempted, seconds = route_once(
+                        probe["prompt"], sb.repo, timeout, env, build,
+                        keep_path=stream_path)
                 if detection == "quota_exhausted":
                     os.unlink(stream_path)
                     raise QuotaExhausted(
@@ -1024,6 +1042,10 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None,
                 run = {"ok": True, "routed_to": routed,
                        "detection": detection, "seconds": seconds,
                        "cost_usd": None, "turns": None}
+                if detection == "no_model_turn":
+                    run["ok"] = False
+                    run["unmeasured"] = ("the session ended before any model turn, "
+                                         "twice (an API that gave no response)")
                 if attempted:
                     # The model reached for a skill the CLI would not let it
                     # run. Not a route, but not nothing either.
@@ -1031,7 +1053,7 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None,
                 # A miss keeps its stream, under the same directory as the
                 # pipeline transcripts; a hit is the expected outcome and
                 # leaves nothing behind.
-                if transcripts and not routing_hit(probe, routed):
+                if transcripts and (run.get("unmeasured") or not routing_hit(probe, routed)):
                     os.makedirs(transcripts, exist_ok=True)
                     kept = os.path.join(transcripts, "%s-route-%s-run%d.jsonl" % (
                         datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S"),
