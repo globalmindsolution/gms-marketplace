@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.13.0",
+  "scenario_set_version": "1.14.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -69,14 +69,14 @@
             "`python3 -m unittest` passes and covers both outcomes"
           ]
         },
-        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "prompt": "/acs:docs-sync TKT-1",
         "timeout_seconds": 900,
         "measures": [
           "reliability",
           "cost",
           "time"
         ],
-        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate. 1.6.0: that setup prompt is PIPE-code's whole body, so it carries PIPE-code's budget rather than this scenario's — under the 900s measured budget it timed out on 1 of 3 runs of the 2026-09-13 measurement — and a `setup_assert` states the precondition, because a setup session can finish clean and still leave nothing to sync. 1.7.0: the setup names each gated step explicitly (analyze-ticket → create-impl-plan → code) instead of a free-text prompt that routed to /acs:ship and never reached /acs:code — see PIPE-code. 1.8.0: the same `ticket_patch` as PIPE-code, for the same reason.",
+        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate. 1.6.0: that setup prompt is PIPE-code's whole body, so it carries PIPE-code's budget rather than this scenario's — under the 900s measured budget it timed out on 1 of 3 runs of the 2026-09-13 measurement — and a `setup_assert` states the precondition, because a setup session can finish clean and still leave nothing to sync. 1.7.0: the setup names each gated step explicitly (analyze-ticket → create-impl-plan → code) instead of a free-text prompt that routed to /acs:ship and never reached /acs:code — see PIPE-code. 1.8.0: the same `ticket_patch` as PIPE-code, for the same reason. 1.14.0: the prompt names the skill, as PIPE-code\u0027s has since 1.7.0 and for the same reason \u2014 a pipeline scenario measures the body, ROUTE-docs-sync measures the routing. On 2026-09-15 the app-profile session given the natural-language prompt read the branch, found the docs mostly current, edited the one stale table row by hand and never invoked /acs:docs-sync: no ledger, so a miss against a skill that never ran.",
         "setup_prompts": [
           "/acs:analyze-ticket TKT-1",
           "/acs:create-impl-plan TKT-1",
@@ -114,7 +114,7 @@
           "/acs:create-impl-plan TKT-1",
           "/acs:code TKT-1"
         ],
-        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "prompt": "/acs:docs-sync TKT-1",
         "timeout_seconds": 1200,
         "measures": [
           "reliability",
@@ -123,7 +123,7 @@
         ],
         "setup_timeout_seconds": 2700,
         "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\"",
-        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached. 1.7.0: explicit gated-step setup, as for PIPE-docs-sync. 1.12.0: the reworded app ticket, as for PIPE-code-app. 1.11.0: 2700s per setup prompt, as for PIPE-code-app."
+        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached. 1.7.0: explicit gated-step setup, as for PIPE-docs-sync. 1.14.0: explicit invocation, as for PIPE-docs-sync \u2014 this is the profile on which the by-hand edit happened. 1.12.0: the reworded app ticket, as for PIPE-code-app. 1.11.0: 2700s per setup prompt, as for PIPE-code-app."
       }
     ]
   },

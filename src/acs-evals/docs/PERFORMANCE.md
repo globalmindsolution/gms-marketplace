@@ -426,6 +426,18 @@ stream and fixed; a routing probe is never re-spent twice.
   open decisions, states both (1.13.0): a headless setup has nobody to
   answer a genuine question, so the ticket must not pose one.
 
+- **Pipeline scenarios invoke the skill by name.** PIPE-code has since 1.7.0;
+  the two docs-sync scenarios now do too (1.14.0). On 2026-09-15 the
+  app-profile session given "bring the docs up to date with it" read the
+  branch, found the docs mostly current after `/acs:code`'s own doc commit,
+  edited the one stale table row by hand and never invoked `/acs:docs-sync`
+  — a session that did the job and a measurement of a skill that never
+  ran. Whether that prompt reaches the skill is `ROUTE-docs-sync`'s
+  question (5/5 on the same profile); the pipeline scenario's is what the
+  skill does once it runs. The by-hand path is worth knowing about: a
+  consumer with every tool available can get the edit without the
+  re-derivation and the verifier's pass that the skill exists to record.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only
