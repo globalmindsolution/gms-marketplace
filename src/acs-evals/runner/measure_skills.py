@@ -573,7 +573,7 @@ def read_stream(path):
     return envelope, skills, truncated
 
 
-def route_once(prompt, cwd, timeout, env, build=None):
+def route_once(prompt, cwd, timeout, env, build=None, keep_path=None):
     """Return (routed_to, detection, attempted, seconds). Killed at the decision.
 
     `routed_to` is None when the model stopped, the timeout elapsed, or the CLI
@@ -588,9 +588,17 @@ def route_once(prompt, cwd, timeout, env, build=None):
                             stderr=subprocess.DEVNULL, text=True,
                             cwd=cwd, env=env)
     deadline = started + timeout
+    # Every line the decision reads is also written to `keep_path`, so a
+    # probe that came back wrong can be read instead of guessed at. Until
+    # 2026-09-15 a routing miss left nothing behind: ROUTE-create-prd split
+    # 4/5 after 20 straight hits, with `routed_to: null` and no Skill call in
+    # the stream, and nothing could say what the model did with its 4 seconds.
+    sink = open(keep_path, "w", encoding="utf-8") if keep_path else None
 
     def until_deadline(stream):
         for line in stream:
+            if sink is not None:
+                sink.write(line)
             if time.time() > deadline:
                 return
             yield line
@@ -603,6 +611,8 @@ def route_once(prompt, cwd, timeout, env, build=None):
         proc.wait()
         if proc.stdout:
             proc.stdout.close()
+        if sink is not None:
+            sink.close()
     return routed, detection, attempted, round(time.time() - started, 3)
 
 
@@ -922,7 +932,17 @@ def routing_sandboxes(probes):
     return seen
 
 
-def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
+def routing_hit(probe, routed_to):
+    """The same rule perf_gate.summarize scores by: a positive probe hits
+    when its skill routed, a negative one when it did not, and a probe naming
+    no skill (the off-domain control) when nothing routed."""
+    want = probe.get("skill")
+    fired = (routed_to is not None) if want is None else (routed_to == want)
+    return fired == bool(probe.get("must_route", True))
+
+
+def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None,
+                    transcripts=None):
     conf = scenarios["routing"]
     runs_per = limit or conf.get("runs_per_probe", 5)
     timeout = conf.get("timeout_seconds", 120)
@@ -953,10 +973,15 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
                 out.append(done)
                 continue
             runs = []
-            for _ in range(runs_per):
+            for index in range(runs_per):
+                handle, stream_path = tempfile.mkstemp(prefix="acs-route-",
+                                                       suffix=".jsonl")
+                os.close(handle)
                 routed, detection, attempted, seconds = route_once(
-                    probe["prompt"], sb.repo, timeout, env, build)
+                    probe["prompt"], sb.repo, timeout, env, build,
+                    keep_path=stream_path)
                 if detection == "quota_exhausted":
+                    os.unlink(stream_path)
                     raise QuotaExhausted(
                         "%s: the claude CLI refused the session (usage limit)"
                         % probe["id"])
@@ -967,6 +992,18 @@ def measure_routing(build, scenarios, probes, env, limit=None, checkpoint=None):
                     # The model reached for a skill the CLI would not let it
                     # run. Not a route, but not nothing either.
                     run["attempted"] = attempted
+                # A miss keeps its stream, under the same directory as the
+                # pipeline transcripts; a hit is the expected outcome and
+                # leaves nothing behind.
+                if transcripts and not routing_hit(probe, routed):
+                    os.makedirs(transcripts, exist_ok=True)
+                    kept = os.path.join(transcripts, "%s-route-%s-run%d.jsonl" % (
+                        datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S"),
+                        probe["id"], index))
+                    shutil.move(stream_path, kept)
+                    run["transcript"] = kept
+                else:
+                    os.unlink(stream_path)
                 runs.append(run)
             rec = {"id": probe["id"], "kind": "routing",
                    "skill": probe["skill"],
@@ -1360,15 +1397,15 @@ def _measure(args, build, env, scenarios, probes, all_probes, hashes):
               % (len(checkpoint.done), checkpoint.path))
 
     records = []
+    transcripts = args.transcripts
+    if transcripts is None and args.out:
+        transcripts = os.path.join(
+            os.path.dirname(os.path.abspath(args.out)), "transcripts")
     try:
         if not args.pipeline_only:
             records += measure_routing(build, scenarios, probes, env, args.runs,
-                                       checkpoint)
+                                       checkpoint, transcripts or None)
         if not args.routing_only:
-            transcripts = args.transcripts
-            if transcripts is None and args.out:
-                transcripts = os.path.join(
-                    os.path.dirname(os.path.abspath(args.out)), "transcripts")
             records += measure_pipeline(build, scenarios, env, args.runs,
                                         checkpoint, transcripts or None)
     except QuotaExhausted as exc:

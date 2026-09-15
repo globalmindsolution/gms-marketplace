@@ -358,6 +358,15 @@ it. ADR-0034 was amended: light is 2 execute→verify rounds (the pass plus
 the one iteration on findings it always described), and the executor's
 charter says how coverage is measured.
 
+- **A routing miss keeps its stream.** Routing probes are killed at the
+  first Skill call and kept nothing, so a miss was undiagnosable:
+  `ROUTE-create-prd` split 4/5 on 2026-09-15 after 20 straight hits, with
+  `routed_to: null` and no Skill call in the stream, and nothing could say
+  what the model did with its four seconds. The stream every probe's
+  decision reads is now teed to a file, and a miss (by the gate's own hit
+  rule) is kept beside the pipeline transcripts as
+  `<stamp>-route-<probe>-run<n>.jsonl`.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

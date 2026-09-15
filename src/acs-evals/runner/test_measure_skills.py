@@ -434,7 +434,7 @@ class MeasureRoutingSandboxesTest(unittest.TestCase):
         measure_skills.Sandbox, measure_skills.route_once = self._sandbox, self._route
 
     @staticmethod
-    def _fake_route(prompt, cwd, timeout, env, build=None):
+    def _fake_route(prompt, cwd, timeout, env, build=None, keep_path=None):
         # `build` is recorded, not just accepted: measure_routing must hand the
         # resolved build to every probe, or the session loads whatever is
         # installed and the measurement describes the wrong plugin.
@@ -665,7 +665,7 @@ class RoutingResumesInsteadOfRespendingTest(unittest.TestCase):
         measure_skills.Sandbox = _FakeSandbox
         self.spent = []
 
-        def fake_route(prompt, cwd, timeout, env, build=None):
+        def fake_route(prompt, cwd, timeout, env, build=None, keep_path=None):
             self.spent.append(prompt)
             return "acs:code", "skill_tool_use", None, 1.0
 
@@ -1335,6 +1335,89 @@ class StagedBuildTest(unittest.TestCase):
             if parent == d:
                 break
             d = parent
+
+
+class RoutingMissKeepsItsStreamTest(unittest.TestCase):
+    """A routing miss used to leave nothing behind: ROUTE-create-prd split
+    4/5 on 2026-09-15 after 20 straight hits, with `routed_to: null` and no
+    Skill call in the stream, and nothing could say what the model did. The
+    stream every probe's decision reads is now teed to a file, and a miss
+    keeps it beside the pipeline transcripts."""
+
+    def test_the_hit_rule_matches_the_gate_s(self):
+        pos = {"skill": "acs:code", "must_route": True}
+        neg = {"skill": "acs:standardize-project", "must_route": False}
+        ctl = {"skill": None, "must_route": False}
+        self.assertTrue(measure_skills.routing_hit(pos, "acs:code"))
+        self.assertFalse(measure_skills.routing_hit(pos, None))
+        self.assertFalse(measure_skills.routing_hit(pos, "acs:ship"))
+        self.assertTrue(measure_skills.routing_hit(neg, "acs:project"))
+        self.assertFalse(measure_skills.routing_hit(neg, "acs:standardize-project"))
+        self.assertTrue(measure_skills.routing_hit(ctl, None))
+        self.assertFalse(measure_skills.routing_hit(ctl, "acs:code"))
+
+    def test_route_once_tees_the_stream_it_reads(self):
+        lines = [_init(), _assistant(_text("Which product do you mean?")),
+                 json.dumps({"type": "result", "subtype": "success",
+                             "is_error": False, "num_turns": 1})]
+
+        class _Proc:
+            def __init__(self):
+                self.stdout = io.StringIO("\n".join(lines) + "\n")
+
+            def kill(self):
+                pass
+
+            def wait(self, timeout=None):
+                return 0
+
+        keep = tempfile.mktemp(prefix="acs-route-test-", suffix=".jsonl")
+        try:
+            with mock.patch.object(measure_skills.subprocess, "Popen",
+                                   lambda cmd, **kw: _Proc()):
+                routed, detection, attempted, _s = measure_skills.route_once(
+                    "Define this product properly", os.getcwd(), 5, {},
+                    keep_path=keep)
+            self.assertIsNone(routed)
+            self.assertEqual(detection, "skill_tool_use")
+            with open(keep) as fh:
+                kept = fh.read()
+            self.assertIn("Which product do you mean?", kept)
+        finally:
+            if os.path.exists(keep):
+                os.unlink(keep)
+
+    def test_only_a_miss_is_kept(self):
+        base = tempfile.mkdtemp(prefix="acs-route-keep-")
+        transcripts = os.path.join(base, "transcripts")
+        outcomes = iter(["acs:create-prd", None, "acs:create-prd"])
+
+        def fake_route(prompt, cwd, timeout, env, build=None, keep_path=None):
+            with open(keep_path, "w") as fh:
+                fh.write("{}\n")
+            return next(outcomes), "skill_tool_use", None, 1.0
+
+        scenarios = {"routing": {"runs_per_probe": 3, "timeout_seconds": 5}}
+        probes = [{"id": "ROUTE-create-prd", "skill": "acs:create-prd",
+                   "prompt": "Define this product properly", "must_route": True,
+                   "profile": "ticketed"}]
+        saved = (measure_skills.Sandbox, measure_skills.route_once)
+        measure_skills.Sandbox, measure_skills.route_once = _FakeSandbox, fake_route
+        _FakeSandbox.events, _FakeSandbox.live = [], []
+        try:
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                recs = measure_skills.measure_routing(None, scenarios, probes, {},
+                                                      transcripts=transcripts)
+        finally:
+            measure_skills.Sandbox, measure_skills.route_once = saved
+            shutil.rmtree(base, ignore_errors=True)
+        runs = recs[0]["runs"]
+        self.assertEqual([r.get("routed_to") for r in runs],
+                         ["acs:create-prd", None, "acs:create-prd"])
+        self.assertNotIn("transcript", runs[0])
+        self.assertIn("ROUTE-create-prd-run1", runs[1]["transcript"])
+        self.assertNotIn("transcript", runs[2])
+        self.assertEqual(recs[0]["aggregate"]["reliability"]["hits"], 2)
 
 
 if __name__ == "__main__":
