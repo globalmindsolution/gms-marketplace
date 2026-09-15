@@ -114,4 +114,5 @@ the verifier remains the gate in every lane. "Cap 2 for light" was listed
 under Alternatives as offering no quality advantage; that judgement predates
 the MAR-71 redefinition and is withdrawn for the round-based count. The same
 correction was already applied to `/acs:create-impl-plan`'s fast lane under
-ADR-0074 (one revision of the coordinator's draft).
+ADR-0074 (a revision of the coordinator's draft; two since the 2026-09-15
+amendment, for the same reason).

@@ -180,15 +180,16 @@ the notes.
   grades its sibling `../acs`. Entries above this one refer to `plugins/acs`
   paths as they were at the time; the tree they describe is `src/acs` now.
 
-- **`/acs:create-impl-plan` on TRIVIAL/SMALL revises its own draft once
-  before failing.** The coordinator-authored plan used to end the run
+- **`/acs:create-impl-plan` on TRIVIAL/SMALL revises its own draft up to
+  twice before failing.** The coordinator-authored plan used to end the run
   `failed` on the verifier's first blocking finding (ceiling 1, inherited from
   `/acs:code`); it now revises the draft against every finding and the
-  verifier judges again (ceiling 2 verify rounds, one extra verifier call),
-  per ADR-0074's 2026-09-14 amendment. The 2026-09-14 PIPE-code diagnostic
-  lost a run to exactly this: a plan whose test strategy could not reach the
-  coverage target, caught by the verifier, with "re-run the skill" as the
-  only remedy.
+  verifier judges again, up to twice (ceiling 3 verify rounds, each extra
+  round one verifier call), per ADR-0074's 2026-09-14 and 2026-09-15
+  amendments. The 2026-09-14 PIPE-code diagnostic lost a run to the ceiling
+  of 1 (a plan whose test strategy could not reach the coverage target), and
+  the 2026-09-15 gate lost two setups to a ceiling of 2 — each on a one-line
+  repair the coordinator could have made in a third pass.
 
 - **`/acs:create-impl-plan` no longer asks about proposals the analysis left
   open.** With `analysis.md` at `ready_for_planning: true`, the refined- and
@@ -223,7 +224,7 @@ the notes.
   block.
 - **`/acs:create-impl-plan`'s fast lane grounds its own draft and fixes every
   occurrence of a finding.** On TRIVIAL/SMALL the coordinator authors the
-  plan and gets one revision; the executor's grounding charter now binds that
+  plan and revises it itself; the executor's grounding charter now binds that
   draft explicitly (state a repo fact only after checking it in this run, and
   cite the check), and the revision must correct every place a finding's
   claim appears before the last verify round. A SMALL-lane plan on the

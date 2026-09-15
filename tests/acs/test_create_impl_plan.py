@@ -613,11 +613,14 @@ class LightLaneRevisesOnceTest(unittest.TestCase):
     def setUpClass(cls):
         cls.norm = norm(read(IMPL_PLAN_SKILL))
 
-    def test_the_fast_lane_revises_the_draft_once(self):
-        self.assertRegex(self.norm, r"(?i)revises its own draft ONCE")
-        self.assertIn("ceiling **2** verify rounds", self.norm)
+    def test_the_fast_lane_revises_the_draft_up_to_twice(self):
+        # 2026-09-15 amendment: two rounds lost two setups to one-line
+        # repairs; the fast lane now has the full lane's three verdicts.
+        self.assertRegex(self.norm, r"(?i)revises its own draft against every finding and the verifier judges again, up to TWICE")
+        self.assertIn("ceiling **3** verify rounds", self.norm)
+        self.assertNotIn("ceiling **2** verify rounds", self.norm)
         self.assertNotIn("ceiling **1**", self.norm)
-        self.assertNotIn("light: 1 / full: 3", self.norm)
+        self.assertIn("light: 3 verify rounds of the coordinator's draft", self.norm)
 
     def test_the_full_lane_keeps_three_executor_rounds(self):
         self.assertRegex(self.norm, r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\*")
@@ -626,8 +629,8 @@ class LightLaneRevisesOnceTest(unittest.TestCase):
     def test_the_findings_loop_names_the_coordinator_as_the_fast_lane_reviser(self):
         self.assertRegex(self.norm, r"(?i)on TRIVIAL/SMALL, where there is no executor, revise the draft yourself")
 
-    def test_a_draft_failing_after_its_revision_still_fails_the_run(self):
-        self.assertRegex(self.norm, r"(?i)still failing after its revision ends the run `failed`")
+    def test_a_draft_failing_after_its_revisions_still_fails_the_run(self):
+        self.assertRegex(self.norm, r"(?i)still failing after its second revision ends the run `failed`")
 
     def test_the_coordinator_grounds_its_own_draft(self):
         # The executor's grounding charter binds the coordinator's draft too:
@@ -641,7 +644,7 @@ class LightLaneRevisesOnceTest(unittest.TestCase):
         # strategy and left in Risks is the same blocking finding again.
         self.assertIn("A finding names one place; fix every place.", self.norm)
         self.assertRegex(self.norm, r"(?i)correct every occurrence")
-        self.assertRegex(self.norm, r"(?i)the second verify round is the last")
+        self.assertRegex(self.norm, r"(?i)Each verify round may be the last")
 
 
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):

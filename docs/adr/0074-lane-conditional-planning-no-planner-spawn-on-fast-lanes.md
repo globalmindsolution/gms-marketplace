@@ -156,3 +156,22 @@ findings") applied where the iteration is cheap. A draft still failing after
 its revision ends the run `failed` as before. D-1 (no executor spawn on the
 fast lane), D-3 and D-4 are unchanged; `/acs:code`'s `VERIFY_ITERATION_CAP`
 is untouched.
+
+## Amendment — the fast lane affords two revisions (2026-09-15)
+
+Two verify rounds were not enough. Across the 2026-09-15 release-gate runs,
+SMALL-lane `/acs:create-impl-plan` reached its second and last verdict with
+one blocking finding still open twice in roughly fifteen runs: an uncited
+claim fixed in one of the two sections that carried it, then a test list
+enumerated as four and described once as "five". Each was a one-line
+repair the coordinator could have made in a third pass, and each cost a
+downstream measurement its setup. A round on this lane is a draft and a
+verdict — one verifier call, no executor — so its cost is not the cost
+ADR-0034's light cap was set against.
+
+Decision: on TRIVIAL/SMALL the coordinator revises its own draft up to
+**twice** against the verifier's blocking findings — a ceiling of **three
+verify rounds**, the same round count as the full lane. Light now differs
+from full only in who authors the plan (D-1: no executor spawn), never in
+how often it is judged. D-3 and D-4 are unchanged; `/acs:code`'s
+`VERIFY_ITERATION_CAP` is untouched.

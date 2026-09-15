@@ -349,7 +349,11 @@ What the same gate found in the plugin, and what changed: a SMALL-lane
 because the coordinator's draft stated, uncited and wrongly, that the
 coverage package was not installed — in two sections — and its one revision
 fixed one of them; the skill's fast lane now carries the executor's grounding
-rule and a fix-every-occurrence rule for the revision. Of the two
+rule and a fix-every-occurrence rule for the revision. The next gate lost a
+second SMALL-lane plan the same way — a four-test list described once as
+"five", caught on the last of two rounds — so the fast lane now has the
+full lane's three verify rounds (ADR-0074 amended again): a round there is
+one verifier call, and each miss was a one-line repair. Of the two
 measured SMALL-lane `/acs:code` runs one failed at the light lane's
 iteration cap on a single coverage finding — the executor had topped up
 coverage by appending manual CLI invocations, the verifier re-measured from

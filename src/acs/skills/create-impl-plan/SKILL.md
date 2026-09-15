@@ -183,15 +183,15 @@ or hand-edited. Then:
   spawns. The coordinator authors the
   `plan.md` draft itself against the IDENTICAL artifact contract below, and the
   verifier judges it; on blocking findings the coordinator revises its own
-  draft ONCE against every finding and the verifier judges again (ceiling
-  **2** verify rounds — ADR-0034's light depth "may iterate at most once on
-  blocking findings", and here the second round costs one verifier call, not
-  an executor pass; a draft still failing after its revision ends the run
-  `failed`). The verifier is the in-loop quality gate in EVERY lane; light
-  differs only in who authors and how many rounds are allowed, never in
-  whether the plan is judged.
+  draft against every finding and the verifier judges again, up to TWICE
+  (ceiling **3** verify rounds — the same round count as the full lane,
+  ADR-0074 as amended 2026-09-15; here a round costs one verifier call, not
+  an executor pass, and a draft still failing after its second revision
+  ends the run `failed`). The verifier is the in-loop quality gate in EVERY
+  lane; light differs only in who authors, never in whether or how often the
+  plan is judged.
 
-  Two rules make that single revision enough, and both bind the coordinator
+  Two rules make those revisions land, and both bind the coordinator
   exactly as the executor's charter binds the executor:
 
   - **Ground your own draft.** State a repo fact — a tool installed, a file
@@ -204,9 +204,11 @@ or hand-edited. Then:
     and correct every occurrence — `## Risks` restates what `## Test
     strategy` says, and a claim fixed in one section and left in the other
     is the same blocking finding again. Then re-read the draft end to end
-    against the full findings list: the second verify round is the last.
-    (The 2026-09-15 gate lost a SMALL-lane plan exactly this way — an
-    uncited "coverage is not installed" written twice, fixed once.)
+    against the full findings list — counts and names included: a test
+    list enumerated as four and described as "five" is a finding too. Each
+    verify round may be the last. (The 2026-09-15 gate lost two SMALL-lane
+    plans exactly this way — an uncited "coverage is not installed" written
+    twice and fixed once, then a "five" for a four-test list.)
 
 **What an iteration counts:** one execute → verify round.
 
@@ -377,7 +379,7 @@ persist the verify output, then AUTOMATICALLY re-execute, passing every
 finding to the next iteration's executor in `<context>` with no plan phase
 in between — on TRIVIAL/SMALL, where there is no executor, revise the draft
 yourself against every finding and re-run verify. After the lane's ceiling
-(light: 2 verify rounds of the coordinator's draft / full: 3 execute →
+(light: 3 verify rounds of the coordinator's draft / full: 3 execute →
 verify rounds) with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
