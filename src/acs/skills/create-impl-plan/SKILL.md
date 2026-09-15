@@ -191,6 +191,23 @@ or hand-edited. Then:
   differs only in who authors and how many rounds are allowed, never in
   whether the plan is judged.
 
+  Two rules make that single revision enough, and both bind the coordinator
+  exactly as the executor's charter binds the executor:
+
+  - **Ground your own draft.** State a repo fact — a tool installed, a file
+    present, a command available, a test runner configured — only after
+    checking it in THIS run, and cite the command or file next to the claim.
+    The verifier's grounding dimension re-checks every such claim; an
+    unchecked one costs the round.
+  - **A finding names one place; fix every place.** Before re-verifying,
+    search the whole draft for the claim, path or wording each finding names
+    and correct every occurrence — `## Risks` restates what `## Test
+    strategy` says, and a claim fixed in one section and left in the other
+    is the same blocking finding again. Then re-read the draft end to end
+    against the full findings list: the second verify round is the last.
+    (The 2026-09-15 gate lost a SMALL-lane plan exactly this way — an
+    uncited "coverage is not installed" written twice, fixed once.)
+
 **What an iteration counts:** one execute → verify round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.

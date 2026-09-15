@@ -221,6 +221,15 @@ the notes.
   probe, twice in three measurements. `/acs:project` still dispatches each
   leg with an explicit `Skill(acs:<leg>)` call, which no description can
   block.
+- **`/acs:create-impl-plan`'s fast lane grounds its own draft and fixes every
+  occurrence of a finding.** On TRIVIAL/SMALL the coordinator authors the
+  plan and gets one revision; the executor's grounding charter now binds that
+  draft explicitly (state a repo fact only after checking it in this run, and
+  cite the check), and the revision must correct every place a finding's
+  claim appears before the last verify round. A SMALL-lane plan on the
+  2026-09-15 gate wrote an uncited, wrong "coverage is not installed" in both
+  `## Test strategy` and `## Risks`, fixed one, and failed at the ceiling on
+  the other.
 
 ### Deprecated
 

@@ -629,6 +629,20 @@ class LightLaneRevisesOnceTest(unittest.TestCase):
     def test_a_draft_failing_after_its_revision_still_fails_the_run(self):
         self.assertRegex(self.norm, r"(?i)still failing after its revision ends the run `failed`")
 
+    def test_the_coordinator_grounds_its_own_draft(self):
+        # The executor's grounding charter binds the coordinator's draft too:
+        # the 2026-09-15 gate lost a SMALL-lane plan to an uncited, wrong
+        # "coverage is not installed" the verifier re-checked.
+        self.assertIn("Ground your own draft.", self.norm)
+        self.assertRegex(self.norm, r"(?i)only after checking it in THIS run, and cite the command or file")
+
+    def test_a_revision_fixes_every_occurrence_of_a_finding(self):
+        # One revision is all the fast lane gets, so a claim fixed in Test
+        # strategy and left in Risks is the same blocking finding again.
+        self.assertIn("A finding names one place; fix every place.", self.norm)
+        self.assertRegex(self.norm, r"(?i)correct every occurrence")
+        self.assertRegex(self.norm, r"(?i)the second verify round is the last")
+
 
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     """analyze-ticket promises that with no user answer create-impl-plan

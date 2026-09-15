@@ -334,7 +334,12 @@ request outright and naming `/acs:project` as the only route. A negative
 probe passes only when it never auto-invokes, so 4/5 is a finding, not
 noise, whatever the odds of a single miss.
 
-What the same gate found in the plugin, and what changed: of the two
+What the same gate found in the plugin, and what changed: a SMALL-lane
+`/acs:create-impl-plan` setup on 2026-09-15 failed at its two-round ceiling
+because the coordinator's draft stated, uncited and wrongly, that the
+coverage package was not installed — in two sections — and its one revision
+fixed one of them; the skill's fast lane now carries the executor's grounding
+rule and a fix-every-occurrence rule for the revision. Of the two
 measured SMALL-lane `/acs:code` runs one failed at the light lane's
 iteration cap on a single coverage finding — the executor had topped up
 coverage by appending manual CLI invocations, the verifier re-measured from
