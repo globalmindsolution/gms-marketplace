@@ -255,6 +255,13 @@ the notes.
   the 2026-09-14/15 gate sessions, each a turn lost before the same content
   landed via a heredoc. The charter now says to write and revise the draft
   with `cat > … <<'EOF'` and a `python3 - <<'PY'` substitution.
+- **`/acs:create-prd`'s description says to invoke it directly.** With the
+  launcher's `CLAUDE_EFFORT` no longer leaking into measured sessions (see
+  acs-evals), the routing probe for a natural-language PRD request came
+  back 3/5 on the 2026-09-15 gate: both misses named the skill and asked
+  "Want me to run it?" instead of invoking it. The description now says the
+  skill confirms scope and gathers what it needs from the user itself, so
+  there is nothing to ask before running it — which is what the skill does.
 
 ### Deprecated
 

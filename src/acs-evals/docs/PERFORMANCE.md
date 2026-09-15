@@ -387,6 +387,15 @@ charter says how coverage is measured.
   — with its stream kept. The probe's stderr rides in the same stream, so a
   kept miss shows the CLI's own words.
 
+**What the scrubbed environment changed.** Under `CLAUDE_EFFORT=xhigh`
+the routing half ran 44/45 on `ROUTE-create-prd`; the first run at the
+model's default effort came back 3/5, and both kept miss streams show the
+model naming the right skill and asking "Want me to run it?" rather than
+invoking it. A 10-run sweep of all 35 probes at default effort then came
+back 350/350, so the hesitation is rare — but it is the consumer's model,
+not the launcher's, and the skill's description now tells it there is
+nothing to ask first.
+
 **The create-prd routing split, and what was done about it.** On the
 2026-09-15 gate `ROUTE-create-prd` came back 4/5 after 20 straight hits
 across four measurements; the miss was a reply with no Skill call, and the
