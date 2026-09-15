@@ -367,6 +367,28 @@ charter says how coverage is measured.
   rule) is kept beside the pipeline transcripts as
   `<stamp>-route-<probe>-run<n>.jsonl`.
 
+- **A measured session does not inherit the launcher's session.** The
+  runner is launched from inside a Claude Code session (the release gate
+  is), and `claude -p` reads the parent's environment: with
+  `CLAUDE_AUTO_BACKGROUND_TASKS=true` every subagent spawn on the 2026-09-15
+  gate was moved to the background and the coordinators waited on
+  ten-minute sleep loops until a 1800s setup ran out; with
+  `CLAUDE_EFFORT=xhigh` every session reasoned at the launcher's effort
+  rather than the model's default. `child_env` now drops those and the
+  session-binding variables (session id, messaging socket, compaction
+  state) before any session is spawned.
+
+**The create-prd routing split, and what was done about it.** On the
+2026-09-15 gate `ROUTE-create-prd` came back 4/5 after 20 straight hits
+across four measurements; the miss was a reply with no Skill call, and the
+routing probes kept no stream at the time. A 20-run diagnostic under the
+new instrumentation came back 20/20 — 44/45 overall, nothing kept to read.
+That is not evidence of a description defect and not a pass either: the
+probe's record was removed from the checkpoint and re-spent, alone, with
+miss streams kept, and the measurement that was promoted carries whatever
+that re-spend produced. A second split would have been read from its
+stream and fixed; a routing probe is never re-spent twice.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

@@ -412,6 +412,42 @@ class Checkpoint:
                 pass
 
 
+#: Inherited variables that would make a measured session behave like THIS
+#: session instead of a consumer's. The runner is often launched from inside
+#: a Claude Code session (the release gate is), and `claude -p` reads these
+#: from the environment: CLAUDE_AUTO_BACKGROUND_TASKS moved every subagent
+#: spawn into the background on the 2026-09-15 gate, and the coordinators
+#: then waited on ten-minute sleep loops (17 in 6 of 56 transcripts) until a
+#: 1800s setup ran out; CLAUDE_EFFORT=xhigh made every session reason at the
+#: launcher's effort rather than the model's default, which is what a
+#: consumer pays for; the session-binding ones tie the child to the parent's
+#: transcript, messaging socket and compaction state. ACS_PLUGIN_ROOT would
+#: still name the source checkout the build was staged away from.
+CHILD_ENV_SCRUB = (
+    "ACS_PLUGIN_ROOT",
+    "CLAUDE_AUTO_BACKGROUND_TASKS",
+    "CLAUDE_CODE_BG_TASKS_REPORT_RUNNING",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
+    "CLAUDE_AFTER_LAST_COMPACT",
+    "CLAUDE_EFFORT",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_PID",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_DIAGNOSTICS_FILE",
+)
+
+
+def child_env(base):
+    """The environment a measured session runs in: the launcher's, minus
+    what would make it behave like the launcher's own session."""
+    env = dict(base)
+    for name in CHILD_ENV_SCRUB:
+        env.pop(name, None)
+    return env
+
+
 def stage_build(build):
     """A copy of the build under test in a directory that is not a checkout.
 
@@ -1330,10 +1366,7 @@ def main():
         sys.stderr.write("error: %s\n" % exc)
         return 2
 
-    env = dict(os.environ)
-    # The child must find the build only through --plugin-dir; an inherited
-    # ACS_PLUGIN_ROOT would still name the source checkout.
-    env.pop("ACS_PLUGIN_ROOT", None)
+    env = child_env(os.environ)
     print("\nbuild under test: acs %s\n  from %s, staged at %s\n"
           % (identity_of(build), build.source_root, build.root))
     try:

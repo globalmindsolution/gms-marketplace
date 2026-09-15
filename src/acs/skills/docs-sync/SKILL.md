@@ -168,6 +168,14 @@ For every phase:
    `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name that
    iteration's authoring notes.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
 ### Phase: execute — `acs:docs-sync-executor`
 
 Objective, iteration 1: from the six inputs above, record the doc-delta

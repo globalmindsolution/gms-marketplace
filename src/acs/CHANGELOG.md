@@ -239,6 +239,22 @@ the notes.
   2026-09-15 gate the app-profile `/acs:analyze-ticket` spent iterations 2
   and 3 — and its whole 30-minute setup budget, to the second — on
   line-number corrections to citations whose facts were right.
+- **Coordinators spawn subagents in the foreground and wait on the result,
+  never on a clock.** Every reflection-loop skill's spawn instruction now
+  says to pass `run_in_background: false` and, when the runtime moves the
+  agent to the background anyway, to wait for its completion notification
+  rather than poll with `sleep` loops. On the 2026-09-15 gate an
+  `/acs:analyze-ticket` coordinator waited on its executor and its verifier
+  with `for i in $(seq 1 40); do sleep 15; done` — ten fixed minutes apiece
+  — and a 1800s setup ran out as iteration 2 began; 17 such loops appeared
+  in 6 of 56 measured sessions.
+- **The analyze-ticket executor lands `analysis.md` through Bash.** The
+  runtime refuses a subagent's Write/Edit of a file named like a report
+  ("Subagents should return findings as text, not write report files"), and
+  `analysis.md` trips that rule on every run — 20 refused attempts across
+  the 2026-09-14/15 gate sessions, each a turn lost before the same content
+  landed via a heredoc. The charter now says to write and revise the draft
+  with `cat > … <<'EOF'` and a `python3 - <<'PY'` substitution.
 
 ### Deprecated
 

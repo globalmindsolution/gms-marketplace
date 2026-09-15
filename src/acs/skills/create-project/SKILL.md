@@ -130,6 +130,14 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
   `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
   un-namespaced name only if the runtime rejects the namespaced one.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
 ### Execute — iteration 1 pins the scaffold before it builds
 
 Spawn the executor. Resolve doc paths from `settings.architecture_path` and

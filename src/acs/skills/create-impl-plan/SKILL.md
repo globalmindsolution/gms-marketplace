@@ -238,6 +238,14 @@ Messaging rules (`schemas/acs-messages.xsd`):
   when not `"inherit"`; if the runtime rejects the model or effort, FAIL the
   run with that exact error — no silent fallback.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
 ### Execute (per iteration) — survey, then author the plan draft
 
 On STANDARD/COMPLEX, iteration 1's executor surveys and decides before it

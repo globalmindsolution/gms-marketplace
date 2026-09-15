@@ -1420,5 +1420,33 @@ class RoutingMissKeepsItsStreamTest(unittest.TestCase):
         self.assertEqual(recs[0]["aggregate"]["reliability"]["hits"], 2)
 
 
+class ChildEnvTest(unittest.TestCase):
+    """A measured session must not inherit what makes the launcher's own
+    Claude Code session special: auto-backgrounding turned every subagent
+    spawn on the 2026-09-15 gate into a background task the coordinators
+    waited on with ten-minute sleep loops, and CLAUDE_EFFORT=xhigh made every
+    session reason at the launcher's effort, not the model's default."""
+
+    def test_session_binding_and_behaviour_variables_are_dropped(self):
+        base = {"PATH": "/usr/bin", "HTTPS_PROXY": "http://proxy",
+                "CLAUDE_AUTO_BACKGROUND_TASKS": "true", "CLAUDE_EFFORT": "xhigh",
+                "CLAUDE_CODE_SESSION_ID": "abc", "ACS_PLUGIN_ROOT": "/src/acs",
+                "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST": "1"}
+        env = measure_skills.child_env(base)
+        for name in ("CLAUDE_AUTO_BACKGROUND_TASKS", "CLAUDE_EFFORT",
+                     "CLAUDE_CODE_SESSION_ID", "ACS_PLUGIN_ROOT"):
+            self.assertNotIn(name, env, name)
+        # Everything the child needs to reach the model and the network stays.
+        for name in ("PATH", "HTTPS_PROXY", "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"):
+            self.assertEqual(env[name], base[name], name)
+        self.assertNotIn("CLAUDE_AUTO_BACKGROUND_TASKS", measure_skills.child_env(
+            {"CLAUDE_AUTO_BACKGROUND_TASKS": "true"}))
+
+    def test_the_base_is_not_mutated(self):
+        base = {"CLAUDE_EFFORT": "xhigh"}
+        measure_skills.child_env(base)
+        self.assertEqual(base, {"CLAUDE_EFFORT": "xhigh"})
+
+
 if __name__ == "__main__":
     unittest.main()

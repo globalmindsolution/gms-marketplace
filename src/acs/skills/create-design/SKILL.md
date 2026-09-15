@@ -161,6 +161,14 @@ For every phase:
    runtime rejects the model or effort, FAIL the run with that exact error — no
    silent fallback.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
 4. Persist the phase's `<task>` and `<result>` to
    `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
    BEFORE starting the next phase. The executor's own artifacts are

@@ -365,6 +365,14 @@ runtime rejects the namespaced one). Apply `context.models.<role>.model` /
 `.effort` at spawn when not `"inherit"`; if the runtime rejects the model or
 effort, FAIL that set's run with that error — no silent fallback.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
 Communicate in XML per `schemas/acs-messages.xsd`. The set rides in the
 constraints; compose them from `doc_sets[<set>]` and the resolved settings,
 never from memory. Example execute task for `quality`:
