@@ -410,9 +410,23 @@ This skill is where a ticket's ambiguities are SUPPOSED to surface, so its
 
 ### Not ready for planning → `needs_input`
 
+**A question with a conventional default is an assumption, not a blocker.**
+When the ticket's words plus the repository's conventions settle a detail
+well enough that a competent implementer would not stop to ask — "prints"
+means stdout; a credential check is exact and case-sensitive unless the
+ticket says otherwise; argument counts the ticket never mentions are out of
+scope; an unspecified error path follows the codebase's existing pattern —
+record the default as an assumption (`--source assumption --rationale
+"..."`), state it in `## Assumptions`, propose the matching criterion rewrite
+in `## Refined acceptance criteria`, and keep `ready_for_planning: true`. The
+2026-09-15 release gate lost a two-line login ticket to exactly three such
+defaults asked as blockers, on a run with nobody to answer them.
+
 When the analysis cannot honestly say the ticket is plannable — a question
-whose answer changes the impact map or the acceptance criteria is still open,
-the ticket contradicts the design or the requirements, or the problem itself is
+where every default could build the wrong thing is still open (a
+contradiction with the code, a design document or an ADR; a behaviour the
+acceptance criteria depend on that nothing defines; a fork in scope), the
+ticket contradicts the design or the requirements, or the problem itself is
 undefined — set front-matter `ready_for_planning: false`, say exactly what is
 missing in `## Verdict`, and finish as `needs_input`:
 

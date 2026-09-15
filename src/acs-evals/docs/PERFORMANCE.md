@@ -438,6 +438,21 @@ stream and fixed; a routing probe is never re-spent twice.
   consumer with every tool available can get the edit without the
   re-derivation and the verifier's pass that the skill exists to record.
 
+- **A conventional default is not an open question.** On 2026-09-15 one
+  PIPE-docs-sync setup — roughly 1 `/acs:analyze-ticket` run in 25 on the
+  seeded two-line login ticket — returned `ready_for_planning: false` on
+  three questions: stdout or stderr, case-sensitive or not, and what to do
+  with argument counts the ticket never mentions. Each has a default a
+  competent implementer takes without asking, and the run had nobody to
+  answer. The skill and its executor's verdict contract now record such
+  defaults as assumptions with a proposed criterion rewrite and keep the
+  ticket plannable, reserving `false` for a question where every default
+  could build the wrong thing; and the seeded ticket states all three
+  (1.15.0), as the app ticket states its status mapping, so the setup no
+  longer depends on that judgement at all. Because the fix touches
+  `src/acs`, it changes the build identity and the checkpoint under it: the
+  gate re-runs from scratch.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only
@@ -481,7 +496,13 @@ reviewable rather than merely absent.
 ## Status and limitations
 
 **No measurement of acs has been taken yet.** `dataset/baselines/` is empty and
-the thresholds are provisional. What is verified today is the comparator: 22
+the thresholds are provisional. The 2026-09-15 release gate reached 39 of 41
+records under scenario set 1.14.0 — every routing probe and control 5/5,
+PIPE-create-ticket, PIPE-code and PIPE-code-app 3/3 — before the finding
+above stopped it, with the seven-day usage window at 0.95 (it resets
+2026-09-20 ≈03:00 UTC). That checkpoint is void under the build that carries
+the fix; the next measurement starts from nothing and is the one a v0.5.0
+baseline will be promoted from. What is verified today is the comparator: 22
 cases in `runner/test_perf_gate.py` assert the decision rules hold against
 synthetic records. Those records test the arithmetic and the rules and say
 **nothing whatever** about acs.

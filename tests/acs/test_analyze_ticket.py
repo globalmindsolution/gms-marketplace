@@ -366,6 +366,25 @@ class TestNotReadyArm(unittest.TestCase):
     def test_the_handoff_carries_the_questions(self):
         self.assertIn("<handoff status=\"needs_input\">", self.body)
 
+    def test_a_conventional_default_is_an_assumption_not_a_blocker(self):
+        # 2026-09-15 gate: a two-line login ticket came back
+        # `ready_for_planning: false` on stdout-vs-stderr, case sensitivity
+        # and unmentioned argument counts -- three questions a competent
+        # implementer settles by convention, asked of a run with nobody to
+        # answer. The rule lives in the skill AND in the executor's verdict
+        # contract, so neither role can reintroduce the blocker alone.
+        skill = " ".join(self.body.split())
+        self.assertIn(
+            "**A question with a conventional default is an assumption, not a "
+            "blocker.**", skill)
+        self.assertIn("keep `ready_for_planning: true`", skill)
+        self.assertIn("where every default could build the wrong thing", skill)
+        executor = " ".join(
+            read(os.path.join(AGENTS, "analyze-ticket-executor.md")).split())
+        self.assertIn("A detail with a conventional default", executor)
+        self.assertIn("never a reason for `false`", executor)
+        self.assertIn("every default could build the wrong thing", executor)
+
 
 class TestPublishing(unittest.TestCase):
     """Only the coordinator writes the published analysis — the write guard

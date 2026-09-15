@@ -160,7 +160,14 @@ needs_design_recommendation: false
   ticket is amended only by the coordinator, only after the user confirms.
 - **`## Verdict`** — `ready_for_planning: true` or `false`, in prose, with the
   reason. `false` requires naming exactly what is missing and which open
-  question would settle it.
+  question would settle it — and the question must be one where every
+  default could build the wrong thing (a contradiction with the code, a
+  design document or an ADR; a behaviour the criteria depend on that nothing
+  defines; a fork in scope). A detail with a conventional default — "prints"
+  means stdout, a credential check is exact and case-sensitive, argument
+  counts the ticket never mentions are out of scope — is an assumption
+  recorded in `## Assumptions` with a proposed criterion rewrite, never a
+  reason for `false`.
 
 ## Execute report (mandatory)
 

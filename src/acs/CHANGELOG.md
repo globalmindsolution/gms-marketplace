@@ -263,6 +263,18 @@ the notes.
   "Want me to run it?" instead of invoking it. The description now says the
   skill confirms scope and gathers what it needs from the user itself, so
   there is nothing to ask before running it — which is what the skill does.
+- **`/acs:analyze-ticket` treats a conventional default as an assumption, not
+  a blocker.** A detail the ticket's words plus the repository's conventions
+  settle well enough that a competent implementer would not stop to ask —
+  "prints" means stdout, a credential check is exact and case-sensitive,
+  argument counts the ticket never mentions are out of scope — is recorded in
+  `## Assumptions` with a proposed criterion rewrite, and the verdict stays
+  `ready_for_planning: true`; `false` is reserved for a question where every
+  default could build the wrong thing (a contradiction with the code, a
+  design document or an ADR; a behaviour the criteria depend on that nothing
+  defines; a fork in scope). The executor's verdict contract says the same.
+  On the 2026-09-15 gate a two-line login ticket came back not ready on
+  exactly those three defaults, on a headless run with nobody to answer.
 
 ### Deprecated
 
