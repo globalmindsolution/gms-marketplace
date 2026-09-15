@@ -254,14 +254,16 @@ APP_TICKET = {
     # behaving exactly as designed, and every app-profile run unmeasured.
     "description": ("Today the HTTP API can only create a draft order; confirming and paying are CLI-only "
                     "(docs/api.md says so). Add POST /orders/<id>/confirm and POST /orders/<id>/pay to "
-                    "orders/api.py, backed by OrderService.confirm/pay. Add a GatewayTimeout exception to "
-                    "orders/payments/gateway.py that Gateway.charge raises when the gateway has been told "
-                    "to time out through an injectable hook (used by tests; the in-memory stand-in never "
-                    "times out on its own), and make OrderService.pay retry the charge exactly once on "
-                    "GatewayTimeout, reusing the same deterministic idempotency key so the gateway's own "
-                    "dedup guarantees a retried charge never double-charges (see docs/adr/0002). "
-                    "Update docs/api.md and the data-flow section of docs/architecture.md to match. "
-                    "Keep the coverage floor in .coveragerc green."),
+                    "orders/api.py, backed by OrderService.confirm/pay; they return 200 with the order on "
+                    "success, 404 when the order does not exist, 409 on InvalidTransition or PaymentDeclined, "
+                    "and 503 when the gateway timeout below recurs on the retry. Add a GatewayTimeout "
+                    "exception to orders/payments/gateway.py that Gateway.charge raises when its optional "
+                    "constructor argument should_timeout (a callable, default lambda: False, consulted once "
+                    "per charge call; the in-memory stand-in never times out on its own) returns true, and "
+                    "make OrderService.pay retry the charge exactly once on GatewayTimeout, reusing the same "
+                    "deterministic idempotency key so the gateway's own dedup guarantees a retried charge "
+                    "never double-charges (see docs/adr/0002). Update docs/api.md and the data-flow section "
+                    "of docs/architecture.md to match. Keep the coverage floor in .coveragerc green."),
 }
 
 _GIT_ENV = {

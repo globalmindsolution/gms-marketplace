@@ -421,7 +421,10 @@ stream and fixed; a routing probe is never re-spent twice.
   a payments change on it. That is the plugin behaving exactly as designed,
   and the first time the app profile was reached on a working harness. The
   ticket (scenario set 1.12.0) now adds an injectable `GatewayTimeout` and
-  retries once on the same key.
+  retries once on the same key — and, since one of two analyses of that
+  wording still left the endpoints' status mapping and the hook's shape as
+  open decisions, states both (1.13.0): a headless setup has nobody to
+  answer a genuine question, so the ticket must not pose one.
 
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
