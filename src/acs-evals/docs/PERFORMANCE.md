@@ -411,6 +411,18 @@ miss streams kept, and the measurement that was promoted carries whatever
 that re-spend produced. A second split would have been read from its
 stream and fixed; a routing probe is never re-spent twice.
 
+- **The fixture ticket must agree with the fixture.** The app profile's
+  ticket asked for "a fresh idempotency key that includes an attempt
+  number" on retry — exactly what the fixture's own ADR 0002 says the
+  deterministic key exists to prevent — and named a gateway timeout the
+  in-memory gateway could not raise. On 2026-09-15 every app-profile setup
+  ended with `/acs:analyze-ticket` returning `ready_for_planning: false` on
+  that contradiction and `/acs:create-impl-plan` asking rather than planning
+  a payments change on it. That is the plugin behaving exactly as designed,
+  and the first time the app profile was reached on a working harness. The
+  ticket (scenario set 1.12.0) now adds an injectable `GatewayTimeout` and
+  retries once on the same key.
+
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the
 ticket-record decisions, because `/acs:create-ticket`'s confirmation gate is
 a design requirement that a headless prompt with nothing decided can only

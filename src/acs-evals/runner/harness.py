@@ -244,11 +244,22 @@ APP_SETTINGS = dict(SETTINGS, test_coverage_percent=85,
 
 APP_TICKET = {
     "title": "Let the API confirm and pay an order, charging through the gateway with one retry",
+    # The ticket must be consistent with the fixture it lands on. Until
+    # 2026-09-15 it asked for "a fresh idempotency key that includes an
+    # attempt number" — which contradicts docs/adr/0002 (the deterministic
+    # key IS the double-charge protection) — and named a gateway timeout the
+    # in-memory gateway had no way to raise. /acs:analyze-ticket found both,
+    # returned ready_for_planning: false, and /acs:create-impl-plan rightly
+    # asked rather than plan a payments change on a contradiction: the plugin
+    # behaving exactly as designed, and every app-profile run unmeasured.
     "description": ("Today the HTTP API can only create a draft order; confirming and paying are CLI-only "
                     "(docs/api.md says so). Add POST /orders/<id>/confirm and POST /orders/<id>/pay to "
-                    "orders/api.py, backed by OrderService.confirm/pay. When the gateway raises a timeout "
-                    "during pay, retry the charge exactly once with a fresh idempotency key that includes "
-                    "an attempt number, so a retried charge can never double-charge (see docs/adr/0002). "
+                    "orders/api.py, backed by OrderService.confirm/pay. Add a GatewayTimeout exception to "
+                    "orders/payments/gateway.py that Gateway.charge raises when the gateway has been told "
+                    "to time out through an injectable hook (used by tests; the in-memory stand-in never "
+                    "times out on its own), and make OrderService.pay retry the charge exactly once on "
+                    "GatewayTimeout, reusing the same deterministic idempotency key so the gateway's own "
+                    "dedup guarantees a retried charge never double-charges (see docs/adr/0002). "
                     "Update docs/api.md and the data-flow section of docs/architecture.md to match. "
                     "Keep the coverage floor in .coveragerc green."),
 }
