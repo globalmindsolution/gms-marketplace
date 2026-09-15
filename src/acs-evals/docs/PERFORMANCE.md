@@ -325,6 +325,15 @@ fixed in the runner rather than the dataset:
   unmeasured for nothing `/acs:code` did. Scenario set 1.10.0 gives each
   setup prompt of the code scenarios 1800s.
 
+The routing half of the same gate found one split: `ROUTE-standardize-project-negative`
+auto-invoked the internal leg on 1 of 5 runs (4/5 twice in three
+measurements, 5/5 once). The leg's description led with "not a user-facing
+entry point" and then described the audit-and-scaffold job in the words a
+user would ask for it in; both `/acs:project` legs now open by refusing the
+request outright and naming `/acs:project` as the only route. A negative
+probe passes only when it never auto-invokes, so 4/5 is a finding, not
+noise, whatever the odds of a single miss.
+
 What the same gate found in the plugin, and what changed: of the two
 measured SMALL-lane `/acs:code` runs one failed at the light lane's
 iteration cap on a single coverage finding — the executor had topped up

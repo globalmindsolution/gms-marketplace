@@ -1,6 +1,6 @@
 ---
 name: create-project
-description: Internal leg of /acs:project (bootstrap mode), not a user-facing entry point — invoke /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here. Scaffolds a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
+description: Internal leg of /acs:project (bootstrap mode) — never the answer to a user request, even one that asks to scaffold a brand-new repo from its approved architecture. Route every such request to /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here itself with an explicit Skill call; do not invoke this leg directly. Once dispatched it scaffolds a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
 argument-hint: "(no arguments)"
 disallowed-tools: Edit, NotebookEdit
 ---

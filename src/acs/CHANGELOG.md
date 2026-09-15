@@ -210,6 +210,17 @@ the notes.
   now also says how coverage is measured: one instrumented run of the test
   suite, the same measurement the verifier repeats — never topped up by
   appending manual CLI invocations to the data file.
+- **The two internal legs of `/acs:project` refuse direct routing in their
+  descriptions.** `create-project` and `standardize-project` now open with
+  "never the answer to a user request, even one that asks to …" and name
+  `/acs:project` as the only route, before describing what the leg does once
+  dispatched. The old wording led with "Internal leg … not a user-facing
+  entry point" and then described the audit-and-scaffold job in the same
+  words a user would use to ask for it; on the 2026-09-14 gate the
+  standardize leg was auto-invoked on 1 of 5 runs of its negative routing
+  probe, twice in three measurements. `/acs:project` still dispatches each
+  leg with an explicit `Skill(acs:<leg>)` call, which no description can
+  block.
 
 ### Deprecated
 
