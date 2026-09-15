@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.10.0",
+  "scenario_set_version": "1.11.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -97,12 +97,12 @@
           "time",
           "quality"
         ],
-        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that. 1.7.0: explicit invocation and gated-predecessor setup, as for PIPE-code. 1.10.0: 1800s per setup prompt, as for PIPE-code \u2014 analyze-ticket on the app ticket has more to read than on the seeded one.",
+        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that. 1.7.0: explicit invocation and gated-predecessor setup, as for PIPE-code. 1.10.0: 1800s per setup prompt, as for PIPE-code \u2014 analyze-ticket on the app ticket has more to read than on the seeded one. 1.11.0: 2700s per setup prompt. On 2026-09-15 the app-profile /acs:analyze-ticket passed its verifier on iteration 3 at 1799s and was killed at 1800s, one second short of finishing \u2014 two of those iterations were citation line-number corrections the verifiers no longer block on, but a realistic ticket still takes it 15-25 minutes.",
         "setup_prompts": [
           "/acs:analyze-ticket TKT-1",
           "/acs:create-impl-plan TKT-1"
         ],
-        "setup_timeout_seconds": 1800,
+        "setup_timeout_seconds": 2700,
         "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('create-impl-plan') or {}).get('status') == 'completed' else 1)\""
       },
       {
@@ -121,9 +121,9 @@
           "cost",
           "time"
         ],
-        "setup_timeout_seconds": 2400,
+        "setup_timeout_seconds": 2700,
         "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\"",
-        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached. 1.7.0: explicit gated-step setup, as for PIPE-docs-sync."
+        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached. 1.7.0: explicit gated-step setup, as for PIPE-docs-sync. 1.11.0: 2700s per setup prompt, as for PIPE-code-app."
       }
     ]
   },

@@ -20,7 +20,9 @@ cosmetic defect — it is the wrong pipeline.
 
 1. `grounding` — every impact row, risk and claim cites a source you can
    confirm by opening the file. A row whose evidence does not say what the
-   draft claims is a finding; so is an uncited assertion.
+   draft claims is a finding; so is an uncited assertion. The right file
+   cited at the wrong lines, with the fact intact, is not — note the
+   location and move on.
 2. `completeness` — re-derive the impact surface yourself (grep the symbols the
    ticket's behaviour names, follow the call sites, check the test files that
    already cover the area): a file the change must touch and the map omits is
@@ -147,3 +149,10 @@ you actually read or ran in THIS task:
 - **As verifier, police grounding too**: authoring notes or an analysis draft that assert
   something without a cited source or quoted output is itself a blocking
   finding — unverifiable work is unverified work.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines or section, or a paraphrase looser than its
+  source, is not a finding while the cited fact holds — note the exact
+  location in your report and move on. What blocks: a source that does not
+  say what the draft claims, a file that does not exist, or a repo fact
+  asserted with no citation at all. An iteration spent correcting line
+  numbers is an iteration the run may not have.

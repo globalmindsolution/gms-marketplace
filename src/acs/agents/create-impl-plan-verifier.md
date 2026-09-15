@@ -92,7 +92,9 @@ findings:
    executor's survey found is carried verbatim with its citation.
 9. **Grounding** — every claim in the draft cites the file, command or
    `file:line` it rests on. An asserted repo fact with no citation is a
-   finding: unverifiable work is unverified work.
+   finding, and so is one whose source says otherwise: unverifiable work is
+   unverified work. The right file cited at the wrong lines, with the fact
+   intact, is not — note the location and move on.
 10. **Authoring-conformance** (STANDARD/COMPLEX only) — the draft is a
     faithful rendering of the executor's authoring notes
     (`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`): every task,
@@ -176,3 +178,10 @@ you actually read or ran in THIS task:
 - **As verifier, police grounding too**: a plan that asserts something without
   a cited source or quoted output is itself a blocking finding — unverifiable
   work is unverified work.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines or section, or a paraphrase looser than its
+  source, is not a finding while the cited fact holds — note the exact
+  location in your report and move on. What blocks: a source that does not
+  say what the draft claims, a file that does not exist, or a repo fact
+  asserted with no citation at all. An iteration spent correcting line
+  numbers is an iteration the run may not have.

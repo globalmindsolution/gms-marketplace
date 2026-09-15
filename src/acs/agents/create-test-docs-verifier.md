@@ -159,3 +159,10 @@ you actually read or ran in THIS task:
 - **As verifier, police grounding too**: authoring notes or a draft that assert something
   without a cited source or quoted output is itself a blocking finding —
   unverifiable work is unverified work.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines or section, or a paraphrase looser than its
+  source, is not a finding while the cited fact holds — note the exact
+  location in your report and move on. What blocks: a source that does not
+  say what the draft claims, a file that does not exist, or a repo fact
+  asserted with no citation at all. An iteration spent correcting line
+  numbers is an iteration the run may not have.

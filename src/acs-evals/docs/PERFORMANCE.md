@@ -334,6 +334,16 @@ request outright and naming `/acs:project` as the only route. A negative
 probe passes only when it never auto-invokes, so 4/5 is a finding, not
 noise, whatever the odds of a single miss.
 
+The app profile then exposed the cost of a verifier that treats citation
+precision as truth: the app-profile `/acs:analyze-ticket` passed on its third
+iteration at 1799s and was killed at 1800s, and iterations 2 and 3 had been
+spent entirely on citations naming the right file at the wrong lines. Every
+verifier charter now blocks on a source that says otherwise, a missing file
+or an uncited fact — and notes, rather than blocks on, a wrong line number
+with the fact intact. Scenario set 1.11.0 also gives the app scenarios 2700s
+per setup prompt: a realistic ticket still takes analyze-ticket 15-25
+minutes.
+
 What the same gate found in the plugin, and what changed: a SMALL-lane
 `/acs:create-impl-plan` setup on 2026-09-15 failed at its two-round ceiling
 because the coordinator's draft stated, uncited and wrongly, that the

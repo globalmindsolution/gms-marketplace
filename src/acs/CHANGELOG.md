@@ -230,6 +230,15 @@ the notes.
   2026-09-15 gate wrote an uncited, wrong "coverage is not installed" in both
   `## Test strategy` and `## Risks`, fixed one, and failed at the ceiling on
   the other.
+- **Verifiers police grounding for truth, not for citation precision.** The
+  shared "police grounding" rule in all fourteen verifier charters now
+  carries one carve-out: a citation that names the right file at the wrong
+  lines or section, or a paraphrase looser than its source, is noted in the
+  report, never a finding, while the cited fact holds; a source that says
+  otherwise, a missing file, or an uncited repo fact still blocks. On the
+  2026-09-15 gate the app-profile `/acs:analyze-ticket` spent iterations 2
+  and 3 — and its whole 30-minute setup budget, to the second — on
+  line-number corrections to citations whose facts were right.
 
 ### Deprecated
 
