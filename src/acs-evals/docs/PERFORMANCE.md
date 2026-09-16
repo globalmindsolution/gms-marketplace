@@ -98,9 +98,11 @@ rule is not a criterion.
   the description; a split is triaged against the sandbox before the
   description (scenario set 1.5.0).
 - **Routing, negative probe** — passes only if the skill routes on **no** run.
-  The six probes are the six **internal legs**: a plain description of a leg's
-  own subject must reach its entry point (`/acs:create-docs`,
-  `/acs:project`), which coordinates the fan-out, rather than the leg. It is
+  The two probes are `/acs:project`'s two **internal legs**: a plain
+  description of a leg's own subject must reach the entry point that
+  coordinates it, rather than the leg. There were six while
+  `/acs:create-docs` had four legs of its own; ADR 0094 folded those into
+  `/acs:create-docs <set>`, and their probes went with them. It is
   `major`. It was `critical` while it guarded `disable-model-invocation`, a
   CLI-enforced guarantee; what it guards now is a description steering
   preference, and a user who lands on a leg still gets a working leg — just

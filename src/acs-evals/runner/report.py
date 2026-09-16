@@ -61,6 +61,108 @@ GROUP_TITLES = {
 # Aggregation
 # --------------------------------------------------------------------------
 
+def _fmt_rate(value):
+    return "n/a" if value is None else "%.3f" % value
+
+
+def render_per_skill_markdown(measurement):
+    """The per-skill view: what each skill's evals actually said.
+
+    Rendered only when a tier-3 measurement is supplied, because routing and
+    pipeline results are its subject; the deterministic tier above pins
+    contracts, not behaviour.
+    """
+    import routing_metrics as rmx
+
+    rep = rmx.report(measurement)
+    rows = rmx.per_skill(measurement)
+    avg = rep["averages"]
+    out = []
+    w = out.append
+
+    w("## Per-skill results")
+    w("")
+    if not rows:
+        w("_No tier-3 measurement supplied._")
+        w("")
+        return "\n".join(out)
+
+    w("One row per skill the measurement touched. `routing` is hits over runs "
+      "for that skill's probes; `pipeline` is completed runs over runs for a "
+      "scenario that exercises its body, and most skills have none — 5 of the "
+      "28 carry a pipeline scenario, and the rest are measured on routing "
+      "alone.")
+    w("")
+    w("| Skill | Routing | Precision | Recall | F1 | Pipeline | Median cost | Median time |")
+    w("|---|---|---:|---:|---:|---|---:|---:|")
+    for row in rows:
+        routing = ", ".join("%d/%d" % (r["hits"] or 0, r["runs"] or 0)
+                            for r in row["routing"]) or "—"
+        if row["pipeline"]:
+            pipe = ", ".join("%s %d/%d" % (p["scenario"], p["completed"] or 0,
+                                           p["runs"] or 0)
+                             for p in row["pipeline"])
+            cost = next((p["cost_median"] for p in row["pipeline"]
+                         if p["cost_median"] is not None), None)
+            secs = next((p["seconds_median"] for p in row["pipeline"]
+                         if p["seconds_median"] is not None), None)
+        else:
+            pipe, cost, secs = "—", None, None
+        w("| `%s` | %s | %s | %s | %s | %s | %s | %s |"
+          % (row["skill"], routing, _fmt_rate(row["precision"]),
+             _fmt_rate(row["recall"]), _fmt_rate(row["f1"]), pipe,
+             "—" if cost is None else "$%.2f" % cost,
+             "—" if secs is None else "%.0fs" % secs))
+    w("")
+
+    w("### Routing as a classification problem")
+    w("")
+    w("Each positive probe is one multi-class prediction: the truth is the "
+      "skill the prompt is for, the prediction is the skill the session "
+      "invoked. Recall is what the gate already reads. Precision is the half "
+      "it cannot see — when a prompt for A is answered by B, A's probe fails "
+      "and B is never named, so a description that has grown too broad shows "
+      "up only as its neighbours' failures.")
+    w("")
+    w("| | Micro | Macro |")
+    w("|---|---:|---:|")
+    w("| Precision | %s | %s |" % (_fmt_rate(avg["micro_precision"]),
+                                   _fmt_rate(avg["macro_precision"])))
+    w("| Recall | %s | %s |" % (_fmt_rate(avg["micro_recall"]),
+                                _fmt_rate(avg["macro_recall"])))
+    w("| F1 | %s | %s |" % (_fmt_rate(avg["micro_f1"]),
+                            _fmt_rate(avg["macro_f1"])))
+    w("")
+    w("Over %s runs and %s labels. Micro pools the runs, so a skill with more "
+      "probes weighs more; macro averages the skills, so every skill weighs "
+      "the same and one bad skill is visible. %s"
+      % (avg["runs"], avg["labels"], rep["note"]))
+    w("")
+
+    if rep["confusions"]:
+        w("**Where the routing went instead**")
+        w("")
+        w("| Prompt was for | Went to | Runs |")
+        w("|---|---|---:|")
+        for c in rep["confusions"]:
+            w("| `%s` | `%s` | %d |" % (c["truth"], c["predicted"], c["count"]))
+        w("")
+
+    if rep["constraints"]:
+        w("**Probes scored by their own rule**, not by the matrix: a "
+          "\"must not route to X\" probe is a constraint rather than a class, "
+          "and a control tests the instrument rather than the plugin.")
+        w("")
+        w("| Probe | Rule | Held |")
+        w("|---|---|---:|")
+        for c in rep["constraints"]:
+            w("| `%s` | %s | %d/%d |"
+              % (c["id"], c["rule"], c["held"], c["runs"]))
+        w("")
+
+    return "\n".join(out)
+
+
 def aggregate(doc):
     """Group and ticket rollups, in the dataset's own file order."""
     groups, tickets = {}, {}
@@ -177,7 +279,7 @@ def _pre_commit_clean(text):
     return body.rstrip("\n") + "\n"
 
 
-def render_markdown(doc):
+def render_markdown(doc, measurement=None):
     groups, tickets = aggregate(doc)
     state, headline, detail = verdict(doc)
     t = doc["totals"]
@@ -280,12 +382,17 @@ def render_markdown(doc):
                     w("- **%s:** %s" % (label, md_cell(block[key])))
             w("")
 
+    if measurement is not None:
+        w(render_per_skill_markdown(measurement))
+
     w("## Reproducing this run")
     w("")
     w("```bash")
     w("export ACS_PLUGIN_ROOT=%s" % doc["build"]["root"])
     w("make eval          # or: python3 runner/run_golden.py --json results/latest.json")
     w("make report        # regenerates this file")
+    if measurement is not None:
+        w("make report REPORT_ARGS='--measurement results/measurements.json'")
     w("```")
     w("")
     return "\n".join(out) + "\n"
@@ -725,6 +832,12 @@ def main():
                     help="run result written by run_golden.py --json")
     ap.add_argument("--out", default=os.path.join(REPO_ROOT, "results", "report"),
                     help="output path WITHOUT extension; .md and .html are written")
+    ap.add_argument("--measurement", default=None,
+                    help="tier-3 measurement (results/measurements.json). When "
+                         "given, the report gains a per-skill section with "
+                         "routing precision/recall and each skill's pipeline "
+                         "result. Optional: the deterministic report stands "
+                         "without it.")
     args = ap.parse_args()
 
     if not os.path.isfile(args.json):
@@ -734,12 +847,21 @@ def main():
     with open(args.json) as fh:
         doc = json.load(fh)
 
+    measurement = None
+    if args.measurement:
+        if not os.path.isfile(args.measurement):
+            print("no measurement at %s — run `make measure` first, or drop "
+                  "--measurement" % args.measurement, file=sys.stderr)
+            return 2
+        with open(args.measurement) as fh:
+            measurement = json.load(fh)
+
     directory = os.path.dirname(os.path.abspath(args.out))
     if directory:
         os.makedirs(directory, exist_ok=True)
     md_path, html_path = args.out + ".md", args.out + ".html"
     with open(md_path, "w") as fh:
-        fh.write(_pre_commit_clean(render_markdown(doc)))
+        fh.write(_pre_commit_clean(render_markdown(doc, measurement)))
     with open(html_path, "w") as fh:
         fh.write(_pre_commit_clean(render_html(doc)))
 

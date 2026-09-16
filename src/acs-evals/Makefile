@@ -34,7 +34,7 @@ help: ## Show this help
 	  | awk -F':.*?## ' '{printf "  \033[1m%-14s\033[0m %s\n", $$1, $$2}'
 	@printf '\nBuild under test: %s\n\n' "$${ACS_PLUGIN_ROOT:-<newest installed acs>}"
 
-gate: eval check mutation report perf ## THE RELEASE GATE — run everything, fail on any red
+gate: eval check mutation report perf ## Full local sweep against the INSTALLED build (the release gate itself is release.pre_release_gate in .acs/settings.json)
 	@printf '\nRelease gate complete. Report: $(REPORT).md / $(REPORT).html\n'
 
 gate-deterministic: eval check mutation report ## The deterministic tier only — what `gate` was before tier 3
@@ -61,7 +61,7 @@ measure: ## TIER 3 — run the controlled scenario set (SPENDS MONEY; needs `cla
 measure-plan: ## What `make measure` would run, and how many sessions, spending nothing
 	$(PYTHON) runner/measure_skills.py --dry-run
 
-measure-routing: ## TIER 3, cheap half — routing reliability + controls (43 probes)
+measure-routing: ## TIER 3, cheap half — routing reliability + controls (35 probes)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --routing-only --out $(MEASURE)
 
 perf: ## Judge the last measurement against the baseline (pure; no model, no cost; refuses a measurement of any other build)
@@ -76,9 +76,13 @@ perf-test: ## Self-test the tier-3 comparator's decision rules
 	$(PYTHON) runner/test_defects.py
 	$(PYTHON) runner/test_verifier_catch_rate.py
 	$(PYTHON) runner/test_baseline_identity.py
+	$(PYTHON) runner/test_dataset_integrity.py
+	$(PYTHON) runner/test_routing_metrics.py
 
-report: ## Render report.md + report.html from the last run
-	$(PYTHON) runner/report.py --json $(JSON) --out $(REPORT)
+REPORT_ARGS ?=
+
+report: ## Render report.md + report.html from the last run (add REPORT_ARGS='--measurement results/measurements.json' for the per-skill section)
+	$(PYTHON) runner/report.py --json $(JSON) --out $(REPORT) $(REPORT_ARGS)
 
 fixture-selftest: ## Build the fixture app in a temp dir and run its own tests
 	$(PYTHON) runner/fixture_app.py selftest
@@ -151,6 +155,8 @@ verify-self: ## Byte-compile the runner, parse every dataset file, self-test the
 	$(PYTHON) runner/test_defects.py
 	$(PYTHON) runner/test_verifier_catch_rate.py
 	$(PYTHON) runner/test_baseline_identity.py
+	$(PYTHON) runner/test_dataset_integrity.py
+	$(PYTHON) runner/test_routing_metrics.py
 	@$(PYTHON) -c "import glob,json,sys; \
 	  [json.load(open(f)) for f in glob.glob('dataset/**/*.json', recursive=True)]; \
 	  print('dataset: all JSON parses')"

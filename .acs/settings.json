@@ -94,6 +94,17 @@
           "set": "source/ref"
         },
         "value_format": "v{version}"
+      },
+      {
+        "file": ".claude-plugin/marketplace.json",
+        "selector": {
+          "pointer": "/plugins",
+          "match": {
+            "name": "acs"
+          },
+          "set": "source/path"
+        },
+        "value_format": "src/acs"
       }
     ],
     "changelog_path": "src/acs/CHANGELOG.md",
@@ -108,6 +119,8 @@
     },
     "pre_release_gate": [
       "make -C src/acs-evals eval-source",
+      "make -C src/acs-evals check",
+      "make -C src/acs-evals mutation",
       "make -C src/acs-evals measure",
       "make -C src/acs-evals perf"
     ]

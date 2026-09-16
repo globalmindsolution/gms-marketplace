@@ -1,7 +1,7 @@
 {
   "description": "Routing probes for all 32 model-invocable acs skills. 30 get one natural-language request that must route to them without naming them. The 8 user-only skills (disable-model-invocation:true — `install-hooks`, `update`, and the six ADR 0091 legs) get a pair each: an explicit invocation that MUST route, and a bare description of their intent that must NOT.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into evals/**/case.yaml for `claude plugin eval`; dataset/cases/10-skills.json pins the routing SURFACE (each skill's shipped description and invocation flag) deterministically, with no model.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
-  "skill_count": 32,
-  "probe_count": 43,
+  "skill_count": 28,
+  "probe_count": 35,
   "probes": [
     {
       "id": "ROUTE-analyze-ticket",
