@@ -669,4 +669,3 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     def test_the_two_skills_state_the_same_contract(self):
         self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
         self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
-
