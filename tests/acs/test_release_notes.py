@@ -1056,24 +1056,111 @@ class ChangelogStructureTest(unittest.TestCase):
             self.assertEqual(between.strip(), "")
             self.assertIn("- prior entry", text)  # prior section preserved verbatim
 
-    def test_preexisting_unreleased_prose_not_merged_forward(self):
+    @staticmethod
+    def _repo_with_unreleased_body(tmp, body="Some pending notes."):
+        return make_repo(
+            os.path.join(tmp, "repo"),
+            changelog_text=(
+                "# Changelog\n\n## [Unreleased]\n\n%s\n\n"
+                "## [0.4.1] - 2026-07-12\n\n### Added\n\n- prior entry\n" % body
+            ),
+        )
+
+    def test_preexisting_unreleased_prose_not_merged_forward_on_replace(self):
+        """--unreleased replace is the old behaviour, now asked for by name."""
         with TemporaryDirectory() as tmp:
-            root = make_repo(
-                os.path.join(tmp, "repo"),
-                changelog_text=(
-                    "# Changelog\n\n## [Unreleased]\n\nSome pending notes.\n\n"
-                    "## [0.4.1] - 2026-07-12\n\n### Added\n\n- prior entry\n"
-                ),
-            )
+            root = self._repo_with_unreleased_body(tmp)
             workspace = os.path.join(tmp, "ws")
             write_archive_ticket(workspace, "MAR-1", title="Add a widget")
 
             with mock_gh(None):
-                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                   today="2026-07-19", unreleased="replace")
 
             text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
             self.assertNotIn("Some pending notes.", text)
             self.assertIn("Add a widget", text)
+
+    def test_a_non_empty_body_without_a_mode_is_refused_and_writes_nothing(self):
+        """The release notes are not discarded on a default nobody chose."""
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(tmp)
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError) as caught:
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19")
+
+            self.assertIn("--unreleased promote", str(caught.exception))
+            self.assertEqual(
+                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_promote_publishes_the_body_under_the_dated_heading(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(
+                tmp, body="### Added\n\n- MAR-1: a widget, described properly")
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            with mock_gh(None):
+                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                   today="2026-07-19", unreleased="promote")
+
+            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            self.assertIn("a widget, described properly", text)
+            dated = text.index("## [0.4.2] - 2026-07-19")
+            self.assertLess(text.index("## [Unreleased]"), dated)
+            self.assertLess(dated, text.index("a widget, described properly"))
+            self.assertLess(text.index("a widget, described properly"),
+                            text.index("## [0.4.1] - 2026-07-12"))
+            # The generated one-liner does not also appear.
+            self.assertNotIn("- MAR-1: Add a widget", text)
+            self.assertIn("- prior entry", text)
+
+    def test_promote_is_refused_when_the_body_misses_a_merged_ticket(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(
+                tmp, body="### Added\n\n- MAR-1: a widget, described properly")
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            write_archive_ticket(workspace, "MAR-2", title="Add another widget")
+            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError) as caught:
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19", unreleased="promote")
+
+            self.assertIn("MAR-2", str(caught.exception))
+            self.assertEqual(
+                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_an_empty_body_needs_no_mode(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            with mock_gh(None):
+                out = release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                         today="2026-07-19")
+
+            self.assertTrue(out["ok"])
+            self.assertIn("Add a widget",
+                          _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_an_invalid_mode_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(tmp)
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError):
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19", unreleased="keep")
 
 
 # ---------------------------------------------------------------------------

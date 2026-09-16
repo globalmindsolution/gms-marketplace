@@ -221,12 +221,68 @@ def _insert_dated_section(text, draft_section):
     return text[:match.end()] + "\n" + draft_section + "\n" + text[next_start:]
 
 
-def bump(version, repo_root, workspace, config, dry_run=False, today=None, ticket_prefix=None):
+UNRELEASED_MODES = ("promote", "replace")
+
+
+def _resolve_release_section(changelog_text, draft, unreleased):
+    """The section `bump` will write: the generated one, or the promoted body."""
+    if unreleased is not None and unreleased not in UNRELEASED_MODES:
+        raise ReleaseNotesError(
+            "invalid --unreleased %r: expected one of %s"
+            % (unreleased, " | ".join(UNRELEASED_MODES)))
+
+    body = _extract_unreleased_body(changelog_text).strip()
+    if not body:
+        return draft["draft_section"]
+
+    if unreleased is None:
+        raise ReleaseNotesError(
+            "'## [Unreleased]' has a body (%d lines) and --unreleased was not given. "
+            "Writing the generated section would discard it. Pass --unreleased promote "
+            "to publish that body as the release notes (every merged ticket must "
+            "already be covered by it), or --unreleased replace to drop it in favour "
+            "of the generated ticket list." % len(body.splitlines()))
+
+    if unreleased == "replace":
+        return draft["draft_section"]
+
+    missing = draft.get("unreleased_missing") or []
+    if missing:
+        raise ReleaseNotesError(
+            "--unreleased promote refused: the '## [Unreleased]' body does not "
+            "mention %d merged ticket(s) since the last tag: %s. Add them to the "
+            "body (or use --unreleased replace) so the release notes name every "
+            "ticket this version ships." % (len(missing), ", ".join(missing)))
+
+    header = draft["draft_section"].splitlines()[0]
+    return header + "\n\n" + body.rstrip("\n") + "\n"
+
+
+def bump(version, repo_root, workspace, config, dry_run=False, today=None, ticket_prefix=None,
+         unreleased=None):
     """Bump every version_locations/extra_refs entry + the dated CHANGELOG section, atomically (AC-2/4).
 
     Two-phase (resolve-then-write): every file is read and every pointer/selector confirmed
     resolvable in-memory BEFORE any write, so a mid-set failure never touches disk (AC-2 literal,
     extended across the whole configured file set).
+
+    `unreleased` decides what happens to a NON-EMPTY `## [Unreleased]` body,
+    and is required whenever there is one:
+
+      "replace"  the generated section wins; the body is dropped (what this
+                 command always did, and right for a repo whose [Unreleased]
+                 is a scratch list the archive already says better).
+      "promote"  the body IS the release notes: it moves under the dated
+                 heading verbatim, and every merged ticket must already be
+                 covered by it (`unreleased_missing` empty) or the call is
+                 refused naming the ids.
+
+    Passing neither, with a non-empty body, is refused rather than guessed.
+    Dropping hand-written release notes -- breaking-change entries, migration
+    steps -- in favour of a list of ticket titles is not a silent default
+    either way round: a repo that writes them loses them, a repo that does not
+    gets a section it did not mean. An empty body needs no choice; the
+    generated section is the only candidate.
     """
     status = compute_status(version, repo_root, config)
     if status["manifests_at_target"] and status["changelog_section_dated"]:
@@ -259,7 +315,8 @@ def bump(version, repo_root, workspace, config, dry_run=False, today=None, ticke
     changelog_full_path = os.path.join(repo_root, config["changelog_path"])
     changelog_text = _read_text_or_raise(changelog_full_path)
     draft = build_draft(version, repo_root, workspace, config, today=today, ticket_prefix=ticket_prefix)
-    new_changelog_text = _insert_dated_section(changelog_text, draft["draft_section"])
+    section = _resolve_release_section(changelog_text, draft, unreleased)
+    new_changelog_text = _insert_dated_section(changelog_text, section)
 
     files_changed = sorted(set(distinct_files) | {config["changelog_path"]})
     if dry_run:
@@ -319,6 +376,11 @@ def _add_bump_parser(sub):
     p.add_argument("--release-config", required=True, help=_RELEASE_CONFIG_HELP)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--ticket-prefix", default=None, help=_TICKET_PREFIX_HELP)
+    p.add_argument("--unreleased", choices=list(UNRELEASED_MODES), default=None,
+                   help="what to do with a non-empty '## [Unreleased]' body: "
+                        "'promote' publishes it as the release notes, 'replace' "
+                        "drops it for the generated ticket list. Required when "
+                        "there is one.")
     return p
 
 
@@ -343,7 +405,7 @@ def main(argv=None):
                                   ticket_prefix=args.ticket_prefix)
         elif args.cmd == "bump":
             result = bump(args.version, args.repo_root, args.workspace, config, dry_run=args.dry_run,
-                           ticket_prefix=args.ticket_prefix)
+                           ticket_prefix=args.ticket_prefix, unreleased=args.unreleased)
         else:
             sys.exit(2)  # pragma: no cover - unreachable, argparse `required=True` gates cmd
         print(json.dumps(result))

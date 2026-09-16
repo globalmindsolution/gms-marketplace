@@ -164,8 +164,19 @@ Only reached when Step 2 found no in-flight/done cut.
 2. **Bump:**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix> [--unreleased promote|replace]
    ```
+
+   **`--unreleased` is required when `## [Unreleased]` has a body**, and the
+   call is refused without it rather than guessing — writing the generated
+   section over hand-written release notes destroys them silently. Choose by
+   what that body is in THIS repo: `promote` when it holds the release notes
+   themselves (breaking-change entries, migration steps — it moves under the
+   dated heading verbatim, and every merged ticket must already be covered by
+   it or the call is refused naming the ids), `replace` when it is a scratch
+   list the generated ticket section says better. An empty body needs no
+   flag. Step 1's `unreleased_missing[]` is what tells you `promote` will be
+   accepted before you run it.
 
    `--workspace <workspace_path>` and `--ticket-prefix <settings.ticket_prefix>`
    here MUST be the same values passed to `draft` in step 1 above — `bump`

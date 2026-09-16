@@ -308,6 +308,20 @@ the notes.
   `tests/acs/test_skill_contracts.py` now fails if a skill named by any
   `Skill(acs:…)` call is made non-invocable again.
 
+- **`/acs:release` no longer discards hand-written release notes.** `bump`
+  wrote the generated ticket-title section over everything under
+  `## [Unreleased]`, so a repo that writes its release notes there — every
+  breaking-change entry, every migration step — published a list of ticket
+  titles instead and lost the notes in the same commit. It now refuses a
+  non-empty body unless `--unreleased` says which is meant: `promote`
+  publishes that body under the dated heading (and is itself refused unless
+  every merged ticket since the last tag is already covered by it, so no
+  ticket goes unmentioned), `replace` keeps the previous behaviour. An empty
+  body needs no flag and behaves exactly as before. **Migration:** add
+  `--unreleased replace` to any script calling `bump` against a repo whose
+  `[Unreleased]` carries scratch notes; `/acs:release` asks for the choice
+  itself.
+
 - **`/acs:release`'s idempotency probe fails closed when the forge cannot be
   asked.** `release_notes.py status` resolves `open_pr` through one
   `gh pr list` seam, and that seam returned `None` for every outcome —
