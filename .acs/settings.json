@@ -108,6 +108,8 @@
     },
     "pre_release_gate": [
       "make -C src/acs-evals eval-source",
+      "make -C src/acs-evals check",
+      "make -C src/acs-evals mutation",
       "make -C src/acs-evals measure",
       "make -C src/acs-evals perf"
     ]
