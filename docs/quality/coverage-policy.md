@@ -14,8 +14,8 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **94%** (10925 statements,
-702 missed) — above the 90 floor. Re-derive it directly — the same
+for its sequence diagram. Repo-wide TOTAL is **95%** (10845 statements,
+581 missed, measured 2026-09-16) — above the 90 floor. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
 
@@ -48,21 +48,23 @@ own); adding the behavioural tree changed nothing about that list and added
 deliberately **not** omitted: it has a real `--pr` branch and is measured,
 currently at 21 statements / 100%.
 
-The behavioural tree's contribution was last measured **before the tabp plugin
-was removed**, at 1140 of 10925 measured statements and 317 of 702 missed.
-Removing `behavioural/tabp/` deletes a known slice of that: **85** of the 317
-missed sat in its `screen_cvs_eval.py` alone, and one of the two per-plugin
-`run_evals.py` runners went with it. Those figures are therefore an upper
-bound until the next measured run refreshes them; what the split said about
-*where* the headroom is has not changed. By declared `META["tier"]`, the
-missed statements were **118** in paid- and forge-tier scenario drivers, **90**
-in free-tier acs drivers — deterministic, and run by the `acs-free-evals`
-pre-commit hook whenever `src/acs/` or `src/acs-evals/behavioural/` change,
-just never in-process under the unit suite — and **59** in
-`src/acs-evals/behavioural/acs/harness.py` itself. The headroom is the eval
-layer as a whole, not the paid tier alone.
-If that headroom ever puts TOTAL under the floor, the remedy is a
-unit path for those drivers, not an `omit`:
+`src/acs-evals/behavioural/` contributes 966 of the 10845 measured statements
+and 199 of the 581 missed (measured 2026-09-16, after the tabp plugin was
+removed; the tree was 1140 of 10925 and 317 of 702 with `behavioural/tabp/`
+still in it). Split by each scenario module's declared `META["tier"]`, those
+199 are **90** in free-tier drivers — deterministic, and run by the
+`acs-free-evals` pre-commit hook whenever `src/acs/` or
+`src/acs-evals/behavioural/` change, just never in-process under the unit
+suite — **28** in paid-tier drivers, **5** in forge-tier drivers, **59** in
+`src/acs-evals/behavioural/acs/harness.py` itself and **17** in the two
+`run_evals.py` runners (the dispatcher and acs's own).
+
+Note where that leaves the headroom, because the removal moved it: the
+free tier is now the largest block of missed statements in the eval layer, not
+the paid one. The three free drivers are $0 and deterministic — they simply run
+out-of-process under the pre-commit hook rather than in-process under
+`unittest`. If TOTAL ever drops under the floor, the remedy is a unit path for
+those drivers, not an `omit`:
 [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md) restricts
 `omit` to true argument-forwarder shims, and PRD **G3** requires the target be
 met or hard-failed, never silently waived.
