@@ -14,8 +14,8 @@
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/globalmindsolution/gms-marketplace.git",
-        "path": "plugins/acs",
-        "ref": "v0.4.9"
+        "path": "src/acs",
+        "ref": "e7e633f180492f8803f31e9e5167444f923fcc26"
       },
       "description": "Autonomous Coding Skills - an agentic software-delivery workflow: PRD, architecture, tickets, design, specs, TDD implementation with review loop, PR, and merge; hook-gated, resumable, workspace-backed."
     },

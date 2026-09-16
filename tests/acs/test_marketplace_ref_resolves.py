@@ -14,10 +14,16 @@ unresolvable. `test_marketplace_consistency.py` checks name and version
 agreement between the entry and `plugin.json`; it builds its own fixtures, so
 it never asks git whether this repo's advertised pair resolves.
 
-The manifest describes what a consumer INSTALLS, which is the last released
-tree — so `path` tracks the release, not the working tree, and the release cut
-moves both fields together (`release.extra_refs` in `.acs/settings.json` sets
-`source/ref` and `source/path`).
+Two readers, two models, and the entry must satisfy both. `ci.yml`'s
+marketplace validator resolves `path` against the WORKING TREE and requires a
+plugin.json there; the installer resolves it at `ref`. Moving the tree without
+moving the ref leaves no value of `path` that works for both — pointing it at
+the released tree fixed the install and broke CI on the same day.
+
+So `path` follows the working tree, and `ref` is pinned to a commit on the
+default branch where that path exists. The release cut replaces the SHA with
+the new tag and re-asserts the path, together (`release.extra_refs` in
+`.acs/settings.json` sets `source/ref` and `source/path`).
 
 Offline and free: it asks the local clone. Where the ref is not present (a
 shallow CI clone with no tags) the check skips with that reason rather than
@@ -61,12 +67,21 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
             ref = source.get("ref")
             with self.subTest(plugin=name):
                 self.assertTrue(path, "%s declares no path" % name)
+                # Two readers, two models, and the manifest must satisfy both.
+                # ci.yml's validator resolves `path` against the WORKING TREE
+                # and requires a plugin.json there; the installer resolves it
+                # at `ref`. With the tree moved and the ref stale, no value of
+                # `path` satisfies both, which is how fixing one broke the
+                # other on 2026-09-16.
+                self.assertTrue(
+                    os.path.isdir(os.path.join(REPO_ROOT, path)),
+                    "%s: path %r does not exist in the working tree — ci.yml's "
+                    "marketplace validator resolves it there and fails with "
+                    "'has no plugin.json at %s/.claude-plugin/plugin.json'"
+                    % (name, path, path))
                 if not ref:
-                    # No ref means the marketplace tracks the default branch;
-                    # the working tree is then the thing to check.
-                    self.assertTrue(
-                        os.path.isdir(os.path.join(REPO_ROOT, path)),
-                        "%s: path %r does not exist in the working tree" % (name, path))
+                    # No ref means the marketplace tracks the default branch,
+                    # and the working-tree check above is the whole of it.
                     continue
                 if git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
                     self.skipTest("ref %r not present in this clone (shallow fetch?)" % ref)
