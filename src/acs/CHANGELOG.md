@@ -31,7 +31,9 @@ the notes.
 
 - **`acs.py workflow show | validate | next`** — the CLI over that file. `show` prints the resolved workflow and whether it came from the override or the plugin default; `validate [--file PATH]` exits 2 with `<path>:<line>: <reason>`; `next [--ticket ID]` walks the DAG against the ticket's `pipeline-state.json` ledger and prints the READY steps (`mode: single|parallel`, `ready`, `done`, `blocked_by`, `statuses`). `/acs:ship` is now a thin loop over `workflow next`: it invokes the ready step, or fans several ready steps out as parallel legs (one git worktree and one leg branch each, merged back in file order), until `stop_after`.
 
-- **Five new hooked Build/Test skills** (20 hooked skills, 31 skill directories): **`/acs:analyze-ticket`** (writes `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on), **`/acs:create-impl-plan`** (`/acs:code`'s plan phase carved out whole — planner agent, spec fold, executor file map, plan approval, plan revocation — ending in an approved `plan.md`), **`/acs:create-api-contract`** (writes `api-contract.md` plus the machine-readable contract files under the new `contracts_path`, only when the analysis found an API surface change), **`/acs:create-test-docs`** (writes `test-cases.md`: `TC-n` cases typed unit/integration/e2e, every acceptance criterion traced by at least one case) and **`/acs:create-e2e-tests`** (writes the ticket's e2e suites from the e2e-typed rows of `test-cases.md`).
+- **Five new hooked Build/Test skills** (20 hooked skills of 31 skill
+  directories at this point in the release; 17 of 28 once the doc-set fold
+  below lands): **`/acs:analyze-ticket`** (writes `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on), **`/acs:create-impl-plan`** (`/acs:code`'s plan phase carved out whole — planner agent, spec fold, executor file map, plan approval, plan revocation — ending in an approved `plan.md`), **`/acs:create-api-contract`** (writes `api-contract.md` plus the machine-readable contract files under the new `contracts_path`, only when the analysis found an API surface change), **`/acs:create-test-docs`** (writes `test-cases.md`: `TC-n` cases typed unit/integration/e2e, every acceptance criterion traced by at least one case) and **`/acs:create-e2e-tests`** (writes the ticket's e2e suites from the e2e-typed rows of `test-cases.md`).
 
 - **`acs.py artifacts migrate [--dry-run] | show [--ticket ID]`** — the one-shot, idempotent migration of every live partition's `ticket.json`, `design.md` and `phases/code/plan.md` into `docs/tickets/<ID>/`, leaving a `ticket.json.moved` pointer where `ticket.json` was; `show` reports where a ticket's documents currently resolve from. Archived partitions are not migrated.
 
@@ -171,6 +173,13 @@ the notes.
   declares `states` (`verifier_passed`, `plan_approved`, `pr`, `review`,
   `tests`, `merged`, `readiness`, …), `runs[].escalations` (the 13-field
   event) and `findings[].severity`; undeclared members still validate.
+  **Migration:** a custom coordinator or agent that emits
+  `<constraint name="coverage-target">` or `coverage-threshold` must emit
+  `coverage_target`, and any message carrying `phase="plan"`,
+  `phase="coordinate"` or a `-planner` agent name no longer validates —
+  those phases and that role are gone (see the two entries above). A
+  constraint name outside the `constraintName` vocabulary is refused: name
+  it correctly, or add it to `schemas/acs-messages.xsd` first.
 
 - **⚠️ BREAKING for local installs: the plugin source moved from
   `plugins/acs` to `src/acs`.** The marketplace manifest's `git-subdir` path
