@@ -1,6 +1,6 @@
 {
   "group": "pipeline gates",
-  "description": "The acs pipeline is hook-gated: every skill's pre-gate refuses to run until its upstream step has. This is the SPINE \u2014 the ordering every release depends on, independent of what v0.4.10 changed. Each of the 15 gated skills is driven through three workspace states, and the assertion is on the gate's exit code and the reason it gives, because the reason is what tells an operator (or a coordinator) which step to run next.\n\nProfiles: bare = a fresh repo with settings and no tickets; ticketed = one open task ticket (TKT-1, small/low, needs_design false); epic = one open epic (TKT-1, large/high, needs_design true).",
+  "description": "The acs pipeline is hook-gated: every skill's pre-gate refuses to run until its upstream step has. This is the SPINE \u2014 the ordering every release depends on, independent of what v0.4.10 changed. Each of the 12 gated skills is driven through three workspace states, and the assertion is on the gate's exit code and the reason it gives, because the reason is what tells an operator (or a coordinator) which step to run next.\n\nProfiles: bare = a fresh repo with settings and no tickets; ticketed = one open task ticket (TKT-1, small/low, needs_design false); epic = one open epic (TKT-1, large/high, needs_design true).",
   "surface": "acs gate",
   "covers": [
     "MAR-523",
@@ -68,76 +68,19 @@
     },
     {
       "id": "GATE-004",
-      "title": "bare: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "title": "bare: /create-docs is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
       "profile": "bare",
       "invoke": {
         "argv": [
           "gate",
           "--skill",
-          "create-principles"
+          "create-docs"
         ]
       },
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "acs pre-create-principles: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-005",
-      "title": "bare: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "bare",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-standards"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-standards: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-006",
-      "title": "bare: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "bare",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-quality"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-quality: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-007",
-      "title": "bare: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "bare",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-operations"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-operations: blocked",
+          "acs pre-create-docs: blocked",
           "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
         ]
       }
@@ -362,13 +305,13 @@
     },
     {
       "id": "GATE-019",
-      "title": "ticketed: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "title": "ticketed: /create-docs is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
       "profile": "ticketed",
       "invoke": {
         "argv": [
           "gate",
           "--skill",
-          "create-principles",
+          "create-docs",
           "--ticket",
           "{{ticket}}"
         ]
@@ -376,70 +319,7 @@
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "acs pre-create-principles: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-020",
-      "title": "ticketed: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "ticketed",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-standards",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-standards: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-021",
-      "title": "ticketed: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "ticketed",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-quality",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-quality: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-022",
-      "title": "ticketed: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "ticketed",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-operations",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-operations: blocked",
+          "acs pre-create-docs: blocked",
           "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
         ]
       }
@@ -692,13 +572,13 @@
     },
     {
       "id": "GATE-034",
-      "title": "epic: /create-principles is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
+      "title": "epic: /create-docs is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
       "profile": "epic",
       "invoke": {
         "argv": [
           "gate",
           "--skill",
-          "create-principles",
+          "create-docs",
           "--ticket",
           "{{ticket}}"
         ]
@@ -706,70 +586,7 @@
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "acs pre-create-principles: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-035",
-      "title": "epic: /create-standards is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "epic",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-standards",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-standards: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-036",
-      "title": "epic: /create-quality is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "epic",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-quality",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-quality: blocked",
-          "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
-        ]
-      }
-    },
-    {
-      "id": "GATE-037",
-      "title": "epic: /create-operations is blocked \u2014 no architecture doc set found at <REPO>/docs/architecture (expected hl",
-      "profile": "epic",
-      "invoke": {
-        "argv": [
-          "gate",
-          "--skill",
-          "create-operations",
-          "--ticket",
-          "{{ticket}}"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "acs pre-create-operations: blocked",
+          "acs pre-create-docs: blocked",
           "no architecture doc set found at <REPO>/docs/architecture (expected hld/tech-stack.md) \u2014 run /acs:create-architecture first."
         ]
       }

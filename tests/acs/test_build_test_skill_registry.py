@@ -35,7 +35,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 TESTS_ACS = os.path.join(REPO_ROOT, "tests", "acs")
@@ -127,10 +127,12 @@ class TestAgentNameRegistration(unittest.TestCase):
 
     def test_each_new_skill_parses_as_an_agent_type(self):
         for skill in HOOKED_BUILD_TEST_SKILLS:
-            for role in ("planner", "executor", "verifier"):
+            for role in ("executor", "verifier"):
                 with self.subTest(skill=skill, role=role):
                     self.assertEqual(
                         lib.parse_agent_type("acs:%s-%s" % (skill, role)), (skill, role))
+            # No skill spawns a planner (ADR-0092), so the name is not ours.
+            self.assertEqual(lib.parse_agent_type("acs:%s-planner" % skill), (None, None))
 
     def test_the_unhooked_runner_has_no_agent_type(self):
         self.assertEqual(lib.parse_agent_type("acs:run-e2e-tests-executor"), (None, None))

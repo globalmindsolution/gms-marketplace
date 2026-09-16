@@ -4,7 +4,7 @@ Asserts the repo-committed .acs/settings.json `models` block holds explicit,
 version-stable model ids plus an explicit reasoning-effort level per role
 (object form, mirroring the sibling `hirex` repo's configuration), instead of
 the generic runtime aliases ("opus" / "sonnet") with no effort, and that the
-file remains valid against plugins/acs/schemas/settings.schema.json.
+file remains valid against src/acs/schemas/settings.schema.json.
 
 The ids themselves are NOT written here: they are read from
 acs_lib.RECOMMENDED_MODELS, so this module keeps asserting the property when
@@ -46,8 +46,8 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

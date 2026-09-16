@@ -2,7 +2,7 @@
 
 `/ship` adds orchestration only, and since the skills-independence refactor it
 adds it by **reading a declaration**: the step order lives in
-`plugins/acs/workflows/ship.yaml` (or the consumer's
+`src/acs/workflows/ship.yaml` (or the consumer's
 `.acs/workflows/ship.yaml`, which replaces it wholesale), and the coordinator
 loops over `acs.py workflow next`, which evaluates that DAG against the
 ticket's existing `pipeline-state.json`. No new state: the ledger is still the
@@ -106,8 +106,8 @@ is the separate, per-child pipeline diagrammed above.
 > The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
 > `[create-design]` bracketing above is still conditional — on
 > `ticket.needs_design`, independent of lane — but there is no
-> bracketed spec-authoring step on any lane: `/code`'s plan's author (the
-> planner on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
+> bracketed spec-authoring step on any lane: the plan's author (the
+> `create-impl-plan-executor` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
 > self-authors the five-section spec content (Scope, Approach, API/data
 > changes, Test plan, Out of scope) inside its plan phase on EVERY lane when
 > `<partition>/specs/` is absent or empty, and reads pre-existing specs
@@ -128,8 +128,8 @@ is the separate, per-child pipeline diagrammed above.
 > (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
 >
 > **NOTE (MAR-160):** The pipeline gains one more step, `docs-sync`, inserted
-> between `code`/`test` and `create-pr` — a new hooked triad skill
-> (`docs-sync-planner`/`-executor`/`-verifier`) that independently re-derives
+> between `code`/`test` and `create-pr` — a new hooked skill
+> (`docs-sync-executor`/`-verifier`; no planner since ADR 0092) that independently re-derives
 > doc impact from `git diff <default_branch>...HEAD`, `/code`'s
 > `result.json`, and the final code-verify artifact, committing any doc
 > updates as additional commits on the SAME ticket branch (never a new
@@ -148,7 +148,7 @@ is the separate, per-child pipeline diagrammed above.
 > **NOTE (skills-independence refactor — supersedes the step-order clauses of
 > the MAR-159 and MAR-160 notes above; their mechanisms stand):** the steps and
 > their conditions are no longer stated in `ship/SKILL.md` prose at all. They
-> are declared in `plugins/acs/workflows/ship.yaml` — `analyze-ticket` →
+> are declared in `src/acs/workflows/ship.yaml` — `analyze-ticket` →
 > `create-impl-plan` (`requires: design_approved`) → `create-api-contract`
 > (`when: api_surface_changed`) → `create-test-docs` → `code`
 > (`exclusive: true`, `boundary: full_verify_stop`,

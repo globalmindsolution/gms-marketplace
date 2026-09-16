@@ -2,10 +2,10 @@
 
 The skills-independence refactor made /acs:ship a thin loop over
 `acs.py workflow next`: its entry is a ticket id and nothing else, the order
-lives in `plugins/acs/workflows/ship.yaml`, and the two things the skill may
+lives in `src/acs/workflows/ship.yaml`, and the two things the skill may
 still decide for itself are the two REFUSALS -- a non-id argument and an epic.
 
-These are prose-contract checks over `plugins/acs/skills/ship/SKILL.md` (stdlib
+These are prose-contract checks over `src/acs/skills/ship/SKILL.md` (stdlib
 re, the shape every other SKILL.md test in this package uses), cross-checked
 against the live workflow so the prose cannot drift away from the mechanism it
 describes. Run:
@@ -18,7 +18,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))

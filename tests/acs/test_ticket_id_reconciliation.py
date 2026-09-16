@@ -32,7 +32,7 @@ import acs_case  # noqa: E402
 lib = acs_case.lib
 
 SCHEMA_PATH = os.path.join(
-    acs_case.REPO_ROOT, "plugins", "acs", "schemas", "counters.schema.json"
+    acs_case.REPO_ROOT, "src", "acs", "schemas", "counters.schema.json"
 )
 
 
@@ -418,7 +418,7 @@ class TestGateBypassGuard(unittest.TestCase):
     through the gate."""
 
     def test_no_production_call_site_bypasses_the_gate(self):
-        scripts_dir = os.path.join(acs_case.REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+        scripts_dir = os.path.join(acs_case.REPO_ROOT, "src", "acs", "hooks", "scripts")
         callers = []
         for name in sorted(os.listdir(scripts_dir)):
             if not name.endswith(".py") or name == "acs_lib.py":

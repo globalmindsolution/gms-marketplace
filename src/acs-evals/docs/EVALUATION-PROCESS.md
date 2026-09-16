@@ -26,7 +26,7 @@ sees the diff.**
 One command, run from `src/acs-evals/` in a clean checkout.
 
 ```bash
-export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
+export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
 make gate
 ```
 
@@ -62,7 +62,7 @@ right, the installed build tells you the packaging is.
 | Trigger | Tier | Who |
 |---|---|---|
 | Before any version bump | full gate, both build sources | Release engineer |
-| On a PR that touches `plugins/acs/` | `make eval` | Author |
+| On a PR that touches `src/acs/` | `make eval` | Author |
 | After publishing a release | full gate against the *installed* build | Release engineer |
 | When adding a plugin surface | `make eval` + new cases | Dataset maintainer |
 
@@ -189,8 +189,12 @@ make measure        # SPENDS MONEY; needs `claude` on PATH
 make perf           # judge it; pure, offline, re-runnable
 ```
 
-`make perf` reports **UNMEASURED** and fails until a measurement exists. That is
-the design: absence is not a pass. Full rules, verdicts and limitations in
+`make perf` reports **UNMEASURED** and fails until a measurement exists, and
+**UNMEASURED (stale)** when the one that exists was taken of another build —
+a measurement records the content digest of the tree it exercised. That is
+the design: absence is not a pass, and neither is someone else's number.
+`make measure` is a no-op for a build whose complete measurement is already on
+disk, so re-running the gate is free until the plugin changes. Full rules, verdicts and limitations in
 [`PERFORMANCE.md`](PERFORMANCE.md).
 
 Triage differs from tier 1 in one way. An **absolute** failure — a routing

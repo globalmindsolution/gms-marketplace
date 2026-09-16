@@ -18,7 +18,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
@@ -90,7 +90,7 @@ class UnhookedUmbrellaTest(unittest.TestCase):
 
     def test_no_project_agent_files_on_disk(self):
         strays = [p for p in glob.glob(os.path.join(AGENTS_DIR, "project-*.md"))]
-        self.assertEqual(strays, [], "no plugins/acs/agents/project-*.md -- no new triad")
+        self.assertEqual(strays, [], "no src/acs/agents/project-*.md -- no new triad")
 
     def test_no_skill_start_and_no_own_reflection_loop(self):
         body = read(SKILL_PATH)
@@ -162,13 +162,23 @@ class DispatchTest(unittest.TestCase):
 class InternalLegFrontmatterTest(unittest.TestCase):
     """Brief section 4, for the two project legs: each stays Skill-invocable
     with its body, agents, hooks and gate unchanged, but stops being
-    user-facing -- model invocation off, description naming its entry point."""
+    user-facing -- which the DESCRIPTION does, by naming its entry point.
 
-    def test_each_leg_disables_model_invocation(self):
+    "Stays Skill-invocable" and `disable-model-invocation: true` cannot both
+    be true: the CLI enforces the flag and refuses the dispatch, so
+    /acs:project's own `Skill(acs:create-project)` could never have run."""
+
+    def test_each_leg_stays_dispatchable_by_its_entry_point(self):
         for leg in LEGS:
             with self.subTest(leg=leg):
                 fm = frontmatter(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
-                self.assertRegex(fm, r"(?m)^disable-model-invocation: true$")
+                self.assertNotIn("disable-model-invocation", fm)
+
+    def test_the_entry_point_dispatches_each_leg(self):
+        body = read(SKILL_PATH)
+        for leg in LEGS:
+            with self.subTest(leg=leg):
+                self.assertIn("Skill(acs:%s)" % leg, body)
 
     def test_each_leg_description_names_the_project_entry_point(self):
         for leg in LEGS:
@@ -200,10 +210,13 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertIn(leg, acs_lib.GATES)
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % leg)))
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % leg)))
-                for role in ("planner", "executor", "verifier"):
+                for role in ("executor", "verifier"):
                     self.assertTrue(
                         os.path.isfile(os.path.join(AGENTS_DIR, "%s-%s.md" % (leg, role))),
                         "%s-%s.md must survive the fold" % (leg, role))
+                self.assertFalse(
+                    os.path.exists(os.path.join(AGENTS_DIR, "%s-planner.md" % leg)),
+                    "%s lost its planner under ADR-0092, not the fold" % leg)
                 body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
                 self.assertIn("skill-start.py", body)
                 self.assertIn("--skill %s" % leg, body)

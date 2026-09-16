@@ -1,7 +1,7 @@
 """MAR-118 — /acs:setup Step 4 documents and defaults standards_path (AC-7),
 plus create-standards registry membership (AC-8).
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. `standards_path`
+Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. `standards_path`
 must be defaulted like `principles_path`/`quality_path`/`operations_path` in
 the Step 4 optional-settings batch, and must NOT be added to the "always ask
 explicitly" carve-out (which names only `### models` and `e2e`).
@@ -25,7 +25,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)
@@ -79,15 +79,15 @@ class Mar118StandardsPathInitCase(unittest.TestCase):
         )
 
     def test_step4_names_create_standards_as_consumer(self):
-        """The standards_path bullet names /acs:create-standards as the
+        """The standards_path bullet names /acs:create-docs standards as the
         consuming skill, mirroring how the principles_path bullet names
         /acs:create-principles."""
         m = re.search(r"`standards_path`", self.step4)
         self.assertIsNotNone(m)
         window = self.step4[m.start():m.start() + 300]
         self.assertIn(
-            "create-standards", window,
-            msg="the `standards_path` bullet must name /acs:create-standards "
+            "create-docs standards", window,
+            msg="the `standards_path` bullet must name /acs:create-docs standards "
                 "as the consumer (AC-7)",
         )
 
@@ -110,31 +110,24 @@ class Mar118StandardsPathInitCase(unittest.TestCase):
         )
 
 
-class Mar118StandardsRegistryCase(unittest.TestCase):
-    """AC-8: create-standards is registered in PRODUCT_SKILLS and
-    PRODUCT_TICKET_TITLES, and consequently joins the derived HOOKED_SKILLS."""
+class StandardsRegistryCase(unittest.TestCase):
+    """AC-8, after ADR-0094: the standards set is a row of acs_lib.DOC_SETS -- the
+    one skill that delivers it, create-docs, is the registered product skill
+    and joins the derived HOOKED_SKILLS; the set's delivery-ticket title is
+    the row's."""
 
-    def test_create_standards_in_product_skills(self):
-        self.assertIn(
-            "create-standards", acs_lib.PRODUCT_SKILLS,
-            msg="'create-standards' must be registered in PRODUCT_SKILLS (AC-8)",
-        )
+    def test_standards_is_a_declared_doc_set(self):
+        self.assertIn("standards", acs_lib.DOC_SETS)
+        self.assertEqual(acs_lib.DOC_SETS["standards"]["settings_key"], "standards_path")
 
-    def test_create_standards_in_product_ticket_titles(self):
-        self.assertEqual(
-            acs_lib.PRODUCT_TICKET_TITLES.get("create-standards"),
-            "Product standards doc set",
-            msg="PRODUCT_TICKET_TITLES['create-standards'] must equal "
-                "'Product standards doc set' (AC-8)",
-        )
+    def test_standards_delivery_ticket_title(self):
+        self.assertEqual(acs_lib.DOC_SET_TITLES.get("standards"), "Product standards doc set")
 
-    def test_create_standards_in_hooked_skills(self):
-        self.assertIn(
-            "create-standards", acs_lib.HOOKED_SKILLS,
-            msg="'create-standards' must join HOOKED_SKILLS via the derived "
-                "PRODUCT_SKILLS + WORKFLOW_SKILLS expression (AC-8)",
-        )
-
+    def test_create_docs_in_product_and_hooked_skills(self):
+        self.assertIn("create-docs", acs_lib.PRODUCT_SKILLS)
+        self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
+        self.assertNotIn("create-standards", acs_lib.HOOKED_SKILLS,
+                         "the leg skill was folded into create-docs (ADR-0094)")
 
 if __name__ == "__main__":
     unittest.main()

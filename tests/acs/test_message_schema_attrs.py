@@ -21,7 +21,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 XSD = os.path.join(PLUGIN, "schemas", "acs-messages.xsd")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 VALIDATOR = os.path.join(HOOKS_SCRIPTS, "validate_xml.py")

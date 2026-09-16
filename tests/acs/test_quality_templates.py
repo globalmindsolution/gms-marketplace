@@ -1,7 +1,7 @@
 """Contract tests for the quality/ doc-set templates (MAR-112 spec 03).
 
 Pins AC-4: test-strategy.md and coverage-policy.md ship under
-plugins/acs/templates/quality/ with the design's required sections and no
+src/acs/templates/quality/ with the design's required sections and no
 runtime {placeholder} tokens. Written TDD-first (RED before the two files
 exist); turns GREEN once spec 03 lands. Kept in its own module (rather than
 test_skill_contracts.py) so this task's diff stays file-disjoint from spec
@@ -12,7 +12,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 
 def read(path):
@@ -30,11 +30,11 @@ class TestQualityTemplatesExist(unittest.TestCase):
 
     def test_test_strategy_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("test-strategy")),
-                         "plugins/acs/templates/quality/test-strategy.md must exist")
+                         "src/acs/templates/quality/test-strategy.md must exist")
 
     def test_coverage_policy_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("coverage-policy")),
-                         "plugins/acs/templates/quality/coverage-policy.md must exist")
+                         "src/acs/templates/quality/coverage-policy.md must exist")
 
 
 class TestTestStrategyRequiredSections(unittest.TestCase):

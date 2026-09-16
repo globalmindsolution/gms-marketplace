@@ -1,0 +1,161 @@
+"""acs_lib — the deterministic kernel behind every acs hook and helper CLI.
+
+MAR-522 split the 2,989-line module into eight domain modules; this facade
+re-exports their public surface, so `import acs_lib as lib` resolves every name
+it always did. In dependency order:
+
+  _common        json/time/path primitives, the skill registry, GateError
+  settings       .acs settings load/validate/merge, model and format resolution
+  repo           git and checkout identity, workspace layout, ticket-id resolution
+  lanes          lane/axis derivation and the plan-approval predicate
+  state          run ledgers, pipeline state, tickets, index, counters, locking
+  metrics        token/cost apportionment and the metrics ledger
+  setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
+  forge          PR-metadata fill and tracker sync against gh (MAR-525)
+  gate_inputs    the ticket-artifact input checks the Build/Test gates share
+  gates          context resolution, the input/brake gates, post-hook persistence
+  advisory       the out-of-order advisory line the pre-hook prints (never a refusal)
+  verdict        the verifier's verdict document and its derived-pass rule
+  derive         the result-document fields the kernel computes from artifacts
+  lifecycle      the SubagentStart/SubagentStop/Stop/PreCompact hook bodies
+  yamlsubset     the strict YAML subset the workflow files and front matter use
+  workflow       phases registry, ship.yaml resolution/validation, predicates, `workflow next`
+  artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
+
+PATCHING: a name imported into a sibling binds at import time, so patching it on
+this facade does NOT reach a caller that already imported it. Patch the module
+that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
+module (`lib.subprocess`), patch the shared module object as before.
+"""
+
+from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
+               forge, verdict, derive, gate_inputs, gates, lifecycle, advisory)  # noqa: F401
+
+from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
+    DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
+    DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES, DOC_SETS,
+    GateError, HOOKED_SKILLS,
+    PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
+    PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
+    PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, RUN_STATUSES, ReconciliationRequired, TICKET_ID_RE,
+    TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
+    _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
+
+from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS,
+    FORMAT_PLACEHOLDERS, MODEL_EFFORTS, MODEL_OVERRIDE_SKILLS, MODEL_ROLES,
+    RECOMMENDED_MODELS, _model_override_skills, _normalize_e2e_into_suites,
+    enforcement_value, load_settings, render_format, resolve_role_model,
+    resolve_template, settings_files, validate_formats, validate_models,
+    validate_settings)  # noqa: F401
+
+from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+    GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
+    GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
+    _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
+    checkout_id, checkout_root, current_branch, default_state_root,
+    find_ticket_partition, gh_failure_hint, gh_read_is_unevaluable,
+    gh_pr_required_checks_ok, gh_pr_view, index_path, lock_path, main_repo_root,
+    pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
+    resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
+    session_marker_path, sessions_dir, state_path, ticket_dir,
+    ticket_id_from_text)  # noqa: F401)  # noqa: F401
+
+from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
+    PLAN_REQUIRED_SECTIONS, VERIFY_ITERATION_CAP, _PLAN_HEADING_RE, _SIZE_ORDER,
+    _STAKES_ORDER, _coverage_target_stated, _plan_headings, classify_additive_diff,
+    derive_lane, escalate_lane, guard_axes, lane_rank, plan_approval_eligible,
+    recommend_stakes, verify_depth)  # noqa: F401
+
+from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
+    DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
+    PENDING_STATUSES, PR_VIEW_FIELDS, VERDICTS, check_name, check_state,
+    classify_checks, merge_readiness)  # noqa: F401
+
+from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
+    acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
+    check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
+    last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
+    lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
+    record_guard_event, release_lock, save_ticket, skill_completed, update_index,
+    update_pipeline)  # noqa: F401
+
+from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
+    _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
+    compute_ticket_totals, elapsed_seconds, metrics_path, run_seconds, update_metrics)  # noqa: F401
+
+from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetRequest,
+    TOOLCHAIN, _BARE_INT_RE,
+    _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
+    _managed_body, _pr_labels, _short_doc_set, _unknown_doc_set_note,
+    _sentinel_present, _soft_peers, _strip_stray_markers, _tool_version,
+    canonical_doc_set, check_toolchain,
+    classify_merge_pr_arg, doc_set_present_on_disk, doc_set_spellings, fanout_batches,
+    managed_block_is_malformed, managed_body_from_template, missing_tools,
+    parse_doc_set_arg, parse_fanout_for_arg, project_mode, render_managed_block,
+    tracker_cli_warning,
+    upsert_managed_block, validate_exempt_pr)  # noqa: F401
+
+from .gate_inputs import LEGACY_ARTIFACT_PATHS, e2e_case_count  # noqa: F401
+from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATE_INPUTS, GATES,
+    _archive_partition, _clear_pointers_for_ticket,
+    _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
+    _require_architecture_doc_set, _resolve_ticket_for_gate,
+    build_context, design_requirement, gate_analyze_ticket, gate_code,
+    gate_create_api_contract, gate_create_architecture, gate_create_design, gate_create_docs,
+    gate_create_e2e_tests, gate_create_impl_plan, gate_create_pr,
+    gate_create_prd, gate_create_project,
+    gate_create_requirements, gate_create_test_docs,
+    gate_create_ticket, gate_docs_sync, gate_merge_pr, gate_standardize_project,
+    parent_epic_dir, run_post, run_post_exempt_pr, run_pre, run_pre_payload,
+    session_end)  # noqa: F401
+from .advisory import ADVISORY_MARK, render_advisory, workflow_advisory  # noqa: F401
+
+# Re-exported so `lib.subprocess` / `lib.os` keep resolving: patching
+# `acs_lib.subprocess.run` patches the shared module object every submodule sees.
+from ._common import (cc, datetime, fnmatch, hashlib, json, os, re, shutil, socket,
+    subprocess, sys, tempfile, timedelta, timezone)  # noqa: F401
+
+from .forge import (GROUP_B_FIELDS, PR_STATUS_OPTIONS, TICKET_STATUS_OPTIONS,
+    TYPE_OPTIONS, Gh, fill_group_b, find_item_for_url, finding, first_matching_option,
+    match_field, match_option, pr_metadata_fill, project_fields, project_fill,
+    project_items, reviewers_for, sync_candidates, tracker_sync,
+    tracker_sync_one)  # noqa: F401
+from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
+    HANDOFF_CONTEXT_FILENAME,
+    ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
+    clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
+    in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
+    pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
+    result_document, stop, stop_counter_key, subagent_start, subagent_stop,
+    write_handoff_context, write_phase_snapshot)  # noqa: F401
+from .lifecycle import stop as stop_hook  # noqa: F401
+from .filemap import (FILEMAP_FILENAME_FMT, WRITE_TOOL_PATH_KEYS, active_executor,
+    file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
+    save_filemap_task)  # noqa: F401
+
+from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
+    blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
+    validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
+
+from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
+    derive_verifier_passed, disagreements, execute_reports, gh_pr_for_branch,
+    guard_denials, latest_verdict, review_iterations)  # noqa: F401
+
+from . import yamlsubset, workflow  # noqa: F401,E402
+from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
+from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # noqa: F401
+    MAX_LOOPS_NAMES, OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS, PREDICATES,
+    SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WorkflowError,
+    allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
+    e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
+    entry_point_of, pending_needs, phase_of, phases_path, post_code_test_active,
+    post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_agents,
+    agent_roles_of, skill_aliases,
+    skill_legs, ticket_artifact_path, ticket_context, validate_workflow,
+    validate_workflow_file)
+
+from . import artifacts  # noqa: F401,E402
+from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
+    artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
+    ticket_docs_root, ticket_source)
+from .artifacts import migrate as migrate_artifacts  # noqa: F401

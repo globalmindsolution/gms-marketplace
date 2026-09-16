@@ -1,27 +1,30 @@
-"""MAR-1 T-B — /acs:create-docs, the doc-bootstrap fan-out umbrella skill.
+"""/acs:create-docs -- the product skill that bootstraps the four doc sets.
 
-Prose-contract tests over the new unhooked coordinator, `create-docs/SKILL.md`,
-mirroring the discipline in `tests/acs/test_create_quality_loop_topology.py`:
-every assertion is a whitespace-normalized substring/regex check over the
-prose, never a line-number assertion (prose is revised; line numbers drift).
-Behavioral quality -- does the model actually spawn the subagents this prose
-describes -- is the agentic-e2e tier, not unit-testable here
-(tests/acs/test_skill_contracts.py:1-9's stated boundary).
+Prose-contract tests over `create-docs/SKILL.md` and the doc-set table it
+reads. Every assertion is a whitespace-normalized substring/regex check over
+the prose, never a line-number assertion. Behavioral quality -- does the
+model actually spawn the subagents this prose describes -- is the
+agentic-e2e tier, not unit-testable here.
+
+History: the umbrella used to fan out four internal leg skills (ADR-0085,
+ADR-0091); ADR-0094 folded the legs into it, so the umbrella IS the skill --
+hooked, one delivery ticket per set, executor + verifier, no planner.
 
 Run:  python3 -m unittest tests.acs.test_create_docs_skill -v
 """
 
-import glob
 import os
 import re
 import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "create-docs", "SKILL.md")
+SKILLS_DIR = os.path.join(PLUGIN, "skills")
+SKILL_PATH = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
+TEMPLATES = os.path.join(PLUGIN, "templates")
 
 sys.path.insert(0, HOOKS_DIR)
 import acs_lib  # noqa: E402
@@ -33,8 +36,6 @@ def read(path):
 
 
 def norm(body):
-    """Collapse whitespace runs so markdown line-wrap can never break a
-    phrase-spanning match."""
     return re.sub(r"\s+", " ", body)
 
 
@@ -43,542 +44,255 @@ def _body():
 
 
 def _frontmatter():
-    """The SKILL.md front-matter block, without its --- fences."""
-    text = _body()
-    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    m = re.match(r"^---\n(.*?)\n---\n", _body(), re.DOTALL)
     assert m, "create-docs/SKILL.md must open with a front-matter block"
     return m.group(1)
 
 
-class HookIntegrityTest(unittest.TestCase):
-    """AC-2: every fanned-out skill's own hooks/reflection/gating fire
-    unchanged; create-docs itself carries no hook surface of its own."""
+def section(body, heading):
+    m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
+    assert m is not None, "heading %r not found" % heading
+    level = len(heading) - len(heading.lstrip("#"))
+    nxt = re.search(r"(?m)^#{1,%d} \S" % level, body[m.end():])
+    end = m.end() + nxt.start() if nxt else len(body)
+    return body[m.start():end]
 
-    def test_starts_are_sequential_real_skill_tool_calls(self):
-        body_norm = norm(_body())
-        q = body_norm.find("Skill(acs:create-quality)")
-        o = body_norm.find("Skill(acs:create-operations)")
-        self.assertGreater(q, -1, "must invoke create-quality's Start as a real Skill-tool call")
-        self.assertGreater(o, -1, "must invoke create-operations's Start as a real Skill-tool call")
-        self.assertLess(q, o, "create-quality's Start must be invoked before create-operations's")
-        self.assertRegex(body_norm, r"(?i)sequential")
-        self.assertIn("PreToolUse(Skill)", body_norm)
 
-    def test_no_hook_bypass_or_simulation_language(self):
+class TheFoldTest(unittest.TestCase):
+    """One skill, four sets: the legs are gone and the umbrella is hooked."""
+
+    LEGS = ("create-quality", "create-operations", "create-principles", "create-standards")
+
+    def test_no_leg_skill_directory_survives(self):
+        for leg in self.LEGS:
+            with self.subTest(leg=leg):
+                self.assertFalse(os.path.isdir(os.path.join(SKILLS_DIR, leg)))
+
+    def test_no_leg_hook_script_survives_and_the_umbrella_has_its_own(self):
+        for leg in self.LEGS:
+            for kind in ("pre", "post"):
+                self.assertFalse(os.path.exists(os.path.join(HOOKS_DIR, "%s-%s.py" % (kind, leg))))
+        for kind in ("pre", "post"):
+            body = read(os.path.join(HOOKS_DIR, "%s-create-docs.py" % kind))
+            self.assertIn('run_%s("create-docs")' % kind, body)
+
+    def test_create_docs_is_a_hooked_product_skill(self):
+        self.assertIn("create-docs", acs_lib.PRODUCT_SKILLS)
+        self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
+        self.assertIn("create-docs", acs_lib.DELIVERY_TICKET_SKILLS)
+        self.assertNotIn("create-docs", acs_lib.UNHOOKED_SKILLS)
+        self.assertIn("create-docs", acs_lib.GATES)
+        for leg in self.LEGS:
+            self.assertNotIn(leg, acs_lib.HOOKED_SKILLS)
+            self.assertNotIn(leg, acs_lib.GATES)
+
+    def test_the_registry_lists_it_as_a_skill_not_an_entry_point(self):
+        self.assertIn("create-docs", acs_lib.registered_skills())
+        self.assertEqual([leg for leg, entry in acs_lib.skill_legs().items()
+                          if entry == "create-docs"], [])
+
+    def test_the_prose_never_dispatches_a_leg(self):
         body = _body()
-        self.assertNotIn("bypass the hook", body)
-        self.assertNotIn("simulate the hook", body)
-        self.assertNotIn("skip the pre-hook", body)
-        self.assertNotIn("skip the post-hook", body)
-        self.assertIsNone(re.search(r"(?i)duplicate(?:s|d)? (?:the |a )?(?:pre|post)-hook", body))
-        self.assertIsNotNone(
-            re.search(r"(?i)never bypass, simulate, or duplicate", body),
-            "must explicitly disclaim bypass/simulate/duplicate of any hook")
-
-    def test_no_pre_or_post_create_docs_script_on_disk(self):
-        self.assertFalse(
-            os.path.isfile(os.path.join(HOOKS_DIR, "pre-create-docs.py")),
-            "pre-create-docs.py must not exist -- create-docs is unhooked")
-        self.assertFalse(
-            os.path.isfile(os.path.join(HOOKS_DIR, "post-create-docs.py")),
-            "post-create-docs.py must not exist -- create-docs is unhooked")
-
-    def test_no_create_docs_agent_files_on_disk(self):
-        self.assertEqual(
-            glob.glob(os.path.join(AGENTS_DIR, "create-docs-*.md")), [],
-            "no plugins/acs/agents/create-docs-*.md file may exist -- no new triad")
-
-    def test_create_docs_not_in_hooked_skills_product_workflow_or_gates(self):
-        self.assertIn("create-docs", acs_lib.UNHOOKED_SKILLS)
-        self.assertNotIn("create-docs", acs_lib.HOOKED_SKILLS)
-        self.assertNotIn("create-docs", acs_lib.PRODUCT_SKILLS)
-        self.assertNotIn("create-docs", acs_lib.WORKFLOW_SKILLS)
-        self.assertNotIn("create-docs", acs_lib.GATES)
+        for leg in self.LEGS:
+            self.assertNotIn("Skill(acs:%s)" % leg, body)
+            self.assertNotIn("acs:%s-" % leg, body)
 
 
-class ParallelBatchTest(unittest.TestCase):
-    """AC-1: both legs' phase subagents are spawned in parallel batches from
-    one coordinator -- reusing /acs:code's existing parallel-spawn mechanism,
-    never a new one."""
+class DocSetTableTest(unittest.TestCase):
+    """acs_lib.DOC_SETS is the one declaration; the prose table mirrors it."""
 
-    def test_prose_spawns_both_planners_in_one_batch(self):
-        body_norm = norm(_body())
-        for m in re.finditer(r"(?i)one message|same message|single message", body_norm):
-            window = body_norm[max(0, m.start() - 200):m.end() + 200]
-            if "create-quality-planner" in window and "create-operations-planner" in window:
-                return
-        self.fail(
-            "create-docs/SKILL.md must co-locate both planner names with a "
-            "'one/same/single message' clause within ~200 chars")
+    def test_four_sets_with_their_settings_keys(self):
+        self.assertEqual(list(acs_lib.DOC_SETS), ["quality", "operations", "principles", "standards"])
+        for name, row in acs_lib.DOC_SETS.items():
+            with self.subTest(set=name):
+                self.assertEqual(row["settings_key"], name + "_path")
+                self.assertEqual(row["title"], "Product %s doc set" % name)
+                self.assertEqual(row["template_dir"], name)
 
-    def test_prose_batches_executors_then_verifiers(self):
+    def test_every_file_has_a_template_carrying_its_required_sections(self):
+        for name, row in acs_lib.DOC_SETS.items():
+            for fname, sections in row["files"].items():
+                with self.subTest(set=name, file=fname):
+                    template = read(os.path.join(TEMPLATES, row["template_dir"], fname))
+                    for heading in sections:
+                        self.assertIn("## " + heading, template,
+                                      "the template must carry every section the verifier lints for")
+
+    def test_no_template_file_is_undeclared(self):
+        for name, row in acs_lib.DOC_SETS.items():
+            with self.subTest(set=name):
+                on_disk = sorted(os.listdir(os.path.join(TEMPLATES, row["template_dir"])))
+                self.assertEqual(on_disk, sorted(row["files"]))
+
+    def test_the_sentinel_is_the_first_file(self):
+        self.assertEqual(acs_lib.DOC_BOOTSTRAP_SENTINEL,
+                         {name: next(iter(row["files"])) for name, row in acs_lib.DOC_SETS.items()})
+
+    def test_the_prose_table_mirrors_the_declaration(self):
+        table = section(_body(), "## The doc sets")
+        for name, row in acs_lib.DOC_SETS.items():
+            with self.subTest(set=name):
+                line = next(l for l in table.splitlines() if l.startswith("| `%s` |" % name))
+                self.assertIn("`%s`" % row["settings_key"], line)
+                for fname in row["files"]:
+                    self.assertIn("`%s`" % fname, line)
+                self.assertIn(row["audience"], line)
+
+    def test_required_sections_are_read_from_the_table_not_restated(self):
+        body = norm(_body())
+        self.assertIn("doc_sets[<set>].files[<file>]", body)
+        self.assertRegex(body, r"(?i)you never restate them from memory")
+
+    def test_upstream_inputs_per_set(self):
+        d = acs_lib.DOC_SETS
+        self.assertEqual(d["quality"]["upstream"]["prd"], "Non-functional requirements")
+        self.assertEqual(d["operations"]["upstream"]["prd"], "Non-functional requirements")
+        self.assertEqual(d["principles"]["upstream"]["prd"], "whole")
+        self.assertTrue(all(row["upstream"]["architecture"] for row in d.values()))
+        self.assertEqual([n for n, row in d.items() if row["upstream"]["principles"]], ["standards"])
+
+    def test_standards_soft_depends_on_principles_and_nothing_is_hard(self):
+        self.assertEqual(acs_lib.DOC_BOOTSTRAP_DEPENDENCIES["standards"]["soft"], ["principles"])
+        self.assertTrue(all(not row["hard"] for row in acs_lib.DOC_SETS.values()))
+
+
+class ArgumentContractTest(unittest.TestCase):
+
+    def test_argument_hint_names_sets_all_and_a_ticket_id(self):
+        fm = _frontmatter()
+        self.assertRegex(fm, r"argument-hint:.*all \| <set>\[,<set>\.\.\.\] \| <delivery-ticket-id to resume>")
+
+    def test_description_names_the_four_sets_and_the_precondition(self):
+        fm = _frontmatter()
+        for word in ("quality", "operations", "principles", "standards"):
+            self.assertIn(word, fm)
+        self.assertIn("/acs:create-architecture", fm)
+        self.assertNotIn("disable-model-invocation", fm)
+        self.assertIn("disallowed-tools: Edit, NotebookEdit", fm)
+
+    def test_parsing_lives_in_acs_lib(self):
+        body = norm(_body())
+        self.assertIn("lib.parse_doc_set_arg(args_text)", body)
+        self.assertRegex(body, r"(?i)You never parse this yourself")
+
+    def test_a_ticket_id_resumes_one_set(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)`resume` set.{0,40}skip eligibility entirely")
+        self.assertIn("--skill create-docs --ticket <delivery-ticket-id>", body)
+
+    def test_rejection_refuses_the_whole_run(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)refuses the WHOLE run \(exit 2")
+        self.assertRegex(body, r"(?i)never silently dropped")
+
+    def test_legacy_for_flag_one_release(self):
+        body = norm(_body())
+        self.assertRegex(body, r"`--for <set>\[,<set>\.\.\.\]` stays accepted for \*\*one release\*\*")
+
+
+class StartContractTest(unittest.TestCase):
+
+    def test_per_set_start_allocates_with_the_doc_set(self):
         body = _body()
-        exec_idx = body.find("create-quality-executor")
-        verify_idx = body.find("create-quality-verifier")
-        self.assertGreater(exec_idx, -1)
-        self.assertGreater(verify_idx, -1)
-        self.assertLess(exec_idx, verify_idx,
-                        "the executor batch must be described before the verifier batch")
-        body_norm = norm(body)
-        # Was "both executors"/"both verifiers": with the entry-point fold the
-        # eligible set is four legs wide and the concurrency cap slices it, so
-        # the batch is "the slice's" executors/verifiers, not always a pair.
-        self.assertIsNotNone(
-            re.search(r"(?i)(both|each|every|the slice.s) executors", body_norm),
-            "must name the slice's executors as one batch")
-        self.assertIsNotNone(
-            re.search(r"(?i)(both|each|every|the slice.s) verifiers", body_norm),
-            "must name the slice's verifiers as one batch")
+        self.assertIn('skill-start.py" --skill create-docs --doc-set <set> --allocate', body)
 
-    def test_cites_code_skill_parallel_spawn_mechanism_as_precedent(self):
-        body_norm = norm(_body())
-        self.assertIn("code/SKILL.md", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)(several executors in parallel|same agent file.{0,20}(four|4) times)", body_norm),
-            "must cite /acs:code's own parallel-spawn wording as the reused mechanism")
+    def test_starts_are_sequential_from_the_session_checkout(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)run its Start \*\*sequentially\*\* — never concurrently")
+        self.assertRegex(body, r"(?i)runs from the \*\*session checkout\*\*")
 
-    def test_no_new_agent_plus_skill_subagent_class(self):
-        body_norm = norm(_body())
-        self.assertNotIn("Agent, Skill", body_norm)
-        self.assertNotIn("Agent+Skill", body_norm)
+    def test_eligibility_is_the_declared_predicate(self):
+        body = norm(_body())
+        self.assertIn("lib.fanout_batches(settings, tickets_index, root, candidates=request.candidates)", body)
+        self.assertRegex(body, r"(?i)\*\*declared, not inferred\*\* eligibility predicate")
+        self.assertRegex(body, r"(?i)a `null` path is the consumer'?s opt-out")
 
+    def test_a_null_principles_path_never_stops_standards(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)A `null` `principles_path` never stops a `standards` run")
+        self.assertRegex(body, r"(?i)Graceful degradation \(mandatory\)")
 
-class FailureIsolationTest(unittest.TestCase):
-    """AC-3: per-leg isolation, with a fail-fast carve-out scoped exclusively
-    to the one shared architecture-gate precondition."""
+    def test_the_gate_ran_once_for_every_set(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)`pre-create-docs.py` gates the Skill call on the architecture doc set, once")
+        self.assertRegex(body, r"(?i)checked by the pre-hook before any set started")
 
-    def test_failfast_carveout_named_and_scoped_to_shared_architecture_gate(self):
-        body_norm = norm(_body())
-        self.assertIn("_require_architecture_doc_set", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)fail.fast", body_norm),
-            "must name the fail-fast carve-out")
-        self.assertIsNotNone(
-            re.search(r"(?i)scoped exclusively", body_norm),
-            "must state the carve-out is scoped exclusively to the shared gate")
-        self.assertIsNotNone(
-            re.search(r"(?i)not_attempted", body_norm),
-            "must distinguish the shared-gate carve-out's not_attempted outcome from a leg-specific failure")
+    def test_the_start_snippet_prints_the_table_and_paths(self):
+        body = _body()
+        self.assertIn('"doc_sets": lib.DOC_SETS', body)
+        self.assertIn('"resume": request.resume', body)
 
-    def test_every_other_failure_class_falls_through_to_per_leg_isolation(self):
-        body_norm = norm(_body())
-        window_match = re.search(r"(?i)scoped exclusively.{0,400}", body_norm)
-        self.assertIsNotNone(window_match)
-        window = window_match.group(0)
-        self.assertIsNotNone(re.search(r"(?i)verifier cap", window))
-        self.assertIsNotNone(re.search(r"(?i)lock held", window))
-        self.assertIsNotNone(re.search(r"(?i)per-leg isolation", window))
+    def test_hook_bypass_language_absent(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)You never bypass, simulate, or duplicate a hook")
 
 
-class ResumeContractTest(unittest.TestCase):
-    """AC-4: no new shared ledger; each leg's own pipeline-state.json is the
-    resume record, and /acs:ship's product-flow refusal is unchanged."""
+class ConcurrencyAndWorktreeTest(unittest.TestCase):
 
-    def test_resume_is_the_legs_own_standalone_invocation_not_a_batch_resume(self):
-        body_norm = norm(_body())
-        self.assertIn("/acs:create-quality <ticket-id>", body_norm)
-        self.assertIn("/acs:create-operations <ticket-id>", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)never a re-invocation of this umbrella", body_norm))
-        self.assertIsNotNone(
-            re.search(r"(?i)no fan-out batch ledger of its own", body_norm))
+    def test_cap_is_max_parallel(self):
+        body = norm(_body())
+        self.assertRegex(body, r"run \*\*at most 2\*\* sets concurrently")
+        self.assertIn("DEFAULT_MAX_PARALLEL", body)
+
+    def test_worktree_per_set_detached(self):
+        body = _body()
+        self.assertIn("git worktree add --detach <path> <default-branch>", body)
+        self.assertRegex(norm(body), r"(?i)never ticket-id-named")
+
+    def test_executors_then_verifiers_in_one_message_each(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)executors \(`acs:create-docs-executor`, one per set, at most `max_parallel`\) in ONE message")
+        self.assertRegex(body, r"(?i)verifiers \(`acs:create-docs-verifier`, one per set\) in one message")
+
+    def test_cites_the_code_skill_parallel_mechanism(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)the mechanism `/acs:code`'?s coordinator already uses")
+
+
+class DeliveryTest(unittest.TestCase):
+
+    def test_one_independent_pr_per_set(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)one independent delivery ticket and one independent docs-only PR \*\*per set\*\*")
+        self.assertRegex(body, r"(?i)never one shared branch, never a combined PR")
+
+    def test_stages_only_the_set_path_and_asserts_docs_only(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)stage ONLY `<path>/` and verify the diff is docs-only")
+
+    def test_delivery_pattern_sentence_matches_the_sibling_product_skills(self):
+        self.assertIn("/acs:create-design and /acs:code are not involved):", _body())
+
+
+class FailureAndResumeTest(unittest.TestCase):
+
+    def test_failure_is_isolated_per_set(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)Every failure is isolated to its own set")
+        self.assertRegex(body, r"(?i)every OTHER set'?s run, PR and ledger are never touched")
+
+    def test_no_fan_out_ledger_of_its_own(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)There is no fan-out ledger of its own")
+        self.assertRegex(body, r"(?i)step key `create-docs`")
 
     def test_ship_product_flow_refusal_is_restated_not_reversed(self):
-        body_norm = norm(_body())
-        self.assertIn('flow: "product"', body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)ship.{0,80}(never drives|does not drive|refus\w*).{0,80}unchanged"
-                      r"|unchanged.{0,80}ship.{0,80}(never drives|does not drive|refus\w*)",
-                      body_norm),
-            "must state ship's product-flow refusal is unchanged, never reversed")
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)`/acs:ship` never drives these")
 
 
-class DependencyDocTest(unittest.TestCase):
-    """AC-5: the fan-out never applies to skills with a real dependency; the
-    dependency edge is declared, never inferred."""
+class FinishTest(unittest.TestCase):
 
-    def test_prose_states_dependencies_are_declared_not_inferred(self):
-        body_norm = norm(_body())
-        self.assertIn("DOC_BOOTSTRAP_DEPENDENCIES", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)declared.{0,40}never inferred|declared, not inferred", body_norm))
+    def test_result_document_states_keys(self):
+        body = _body()
+        self.assertIn('"doc_set": {', body)
+        self.assertIn('"set": "quality"', body)
+        self.assertIn('post-create-docs.py" --ticket <id> --result-file <partition>/phases/create-docs/result.json', body)
 
-
-class DocumentationTest(unittest.TestCase):
-    """AC-6: the new orchestration behavior is documented -- which skills are
-    eligible for fan-out, and why."""
-
-    def test_prose_names_the_declared_eligible_set_and_why(self):
-        # Was: names the v1 pair and the "v1" framing. The entry-point fold
-        # made /acs:create-docs the only user-facing doc command, so the
-        # declared set is every doc-bootstrap leg and the prose must name all
-        # four -- the v1-pair scoping is history, not the current contract.
-        body_norm = norm(_body())
-        for leg in ("create-quality", "create-operations",
-                    "create-principles", "create-standards"):
-            self.assertIn(leg, body_norm, leg)
-        self.assertIsNotNone(
-            re.search(r"(?i)disjoint|neither reads the other", body_norm),
-            "must state why the legs can run independently")
-
-    def test_prose_states_new_skill_is_a_table_data_change(self):
-        body_norm = norm(_body())
-        self.assertIsNotNone(
-            re.search(r"(?i)data change, not a code change|data change.{0,30}never a code change", body_norm))
-
-    def test_completion_report_section_present(self):
-        self.assertIn("## Completion report (normative)", _body())
-
-    def test_prose_states_the_fanout_gate_is_a_declared_constant(self):
-        # finding 2 (prose half): the fan-out set is named as the declared
-        # acs_lib constant, not a bare "the pair" claim.
-        body_norm = norm(_body())
-        self.assertIn("DOC_BOOTSTRAP_FANOUT_V1", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)declared", body_norm),
-            "must state the fan-out gate is declared (data), not inferred/hardcoded prose")
-
-    def test_legacy_for_flag_is_accepted_for_one_release_with_a_stderr_note(self):
-        # Was: a --for name outside v1's set is reported "not in v1's fan-out
-        # set". Every leg is in the declared set now, so what --for carries is
-        # a deprecation notice pointing at the positional spelling.
-        body_norm = norm(_body())
-        self.assertIn("--for", body_norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)--for.{0,200}(one release|deprecat)", body_norm),
-            "must state --for is still accepted for one release")
-        self.assertIsNotNone(
-            re.search(r"(?i)stderr", body_norm),
-            "must state the deprecation note goes to stderr")
-
-
-class PositionalArgumentContractTest(unittest.TestCase):
-    """The design-phase consolidation's argument contract: /acs:create-docs
-    <set|all> is the only user-facing doc-bootstrap command, its argument is
-    parsed in acs_lib (never in prose), and the concurrency cap is stated."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.fm = _frontmatter()
-        cls.norm = norm(_body())
-
-    def test_argument_hint_is_the_positional_set_or_all_form(self):
-        self.assertRegex(
-            self.fm, r"(?m)^argument-hint: \"\[?(all|<set>)",
-            "argument-hint must lead with the positional <set|all> form")
-        self.assertIn("all", self.fm)
-        self.assertNotRegex(
-            self.fm, r"(?m)^argument-hint: \"\[--for",
-            "the legacy --for form must no longer be the advertised spelling")
-
-    def test_description_names_the_entry_point_role_and_the_four_sets(self):
-        description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
-        for word in ("quality", "operations", "principles", "standards"):
-            self.assertIn(word, description, word)
-        self.assertIsNotNone(
-            re.search(r"(?i)only user-facing|entry point", description),
-            "the description must say this is the entry point for the doc sets")
-
-    def test_prose_states_the_positional_comma_separated_contract(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)comma-separated", self.norm),
-            "must state the argument is comma-separated")
-        self.assertIsNotNone(
-            re.search(r"(?i)`?all`?[^.]{0,120}(every|all four|each) declared", self.norm)
-            or re.search(r"(?i)(every|all four) declared[^.]{0,80}`?all`?", self.norm),
-            "must state what `all` selects")
-
-    def test_prose_accepts_both_spellings(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)`?quality`?[^.]{0,80}`?create-quality`?", self.norm),
-            "must state both the short and the create-<set> spelling resolve")
-
-    def test_argument_parsing_lives_in_acs_lib_not_in_prose(self):
-        self.assertIn("parse_doc_set_arg", self.norm)
-        self.assertIsNotNone(
-            re.search(r"(?i)unknown|names no doc set", self.norm),
-            "must state what an unknown set does")
-
-    def test_prose_states_the_concurrency_cap(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)max_parallel", self.norm),
-            "must name max_parallel as the cap's source")
-        self.assertIsNotNone(
-            re.search(r"(?i)(cap|at most|no more than)[^.]{0,120}(2|two)", self.norm),
-            "must state the cap's value (2 by default)")
-        self.assertIsNotNone(
-            re.search(r"(?i)DEFAULT_MAX_PARALLEL|ship workflow", self.norm),
-            "must cite where the default 2 comes from")
-
-
-class LoopTopologyTest(unittest.TestCase):
-    """finding 7: create-docs/SKILL.md's own Reflection-loop item 1 (Plan)
-    must not read as a per-iteration re-spawn -- mirrors
-    test_create_quality_loop_topology.py::SinglePlannerSpawnPerRunTest
-    check-for-check, adapted to the umbrella's two-planner batch."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = _body()
-        cls.norm = norm(cls.body)
-
-    def test_plan_list_item_is_not_per_iteration(self):
-        self.assertRegex(self.body, r"(?m)^1\. \*\*Plan\*\* \(once[^)]*\)")
-        self.assertNotRegex(self.body, r"(?m)^1\. \*\*Plan\*\* —")
-
-    def test_states_exactly_one_planner_per_leg_across_the_whole_run(self):
-        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
-            window = self.norm[max(0, m.start() - 80):m.end() + 80]
-            if "planner" in window.lower() and re.search(r"(?i)\bleg\b", window) and re.search(
-                    r"(?i)\bwhole run\b", window):
-                return
-        self.fail(
-            "create-docs/SKILL.md must co-locate an 'exactly one' clause "
-            "with 'planner', 'leg' and a whole-run qualifier within ~80 chars")
-
-    def test_findings_route_to_each_legs_own_executor_context_with_no_planner_between(self):
-        no_planner_re = re.compile(r"(?i)(no|never|without)\W{0,20}planner")
-        for m in re.finditer(r"(?i)findings", self.norm):
-            window = self.norm[max(0, m.start() - 300):m.end() + 300]
-            if ("executor" in window.lower() and "<context>" in window
-                    and no_planner_re.search(window)):
-                return
-        self.fail(
-            "create-docs/SKILL.md must co-locate 'findings', 'executor', "
-            "'<context>' and a no-planner clause within ~300 chars")
-
-    def test_no_unnegated_replan_instruction(self):
-        negating = re.compile(r"(?i)never|no |not|without|instead of")
-        for m in re.finditer(r"(?i)re-?plan\w*", self.body):
-            window = self.body[max(0, m.start() - 60):m.end() + 60]
-            self.assertRegex(
-                window, negating,
-                "un-negated 're-plan' instruction found: %r" % window)
-
-    def test_iteration_cap_is_still_three_execute_verify_rounds(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)max 3 execute.{0,4}(→|->)?.{0,4}verify rounds", self.norm),
-            "the per-leg iteration cap (max 3 execute-verify rounds) must be pinned")
-
-
-class InternalLegFrontmatterTest(unittest.TestCase):
-    """The entry-point fold, leg side: each of the four doc-bootstrap legs
-    stops being user-facing (`disable-model-invocation: true`) and says in its
-    description that /acs:create-docs is the way in. Everything else about the
-    leg -- body, agents, hooks, gate, sentinel, settings key -- is untouched,
-    which is why the umbrella can still invoke it as a real Skill-tool call."""
-
-    LEGS = ("create-quality", "create-operations",
-            "create-principles", "create-standards")
-
-    @staticmethod
-    def _fm(skill):
-        text = read(os.path.join(PLUGIN, "skills", skill, "SKILL.md"))
-        m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-        assert m, "%s/SKILL.md must open with a front-matter block" % skill
-        return m.group(1)
-
-    def test_each_leg_is_no_longer_model_invocable(self):
-        for skill in self.LEGS:
-            with self.subTest(skill=skill):
-                self.assertRegex(self._fm(skill),
-                                 r"(?m)^disable-model-invocation: true$")
-
-    def test_each_leg_description_names_its_entry_point(self):
-        for skill in self.LEGS:
-            with self.subTest(skill=skill):
-                description = re.search(r"(?m)^description: (.*)$", self._fm(skill)).group(1)
-                self.assertIn("/acs:create-docs", description,
-                              "the description must point the reader at the entry point")
-                self.assertIsNotNone(
-                    re.search(r"(?i)internal leg", description),
-                    "the description must name the skill as an internal leg")
-
-    def test_each_leg_keeps_the_rest_of_its_frontmatter(self):
-        for skill in self.LEGS:
-            with self.subTest(skill=skill):
-                fm = self._fm(skill)
-                self.assertRegex(fm, r"(?m)^name: %s$" % skill)
-                self.assertRegex(fm, r"(?m)^argument-hint: \"\[delivery-ticket-id to resume")
-                self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
-
-    def test_each_leg_is_still_registered_as_an_internal_leg_of_create_docs(self):
-        for skill in self.LEGS:
-            with self.subTest(skill=skill):
-                self.assertEqual(acs_lib.entry_point_of(skill), "create-docs")
-                self.assertIn(skill, acs_lib.HOOKED_SKILLS)
-                self.assertIn(skill, acs_lib.GATES)
-                self.assertTrue(
-                    os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % skill)))
-                self.assertTrue(
-                    os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % skill)))
-                for role in ("planner", "executor", "verifier"):
-                    self.assertTrue(
-                        os.path.isfile(os.path.join(AGENTS_DIR, "%s-%s.md" % (skill, role))),
-                        "%s-%s.md must survive the fold" % (skill, role))
-
-
-def _start_section():
-    """Slice the '## Start' section (up to the next '\n## ' heading)."""
-    body = _body()
-    start_idx = body.index("## Start")
-    rest = body[start_idx:]
-    next_heading = rest.find("\n## ", 1)
-    return rest if next_heading == -1 else rest[:next_heading]
-
-
-def _start_bash_block():
-    """The first ```bash fenced block inside the '## Start' section."""
-    section = _start_section()
-    m = re.search(r"```bash\n(.*?)```", section, re.DOTALL)
-    return m.group(1) if m else ""
-
-
-class StartSnippetContractTest(unittest.TestCase):
-    """Findings 1/3/4: the Start snippet must parse `--for` through the v1
-    gate, resolve fanout_batches's checkout_root properly, and guard
-    validate_settings the same way every other SKILL.md Start step does."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.block = _start_bash_block()
-        cls.section_norm = norm(_start_section())
-
-    def test_arguments_are_passed_into_the_snippet(self):
-        self.assertIn('python3 - "$ARGUMENTS" <<\'PY\'', self.block)
-        self.assertIn("sys.argv", self.block)
-
-    def test_argument_is_parsed_through_the_declared_acs_lib_parser(self):
-        # Was: parse_fanout_for_arg. The positional <set|all> contract is
-        # parsed by parse_doc_set_arg, which still calls parse_fanout_for_arg
-        # for the legacy --for form -- the skill calls only the entry point.
-        self.assertIn("parse_doc_set_arg", self.block)
-        self.assertIn("candidates=", self.block)
-        self.assertIsNotNone(
-            re.search(r"fanout_batches\([^)]*candidates=", self.block, re.DOTALL),
-            "fanout_batches call must pass candidates=")
-        self.assertIn("notices", self.block,
-                      "the snippet must surface the parser's stderr notices")
-
-    def test_fanout_batches_receives_the_resolved_checkout_root(self):
-        self.assertIn("lib.checkout_root(cwd)", self.block)
-        self.assertNotRegex(self.block, r"fanout_batches\(settings,\s*tickets_index,\s*cwd\b")
-
-    def test_validate_settings_is_guarded_by_gate_error_exit_2(self):
-        self.assertIsNotNone(
-            re.search(
-                r"try:.*?lib\.validate_settings\(.*?except lib\.GateError as exc:.*?sys\.exit\(2\)",
-                self.block, re.DOTALL),
-            "validate_settings must be wrapped try/except lib.GateError -> sys.exit(2)")
-        self.assertIn("% exc", self.block)
-
-    def test_rejection_is_reported_never_silently_dropped(self):
-        # Was "not in v1's fan-out set": every leg is in the declared set now,
-        # so the only rejection left is a token that names no doc set at all,
-        # and it refuses the whole run rather than fanning out the remainder.
-        self.assertIsNotNone(
-            re.search(r"(?i)names no doc set|unknown (doc )?set", self.section_norm),
-            "the Start section must state what an unrecognized set does")
-        self.assertIsNotNone(
-            re.search(r"(?i)(never silently|never fanned out|refuse).{0,160}rejected"
-                      r"|rejected.{0,160}(never silently|never fanned out|refuse)",
-                      self.section_norm))
-
-    def test_exit_2_instruction_present(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)surface.{0,20}(stderr )?verbatim.{0,80}stop", self.section_norm))
-
-
-class WorktreeLifecycleTest(unittest.TestCase):
-    """finding 6: the worktree is created before that leg's Execute phase
-    and entered at that leg's own Branch step -- never claimed to be
-    entered only at Delivery. D3.2(ii) (skill-start.py in the session
-    checkout) stays intact."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = _body()
-        cls.norm = norm(cls.body)
-
-    def test_worktree_is_entered_at_the_legs_branch_step_before_execute(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)enters? that leg.s (own )?worktree", self.norm),
-            "must state the coordinator enters that leg's own worktree")
-        self.assertIsNotNone(
-            re.search(r"(?i)Branch.{0,10}\(?step 1\)?|step 1.{0,10}\(Branch\)", self.norm),
-            "must name Branch as the leg's own step 1")
-        self.assertIsNotNone(
-            re.search(r"(?i)before.{0,40}(the )?Execute phase", self.norm),
-            "must state this happens before the Execute phase")
-
-    def test_no_claim_that_the_worktree_is_entered_only_at_delivery(self):
-        self.assertNotRegex(
-            self.norm, r"(?i)entered\W+only\W+at.{0,40}Delivery")
-
-    def test_clean_tree_precondition_is_reconciled_with_a_fresh_worktree(self):
-        self.assertIsNotNone(
-            re.search(r"(?i)git status --porcelain.{0,120}empty", self.norm),
-            "must state git status --porcelain is empty for the fresh worktree")
-        self.assertIsNotNone(
-            re.search(r"(?i)true by construction|freshly created", self.norm),
-            "must reconcile the clean-tree precondition with a freshly created worktree")
-
-    def test_skill_start_still_runs_in_the_session_checkout(self):
-        self.assertIn("skill-start.py", self.body)
-        self.assertIsNotNone(re.search(r"(?i)session checkout", self.norm))
-        self.assertIsNotNone(
-            re.search(r"(?i)D3\.2", self.norm),
-            "the D3.2(ii) session-checkout paragraph must remain cited")
-
-
-class WorktreeTimingDocConsistencyTest(unittest.TestCase):
-    """finding 2 (iter-2-verify.md:11-18, :22-24): a repo-wide scan for the
-    worktree-entry-timing contradiction, not another scoped grep -- the
-    antidote to the failure mode where a 4-file grep missed the 5th site."""
-
-    ONLY_AT_DELIVERY_RE = re.compile(r"(?i)enter\w*[^.]{0,80}only at[^.]{0,60}Delivery")
-    BRANCH_TIMING_RE = re.compile(
-        r"(?i)enter\w*[^.]{0,120}worktree[^.]{0,120}Branch[^.]{0,120}"
-        r"|Branch[^.]{0,120}enter\w*[^.]{0,120}worktree[^.]{0,120}")
-
-    @staticmethod
-    def _md_files():
-        files = []
-        for base in (os.path.join(REPO_ROOT, "docs"), os.path.join(REPO_ROOT, "plugins")):
-            for root, _dirs, names in os.walk(base):
-                for name in names:
-                    if name.endswith(".md"):
-                        files.append(os.path.join(root, name))
-        return files
-
-    def test_no_doc_claims_the_worktree_is_entered_only_at_delivery(self):
-        offenders = []
-        for path in self._md_files():
-            body_norm = norm(read(path))
-            m = self.ONLY_AT_DELIVERY_RE.search(body_norm)
-            if m:
-                offenders.append((path, m.group(0)))
-        self.assertEqual(
-            offenders, [],
-            "doc(s) still claim the worktree is entered only at Delivery, "
-            "with no Branch-step qualifier: %r" % (offenders,))
-
-    def test_every_fanout_doc_states_the_branch_step_timing(self):
-        sites = [
-            os.path.join(PLUGIN, "skills", "create-docs", "SKILL.md"),
-            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"),
-            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workspace-and-state.md"),
-            os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workflow.md"),
-            os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows", "doc-bootstrap-fanout.md"),
-        ]
-        for path in sites:
-            body_norm = norm(read(path))
-            self.assertIsNotNone(
-                self.BRANCH_TIMING_RE.search(body_norm),
-                "%s must state the worktree-entry timing names Branch" % path)
-            self.assertIsNotNone(
-                re.search(r"(?i)before[^.]{0,60}Execute phase", body_norm),
-                "%s must state this happens before the Execute phase" % path)
+    def test_completion_report_present(self):
+        body = _body()
+        self.assertIn("## /acs:create-docs · <status>", body)
+        self.assertIn("- **<set>**: <ticket-id> — <status> — <PR url, or reason>", body)
 
 
 if __name__ == "__main__":

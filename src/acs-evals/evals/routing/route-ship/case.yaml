@@ -13,7 +13,7 @@ runs: 3
 # pays for the skill body to run, which this case does not assert on.
 max_turns: 2
 prompt: |
-  Ship a password-reset email flow for me end to end: open the ticket, implement it with tests, and get a pull request up for review — I don't want to drive each step myself.
+  TKT-1 is ready to go. Take it from here to a pull request for me — I don't want to drive each step myself.
 graders:
   - name: routes-to-acs-ship
     tool_used: Skill

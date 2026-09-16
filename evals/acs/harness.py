@@ -51,12 +51,12 @@ import uuid
 
 # REPO_ROOT: dirname x3 from evals/acs/harness.py reaches the repo root.
 # (dirname x2 would stop at evals/, making SOURCE_SCRIPTS resolve to
-# evals/plugins/acs/hooks/scripts — a nonexistent path that breaks the free tier.)
+# evals/src/acs/hooks/scripts — a nonexistent path that breaks the free tier.)
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # acs-specific: SOURCE_SCRIPTS and installed_scripts_dir() are the acs cache-
 # resolution seam.  They are deliberately NOT generalised to arbitrary plugins.
-SOURCE_SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SOURCE_SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 
 
 # --------------------------------------------------------------------------- #

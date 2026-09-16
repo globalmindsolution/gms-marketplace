@@ -1,4 +1,4 @@
-"""Golden / structural tests for plugins/acs/hooks/scripts/metrics_render.py (MAR-5 spec 04).
+"""Golden / structural tests for src/acs/hooks/scripts/metrics_render.py (MAR-5 spec 04).
 
 Pure stdlib (unittest, tempfile, json, os, io, re); NO show_widget import, NO pip. These tests
 drive the two PURE renderers — render_terminal(data) -> str and render_html(data) -> str — plus
@@ -23,7 +23,7 @@ from tempfile import TemporaryDirectory
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(_TESTS_DIR)),
-    "plugins", "acs", "hooks", "scripts",
+    "src", "acs", "hooks", "scripts",
 )
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
@@ -894,11 +894,11 @@ class DocsPresence(unittest.TestCase):
 
     def test_metrics_skill_documents_escalation_line(self):
         """MAR-109 spec 01 AC-5: metrics/SKILL.md names the new escalation tallies."""
-        doc = self._read("plugins", "acs", "skills", "metrics", "SKILL.md").lower()
+        doc = self._read("src", "acs", "skills", "metrics", "SKILL.md").lower()
         self.assertIn("escalation", doc)
 
     def test_changelog_has_mar7_unreleased_entry(self):
-        doc = self._read("plugins", "acs", "CHANGELOG.md")
+        doc = self._read("src", "acs", "CHANGELOG.md")
         unreleased = doc[doc.index("[Unreleased]"):]
         self.assertIn("MAR-7", unreleased)
 

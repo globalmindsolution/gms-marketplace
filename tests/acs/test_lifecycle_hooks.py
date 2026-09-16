@@ -23,8 +23,8 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -49,7 +49,7 @@ class ParseAgentTypeTest(unittest.TestCase):
         skill list, which is most of it."""
         for agent_type, expected in (
                 ("acs:code-executor", ("code", "executor")),
-                ("acs:create-pr-planner", ("create-pr", "planner")),
+                ("acs:create-pr-executor", ("create-pr", "executor")),
                 ("acs:docs-sync-verifier", ("docs-sync", "verifier")),
                 ("acs:standardize-project-executor", ("standardize-project", "executor"))):
             with self.subTest(agent_type=agent_type):
@@ -63,8 +63,11 @@ class ParseAgentTypeTest(unittest.TestCase):
                 self.assertEqual(lib.parse_agent_type(agent_type), (None, None))
 
     def test_every_role_maps_to_the_phase_its_artifact_is_filed_under(self):
-        self.assertEqual(lib.ROLE_PHASES,
-                         {"planner": "plan", "executor": "execute", "verifier": "verify"})
+        self.assertEqual(lib.ROLE_PHASES, {"executor": "execute", "verifier": "verify"})
+
+    def test_a_planner_agent_is_not_ours_any_more(self):
+        """ADR-0092 retired the role; ADR-0093 retired the phase it filed under."""
+        self.assertEqual(lib.parse_agent_type("acs:code-planner"), (None, None))
 
 
 class ExtractMessageTest(unittest.TestCase):
@@ -204,9 +207,9 @@ class SubagentStopTest(LifecycleCase):
         (acs-messages.xsd), so nothing about the snapshot has to be
         remembered — including which iteration is running."""
         self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-planner",
-            last_assistant_message=result_xml(ticket=self.ticket, phase="plan", iteration="7")))
-        self.assertTrue(os.path.exists(self._snapshot(iteration="7", phase="plan")))
+            agent_id="a-1", agent_type="acs:code-verifier",
+            last_assistant_message=result_xml(ticket=self.ticket, phase="verify", iteration="7")))
+        self.assertTrue(os.path.exists(self._snapshot(iteration="7", phase="verify")))
 
     def test_an_absent_iteration_defaults_to_one_as_the_schema_says(self):
         self.hook("subagent-stop", self.payload(

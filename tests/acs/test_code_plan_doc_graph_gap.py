@@ -28,10 +28,10 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -170,7 +170,7 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
         cls.bullet_norm = norm(cls.bullet)
 
     def test_pointer_names_the_planner_item_4(self):
-        self.assertIn("create-impl-plan-planner", self.bullet)
+        self.assertIn("create-impl-plan-executor", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
 
     def test_pointer_names_bounded_touched_area(self):
@@ -229,23 +229,23 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
     def test_dr2_participant_count_matches_live_recomputation(self):
         live_count = live_canonical_block_count()
         m = re.search(
-            r"\*\*(\d+)\*\*\s+planner\s+agents\s+actually\s+carry\s+the\s+canonical",
+            r"\*\*(\d+)\*\*\s+(?:planner\s+)?agents\s+actually\s+carry\s+the\s+canonical",
             self.amendment_norm)
         self.assertIsNotNone(
             m, "amendment must state the reconciled participant count "
-            "next to '**N** planner agents actually carry the canonical'")
+            "next to '**N** agents actually carry the canonical'")
         stated_count = int(m.group(1))
         self.assertEqual(
             stated_count, live_count,
             "ADR 0012's MAR-164 amendment states %d participants but "
-            "grep -c over plugins/acs/agents/ finds %d live carriers of %r "
+            "grep -c over src/acs/agents/ finds %d live carriers of %r "
             "today — the assertion must self-recompute so it cannot re-drift"
             % (stated_count, live_count, CANONICAL_HEADING))
 
     def test_code_planner_explicitly_excluded_from_reconciled_carrier_list(self):
         self.assertRegex(
             self.amendment_norm,
-            r"(?i)(code-planner|create-impl-plan-planner)\.md.{0,60}not\b"
+            r"(?i)(code-planner|create-impl-plan-(?:planner|executor))\.md.{0,60}not\b"
             r".{0,60}(one of the|8)",
             "amendment must explicitly state the plan planner is not one of "
             "the reconciled carrier list")
@@ -262,7 +262,7 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
                 if t not in self.amendment:
                     has_full_table = False
         has_explicit_reference = bool(
-            re.search(r"(?i)(code-planner|create-impl-plan-planner)\.md"
+            re.search(r"(?i)(code-planner|create-impl-plan-(?:planner|executor))\.md"
                       r".{0,60}item\s+4", self.amendment_norm))
         self.assertTrue(
             has_full_table or has_explicit_reference,
@@ -291,7 +291,7 @@ class SkillsReqCodeSectionAdr0012ClauseTest(unittest.TestCase):
         has_full_table = all(
             edge in self.section for edge in EDGE_TARGET_DOCS)
         has_explicit_reference = bool(
-            re.search(r"(?i)(code-planner|create-impl-plan-planner)\.md"
+            re.search(r"(?i)(code-planner|create-impl-plan-(?:planner|executor))\.md"
                       r".{0,60}item\s+4", self.section_norm))
         self.assertTrue(
             has_full_table or has_explicit_reference,

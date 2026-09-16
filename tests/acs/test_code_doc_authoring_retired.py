@@ -21,10 +21,10 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 DOCS_SYNC_EXECUTOR = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
 
 

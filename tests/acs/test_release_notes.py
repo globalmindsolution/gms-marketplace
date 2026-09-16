@@ -1,4 +1,4 @@
-"""Tests for plugins/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment;
+"""Tests for src/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment;
 MAR-306 adds the git-history fallback for tickets merged without an archive entry).
 
 Pure stdlib (unittest, tempfile, json, os, subprocess, contextlib, unittest.mock). Drives the
@@ -22,7 +22,7 @@ from unittest import mock
 
 _SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "plugins", "acs", "hooks", "scripts",
+    "src", "acs", "hooks", "scripts",
 )
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
@@ -61,14 +61,14 @@ CHANGELOG_TEMPLATE = (
 PROFILE1_CONFIG = {
     "version_locations": [
         {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-        {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/version"},
+        {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/version"},
     ],
     "extra_refs": [
         {"file": ".claude-plugin/marketplace.json",
          "selector": {"pointer": "/plugins", "match": {"name": "acs"}, "set": "source/ref"},
          "value_format": "v{version}"},
     ],
-    "changelog_path": "plugins/acs/CHANGELOG.md",
+    "changelog_path": "src/acs/CHANGELOG.md",
     "tag_format": "v{version}",
     "base_branch": "main",
     "release_branch_format": "release/v{version}",
@@ -106,9 +106,9 @@ def make_repo(root, changelog_text=CHANGELOG_TEMPLATE, marketplace=None, plugin=
               init_git=True, with_origin=True, base_branch="main"):
     """Build a scratch consumer-repo checkout: manifests (+ optional CHANGELOG, git, bare origin)."""
     _write_json(os.path.join(root, ".claude-plugin", "marketplace.json"), marketplace or MARKETPLACE)
-    _write_json(os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"), plugin or PLUGIN)
+    _write_json(os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"), plugin or PLUGIN)
     if changelog_text is not None:
-        _write_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"), changelog_text)
+        _write_text(os.path.join(root, "src", "acs", "CHANGELOG.md"), changelog_text)
     if init_git:
         _run(["git", "init", "-q"], root)
         _run(["git", "config", "user.email", "t@example.com"], root)
@@ -308,7 +308,7 @@ class MissingOrMalformedFilesTest(unittest.TestCase):
     def test_missing_manifest_exits_2_for_all_three_subcommands(self):
         with TemporaryDirectory() as tmp:
             root = make_repo(os.path.join(tmp, "repo"))
-            os.remove(os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"))
+            os.remove(os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"))
             workspace = os.path.join(tmp, "ws")
 
             code, _out, err = run_cli(
@@ -392,14 +392,14 @@ class ReleaseConfigValidationTest(unittest.TestCase):
             workspace = os.path.join(tmp, "ws")
             paths = {
                 "market": os.path.join(root, ".claude-plugin", "marketplace.json"),
-                "plugin": os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"),
-                "changelog": os.path.join(root, "plugins", "acs", "CHANGELOG.md"),
+                "plugin": os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"),
+                "changelog": os.path.join(root, "src", "acs", "CHANGELOG.md"),
             }
             before = {k: _read_text(p) for k, p in paths.items()}
 
             bad_config = dict(PROFILE1_CONFIG, version_locations=[
                 {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-                {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/nonexistent"},
+                {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/nonexistent"},
             ])
             with mock_gh(None):
                 code, _out, err = run_cli([
@@ -576,8 +576,8 @@ class BumpAtomicityTest(unittest.TestCase):
             )
             workspace = os.path.join(tmp, "ws")
             market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
-            plugin_path = os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")
-            changelog_path = os.path.join(root, "plugins", "acs", "CHANGELOG.md")
+            plugin_path = os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")
+            changelog_path = os.path.join(root, "src", "acs", "CHANGELOG.md")
             before = {p: _read_text(p) for p in (market_path, plugin_path, changelog_path)}
             before_mtimes = {p: os.path.getmtime(p) for p in before}
 
@@ -616,13 +616,13 @@ class BumpAtomicityTest(unittest.TestCase):
             self.assertFalse(result["already_at_target"])
             self.assertEqual(sorted(result["files_changed"]), sorted([
                 ".claude-plugin/marketplace.json",
-                "plugins/acs/.claude-plugin/plugin.json",
-                "plugins/acs/CHANGELOG.md",
+                "src/acs/.claude-plugin/plugin.json",
+                "src/acs/CHANGELOG.md",
             ]))
 
             market = json.loads(_read_text(os.path.join(root, ".claude-plugin", "marketplace.json")))
             plugin = json.loads(_read_text(
-                os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")))
+                os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")))
             self.assertEqual(market["version"], "0.4.2")
             self.assertEqual(plugin["version"], "0.4.2")
             acs_entry = next(p for p in market["plugins"] if p["name"] == "acs")
@@ -665,8 +665,8 @@ class ProfileOneByteEqualRegressionTest(unittest.TestCase):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
 
             market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
-            plugin_path = os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")
-            changelog_path = os.path.join(root, "plugins", "acs", "CHANGELOG.md")
+            plugin_path = os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")
+            changelog_path = os.path.join(root, "src", "acs", "CHANGELOG.md")
 
             golden_market = {
                 "name": "gms-marketplace",
@@ -1045,7 +1045,7 @@ class ChangelogStructureTest(unittest.TestCase):
             with mock_gh(None):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
 
-            text = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
+            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
             unreleased_idx = text.index("## [Unreleased]")
             new_idx = text.index("## [0.4.2] - 2026-07-19")
             prior_idx = text.index("## [0.4.1] - 2026-07-12")
@@ -1056,24 +1056,111 @@ class ChangelogStructureTest(unittest.TestCase):
             self.assertEqual(between.strip(), "")
             self.assertIn("- prior entry", text)  # prior section preserved verbatim
 
-    def test_preexisting_unreleased_prose_not_merged_forward(self):
+    @staticmethod
+    def _repo_with_unreleased_body(tmp, body="Some pending notes."):
+        return make_repo(
+            os.path.join(tmp, "repo"),
+            changelog_text=(
+                "# Changelog\n\n## [Unreleased]\n\n%s\n\n"
+                "## [0.4.1] - 2026-07-12\n\n### Added\n\n- prior entry\n" % body
+            ),
+        )
+
+    def test_preexisting_unreleased_prose_not_merged_forward_on_replace(self):
+        """--unreleased replace is the old behaviour, now asked for by name."""
         with TemporaryDirectory() as tmp:
-            root = make_repo(
-                os.path.join(tmp, "repo"),
-                changelog_text=(
-                    "# Changelog\n\n## [Unreleased]\n\nSome pending notes.\n\n"
-                    "## [0.4.1] - 2026-07-12\n\n### Added\n\n- prior entry\n"
-                ),
-            )
+            root = self._repo_with_unreleased_body(tmp)
             workspace = os.path.join(tmp, "ws")
             write_archive_ticket(workspace, "MAR-1", title="Add a widget")
 
             with mock_gh(None):
-                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
+                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                   today="2026-07-19", unreleased="replace")
 
-            text = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
+            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
             self.assertNotIn("Some pending notes.", text)
             self.assertIn("Add a widget", text)
+
+    def test_a_non_empty_body_without_a_mode_is_refused_and_writes_nothing(self):
+        """The release notes are not discarded on a default nobody chose."""
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(tmp)
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError) as caught:
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19")
+
+            self.assertIn("--unreleased promote", str(caught.exception))
+            self.assertEqual(
+                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_promote_publishes_the_body_under_the_dated_heading(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(
+                tmp, body="### Added\n\n- MAR-1: a widget, described properly")
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            with mock_gh(None):
+                release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                   today="2026-07-19", unreleased="promote")
+
+            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            self.assertIn("a widget, described properly", text)
+            dated = text.index("## [0.4.2] - 2026-07-19")
+            self.assertLess(text.index("## [Unreleased]"), dated)
+            self.assertLess(dated, text.index("a widget, described properly"))
+            self.assertLess(text.index("a widget, described properly"),
+                            text.index("## [0.4.1] - 2026-07-12"))
+            # The generated one-liner does not also appear.
+            self.assertNotIn("- MAR-1: Add a widget", text)
+            self.assertIn("- prior entry", text)
+
+    def test_promote_is_refused_when_the_body_misses_a_merged_ticket(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(
+                tmp, body="### Added\n\n- MAR-1: a widget, described properly")
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            write_archive_ticket(workspace, "MAR-2", title="Add another widget")
+            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError) as caught:
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19", unreleased="promote")
+
+            self.assertIn("MAR-2", str(caught.exception))
+            self.assertEqual(
+                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_an_empty_body_needs_no_mode(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+
+            with mock_gh(None):
+                out = release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                         today="2026-07-19")
+
+            self.assertTrue(out["ok"])
+            self.assertIn("Add a widget",
+                          _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+
+    def test_an_invalid_mode_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            root = self._repo_with_unreleased_body(tmp)
+            workspace = os.path.join(tmp, "ws")
+            write_archive_ticket(workspace, "MAR-1", title="Add a widget")
+            with mock_gh(None):
+                with self.assertRaises(release_notes.ReleaseNotesError):
+                    release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
+                                       today="2026-07-19", unreleased="keep")
 
 
 # ---------------------------------------------------------------------------
@@ -1097,7 +1184,7 @@ class StatusSignalsTest(unittest.TestCase):
             _write_json(third_path, {"version": "0.4.1"})
             config3 = dict(PROFILE1_CONFIG, version_locations=[
                 {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-                {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/version"},
+                {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/version"},
                 {"file": "extra-version.json", "pointer": "/version"},
             ])
             with mock_gh(None):
@@ -1260,6 +1347,82 @@ class NonAsciiPreservationTest(unittest.TestCase):
                 content = ln[2:]
                 self.assertTrue('"version"' in content or '"ref"' in content,
                                 "unexpected description/other churn: %r" % content)
+
+
+# ---------------------------------------------------------------------------
+# The idempotency probe fails CLOSED when the forge cannot be asked
+# ---------------------------------------------------------------------------
+
+class ForgeUnevaluableTest(unittest.TestCase):
+    """`open_pr` is the whole of /acs:release's re-run safety (release/SKILL.md
+    Step 2). Until this pinned it, every way of failing to ASK -- gh absent,
+    expired auth, a 403 on a managed session, a rate limit -- came back as
+    `"open_pr": null`, which reads as "no cut in flight" and opens a second
+    release PR for a version that already has one. ADR-0088 classifies a
+    gate-input read that could not be evaluated as critical for that reason."""
+
+    @staticmethod
+    def _only_gh(behaviour):
+        """Patch `gh` alone: every other shell-out (git) still really runs."""
+        git_module = importlib.import_module("release_notes_git")
+        real_run = subprocess.run
+
+        def dispatch(argv, *a, **kw):
+            if argv and argv[0] == "gh":
+                if isinstance(behaviour, BaseException):
+                    raise behaviour
+                return behaviour
+            return real_run(argv, *a, **kw)
+
+        return mock.patch.object(git_module.subprocess, "run", side_effect=dispatch)
+
+    def _status(self, behaviour):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            with self._only_gh(behaviour):
+                return run_cli(["status", "--version", "0.4.2", "--repo-root", root]
+                               + rc_args())
+
+    @staticmethod
+    def _gh(returncode, stdout="", stderr=""):
+        return subprocess.CompletedProcess(args=["gh"], returncode=returncode,
+                                           stdout=stdout, stderr=stderr)
+
+    def test_gh_missing_from_path_exits_2_and_never_claims_no_pr(self):
+        code, out, err = self._status(
+            OSError(2, "No such file or directory: 'gh'"))
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        payload = json.loads(err)
+        self.assertIn("could not be run", payload["error"])
+        self.assertIn("gh auth login", payload["error"])
+        self.assertNotIn("open_pr", err)
+
+    def test_a_failed_gh_call_carries_its_own_stderr(self):
+        code, _out, err = self._status(self._gh(
+            1, stderr="HTTP 403: GitHub access is not enabled for this session"))
+        self.assertEqual(code, 2)
+        self.assertIn("GitHub access is not enabled for this session",
+                      json.loads(err)["error"])
+
+    def test_output_that_is_not_json_is_unevaluable_too(self):
+        code, _out, err = self._status(self._gh(0, stdout="not json at all"))
+        self.assertEqual(code, 2)
+        self.assertIn("not JSON", json.loads(err)["error"])
+
+    def test_asked_and_there_is_no_pr_still_reports_null(self):
+        """The one case that legitimately means "no open PR": gh answered `[]`."""
+        code, out, err = self._status(self._gh(0, stdout="[]"))
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        self.assertIsNone(json.loads(out)["open_pr"])
+
+    def test_an_open_pr_is_still_reported(self):
+        code, out, _err = self._status(self._gh(
+            0, stdout='[{"number": 42, "url": "https://example/pull/42"}]'))
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["open_pr"],
+                         {"number": 42, "url": "https://example/pull/42"})
 
 
 if __name__ == "__main__":

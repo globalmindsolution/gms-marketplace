@@ -1,9 +1,9 @@
 """Verifier plan-conformance + approval-audit dimensions; ADR-0073 amending
 ADR-0004; plan-revocation escape hatch (MAR-74, slice 4 of epic MAR-69).
 
-Prose-contract tests over `plugins/acs/agents/code-verifier.md` (new
+Prose-contract tests over `src/acs/agents/code-verifier.md` (new
 dimensions 15 "Plan conformance" and 16 "Approval-audit"),
-`plugins/acs/skills/create-impl-plan/SKILL.md` (the `### Plan revocation`
+`src/acs/skills/create-impl-plan/SKILL.md` (the `### Plan revocation`
 subsection, which moved there with the plan phase), and the
 `docs/adr/0073-*.md` + `docs/adr/README.md` deliverables.
 
@@ -23,7 +23,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 ADR_README = os.path.join(ADR_DIR, "README.md")
 ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")

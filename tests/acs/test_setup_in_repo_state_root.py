@@ -1,6 +1,6 @@
 """MAR-4 — /acs:setup sets up the in-repo state root (AC1, AC2).
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. S3 of
+Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. S3 of
 the MAR-1 epic split (ADR 0069): the state root moves from a machine-local,
 outside-the-repo `workspace_path` (always asked, validated to reject any path
 inside a worktree) to an in-repo default `<main-checkout>/.acs/state-machine`,
@@ -45,7 +45,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 GITIGNORE_PATH = os.path.join(REPO_ROOT, ".gitignore")
 

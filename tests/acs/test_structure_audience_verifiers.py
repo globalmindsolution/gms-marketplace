@@ -35,7 +35,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 DOCS = os.path.join(REPO_ROOT, "docs")
@@ -68,49 +68,25 @@ VERIFIERS = {
             "doc-set-completeness", "prd-coverage", "codebase-match",
             "mermaid-diagrams", "internal-consistency",
             "diagram-prose-agreement", "hld-lld-consistency",
-            "plan-conformance", "docs-only-changeset",
+            "authoring-conformance", "docs-only-changeset",
         ),
     ),
     "create-design-verifier.md": (
         "completeness",
         ("alternatives", "consistency", "feasibility", "nfr", "completeness"),
     ),
-    "create-principles-verifier.md": (
+    "create-docs-verifier.md": (
         "consistency",
         (
             "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-standards-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-quality-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-operations-verifier.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "plan-conformance", "docs-only-changeset",
+            "required-sections", "authoring-conformance", "docs-only-changeset",
             "consistency",
         ),
     ),
     "create-requirements-verifier.md": (
         "Interactive-confirm discipline",
         (
-            "Required-file-presence", "Mode-conformance", "Plan-conformance",
+            "Required-file-presence", "Mode-conformance", "Authoring-conformance",
             "Iteration 2+ regression check",
             "Coverage (≥90%, 0 silent omissions)", "Citation (100%)",
             "DRAFT marker", "No-fabrication",
@@ -121,7 +97,7 @@ VERIFIERS = {
     ),
 }
 
-# every audience-style-gated verifier: the 8 producers.
+# every audience-style-gated verifier: the 5 producers (create-docs judges all four doc sets).
 AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
@@ -131,10 +107,7 @@ SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
     "create-design": False,
-    "create-principles": False,
-    "create-standards": True,
-    "create-quality": True,
-    "create-operations": True,
+    "create-docs": True,
 }
 
 
@@ -178,7 +151,7 @@ def verify_phase_region(skill_md_body, skill_name):
     spawned/passed to the verifier: from the first line naming the Verify
     phase (`### Verify`, `### Phase: verify`, or the numbered `**Verify**`
     Phases-list item) to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
+    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|[23]\.\s+\*\*Verify\*\*.*)$",
                   skill_md_body)
     assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
     rest = skill_md_body[m.end():]

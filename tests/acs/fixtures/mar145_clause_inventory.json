@@ -3,7 +3,7 @@
   "clauses_by_source_file": {
     "skills.md": [
       "**conform to it**, and the **`code-verifier`** MUST check that",
-      "- **Spec-simplicity gate (MAR-88):** the **`code-planner`** MUST evaluate",
+      "- **Spec-simplicity gate (MAR-88):** the plan's author (the **`code-planner`** charter, now `create-impl-plan-executor`'s survey) MUST evaluate",
       "- **[ASSUMPTION]** PRs are created ready-for-review (not draft).",
       "- Commit messages MUST follow the commit message format configured in",
       "- MAY **import an existing remote ticket**: `/create-ticket <remote-key>`",
@@ -31,7 +31,7 @@
       "- MUST record the PR reference (number/URL) in the workspace state.",
       "no prompt, no required input; an explicit",
       "- MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review",
-      "- MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,",
+      "- MUST set **`docs_only`** during analysis (coordinator-recommended, user-confirmed,",
       "- MUST set **`needs_design`**, epic-only: always `true` for epics",
       "- MUST set `test_coverage_percent` with a default of **90** (user may",
       "- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400",
@@ -63,12 +63,12 @@
       "Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires",
       "`/code` MUST **reconcile** before continuing: verify recorded progress",
       "`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept",
-      "`create-project-verifier` — the verifier MUST actually run build, lint,",
+      "`create-project-executor`, `create-project-verifier` — the executor pins",
       "axes may be automatically raised by an in-flight trigger, but MUST NOT be",
       "capability goes beyond the PRD, `/create-ticket` MUST flag the divergence",
       "features/goals, and epics SHOULD derive from the roadmap. MUST also read",
       "following the repo's existing conventions. MUST also merge the ticket's",
-      "planner. The **test plan** MUST state the **e2e impact** when `e2e` is",
+      "`/create-impl-plan`'s executor. The **test plan** MUST state the **e2e impact** when `e2e` is",
       "skills, while not running the ticket pipeline, MUST each create their own"
     ],
     "hooks.md": [
@@ -113,7 +113,7 @@
       "- If the predecessor is not complete, the pre-hook MUST exit with code **2**,",
       "- SHOULD be resumable: re-running `/ship` for a ticket continues from the",
       "- When the verifier produces blocking findings, the coordinator MUST",
-      "MUST internally run a **plan → execute → verify** cycle using a",
+      "MUST internally run an **execute → verify** cycle using a",
       "If no ticket id can be resolved, the skill MUST stop and ask the user.",
       "The coordinator MUST NOT need conversation history to move from one step to",
       "no children are minted at epic-creation time",
@@ -143,15 +143,15 @@
       "- Subagents MUST write their **states, findings, error details, and stop",
       "- The coordinator MAY run **multiple executors in parallel** within one",
       "- The coordinator MUST NOT keep conversation history between workflow steps.",
-      "- The coordinator MUST persist each phase's output (plan, executor results,",
+      "- The coordinator MUST persist each phase's output (authoring notes and",
       "- The format SHOULD carry, at minimum: ticket id, skill, phase, task",
-      "- The three phases MUST be separate subagents (separate context windows), so",
-      "and verifier subagents MUST NOT spawn their own sub-subagents. This keeps",
+      "- The two phases MUST be separate subagents (separate context windows), so",
+      "verifier subagents MUST NOT spawn their own sub-subagents. This keeps",
       "create-principles, create-standards, standardize-project, create-requirements) MUST apply the",
-      "| Execute | `code-executor` | Carry out the plan; produce the skill's artifacts (ticket, design, specs, code, PR, merge). |",
+      "| Execute | `code-executor` | Carry out the approved plan; produce the skill's artifacts (code, tests, docs). For an authoring skill the executor first surveys and records `iter-<n>-authoring.md`, then authors the document from it. |",
       "| Phase | Subagent (example for `/code`) | Responsibility |",
-      "| Plan | `code-planner` | Analyze inputs (workspace state, repo, docs, config); produce a concrete plan for the executor. |",
-      "| Verify | `code-verifier` | Independently check the executor's output against the plan and the skill's quality bar; report pass/fail with findings. |"
+      "No skill has a plan phase (ADR-0092): for an authoring skill the",
+      "| Verify | `code-verifier` | Independently check the executor's output against the gated upstream contracts and the skill's quality bar — for an authoring skill also against its authoring notes — and report pass/fail with findings. |"
     ],
     "usage.md": [
       "| Consumer repo | Code, `docs/product/` (PRD), `docs/architecture/` (HLD/LLD), ADRs, scaffold |",

@@ -274,7 +274,7 @@ class TestSettingsSchemaWorkspacePathDoc(unittest.TestCase):
     in-repo-derived default and no longer claims an outside-repo requirement."""
 
     def test_settings_schema_workspace_path_is_documented_as_optional_and_in_repo(self):
-        schema_path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
+        schema_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
         with open(schema_path, "r", encoding="utf-8") as fh:
             schema = json.load(fh)
         description = schema["properties"]["workspace_path"]["description"]

@@ -19,7 +19,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 ADR_0007 = os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction.md")
 DOCS_SYNC_SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 README = os.path.join(PLUGIN, "README.md")
@@ -167,7 +167,7 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
 
     def test_docs_sync_skill_exists(self):
         self.assertTrue(os.path.isfile(DOCS_SYNC_SKILL),
-                        "plugins/acs/skills/docs-sync/SKILL.md must exist")
+                        "src/acs/skills/docs-sync/SKILL.md must exist")
 
     def test_workflow_skills_contains_docs_sync(self):
         body = acs_lib_source()
@@ -185,7 +185,7 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
         self.assertNotIn('"docs-sync"', gate,
                          "gate_create_pr must not read the docs-sync ledger; the order is ship.yaml's")
         self.assertIn("verifier_passed", gate)
-        workflow = read(os.path.join(REPO_ROOT, "plugins", "acs", "workflows", "ship.yaml"))
+        workflow = read(os.path.join(REPO_ROOT, "src", "acs", "workflows", "ship.yaml"))
         self.assertRegex(workflow, r"id: create-pr\n\s+skill: create-pr\n\s+needs: \[docs-sync, run-e2e-tests\]")
 
 

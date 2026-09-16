@@ -34,7 +34,7 @@ from acs_case import lib  # noqa: E402
 MODULE_FILENAME = "plan-approval.py"
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SCRIPTS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
@@ -652,7 +652,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         `### Plan approval` and `### Docs-only tickets`, so slicing at the
         old boundary would silently widen every slice-based assertion below
         to include revocation prose too."""
-        plan_idx = self.skill_body.index("### Plan (once, before the loop)")
+        plan_idx = self.skill_body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.skill_body.index("### Plan approval")
         revocation_idx = self.skill_body.index("### Plan revocation")
         self.assertGreater(approval_idx, plan_idx)

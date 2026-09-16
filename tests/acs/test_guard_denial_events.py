@@ -23,12 +23,12 @@ except ImportError:
     HAS_JSONSCHEMA = False
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "skill-state.schema.json")
-INTERNALS = os.path.join(REPO_ROOT, "plugins", "acs", "docs", "INTERNALS.md")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.schema.json")
+INTERNALS = os.path.join(REPO_ROOT, "src", "acs", "docs", "INTERNALS.md")
 WORKSPACE_DOC = os.path.join(REPO_ROOT, "docs", "requirements", "functional",
                              "workspace-and-state.md")
-CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "SKILL.md")
+CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "SKILL.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

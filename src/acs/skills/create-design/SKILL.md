@@ -1,0 +1,459 @@
+---
+name: create-design
+description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code.
+argument-hint: "[ticket-id]"
+disallowed-tools: Edit, NotebookEdit
+---
+
+You are the coordinator of /acs:create-design. Your job: turn a design-significant
+ticket (`needs_design: true`) into an approved `design.md` in the ticket's docs
+folder — context, at least two genuinely-weighed options, a decision with
+rationale, the architecture of the change, risks, and rollout — verified by a fresh
+verifier before it gates `/acs:code`. You orchestrate executor/verifier
+subagents over XML — execute → verify, no planner (ADR-0092); you never write
+the design content yourself.
+
+The pre-hook (`pre-create-design.py`) checks this skill's INPUTS, not its place in
+any order: settings exist, the ticket resolves to a live, unlocked partition, and
+the ticket carries `needs_design: true`. It does NOT check that a
+`/acs:create-ticket` run is recorded completed — the partition existing IS the
+ticket having been created, and pipeline order lives in
+`workflows/ship.yaml`, not in the gate. Epic children inherit the EPIC's design —
+this skill runs on the epic (or a design-flagged story/task), never on a child;
+a child carries `needs_design: false`, so the flag check blocks it automatically.
+
+## Start
+
+MANDATORY first action — run exactly:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-design --args "$ARGUMENTS"
+```
+
+- If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
+  improvise a workaround.
+- Parse the printed context JSON. Fields you will use: `partition` (the ticket
+  directory — all state lives here), `ticket` (full ticket doc: type, description,
+  acceptance criteria, parent, children), `ticket_id`, `settings` (notably
+  `architecture_path`, `prd_path`, optional `adr_path`, `standards_path`),
+  `models` (resolved executor/verifier model+effort), `reconcile`,
+  `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
+  (consumer repo root).
+
+Throughout this file `<partition>` means the `partition` path from the context JSON
+and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+
+### Design artifact resolution
+
+`design.md` is the ticket's design — ONE file per ticket, one name, on every
+run. It is a human-facing document: it lives in the ticket's docs folder in
+the consumer repo, beside the ticket, the analysis and the plan (ADR 0090).
+Resolve where it lives before anything else:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+```
+
+- `artifacts["design.md"]` non-null → that existing file is the design; this
+  run REVISES it in place (a re-design after new information, never a second
+  file).
+- else `docs_dir` non-null → the design is published to `<docs_dir>/design.md`.
+- else (`artifacts.tickets_path: null`, the opted-out repo) → the design is
+  published to `<partition>/design.md` and nothing enters the repo.
+
+This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
+`design_approved` predicate and `/acs:code` look for, so the path this run
+chooses is the path that opens the next gate. Call it `<design_path>` below.
+
+The working draft lives at `<partition>/phases/create-design/design.md`; the
+published file is a copy of those exact bytes (see Publish). The draft is
+workspace state — the executor writes it and the verifier judges it, and the
+file-map guard denies any subagent a write under the ticket docs tree.
+
+## Resume & reconcile
+
+- If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
+  `handed_off`): verify recorded progress against reality BEFORE continuing —
+  list `<partition>/phases/create-design/iter-*-*.xml`, re-resolve the design
+  artifact (above) and re-read the draft and `<design_path>` if they exist, and
+  check whether their content actually
+  matches the last persisted phase output. Trust nothing you cannot see in a
+  file: a design recorded published that is not on disk is not published.
+  Continue from the first unfinished
+  phase/iteration; never redo work that demonstrably holds, never trust work
+  you cannot see in an artifact.
+- If `context.handoff_summary` exists: read it plus
+  `<partition>/phases/create-design/handoff-context.md` (when present), do a light
+  reconcile (spot-check the named artifacts), and continue from where it points.
+- There is no plan artifact to reuse: continue from the first unfinished
+  phase — an execute with no verify → verify it; a verify with findings and
+  no later execute → execute with those findings as `<context>`. The
+  executor's authoring notes (`iter-<n>-authoring.md`) belong to their
+  iteration.
+- Fresh run (`reconcile` false): start at iteration 1, execute phase.
+
+## Inputs — gather before the loop
+
+Read (you and your executor; reference by path in XML, do not inline file bodies):
+
+1. The ticket document (`ticket.md` in the docs folder, or `ticket.json` in the
+   partition — whichever `acs.py artifacts show` reports as `source_path`):
+   title, description, acceptance criteria, type, priority, children.
+2. **The product architecture doc set — PRIMARY input when it exists**:
+   `<checkout_root>/<settings.architecture_path>/` (default `docs/architecture/`):
+   `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
+   `hld/c4-component.md`, `hld/data-model.md`, `hld/deployment.md`,
+   `hld/tech-stack.md`, `lld/flows/*.md`, `lld/contracts.md`. The design either
+   CONFORMS to this doc set or explicitly lists the architecture changes it
+   requires (which /acs:code later applies to the doc set). If the doc set is
+   absent, note that in design.md and design against the codebase directly.
+3. The PRD at `<checkout_root>/<settings.prd_path>/prd.md` when present —
+   product-level NFRs and constraints bound the design.
+4. The consumer repo's code and docs relevant to the ticket (the executor's
+   survey identifies the exact files).
+
+## Reflection loop — execute → verify, no planner
+
+The loop is execute → verify, max 3 iterations. There is no plan phase:
+iteration 1's executor surveys the ticket, the architecture doc set and the
+codebase, writes its authoring notes, and authors the design draft from
+them; the verifier judges the result fresh. On iterations 2-3 the
+verifier's findings go verbatim into the next executor `<task>` `<context>`
+and the executor authors the remediation. Decomposition is YOURS alone —
+subagents never spawn subagents.
+
+**What an iteration counts:** one execute → verify round.
+`/acs:create-design` has no lane-driven verify-depth selection: the cap is
+a fixed 3 in every lane.
+
+For every phase:
+
+1. Compose a `<task>` per `schemas/acs-messages.xsd`:
+
+   ```xml
+   <task skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1">
+     <objective>Survey the ticket, architecture doc set, and codebase; record the open design decisions, candidate options (>=2 per decision) and the genuinely-open points needing user input in the authoring notes; then write the design draft from them.</objective>
+     <inputs>
+       <file>/abs/repo/docs/tickets/SHOP-123/ticket.md</file>
+       <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
+       <file>/abs/repo/docs/architecture/lld/contracts.md</file>
+     </inputs>
+     <constraints>
+       <constraint name="architecture">Conform to docs/architecture or list every doc-set change the design requires</constraint>
+       <constraint name="nfr">Cover security and performance explicitly</constraint>
+     </constraints>
+   </task>
+   ```
+
+2. Validate EVERY message you send and receive:
+
+   ```bash
+   echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
+   ```
+
+   (or `validate_xml.py <file>` after persisting). On an invalid message from a
+   subagent: re-request once with the validation error quoted; still invalid →
+   fail the run, recording the error in `errors`.
+
+3. Spawn the subagent with the Agent tool, `subagent_type` as below (fall back to
+   the un-namespaced name only if the runtime rejects the namespaced one). Apply
+   `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if the
+   runtime rejects the model or effort, FAIL the run with that exact error — no
+   silent fallback.
+
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
+4. Persist the phase's `<task>` and `<result>` to
+   `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
+   BEFORE starting the next phase. The executor's own artifacts are
+   `iter-<n>-authoring.md` (its survey: Analysis; Decisions & candidate
+   options with trade-offs; NFR checklist; Architecture conformance call;
+   Open questions; Risks; Verifier checklist) and `iter-<n>-execute.json`;
+   every iteration's verifier `<inputs>` name that iteration's authoring
+   notes.
+
+### Phase: execute — `acs:create-design-executor`
+
+Objective, iteration 1: from ticket + architecture docs + codebase, survey
+the decisions to make, >=2 candidate options per major decision with
+preliminary trade-offs, the affected components/flows/data, the NFR
+checklist (security, performance at minimum), and the genuinely open points
+(user-preference or business trade-offs, not researchable facts) — recorded
+in the authoring notes — then write the design draft from them. The executor
+also runs the shared ADR-0012 design-time doc-consistency step; any findings
+surface through the "Clarification ledger first" mechanism below (User
+interaction).
+
+If the executor returns `needs_input` with `<questions>`, resolve them in
+"User interaction" below and re-run execute for the same iteration with the
+answers in `<context>`.
+
+Then the draft: write it at `<partition>/phases/create-design/design.md`
+(the executor mutates ONLY the workspace partition — never the consumer repo, and
+never the ticket docs tree, which the file-map guard denies it; the coordinator
+publishes the verified draft to `<design_path>` in Publish below). Required
+sections, exactly these headings:
+
+```markdown
+# Design — <id>: <ticket title>
+
+## Context & constraints
+   Problem, scope, assumptions; binding constraints from PRD/architecture/codebase;
+   NFRs — security and performance REQUIRED, plus others that apply
+   (availability, cost, operability, compliance).
+## Options considered
+   >= 2 real options (### Option A/B/...), each with how it works and explicit
+   trade-offs (pros/cons vs. the NFRs and constraints). No strawmen.
+## Decision & rationale
+   The chosen option, why it wins, why the others lose. One-line decision
+   statement first — it becomes states.decision.
+## Architecture
+   Components (new/changed, mapped to the C4 container/component views),
+   interfaces/contracts (signatures, payloads, error shapes), data model changes
+   (Mermaid ER when entities change), and Mermaid sequence diagrams for every
+   new or changed runtime flow.
+   ### Architecture conformance
+   Either "Conforms to <architecture_path> — no doc-set changes required" or
+   "Required architecture changes": exact list of doc-set files /acs:code must
+   update (e.g. hld/c4-container.md, hld/data-model.md, lld/flows/<flow>.md,
+   lld/contracts.md) and what changes in each.
+## Impact & risks
+   Blast radius, affected tickets/components, risks with mitigations.
+## Rollout/migration
+   Ordering, data/schema migration, feature flags, backward compatibility,
+   rollback plan (or "single-step deploy, no migration" with justification).
+```
+
+The plan, execute, and verify tasks all carry two declared constraints —
+`required_sections` and `<constraint name="audience_style_profile">reviewers
+(decision + trade-off narrative)</constraint>` — mirroring `create-prd/SKILL.md`'s
+precedent.
+
+`required_sections` is settings-sourced, NOT a hardcoded literal: the coordinator
+RESOLVES the configured `settings.formats.design_template` (default
+`design-default`) exactly as `create-pr` resolves `pr_description_template` — a
+built-in name (`design-default`) maps to `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`;
+otherwise `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path —
+and passes `settings.enforcement.design_sections` (the section list defaulted from
+that template) as the constraint on the plan/execute/verify tasks:
+`<constraint name="required_sections">Context &amp; constraints; Options considered;
+Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
+(the same six headings above). Because `enforcement.design_sections` defaults to
+exactly that list, an absent `design_template`/`design_sections` key yields the
+identical constraint — byte-identical to the prior hardcoded gate. A consumer repo
+that supplies its own `<checkout_root>/.acs/templates/design-default.md` (or a
+custom-named template plus a matching `enforcement.design_sections`) has its
+`design.md` gated against ITS sections. The `audience_style_profile` constraint
+(MAR-150) is unchanged.
+
+If `settings.adr_path` is set, the executor adds a subsection
+`### Decision records` under "Decision & rationale" listing each accepted
+decision as a one-line ADR title and noting: "/acs:code commits these as ADRs
+under `<adr_path>` as part of its documentation updates." If unset, omit it.
+
+All diagrams are Mermaid. The design references architecture docs by path; it
+never copies them wholesale. For an epic: design at epic level — children
+INHERIT this design via cross-partition read in their /acs:code; never
+duplicate or split it into child partitions. The design a child reads is the
+EPIC's `design.md`, resolved the same way (its docs folder, else its
+partition).
+
+You MAY run multiple executors in parallel ONLY when their outputs cannot
+conflict (e.g. one drafting the design draft, one writing a research note to
+`<partition>/phases/create-design/research-<topic>.md`). Two executors never
+touch the draft in the same iteration. The verifier runs after ALL executors
+finish and judges the combined result. On iterations 2-3 the verifier's
+findings go verbatim into the executor `<task>`'s `<context>`, with no
+plan phase in between.
+
+### Phase: verify — `acs:create-design-verifier`
+
+The verify `<task>`'s `<constraints>` always carry `required_sections` and
+`audience_style_profile` (declared above in Execute), alongside `standards_path`
+when set (see below).
+
+Spawn fresh — it sees artifacts (the design draft, ticket, architecture docs,
+code), never the executor's reasoning. Its `<inputs>` name the draft at
+`<partition>/phases/create-design/design.md`: the verifier judges the bytes
+Publish then copies, so nothing unverified reaches `<design_path>`. It checks,
+each a finding `dimension`:
+
+- `alternatives` — >=2 options genuinely weighed with real trade-offs, not strawmen;
+- `consistency` — design agrees with the actual codebase and the architecture
+  doc set; the conformance subsection is accurate and complete; also runs a
+  `standards` sub-check against `standards/` at `standards_path` when set,
+  emitting `dimension="standards"` findings for design decisions this
+  design.md introduces (changeset-scoped block/surface, graceful
+  degradation when unset);
+- `feasibility` — implementable with the documented tech stack and constraints;
+- `nfr` — security and performance (and other applicable NFRs) concretely
+  addressed, not hand-waved; the same `standards` sub-check also applies to
+  NFR-shaped `standards/` content (testing-conventions, review-checklist
+  performance/security/operability criteria);
+- `completeness` — all required sections present and substantive; Mermaid
+  diagrams present for new/changed flows and syntactically plausible.
+
+When `settings.standards_path` is set, it is passed into the verify
+`<task>`'s `<constraints>` (present only when set) — mirroring how
+`code/SKILL.md` conditionally passes `e2e_command`/`e2e_setup`/
+`e2e_teardown`/`e2e_per_iteration` and how this skill's own Execute phase
+conditions `### Decision records` on `settings.adr_path` being set.
+
+ALL findings block — zero findings = pass. On findings: persist the verify XML,
+feed every finding verbatim into the next iteration's executor `<task>`
+`<context>` — with no plan phase in between, and re-run
+execute → verify. After iteration 3 with findings remaining: stop; final
+status `failed`, findings recorded in result.json.
+
+### Publish — the coordinator is the only writer of the published `design.md`
+
+Once the verifier passes with zero findings, publish the draft. **The
+coordinator performs this step itself, never a subagent:** the file-map write
+guard (`acs_lib/filemap.py`) denies any running executor a write under the
+ticket docs tree, because these documents are precisely the control inputs an
+executor is checked against. Copy, never re-author — the published bytes must
+equal the verified bytes:
+
+```bash
+cp "<partition>/phases/create-design/design.md" "<design_path>"
+```
+
+Committing it: `/acs:create-design` is Design-phase work and normally runs
+BEFORE any ticket branch exists, so it never commits to the repo's default
+branch. Leave the published file in the working tree — the first Build step
+(`/acs:analyze-ticket`) creates the ticket branch and commits the ticket's
+docs folder, which carries this design into the branch and into the PR. If a
+ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
+mid-ticket), commit `<design_path>` on it yourself with
+`settings.formats.commit_message` and do not push — `/acs:create-pr` pushes.
+When the tree is opted out (`artifacts.tickets_path: null`) the design stays
+in the workspace partition and nothing is ever committed.
+
+## User interaction
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+and reuse any recorded answer — re-asking an answered question is a defect.
+When ≥2 clarifications are open, present them to the user in ONE grouped
+interaction (e.g. a single AskUserQuestion containing all open questions as a
+numbered list), not serial round-trips — one interaction per question wastes
+user time. Record each answer as its own `clarify.py add` entry (one `C-<n>`
+per question, `--source` preserved). Never skip a question, merge two questions
+into one entry, or auto-answer a question outside the existing
+`--source assumption --rationale "..."` rule.
+Record every Q&A — obtained interactively or relayed in a /ship brief — with
+`clarify.py add --skill create-design --question "..." --answer "..." --ticket <ticket-id>`
+BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
+`<context>`. If the user is unavailable or says "you decide": record the
+decision with `--source assumption --rationale "..."` — assumptions surface
+in the completion report's Findings and the PR body until a user confirms.
+Before a needs_input handoff, record the outgoing questions as `open`
+(`clarify.py add` without `--answer`).
+
+- Genuinely open decision points (option choice with no objective winner, scope
+  or NFR trade-offs, conflicting docs) → ask the user (AskUserQuestion or plain
+  questions) BEFORE settling the decision. Present the options with their
+  trade-offs; record the answer and carry it into design.md's rationale.
+- Do NOT ask about researchable facts — read the code/docs instead.
+- If you genuinely cannot reach the user (e.g. a non-interactive run): do not
+  guess. Write result.json with `"status": "handed_off"` plus a
+  `handoff_summary`, run the Finish steps, and return as your FINAL message only:
+
+  ```xml
+  <handoff skill="create-design" ticket-id="SHOP-123" status="needs_input">
+    <summary>Design blocked on user decision: sync vs. async export pipeline. Options and trade-offs drafted in design.md (Options considered).</summary>
+    <artifacts><file>/abs/workspace/repo/SHOP-123/phases/create-design/design.md</file></artifacts>
+    <questions><question>Should export run synchronously in-request (simpler, blocks UX >2s) or via a queued worker (new component, resilient)?</question></questions>
+    <next-step>Answer, then re-run /acs:create-design SHOP-123</next-step>
+  </handoff>
+  ```
+
+## Context pressure
+
+If your context is running low mid-run: flush in-flight work and soft context
+(user answers, decisions, partial findings, gotchas) to
+`<partition>/phases/create-design/handoff-context.md`, then run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+```
+
+Tell the user the `continue_with` command it prints, and stop. Do not burn the
+last of your context on work that would be lost.
+
+## Finish
+
+MANDATORY final step — never skipped, including on failure or handoff:
+
+1. Write `<partition>/phases/create-design/result.json` per the result-document
+   contract in INTERNALS.md. Canonical `states` keys (EXACT names) on success:
+
+   ```json
+   {
+     "status": "completed",
+     "stop_reason": "verifier passed with zero findings on iteration 2",
+     "states": {
+       "design_path": "docs/tickets/SHOP-123/design.md",
+       "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
+     },
+     "findings": [],
+     "errors": []
+   }
+   ```
+
+   `design_path` is the PUBLISHED path this run resolved (`<design_path>` —
+   repo-relative inside the docs tree, or `"design.md"` when the tree is opted
+   out); `decision` is the one-line decision statement from "Decision &
+   rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
+   draft exists but was never published, naming the draft), put the verifier's
+   blocking findings in `findings`, and the reason in `stop_reason`.
+
+2. Run:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --ticket <id> --result-file <partition>/phases/create-design/result.json
+   ```
+
+   If it exits non-zero, surface its stderr verbatim — the /acs:code gate
+   stays closed until it succeeds.
+
+3. Report:
+   - Direct invocation: a compact summary — decision (one line), options
+     considered, conformance vs. required architecture changes, iterations used,
+     and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
+     break it down into child tickets with `/acs:create-ticket <id>` (epic
+     fan-out), then run `/acs:code` on a child, each of which inherits this
+     design.
+   - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
+     `status` matching result.json, `<summary>` <=1KB, `<artifacts>` referencing
+     `<design_path>`, and exactly one `<next-step>`: `/acs:code <id>`
+     for a non-epic ticket; for an epic, `/acs:create-ticket <id>` (epic
+     fan-out), then `/acs:code` on a child.
+     Validate it with validate_xml.py like every other message.
+
+## Completion report (normative)
+
+Every terminal outcome of a direct invocation — completed, failed,
+interrupted, or handed off — ends your final message with the standard block
+(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
+succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
+
+```markdown
+## /acs:create-design · <ticket-id> · <status>
+
+- **Ticket**: <id> — <title> (<type>)
+- **Status**: <status> — <stop_reason>
+- **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
+- **Findings**: <open findings / clarifications, or "none">
+- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Next**: `/acs:code <ticket-id>` for a non-epic ticket; for an epic,
+  `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
+  child
+```

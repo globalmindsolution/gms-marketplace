@@ -1,9 +1,9 @@
 """MAR-158 spec 01 — code-verifier multi-lens adversarial rigor upgrade
 (verify_depth=="full" only).
 
-Prose-contract tests over `plugins/acs/agents/code-verifier.md` (new
+Prose-contract tests over `src/acs/agents/code-verifier.md` (new
 dimension 14 "Regression-risk" + the 4-lens table) and
-`plugins/acs/skills/code/SKILL.md`'s Verify section (the full-depth 4-lens
+`src/acs/skills/code/SKILL.md`'s Verify section (the full-depth 4-lens
 spawn + coordinator merge pass; the light-depth path stays byte-for-byte
 unchanged), plus the docs/ADR deliverables (AC-4, requirements docs).
 
@@ -17,7 +17,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -371,7 +371,7 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
     FULL_VERIFY_ANCHORS = [
         "full verify (the",
         "(≤ 3 iterations)",
-        "plan→execute→verify loop",
+        "never a per-iteration re-plan",
         "e2e when configured) for",
     ]
 

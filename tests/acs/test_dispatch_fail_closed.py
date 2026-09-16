@@ -23,7 +23,7 @@ import time
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

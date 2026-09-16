@@ -7,13 +7,13 @@ recorded outcome deterministic, without relying on the model's memory or
 goodwill.
 
 Hooks do **not** enforce the pipeline's order. That order is declared in
-`plugins/acs/workflows/ship.yaml` and walked by `/ship`
+`src/acs/workflows/ship.yaml` and walked by `/ship`
 ([workflow.md](workflow.md#pipeline)); a pre-hook's contribution to order is
 one advisory stderr line, never a refusal.
 
 ## Requirements
 
-- Every hooked skill — the eleven workflow skills, the eight product-level
+- Every hooked skill — the eleven workflow skills, the five product-level
   doc/bootstrap skills, and the conditional planning skill `/create-design` —
   MUST have a **pre-hook** and a **post-hook**.
 - Hooks are implemented as **Python scripts**, named by convention:
@@ -141,10 +141,7 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/create-requirements` | `pre-create-requirements.py` | `post-create-requirements.py` | `create-requirements-state.json` |
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
 | `/create-project` | `pre-create-project.py` | `post-create-project.py` | `create-project-state.json` |
-| `/create-principles` | `pre-create-principles.py` | `post-create-principles.py` | `create-principles-state.json` |
-| `/create-standards` | `pre-create-standards.py` | `post-create-standards.py` | `create-standards-state.json` |
-| `/create-quality` | `pre-create-quality.py` | `post-create-quality.py` | `create-quality-state.json` |
-| `/create-operations` | `pre-create-operations.py` | `post-create-operations.py` | `create-operations-state.json` |
+| `/acs:create-docs` | `pre-create-docs.py` | `post-create-docs.py` | `create-docs-state.json` (one partition per doc set's delivery ticket) |
 | `/standardize-project` | `pre-standardize-project.py` | `post-standardize-project.py` | `standardize-project-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
@@ -176,10 +173,7 @@ Every row is an **input** (the skill cannot do its work without it) or a
 | `/create-ticket` | `/setup` done | — |
 | `/create-architecture` | PRD doc set exists (`prd_path`) | — |
 | `/create-project` | architecture doc set exists (`hld/tech-stack.md`) | — |
-| `/create-principles` | architecture doc set exists | — |
-| `/create-standards` | architecture doc set exists | — |
-| `/create-quality` | architecture doc set exists | — |
-| `/create-operations` | architecture doc set exists | — |
+| `/acs:create-docs` | architecture doc set exists (one gate for every doc set) | — |
 | `/standardize-project` | architecture doc set exists | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-ticket` | ticket resolves | not an epic; lock free |
@@ -261,4 +255,4 @@ completed" event exists):
   checkout left `in_progress` as `interrupted` and releases its lock, so
   abnormal endings still write state.
 
-See `plugins/acs/docs/INTERNALS.md` for the full implementation contract.
+See `src/acs/docs/INTERNALS.md` for the full implementation contract.

@@ -1,6 +1,6 @@
 """Unit tests for the convention checker that /acs:setup ships into consumer repos.
 
-The checker (plugins/acs/templates/ci/check-conventions.py) runs in the
+The checker (src/acs/templates/ci/check-conventions.py) runs in the
 consumer's CI and as a local pre-push hook with ZERO acs dependencies — only the
 Python stdlib — so these tests load it straight from the template path and drive
 its pure `evaluate()` core plus the format->regex compiler.
@@ -13,7 +13,7 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHECKER = os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "check-conventions.py")
+CHECKER = os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "check-conventions.py")
 
 _spec = importlib.util.spec_from_file_location("acs_check_conventions", CHECKER)
 cc = importlib.util.module_from_spec(_spec)

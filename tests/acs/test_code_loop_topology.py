@@ -19,9 +19,9 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
 
 
@@ -117,8 +117,8 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
             self.window_norm,
             r"(?i)not.{0,60}(triad|plan\W{0,4}execute\W{0,4}verify)")
 
-    def test_cap_values_unchanged_light_one_full_three(self):
-        self.assertIn("ceiling = **1** iteration", self.window)
+    def test_cap_values_light_two_full_three(self):
+        self.assertIn("ceiling = **2** iterations", self.window)
         self.assertIn("ceiling = **3** iterations", self.window)
 
 

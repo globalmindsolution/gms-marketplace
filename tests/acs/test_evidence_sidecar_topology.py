@@ -31,7 +31,7 @@ import evidence_sidecar  # noqa: E402
 DOCS_ARCHITECTURE = os.path.join(REPO_ROOT, "docs", "architecture")
 DOCS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
-CHANGELOG_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
+CHANGELOG_PATH = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
 
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".claude"}
 

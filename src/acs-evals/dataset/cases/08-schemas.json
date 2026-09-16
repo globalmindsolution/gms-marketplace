@@ -760,10 +760,6 @@
           "test": "run-e2e-tests"
         },
         "internal": {
-          "create-quality": "create-docs",
-          "create-operations": "create-docs",
-          "create-principles": "create-docs",
-          "create-standards": "create-docs",
           "create-project": "project",
           "standardize-project": "project"
         }

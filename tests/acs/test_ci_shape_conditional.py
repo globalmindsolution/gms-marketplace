@@ -11,14 +11,14 @@ Mechanism: EXTRACT-AND-RUN (mirrors test_marketplace_consistency.py pattern).
       cwd=fixture).
 
   Mandatory robustness guards: each extraction asserts the body is non-empty AND
-  the plugins/acs/ hardcode is absent AND a loop variable/sentinel is present.
+  the src/acs/ hardcode is absent AND a loop variable/sentinel is present.
   These guards are RED against the un-generalized ci.yml.
 
   Synthetic fixtures are tmpdir-only (no committed plugin).
 
-Coverage note: MAR-30 touches zero files under plugins/acs/ (only ci.yml,
+Coverage note: MAR-30 touches zero files under src/acs/ (only ci.yml,
 .pre-commit-config.yaml, and this test file), so the 90% coverage gate against
-plugins/acs/ production code is unaffected.
+src/acs/ production code is unaffected.
 
 TDD: Tests are written BEFORE the ci.yml edits. The setUpClass guards and the
 skills-only (skn) fixture tests are RED against the un-generalized ci.yml and
@@ -283,7 +283,7 @@ class _CIShapeBase(unittest.TestCase):
 
     @classmethod
     def _assert_generalized(cls):
-        """Fail loudly if any generalized step still contains a plugins/acs/ hardcode
+        """Fail loudly if any generalized step still contains a src/acs/ hardcode
         or lacks a loop sentinel. These guards are RED before the ci.yml edits land.
         """
         # Step 1 (JSON parse): find the run: line for that step
@@ -295,28 +295,28 @@ class _CIShapeBase(unittest.TestCase):
                 "Step 1 (JSON-parse) run block must contain 'find .claude-plugin plugins' "
                 "(without '/acs') after generalization. Guard: generalization not yet applied."
             )
-            assert "plugins/acs" not in step1_run_text or "plugins/acs/" not in step1_run_text.replace(
+            assert "src/acs" not in step1_run_text or "src/acs/" not in step1_run_text.replace(
                 "find .claude-plugin plugins", ""
             ), (
-                "Step 1 (JSON-parse) run block must NOT contain 'plugins/acs/' after "
+                "Step 1 (JSON-parse) run block must NOT contain 'src/acs/' after "
                 "generalization. Guard: hardcode still present."
             )
-            # More precise check: the find command should not specifically enumerate plugins/acs
+            # More precise check: the find command should not specifically enumerate src/acs
             find_lines = [l for l in cls.lines[step1_idx:step1_idx + 15] if "find " in l]
             if find_lines:
-                assert "plugins/acs" not in find_lines[0] or (
-                    "plugins " in find_lines[0] and "plugins/acs " not in find_lines[0]
+                assert "src/acs" not in find_lines[0] or (
+                    "plugins " in find_lines[0] and "src/acs " not in find_lines[0]
                 ), (
-                    f"Step 1 find command still has hardcoded 'plugins/acs': {find_lines[0].strip()}"
+                    f"Step 1 find command still has hardcoded 'src/acs': {find_lines[0].strip()}"
                 )
 
-        # Step 2 (JSON Schema structural): body must not hardcode plugins/acs/schemas
+        # Step 2 (JSON Schema structural): body must not hardcode src/acs/schemas
         assert cls.schema_body, (
             "Extracted schema step body is empty. Check 'Validate JSON Schema documents "
             "(structural)' step heredoc in ci.yml."
         )
-        assert "plugins/acs/schemas" not in cls.schema_body, (
-            "Schema step body still hardcodes 'plugins/acs/schemas'. "
+        assert "src/acs/schemas" not in cls.schema_body, (
+            "Schema step body still hardcodes 'src/acs/schemas'. "
             "Generalization (per-plugin loop) must be applied first."
         )
         assert "plugin_dir" in cls.schema_body or "marketplace.json" in cls.schema_body, (
@@ -324,24 +324,24 @@ class _CIShapeBase(unittest.TestCase):
             "enumeration after generalization."
         )
 
-        # Step 3 (settings): body must not hardcode plugins/acs
+        # Step 3 (settings): body must not hardcode src/acs
         assert cls.settings_body, (
             "Extracted settings step body is empty."
         )
-        assert "plugins/acs" not in cls.settings_body, (
-            "Settings step body still hardcodes 'plugins/acs'. "
+        assert "src/acs" not in cls.settings_body, (
+            "Settings step body still hardcodes 'src/acs'. "
             "Generalization must be applied first."
         )
         assert "plugin_dir" in cls.settings_body or "marketplace.json" in cls.settings_body, (
             "Settings step body must contain a loop variable after generalization."
         )
 
-        # Step 4 (XSD): body must not hardcode plugins/acs/schemas/acs-messages.xsd
+        # Step 4 (XSD): body must not hardcode src/acs/schemas/acs-messages.xsd
         assert cls.xsd_body, (
             "Extracted XSD step body is empty."
         )
-        assert "plugins/acs/schemas/acs-messages.xsd" not in cls.xsd_body, (
-            "XSD step body still hardcodes 'plugins/acs/schemas/acs-messages.xsd'. "
+        assert "src/acs/schemas/acs-messages.xsd" not in cls.xsd_body, (
+            "XSD step body still hardcodes 'src/acs/schemas/acs-messages.xsd'. "
             "Generalization must be applied first."
         )
         # After generalization it should be a shell loop (for/while) or contain marketplace
@@ -353,12 +353,12 @@ class _CIShapeBase(unittest.TestCase):
             "XSD step body must contain a loop construct after generalization."
         )
 
-        # Step 5 (hooks): body must not hardcode plugins/acs/hooks
+        # Step 5 (hooks): body must not hardcode src/acs/hooks
         assert cls.hooks_body, (
             "Extracted hooks step body is empty."
         )
-        assert "plugins/acs/hooks/scripts" not in cls.hooks_body, (
-            "Hooks step body still hardcodes 'plugins/acs/hooks/scripts'. "
+        assert "src/acs/hooks/scripts" not in cls.hooks_body, (
+            "Hooks step body still hardcodes 'src/acs/hooks/scripts'. "
             "Generalization must be applied first."
         )
         assert (
@@ -369,16 +369,16 @@ class _CIShapeBase(unittest.TestCase):
             "Hooks step body must contain a loop construct after generalization."
         )
 
-        # Step 6 (frontmatter): body must not hardcode plugins/acs/skills or plugins/acs/agents
+        # Step 6 (frontmatter): body must not hardcode src/acs/skills or src/acs/agents
         assert cls.fm_body, (
             "Extracted frontmatter step body is empty."
         )
-        assert "plugins/acs/skills" not in cls.fm_body, (
-            "Frontmatter step body still hardcodes 'plugins/acs/skills'. "
+        assert "src/acs/skills" not in cls.fm_body, (
+            "Frontmatter step body still hardcodes 'src/acs/skills'. "
             "Generalization must be applied first."
         )
-        assert "plugins/acs/agents" not in cls.fm_body, (
-            "Frontmatter step body still hardcodes 'plugins/acs/agents'. "
+        assert "src/acs/agents" not in cls.fm_body, (
+            "Frontmatter step body still hardcodes 'src/acs/agents'. "
             "Generalization must be applied first."
         )
         assert "plugin_dir" in cls.fm_body or "marketplace.json" in cls.fm_body, (
@@ -430,7 +430,7 @@ class _CIShapeBase(unittest.TestCase):
 class TestJSONParse(unittest.TestCase):
 
     def test_json_parse_step_uses_plugins_not_plugins_acs(self):
-        """T-JSON-parse: Step 1 'find' must cover 'plugins' not 'plugins/acs' specifically."""
+        """T-JSON-parse: Step 1 'find' must cover 'plugins' not 'src/acs' specifically."""
         lines = _read_ci_lines()
         step_idx = _find_step_start(lines, "Validate all JSON files parse")
         self.assertIsNotNone(step_idx, "Step 'Validate all JSON files parse' not found in ci.yml")
@@ -442,14 +442,14 @@ class TestJSONParse(unittest.TestCase):
             block,
             "JSON-parse step must use 'find .claude-plugin plugins' (widened) after generalization"
         )
-        # Must NOT have 'plugins/acs' as a distinct find target
+        # Must NOT have 'src/acs' as a distinct find target
         # (after widening, 'plugins' covers all plugins including acs)
         find_lines = [l.strip() for l in lines[step_idx:step_idx + 15] if "find " in l and ".claude-plugin" in l]
         if find_lines:
             self.assertNotIn(
-                "plugins/acs",
+                "src/acs",
                 find_lines[0],
-                f"JSON-parse find command must not hardcode plugins/acs: {find_lines[0]}"
+                f"JSON-parse find command must not hardcode src/acs: {find_lines[0]}"
             )
 
 
@@ -567,7 +567,7 @@ class TestSettingsStep(_CIShapeBase):
         tmp = self._tmp_fixture()
 
         # Plugin "acs": open settings schema + .acs/settings.json with extra props
-        acs_dir = os.path.join(tmp, "plugins", "acs")
+        acs_dir = os.path.join(tmp, "src", "acs")
         _write_file(
             os.path.join(acs_dir, ".claude-plugin", "plugin.json"),
             _json.dumps({"name": "acs", "version": "0.1.0"}),
@@ -610,7 +610,7 @@ class TestSettingsStep(_CIShapeBase):
         # NO .tabp/settings.json created -> step must skip it
 
         _write_marketplace(tmp, [
-            {"name": "acs", "source": "plugins/acs"},
+            {"name": "acs", "source": "src/acs"},
             {"name": "tabp", "source": "plugins/tabp"},
         ])
 
@@ -858,9 +858,9 @@ class TestCIStructural(unittest.TestCase):
         )
         # Must NOT still have the old narrower glob
         self.assertNotIn(
-            "^(evals/|plugins/acs/)",
+            "^(evals/|src/acs/)",
             content,
-            "acs-free-evals files: old glob '^(evals/|plugins/acs/)' must be removed"
+            "acs-free-evals files: old glob '^(evals/|src/acs/)' must be removed"
         )
 
     def test_precommit_entry_has_plugin_acs(self):

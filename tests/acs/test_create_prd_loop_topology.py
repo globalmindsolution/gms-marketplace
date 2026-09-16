@@ -1,27 +1,31 @@
-"""MAR-305 — /acs:create-prd's reflection loop drops the per-iteration
-re-plan: the planner now runs exactly once per run, before the loop, and the
-loop body is execute -> verify only. Verifier findings on iteration 2+ route
-straight to the executor's <context>, with no intervening planner spawn.
-Mirrors the structure (never the content) of
-tests/acs/test_docs_sync_loop_topology.py, which pins the identical topology
-change /acs:docs-sync made in MAR-300 (itself mirroring /acs:code's MAR-71).
+"""/acs:create-prd runs execute -> verify with no planner (ADR-0092 class D).
 
-Every assertion is by file + substring/regex over whitespace-normalized text,
-never by line number (line numbers drift as prose is revised). Stdlib-only
-(os, re, unittest). Run:
-  python3 -m unittest tests.acs.test_create_prd_loop_topology -v
+MAR-305 first dropped the per-iteration re-plan (plan once, then execute ->
+verify). ADR-0092 followed that to its conclusion: a PRD is a document, so a
+plan for it is a second copy of the writing — the executor surveys (mode,
+outline, open questions, the three corroboration sections the verifier's
+deterministic floor parses) in its authoring notes and writes the set from
+them. This module pins that topology so a planner cannot creep back in
+through prose, the registry, or an agent file. Mirrors
+tests/acs/test_create_docs_loop_topology.py.
+
+Run:  python3 -m unittest tests.acs.test_create_prd_loop_topology -v
 """
 
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 PRD_SKILL = os.path.join(PLUGIN, "skills", "create-prd", "SKILL.md")
-PRD_PLANNER = os.path.join(PLUGIN, "agents", "create-prd-planner.md")
-PRD_EXECUTOR = os.path.join(PLUGIN, "agents", "create-prd-executor.md")
-PRD_VERIFIER = os.path.join(PLUGIN, "agents", "create-prd-verifier.md")
+AGENTS = os.path.join(PLUGIN, "agents")
+PRD_EXECUTOR = os.path.join(AGENTS, "create-prd-executor.md")
+PRD_VERIFIER = os.path.join(AGENTS, "create-prd-verifier.md")
+sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+
+import acs_lib  # noqa: E402
 
 
 def read(path):
@@ -30,8 +34,6 @@ def read(path):
 
 
 def norm(body):
-    """Collapse whitespace runs so markdown line-wrap can never break a
-    phrase-spanning match."""
     return re.sub(r"\s+", " ", body)
 
 
@@ -43,134 +45,88 @@ def section(body, start_heading, end_heading):
     return body[start:end]
 
 
-class SinglePlannerSpawnPerRunTest(unittest.TestCase):
-    """AC-1: a create-prd run that needs 3 iterations spawns exactly one
-    acs:create-prd-planner subagent across the whole run."""
+class NoPlannerTest(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(PRD_SKILL)
-        cls.norm = norm(cls.body)
+    def test_the_registry_declares_executor_and_verifier_only(self):
+        self.assertEqual(acs_lib.skill_agents()["create-prd"], ["executor", "verifier"])
 
-    def test_reflection_loop_states_exactly_one_planner_spawn_per_run(self):
-        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
-            window = self.norm[max(0, m.start() - 80):m.end() + 80]
-            if "acs:create-prd-planner" in window and re.search(
-                    r"(?i)\b(run|whole run)\b", window):
-                return
-        self.fail(
-            "create-prd/SKILL.md must co-locate an 'exactly one' clause "
-            "with 'acs:create-prd-planner' and a whole-run qualifier "
-            "within ~80 chars")
+    def test_the_two_agent_files_exist_and_no_planner_does(self):
+        self.assertTrue(os.path.isfile(PRD_EXECUTOR))
+        self.assertTrue(os.path.isfile(PRD_VERIFIER))
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-prd-planner.md")))
 
-    def test_plan_section_heading_is_not_per_iteration(self):
-        self.assertRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
-        self.assertNotRegex(self.body, r"(?m)^### Plan$")
+    def test_the_prose_never_spawns_a_planner(self):
+        body = read(PRD_SKILL)
+        self.assertNotIn("acs:create-prd-planner", body)
+        self.assertNotRegex(body, r"(?i)spawn (exactly )?one .{0,40}planner")
+        self.assertNotIn("iter-1-plan.md", body)
+        self.assertNotIn('phase="plan"', body)
 
-    def test_plan_phase_runs_once_before_the_loop(self):
-        self.assertRegex(
-            self.norm,
-            r"(?i)plan.{0,80}once.{0,80}(before the loop|up front|per run)")
+    def test_the_prose_says_there_is_no_plan_phase(self):
+        body = norm(read(PRD_SKILL))
+        self.assertRegex(body, r"(?i)execute -> verify, no planner")
+        self.assertRegex(body, r"(?i)There is no plan phase")
 
     def test_no_unnegated_replan_instruction(self):
         negating = re.compile(r"(?i)never|no |not|without|instead of")
-        for m in re.finditer(r"(?i)re-?plan\w*", self.body):
-            window = self.body[max(0, m.start() - 60):m.end() + 60]
-            self.assertRegex(
-                window, negating,
-                "un-negated 're-plan' instruction found: %r" % window)
-
-    def test_no_surviving_plan_execute_verify_triad_instruction(self):
-        triad_re = re.compile(r"(?i)plan\W{0,4}(->|→)\W{0,4}execute")
-        negating = re.compile(r"(?i)never|no |not|without|instead of")
-
-        def assert_all_negated(text, label):
-            for m in triad_re.finditer(text):
-                window = text[max(0, m.start() - 60):m.end() + 60]
-                self.assertRegex(
-                    window, negating,
-                    "un-negated plan->execute sequence in %s: %r" % (label, window))
-
-        loop_window = section(self.norm, "## Reflection loop", "## Deliver the docs-only PR")
-        assert_all_negated(loop_window, "the reflection-loop section")
-        # file-wide, so any occurrence outside the loop window is covered too.
-        assert_all_negated(self.norm, "the file as a whole")
-
-    def test_resume_reuses_the_existing_plan_artifact_without_a_second_planner(self):
-        window = section(self.norm, "## Resume & reconcile", "## Reflection loop")
-        self.assertIn("iter-1-plan.md", window)
-        self.assertRegex(window, r"(?i)(never|no|without).{0,40}second planner")
+        for m in re.finditer(r"(?i)re-?plan\w*", read(PRD_SKILL)):
+            window = read(PRD_SKILL)[max(0, m.start() - 60):m.end() + 60]
+            self.assertRegex(window, negating,
+                             "un-negated 're-plan' instruction found: %r" % window)
 
 
-class FindingsRouteStraightToExecutorTest(unittest.TestCase):
-    """AC-2: verifier findings on iteration 2+ are delivered to the
-    executor's <context>, with no intervening planner spawn."""
-
-    def test_findings_feed_the_executor_context_with_no_planner_in_between(self):
-        body_norm = norm(read(PRD_SKILL))
-        no_planner_re = re.compile(r"(?i)(no|never|without)\W{0,20}planner")
-        for m in re.finditer(r"(?i)findings", body_norm):
-            window = body_norm[max(0, m.start() - 300):m.end() + 300]
-            if ("executor" in window.lower() and "<context>" in window
-                    and no_planner_re.search(window)):
-                return
-        self.fail(
-            "create-prd/SKILL.md must co-locate 'findings', 'executor', "
-            "'<context>' and a no-planner clause within ~300 chars")
-
-    def test_executor_input_contract_carries_iteration_2plus_findings(self):
-        body_norm = norm(read(PRD_EXECUTOR))
-        self.assertIn("on iteration 2+ the verifier findings to fix", body_norm)
-        self.assertIn("no intervening planner spawn", body_norm)
-
-    def test_executor_charter_still_requires_fixing_every_listed_finding(self):
-        body_norm = norm(read(PRD_EXECUTOR))
-        self.assertIn(
-            "On iteration 2+, fix EVERY finding listed in `<context>`",
-            body_norm)
-
-
-class IterationCapUnchangedTest(unittest.TestCase):
-    """AC-3: the iteration cap (max 3) and verify-depth selection are
-    unchanged."""
+class ExecuteVerifyLoopTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(PRD_SKILL)
         cls.norm = norm(cls.body)
 
-    def test_cap_is_still_max_three_iterations(self):
+    def test_cap_is_three_execute_verify_rounds(self):
         self.assertIn("max 3 iterations", self.norm)
         self.assertIn("After iteration 3", self.norm)
+        self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one execute -> verify round")
 
-    def test_iteration_is_defined_as_an_execute_verify_round(self):
-        window = section(self.norm, "## Reflection loop", "## Deliver the docs-only PR")
-        self.assertRegex(window, r"(?i)execute\s*(→|->|\+|and)\s*verify")
-        self.assertRegex(
-            window,
-            r"(?i)not.{0,80}(triad|plan\W{0,4}execute\W{0,4}verify)")
+    def test_iteration_one_surveys_then_writes(self):
+        self.assertRegex(self.norm, r"(?i)iteration 1'?s executor classifies the mode")
+        self.assertRegex(self.norm, r"(?i)returns `needs_input` with the open questions before writing any file")
+        self.assertRegex(self.norm, r"(?i)findings go verbatim into the next executor `<task>` `<context>`")
+
+    def test_the_executor_writes_authoring_notes_and_the_verifier_reads_them(self):
+        self.assertIn("iter-<n>-authoring.md", self.body)
+        executor = read(PRD_EXECUTOR)
+        self.assertIn("iter-<n>-authoring.md", executor)
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
+        for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
+            self.assertIn(heading, executor)
+        verifier = read(PRD_VERIFIER)
+        self.assertIn("--plan <partition>/phases/create-prd/iter-<n>-authoring.md", verifier)
+        self.assertNotIn("iter-<n>-plan.md", verifier)
+
+    def test_findings_feed_the_executor_context_with_no_plan_phase_in_between(self):
+        no_plan_re = re.compile(r"(?i)(no|never|without)\W{0,20}plan(ner| phase)")
+        for m in re.finditer(r"(?i)findings", self.norm):
+            window = self.norm[max(0, m.start() - 300):m.end() + 300]
+            if ("executor" in window.lower() and "<context>" in window
+                    and no_plan_re.search(window)):
+                return
+        self.fail("create-prd/SKILL.md must co-locate 'findings', 'executor', "
+                  "'<context>' and a no-plan-phase clause within ~300 chars")
+
+    def test_executor_charter_still_requires_fixing_every_listed_finding(self):
+        self.assertIn("On iteration 2+, fix EVERY finding listed in `<context>`", norm(read(PRD_EXECUTOR)))
 
     def test_no_lane_driven_verify_depth_machinery_introduced(self):
         for token in ("verify_depth", "VERIFY_ITERATION_CAP", "TRIVIAL", "COMPLEX"):
             self.assertNotIn(token, self.body)
 
-
-class PlannerRoleStillWiredTest(unittest.TestCase):
-    """AC-4: the test suite is updated to assert single-planner-spawn
-    behavior and the existing create-prd test suite passes; this test guards
-    against over-deletion of the planner/verifier roles."""
-
-    def test_skill_still_references_planner_and_verifier(self):
-        body = read(PRD_SKILL)
-        self.assertIn("acs:create-prd-planner", body)
-        self.assertIn("acs:create-prd-verifier", body)
-        self.assertIn("iter-1-plan.md", body)
+    def test_resume_never_reintroduces_a_plan_artifact(self):
+        window = section(self.norm, "## Resume & reconcile", "## Reflection loop")
+        self.assertNotIn("iter-1-plan.md", window)
+        self.assertRegex(window, r"(?i)no plan artifact to reuse")
 
 
 class VerifierIndependenceUnchangedTest(unittest.TestCase):
-    """AC-4: the verifier's independent, artifact-only judgment behavior is
-    unchanged (still never trusts the executor's reasoning, and still runs
-    prd_conformance_check.py's deterministic corroboration floor itself)."""
 
     def test_skill_verify_phase_keeps_artifact_only_independence_clause(self):
         body_norm = norm(read(PRD_SKILL))
@@ -180,28 +136,9 @@ class VerifierIndependenceUnchangedTest(unittest.TestCase):
 
     def test_verifier_agent_still_refuses_to_trust_the_execute_report(self):
         body = read(PRD_VERIFIER)
-        body_norm = norm(body)
-        self.assertIn(
-            "Never rubber-stamp: re-run every cheap check yourself",
-            body_norm)
+        self.assertIn("Never rubber-stamp: re-run every cheap check yourself", norm(body))
         self.assertIn("prd_conformance_check.py", body)
-        self.assertIn(
-            "independently and deterministically re-checks three families",
-            body_norm)
-
-
-class PlannerNoLongerPromisedFindingsTest(unittest.TestCase):
-    """create-prd-planner.md's prose no longer promises the planner
-    iteration >= 2 verifier findings, since after this change the planner is
-    never re-spawned to receive them."""
-
-    def test_planner_no_longer_promised_prior_iteration_findings(self):
-        body_norm = norm(read(PRD_PLANNER))
-        self.assertNotIn(
-            "the verifier findings your new plan MUST individually resolve",
-            body_norm)
-        self.assertNotIn("open the plan with a findings table", body_norm)
-        self.assertRegex(body_norm, r"(?i)spawned exactly once per run")
+        self.assertIn("independently and deterministically re-checks three families", norm(body))
 
 
 if __name__ == "__main__":

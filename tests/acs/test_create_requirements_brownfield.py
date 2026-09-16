@@ -6,7 +6,7 @@ Deepens the four prose files Spec 01 scaffolded (SKILL.md +
 create-requirements-{planner,executor,verifier}.md): architecture-aware
 feature-area enumeration + codebase-inventory fallback, code-cited DRAFT
 extraction, functional/non-functional classification-and-write
-(rubric quoted verbatim from `plugins/acs/skills/code/SKILL.md`, never
+(rubric quoted verbatim from `src/acs/skills/code/SKILL.md`, never
 paraphrased — the classification-drift regression), augment-only-absent
 no-overwrite, interactive-confirm; plus ADR 0061, the CHANGELOG
 `[Unreleased]` entry, and the `contracts.md` producer-registration line.
@@ -25,9 +25,9 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
-PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-planner.md")
+PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
 VERIFIER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-verifier.md")
 RUBRIC_SOURCE_PATH = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
@@ -161,8 +161,8 @@ class ClassificationRubricRegressionTest(unittest.TestCase):
     VERBATIM from the rubric's producing-side source of truth — a
     regression test that fails if the two diverge (the plan's
     classification-drift risk). MAR-162 moved that source of truth from
-    `plugins/acs/skills/code/SKILL.md` to
-    `plugins/acs/agents/docs-sync-executor.md` (C-1); the rubric block
+    `src/acs/skills/code/SKILL.md` to
+    `src/acs/agents/docs-sync-executor.md` (C-1); the rubric block
     itself is unchanged, only its file of origin moved."""
 
     RUBRIC_RE = re.compile(
@@ -209,7 +209,7 @@ class SkillInteractiveConfirmContractTest(unittest.TestCase):
         self.assertRegex(
             self.body,
             r"(?i)present[\s\S]{0,300}open points[\s\S]{0,200}clarify ledger[\s\S]{0,300}"
-            r"before you spawn the executor",
+            r"before the executor writes an area file",
         )
 
     def test_draft_baseline_never_authoritative_language(self):

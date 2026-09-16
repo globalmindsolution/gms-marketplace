@@ -1,9 +1,9 @@
 # LLD — Interface contracts
 
 The binding shapes live in machine-validated files; this page is the index.
-Canonical detail: `plugins/acs/docs/INTERNALS.md`.
+Canonical detail: `src/acs/docs/INTERNALS.md`.
 
-## Coordinator ↔ subagent (XML, `plugins/acs/schemas/acs-messages.xsd`)
+## Coordinator ↔ subagent (XML, `src/acs/schemas/acs-messages.xsd`)
 
 | Message | Direction | Key content |
 |---------|-----------|-------------|
@@ -13,18 +13,23 @@ Canonical detail: `plugins/acs/docs/INTERNALS.md`.
 
 Validation: `validate_xml.py` on every send/receive; one re-request, then fail.
 By default validation runs **in-process** via `validate_structurally()` (pure
-stdlib `xml.etree`, raised to XSD-equivalent coverage) — no subprocess is
-spawned per message. `xmllint` is invoked only opt-in when
+stdlib `xml.etree`) against a model **derived from `acs-messages.xsd` at load
+time** — the XSD is the contract's only declaration (ADR 0093), so the
+in-process path cannot drift from it — and no subprocess is spawned per
+message. `<constraint name>` is typed: the name must be one of the XSD's
+`constraintName` vocabulary (or the `required_sections:<file>` form), so a
+misspelled delegation key fails at the coordinator instead of arriving at the
+subagent as an absent value. `xmllint` is invoked only opt-in when
 `ACS_XML_AUTHORITATIVE=1` AND `xmllint` is on `PATH` AND the XSD is present; its
 absence never blocks a verdict. A `validate_batch()` Python API validates a list
 of messages in one in-process loop (MAR-61).
 
 **`<metrics>` removed (MAR-1, ADR 0082).** The self-estimated
 `<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
-gone from `<result>`'s content model — both `acs-messages.xsd` and, the
-actual in-process enforcement path, `validate_xml.py`'s
-`CHILD_ORDER["result"]`/`ALLOWED_ATTRS` tables reject a stray `<metrics>`
-element post-change. Token/cost figures are no longer part of the
+gone from `<result>`'s content model — `acs-messages.xsd` does not declare
+it, and the in-process enforcement path, `validate_xml.py`, derives its
+content model from the XSD, so a stray `<metrics>` element is rejected as an
+undeclared child post-change. Token/cost figures are no longer part of the
 subagent-to-coordinator message contract at all; they are measured from the
 run's own transcript and the statusLine cost sample at `finalize_run` time
 (see the Run-entry / totals contract below).
@@ -163,7 +168,7 @@ every fail-open branch (not a write tool, no partition, no active executor)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
 lock. Unlike `escalations`, the item shape **is** declared in
-`plugins/acs/schemas/skill-state.schema.json`; run-entry items already declare
+`src/acs/schemas/skill-state.schema.json`; run-entry items already declare
 `additionalProperties: true`, so that declaration documents the entry rather
 than tightening what a run entry may carry.
 
@@ -182,7 +187,7 @@ The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
 `code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
 reference in `create-pr-state` (or the product skill's state). Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
-`plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
+`src/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this
 release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
 true` (unchanged; MAR-73, slice 3 of MAR-69).
@@ -252,36 +257,37 @@ The `standards` chain level has a documentary counterpart in this repo at
 guidance rather than as a runtime-verified conformance level.
 
 `DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib`, declared in `acs_lib/_common.py`)
-declares, per doc-bootstrap skill, which upstream doc sets it depends on, and
-`DOC_BOOTSTRAP_SETTINGS_KEY` maps each entry to the settings key that must
-resolve before that skill is eligible; `fanout_batches()`
-(`acs_lib/setup_helpers.py`) is the pure helper `/acs:create-docs` calls
-against this table to compute its eligible cross-skill batches (MAR-1). The
-default eligible set is the declared tuple `DOC_BOOTSTRAP_FANOUT_V1`, which is
-now **all four** doc-bootstrap legs — `create-quality`, `create-operations`,
-`create-principles`, `create-standards` — so the N-way case that used to need
-`fanout_batches`'s explicit `candidates` argument is the default path; that
-argument now carries a *narrowing* request (the entry point's `<set|all>`
-argument) rather than a widening one. Widening the set further stays a data
-change across all four declared constants, never a code or prose change.
+declares, per doc set, which upstream doc sets it depends on — a derived view
+of `acs_lib.DOC_SETS`, the one table that says what a set is (settings key,
+delivery-ticket title, template directory, output files with their required
+sections, audience, upstream inputs, dependency edges; ADR-0094). Its sibling
+views `DOC_BOOTSTRAP_SETTINGS_KEY` and `DOC_BOOTSTRAP_SENTINEL` are keyed by
+set name too, and `fanout_batches()` (`acs_lib/setup_helpers.py`) is the pure
+helper `/acs:create-docs` calls against them to compute its eligible batches
+(MAR-1). The default eligible set is `DOC_BOOTSTRAP_FANOUT_V1` — every
+declared set, `quality`, `operations`, `principles`, `standards` — so the
+N-way case is the default path and the `candidates` argument carries a
+*narrowing* request (the skill's `<set|all>` argument). Adding a fifth set is
+one `DOC_SETS` row plus its templates, never a code or prose change.
 
 Each declared dependency is either **hard** (an existing gate already enforces
 it) or **soft** (prose-only, ungated) — the principles→standards edge above is
-the soft case: `create-standards` degrades gracefully when `principles/` is
-absent and its own gate requires only the architecture set, so the conformance
-chain's "each level verified against the one above it" holds as a hard property
-everywhere except this one declared-soft edge. With the set at four, that edge
-is now load-bearing on the default path: it is what splits the default batches
-into `[[create-quality, create-operations, create-principles],
-[create-standards]]` instead of one flat batch. The distinction is documented
-once in `DOC_BOOTSTRAP_DEPENDENCIES`'s own table and cross-referenced from here
-so a reader of either doc finds the other.
+the soft case: the `standards` set degrades gracefully when `principles/` is
+absent and the one gate every set shares requires only the architecture set,
+so the conformance chain's "each level verified against the one above it"
+holds as a hard property everywhere except this one declared-soft edge. With
+four sets, that edge is load-bearing on the default path: it is what splits
+the default batches into `[[quality, operations, principles], [standards]]`
+instead of one flat batch. The distinction is documented once on `DOC_SETS`
+and cross-referenced from here so a reader of either doc finds the other.
 
-`parse_doc_set_arg()` is the companion pure parser and the entry point's whole
+`parse_doc_set_arg()` is the companion pure parser and the skill's whole
 argument contract: a comma-separated list of doc sets in either spelling
-(`quality` or `create-quality`), or `all` on its own (`all` beside a set name is
-refused, never guessed at). It returns `candidates` (canonical leg names, or
-`None` for "no argument", handed straight to `fanout_batches`), `rejected`, and
+(`quality` or the former leg name `create-quality`), `all` on its own (`all`
+beside a set name is refused, never guessed at), or exactly one delivery-ticket
+id, which resumes that set's run. It returns `candidates` (set names, or
+`None` for "no argument", handed straight to `fanout_batches`), `rejected`,
+`resume`, and
 `notices` — the exact stderr lines, in order. A token naming no doc set refuses
 the WHOLE run rather than fanning out the recognized remainder, so no requested
 name is ever silently dropped. `parse_fanout_for_arg()` remains the legacy

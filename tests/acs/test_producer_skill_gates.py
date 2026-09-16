@@ -1,8 +1,8 @@
-"""MAR-122 — fix R1: the four doc-set producer skills (create-quality,
-create-operations, create-principles, create-standards) are registered in
+"""MAR-122 — fix R1: the doc-set producer skills were registered in
 HOOKED_SKILLS but had no GATES entry, so run_pre's bare GATES[skill]
-subscript raised KeyError -> fail-closed exit 2. This module pins the four
-new gate functions directly (pure unit, no subprocess), mirroring
+subscript raised KeyError -> fail-closed exit 2. Since ADR-0094 the four
+producer legs are one skill, /acs:create-docs, with one gate for every doc
+set. This module pins that gate directly (pure unit, no subprocess), mirroring
 tests/acs/test_standardize_project_registry_and_diff.py's
 `sys.path.insert(HOOKS_DIR); import acs_lib` fixture shape.
 
@@ -15,17 +15,17 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)
 
 import acs_lib  # noqa: E402
 
-PRODUCERS = ("create-quality", "create-operations", "create-principles", "create-standards")
+PRODUCERS = ("create-docs",)
 
 
 class Mar122RegistryCase(unittest.TestCase):
-    """AC-2: the four gate functions exist and are registered in GATES."""
+    """AC-2: the producer gate exists and is registered in GATES."""
 
     def test_producers_registered_in_gates(self):
         for skill in PRODUCERS:

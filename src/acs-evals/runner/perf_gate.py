@@ -35,6 +35,9 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import Build, BuildError, resolve_build  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DATASET = os.path.join(ROOT, "dataset")
@@ -96,18 +99,41 @@ def summarize(probe):
             if want is None:
                 return run.get("routed_to") is not None
             return run.get("routed_to") == want
-        hits = sum(1 for r in runs if fired(r) == bool(must))
+        # A routing run the instrument never delivered to the model (an API
+        # that gave no response, twice) is a hole here too, not a miss.
+        scored = [r for r in runs if not r.get("unmeasured")]
+        hits = sum(1 for r in scored if fired(r) == bool(must))
+        agg["unmeasured"] = len(runs) - len(scored)
     else:
-        hits = sum(1 for r in runs if r.get("ok"))
+        # A run whose setup never established the precondition did not measure
+        # the skill. Counting it as a failure blames the plugin for the
+        # harness, and counting it as a pass hides that nothing was measured —
+        # so it leaves the denominator entirely and is reported on its own
+        # axis. A skill that ran and reported `failed` is the real thing this
+        # floor is for, and stays in.
+        #
+        # A hit is the measured skill's OWN ledger saying `completed`. A clean
+        # session exit is not enough: on 2026-09-14 two PIPE-code sessions
+        # exited 0 after routing to /acs:ship, which ran /acs:analyze-ticket
+        # and stopped — /acs:code never ran, its ledger did not exist, and
+        # `status != "failed"` scored both as completions of a skill that was
+        # never exercised.
+        scored = [r for r in runs if not r.get("unmeasured")]
+        hits = sum(1 for r in scored
+                   if r.get("ok") and r.get("status") == "completed")
+        agg["unmeasured"] = len(runs) - len(scored)
     agg["reliability"] = {
-        "hits": hits, "total": len(runs),
-        "rate": (hits / len(runs)) if runs else None,
+        "hits": hits, "total": len(scored),
+        "rate": (hits / len(scored)) if scored else None,
     }
 
-    agg["seconds"] = spread([r.get("seconds") for r in runs])
-    agg["cost_usd"] = spread([r.get("cost_usd") for r in runs])
+    # Every spread reads the scored runs too: an unmeasured run records zero
+    # seconds and no cost, and folding those in moves the median the gate
+    # compares.
+    agg["seconds"] = spread([r.get("seconds") for r in scored])
+    agg["cost_usd"] = spread([r.get("cost_usd") for r in scored])
 
-    quals = [r.get("quality") or {} for r in runs]
+    quals = [r.get("quality") or {} for r in scored]
     agg["verify_iterations"] = spread([q.get("verify_iterations") for q in quals])
     agg["coverage_percent"] = spread([q.get("coverage_percent") for q in quals])
     blocking = [q.get("blocking_findings") for q in quals
@@ -165,6 +191,7 @@ def compare(measurement, baseline, thresholds):
     """
     findings = []
     rel = thresholds.get("reliability", {})
+    cov = thresholds.get("coverage", {})
     cost = thresholds.get("cost", {})
     time_t = thresholds.get("time", {})
     qual = thresholds.get("quality", {})
@@ -181,10 +208,44 @@ def compare(measurement, baseline, thresholds):
         # -- Absolute: reliability ------------------------------------------
         r = agg.get("reliability") or {}
         rate, total = r.get("rate"), r.get("total") or 0
+
+        # -- Absolute: coverage ---------------------------------------------
+        # Reported before reliability, because a scenario that measured
+        # nothing has no reliability to read.
+        unmeasured = agg.get("unmeasured") or 0
+        if unmeasured:
+            spec = cov.get("unmeasured_runs_ceiling", {})
+            findings.append(_finding(
+                pid, "coverage", spec.get("severity", "major"),
+                "%d of %d runs measured nothing — the setup never reached the "
+                "state the scenario needs, so the skill was never exercised"
+                % (unmeasured, unmeasured + total),
+                observed=unmeasured, threshold=spec.get("value", 0)))
+
+        # -- Absolute: a refused reach for a user-only skill -----------------
+        # The guarantee held — the CLI refused the call — so this is never a
+        # reliability finding. But the model spent a turn reaching for a skill
+        # it cannot run, and what draws it there is the descriptions. Worth
+        # saying; not worth blocking.
+        reached = [r.get("attempted") for r in (probe.get("runs") or [])
+                   if r.get("attempted") and r.get("detection") == "refused_user_only"]
+        if reached:
+            spec = cov.get("user_only_attempt_ceiling", {})
+            findings.append(_finding(
+                pid, "routing-quality", spec.get("severity", "minor"),
+                "reached for %s on %d of %d runs and was refused — the "
+                "no-auto-invoke guarantee held, but the descriptions still "
+                "point the model at a skill it cannot invoke"
+                % (", ".join(sorted(set(reached))), len(reached),
+                   len(probe.get("runs") or [])),
+                observed=len(reached), threshold=spec.get("value", 0)))
+
         if total == 0:
             findings.append(_finding(
                 pid, "reliability", "major",
-                "no runs recorded — the probe did not execute"))
+                "no runs recorded — the probe did not execute" if not unmeasured
+                else "nothing measured — every run's setup fell short, so this "
+                     "skill is unevaluated in this measurement"))
         elif kind == "routing":
             expect = probe.get("expect") or {}
             negative = not expect.get("must_route", True)
@@ -296,6 +357,59 @@ def compare(measurement, baseline, thresholds):
 # The verdict
 # --------------------------------------------------------------------------
 
+def build_under_test(explicit=None):
+    """(build, None), or (None, why) when no build resolves.
+
+    `--build` names a root outright; otherwise `ACS_PLUGIN_ROOT`, then the
+    installed build, exactly as `measure_skills` resolves the build it
+    measures -- so the two agree about what "this build" means.
+    """
+    try:
+        if explicit:
+            return Build(os.path.abspath(os.path.expanduser(explicit))), None
+        return resolve_build(), None
+    except BuildError as exc:
+        return None, str(exc)
+
+
+def stale_measurement(measurement, build):
+    """Why `measurement` is not a measurement of `build`, or None.
+
+    A measurement names the content digest of the tree it exercised. Judging
+    it against a build whose digest differs would let a release quote numbers
+    taken before its own changes -- the one thing a gate that runs before
+    every cut exists to stop. A measurement recorded before digests existed
+    cannot be tied to any build, so it is stale too, and so is one judged
+    with no build in hand: "unknown" is not "unchanged".
+    """
+    if build is None:
+        return ("no acs build could be resolved to check the measurement "
+                "against; set ACS_PLUGIN_ROOT or pass --build")
+    recorded = measurement.get("build") or {}
+    have = recorded.get("digest")
+    want = getattr(build, "digest", None)
+    if not have:
+        return ("the measurement (acs %s) records no content digest, so it "
+                "cannot be tied to any build; it predates 2026-09-14 -- "
+                "measure again" % recorded.get("version", "?"))
+    if want and have != want:
+        return ("the measurement is of acs %s[%s]; the build under test is "
+                "acs %s[%s] at %s -- the plugin changed since it was taken, "
+                "so measure again"
+                % (recorded.get("version", "?"), have,
+                   getattr(build, "version", "?"), want,
+                   getattr(build, "root", "?")))
+    return None
+
+
+def stale_verdict(reason):
+    """The verdict for a measurement that is not of this build."""
+    return ("fail", "Skill performance: UNMEASURED (stale)",
+            "%s. Quality, reliability, cost and time of THIS build are "
+            "unknown -- not unchanged. Run `make measure` before quoting "
+            "this gate." % reason)
+
+
 def verdict(measurement, baseline, thresholds, findings):
     """(state, headline, detail) — mirrors docs/RUBRIC.md's four states.
 
@@ -334,10 +448,20 @@ def verdict(measurement, baseline, thresholds, findings):
                 "see docs/PERFORMANCE.md. Do not cut a release from this "
                 "build.%s" % (len(crit), note))
     if major:
+        # Name the coverage half separately: "the skill got less reliable" and
+        # "the skill was never exercised" need opposite fixes, and reading the
+        # second as the first is how a harness defect gets filed against the
+        # plugin.
+        holes = [f for f in major if f["axis"] == "coverage"]
+        gap = ("" if not holes else
+               " %d of them a hole in the measurement, not a regression: %s."
+               % (len(holes), "; ".join("%s — %s" % (f["probe"], f["summary"])
+                                        for f in holes)))
         return ("fail", "Skill performance: BLOCKED",
                 "%d finding(s) crossed an absolute floor: skills got less "
-                "reliable, or ran out of the pipeline carrying blocking "
-                "findings.%s" % (len(major), note))
+                "reliable, ran out of the pipeline carrying blocking findings, "
+                "or were never exercised at all.%s%s"
+                % (len(major), gap, note))
     if baseline is None:
         return ("warn", "Skill performance: UNCOMPARED (baseline established)",
                 "The absolute floors held, but this is the first measurement "
@@ -438,6 +562,9 @@ def main():
                     default=os.path.join(DATASET, "thresholds.json"))
     ap.add_argument("--json", dest="out", default=None,
                     help="write the machine-readable result here")
+    ap.add_argument("--build", default=None,
+                    help="plugin root the measurement must be of (default: "
+                         "ACS_PLUGIN_ROOT, else the resolved build)")
     args = ap.parse_args()
 
     thresholds = load(args.thresholds) or {}
@@ -450,13 +577,26 @@ def main():
         print("\n  looked for: %s" % args.measurement)
         return 2
 
+    build, unresolved = build_under_test(args.build)
+    stale = stale_measurement(measurement, build)
+    if stale:
+        state, headline, detail = stale_verdict(stale)
+        print(headline)
+        print("  " + detail)
+        if unresolved:
+            print("\n  " + unresolved.replace("\n", "\n  "))
+        write_result(args.out, measurement, None, None, thresholds, state,
+                     headline, detail, [], stale=stale)
+        return 2
+
     baseline, refusal = pick_baseline(measurement, args.baseline)
     findings = compare(measurement, baseline, thresholds)
     state, headline, detail = verdict(measurement, baseline, thresholds,
                                       findings)
 
-    print("acs skill performance  |  build under test: acs %s  |  scenario set %s"
-          % ((measurement.get("build") or {}).get("version", "?"),
+    print("acs skill performance  |  build under test: acs %s[%s]  |  "
+          "scenario set %s"
+          % (build.version, build.digest,
              measurement.get("scenario_set_version", "?")))
     if refusal:
         print("NOTE: %s" % refusal)
@@ -476,26 +616,39 @@ def main():
     print(headline)
     print("  " + detail)
 
-    if args.out:
-        directory = os.path.dirname(os.path.abspath(args.out))
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(args.out, "w") as fh:
-            json.dump({
-                "schema": "acs-evals/perf-result/1",
-                "generated_at": datetime.datetime.now(datetime.timezone.utc)
-                                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "build": measurement.get("build"),
-                "scenario_set_version": measurement.get("scenario_set_version"),
-                "baseline": (baseline or {}).get("build"),
-                "baseline_refused": refusal,
-                "thresholds_basis": thresholds.get("basis"),
-                "state": state, "headline": headline, "detail": detail,
-                "findings": findings,
-            }, fh, indent=2)
-            fh.write("\n")
-
+    write_result(args.out, measurement, baseline, refusal, thresholds, state,
+                 headline, detail, findings)
     return 0 if state != "fail" else 1
+
+
+def write_result(path, measurement, baseline, refusal, thresholds, state,
+                 headline, detail, findings, stale=None):
+    """The machine-readable verdict, when a path was given.
+
+    A stale verdict is written too: the release PR reads this file, and a
+    file left over from the last judged measurement would say PASSED about a
+    build the gate just refused to judge.
+    """
+    if not path:
+        return
+    directory = os.path.dirname(os.path.abspath(path))
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump({
+            "schema": "acs-evals/perf-result/1",
+            "generated_at": datetime.datetime.now(datetime.timezone.utc)
+                                    .strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "build": measurement.get("build"),
+            "scenario_set_version": measurement.get("scenario_set_version"),
+            "baseline": (baseline or {}).get("build"),
+            "baseline_refused": refusal,
+            "stale": stale,
+            "thresholds_basis": thresholds.get("basis"),
+            "state": state, "headline": headline, "detail": detail,
+            "findings": findings,
+        }, fh, indent=2)
+        fh.write("\n")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ C4Component
         Component(codeowners, "codeowners.py", "reviewer resolution", "stdlib-only CODEOWNERS parser — last-match-wins pattern matching against changed files, team+user owner extraction, no workspace/lock coupling")
         Component(release_notes, "release_notes.py", "changelog aggregation + version bump", "stdlib-only, settings-driven helper — reads the .acs/settings.json release block (Decision 5), drafts the changelog section from the merged-ticket archive plus a base_branch git-history fallback for tickets no /acs:merge-pr archive entry recorded (each enumerated ticket stamped source: archive|git-log), optionally anchored by --ticket-prefix, cross-checks [Unreleased] coverage, bumps the block's version_locations + extra_refs + changelog_path; has its own gh seam -- gh_pr_list reads open release PRs, per its own docstring (MAR-403 D-3) -- currently unclassified: any non-zero exit returns None indistinguishable from 'no open PR' (follow-up R11, not fixed by MAR-403)")
         Component(migrateworkspace, "migrate_workspace.py", "workspace migrator", "standalone, one-shot CLI copying an external workspace partition into the in-repo state root — preflight aborts (exit 2) on any live .lock file or in_progress last run found anywhere under the source; classifies each top-level entry as a ticket partition (copied once, an already-present destination partition left as-is for idempotent resume), the archive/ tree (same rule per archived ticket), or a repo-level file (copied if absent, skipped if byte-identical, abort on any other conflict); verifies every source file exists at the destination before removing the source tree; --dry-run prints the planned actions without writing or removing anything")
-        Component(vxml, "validate_xml.py", "message validation", "in-process stdlib structural validation (XSD-equivalent, default fast path); xmllint opt-in via ACS_XML_AUTHORITATIVE=1")
+        Component(vxml, "validate_xml.py", "message validation", "in-process stdlib validation against a model derived from acs-messages.xsd at load time (ADR 0093; default fast path); xmllint opt-in via ACS_XML_AUTHORITATIVE=1")
         Component(mermaidlint, "mermaid_lint.py", "doc lint", "stdlib-only heuristic Mermaid linter — blocking 0-syntax-error gate for generated docs; read-only")
         Component(structurelint, "structure_lint.py", "doc lint", "stdlib-only structure/section-conformance linter — blocking presence/non-empty/declared-order gate for generated docs against a skill-declared required-section list; read-only")
         Component(citationcheck, "citation_check.py", "doc lint", "stdlib-only citation-corroboration linter — blocking mechanical-floor gate (path containment, whitespace-normalized quoted-excerpt match) over the Upstream inventory citations of create-quality/-standards/-operations/-principles plan artifacts; read-only")
@@ -65,56 +65,63 @@ C4Component
 ## Skill-side anatomy (per hooked skill)
 
 Every coordinator follows the same protocol components (defined once in
-`plugins/acs/docs/INTERNALS.md`): Start (skill-start) → Resume/reconcile →
+`src/acs/docs/INTERNALS.md`): Start (skill-start) → Resume/reconcile →
 work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
-The work loop has two shapes. The **twelve triad-keeping skills** (create-prd,
-create-architecture, create-project, create-quality, create-operations,
-create-principles, create-standards, create-design, code, docs-sync,
-standardize-project, create-requirements) run the full plan→execute→verify
-reflection loop, spawning a separate planner, executor, and verifier subagent
-per phase — so **12 active triads (36 agents in triads)**. All twelve now
-spawn the planner once per run instead of per iteration — timing only;
-counts above hold (MAR-71/300/301/302/305, completed for
-`/acs:create-architecture`/`/acs:create-design`/`/acs:create-requirements`).
-The **three apply-work skills** (create-ticket, create-pr, merge-pr) run
-**inline** (MAR-60): the coordinator does the work directly, or delegates
-to **at most one** executor — never a planner or verifier, any lane.
-Correctness is gated instead: create-ticket by schema + Step-2
-confirmation; create-pr/merge-pr by `/code`'s verifier. 3 reachable
-apply-work executors give **39 reachable agents**; the 6 plan/verify
-files of the apply-work skills remain on disk but are orphaned. Within the
-12 triads, `/code`'s planner leg is lane-conditional since MAR-72: the
-planner subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the
-coordinator authors the plan artifact itself, with zero planner spawns (ADR
-0074). The execute and verify legs stay unconditional in every lane — for
-`/code`, and for every other skill among the twelve triad-keeping ones — so
-the counts above are unaffected.
+The work loop has two shapes. The **twelve authoring skills** (create-prd,
+create-architecture, create-project, create-design, docs-sync,
+standardize-project, create-requirements, analyze-ticket, create-impl-plan,
+create-api-contract, create-test-docs, create-e2e-tests), `code` and
+`create-docs` run the execute→verify reflection loop, spawning a separate
+executor and verifier subagent per phase —
+**12 authoring pairs (24 agents in pairs)** plus the 2 + 2 of `code` and
+`create-docs`. No skill has a plan
+phase: every one of the fourteen runs execute→verify with no planner (ADR
+0092; `code` against the plan `/acs:create-impl-plan` approved, ADR 0089;
+`create-docs` first, ADR 0094; the other twelve in ADR 0092's stage 2) —
+iteration 1's executor surveys and records `iter-<n>-authoring.md` before it
+writes, and the verifier judges the deliverable against those notes. The
+**three apply-work skills** (create-ticket, create-pr, merge-pr) run
+**inline** (MAR-60): the coordinator does the work directly, or delegates to
+**at most one** executor — never a verifier, any lane; correctness is gated
+instead (create-ticket by schema + Step-2 confirmation; create-pr/merge-pr by
+`/code`'s verifier). 24 agents in the authoring pairs, the 4 of `code`'s and
+`create-docs`'s executor + verifier pairs, and the 3 apply-work executors
+give **31 agent files, all reachable**; the apply-work skills' plan/verify
+files and the twelve authoring planners were deleted under ADR 0092, so no
+agent file is orphaned. Within the fourteen, `/create-impl-plan`'s execute
+leg is lane-conditional since MAR-72: its executor (whose survey is the
+former `code-planner` charter) is spawned on STANDARD/COMPLEX; on
+TRIVIAL/SMALL the coordinator authors the plan artifact itself, with zero
+executor spawns (ADR 0074). The verify leg stays unconditional in every lane,
+for every skill that runs the loop — so the counts above are unaffected.
 
-`/acs:create-docs` and `/acs:project` are unhooked coordinators, and neither
-is a triad-keeping skill: like `/acs:ship` they have no triad, no gate and no
-hook scripts of their own. They are the **entry points** of the design-phase
-fold (`workflows/phases.yaml`'s `internal` map, ADR 0091), and they spawn the
-*existing* triads above as ordinary plan→execute→verify runs on their own
-delivery tickets — `/acs:create-docs` over its four doc-bootstrap legs
-(`create-quality`, `create-operations`, `create-principles`,
-`create-standards`), fanned out in cross-skill batches walked in slices of at
-most `max_parallel` (default 2) legs; `/acs:project` over exactly one of its
-two legs (`create-project` or `standardize-project`), chosen by
-`acs_lib.project_mode` from declared on-disk evidence. Because the fold moved
-no triad, no gate and no agent file, the triad-keeping list and the 12/36/39
-counts above are unaffected by it (MAR-1; fold per ADR 0091).
+`/acs:project` is an unhooked coordinator: like `/acs:ship` it has no
+executor/verifier pair, no gate and no hook scripts of its own. It is the
+**entry point** of the design-phase fold (`workflows/phases.yaml`'s
+`internal` map, ADR 0091), and it spawns the *existing* pairs above as
+ordinary execute→verify runs on their own delivery tickets — over exactly
+one of its two legs (`create-project` or `standardize-project`), chosen by
+`acs_lib.project_mode` from declared on-disk evidence. `/acs:create-docs`,
+once an unhooked umbrella over four such legs, is since ADR 0094 a hooked
+product skill of its own: one executor + verifier pair authors and judges any
+of the four doc sets (the set rides in the task constraints), one delivery
+ticket per set, the eligible sets run in slices of at most `max_parallel`
+(default 2). Because the fold moved no pair, no gate and no agent file, the
+authoring-skill list and the 12/24/31 counts above are unaffected by it
+(MAR-1; fold per ADR 0091).
 
 `/code`'s loop also adapts to the ticket's lane: the verifier runs in **every**
 lane (`verify_depth()` scales only the iteration ceiling, light = 1 / full = 3;
 `/code`'s loop body is execute → verify with the plan authored once before the
 loop — MAR-71, slice 1b of MAR-69 — so this ceiling counts execute+verify
-rounds, and exactly one `code-planner` is spawned per run **on STANDARD/COMPLEX
-only — on TRIVIAL/SMALL the coordinator authors `plan.md` itself and no
-`code-planner` is spawned** (MAR-72, ADR 0074)), spec authoring
-folds into the plan phase on every lane whenever
+rounds, and exactly one plan-authoring `create-impl-plan-executor` is spawned
+per `/create-impl-plan` run **on STANDARD/COMPLEX only — on TRIVIAL/SMALL the
+coordinator authors `plan.md` itself and no executor is spawned** (MAR-72,
+ADR 0074)), spec authoring folds into `/create-impl-plan`'s plan on every
+lane whenever
 `<partition>/specs/` is absent or empty (MAR-59, universalized by ADR 0066), and a lane
 may escalate upward mid-flight (MAR-57), with every such escalation durably
 recorded to an audit trail (`record_escalation_event`, MAR-106). A lane is

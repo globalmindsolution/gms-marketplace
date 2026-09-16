@@ -88,7 +88,7 @@ above:
 
 - [docs/README.md](docs/README.md) — the full-SDLC doc map (product →
   requirements → architecture → adr → quality → operations).
-- [plugins/acs/docs/](plugins/acs/docs/) — implementation contract for
+- [src/acs/docs/](src/acs/docs/) — implementation contract for
   contributors (INTERNALS, AUTHORING).
 - [docs/product/roadmap.md](docs/product/roadmap.md) — what's planned and why.
 

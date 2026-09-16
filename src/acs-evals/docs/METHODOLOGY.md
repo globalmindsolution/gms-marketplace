@@ -48,7 +48,7 @@ generated file cannot survive unnoticed.
 
 The dataset is **not** a random sample; it is a targeted selection:
 
-1. Everything the v0.4.10 changelog changed (MAR-520 – MAR-530).
+1. Everything the v0.5.0 changelog changed (MAR-520 – MAR-530, then the skills-independence refactor).
 2. The pipeline spine every release depends on regardless of the changelog.
 3. The packaged surfaces a source-tree test suite cannot see — skills, schemas.
 
@@ -102,15 +102,23 @@ Treat the generated tier as change-detection, not validation.
 not enabled on the account this dataset was built with, so its case and grader
 schema is authored from the CLI's `--help` output rather than a passing run.
 
-What *is* verified without a model is the routing **surface**: that all 25
-skills ship, carry a description, and declare the right
-`disable-model-invocation` (`SKILL-*`). **Whether a real request reaches the
+What *is* verified without a model is the routing **surface**: that every
+skill ships, carries a description, and stays invocable — no skill sets
+`disable-model-invocation`, and a leg its entry point dispatches must not
+(`SKILL-*`, critical for the two `/acs:project` legs). **Whether a real request reaches the
 right skill is not pinned by the deterministic tier.** Do not record routing as
 verified on the strength of a tier-1 gate.
 
 Tier 3 measures it without waiting for early access: `runner/measure_skills.py`
 drives the same `dataset/routing.json` prompts through plain `claude -p` with
-only the `Skill` tool allowed, killing the session at the first `Skill` call.
+only the `Skill` tool available (`--tools Skill`), killing the session at that
+call's result. Until 2026-09-13 it passed `--allowedTools Skill` alone, which
+is a PERMISSION allowlist rather than a tool-set selector: the session still
+advertised all 38 built-in tools, so the model could read the repo and do the
+job by hand instead of routing — and sometimes did. Every
+"routed nowhere" miss in that measurement was of that kind, never a wrong
+skill, so the probe was measuring whether a task was doable rather than
+whether a description attracts it.
 The two explicit probes (`/acs:install-hooks`, `/acs:update`) cannot be seen
 that way — a typed slash command is expanded by the CLI and never dispatched
 through the `Skill` tool — so they are decided at the `init` event's
@@ -122,7 +130,9 @@ pre-flight that refuses to spend when the sandbox cannot see the plugin — the
 failure mode that produced 22 phantom misses per paid run before it was found.
 Its decision rule is stated in [`PERFORMANCE.md`](PERFORMANCE.md) — a positive
 probe passes only if it routes on **all** runs, a split result is a finding, and
-a negative probe that auto-invokes even once is `critical`. That answers the
+a negative probe whose skill actually runs even once is `critical` (a refused
+Skill call is not one: the CLI enforces `disable-model-invocation`, so the
+probe reads the call's result rather than the request). That answers the
 "`runs: 3` with no declared rule is not a criterion" objection this section
 raised. **First run 2026-09-10** (`dataset/baselines/acs-0.4.9-routing.json`):
 27 of 30 probes unanimous over 5 runs, one probe's prompt found to carry no

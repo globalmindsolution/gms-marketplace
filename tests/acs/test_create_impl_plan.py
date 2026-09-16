@@ -21,16 +21,16 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_EXECUTOR = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")
 IMPL_PLAN_VERIFIER = os.path.join(AGENTS_DIR, "create-impl-plan-verifier.md")
-IMPL_PLAN_AGENTS = [IMPL_PLAN_PLANNER, IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
+IMPL_PLAN_AGENTS = [IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
 
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
 CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
@@ -153,14 +153,14 @@ class PlanPhaseContractTest(unittest.TestCase):
         self.assertRegex(
             self.norm, r"(?i)never.{0,60}(empty|placeholder|see ticket)")
 
-    def test_plan_section_heading_is_once_before_the_loop(self):
+    def test_no_plan_section_survives(self):
         self.assertNotIn("### Plan (per iteration)", self.body)
-        self.assertRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
+        self.assertNotRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
+        self.assertRegex(self.body, r"(?m)^### Execute \(per iteration\) — survey, then author the plan draft$")
 
-    def test_plan_runs_once_before_the_loop(self):
-        self.assertRegex(
-            self.norm,
-            r"(?i)plan.{0,80}once.{0,80}(before the loop|up front|per run)")
+    def test_the_executor_surveys_on_iteration_one(self):
+        self.assertRegex(self.norm, r"(?i)There is no plan phase")
+        self.assertRegex(self.norm, r"(?i)iteration 1'?s executor surveys")
 
 
 class LaneForkTest(unittest.TestCase):
@@ -176,7 +176,7 @@ class LaneForkTest(unittest.TestCase):
     def test_fast_lane_no_spawn_contract_colocated(self):
         for m in re.finditer(r"TRIVIAL/SMALL", self.norm):
             window = self.norm[max(0, m.start() - 400):m.end() + 400]
-            if (re.search(r"(?i)zero.{0,60}(create-impl-plan-planner|planner).{0,20}spawn",
+            if (re.search(r"(?i)zero.{0,60}create-impl-plan-executor.{0,20}spawn",
                           window)
                     and "coordinator" in window.lower()
                     and "plan.md" in window):
@@ -186,34 +186,27 @@ class LaneForkTest(unittest.TestCase):
             "zero-planner-spawn phrase, 'coordinator' and 'plan.md' within one "
             "bounded window")
 
-    def test_exactly_one_clause_is_lane_qualified_standard_complex(self):
-        for m in re.finditer(r"exactly one", self.norm, re.IGNORECASE):
-            window = self.norm[max(0, m.start() - 200):m.end() + 200]
-            if ("acs:create-impl-plan-planner" in window
-                    and re.search(r"(?i)\bwhole run\b", window)):
-                self.assertRegex(
-                    window, r"(?i)STANDARD/COMPLEX",
-                    "the 'exactly one ... planner ... whole run' clause must "
-                    "be lane-qualified to STANDARD/COMPLEX")
-                return
-        self.fail("no 'exactly one ... acs:create-impl-plan-planner ... whole "
-                  "run' clause found")
+    def test_no_planner_clause_survives_and_the_survey_is_lane_qualified(self):
+        self.assertNotIn("acs:create-impl-plan-planner", self.body)
+        self.assertNotIn("iter-1-plan.md", self.body)
+        self.assertRegex(
+            self.norm,
+            r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\* "
+            r"iterations; iteration 1'?s executor surveys before it writes")
 
     def test_planner_states_standard_complex_only_spawn(self):
         self.assertRegex(
             self.planner_norm,
             r"(?i)spawned only.{0,40}STANDARD.{0,10}(/|or).{0,10}COMPLEX")
 
-    def test_no_plan_xml_message_on_fast_lanes(self):
+    def test_no_execute_xml_message_on_fast_lanes(self):
         self.assertRegex(
             self.norm,
-            r'(?i)no.{0,20}<task phase="plan">.{0,100}(message is sent|is sent)')
+            r'(?i)no executor subagent is spawned, so no `<task phase="execute">` message is sent')
+        self.assertNotIn('<task phase="plan">', self.body)
 
     def test_iteration_counts_execute_verify_rounds(self):
-        self.assertRegex(self.norm, r"(?i)execute\s*(->|→|\+|and)\s*verify")
-        self.assertRegex(
-            self.norm,
-            r"(?i)not.{0,60}(triad|plan\W{0,4}execute\W{0,4}verify)")
+        self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one execute → verify round")
 
 
 class PublishTest(unittest.TestCase):
@@ -301,7 +294,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         return slice_between(self.body, "### Plan approval", "### Plan revocation")
 
     def test_subsection_sits_between_plan_and_revocation(self):
-        plan_idx = self.body.index("### Plan (once, before the loop)")
+        plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.body.index("### Plan approval")
         revocation_idx = self.body.index("### Plan revocation")
         docs_only_idx = self.body.index("### Docs-only tickets")
@@ -425,7 +418,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         cls.skill_body = read(IMPL_PLAN_SKILL)
 
     def test_rubric_numbers_present(self):
-        for token in ("~4", "~400", "~7", "create-ticket-planner.md"):
+        for token in ("~4", "~400", "~7", "create-ticket/SKILL.md"):
             self.assertIn(token, self.item2)
 
     def test_surface_never_block_contract(self):
@@ -524,7 +517,7 @@ class DocGraphGapTest(unittest.TestCase):
             r"(no finding|never fails|never blocks)")
 
     def test_skill_pointer_names_the_planner_item_without_restating_it(self):
-        self.assertIn("create-impl-plan-planner", self.bullet)
+        self.assertIn("create-impl-plan-executor", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
         self.assertRegex(self.bullet_norm, r"(?i)bounded")
         self.assertRegex(self.bullet_norm, r"(?i)touched-area")
@@ -606,3 +599,73 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LightLaneRevisesOnceTest(unittest.TestCase):
+    """ADR-0074's 2026-09-14 amendment: on TRIVIAL/SMALL the coordinator's
+    draft gets one revision against the verifier's blocking findings before
+    the run fails — two verify rounds, not the cap-1 inherited from /acs:code
+    where every round re-runs executors. The 2026-09-14 PIPE-code diagnostic
+    lost a run to the literal reading (a fixable test strategy, one verdict,
+    `failed`)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.norm = norm(read(IMPL_PLAN_SKILL))
+
+    def test_the_fast_lane_revises_the_draft_up_to_twice(self):
+        # 2026-09-15 amendment: two rounds lost two setups to one-line
+        # repairs; the fast lane now has the full lane's three verdicts.
+        self.assertRegex(self.norm, r"(?i)revises its own draft against every finding and the verifier judges again, up to TWICE")
+        self.assertIn("ceiling **3** verify rounds", self.norm)
+        self.assertNotIn("ceiling **2** verify rounds", self.norm)
+        self.assertNotIn("ceiling **1**", self.norm)
+        self.assertIn("light: 3 verify rounds of the coordinator's draft", self.norm)
+
+    def test_the_full_lane_keeps_three_executor_rounds(self):
+        self.assertRegex(self.norm, r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\*")
+        self.assertIn("full: 3 execute → verify rounds", self.norm)
+
+    def test_the_findings_loop_names_the_coordinator_as_the_fast_lane_reviser(self):
+        self.assertRegex(self.norm, r"(?i)on TRIVIAL/SMALL, where there is no executor, revise the draft yourself")
+
+    def test_a_draft_failing_after_its_revisions_still_fails_the_run(self):
+        self.assertRegex(self.norm, r"(?i)still failing after its second revision ends the run `failed`")
+
+    def test_the_coordinator_grounds_its_own_draft(self):
+        # The executor's grounding charter binds the coordinator's draft too:
+        # the 2026-09-15 gate lost a SMALL-lane plan to an uncited, wrong
+        # "coverage is not installed" the verifier re-checked.
+        self.assertIn("Ground your own draft.", self.norm)
+        self.assertRegex(self.norm, r"(?i)only after checking it in THIS run, and cite the command or file")
+
+    def test_a_revision_fixes_every_occurrence_of_a_finding(self):
+        # One revision is all the fast lane gets, so a claim fixed in Test
+        # strategy and left in Risks is the same blocking finding again.
+        self.assertIn("A finding names one place; fix every place.", self.norm)
+        self.assertRegex(self.norm, r"(?i)correct every occurrence")
+        self.assertRegex(self.norm, r"(?i)Each verify round may be the last")
+
+
+class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
+    """analyze-ticket promises that with no user answer create-impl-plan
+    plans against the ticket as written; the plan skill has to keep that
+    promise rather than re-ask the open proposals (the 2026-09-14 PIPE-code
+    diagnostic lost a run to a plan run that asked and had no one to answer)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.norm = norm(read(IMPL_PLAN_SKILL))
+        cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-ticket", "SKILL.md")))
+
+    def test_the_plan_skill_carries_open_proposals_instead_of_asking(self):
+        self.assertIn("Entries the analysis left open are proposals, not blockers.", self.norm)
+        self.assertRegex(self.norm, r"(?i)never re-ask them and never return `needs_input` for them")
+        self.assertIn("`C-<n> open — planned as written`", self.norm)
+
+    def test_the_grouped_question_rule_is_scoped_to_the_plans_own_questions(self):
+        self.assertIn("When ≥2 of your own clarifications are open", self.norm)
+
+    def test_the_two_skills_state_the_same_contract(self):
+        self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
+        self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")

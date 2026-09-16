@@ -15,8 +15,8 @@ GMS ships commercial software products — flagship: **the flagship external con
 
 1. **Roles are decision rights.** Every role is defined by which levels of the
    conformance chain it decides on (PRD → architecture → standards → design →
-   specs → code → release → operate) — not by who does the labor. AI triads do
-   the labor.
+   specs → code → release → operate) — not by who does the labor. AI reflection
+   loops do the labor.
 2. **WIP is capped by human review bandwidth.** Every PR is human-reviewed
    before merge; that review capacity — not build capacity — sets the team's
    throughput. Every seat carries a review quota (the number is team policy).
@@ -40,7 +40,7 @@ GMS ships commercial software products — flagship: **the flagship external con
 |---|---|---|
 | Leadership | CEO; later Head of Product + Head of Engineering; EMs | CEO now; splits per §9 |
 | Delivery teams | Product team ×N (one per product) + the AI Platform team | 1 product team now; platform is a hat |
-| AI workforce | Reflection triads, headless runner, gates, dashboards | Now |
+| AI workforce | Reflection loops, headless runner, gates, dashboards | Now |
 
 ### 3.1 Small org — one product (stage 0-1: 5-6 humans)
 
@@ -57,7 +57,7 @@ flowchart TB
         QE["AI quality & evals engineer<br/>evals, e2e, gates"]
     end
     subgraph AIW["AI workforce"]
-        TRI["Reflection triads<br/>plan . execute . verify per skill"]
+        TRI["Reflection loops<br/>execute . verify per skill"]
         GAT["Gates & dashboards<br/>hooks, forge checks, metrics/usage"]
     end
     CEO --> PT
@@ -86,7 +86,7 @@ flowchart TB
         T3["Product C...<br/>PdM . builders x2-4 . evals"]
     end
     subgraph AIW2["AI workforce"]
-        RUN["Triads . headless runner . gates . org dashboards"]
+        RUN["Reflection loops . headless runner . gates . org dashboards"]
     end
     CEO2 --> HOP
     CEO2 --> HOE
@@ -142,8 +142,8 @@ product teams.
 
 **Scaling rule (normative):** platform headcount scales with **review
 pairing + bus factor (floor of 2), availability commitments, and
-consuming-team count — never with feature volume.** Features are triad
-work. Two people indefinitely is a legitimate outcome.
+consuming-team count — never with feature volume.** Features are
+reflection-loop work. Two people indefinitely is a legitimate outcome.
 
 ## 6. The leadership layer
 
@@ -163,7 +163,7 @@ and gates they tune, not meetings they run.
 The layer where build capacity lives. Owned by the platform team, operated by
 every team.
 
-- **Reflection triads** (planner/executor/verifier per skill): do the
+- **Reflection loops** (executor/verifier per skill): do the
   analysis, authoring, and independent verification inside every pipeline
   step. The verifier gates in every lane; executor self-reports are never
   trusted as evidence.
@@ -207,7 +207,7 @@ Head-of split. Titles stay modest until scale demands headroom.
    automated.
 2. **QA as manual tester** — duplicating the verifier; the evals engineer owns
    the verification *system*.
-3. **Platform hiring on feature volume** — features are triad work; see §5
+3. **Platform hiring on feature volume** — features are reflection-loop work; see §5
    scaling rule.
 4. **Per-department agent stacks** — one shared core; new capability = a
    frontend + skill content only.
@@ -235,11 +235,11 @@ reading is unchanged — but the role does not invoke it directly.
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
 | Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |
-| Standards | create-docs principles,standards (legs: create-principles, create-standards) | Principal |
-| Test strategy & regression | create-docs quality (leg: create-quality), run-e2e-tests | Evals engineer |
+| Standards | create-docs principles,standards | Principal |
+| Test strategy & regression | create-docs quality, run-e2e-tests | Evals engineer |
 | Release | release | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
-| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations (leg: create-operations) | Ops hat / evals engineer |
+| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations | Ops hat / evals engineer |
 | Governance | setup, install-hooks, org policy | Principal |
 
 ---

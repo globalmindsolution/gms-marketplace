@@ -20,7 +20,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
 sys.path.insert(0, HOOKS_DIR)
@@ -99,7 +99,7 @@ class Mar143FilesExistCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(SKILL_PATH), SKILL_PATH)
 
     def test_triad_agents_exist(self):
-        for role in ("planner", "executor", "verifier"):
+        for role in ("executor", "verifier"):
             path = os.path.join(PLUGIN, "agents", "create-requirements-%s.md" % role)
             self.assertTrue(os.path.isfile(path), path)
 
@@ -133,17 +133,17 @@ class Mar143CountBumpCase(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_hooked_skills_count_is_twenty(self):
+    def test_hooked_skills_count_is_seventeen(self):
         # 15 at MAR-156/MAR-160 time; the skills-independence refactor hooks
         # the five Build/Test skills (analyze-ticket, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 20)
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
-        self.assertIn("25 x SKILL.md", body)
-        self.assertIn("45 x agent .md (39 reachable)", body)
-        self.assertIn("twelve triad-keeping skills", body)
+        self.assertIn("28 x SKILL.md", body)
+        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertIn("twelve authoring skills", body)
         self.assertIn("create-requirements", body)
         self.assertIn("dispatch + 15 pre + 15 post hooks", body)
 
@@ -157,9 +157,9 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_c4_component_bumped_counts_present(self):
         body = self._c4_component()
-        self.assertIn("twelve triad-keeping skills", body)
-        self.assertIn("12 active triads (36 agents in triads)", body)
-        self.assertIn("39 reachable agents", body)
+        self.assertIn("twelve authoring skills", body)
+        self.assertIn("12 authoring pairs (24 agents in pairs)", body)
+        self.assertIn("31 agent files, all reachable", body)
         self.assertIn("create-requirements", body)
 
     def test_c4_component_stale_counts_absent(self):

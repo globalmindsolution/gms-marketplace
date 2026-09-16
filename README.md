@@ -71,10 +71,10 @@ The catalog (`marketplace.json`) version is a marketplace-level identifier
 (currently 0.2.0) and is not CI-coupled to any plugin's version. The `acs`
 `plugin.json` version governs how acs updates ship. A release bumps `version`
 in both `.claude-plugin/marketplace.json` and
-`plugins/acs/.claude-plugin/plugin.json` (by convention both are kept in sync),
+`src/acs/.claude-plugin/plugin.json` (by convention both are kept in sync),
 points the acs `git-subdir` `source.ref` at the new tag, and the Release
 workflow cuts a single immutable `v<version>` tag
-([CHANGELOG](plugins/acs/CHANGELOG.md)). acs is fetched remotely from that
+([CHANGELOG](src/acs/CHANGELOG.md)). acs is fetched remotely from that
 pinned tag — individually updatable with `claude plugin update acs` — and
 resolves reproducibly regardless of which marketplace commit is fetched. The
 per-entry CI validator checks each entry's `name` (always) and `version` (only
@@ -88,7 +88,7 @@ and run:
 
 ```bash
 cd src/acs-evals
-make eval-source   # deterministic golden cases against ../../plugins/acs — the gate
+make eval-source   # deterministic golden cases against ../acs — the gate
 make measure       # routing / behavioral measurement vs the promoted baseline
 make perf          # performance measurement
 ```
@@ -128,7 +128,7 @@ The marketplace currently ships two plugins:
   implementation with an automatic review loop, end-to-end tests, doc sync,
   pull request, and merge. Thirty-two skills (`/acs:setup`, `/acs:ship`,
   `/acs:code`, …), grouped into five phases — Design, Build, Test, Ship and
-  Utility — by `plugins/acs/workflows/phases.yaml`; each runs a
+  Utility — by `src/acs/workflows/phases.yaml`; each runs a
   plan → execute → verify reflection cycle with dedicated subagents.
 
   The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
@@ -140,7 +140,7 @@ The marketplace currently ships two plugins:
   across git worktrees.
 
   The delivery **order** is declared in
-  [`plugins/acs/workflows/ship.yaml`](plugins/acs/workflows/ship.yaml) (a
+  [`src/acs/workflows/ship.yaml`](src/acs/workflows/ship.yaml) (a
   consumer can replace it wholesale with its own `.acs/workflows/ship.yaml`),
   and `/acs:ship <ticket-id>` is a thin loop over it that runs independent
   steps in parallel, one git worktree per leg. **`/acs:ship` takes a ticket
@@ -157,7 +157,7 @@ The marketplace currently ships two plugins:
 
 | Path | What lives there |
 |------|------------------|
-| [`plugins/acs/`](plugins/acs/README.md), [`plugins/tabp/`](plugins/tabp/README.md) | The shipped plugins. `marketplace.json` resolves `acs` from `plugins/acs` at the pinned release tag. |
+| [`src/acs/`](src/acs/README.md), [`plugins/tabp/`](plugins/tabp/README.md) | The shipped plugins. `marketplace.json` resolves `acs` from `src/acs` at the pinned release tag. |
 | [`tests/`](tests/) | Deterministic unit + contract suites for the plugins (`python3 -m unittest discover -s tests`). |
 | [`evals/`](evals/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. |
 | [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` with its history. |
@@ -176,6 +176,6 @@ commands for reading it.
 | Where | What |
 |-------|------|
 | [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
-| [plugins/acs/README.md](plugins/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
-| [plugins/acs/docs/INTERNALS.md](plugins/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
+| [src/acs/README.md](src/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
+| [src/acs/docs/INTERNALS.md](src/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
 | [plugins/tabp/README.md](plugins/tabp/README.md) | tabp plugin usage: install, quick start, screen-cvs skill reference |

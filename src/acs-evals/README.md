@@ -1,6 +1,6 @@
 # acs-evals — golden dataset for the `acs` plugin
 
-The evaluation suite for the [`acs`](../../plugins/acs) Claude Code plugin. It
+The evaluation suite for the [`acs`](../../src/acs) Claude Code plugin. It
 holds a **golden dataset**: a curated, versioned corpus of inputs paired with
 the outputs the plugin actually produced, so a release can be checked against
 recorded behaviour instead of against someone's memory of it.
@@ -21,7 +21,7 @@ git fetch acs-evals claude/acs-evals-review-az3x51
 git log FETCH_HEAD -- dataset/cases/06-gates.json   # not src/acs-evals/dataset/...
 ```
 
-Built as the release gate for **v0.4.10**.
+Built as the release gate for **v0.5.0**.
 
 ## Why this exists, and how it differs from the plugin's own tests
 
@@ -44,7 +44,7 @@ One command runs the gate:
 
 ```bash
 cd src/acs-evals
-export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs   # the build being released
+export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
 make gate
 ```
 
@@ -55,10 +55,15 @@ make gate
 measurement of skill quality, reliability, cost and time). It stops at the
 first failure.
 
-`perf` fails with **UNMEASURED** until `make measure` has been run, and that is
-deliberate: a green contract gate says nothing about whether skills got worse,
-slower or more expensive, and this suite may not imply otherwise by having run
-nothing. `make gate-deterministic` is the tier-1-only path.
+`perf` fails with **UNMEASURED** until `make measure` has been run against
+this exact build — a measurement records the content digest of the tree it
+exercised, and one taken of any other tree is **UNMEASURED (stale)** — and
+that is deliberate: a green contract gate says nothing about whether skills
+got worse, slower or more expensive, and this suite may not imply otherwise by
+having run nothing, or by quoting numbers taken before the change. `make
+measure` in turn spends nothing when this build's complete measurement is
+already on disk, so the gate is safe to re-run. `make gate-deterministic` is
+the tier-1-only path.
 
 ```
 make help      every target
@@ -88,7 +93,7 @@ golden is re-recorded deliberately, and **minor** drift is triage rather than a
 hold — so `make gate` exits non-zero on the first two and zero on the third.
 
 Latest report: [`reports/acs-v0.4.10-gate.md`](reports/acs-v0.4.10-gate.md) —
-**356/356 passed**, 0 known divergences, against acs `0.4.9` (the pre-`v0.4.10`
+**356/356 passed**, 0 known divergences, against acs `0.4.9` (the pre-`v0.5.0`
 unreleased tree).
 
 Run it **both ways** before a release. With `ACS_PLUGIN_ROOT` set you are
@@ -127,7 +132,7 @@ Exit status is 0 only when every selected case matches. Stdlib only, Python
 
 **Which build gets tested.** `ACS_PLUGIN_ROOT` wins if set; otherwise the newest
 installed build under `~/.claude/plugins/cache/*/acs/*/`; otherwise a
-marketplace checkout under `~/.claude/plugins/marketplaces/*/plugins/acs`. The
+marketplace checkout under `~/.claude/plugins/marketplaces/*/src/acs`. The
 banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
 
@@ -135,7 +140,7 @@ That resolution governs **both tiers**. Tier 1 runs the resolved build's CLIs
 directly. Tier 3 hands the same root to `claude --plugin-dir`, so its sessions
 load the build the run names — no plugin cache is touched and nothing needs
 restoring afterwards. Every `make` target except `eval` defaults the root to
-this checkout's `../../plugins/acs`, so the suite grades the source it sits
+this checkout's `../../src/acs`, so the suite grades the source it sits
 next to; `eval` is left alone because which build the gate judges is the
 question, not a detail.
 
@@ -147,7 +152,7 @@ against the skills the resolved build ships, and refuses to spend if they
 differ — so the banner is an assertion rather than a caption.
 
 ```bash
-ACS_PLUGIN_ROOT=$PWD/../../plugins/acs python3 runner/run_golden.py   # or: make eval-source
+ACS_PLUGIN_ROOT=$PWD/../../src/acs python3 runner/run_golden.py   # or: make eval-source
 ```
 
 ### Tier 2 — agentic routing (not yet runnable)
@@ -172,14 +177,14 @@ python3 runner/gen_plugin_eval.py --check   # fail if the tree is stale
 
 Edit the JSON, never the generated YAML.
 
-The half of routing that *is* checkable without a model — that all 25 skills
-ship, carry a routing `description`, and declare the right
-`disable-model-invocation` — is pinned deterministically in tier 1 as
-`SKILL-*`.
+The half of routing that *is* checkable without a model — that every skill
+ships, carries a routing `description`, and stays invocable (no skill sets
+`disable-model-invocation`, and a leg its entry point dispatches must not) —
+is pinned deterministically in tier 1 as `SKILL-*`.
 
 ## What the dataset covers
 
-502 deterministic cases across the surfaces v0.4.10 changed **and** the pipeline
+502 deterministic cases across the surfaces v0.5.0 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |
@@ -244,7 +249,13 @@ when any case fails. It is slow (~15 s per mutant; 705 sites across eight
 site — and it lists each survivor for a human to read, because a survivor is a
 hole or an equivalent mutant and the tool cannot tell which. It replaces the
 hand-run spot check (6 of 7 decision-table mutations caught) that used to stand
-in for a number.
+in for a number. Like every other measuring target it honours
+`ACS_PLUGIN_ROOT`, which defaults to this checkout's `../acs`; it used to name
+no root at all, so `harness.resolve_build()` fell back to the INSTALLED build
+and the sweep silently measured whatever dev install happened to be in the
+plugin cache. On 2026-09-16 that was a stale `0.5.0-dev`, whose control run
+failed five lane cases and aborted the sweep — the dataset reporting a stale
+build correctly, from a target with no way to aim at source.
 
 Current: **14/40 killed (35%) on a 40-mutant sample** (seed 2026, acs 0.4.9,
 `reports/mutation-cli-acs-0.4.9.json`) — `verdict.py` 4/5 and `readiness.py`

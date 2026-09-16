@@ -1,7 +1,7 @@
 """Contract tests for /acs:ship's full-verify handoff boundary.
 
 MAR-179: pins the explicit, contractual stop after the boundary step on
-full-verify lanes in plugins/acs/skills/ship/SKILL.md, replacing the previous
+full-verify lanes in src/acs/skills/ship/SKILL.md, replacing the previous
 implicit silent stop.
 
 Since the skills-independence refactor the boundary is keyed on the ready
@@ -20,7 +20,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 
 BOUNDARY_HEADING = "## Full-verify pipeline boundary"

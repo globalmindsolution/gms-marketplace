@@ -67,9 +67,13 @@ def _candidates():
     markets = os.path.join(home, ".claude", "plugins", "marketplaces")
     if os.path.isdir(markets):
         for marketplace in sorted(os.listdir(markets)):
-            root = os.path.join(markets, marketplace, "plugins", "acs")
-            if os.path.isdir(root):
-                yield root
+            # The marketplace clone carries the plugin at its manifest path:
+            # src/acs since 0.5.0, plugins/acs in every earlier marketplace.
+            for rel in (("src", "acs"), ("plugins", "acs")):
+                root = os.path.join(markets, marketplace, *rel)
+                if os.path.isdir(root):
+                    yield root
+                    break
 
 
 def _version_key(text):
@@ -123,6 +127,62 @@ def fingerprint(root):
     return hashlib.sha256("\n".join(surface).encode("utf-8")).hexdigest()[:16]
 
 
+#: Directories no build ships, so their contents never make a different build.
+SKIP_DIRS = frozenset({"__pycache__", ".pytest_cache", ".mypy_cache",
+                       ".ruff_cache"})
+
+#: Files a release cut rewrites without changing what the plugin does: the
+#: version label, which a build's identity carries separately, and the notes.
+#: Everything else under the root -- skills, agents, hooks, schemas,
+#: templates, workflows, the docs a skill reads at runtime -- is behaviour,
+#: and a measurement taken before any of it changed is not a measurement of
+#: the build that changed it.
+RELEASE_CUT_FILES = frozenset({".claude-plugin/plugin.json", "CHANGELOG.md"})
+
+
+def tree_digest(root, exclude=(), skip_dirs=SKIP_DIRS):
+    """A stable digest of every file under `root`: path and content both.
+
+    Sorted, so directory-iteration order does not matter; a rename is a
+    change. Bytecode never counts. `exclude` names root-relative files left
+    out. This is the one definition of "the same tree" the repo has --
+    `scripts/dev_install.py` mints its dev version from it too.
+    """
+    digest = hashlib.sha256()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
+        for name in sorted(filenames):
+            if name.endswith(".pyc"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            if rel in exclude:
+                continue
+            digest.update(rel.encode("utf-8"))
+            digest.update(b"\0")
+            with open(path, "rb") as fh:
+                while True:
+                    chunk = fh.read(1 << 16)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def build_digest(root):
+    """What makes two builds the same build to a measurement.
+
+    `fingerprint` above answers a narrower question -- which skills exist and
+    which a model may route to -- and reads a rewritten SKILL.md, a deleted
+    agent or a changed hook as the same build. A tier-3 measurement exercises
+    all of that, so its identity is every byte that can change behaviour and
+    nothing a release cut rewrites. Short, because it is printed beside a
+    version string.
+    """
+    return tree_digest(root, exclude=RELEASE_CUT_FILES)[:16]
+
+
 class Build:
     """The acs plugin build the dataset is being evaluated against."""
 
@@ -133,12 +193,14 @@ class Build:
         if not os.path.isfile(os.path.join(self.scripts, "acs.py")):
             raise BuildError("no hooks/scripts/acs.py under %s" % root)
         self.fingerprint = fingerprint(root)
+        self.digest = build_digest(root)
 
     def script(self, name):
         return os.path.join(self.scripts, name)
 
     def __repr__(self):
-        return "<acs %s (%s) at %s>" % (self.version, self.fingerprint, self.root)
+        return "<acs %s (surface %s, content %s) at %s>" % (
+            self.version, self.fingerprint, self.digest, self.root)
 
 
 def resolve_build():
@@ -182,13 +244,26 @@ APP_SETTINGS = dict(SETTINGS, test_coverage_percent=85,
 
 APP_TICKET = {
     "title": "Let the API confirm and pay an order, charging through the gateway with one retry",
+    # The ticket must be consistent with the fixture it lands on. Until
+    # 2026-09-15 it asked for "a fresh idempotency key that includes an
+    # attempt number" — which contradicts docs/adr/0002 (the deterministic
+    # key IS the double-charge protection) — and named a gateway timeout the
+    # in-memory gateway had no way to raise. /acs:analyze-ticket found both,
+    # returned ready_for_planning: false, and /acs:create-impl-plan rightly
+    # asked rather than plan a payments change on a contradiction: the plugin
+    # behaving exactly as designed, and every app-profile run unmeasured.
     "description": ("Today the HTTP API can only create a draft order; confirming and paying are CLI-only "
                     "(docs/api.md says so). Add POST /orders/<id>/confirm and POST /orders/<id>/pay to "
-                    "orders/api.py, backed by OrderService.confirm/pay. When the gateway raises a timeout "
-                    "during pay, retry the charge exactly once with a fresh idempotency key that includes "
-                    "an attempt number, so a retried charge can never double-charge (see docs/adr/0002). "
-                    "Update docs/api.md and the data-flow section of docs/architecture.md to match. "
-                    "Keep the coverage floor in .coveragerc green."),
+                    "orders/api.py, backed by OrderService.confirm/pay; they return 200 with the order on "
+                    "success, 404 when the order does not exist, 409 on InvalidTransition or PaymentDeclined, "
+                    "and 503 when the gateway timeout below recurs on the retry. Add a GatewayTimeout "
+                    "exception to orders/payments/gateway.py that Gateway.charge raises when its optional "
+                    "constructor argument should_timeout (a callable, default lambda: False, consulted once "
+                    "per charge call; the in-memory stand-in never times out on its own) returns true, and "
+                    "make OrderService.pay retry the charge exactly once on GatewayTimeout, reusing the same "
+                    "deterministic idempotency key so the gateway's own dedup guarantees a retried charge "
+                    "never double-charges (see docs/adr/0002). Update docs/api.md and the data-flow section "
+                    "of docs/architecture.md to match. Keep the coverage floor in .coveragerc green."),
 }
 
 _GIT_ENV = {

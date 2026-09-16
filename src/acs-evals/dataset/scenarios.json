@@ -1,5 +1,5 @@
 {
-  "scenario_set_version": "1.5.0",
+  "scenario_set_version": "1.15.0",
   "description": "Tier 3's controlled experiment: the fixed set of runs executed against every gated build so quality, reliability, cost and time are comparable release over release. Changing this file changes the experiment — bump scenario_set_version, and every baseline recorded under the old version becomes incomparable by construction.",
   "decision_rules": {
     "routing": "A positive probe passes only if it routes to the expected skill on EVERY run. A split result (some runs route, some do not) is a finding, never a pass — routing is stochastic, so one green run is not evidence. A negative probe passes only if it auto-invokes the skill on NO run.",
@@ -8,7 +8,7 @@
   },
   "routing": {
     "source": "dataset/routing.json",
-    "note": "The 30 probes (27 routing + 3 controls) are NOT duplicated here — routing.json stays the single source of truth, guarded by `make check`. Tier 3 runs the same prompts through `claude -p` with only the Skill tool allowed, killing the process at the first Skill call, so a probe costs time-to-route and never executes a skill body. The two explicit probes (`/acs:install-hooks`, `/acs:update`) are decided at the session's `init` event instead: a typed slash command is expanded by the CLI and never appears as a Skill tool_use, so they pass when `slash_commands` lists the command, and are killed there before any model turn. scenario_set_version 1.1.0 records that change of rule; no 1.0.0 baseline was ever promoted. scenario_set_version 1.2.0 adds the three CONTROL probes; the explicit ones among them also run as a free pre-flight before any paid session, and a failed pre-flight writes no measurement. 1.3.0 changes ROUTE-ship's prompt to carry a concrete request (the 1.2.0 prompt could not route by construction); every other probe is unchanged. 1.5.0 lets a routing probe name its sandbox `profile` and deterministic `setup` steps so the prompt's presupposition holds in the sandbox: ROUTE-create-requirements runs on the fixture app and ROUTE-docs-sync on the ticketed fixture app with a committed change on the ticket branch. Prompts are unchanged; the 1.3.0 splits on those two probes were the model inspecting an empty seeded repo and asking instead of routing — a dataset defect, not a description defect.",
+    "note": "The 35 probes (32 routing + 3 controls) are NOT duplicated here — routing.json stays the single source of truth, guarded by `make check`. Tier 3 runs the same prompts through `claude -p` with only the Skill tool allowed, killing the process at the first Skill call, so a probe costs time-to-route and never executes a skill body. The two explicit probes (`/acs:install-hooks`, `/acs:update`) are decided at the session's `init` event instead: a typed slash command is expanded by the CLI and never appears as a Skill tool_use, so they pass when `slash_commands` lists the command, and are killed there before any model turn. scenario_set_version 1.1.0 records that change of rule; no 1.0.0 baseline was ever promoted. scenario_set_version 1.2.0 adds the three CONTROL probes; the explicit ones among them also run as a free pre-flight before any paid session, and a failed pre-flight writes no measurement. 1.3.0 changes ROUTE-ship's prompt to carry a concrete request (the 1.2.0 prompt could not route by construction); every other probe is unchanged. 1.5.0 lets a routing probe name its sandbox `profile` and deterministic `setup` steps so the prompt's presupposition holds in the sandbox: ROUTE-create-requirements runs on the fixture app and ROUTE-docs-sync on the ticketed fixture app with a committed change on the ticket branch. Prompts are unchanged; the 1.3.0 splits on those two probes were the model inspecting an empty seeded repo and asking instead of routing — a dataset defect, not a description defect.",
     "runs_per_probe": 5,
     "timeout_seconds": 120
   },
@@ -20,20 +20,28 @@
         "id": "PIPE-create-ticket",
         "skill": "acs:create-ticket",
         "profile": "seeded",
-        "prompt": "We need a CSV export on the reports page. Please raise a ticket for it.",
+        "prompt": "We need a CSV export on the reports page. Please raise a ticket for it. You decide every field \u2014 type, priority, size, stakes and the acceptance criteria; no due date \u2014 record each as an assumption and do not wait for my confirmation.",
         "timeout_seconds": 600,
         "measures": [
           "reliability",
           "cost",
           "time"
         ],
-        "why": "The cheapest full skill body in the pipeline, and the one every other ticket depends on. Establishes the floor of what a skill run costs."
+        "why": "The cheapest full skill body in the pipeline, and the one every other ticket depends on. Establishes the floor of what a skill run costs. 1.9.0: the prompt delegates the ticket-record decisions. /acs:create-ticket\u0027s Step 2 is a deliberate human-in-the-loop checkpoint (MAR-55 invariant (c)): it presents the proposal and blocks for confirmation, and headless it hands off with `needs_input`. The 1.0.0-1.8.0 prompt gave it nothing to decide from, so all 3 runs of the 2026-09-14 gate measurement asked story-or-task, due date and AC changes, ran handoff.py and stopped at ~$0.30 \u2014 0/3 with the skill behaving exactly as designed. The skill\u0027s own rule for a user who says \"you decide\" is to record assumptions and continue; the prompt now says so, which is what a real headless caller (/acs:ship, a CI job) must say too. What the scenario measures is unchanged: the body that runs after the gate."
       },
       {
         "id": "PIPE-code",
         "skill": "acs:code",
         "profile": "ticketed",
-        "prompt": "TKT-1 is ready to implement. Please implement it.",
+        "ticket_patch": {
+          "description": "Add `login.py` at the repository root exposing `login(username, password) -> bool`, true only for the single built-in account `admin` / `s3cret` — an exact, case-sensitive comparison of both strings — plus a CLI: `python3 login.py <username> <password>` prints `ok` to stdout and exits 0 on success, prints `denied` to stdout and exits 1 otherwise. Any other number of CLI arguments is out of scope. Cover both outcomes with a `unittest` module `test_login.py` runnable via `python3 -m unittest`.",
+          "acceptance_criteria": [
+            "`login(\"admin\", \"s3cret\")` returns true and every other pair — a different case of either string included — returns false",
+            "`python3 login.py admin s3cret` prints `ok` to stdout and exits 0; a wrong pair prints `denied` to stdout and exits 1",
+            "`python3 -m unittest` passes and covers both outcomes"
+          ]
+        },
+        "prompt": "/acs:code TKT-1",
         "timeout_seconds": 1800,
         "measures": [
           "reliability",
@@ -41,29 +49,47 @@
           "time",
           "quality"
         ],
-        "why": "The dominant cost centre — plan/execute/verify with up to three iterations. This is the scenario whose cost and iteration count a release most plausibly regresses, and the only one that yields verify-iteration and coverage signal."
+        "why": "The dominant cost centre — plan/execute/verify with up to three iterations. This is the scenario whose cost and iteration count a release most plausibly regresses, and the only one that yields verify-iteration and coverage signal. 1.7.0: the prompt names the skill and the setup runs its two gated predecessors. The 1.0.0-1.6.0 prompt (\"TKT-1 is ready to implement. Please implement it.\") routed to /acs:ship, whose first step on a fresh ticket is /acs:analyze-ticket — the session then stopped, /acs:code never ran, and both 2026-09-14 diagnostic runs exited clean with no code ledger at all. This scenario measures /acs:code's body, not the routing decision (that is ROUTE-code's job), so it now states the invocation and brings the sandbox to the state /acs:code's gate requires: an analysed ticket with a plan. 1.8.0: `ticket_patch` gives the profile's TKT-1 a description and acceptance criteria — the profile mints it with the bare title `Add user login` (pinned by tier 1's goldens), and on 2026-09-14 both /acs:analyze-ticket setups concluded such a ticket is not ready for planning (five open questions, no code to ground it in), so /acs:create-impl-plan asked and stopped, and both runs were unmeasured. The patch is what a real ticket carries; the scenario measures /acs:code, not analyze-ticket's judgement of an empty ticket. 1.10.0: each setup prompt gets 1800s. The budget is per prompt, and /acs:analyze-ticket alone took 780-840s on this two-line ticket across the 2026-09-14 gate runs and 900s+ once, which unmeasured a run for nothing the skill under test did. 1.15.0: the seeded ticket states its conventional defaults — stdout, an exact case-sensitive match, other argument counts out of scope. On the 2026-09-15 gate one /acs:analyze-ticket setup in roughly 25 returned `ready_for_planning: false` on exactly those three questions and the run was unmeasured; the skill now records such defaults as assumptions, and the ticket no longer poses them, for the same reason the app ticket states its status mapping (1.13.0): a headless setup has nobody to answer.",
+        "setup_prompts": [
+          "/acs:analyze-ticket TKT-1",
+          "/acs:create-impl-plan TKT-1"
+        ],
+        "setup_timeout_seconds": 1800,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('create-impl-plan') or {}).get('status') == 'completed' else 1)\""
       },
       {
         "id": "PIPE-docs-sync",
         "skill": "acs:docs-sync",
         "profile": "ticketed",
-        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "ticket_patch": {
+          "description": "Add `login.py` at the repository root exposing `login(username, password) -> bool`, true only for the single built-in account `admin` / `s3cret` — an exact, case-sensitive comparison of both strings — plus a CLI: `python3 login.py <username> <password>` prints `ok` to stdout and exits 0 on success, prints `denied` to stdout and exits 1 otherwise. Any other number of CLI arguments is out of scope. Cover both outcomes with a `unittest` module `test_login.py` runnable via `python3 -m unittest`.",
+          "acceptance_criteria": [
+            "`login(\"admin\", \"s3cret\")` returns true and every other pair — a different case of either string included — returns false",
+            "`python3 login.py admin s3cret` prints `ok` to stdout and exits 0; a wrong pair prints `denied` to stdout and exits 1",
+            "`python3 -m unittest` passes and covers both outcomes"
+          ]
+        },
+        "prompt": "/acs:docs-sync TKT-1",
         "timeout_seconds": 900,
         "measures": [
           "reliability",
           "cost",
           "time"
         ],
-        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate.",
+        "why": "Runs after /acs:code and re-derives its own changeset. A cheap skill that quietly turns expensive is the regression this catches. 1.4.0: runs after a real /acs:code session in the same sandbox (setup_prompts) — the docs-sync gate requires a completed code step, so the 1.0.0-1.3.0 form could only ever fail at the gate. 1.6.0: that setup prompt is PIPE-code's whole body, so it carries PIPE-code's budget rather than this scenario's — under the 900s measured budget it timed out on 1 of 3 runs of the 2026-09-13 measurement — and a `setup_assert` states the precondition, because a setup session can finish clean and still leave nothing to sync. 1.7.0: the setup names each gated step explicitly (analyze-ticket → create-impl-plan → code) instead of a free-text prompt that routed to /acs:ship and never reached /acs:code — see PIPE-code. 1.8.0: the same `ticket_patch` as PIPE-code, for the same reason. 1.14.0: the prompt names the skill, as PIPE-code\u0027s has since 1.7.0 and for the same reason \u2014 a pipeline scenario measures the body, ROUTE-docs-sync measures the routing. On 2026-09-15 the app-profile session given the natural-language prompt read the branch, found the docs mostly current, edited the one stale table row by hand and never invoked /acs:docs-sync: no ledger, so a miss against a skill that never ran. 1.15.0: the seeded ticket states its conventional defaults — stdout, an exact case-sensitive match, other argument counts out of scope. On the 2026-09-15 gate one /acs:analyze-ticket setup in roughly 25 returned `ready_for_planning: false` on exactly those three questions and the run was unmeasured; the skill now records such defaults as assumptions, and the ticket no longer poses them, for the same reason the app ticket states its status mapping (1.13.0): a headless setup has nobody to answer.",
         "setup_prompts": [
-          "TKT-1 is ready to implement. Please implement it."
-        ]
+          "/acs:analyze-ticket TKT-1",
+          "/acs:create-impl-plan TKT-1",
+          "/acs:code TKT-1"
+        ],
+        "setup_timeout_seconds": 1800,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\""
       },
       {
         "id": "PIPE-code-app",
         "skill": "acs:code",
         "profile": "app-ticketed",
-        "prompt": "TKT-1 is ready to implement. Please implement it.",
+        "prompt": "/acs:code TKT-1",
         "timeout_seconds": 2400,
         "measures": [
           "reliability",
@@ -71,23 +97,33 @@
           "time",
           "quality"
         ],
-        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that."
+        "why": "/acs:code on the fixture app: 14 modules, 43 tests, an 85% coverage floor that can bite, docs the change makes stale, 32 commits of history for the regression-risk dimension, and a change under orders/payments/** so the high_stakes_paths trigger should record an upward escalation in code-state.json. The two-line app.py scenarios could reach none of that. 1.7.0: explicit invocation and gated-predecessor setup, as for PIPE-code. 1.10.0: 1800s per setup prompt, as for PIPE-code \u2014 analyze-ticket on the app ticket has more to read than on the seeded one. 1.12.0: the app ticket (harness.APP_TICKET) is reworded to agree with the fixture\u0027s own ADR 0002 \u2014 it asked for a fresh idempotency key per retry attempt, which is exactly what the deterministic key exists to prevent, and named a gateway timeout the in-memory gateway could not raise. On 2026-09-15 every app-profile setup ended with /acs:analyze-ticket returning ready_for_planning: false on that contradiction and /acs:create-impl-plan asking rather than planning a payments change on it: the plugin behaving as designed, the scenario unmeasurable. The ticket now adds an injectable GatewayTimeout and retries once on the same key. 1.13.0: the ticket also states the endpoints\u0027 status mapping (200/404/409/503) and the hook\u0027s shape (a should_timeout constructor callable, consulted once per charge) \u2014 on 2026-09-15 one of two analyses of the 1.12.0 wording still returned ready_for_planning: false with exactly those two decisions open, and a headless setup has nobody to answer them. 1.11.0: 2700s per setup prompt. On 2026-09-15 the app-profile /acs:analyze-ticket passed its verifier on iteration 3 at 1799s and was killed at 1800s, one second short of finishing \u2014 two of those iterations were citation line-number corrections the verifiers no longer block on, but a realistic ticket still takes it 15-25 minutes.",
+        "setup_prompts": [
+          "/acs:analyze-ticket TKT-1",
+          "/acs:create-impl-plan TKT-1"
+        ],
+        "setup_timeout_seconds": 2700,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('create-impl-plan') or {}).get('status') == 'completed' else 1)\""
       },
       {
         "id": "PIPE-docs-sync-app",
         "skill": "acs:docs-sync",
         "profile": "app-ticketed",
         "setup_prompts": [
-          "TKT-1 is ready to implement. Please implement it."
+          "/acs:analyze-ticket TKT-1",
+          "/acs:create-impl-plan TKT-1",
+          "/acs:code TKT-1"
         ],
-        "prompt": "The implementation for TKT-1 has landed on this branch. Bring the docs up to date with it.",
+        "prompt": "/acs:docs-sync TKT-1",
         "timeout_seconds": 1200,
         "measures": [
           "reliability",
           "cost",
           "time"
         ],
-        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated."
+        "setup_timeout_seconds": 2700,
+        "setup_assert": "python3 -c \"import json, os, sys; d = json.load(open(os.path.join(os.environ['ACS_PARTITION'], 'pipeline-state.json'))); sys.exit(0 if ((d.get('steps') or {}).get('code') or {}).get('status') == 'completed' else 1)\"",
+        "why": "docs-sync with real docs to sync: docs/api.md states the API is read-and-create only and docs/architecture.md describes the data flow the ticket changes, so a correct run must edit both. The most judgment-heavy step and, before the fixture, the least evaluated. 1.6.0: setup budget and precondition as for PIPE-docs-sync — under the 1200s measured budget every one of the 3 runs of the 2026-09-13 measurement timed out in setup, and the scenario reported 0/3 reliability for a skill it had never once reached. 1.7.0: explicit gated-step setup, as for PIPE-docs-sync. 1.14.0: explicit invocation, as for PIPE-docs-sync \u2014 this is the profile on which the by-hand edit happened. 1.12.0: the reworded app ticket, as for PIPE-code-app. 1.11.0: 2700s per setup prompt, as for PIPE-code-app."
       }
     ]
   },
@@ -96,7 +132,7 @@
     "acs:create-pr": "Needs a real forge target; measuring it means opening throwaway PRs. Covered by tier 1's gate cases only.",
     "acs:merge-pr": "Merges. Not run against anything real.",
     "acs:release": "Opens a release PR. Same reason.",
-    "doc-bootstrap skills": "create-prd/architecture/principles/standards/quality/operations each write a large doc set; one run each would dominate the tier's cost while regressing least. Routing is measured; bodies are not."
+    "doc-bootstrap skills": "create-prd/architecture and every /acs:create-docs doc set (quality, operations, principles, standards) each write a large doc set; one run each would dominate the tier's cost while regressing least. Routing is measured; bodies are not."
   },
   "fixture_hash": "6fecba231b91b0d3",
   "fixture_note": "dataset/fixtures/app is part of the experiment: `fixture_hash` covers every byte of its tree and history, `make check` fails when this value is stale, and a changed fixture therefore forces a scenario_set_version bump. Routing baselines survive a fixture change (set_hashes are per half); pipeline baselines do not."

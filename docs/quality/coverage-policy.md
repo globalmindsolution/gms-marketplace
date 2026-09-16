@@ -28,7 +28,7 @@ python3 -m coverage report
 
 ## Exclusions
 
-Coverage is measured over two trees: `plugins/acs/hooks/scripts` — the
+Coverage is measured over two trees: `src/acs/hooks/scripts` — the
 hook/CLI layer, `.coveragerc`'s `[run] source` — plus `evals/`, added as a
 `[run] source_dirs` entry (MAR-575). `evals/` is in the denominator because
 the eval harness is what decides whether a paid run's misses are real
@@ -36,7 +36,7 @@ findings, and it has deterministic tests under `tests/acs/` that must not be
 allowed to rot; it is a `source_dirs` entry rather than a second `source`
 line because `tests/acs/test_coverage_measurement_config.py` pins `source`
 and `omit` to exact values, and the hook-scripts path stays the single pinned
-one it has always been. `plugins/acs/skills/**` prose and the `tests/**` tree
+one it has always been. `src/acs/skills/**` prose and the `tests/**` tree
 themselves remain unmeasured. Within the hook/CLI source, `.coveragerc`'s
 `omit` list excludes the **39** pre-`*`/post-`*` argument-forwarder scripts
 (20 `pre-*`, 19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a

@@ -1,13 +1,13 @@
 # Skill Requirements
 
-Thirty-one skills in total, grouped into five phases by the registry
-`plugins/acs/workflows/phases.yaml` — every skill directory appears in
+Twenty-seven skills in total, grouped into five phases by the registry
+`src/acs/workflows/phases.yaml` — every skill directory appears in
 exactly one group, or under `aliases`:
 
 - **Design** — `/create-prd`, `/create-requirements`, `/create-architecture`,
-  `/create-project`, `/create-principles`, `/create-standards`,
-  `/create-quality`, `/create-operations`, `/acs:create-docs`,
-  `/acs:standardize-project`, `/create-ticket`, `/create-design`.
+  `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
+  `/create-project`, `/acs:standardize-project`, `/acs:project`,
+  `/create-ticket`, `/create-design`.
 - **Build** — `/analyze-ticket`, `/create-api-contract`,
   `/create-impl-plan`, `/create-test-docs`, `/code`, `/docs-sync`.
 - **Test** — `/create-e2e-tests`, `/run-e2e-tests`.
@@ -19,37 +19,41 @@ exactly one group, or under `aliases`:
 
 The phase a skill sits in is a grouping, not an order. The order the Build,
 Test and Ship steps run in for a ticket is declared in
-`plugins/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
+`src/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Twenty of the thirty-one are **hooked** (a pre-hook and a post-hook each):
-the twelve Design-phase skills except `/acs:create-docs`, all six Build-phase
-skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The other eleven
-(`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`, `/metrics`,
-`/usage`, `/acs:release`, `/acs:create-docs`, `/run-e2e-tests`, `/acs:test`)
-are unhooked and record what they need through `pipeline-step.py`.
+Seventeen of the twenty-seven are **hooked** (a pre-hook and a post-hook
+each): the eight Design-phase skills except `/acs:project`, all six
+Build-phase skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The
+other eleven (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
+`/metrics`, `/usage`, `/acs:release`, `/acs:project`, `/run-e2e-tests`,
+`/acs:test`) are unhooked and record what they need through
+`pipeline-step.py`.
 
 Every **workflow** skill MUST:
 
-- Twelve **workflow/product skills** (docs-sync, code, create-prd,
-  create-design, create-architecture, create-project, create-quality,
-  create-operations, create-principles, create-standards,
-  standardize-project, create-requirements) run the full Reflection cycle (plan → execute →
-  verify) with their own `<skill>-planner`, `<skill>-executor`,
-  `<skill>-verifier` subagents ([reflection.md](reflection.md)). Three
+- Nine **workflow/product skills** (docs-sync, code, create-prd,
+  create-design, create-architecture, create-project, create-docs,
+  standardize-project, create-requirements) run the Reflection cycle with
+  their own `<skill>-executor` and `<skill>-verifier` subagents — and no
+  `<skill>-planner`: no skill has a plan phase (ADR-0092;
+  [reflection.md](reflection.md)). Three
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
   per MAR-55 invariant (b): the coordinator, optionally delegating to at
-  most one executor subagent, performs the apply-work directly — no planner
-  subagent, no verifier subagent, in every lane. The skills-independence
-  refactor changed exactly two things about that split and nothing else:
-  `/code`'s plan phase moved out into `/create-impl-plan`, so `/code` now
-  runs **execute → verify** with no planner of its own; and the five new
+  most one executor subagent, performs the apply-work directly — no
+  verifier subagent, in every lane. The skills-independence refactor moved
+  `/code`'s plan phase out into `/create-impl-plan` and added five
   Build/Test skills (analyze-ticket, create-impl-plan, create-api-contract,
-  create-test-docs, create-e2e-tests) each ship their own
-  planner/executor/verifier triad. Sixteen hooked skills therefore run the
-  full plan → execute → verify cycle today — the twelve above minus `code`,
-  plus those five.
+  create-test-docs, create-e2e-tests); ADR-0092 then retired the planner
+  role everywhere: the twelve **authoring skills** (the nine above minus
+  `code` and `create-docs`, plus those five) run **execute → verify** with an
+  executor that surveys first and records its survey in `iter-<n>-authoring.md`
+  (`create-docs` took that shape first, ADR-0094, because its deliverable is a
+  template-bootstrapped document; the other twelve followed in ADR-0092's
+  stage 2), and `code` runs execute → verify against the plan
+  `/create-impl-plan` approved. Fourteen hooked skills therefore run the
+  execute → verify cycle today.
 - have its inputs checked by a pre-hook and its outcome persisted by a
   post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order;
 - write state **only** inside `<workspace>/<repo>/<ticket-id>/`, and write
@@ -59,9 +63,9 @@ Every **workflow** skill MUST:
   edits source files);
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn its
-  planner/executor/verifier on the models and effort levels configured there
-  ([configuration.md](configuration.md#subagent-models)) (applies to the twelve
-  triad-keeping skills only — apply-work skills run inline);
+  executor/verifier on the models and effort levels configured there
+  ([configuration.md](configuration.md#subagent-models)) (applies to the fourteen
+  reflection-loop skills only — apply-work skills run inline);
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
   ([workflow.md](workflow.md#ticket-context));
@@ -120,7 +124,7 @@ configuration.
   a user-confirmed, one-shot migration into the in-repo state root;
   declining leaves the old workspace and `workspace_path` unchanged
   (ADR-0086).
-- `/setup` is not part of the gated pipeline (no planner/executor/verifier
+- `/setup` is not part of the gated pipeline (no executor/verifier
   subagents); it is a simple setup skill.
 - All other skills' pre-hooks fail fast (exit 2) with a "run /setup first"
   message when no `settings.json` can be found.
@@ -166,7 +170,7 @@ command.
   session resumed with `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
   through, unchanged
   (`ship/SKILL.md` "Full-verify pipeline boundary"; workflow.md#context-handoff-between-steps).
-- No planner/executor/verifier of its own; each step skill is **invoked
+- No executor/verifier of its own; each step skill is **invoked
   directly by the ship coordinator in its own context** and runs its own
   reflection cycle, returning only a compact XML handoff — `/ship` tracks the
   pipeline through `pipeline-state.json` so its context can be cleared between
@@ -184,7 +188,7 @@ when the current one grows long
   releases the `.lock`.
 - Prints the exact command to continue in a new session (e.g.
   `/code SHOP-123`).
-- Not part of the gated pipeline; no planner/executor/verifier subagents.
+- Not part of the gated pipeline; no executor/verifier subagents.
 - Workflow coordinators SHOULD trigger the same flush proactively on context
   pressure, without waiting for the user to invoke `/handoff`.
 
@@ -206,7 +210,7 @@ this skill owns the workflow around it.
   re-run `/setup` Step 3 when the install moved), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
-- Not part of the gated pipeline; no planner/executor/verifier subagents.
+- Not part of the gated pipeline; no executor/verifier subagents.
 
 ## `/metrics` (utility)
 
@@ -237,7 +241,7 @@ network, no new config key, nothing written.
   Markdown-table fallback.
 - **Reads only** — writes no file, makes no network/`gh` call, and consumes no
   config key beyond the `.acs/settings.json` the helper already reads.
-- Not part of the gated pipeline; no planner/executor/verifier subagents.
+- Not part of the gated pipeline; no executor/verifier subagents.
 
 ## `/usage` (utility)
 
@@ -262,7 +266,7 @@ existing workspace state — no network, no new config key, nothing written.
   read-only; every usage-view panel key is always present.
 - **Reads only** — writes no file, makes no network/`gh` call, and consumes no
   config key beyond the `.acs/settings.json` the helper already reads.
-- Not part of the gated pipeline; no planner/executor/verifier subagents.
+- Not part of the gated pipeline; no executor/verifier subagents.
 
 ## /acs:run-e2e-tests (test)
 
@@ -277,11 +281,11 @@ closing the loop on failures with a regression ticket.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
 - **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
-  `/acs:run-e2e-tests` has no planner/executor/verifier triad, no pre- or
+  `/acs:run-e2e-tests` has no executor/verifier pair, no pre- or
   post-hook, and no skill-start ticket allocation.
 - **`/acs:test` is a deprecated alias** kept for one release: the directory
   survives and forwards to `/acs:run-e2e-tests`.
-  `plugins/acs/workflows/phases.yaml` lists it under `aliases`, never in a
+  `src/acs/workflows/phases.yaml` lists it under `aliases`, never in a
   phase, and `pipeline-state.json` still accepts a `steps.test` entry so a
   pre-rename ledger validates and the workflow walk still finds it.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
@@ -304,7 +308,7 @@ closing the loop on failures with a regression ticket.
   See `docs/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
 - **Scheduling is the caller's job** — Claude Code routines/cron invoke
   `/acs:test` headless; the concrete recipe lives in
-  `templates/operations/test-scheduling.md` (shipped by `/acs:create-operations`),
+  `templates/operations/test-scheduling.md` (shipped by `/acs:create-docs operations`),
   not duplicated here.
 - **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
   suite-execution core (Steps 1-3: setup→command→teardown, the
@@ -326,11 +330,18 @@ the repo's `.acs/settings.json` `release` block, dates the section, and opens
 an exempt `release/*` PR for a mandatory human merge.
 
 - **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
-  `/acs:release` has no planner/executor/verifier triad, no `release-state.json`
+  `/acs:release` has no executor/verifier pair, no `release-state.json`
   skill-start ticket allocation, no `.lock`, no pointer file, no partition.
   It is not part of the gated pipeline.
 - **Fails fast** when no `release` block is configured in `.acs/settings.json`
   — before shelling out to `release_notes.py` at all.
+- **Runs the repo's pre-release gate before the cut.** When the block
+  declares `pre_release_gate`, every command runs verbatim, in order, from
+  the checkout root before anything is drafted, bumped, branched or pushed;
+  the first non-zero exit ends the run `failed` with nothing written, and
+  nothing bypasses the step. The release PR body carries each command's exit
+  code and output tail as the cut's evidence. A repo that declares no gate
+  is told so and proceeds.
 - **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
   durable record of a release cut is the release PR itself; `workspace` is
   read-only input (to enumerate the merged-ticket archive), never a write
@@ -350,41 +361,6 @@ an exempt `release/*` PR for a mandatory human merge.
   `/acs:release` passes `--ticket-prefix <settings.ticket_prefix>` to both
   `draft` and `bump` to anchor the git-history fallback to this repo's own
   ticket ids.
-
-## /acs:create-docs (utility)
-
-Purpose: the cross-skill, phase-level **doc-bootstrap fan-out** umbrella —
-detects independent doc-bootstrap skills (currently `create-quality` and
-`create-operations`) whose upstream prerequisites are already satisfied, and
-runs them in parallel instead of one after another; each leg keeps its own
-hooks, reflection cycle, and gating unchanged, and delivers as its own
-docs-only PR on its own delivery ticket.
-
-- **Unhooked** — like
-  `/setup`/`/update`/`/metrics`/`/usage`/`/run-e2e-tests`/`/acs:release`,
-  `/acs:create-docs` has no planner/executor/verifier triad of its own and no
-  `create-docs-state.json` skill-start ticket allocation; it is not one of
-  the triad-keeping skills. Like `/acs:ship`, it adopts
-  `disallowed-tools: Edit, NotebookEdit` — it never writes a doc file itself.
-- **Eligibility**: `fanout_batches()` (`acs_lib/setup_helpers.py`) computes the eligible
-  batch from `DOC_BOOTSTRAP_DEPENDENCIES`/`DOC_BOOTSTRAP_SETTINGS_KEY` against
-  the consumer repo's settings and on-disk doc state, gated on the declared
-  v1 set `DOC_BOOTSTRAP_FANOUT_V1` (`create-quality`, `create-operations`).
-- **Mechanism**: mints one delivery ticket per eligible leg via real
-  `Skill`-tool `Start`s in the session checkout, then runs each phase
-  (plan → execute → verify) as a parallel batch across legs; each leg enters
-  its own worktree at its own Delivery step's Branch sub-step, before that
-  leg's Execute phase.
-- **Failure isolation**: legs share no failure state — one leg reaching its
-  verifier iteration cap never blocks or rolls back a sibling leg's
-  completed PR; a failed leg resumes via its own skill's standalone Resume &
-  reconcile path, never by re-invoking the umbrella. See
-  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
-- **Argument contract**: `--for <skill>[,<skill>...]` narrows the batch to
-  the named skill(s); with no flag, every currently-eligible skill fans out;
-  a name outside `DOC_BOOTSTRAP_FANOUT_V1` is rejected as *not in v1's
-  fan-out set* (`parse_fanout_for_arg()`, `acs_lib/_common.py`) — reported, never
-  silently fanned out or silently dropped.
 
 ## Product-level delivery (tickets)
 
@@ -433,8 +409,8 @@ else is verified against.
   - `roadmap.md` — milestones/phases mapped to intended epics, plus a
     **"Release versions"** mapping table (each release version → its
     milestone/wave and the epic(s) it delivers).
-- Reflection cycle: `create-prd-planner`, `create-prd-executor`,
-  `create-prd-verifier`. The verifier checks: all required sections
+- Reflection cycle (execute → verify, no planner — ADR-0092):
+  `create-prd-executor`, `create-prd-verifier`. The verifier checks: all required sections
   present, features trace to goals, success metrics are measurable,
   nothing contradicts the stated constraints, and every roadmap milestone
   resolves to exactly one release version (0 orphan milestones) — plus a
@@ -442,8 +418,9 @@ else is verified against.
   and a blocking `audience-style` check (declared audience/style profile; an
   unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
   makes it `severity="info"`, non-blocking).
-- **Independent corroboration (MAR-304).** The planner additionally records
-  three plan sections the deterministic floor parses: `## Code evidence`
+- **Independent corroboration (MAR-304).** The executor additionally records
+  three sections in its authoring notes (`iter-<n>-authoring.md`) that the
+  deterministic floor parses: `## Code evidence`
   (brownfield/amend only, one citation per brownfield code claim in the
   house grammar; `N/A — greenfield, no code to cite` in greenfield),
   `## Answer fidelity` (one line per `clarifications.json`
@@ -461,7 +438,7 @@ else is verified against.
   script are `severity="blocking"`; there is no `severity="info"`
   carve-out. `clarifications.json` and the repo root are declared
   verify-task inputs/constraints for this skill.
-- The planner phase also runs the shared ADR-0012 design-time
+- The executor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - State lives in the delivery ticket's partition
@@ -503,11 +480,11 @@ living system documentation the whole pipeline designs and verifies against.
     `/acs:standardize-project` audits an existing repo against;
   - `lld/flows/<flow>.md` — **sequence diagrams** for the key runtime
     flows, one file per flow — bootstrapped for the main flows (selected by
-    the planner, confirmed with the user) and grown ticket by ticket;
+    the executor's survey, confirmed with the user) and grown ticket by ticket;
   - `lld/contracts.md` — interface/API contracts between components.
 - All diagrams are **Mermaid** (C4, ER, sequence, and state diagrams as
   code: diffable, reviewable, rendered by GitHub, maintainable by agents).
-- Runs the full Reflection cycle — `create-architecture-planner`,
+- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
   `create-architecture-executor`, `create-architecture-verifier`. The
   verifier checks: the design **satisfies the PRD** (goals, product-level
   NFRs, constraints); the docs match the actual codebase; they are
@@ -518,7 +495,7 @@ living system documentation the whole pipeline designs and verifies against.
   and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
   a `clarify.py --source assumption` waiver makes it `severity="info"`,
   non-blocking).
-- The planner phase also runs the shared ADR-0012 design-time
+- The executor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - State lives in the delivery ticket's partition
@@ -532,33 +509,68 @@ living system documentation the whole pipeline designs and verifies against.
   against the doc set, and `/code` updates it whenever a change alters the
   architecture ([workflow.md](workflow.md#product-level-architecture)).
 
-## `/acs:create-quality` (product-level)
+## `/acs:create-docs` (product-level)
 
-Purpose: bootstrap and maintain the **product quality doc set** — test
-strategy and coverage policy — the standing testing/coverage contract the
-pipeline verifies against.
+Purpose: bootstrap and maintain the four **product doc sets** — `quality`
+(test strategy, coverage policy), `operations` (release process, runbooks,
+observability, incident response, test scheduling), `principles`
+(engineering principles + rationale) and `standards` (coding standards,
+conventions, review checklist) — the standing contracts the pipeline
+verifies against. One skill, four sets (ADR-0094): the sets used to be four
+internal leg skills that differed only in a table row, and that table,
+`acs_lib.DOC_SETS`, is now the whole difference.
 
 - Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
-  after a testing/coverage policy change.
-- MUST take the **PRD's non-functional requirements** and the full
-  `architecture_path` set as upstream inputs — architecture is upstream of
-  quality.
-- Produces the doc set in the consumer repo at `quality_path` (default
-  `docs/quality` — [configuration.md](configuration.md)): `test-strategy.md`
-  (testing philosophy/pyramid, coverage-percent policy, suite inventory, CI
-  gates, flaky-test policy) and `coverage-policy.md` (target/hard-fail rule,
-  exclusions, per-stack measurement, escalation on a miss). Unset
-  `quality_path` (`null`) means acs does not maintain this set for the repo.
-- Runs the full Reflection cycle — `create-quality-planner`,
-  `create-quality-executor`, `create-quality-verifier`. The verifier checks
-  the tailored content conforms to the architecture set (stack/technology
-  claims agree with `architecture/hld/tech-stack.md`), plus a deterministic
-  `structure` floor over each file (declared `required_sections:<file>`,
-  blocking) and a blocking `audience-style` check (an unwaived
-  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
-  `severity="info"`, non-blocking).
-- **Citation corroboration (MAR-303).** The planner MUST record every
+  pipeline. Run once after `/acs:create-architecture`; re-run to refresh a
+  set after its policy changes. Takes `all`, a comma-separated list of sets
+  (`quality` or the former leg name `create-quality`), or a delivery-ticket
+  id to resume one set; a token naming no set refuses the whole run.
+- **Declared, not inferred**: `DOC_SETS` declares, per set, its settings key
+  (`quality_path`, `operations_path`, `principles_path`, `standards_path` —
+  unset means acs does not maintain that set for the repo, and the set is
+  reported ineligible, never run), its delivery-ticket title, its template
+  directory, its output files with the sections each must carry (the first
+  file is the sentinel that says the set has shipped), its audience
+  register, its upstream inputs and its dependency edges. Adding a fifth set
+  is a row plus its templates. `fanout_batches()` reads the derived views
+  (`DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
+  `DOC_BOOTSTRAP_SENTINEL`, keyed by set name) to decide eligibility and
+  batching; `parse_doc_set_arg()` is the argument contract.
+- MUST take the **PRD** (its Non-functional requirements section for
+  `quality` and `operations`; the PRD generally for `principles` and
+  `standards`) and the full `architecture_path` set as upstream inputs —
+  architecture is upstream of every set. `standards` additionally reads the
+  `principles_path` set **when it is set and present** (the conformance
+  chain `architecture → principles → standards`); when `principles_path` is
+  unset or the set is absent the executor notes the grounding step as not
+  applicable and proceeds — never a block. `principles` has no cross-read on
+  `standards/`. That soft edge is why `principles` lands in an earlier
+  fan-out batch than `standards`.
+- **One gate for every set**: the pre-hook (`pre-create-docs.py`) refuses the
+  Skill call when the architecture doc set (`hld/tech-stack.md`) is missing,
+  once, before any delivery ticket is minted.
+- **One delivery ticket per set**: `skill-start.py --skill create-docs
+  --doc-set <set> --allocate` mints a `task` ticket titled from `DOC_SETS`
+  that records its `doc_set`; each set runs in its own worktree on its own
+  branch and lands as its own docs-only PR; sets run in capped parallel
+  (at most `max_parallel`, default 2). Failures are isolated per set; a set
+  resumes by its ticket id.
+- Runs the Reflection cycle as **execute → verify, no planner** (ADR-0092
+  class D): `create-docs-executor` authors the set — decides bootstrap vs
+  re-run from the disk, bootstraps each file from
+  `templates/<set>/` verbatim, tailors it to the detected stack (and, for
+  `standards`, to the stated principles), and writes its authoring notes
+  (`iter-<n>-authoring.md`: mode, Upstream inventory, ADR-0012 consistency
+  findings, decisions); `create-docs-verifier` judges it fresh — doc-set
+  completeness, architecture conformance (stack/technology claims agree with
+  `architecture/hld/tech-stack.md`), required sections, authoring
+  conformance, docs-only changeset, consistency, a deterministic `structure`
+  floor over each file (declared `required_sections:<file>`, blocking) and a
+  blocking `audience-style` check (an unwaived audience-mismatch blocks; a
+  `clarify.py --source assumption` waiver makes it `severity="info"`,
+  non-blocking). The set, its files and its sections reach both agents as
+  task constraints; the same two agent files serve every set.
+- **Citation corroboration (MAR-303).** The executor MUST record every
   `Upstream inventory` citation in the one-line grammar
 
   ```
@@ -567,191 +579,27 @@ pipeline verifies against.
 
   The path is backtick-quoted exactly as shown, the optional
   `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The verifier's
-  `plan-conformance` dimension MUST independently re-open and check every
-  such citation: it runs the shared deterministic `citation_check.py` floor
-  over `prd_path` + `architecture_path`, then itself judges substantiation
-  for every citation the script resolves. Every such finding — mechanical
-  (`citation_check.py`'s three rules) or semantic (the verifier's own
-  substantiation judgment) — and an exit 2 from the script are
-  `severity="blocking"`; there is **no** `severity="info"` carve-out.
-  `prd_path` is a declared verify-task constraint for this skill.
-- The planner phase also runs the shared ADR-0012 design-time
-  doc-consistency step, surfacing gap/staleness findings through the
-  existing clarification ledger; the verifier's `consistency` dimension
-  confirms any such findings were resolved or explicitly deferred.
-- State lives in the delivery ticket's partition
-  (`create-quality-state.json`)
+  verbatim and mandatory. The verifier's `authoring-conformance` dimension
+  MUST independently re-open and check every such citation: it runs the
+  shared deterministic `citation_check.py` floor over `prd_path` +
+  `architecture_path` (plus `principles_path` for `standards`, when
+  non-null and present), then itself judges substantiation for every
+  citation the script resolves. Every such finding — mechanical or semantic —
+  and an exit 2 from the script are `severity="blocking"`; there is **no**
+  `severity="info"` carve-out. `prd_path` is a declared verify-task
+  constraint.
+- The executor also runs the shared ADR-0012 design-time doc-consistency
+  step, surfacing gap/staleness findings through the existing clarification
+  ledger; the verifier's `consistency` dimension confirms any such findings
+  were resolved or explicitly deferred.
+- State lives in each set's delivery-ticket partition
+  (`create-docs-state.json`; `pipeline-state.json` under `flow: "product"`
+  with the step key `create-docs`)
   ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
+- Delivery: docs-only PR per set via the
   [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
-
-## `/acs:create-operations` (product-level)
-
-Purpose: bootstrap and maintain the **product operations doc set** — release
-process, runbooks, observability, and incident response — the standing
-operations contract the pipeline and the on-call team run against.
-
-- Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
-  after an operations-process change.
-- MUST take the **PRD's non-functional requirements** and the full
-  `architecture_path` set as upstream inputs — architecture is upstream of
-  operations.
-- Produces the doc set in the consumer repo at `operations_path` (default
-  `docs/operations` — [configuration.md](configuration.md)): `release-process.md`,
-  `runbooks.md`, `observability.md`, `incident-response.md`, and
-  `test-scheduling.md`. Unset `operations_path` (`null`) means acs does not
-  maintain this set for the repo.
-- Runs the full Reflection cycle — `create-operations-planner`,
-  `create-operations-executor`, `create-operations-verifier`. The verifier
-  checks the tailored content conforms to the architecture set (component/
-  deployment claims agree with `architecture/hld/`), plus a deterministic
-  `structure` floor over each file (declared `required_sections:<file>`,
-  blocking) and a blocking `audience-style` check (an unwaived
-  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
-  `severity="info"`, non-blocking).
-- **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the one-line grammar
-
-  ```
-  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
-  ```
-
-  The path is backtick-quoted exactly as shown, the optional
-  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The verifier's
-  `plan-conformance` dimension MUST independently re-open and check every
-  such citation: it runs the shared deterministic `citation_check.py` floor
-  over `prd_path` + `architecture_path`, then itself judges substantiation
-  for every citation the script resolves. Every such finding — mechanical
-  (`citation_check.py`'s three rules) or semantic (the verifier's own
-  substantiation judgment) — and an exit 2 from the script are
-  `severity="blocking"`; there is **no** `severity="info"` carve-out.
-  `prd_path` is a declared verify-task constraint for this skill.
-- The planner phase also runs the shared ADR-0012 design-time
-  doc-consistency step, surfacing gap/staleness findings through the
-  existing clarification ledger; the verifier's `consistency` dimension
-  confirms any such findings were resolved or explicitly deferred.
-- State lives in the delivery ticket's partition
-  (`create-operations-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
-
-## `/acs:create-principles` (product-level)
-
-Purpose: bootstrap and maintain the **product principles doc set** —
-engineering principles and their rationale — the standing values contract
-`standards/` builds on.
-
-- Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once after `/acs:create-architecture`; re-run to refresh
-  after an engineering principles change.
-- MUST take the **PRD** and the full `architecture_path` set as upstream
-  inputs — principles has no cross-read on `standards/`.
-- Produces the doc set in the consumer repo at `principles_path` (default
-  `docs/principles` — [configuration.md](configuration.md)): `principles.md`
-  (engineering principles list + rationale). Unset `principles_path` (`null`)
-  means acs does not maintain this set for the repo.
-- Runs the full Reflection cycle — `create-principles-planner`,
-  `create-principles-executor`, `create-principles-verifier` — including a
-  deterministic `structure` floor (declared `required_sections`, blocking)
-  and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
-  a `clarify.py --source assumption` waiver makes it `severity="info"`,
-  non-blocking). The planner
-  phase also runs the shared ADR-0012 design-time doc-consistency step,
-  surfacing gap/staleness findings through the existing clarification ledger;
-  the verifier's `consistency` dimension confirms any such findings were
-  resolved or explicitly deferred.
-- **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the one-line grammar
-
-  ```
-  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
-  ```
-
-  The path is backtick-quoted exactly as shown, the optional
-  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The verifier's
-  `plan-conformance` dimension MUST independently re-open and check every
-  such citation: it runs the shared deterministic `citation_check.py` floor
-  over `prd_path` + `architecture_path`, then itself judges substantiation
-  for every citation the script resolves. Every such finding — mechanical
-  (`citation_check.py`'s three rules) or semantic (the verifier's own
-  substantiation judgment) — and an exit 2 from the script are
-  `severity="blocking"`; there is **no** `severity="info"` carve-out.
-  `prd_path` is a declared verify-task constraint for this skill.
-- State lives in the delivery ticket's partition
-  (`create-principles-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
-
-## `/acs:create-standards` (product-level)
-
-Purpose: bootstrap and maintain the **product standards doc set** — coding
-standards and conventions — the concrete realization of the `principles/`
-values contract.
-
-- Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once after `/acs:create-architecture` (and, ideally, after
-  `/acs:create-principles` — see below); re-run to refresh after a
-  coding-standards or conventions change.
-- MUST take the **PRD**, the full `architecture_path` set, and the
-  `principles_path` doc set (when set and present) as upstream inputs — this
-  is the **inverse** of `/acs:create-principles`, which has no cross-read on
-  `standards/`. When `principles_path` is unset (`null`) or the set is
-  absent, `/acs:create-standards` notes the grounding step as not applicable
-  and proceeds — it never hard-blocks on a missing principles set.
-- Produces the doc set in the consumer repo at `standards_path` (default
-  `docs/standards` — [configuration.md](configuration.md)):
-  `coding-standards.md`, `conventions.md` (naming/layout/formatting),
-  `review-checklist.md`. Unset `standards_path` (`null`) means acs does not
-  maintain this set for the repo.
-- Runs the full Reflection cycle — `create-standards-planner`,
-  `create-standards-executor`, `create-standards-verifier` — including a
-  deterministic `structure` floor over each file (declared
-  `required_sections:<file>`, blocking) and a blocking `audience-style`
-  check (an unwaived audience-mismatch blocks; a `clarify.py --source
-  assumption` waiver makes it `severity="info"`, non-blocking). The planner
-  phase also runs the shared ADR-0012
-  design-time doc-consistency step, surfacing gap/staleness findings
-  through the existing clarification ledger; the verifier's `consistency`
-  dimension confirms any such findings were resolved or explicitly
-  deferred.
-- **Citation corroboration (MAR-303).** The planner MUST record every
-  `Upstream inventory` citation in the one-line grammar
-
-  ```
-  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
-  ```
-
-  The path is backtick-quoted exactly as shown, the optional
-  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The verifier's
-  `plan-conformance` dimension MUST independently re-open and check every
-  such citation: it runs the shared deterministic `citation_check.py` floor
-  over `prd_path` + `architecture_path`, plus `principles_path` when it is
-  non-null and the set exists on disk, then itself judges substantiation
-  for every citation the script resolves. Every such finding — mechanical
-  (`citation_check.py`'s three rules) or semantic (the verifier's own
-  substantiation judgment) — and an exit 2 from the script are
-  `severity="blocking"`; there is **no** `severity="info"` carve-out.
-  `prd_path` is a declared verify-task constraint for this skill.
-- State lives in the delivery ticket's partition
-  (`create-standards-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
+  run creates its own delivery ticket per set; the TDD pipeline does not
+  apply to a docs-only change.
 
 ## `/acs:create-requirements` (product-level)
 
@@ -763,7 +611,7 @@ and one file per NFR item under `non-functional/`.
   pipeline. Run once to bootstrap a repo's requirements set, or re-run to
   amend it; either way `/acs:code`'s documentation step keeps accreting into
   the same files afterward.
-- **Three modes**, classified by the planner from the resolved
+- **Three modes**, classified by the executor's survey from the resolved
   `requirements_path` content and the codebase:
   - **brownfield** — reverse-engineer the set from an existing codebase
     (architecture-aware feature-area enumeration, codebase-inventory
@@ -784,7 +632,7 @@ and one file per NFR item under `non-functional/`.
   `<functional_subdir>`/`<non_functional_subdir>` via `requirements_layout`
   (defaults `functional`/`non-functional`). Unset `requirements_path`
   (`null`) means acs does not maintain this set for the repo.
-- Runs the full Reflection cycle — `create-requirements-planner`,
+- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
   `create-requirements-executor`, `create-requirements-verifier` —
   including a deterministic `structure` floor over each produced area file
   (blocking) and a blocking `audience-style` check (an unwaived
@@ -828,8 +676,10 @@ architecture, so the ticket pipeline works from the very first ticket.
   - a CI workflow running build, lint, tests, and coverage;
   - `.gitignore`, README skeleton, and a **minimal green vertical slice**
     (entrypoint + smoke test) proving the harness works.
-- Reflection cycle: `create-project-planner`, `create-project-executor`,
-  `create-project-verifier` — the verifier MUST actually run build, lint,
+- Reflection cycle (execute → verify, no planner — ADR-0092):
+  `create-project-executor`, `create-project-verifier` — the executor pins
+  the scaffold in `iter-1-authoring.md` before writing it, and the verifier
+  MUST actually run build, lint,
   and tests and see them pass; a scaffold that doesn't run green fails
   verification.
 - State lives in the delivery ticket's partition
@@ -846,7 +696,7 @@ Purpose: audit an EXISTING (brownfield) repo against the approved doc set
 and acs-readiness tooling, then additively scaffold whatever is missing —
 the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
 
-- Its own triad-keeping workflow skill with its own delivery ticket per run
+- Its own reflection-loop workflow skill with its own delivery ticket per run
   (type `task`, titled "Brownfield project standardization") — **not** a
   `<set>_path` doc-set producer and adds no new settings key (D5 Option B);
   distinct from the product-level doc-set skills listed above.
@@ -867,16 +717,16 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
   gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
   — that stays with `/acs:setup`, surfaced as a `recommended_follow_ups` entry pointing there.
-- Runs the full Reflection cycle — `standardize-project-planner`,
-  `standardize-project-executor`, `standardize-project-verifier` — as three
-  separate subagent contexts, but the plan phase runs **exactly once per
-  run, before the loop**: exactly one `standardize-project-planner` spawn
-  across the whole run, including on resume (MAR-302). The loop body is
-  execute → verify only, cap 3 in every lane, counting execute+verify
-  rounds (never plan+execute+verify triads).
+- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
+  `standardize-project-executor`, `standardize-project-verifier` — as two
+  separate subagent contexts: iteration 1's executor audits first and
+  records the audit in its authoring notes (`iter-1-authoring.md`), then
+  scaffolds from them (the per-iteration re-plan went with MAR-302, the
+  plan phase itself with ADR-0092). The loop body is execute → verify only,
+  cap 3 in every lane, counting execute+verify rounds.
 - **Allowlist provenance and immutability (MAR-302).** The Additive-surface
-  allowlist is authored exactly once, by the iteration-1 planner, in
-  `iter-1-plan.md`, and is frozen and authoritative for the whole run: the
+  allowlist is authored exactly once, by the iteration-1 executor, in
+  `iter-1-authoring.md`, and is frozen and authoritative for the whole run: the
   executor's writable surface is monotonically non-increasing across
   iterations 1-3 (it may shrink, e.g. via a narrowing finding, but never
   grow), and the verifier re-reads that same literal frozen path every
@@ -995,17 +845,17 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - MUST set **`needs_design`**, epic-only: always `true` for epics (stated,
   not asked); always `false` for stories and tasks, never offered or
   confirmed ([workflow.md](workflow.md)).
-- MUST set **`docs_only`** during analysis (planner-recommended, user-confirmed,
+- MUST set **`docs_only`** during analysis (coordinator-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
   full suite still runs once and must stay green, and a diff line touching
   executable code under the flag is a blocking verifier finding.
 - MUST capture **`size`** and **`stakes`** during `/create-ticket` analysis (MAR-56):
-  - The planner surveys the codebase or diff to identify likely touched file surfaces
+  - The coordinator surveys the codebase or diff to identify likely touched file surfaces
     and runs path-glob matching against `high_stakes_paths` (from settings; default seed:
     `auth/**`, `payments/**`, `migrations/**`, `public-api/**`, `security/**`) to
     RECOMMEND a `stakes` value. Any match yields `stakes=high` (full-verify); no match
-    yields `stakes=normal`. The planner also recommends `size` based on scope analysis.
+    yields `stakes=normal`. It also recommends `size` based on scope analysis.
   - The user CONFIRMS or overrides both values (same pattern as `docs_only`).
     Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires
     explicit user confirmation.
@@ -1021,7 +871,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
     optional and additive — existing tickets without them remain valid.
 - MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400
   changed lines, one concern, grounded in a codebase survey); above the bar the
-  planner recommends an epic with children cut at PR-sized, independently
+  coordinator recommends an epic with children cut at PR-sized, independently
   shippable seams.
 - MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,
   invoked directly with a split request): the ticket becomes an epic
@@ -1098,9 +948,9 @@ tickets where the change is architecturally significant.
   blocking `audience-style` check (declared audience/style profile; an unwaived
   audience-mismatch blocks, a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking) — same 3-iteration reflection cap.
-- Subagents: `create-design-planner`, `create-design-executor`,
-  `create-design-verifier`.
-- The planner phase also runs the shared ADR-0012 design-time
+- Subagents: `create-design-executor`, `create-design-verifier` (execute →
+  verify, no planner — ADR-0092).
+- The executor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - When `adr_path` is configured ([configuration.md](configuration.md)),
@@ -1109,7 +959,7 @@ tickets where the change is architecturally significant.
 
 > **Section numbering.** The numbers below are stable identifiers for these
 > per-skill blocks, not the run order. The order the Build/Test/Ship steps
-> run in is declared in `plugins/acs/workflows/ship.yaml`
+> run in is declared in `src/acs/workflows/ship.yaml`
 > ([workflow.md](workflow.md#pipeline)); the lettered sections (2a–2d, 3a)
 > are the Build/Test skills added by the skills-independence refactor, which
 > land between the originally-numbered ones.
@@ -1139,7 +989,7 @@ is ready to plan.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
-- Subagents: `analyze-ticket-planner`, `-executor`, `-verifier`.
+- Subagents: `analyze-ticket-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `analyze-ticket-state.json`; states `ready_for_planning`,
   `api_surface`, `questions_open`.
 
@@ -1153,14 +1003,28 @@ an approved `plan.md`.
   to build). Pre-hook input check: the ticket resolves. Brake: an epic is
   refused.
 - MUST keep every mechanism the phase had inside `/code`, unchanged: the
-  planner agent, the spec fold, the executor file map, plan approval
+  survey (the former planner charter, carried by the executor since
+  ADR-0092), the spec fold, the executor file map, plan approval
   (STANDARD/COMPLEX only) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
 - MUST write `plan.md` to the ticket's docs folder (the partition when
   `artifacts.tickets_path` is `null`). On TRIVIAL/SMALL the coordinator
-  authors it with no planner spawn and no approval step, exactly as before
-  (ADR-0074).
-- Subagents: `create-impl-plan-planner`, `-executor`, `-verifier`.
+  authors it with no executor spawn and no approval step, exactly as before
+  (ADR-0074); the verifier judges it, and on blocking findings the coordinator
+  revises its own draft once before the verifier judges again (ceiling 2
+  verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
+  not fail the run on its first verdict.
+- MUST plan against the ticket as written when `analysis.md` says
+  `ready_for_planning: true`: the ledger entries `/analyze-ticket` left open
+  alongside that verdict (refined-criteria and missing-criterion proposals)
+  are carried in the plan's Risks as `C-<n> open — planned as written`, never
+  re-asked and never a `needs_input` — the analysis skill's own contract
+  ("with no user answer … `/acs:create-impl-plan` plans against the ticket as
+  written"). Only the plan's own genuine ambiguities and the oversize
+  question are asked.
+- Subagents: `create-impl-plan-executor`, `-verifier` (execute → verify, no
+  planner — ADR-0092; the executor's survey inherited the `code-planner`
+  charter).
 - State file: `create-impl-plan-state.json`; states `plan_path`,
   `plan_approved`, `file_map`.
 
@@ -1182,7 +1046,7 @@ it.
   **and** to a plan item.
 - MUST update the repo's machine-readable contract files under
   `contracts_path` when the repo keeps them, committed on the ticket branch.
-- Subagents: `create-api-contract-planner`, `-executor`, `-verifier`.
+- Subagents: `create-api-contract-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `create-api-contract-state.json`; states `contract_path`,
   `items`, `traced_acs`.
 
@@ -1202,7 +1066,7 @@ before any test is written.
   completed run leaves `untraced_acs` empty.
 - The e2e-typed rows are the input `/create-e2e-tests` reads, and the count
   of them is what decides whether that step has anything to do.
-- Subagents: `create-test-docs-planner`, `-executor`, `-verifier`.
+- Subagents: `create-test-docs-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `create-test-docs-state.json`; states `cases`, `e2e_cases`,
   `untraced_acs` (MUST be empty on a completed run).
 
@@ -1213,9 +1077,11 @@ Purpose: implement the ticket's approved plan in the consumer repo using TDD.
 > **The plan phase left `/code` (skills-independence refactor).** `/code`
 > REQUIRES an approved `plan.md` and no longer produces one: the Plan, Plan
 > approval, Plan revocation and Plan-artifact-resolution steps — and
-> `code-planner.md` with them — are now `/create-impl-plan`'s (§2b). Every
+> `code-planner.md` with them — are now `/create-impl-plan`'s (§2b; since
+> ADR-0092 that charter is the survey of `create-impl-plan-executor.md`, and
+> every `code-planner` mention below reads as that executor's survey). Every
 > plan-phase obligation stated in this section therefore binds
-> `/create-impl-plan` and its planner; they are stated here because `/code`'s
+> `/create-impl-plan` and its executor; they are stated here because `/code`'s
 > execute and verify phases anchor on their outputs, and because the
 > requirements they encode (spec fold, spec-simplicity, ADR-0012 doc-graph
 > gap, oversize signal, plan conformance) did not change — only which skill
@@ -1228,8 +1094,9 @@ Purpose: implement the ticket's approved plan in the consumer repo using TDD.
 > to `/create-impl-plan`.
 
 **Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
-`<partition>/specs/` is absent or empty the plan's author (the planner on
-STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72) authors the
+`<partition>/specs/` is absent or empty the plan's author (the
+`create-impl-plan-executor` on STANDARD/COMPLEX, the coordinator on
+TRIVIAL/SMALL — MAR-72) authors the
 spec content itself inside the plan artifact `plan.md`, on EVERY lane with no
 lane check; when specs are already present it reads them unchanged. The
 obligations below — from ticket clarification through the oversized-ticket
@@ -1247,8 +1114,8 @@ ADR 0066) and now bind the plan phase, wherever it runs:
 - Spec format: **markdown** with required sections — **scope, approach,
   API/data changes, test plan, out-of-scope**. The **approach** section stays
   at contract level (components, interfaces, algorithms, error handling;
-  indicative paths at most) — the authoritative file map belongs to `/code`'s
-  planner. The **test plan** MUST state the **e2e impact** when `e2e` is
+  indicative paths at most) — the authoritative file map belongs to
+  `/create-impl-plan`'s executor. The **test plan** MUST state the **e2e impact** when `e2e` is
   configured or the change affects user-facing flows (the tests land in the
   same changeset), else "no e2e impact" with a reason.
 - The **API/data changes** section SHOULD call out the documentation impact
@@ -1260,7 +1127,7 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   design** (dimension 9) reviews, which also judge the folded plan artifact's
   Approach/API-data-changes content when no separately-authored spec set
   exists.
-- **Spec-simplicity gate (MAR-88):** the **`code-planner`** MUST evaluate
+- **Spec-simplicity gate (MAR-88):** the plan's author (the **`code-planner`** charter, now `create-impl-plan-executor`'s survey) MUST evaluate
   each candidate decomposition for a **materially** simpler alternative that
   meets the **same acceptance criteria** with materially less
   code/complexity, before the spec gate closes. A found alternative is
@@ -1268,7 +1135,7 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   a **decision**, through the coordinator's existing User-interaction path —
   the threshold is "materially" simpler, never a naming or style preference.
   Deconflicted from `code-verifier` dimension 12 (spec-time vs code-time
-  simplicity; see [reflection.md](reflection.md)) — planner-charter-only, no
+  simplicity; see [reflection.md](reflection.md)) — author-charter-only, no
   **new `code-verifier`** dimension or meta-check is added.
 - MUST escalate an **oversized ticket** instead of producing a monster spec
   set: when an honest decomposition exceeds ~4 specs (or the surface clearly
@@ -1288,8 +1155,8 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   <partition>/phases/code/plan.md`.
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
   MAR-73).** The plan artifact is a single per-ticket
-  `<partition>/phases/code/plan.md` (authored by the `code-planner` on
-  STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
+  `<partition>/phases/code/plan.md` (authored by `create-impl-plan-executor`
+  on STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
   exactly once per run, before the loop. `plan.md` is the only name ever
   read or written for the plan artifact, in every case, on every lane — the
   MAR-70-era resume-only read-both fallback to the highest-numbered
@@ -1307,18 +1174,19 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   snapshots are unaffected.
 - **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
   execute → verify: the plan above is authored exactly once per run, before
-  the loop starts, so exactly one `code-planner` subagent is spawned across
-  the whole run **on STANDARD/COMPLEX**, however many iterations it uses.
+  the loop starts, so exactly one plan-authoring `create-impl-plan-executor`
+  is spawned across the whole `/create-impl-plan` run **on STANDARD/COMPLEX**,
+  however many iterations `/code` uses.
   On TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero
-  planner spawns, against the identical artifact contract (MAR-72, slice 2
+  executor spawns, against the identical artifact contract (MAR-72, slice 2
   of MAR-69, ADR 0074). On iteration 2+, the
   verifier's findings are delivered to the executor's `<context>` — never to
-  a new planner spawn — and the executor authors the remediation, on every
+  a new plan-authoring spawn — and the executor authors the remediation, on every
   lane. The
   light=1 / full=3 verify-depth caps are unchanged in value; they now count
-  execute+verify rounds rather than plan+execute+verify triads. Mid-flight
+  execute+verify rounds; there is no plan phase to count (ADR-0092). Mid-flight
   escalation (MAR-57)'s detection point and monotone ceiling are unaffected;
-  escalation never retro-spawns a planner (D-3).
+  escalation never retro-spawns a plan author (D-3).
 - **Coordinator plan approval (MAR-73, slice 3 of MAR-69).** On
   **STANDARD/COMPLEX** only, after `plan.md` is authored and before the loop
   starts, `/code` MUST record a **deterministic plan-approval verdict**:
@@ -1341,12 +1209,13 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   iteration/run boundary and only on an explicit `clarify.py`-recorded user
   answer; the sequence is copy (`plan-superseded-<k>.md`, `<k>` the smallest
   free positive integer) → revise `plan.md` in place (coordinator-authored;
-  no `code-planner` re-spawn) → re-run `plan-approval.py` for a fresh
+  no `create-impl-plan-executor` re-spawn) → re-run `plan-approval.py` for a fresh
   record; superseded copies are the audit trail and are never deleted, never
   an approval input, never a conformance contract.
 - **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
-  `code-planner.md` charter items that would otherwise run as part of the
-  (unspawned) planner — the spec-simplicity gate, the oversize signal, the
+  `code-planner.md` charter items (now `create-impl-plan-executor.md`'s
+  survey items) that would otherwise run as part of the
+  (unspawned) executor — the spec-simplicity gate, the oversize signal, the
   ADR-0012 doc-graph-gap check (E1-E4), and the Boy-scout drift survey — are
   **best-effort**, carried by the coordinator instead, and their omission on
   those lanes is never a finding. This does **not** extend to the
@@ -1438,17 +1307,19 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   otherwise it exits 2 to stop the skill. It MUST NOT require that
   `/create-ticket`, `/analyze-ticket` or any other skill has completed.
   Whether `<partition>/specs/` already has
-  content is discovered by the plan's author (the `code-planner` on
+  content is discovered by the plan's author (`create-impl-plan-executor` on
   STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72), not asserted
   by the gate — when
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded
-  into `/code`'s plan phase by the plan's author, on EVERY lane. The
-  TDD/coverage hard-fail and verifier-as-gate (light cap 1, no inline human
+  into `/create-impl-plan`'s plan by the plan's author, on EVERY lane. The
+  TDD/coverage hard-fail and verifier-as-gate (light cap 2 — one pass plus
+  one remediation round, ADR-0034 as amended 2026-09-14; no inline human
   gate) are preserved unchanged in every lane.
 - Subagents: `code-executor`, `code-verifier`. `/code` ships **no planner**:
   the plan phase and `code-planner.md` moved to `/create-impl-plan` (§2b),
-  which keeps the STANDARD/COMPLEX-only planner spawn (MAR-72).
+  whose executor's survey inherited that charter (ADR-0092) and keeps the
+  STANDARD/COMPLEX-only spawn (MAR-72).
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
   stop, record the achieved coverage and reason in `code-state.json`. A
   failed run leaves `verifier_passed` unset, which is what `/create-pr`'s
@@ -1535,7 +1406,7 @@ run. The following contract governs all automatic mid-flight lane changes:
    ambiguous inputs.
 
 9. **Sibling behavior unchanged.** The spec-authoring fold (MAR-59, universal
-   since ADR 0066: the plan's author — the code-planner on STANDARD/COMPLEX,
+   since ADR 0066: the plan's author — `create-impl-plan-executor` on STANDARD/COMPLEX,
    the coordinator on TRIVIAL/SMALL, MAR-72 — self-authors the spec content on
    every lane when `<partition>/specs/` is absent or empty) applies to
    non-escalating tickets and is not changed by this contract. The apply-tier
@@ -1558,7 +1429,7 @@ test cases, so the post-code e2e run has something ticket-specific to run.
 - Runs **in parallel with `/docs-sync`** in the default workflow — both need
   only `code` — as two legs in two worktrees
   ([workflow.md](workflow.md#parallel-work)).
-- Subagents: `create-e2e-tests-planner`, `-executor`, `-verifier`.
+- Subagents: `create-e2e-tests-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `create-e2e-tests-state.json`; states `suites_written`,
   `cases_covered`.
 
@@ -1577,7 +1448,7 @@ summary alone.
   `git diff <default_branch>...HEAD`, the ticket JSON, `/code`'s
   `result.json` (`states.docs_updated`), `/code`'s execute report(s)
   `problems` field, and the final code-verify artifact.
-- Subagents: `docs-sync-planner`, `docs-sync-executor`, `docs-sync-verifier`.
+- Subagents: `docs-sync-executor`, `docs-sync-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `docs-sync-state.json`, written by the post-hook
   ([workspace-and-state.md](workspace-and-state.md)).
 - Declared position: in the default `ship.yaml`, `docs-sync` needs only

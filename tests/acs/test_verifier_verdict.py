@@ -19,8 +19,8 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "verdict.schema.json")

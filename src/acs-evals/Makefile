@@ -5,21 +5,21 @@
 # the dataset.
 #
 # This suite lives at src/acs-evals/ inside the gms-marketplace repo, so the
-# plugin source it grades is a sibling: ../../plugins/acs.
+# plugin source it grades is a sibling: ../acs.
 #
 # ACS_PLUGIN_ROOT selects the build under test. Leave it unset and the runner
 # resolves the newest INSTALLED acs build, which is what a consumer actually
 # runs; set it to point at a working tree instead. `make eval-source` is that
 # second form, pre-spelled for the sibling source.
 #
-#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs
+#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../acs
 
 PYTHON  ?= python3
 MUTANTS ?= 40
 CATCH_RUNS ?= 1
 WORKSPACE ?= ../../.acs/state-machine/globalmindsolution-gms-marketplace
 #: The plugin source this checkout carries, as `eval-source` points at it.
-SOURCE  := $(CURDIR)/../../plugins/acs
+SOURCE  := $(CURDIR)/../acs
 RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
@@ -48,11 +48,15 @@ eval: ## Run the deterministic tier (502 cases, zero cost, no model)
 # resolution: runner/harness.py still prefers the INSTALLED build by default,
 # on purpose — packaging drift between source and installed is a defect this
 # dataset exists to catch, and a source-only gate would never see it.
-eval-source: ## Run the deterministic tier against this checkout's plugins/acs
-	ACS_PLUGIN_ROOT=$(CURDIR)/../../plugins/acs $(PYTHON) runner/run_golden.py --json $(JSON)
+eval-source: ## Run the deterministic tier against this checkout's src/acs
+	ACS_PLUGIN_ROOT=$(CURDIR)/../acs $(PYTHON) runner/run_golden.py --json $(JSON)
 
-measure: ## TIER 3 — run the controlled scenario set (SPENDS MONEY; needs `claude`)
-	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --out $(MEASURE)
+#: Extra flags for `measure` (e.g. MEASURE_ARGS=--force to re-measure a build
+#: that already has a complete measurement on disk).
+MEASURE_ARGS ?=
+
+measure: ## TIER 3 — run the controlled scenario set (SPENDS MONEY; needs `claude`; no-op when this exact build is already measured)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --out $(MEASURE) $(MEASURE_ARGS)
 
 measure-plan: ## What `make measure` would run, and how many sessions, spending nothing
 	$(PYTHON) runner/measure_skills.py --dry-run
@@ -60,8 +64,8 @@ measure-plan: ## What `make measure` would run, and how many sessions, spending 
 measure-routing: ## TIER 3, cheap half — routing reliability + controls (43 probes)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/measure_skills.py --routing-only --out $(MEASURE)
 
-perf: ## Judge the last measurement against the baseline (pure; no model, no cost)
-	$(PYTHON) runner/perf_gate.py --measurement $(MEASURE) --json $(RESULTS)/perf.json
+perf: ## Judge the last measurement against the baseline (pure; no model, no cost; refuses a measurement of any other build)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/perf_gate.py --measurement $(MEASURE) --json $(RESULTS)/perf.json
 
 perf-test: ## Self-test the tier-3 comparator's decision rules
 	$(PYTHON) runner/test_perf_gate.py
@@ -98,7 +102,9 @@ catch-rate: ## PAID — feed every seeded defect through /acs:code and read the 
 #
 # For the tier-3 targets (measure / measure-routing / catch-rate) it decides
 # which plugin the SESSIONS load -- measure_skills passes this root to `claude
-# --plugin-dir`, so the run exercises the build it names. Before that wiring
+# --plugin-dir`, so the run exercises the build it names -- and for `perf` it
+# names the build the measurement must be OF: the gate refuses to judge a
+# measurement whose content digest is any other tree's. Before that wiring
 # existed the root was printed and then dropped, and every session loaded
 # whatever the operator happened to have installed: on this checkout that
 # invalidated a third of routing.json, because seven probed skills did not
@@ -120,7 +126,7 @@ generate: ## Re-render both generated trees (routing cases, schema constraint ca
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
-	$(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)
 
 verifier-rates: ## Per-dimension verifier finding rates from an acs workspace (WORKSPACE=<workspace>/<repo_id>)
 	$(PYTHON) runner/verifier_rates.py --workspace $(WORKSPACE) --json results/verifier-rates.json

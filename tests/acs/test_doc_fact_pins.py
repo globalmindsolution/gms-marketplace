@@ -15,9 +15,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 ROADMAP = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
-ACS_README = os.path.join(REPO_ROOT, "plugins", "acs", "README.md")
-SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
-sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+ACS_README = os.path.join(REPO_ROOT, "src", "acs", "README.md")
+SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 
 import acs_lib as lib  # noqa: E402
 
@@ -57,7 +57,7 @@ class RoadmapSpecTemplateRetirementTest(unittest.TestCase):
 
 
 class ReadmeSkillCountPinTest(unittest.TestCase):
-    """AC-2: plugins/acs/README.md's skill-table heading is pinned against
+    """AC-2: src/acs/README.md's skill-table heading is pinned against
     the on-disk skill directory count, never a hardcoded literal.
 
     The design-phase entry-point fold moved the row half of this pin with the
@@ -116,20 +116,20 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
 
 
 class TestingStrategyInvocationClassPinTest(unittest.TestCase):
-    """The design-phase entry-point fold moved a fact this document asserts.
+    """testing-strategy.md's Trigger bullet explains how a skill's routing
+    tick is decided, and that turns on which skills the model may invoke.
 
-    testing-strategy.md's Trigger bullet explains WHY two skills carry a
-    routing tick in a column otherwise defined by model routing: they are the
-    only skills that set `disable-model-invocation: true`, so they can only be
-    probed by an explicit command. The fold gave that flag to the six internal
-    legs as well, so "the 2 user-only skills, both disable-model-invocation:
-    true" is no longer a complete account of who carries it -- and the reason
-    matters, because a DESCRIPTION probe can never route to a skill that
-    carries it. The number here is derived from disk, never a literal.
+    The answer is now all of them: no skill sets `disable-model-invocation`.
+    The flag is enforced by the CLI, which refuses the Skill call, and each of
+    the six internal legs is dispatched by its entry point with a real
+    `Skill(acs:<leg>)` call -- so while they carried it, /acs:create-docs and
+    /acs:project could not start a single leg. The document must not claim any
+    skill is unreachable by a description probe for that reason. Carriers are
+    derived from disk, never a literal.
     """
 
     STRATEGY = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
-    SKILLS = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+    SKILLS = os.path.join(REPO_ROOT, "src", "acs", "skills")
 
     def _carriers(self):
         found = set()
@@ -142,19 +142,23 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
                 found.add(name)
         return found
 
-    def test_carriers_are_the_two_user_only_skills_plus_every_leg(self):
-        """Ground truth, from disk and the registry."""
-        self.assertEqual(self._carriers(),
-                         {"update", "install-hooks"} | set(lib.skill_legs()))
+    def test_no_skill_carries_the_flag(self):
+        """Ground truth, from disk. Each of these skills is dispatched by an
+        entry point's Skill() call or is plain user-facing; the CLI enforces
+        the flag by refusing that dispatch."""
+        self.assertEqual(self._carriers(), set())
 
-    def test_strategy_does_not_claim_only_two_skills_carry_the_flag(self):
+    def test_strategy_does_not_claim_any_skill_is_description_unreachable(self):
         body = _read(self.STRATEGY)
         self.assertNotIn(
             "the 2 user-only skills\n  (`install-hooks`, `update`, both "
             "`disable-model-invocation: true`)", body,
-            "testing-strategy.md still claims install-hooks and update are the "
-            "only disable-model-invocation skills; the fold added %d legs"
-            % len(lib.skill_legs()))
+            "testing-strategy.md still claims install-hooks and update carry "
+            "the flag; no skill does")
+        self.assertNotIn(
+            "description probe can never route", body,
+            "testing-strategy.md still says a description probe cannot reach "
+            "some skill; every shipped skill is model-invocable")
 
     def test_the_re_derivation_hint_is_real_not_a_placeholder(self):
         """The Trigger bullet tells a reader to re-derive its two figures. An
@@ -165,12 +169,13 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
         self.assertIn("test_eval_trigger_detection.py", body)
         self.assertIn("UNPROBED", body)
 
-    def test_strategy_states_the_legs_carry_the_flag_too(self):
+    def test_strategy_states_why_the_legs_are_probed_explicitly(self):
         body = _read(self.STRATEGY)
         self.assertIn("internal leg", body)
         self.assertRegex(
-            body, r"(?s)disable-model-invocation.{0,1500}description probe can "
-                  r"never route")
+            body, r"(?s)internal leg.{0,2000}entry point",
+            "the Trigger bullet must say a leg is probed by explicit command "
+            "because its entry point is the front door for descriptions")
 
 
 class LegResumeFormPinTest(unittest.TestCase):
@@ -328,14 +333,14 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
 
     `acs_lib.py` became the package `acs_lib/`, and 47 files went on citing the
     vanished file -- some with line numbers into it. Nothing caught that either.
-    Any reference to a path under plugins/acs/hooks/scripts must resolve, unless
+    Any reference to a path under src/acs/hooks/scripts must resolve, unless
     it is listed below as a deliberate mention of history.
     """
 
-    SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+    SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
     #: (path, needle) -> why this mention of a non-existent file is correct.
     ALLOWED = {
-        ("plugins/acs/CHANGELOG.md", "acs_lib.py"):
+        ("src/acs/CHANGELOG.md", "acs_lib.py"):
             "a changelog records what past releases did; rewriting it would falsify history",
         ("tests/acs/acs_case.py", "acs_lib.py"):
             "describes the MAR-522 split itself (what reading acs_lib.py used to give)",

@@ -25,7 +25,7 @@ import json
 import os
 import sys
 
-#: The charter's dimension names by id (plugins/acs/agents/code-verifier.md,
+#: The charter's dimension names by id (src/acs/agents/code-verifier.md,
 #: mirrored in acs_lib/verdict.py), so a dimension no verdict ever reported
 #: still appears in the table (as "never reported"). A verdict's own names win
 #: when they differ.

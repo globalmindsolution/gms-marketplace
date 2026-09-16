@@ -24,9 +24,9 @@ except ImportError:
     HAS_JSONSCHEMA = False
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "skill-state.schema.json")
-PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
-METRICS_SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "metrics.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.schema.json")
+PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+METRICS_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "metrics.schema.json")
 
 # The exact 5 api_duration_scope strings cost_sampler.allocate_cost can emit
 # (Spec 01, this ticket). Hardcoded rather than imported from cost_sampler.py:

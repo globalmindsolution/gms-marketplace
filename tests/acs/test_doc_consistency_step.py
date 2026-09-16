@@ -25,7 +25,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
@@ -33,18 +33,18 @@ ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consiste
 ADR_0011 = os.path.join(REPO_ROOT, "docs", "adr", "0011-sdlc-doc-sets-quality-and-operations.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
+# The agents that author a doc set's first draft carry the canonical block:
+# the remaining planners, and create-docs-executor -- since ADR-0094 the four
+# doc-set legs are one skill with no planner, so its executor runs the step.
 PLANNERS = [
-    "create-prd-planner.md",
-    "create-architecture-planner.md",
-    "create-design-planner.md",
-    "create-quality-planner.md",
-    "create-operations-planner.md",
-    "create-principles-planner.md",
-    "create-standards-planner.md",
-    "create-requirements-planner.md",
+    "create-prd-executor.md",
+    "create-architecture-executor.md",
+    "create-design-executor.md",
+    "create-docs-executor.md",
+    "create-requirements-executor.md",
 ]
 
-NEW_VERIFIERS = ["create-quality-verifier.md", "create-operations-verifier.md"]
+NEW_VERIFIERS = ["create-docs-verifier.md"]
 
 CANONICAL_HEADING = "### Design-time doc-consistency step (ADR 0012)"
 
@@ -187,29 +187,21 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
 
 
 class Mar115StandingBehaviorReplaceCase(unittest.TestCase):
-    """R4: quality/operations planners must REPLACE the old upstream-only
-    item-4 hint with the canonical block, not append alongside it."""
+    """R4: the doc-set author must carry the canonical block, not the old
+    upstream-only item-4 hint alongside it."""
 
-    def test_quality_planner_old_upstream_only_hint_removed(self):
-        body = read(planner_path("create-quality-planner.md"))
+    def test_doc_set_executor_old_upstream_only_hint_removed(self):
+        body = read(planner_path("create-docs-executor.md"))
         self.assertNotRegex(
             body,
             r"Read the upstream doc-graph slice.*for gaps or\s*\n?\s*staleness",
-            "create-quality-planner.md still carries the old upstream-only hint alongside the new block",
-        )
-
-    def test_operations_planner_old_upstream_only_hint_removed(self):
-        body = read(planner_path("create-operations-planner.md"))
-        self.assertNotRegex(
-            body,
-            r"Read the upstream doc-graph slice.*for gaps or\s*\n?\s*staleness",
-            "create-operations-planner.md still carries the old upstream-only hint alongside the new block",
+            "create-docs-executor.md still carries the old upstream-only hint alongside the new block",
         )
 
 
 class Mar115ConsistencyVerifierDimensionCase(unittest.TestCase):
-    """C-1: create-quality-verifier.md and create-operations-verifier.md gain
-    a sixth `consistency` check dimension."""
+    """C-1: the doc-set verifier carries a numbered `consistency` check
+    dimension (it was the sixth of the former per-leg verifiers)."""
 
     def test_new_verifiers_have_consistency_dimension(self):
         for name in NEW_VERIFIERS:
@@ -229,14 +221,9 @@ class Mar115ConsistencyVerifierDimensionCase(unittest.TestCase):
         end = idx + nxt.start() if nxt else min(len(body), idx + window)
         return body[idx:end]
 
-    def test_quality_skillmd_verify_list_names_consistency(self):
-        body = read(os.path.join(SKILLS, "create-quality", "SKILL.md"))
-        verify_section = self._bounded_window(body, "3. **Verify**")
-        self.assertIn("consistency", verify_section)
-
-    def test_operations_skillmd_verify_list_names_consistency(self):
-        body = read(os.path.join(SKILLS, "create-operations", "SKILL.md"))
-        verify_section = self._bounded_window(body, "3. **Verify**")
+    def test_create_docs_skillmd_verify_list_names_consistency(self):
+        body = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
+        verify_section = self._bounded_window(body, "### Verify")
         self.assertIn("consistency", verify_section)
 
 
@@ -248,8 +235,7 @@ class Mar115SkillMdPointerCase(unittest.TestCase):
         "create-prd",
         "create-architecture",
         "create-design",
-        "create-quality",
-        "create-operations",
+        "create-docs",
     ]
 
     def test_each_skillmd_mentions_adr_0012_step(self):
@@ -313,8 +299,7 @@ class Mar115DocTailCase(unittest.TestCase):
         headings = [
             "## `/create-prd` (product-level)",
             "## `/create-architecture` (product-level)",
-            "## `/acs:create-quality` (product-level)",
-            "## `/acs:create-operations` (product-level)",
+            "## `/acs:create-docs` (product-level)",
             "## 2. `/create-design` *(conditional)*",
         ]
         for heading in headings:

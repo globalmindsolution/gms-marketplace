@@ -7,11 +7,18 @@ Copy this into the release PR and tick it.
 
 ## Before the version bump
 
+`/acs:release <version>` runs this repo's `release.pre_release_gate` —
+`make eval-source`, `make measure`, `make perf`, in that order, from the
+checkout root — before it drafts, bumps, branches or pushes anything, and
+stops on the first non-zero exit. The items below are what a passing gate
+has established and what a human still triages by hand; running them
+yourself first is how you find out before the cut does.
+
 - [ ] **Working tree is green.** The code being released behaves as recorded.
 
       ```bash
       cd src/acs-evals
-      export ACS_PLUGIN_ROOT=$PWD/../../plugins/acs
+      export ACS_PLUGIN_ROOT=$PWD/../../src/acs
       make gate
       ```
 
@@ -48,9 +55,13 @@ Copy this into the release PR and tick it.
 
       Tier 3 answers the four questions tier 1 cannot: did skills get less
       reliable, worse, more expensive, or slower. **UNMEASURED is a failing
-      state**, not a pass — see [`PERFORMANCE.md`](PERFORMANCE.md). If the
-      measurement cannot be taken for this cut, say so in the release notes
-      rather than letting a green tier-1 report imply it.
+      state**, not a pass — and so is **UNMEASURED (stale)**: a measurement
+      records the content digest of the tree it exercised, `make perf`
+      refuses one taken of any other tree, and `make measure` spends nothing
+      when this exact build is already measured — see
+      [`PERFORMANCE.md`](PERFORMANCE.md). If the measurement cannot be taken
+      for this cut, say so in the release notes rather than letting a green
+      tier-1 report imply it.
 
 - [ ] **Every absolute floor held.** Routing accuracy, run completion, and
       no run finishing with an unresolved blocking finding. These block
@@ -80,7 +91,9 @@ Copy this into the release PR and tick it.
       contract change.
 
 - [ ] **Re-run the gate** after re-baselining, so the committed report matches
-      the released version.
+      the released version. The version bump and the dated changelog do not
+      change the build's content digest, so `make measure` stays a no-op and
+      `make perf` still judges the measurement the cut passed on.
 
 ## After publishing
 
@@ -105,8 +118,8 @@ Copy this into the release PR and tick it.
       evidence is recoverable later:
 
       ```bash
-      git tag -a acs-v0.4.10-gate -m "Dataset state that gated acs v0.4.10"
-      git push origin acs-v0.4.10-gate
+      git tag -a acs-v0.5.0-gate -m "Dataset state that gated acs v0.5.0"
+      git push origin acs-v0.5.0-gate
       ```
 
 ## Not covered by this checklist

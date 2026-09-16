@@ -23,12 +23,12 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 DOCS = os.path.join(REPO_ROOT, "docs")
 
-PRD_PLANNER = os.path.join(AGENTS, "create-prd-planner.md")
+PRD_PLANNER = os.path.join(AGENTS, "create-prd-executor.md")  # the survey charter lives in the executor since ADR-0092
 PRD_VERIFIER = os.path.join(AGENTS, "create-prd-verifier.md")
 PRD_SKILL = os.path.join(SKILLS, "create-prd", "SKILL.md")
 SKILLS_MD = os.path.join(DOCS, "requirements", "functional", "skills.md")
@@ -272,11 +272,10 @@ class SkillMirrorTest(unittest.TestCase):
             self.body.lower(), r"plan -> execute -> verify",
             "create-prd/SKILL.md must no longer carry the per-iteration "
             "re-spawn sentence (MAR-305 drops it)")
-        norm = re.sub(r"\s+", " ", self.body)
-        self.assertRegex(
-            norm, r"(?i)exactly one.{0,80}acs:create-prd-planner",
-            "create-prd/SKILL.md must carry the single-planner-spawn topology "
-            "sentence")
+        self.assertNotIn("acs:create-prd-planner", self.body)
+        self.assertRegex(self.body, r"(?i)execute -> verify, no planner",
+                         "create-prd/SKILL.md must carry the no-planner topology "
+                         "sentence (ADR-0092)")
 
 
 class Drift1Test(unittest.TestCase):

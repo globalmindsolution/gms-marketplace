@@ -14,7 +14,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 # Version-homed units the table must cover at minimum (AC-4/AC-8 coverage floor).
 MIN_VERSIONS = {
@@ -130,7 +130,7 @@ class CreatePrdSkillContractTest(unittest.TestCase):
         return read(os.path.join(PLUGIN, "skills", "create-prd", "SKILL.md"))
 
     def test_execute_region_states_mapping_table_duty(self):
-        window = section(self._skill_md(), "### Execute")
+        window = section(self._skill_md(), "### Execute — the write")
         self.assertIn("Release versions", window)
         self.assertIn("mapping table", window)
 

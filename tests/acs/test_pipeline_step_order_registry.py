@@ -12,12 +12,12 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 
-PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
 
 
 class TestPipelineStepOrderRegistry(unittest.TestCase):

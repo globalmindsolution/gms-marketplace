@@ -34,7 +34,7 @@ control*, not a test.
 
 ## Coverage today (per skill)
 
-25 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
+25 shipped skills exist under `src/acs/skills/` — one directory per skill.
 The on-disk `skills/*/SKILL.md` set is test-pinned by
 `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
 sorted `SKILL.md` glob vs sorted `ALL_SKILLS`) to equal `ALL_SKILLS` — a
@@ -51,32 +51,32 @@ and "sub-metric (b)" markers), and `test_mermaid_diagrams.py:223-226` walks
 the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
-[`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
-into **20 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
-`pre-*.py`/`post-*.py` pair and a planner/executor/verifier triad) and
-**12 unhooked** (`UNHOOKED_SKILLS`). Figures anchored **as of the design-phase
-entry-point fold** (ADR 0091, which added the `/acs:project` umbrella);
-re-derive with `ls -1 plugins/acs/skills | wc -l` (→ `32`) and a Python one-liner
-importing `acs_lib` and printing `len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)`
-(→ `20 12`).
+[`acs_lib/_common.py:28-54`](../../src/acs/hooks/scripts/acs_lib/_common.py) splits them
+into **17 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
+`pre-*.py`/`post-*.py` pair and the subagent roles `workflows/phases.yaml`
+declares for it) and **11 unhooked** (`UNHOOKED_SKILLS`). Figures anchored
+**as of the doc-set fold** (ADR 0094, which folded the four doc-set legs into
+`/acs:create-docs`); re-derive with `ls -1 src/acs/skills | wc -l` (→ `28`)
+and a Python one-liner importing `acs_lib` and printing `len(HOOKED_SKILLS)`,
+`len(UNHOOKED_SKILLS)` (→ `17 11`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
-  the skills directory at `:141`) → 32 of 32.
+  the skills directory at `:141`) → 28 of 28.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
-  → 20 of 20 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
+  → 17 of 17 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 12 unhooked have none by
+  `assertIn(skill, acs_lib.GATES)` loop); the 11 unhooked have none by
   construction, closed by `tests/acs/test_release_skill_registry.py:94`
-  (`assertEqual(len(acs_lib.GATES), 20)` — with the loop above proving
-  `GATES` ⊇ the 20 hooked skills, an equal count pins it to exactly that
+  (`assertEqual(len(acs_lib.GATES), 17)` — with the loop above proving
+  `GATES` ⊇ the 17 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
-  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 31 of 32. One skill
+  `evals/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 27 of 28. One skill
   directory carries no probe, recorded with its reason in
   `test_eval_trigger_detection.py`'s `UNPROBED`: `test`, the alias the
   skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
@@ -87,30 +87,33 @@ never hand-picked:
   sentence — nothing in this document pins them.
   `tests/acs/test_eval_trigger_detection.py`'s `S04ProbeSetTest` already
   derives exactly this comparison (the distinct `expected` skills in
-  `s04.CASES` versus the `plugins/acs/skills/*/` directories minus its
+  `s04.CASES` versus the `src/acs/skills/*/` directories minus its
   `UNPROBED` allowlist) and fails when the two drift, so running that module
   IS the check; `UNPROBED` is the list of reasons above, in code.
-  A case is decided one of two ways: a **model-invocable** skill by the first
-  `Skill` tool_use its description probe provokes, and a skill that sets
-  `disable-model-invocation: true` by the session's registration list for the
-  explicit `/acs:<skill>` command it is probed with — which is why the latter
-  can carry a ✅ in a column otherwise defined by model routing.
-  **Eight skills now set that flag, not two.** Alongside the two user-action-only
-  skills (`install-hooks`, `update`) the design-phase entry-point fold (ADR
-  0091) gave it to all six **internal legs** — `create-quality`,
-  `create-operations`, `create-principles`, `create-standards`,
-  `create-project`, `standardize-project` — because their entry point
-  (`/acs:create-docs`, `/acs:project`) is the only user-facing command for
-  them. The consequence for this column is direct and not yet absorbed by the
-  probe set: a **description probe can never route** to a skill carrying
-  `disable-model-invocation: true`, so the six legs' existing description
-  probes are expected to miss on the next paid run and need reclassifying to
-  the explicit-invocation + negative-routing pair the other two carriers use.
-  That reclassification moves the measured routing-coverage claim, so it is
-  deliberately left to a fresh paid measurement rather than done blind here —
-  it is a known open item, not a silent one.
+  A case is decided one of two ways: by the first `Skill` tool_use its
+  description probe provokes, or — for a probe written as the explicit
+  `/acs:<skill>` command — by the session's registration list, which is why
+  such a case can carry a ✅ in a column otherwise defined by model routing.
+  **Every shipped skill is model-invocable**: none sets
+  `disable-model-invocation`. That flag is enforced by the CLI, which refuses
+  the `Skill` call outright while leaving the slash command working, so it
+  cannot be used to make a skill "internal" — it does the opposite. Six skills
+  carried it until 2026-09-13 and each was an **internal leg** dispatched by
+  its entry point with a real `Skill(acs:<leg>)` call, so while it was set,
+  `/acs:create-docs` could not start one of its four doc legs and
+  `/acs:project` could not start either of its two. The four doc legs were
+  then folded into `/acs:create-docs` outright (ADR 0094), which is probed by
+  description like any other skill. The two legs that remain —
+  `create-project`, `standardize-project` — are probed by explicit command,
+  for a different reason: a user invokes a leg directly to resume an
+  interrupted delivery ticket, so that command must keep resolving. What
+  steers a plain description to the entry point instead is the leg's
+  **description** ("Internal leg of /acs:<entry>, not a user-facing
+  command"), and s04's `NEGATIVE` cases measure exactly that.
+  `tests/acs/test_skill_contracts.py` now fails if any skill a `Skill(acs:…)`
+  call names is made non-invocable again.
 - **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
-  artifacts → 3 of 32: `create-ticket`
+  artifacts → 3 of 28: `create-ticket`
   ([`s02_create_ticket_artifacts.py`](../../evals/acs/scenarios/s02_create_ticket_artifacts.py),
   forge-tier
   [`s07_fanout_tracker_sync.py`](../../evals/acs/scenarios/s07_fanout_tracker_sync.py)),
@@ -122,17 +125,14 @@ never hand-picked:
   configured; skips cleanly otherwise, so this repo's own run of it is a skip,
   not live coverage).
 
-**Hooked (15)**
+**Hooked (12)**
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
 | `create-prd` | ✅ | ✅ | ✅ | — |
 | `create-architecture` | ✅ | ✅ | ✅ | — |
 | `create-project` | ✅ | ✅ | ✅ | — |
-| `create-quality` | ✅ | ✅ | ✅ | — |
-| `create-operations` | ✅ | ✅ | ✅ | — |
-| `create-principles` | ✅ | ✅ | ✅ | — |
-| `create-standards` | ✅ | ✅ | ✅ | — |
+| `create-docs` | ✅ | ✅ | ✅ | — |
 | `create-requirements` | ✅ | ✅ | ✅ | — |
 | `create-ticket` | ✅ | ✅ | ✅ | ✅ |
 | `create-design` | ✅ | ✅ | ✅ | — |
@@ -173,15 +173,16 @@ blocked on both its scenario (`merge_pr_forge`, MAR-69) *and* the onboarded
 target repo — see "Roadmap to close the gap" item 3. The other 21 `—` cells
 are the gap itself.
 
-**Structure is complete: 32 of 32** (`test_skill_contracts.py:141` pins the
+**Structure is complete: 28 of 28** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
-**Gating is complete for what can be gated: 20 of 20 hooked skills**; the other
-12 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 31 of 32** — 39 probes in all (23 by
-description, 8 by explicit command, 8 negative); only the `test` alias is
-unprobed, because `run-e2e-tests` carries the probe for it. **The gap is behavioral (artifact) coverage: only 3 of 32
+**Gating is complete for what can be gated: 17 of 17 hooked skills**; the other
+11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
+none should. **Routing covers 27 of 28** — 31 probes in all (25 by
+description, 2 by explicit command, 2 negative, plus the two controls); only
+the `test` alias is unprobed, because `run-e2e-tests` carries the probe for
+it. **The gap is behavioral (artifact) coverage: only 3 of 28
 skills** (`create-ticket`,
 `code`, `create-pr`) are verified at the output level (`create-pr`'s eval
 skips without a configured forge target) — so the *common* skill bugs (a
@@ -193,7 +194,7 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 1. **Assert artifacts, never prose.** A scenario passes because the right JSON
    state exists with the right values — not because the model "said" the right
    thing. Validate produced artifacts against
-   [`plugins/acs/schemas/*.schema.json`](../../plugins/acs/schemas/).
+   [`src/acs/schemas/*.schema.json`](../../src/acs/schemas/).
 2. **Push checks down the pyramid.** Prefer a deterministic assertion (layers
    1–4) over a paid eval whenever the property is structural.
 3. **One run, many assertions.** The live-agent run is the expensive part —

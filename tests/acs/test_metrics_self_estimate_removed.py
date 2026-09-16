@@ -66,8 +66,8 @@ class TestCharterSweepClean(unittest.TestCase):
 
     def test_no_metrics_element_in_agents_or_skills(self):
         hits = _files_containing(
-            [os.path.join(REPO_ROOT, "plugins", "acs", "agents"),
-             os.path.join(REPO_ROOT, "plugins", "acs", "skills")],
+            [os.path.join(REPO_ROOT, "src", "acs", "agents"),
+             os.path.join(REPO_ROOT, "src", "acs", "skills")],
             "<metrics",
         )
         self.assertEqual(
@@ -95,7 +95,7 @@ class TestCharterSweepClean(unittest.TestCase):
         skill reintroducing any variant of it is caught, not just this one
         literal string."""
         pattern = re.compile(r"estimate.{0,80}cost_usd|cost_usd.{0,80}estimate", re.IGNORECASE | re.DOTALL)
-        skills_dir = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+        skills_dir = os.path.join(REPO_ROOT, "src", "acs", "skills")
         hits = []
         for dirpath, _dirnames, filenames in os.walk(skills_dir):
             for filename in filenames:
@@ -134,7 +134,7 @@ class TestImmutableSurfacesUntouched(unittest.TestCase):
     def test_skill_name_enum_value_metrics_still_present(self):
         """The /acs:metrics skill's skillName enum value is unrelated to the <metrics>
         element and must survive this sweep -- guards against a self-inflicted regression."""
-        xsd_path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "acs-messages.xsd")
+        xsd_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "acs-messages.xsd")
         with open(xsd_path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
         matches = [line for line in lines if "metrics" in line]

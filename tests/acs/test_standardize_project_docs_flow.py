@@ -20,9 +20,9 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 import mermaid_lint  # noqa: E402
 
 FLOW_DOC = os.path.join(
@@ -85,12 +85,19 @@ class FlowDocTest(unittest.TestCase):
             (ln.strip() for ln in m.group(1).splitlines() if ln.strip()), "")
         self.assertEqual(first_line, "sequenceDiagram")
 
-    def test_flow_doc_names_all_seven_participants(self):
+    def test_flow_doc_names_all_six_participants(self):
+        # Seven until ADR-0092 retired the planner: the audit and the frozen
+        # allowlist are iteration 1's executor's, recorded in its authoring
+        # notes, so no PL participant remains to draw.
         body = read(FLOW_DOC)
-        for participant in ("Dev", "CC", "SP", "PL", "EX", "VF", "Repo"):
+        for participant in ("Dev", "CC", "SP", "EX", "VF", "Repo"):
             self.assertIn(
-                participant, body,
+                "participant %s as" % participant if participant != "Dev" else "actor Dev as",
+                body,
                 "flow doc must name participant %r" % participant)
+        self.assertNotIn("standardize-project-planner", body)
+        self.assertNotIn('phase="plan"', body)
+        self.assertIn("iter-1-authoring.md", body)
 
     def test_flow_doc_states_never_trust_contract(self):
         body = read(FLOW_DOC)
@@ -119,8 +126,8 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
         # Build/Test skills + the `test` -> `run-e2e-tests` alias directory).
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Thirty-one skills", intro,
-                      "skills.md intro must read 'Thirty-one skills'")
+        self.assertIn("Twenty-seven skills", intro,
+                      "skills.md intro must read 'Twenty-seven skills'")
         for stale in ("Twenty-three skills", "Twenty-five skills"):
             self.assertNotIn(stale, intro,
                              "skills.md intro must NOT still read %r" % stale)
@@ -147,16 +154,15 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             "standardize-project section must mention recommended_follow_ups "
             "or 'recommended follow-up'")
 
-    def test_workflow_product_skills_bullet_reads_twelve(self):
+    def test_workflow_product_skills_bullet_reads_nine(self):
         body = self._skills_req()
         window = window_to_next_h2(body, "Every **workflow** skill MUST:")
-        self.assertIn("Twelve", window)
+        self.assertIn("Nine **workflow/product skills**", window)
         self.assertNotIn("Eleven **workflow/product skills**", window)
         self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
             "docs-sync", "code", "create-prd", "create-design",
-            "create-architecture", "create-project", "create-quality",
-            "create-operations", "create-principles", "create-standards",
+            "create-architecture", "create-project", "create-docs",
             "standardize-project", "create-requirements",
         ):
             self.assertIn(name, window,
@@ -164,7 +170,8 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
 
     def test_models_config_bullet_reads_twelve_triad_keeping(self):
         body = self._skills_req()
-        self.assertIn("the twelve\n  triad-keeping skills only", body)
+        self.assertIn("the fourteen\n  reflection-loop skills only", body)
+        self.assertNotIn("the twelve\n  triad-keeping skills only", body)
         self.assertNotIn("the eleven\n  triad-keeping skills only", body)
         self.assertNotIn("the six\n  triad-keeping skills only", body)
 
@@ -182,24 +189,26 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("25 x SKILL.md", body)
+        self.assertIn("28 x SKILL.md", body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("45 x agent .md (39 reachable)", body)
+        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertNotIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
     def test_c4_container_triad_skill_list_names_all_twelve(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
         self.assertNotIn("ten triad-keeping skills", body)
         self.assertNotIn("eleven triad-keeping skills", body)
-        m = re.search(r"triad for the twelve triad-keeping skills \(([^)]*)\)", body)
+        self.assertNotIn("twelve triad-keeping skills", body)
+        m = re.search(r"pair for the twelve authoring skills \(([^)]*)\)", body)
         self.assertIsNotNone(
-            m, "c4-container.md must state 'twelve triad-keeping skills' with "
+            m, "c4-container.md must state 'twelve authoring skills' with "
                "the enumerated list")
         enumerated = m.group(1)
         for suffix in (
-            "prd", "architecture", "project", "quality", "operations",
-            "principles", "standards", "design", "standardize-project",
-            "create-requirements",
+            "prd", "architecture", "project", "design", "create-requirements",
+            "standardize-project", "docs-sync", "analyze-ticket",
+            "create-impl-plan", "api-contract", "test-docs", "e2e-tests",
         ):
             self.assertIn(
                 suffix, enumerated,
@@ -208,34 +217,41 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_component_triad_and_reachable_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
-        self.assertIn("twelve triad-keeping skills", body)
+        self.assertIn("twelve authoring skills", body)
+        self.assertNotIn("twelve triad-keeping skills", body)
         self.assertNotIn("eleven triad-keeping skills", body)
         self.assertIn("standardize-project", body)
-        self.assertIn("12 active triads (36 agents", body)
+        self.assertIn("12 authoring pairs (24 agents", body)
+        self.assertNotIn("12 active triads (36 agents", body)
         self.assertNotIn("11 active triads (33 agents", body)
-        self.assertIn("39 reachable agents", body)
+        self.assertIn("31 agent files, all reachable", body)
+        self.assertNotIn("43 agent files, all reachable", body)
         self.assertNotIn("36 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (25)", body)
+        self.assertIn("acs Skills (28)", body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("45 files, 39 reachable", body)
+        self.assertIn("31 files, all reachable", body)
+        self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("twelve triad-keeping skills (36 agents)", body)
+        self.assertIn("twelve authoring skills (24 agents)", body)
+        self.assertNotIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)
 
     def test_overview_and_hook_gated_name_standardize_project(self):
         overview = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md"))
         self.assertNotIn("ten triad-keeping skills", overview)
         window = section(overview, "## Quality attributes (drive the design)")
-        self.assertIn("twelve triad-keeping skills", window)
+        self.assertIn("twelve authoring skills", window)
+        self.assertNotIn("twelve triad-keeping skills", window)
         self.assertIn("standardize-project", window)
 
         hook_gated = read(os.path.join(
             REPO_ROOT, "docs", "architecture", "lld", "flows", "hook-gated-skill-run.md"))
         self.assertNotIn("ten triad-keeping skills", hook_gated)
-        self.assertIn("twelve triad-keeping skills", hook_gated)
+        self.assertNotIn("twelve triad-keeping skills", hook_gated)
+        self.assertIn("twelve authoring skills", hook_gated)
         self.assertIn("standardize-project", hook_gated)
 
 
@@ -347,9 +363,9 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
         m2 = re.search(
-            r"(\d+) of (\d+) \((\d+) by description, (\d+) user-only", summary)
+            r"(\d+) of (\d+) \((\d+) by description, (\d+) internal legs", summary)
         self.assertIsNotNone(
-            m2, "summary must state 'N of M (D by description, K user-only'")
+            m2, "summary must state 'N of M (D by description, K internal legs'")
         self.assertEqual(
             (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
             (total, shipped, described, user_only))
@@ -360,15 +376,18 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
         user_only = len(self._negative())
         described = total - user_only
 
-        described_hits = re.findall(r"(\d+) model-invocable skills", source)
+        # "model-invocable" stopped distinguishing anything once every skill
+        # became so; the split that remains is how a skill is PROBED.
+        described_hits = re.findall(r"(\d+) skills are probed by description",
+                                    source)
         self.assertTrue(described_hits,
-                        "s04 prose must state 'N model-invocable skills'")
+                        "s04 prose must state 'N skills are probed by description'")
         for value in described_hits:
             self.assertEqual(int(value), described)
 
-        user_only_hits = re.findall(r"(\d+) user-only skills", source)
+        user_only_hits = re.findall(r"(\d+) internal legs", source)
         self.assertTrue(user_only_hits,
-                        "s04 prose must state 'N user-only skills'")
+                        "s04 prose must state 'N internal legs'")
         for value in user_only_hits:
             self.assertEqual(int(value), user_only)
 

@@ -22,7 +22,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
 CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -150,11 +150,11 @@ class SkillsMdBlockTest(unittest.TestCase):
         for mode in ("brownfield", "greenfield", "amend"):
             self.assertIn(mode, block,
                           "the block must name the %s mode" % mode)
-        for role in ("create-requirements-planner",
-                     "create-requirements-executor",
+        for role in ("create-requirements-executor",
                      "create-requirements-verifier"):
             self.assertIn(role, block,
-                          "the block must name the %s triad agent" % role)
+                          "the block must name the %s agent" % role)
+        self.assertNotIn("create-requirements-planner", block)
 
     def test_block_states_additive_and_draft_gate(self):
         block = self._block().lower()

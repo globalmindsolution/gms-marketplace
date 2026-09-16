@@ -25,13 +25,13 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
 import evidence_sidecar  # noqa: E402
 
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
@@ -82,11 +82,11 @@ class PlanPlannerOversizeSignalTest(unittest.TestCase):
         cls.item2 = cls.body[start:end]
 
     def test_rubric_numbers_present(self):
-        """Assertion 1: reuses create-ticket-planner.md's ~4/~400/~7 rubric."""
+        """Assertion 1: reuses create-ticket/SKILL.md's ~4/~400/~7 rubric."""
         self.assertIn("~4", self.item2)
         self.assertIn("~400", self.item2)
         self.assertIn("~7", self.item2)
-        self.assertIn("create-ticket-planner.md", self.item2)
+        self.assertIn("create-ticket/SKILL.md", self.item2)
 
     def test_surface_never_block_contract(self):
         """Assertion 1 / C-5: the signal surfaces, it never blocks."""
@@ -187,13 +187,13 @@ class PlanSkillFoldPointerTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
         start = cls.body.index("**Spec authoring fold")
-        end = cls.body.index("### Execute (per iteration)")
+        end = cls.body.index("### Verify (per iteration)")
         cls.fold = cls.body[start:end]
 
     def test_fold_slice_points_at_planner_charter_item_2(self):
         self.assertIn("oversize", self.fold.lower())
-        self.assertIn("create-impl-plan-planner.md", self.fold)
-        self.assertIn("charter item 2", self.fold)
+        self.assertIn("create-impl-plan-executor.md", self.fold)
+        self.assertIn("survey item 2", self.fold)
 
     def test_provenance_clauses_survive_verbatim_in_slice(self):
         self.assertIn(

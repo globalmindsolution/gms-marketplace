@@ -58,17 +58,16 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 32 skills + 59 agent files on disk (verified `ls plugins/acs/skills` = 32,
-  `ls plugins/acs/agents` = 59); the reflection (plan→execute→verify) protocol is
-  active on the sixteen triad-keeping skills (`/acs:code` now plans once per
-  run rather than per iteration, and on TRIVIAL/SMALL that one-time plan is
-  coordinator-authored with zero `code-planner` spawns (MAR-72);
-  `/acs:docs-sync`, `/acs:create-project`, `/acs:standardize-project`,
-  `/acs:create-prd`, `/acs:create-quality`, `/acs:create-standards`,
-  `/acs:create-operations`, `/acs:create-principles`, `/acs:create-architecture`,
-  `/acs:create-design`, and `/acs:create-requirements` likewise now plan
-  once per run (MAR-300, MAR-301, MAR-302, MAR-305, and the completion of
-  this migration); all twelve triad skills now share this shape), while
+- 28 skills + 31 agent files on disk (verified `ls src/acs/skills` = 28,
+  `ls src/acs/agents` = 31); the reflection (execute→verify) protocol is
+  active on the fourteen skills that run a loop — the twelve authoring
+  skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
+  since ADR 0092 (the per-iteration re-plan went first — MAR-71 for
+  `/acs:code`, then MAR-300, MAR-301, MAR-302, MAR-305 and the completion of
+  that migration for the rest — then the planner role itself;
+  `/acs:create-impl-plan` keeps ADR 0074's lane rule with its executor in
+  the planner's place: spawned on STANDARD/COMPLEX, coordinator-authored
+  `plan.md` on TRIVIAL/SMALL), while
   the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
@@ -120,11 +119,13 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 31 green across 39 probes (matches
-  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
-  which is 31 of the 32 shipped skill directories: only the `test` alias is
-  unprobed, since `run-e2e-tests` carries its probe. The six ADR 0091 legs
-  moved from description probes to explicit + no-auto-route pairs). The 20
+  routes to the right skill — target all 27 green across 31 probes (matches
+  `s04_skill_triggers.py`'s 27-skill routing coverage, up from the original 12,
+  which is 27 of the 28 shipped skill directories: only the `test` alias is
+  unprobed, since `run-e2e-tests` carries its probe. The two ADR 0091 legs
+  of `/acs:project` moved from description probes to explicit + no-auto-route
+  pairs; the four doc-set legs were folded into `/acs:create-docs` by ADR 0094
+  and its description probe covers them). The 20
   description probes measured before the refactor are green; everything added
   since — the 3 MAR-575 probes, the 6 new Build/Test and umbrella probes, and
   the 6 legs' explicit + negative pairs — is authored and first measured by the
@@ -259,7 +260,7 @@ the `acs:metrics` skill land in E1 before the skill ships. **Note (delivered):**
 `acs:metrics` (delivery KPIs — throughput, funnel, coverage, review iterations)
 shipped alongside a separate `acs:usage` skill (AI spend/tokens/time), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
-(`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
+(`src/acs/skills/metrics/SKILL.md`, `src/acs/skills/usage/SKILL.md`).
 
 - **E4.1** — Skill skeleton + data-source wiring (`metrics.json`, `tickets-index.json`, `pipeline-state.json`, `code-state.json`, `create-pr-state.json`).
 - **E4.2** — Six dashboard panels implemented and rendered via `show_widget` inline in the Claude Code session.
@@ -369,17 +370,18 @@ accountability)** is a documentation artifact **satisfied at this amendment's
 landing release** — no separate epic; re-checked each release the skill set
 changes.
 
-**Amendment — design-phase entry-point fold (ADR 0091).** The phase coverage
-above is unchanged, but the **commands** that reach three of those phases are
-not what the wave notes say. `create-quality`, `create-operations`,
-`create-principles`, `create-standards`, `create-project` and
-`standardize-project` are now internal legs: quality/operate and
-standards/principles are reached through `/acs:create-docs <set|all>`, and
-bootstrap/standardization through `/acs:project`, which picks its mode from
-declared on-disk evidence rather than making the user choose greenfield vs
-brownfield. Every leg kept its own gate, triad, delivery ticket and PR, so no
-wave's delivered scope moved and no phase lost its operating skill — read the
-`/acs:create-quality`-style spellings in the wave notes below as skill names,
+**Amendment — design-phase entry-point fold (ADR 0091) and the doc-set fold
+(ADR 0094).** The phase coverage above is unchanged, but the **commands** that
+reach three of those phases are not what the wave notes say. `create-project`
+and `standardize-project` are internal legs of `/acs:project`, which picks its
+mode from declared on-disk evidence rather than making the user choose
+greenfield vs brownfield; each leg kept its own gate, executor + verifier pair, delivery ticket
+and PR. `create-quality`, `create-operations`, `create-principles` and
+`create-standards` went further: ADR 0094 folded them into
+`/acs:create-docs <set|all>` outright — one hooked skill, one executor +
+verifier pair, one delivery ticket per set — so no wave's delivered scope moved
+and no phase lost its operating skill. Read the `/acs:create-quality`-style
+spellings in the wave notes below as the doc set `/acs:create-docs` delivers,
 not as commands. `/acs:test` likewise reads as `/acs:run-e2e-tests` since the
 skills-independence refactor left `test` behind as a one-release alias.
 
@@ -417,7 +419,7 @@ ships as its own **v0.4.1** release — see the e2e-integrity section below.
   maintains two more living doc sets for consumers: **principles/** (engineering
   principles, e.g. `/acs:create-principles`) and **standards/** (coding
   standards/conventions, e.g. `/acs:create-standards`), each a product-level
-  producer with templates and a planner/executor/verifier triad, following ADR
+  producer with templates and an executor/verifier pair (its planner retired by ADR 0092), following ADR
   0011's one-skill-per-set pattern. The sets extend the conformance chain to
   **PRD → architecture → standards → design → specs → code** — design and code
   verifiers check conformance (no silent waivers). `/acs:create-architecture`'s
@@ -552,7 +554,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)** Of thread (i)/(iii) above,
   the `create-spec` extension target and `formats.spec_template` were
   retired outright in v0.4.6 when MAR-156/ADR 0066 deleted `/acs:create-spec`
-  (`plugins/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
+  (`src/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
   bullet records what shipped in v0.4.5, not current capability. The
   advisory→blocking promotion for the other 8 producer verifiers and
   `formats.design_template` remain live (the former now lives in
@@ -628,7 +630,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   (exact CLI flags, extraction algorithm, per-file section structure) is settled
   in this epic's design phase. **(Shipped in v0.4.4 — G37 epic MAR-142: MAR-143 #273, MAR-144 #274, MAR-145 #272.)**
 - Semver stability promise for state-file schemas (migration notes per minor).
-- **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (effort values are validated fail-closed by the runtime gate as of MAR-516; model-id validation is still absent). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
+- **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles at the time — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`; `coordinator` was since retired from the contract and `planner` is inert since ADR 0092). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (effort values are validated fail-closed by the runtime gate as of MAR-516; model-id validation is still absent). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
 - **Epic: failure-mode / pipeline-health observability** — extends the
   `acs:metrics`/`acs:usage` dashboard surfaces, which today are strictly
@@ -648,7 +650,9 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 59 vs 53 reachable). Maps to PRD **G8**
+  disk equals reachable-agent count (today 31 vs 31 reachable). **(ii) is
+  DONE** — ADR-0092 deleted those six and made each skill declare the roles
+  it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
   the three dashboards — adding behavioral (artifact-level) scenarios for the
@@ -689,9 +693,10 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      machine-local role-separation gap. Maps to PRD's workflow-gap-promotions
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
-  4. **code-planner user-confirmed stakes-bump** — `/acs:code`'s planner
-     (spec content's author is lane-conditional: the code-planner on
-     STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL, per ADR-0074) may
+  4. **code-planner user-confirmed stakes-bump** — `/acs:create-impl-plan`'s
+     plan author (lane-conditional: `create-impl-plan-executor`'s survey — the
+     former `code-planner` charter — on STANDARD/COMPLEX, the coordinator on
+     TRIVIAL/SMALL, per ADR-0074) may
      propose a user-confirmed ticket stakes bump on discovering a
      high-stakes surface (metadata-accuracy only; composes with
      **C-7**/**C-12**, does not alter

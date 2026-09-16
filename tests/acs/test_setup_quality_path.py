@@ -1,6 +1,6 @@
 """MAR-112 — /acs:setup Step 4 documents and defaults quality_path (AC-3).
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. `quality_path`
+Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. `quality_path`
 must be defaulted like `architecture_path`/`adr_path` in the Step 4
 optional-settings batch, and must NOT be added to the "always ask explicitly"
 carve-out (which names only `### models` and `e2e`).
@@ -21,7 +21,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 
 
@@ -71,14 +71,14 @@ class Mar112QualityPathInitCase(unittest.TestCase):
         )
 
     def test_step4_names_create_quality_as_consumer(self):
-        """The quality_path bullet names /acs:create-quality as the consuming
+        """The quality_path bullet names /acs:create-docs quality as the consuming
         skill, mirroring how the adr_path bullet names /acs:code."""
         m = re.search(r"`quality_path`", self.step4)
         self.assertIsNotNone(m)
         window = self.step4[m.start():m.start() + 300]
         self.assertIn(
-            "create-quality", window,
-            msg="the `quality_path` bullet must name /acs:create-quality as "
+            "create-docs quality", window,
+            msg="the `quality_path` bullet must name /acs:create-docs quality as "
                 "the consumer (AC-3)",
         )
 

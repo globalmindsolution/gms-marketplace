@@ -56,7 +56,7 @@ companion `runtime-coupling-inventory.evidence.md` sidecar (Decision B / ADR
 |---|---------|----------------------|-----------------------|---------------------|--------------|
 | 1 | Hook gating | `PreToolUse(Skill)` → `dispatch.py pre` → exit-2 blocks before coordinator runs | `hooks.json` (PreToolUse matcher `Skill`, command `dispatch.py pre`, timeout 30); `dispatch.py` (`def skill_name_from_payload`); `dispatch.py` (`def main()` → `run_gate` — routes by skill to `acs_lib.GATES[skill]` in-process under a bounded alarm, exit 2 on missing/blocked/timeout); `acs_lib/gates.py` (`HOOKED_SKILLS` allowlist) | **Corrected:** Codex has **no `Skill` matcher** and `PreToolUse` is a guardrail, not an enforcement boundary. Gate via `PreToolUse` on `Bash`/`apply_patch` returning `permissionDecision:deny` (or exit 2), reusing `dispatch.py` via `${CLAUDE_PLUGIN_ROOT}`. **Best-effort by default; non-bypassable only via org-managed `requirements.toml` hooks.** (Original "no-bypass shim" is unachievable — refuted; PR #134 rejected.) | MAR-5 |
 | 2 | Session termination | `SessionEnd` → `dispatch.py session-end` → `interrupted` + lock release | `hooks.json` (SessionEnd hook, command `dispatch.py session-end`, timeout 30); `dispatch.py` (session-end branch → `acs_lib.session_end`); `acs_lib/gates.py` (`def session_end`) | **Corrected:** Codex has **no `SessionEnd` event**. `Stop` is per-turn (fires at every turn end, requires JSON on stdout, `decision:block` means *continue*) — so it must **not** be mapped to `dispatch.py session-end` (that would release the lock mid-session). Session finalization / lock release on Codex is **lease / next-run-reconcile** based. | MAR-5 |
-| 3 | Reflection-subagent dispatch | `Agent` tool spawns planner/executor/verifier in separate contexts; XML `<task>`/`<result>` validated against `acs-messages.xsd` | `acs-messages.xsd` (`contracts.md:6-14`); validated by `validate_xml.py`; coordinator/agent invocation is prompt-layer; file-anchored via partition (`overview.md:30,41`) | **Corrected:** Codex spawns subagents **only on explicit request** and manages orchestration itself; custom agents are `.codex/agents/*.toml` (fields `name`/`description`/`developer_instructions`) — a different format/location, **not plugin-bundled** — with `max_depth` default 1. The coordinator-driven planner/executor/verifier fan-out does **not** port 1:1. Native Codex custom-agents vs a single-agent fallback is an **open epic design decision**; the XML `<task>`/`<result>` artifact contract (`acs-messages.xsd`) stays unchanged whichever is chosen. | MAR-6 |
+| 3 | Reflection-subagent dispatch | `Agent` tool spawns executor/verifier in separate contexts; XML `<task>`/`<result>` validated against `acs-messages.xsd` | `acs-messages.xsd` (`contracts.md:6-14`); validated by `validate_xml.py`; coordinator/agent invocation is prompt-layer; file-anchored via partition (`overview.md:30,41`) | **Corrected:** Codex spawns subagents **only on explicit request** and manages orchestration itself; custom agents are `.codex/agents/*.toml` (fields `name`/`description`/`developer_instructions`) — a different format/location, **not plugin-bundled** — with `max_depth` default 1. The coordinator-driven planner/executor/verifier fan-out does **not** port 1:1. Native Codex custom-agents vs a single-agent fallback is an **open epic design decision**; the XML `<task>`/`<result>` artifact contract (`acs-messages.xsd`) stays unchanged whichever is chosen. | MAR-6 |
 | 4 | Per-role model/effort | `settings.models.<role>` + `overrides` → `acs_lib.resolve_role_model` | `acs_lib/settings.py` (`def resolve_role_model(settings, skill, role)`); config surface `settings.schema.json` `models` block (`contracts.md:51-58`) | `settings.models.codex.<role>` → `resolve_role_model` with `runtime=codex` parameter (MAR-6 adds `runtime` param); FAIL on rejected model/effort unchanged | MAR-6 |
 | 5 | Cost/token sourcing | **Isolated behind `claude_code_adapter.py` since MAR-520** — the five undocumented Claude Code interfaces this surface rests on (hook-envelope fields, transcript JSONL shape, `attributionSkill`/`attributionAgent`, the subagent transcript directory layout, and the statusLine payload keys) are declared there once, so a Codex adapter re-implements one module rather than five call sites. `usage_reader.py` reads token actuals from the Claude Code transcript tree (session-anchored via the `PreToolUse(Skill)` marker); `cost_sampler.py` samples/apportions a real cost figure off the `statusLine` hook's stdin payload; ADR 0082 supersedes the ADR-0026 hybrid precedent for acs metrics (MAR-1) | `data-model.md:70-85` (RUN_ENTRY `tokens`/`cost_usd`/`cost_basis`/`cost_scope` fields); `contracts.md:32-59` (run-entry/totals contract); `docs/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md` | `~/.codex/sessions/` token actuals if available; OpenAI pricing snapshot added; `cost_basis` label preserves auditability; shipped enum is `measured\|apportioned\|unavailable` (`skill-state.schema.json`) — a Codex adapter's estimate-based fallback would need its own basis value, not the retired `estimate` label | MAR-6/MAR-7 |
 | 6 | Subagent & stop lifecycle | `SubagentStart`/`SubagentStop` (matcher `^acs:`) record the active agent and validate + snapshot the returned XML; `Stop` refuses a turn that left a run `in_progress` with no result document; `PreCompact` writes `handoff-context.md` from the ledger (MAR-528) | `hooks.json` (SubagentStart/SubagentStop matcher `^acs:`, Stop, PreCompact); `dispatch.py` (`LIFECYCLE_MODES`, `def run_lifecycle` — fails OPEN, unlike the gate); `acs_lib/lifecycle.py` (`subagent_start`/`subagent_stop`/`stop`/`pre_compact`) | **Not yet assessed.** Codex's `Stop` is per-turn with inverted `decision:block` semantics (see Surface #2) and its subagent model differs (see Surface #3), so neither the blocking contract nor the `^acs:` agent-type matcher ports by inspection. Assessing it needs the same primary-source verification the rows above carry; recording the gap rather than guessing at it. | MAR-6 (unassessed) |
@@ -109,9 +109,9 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 
 > **NOTE (MAR-160):** the reproduced list above is a historical quote of
 > `design.md:244-245` and was never kept in lockstep with every
-> later-registered skill's pre-/post- pair (e.g. `create-quality`,
-> `create-operations`, `create-principles`, `create-standards`,
-> `create-requirements`, `standardize-project` are also absent from it).
+> later-registered skill's pre-/post- pair (e.g. `create-docs` — since ADR
+> 0094 the one hooked skill behind the four doc sets — `create-requirements`,
+> `standardize-project` are also absent from it).
 > `pre-docs-sync.py` / `post-docs-sync.py` belong to this same
 > runtime-agnostic bucket by the identical construction (Bash-invoked,
 > reads/writes workspace JSON) — flagged here rather than folded into the
@@ -122,19 +122,18 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > gaps this note otherwise flags.
 >
 > **The design-phase entry-point fold (ADR 0091) adds no gap to close.** The
-> six skills it made internal legs of `/acs:create-docs` and `/acs:project`
-> **kept** their `pre-`/`post-` pairs, so the four already flagged above
-> (`create-quality`, `create-operations`, `create-principles`,
-> `create-standards`) plus `create-project` and `standardize-project` sit in
+> two skills it made internal legs of `/acs:project` **kept** their
+> `pre-`/`post-` pairs, so `create-project` and `standardize-project` sit in
 > this same runtime-agnostic bucket, unchanged — the fold narrowed who may
-> invoke a leg, never how it is hooked. The two **entry points** are unhooked
+> invoke a leg, never how it is hooked. ADR 0094 replaced the four doc legs'
+> pairs with `pre-`/`post-create-docs.py`, in the same bucket. The two **entry points** are unhooked
 > umbrellas and own no hook scripts at all: there is no `pre-create-docs.py`
 > and no `pre-project.py`, and none should be added, so neither belongs in the
 > lists above or in the gap this note flags.
 
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 
-The following scripts exist in `plugins/acs/hooks/scripts/` and are runtime-agnostic by
+The following scripts exist in `src/acs/hooks/scripts/` and are runtime-agnostic by
 construction (Bash-invoked, read/write workspace JSON or partition state). The design's
 `design.md:244-245` list omitted them; they are flagged here so AC-1
 ("every … component") holds completely.
@@ -157,8 +156,8 @@ construction (Bash-invoked, read/write workspace JSON or partition state). The d
 - `subagent-statusline.py` — renders the subagent statusline; reads workspace JSON via Bash
   invocation.
 
-All four scripts exist in `plugins/acs/hooks/scripts/` (confirmed by
-`ls plugins/acs/hooks/scripts/`); `statusline.py`'s cost-sampling half is coupled per the
+All four scripts exist in `src/acs/hooks/scripts/` (confirmed by
+`ls src/acs/hooks/scripts/`); `statusline.py`'s cost-sampling half is coupled per the
 note above, not purely agnostic.
 
 ---
@@ -197,9 +196,9 @@ documented here rather than half-implemented in code.
 ### A. `check-conventions.py` — ticket description vs. repo
 
 The ticket description names `check-conventions.py` among runtime-agnostic components. There
-is NO `check-conventions.py` in `plugins/acs/hooks/scripts/`. What exists is a CI template at
-`plugins/acs/templates/ci/check-conventions.py` that `/acs:setup` copies into the consumer repo
-at `.acs/ci/check-conventions.py` (confirmed by `ls plugins/acs/templates/ci/`). It is a
+is NO `check-conventions.py` in `src/acs/hooks/scripts/`. What exists is a CI template at
+`src/acs/templates/ci/check-conventions.py` that `/acs:setup` copies into the consumer repo
+at `.acs/ci/check-conventions.py` (confirmed by `ls src/acs/templates/ci/`). It is a
 consumer-repo commit-convention checker, NOT a plugin runtime component. The design's
 runtime-agnostic list (`design.md:244-245`) correctly omits it.
 
@@ -209,7 +208,7 @@ ticket-description divergence is noted rather than silently propagated into docu
 ### B. Schema count reconciliation (C-2)
 
 The design (`design.md:21`) states "the 9 `*.schema.json` files." The repo
-(`ls plugins/acs/schemas/`) has **10 `*.schema.json` files** + `acs-messages.xsd`:
+(`ls src/acs/schemas/`) has **10 `*.schema.json` files** + `acs-messages.xsd`:
 
 | File | Type |
 |------|------|
@@ -256,7 +255,7 @@ does NOT edit any of the listed files.
 | `docs/architecture/hld/tech-stack.md` | Add Codex CLI shim row; add Codex runtime adapter row | MAR-5 |
 | `docs/architecture/lld/contracts.md` | Add "Hook events (Codex CLI)" section; add `models.claude-code`/`models.codex` to Settings section | MAR-5 (shim section), MAR-6 (settings section) |
 | `docs/architecture/lld/flows/hook-gated-skill-run.md` | Add Codex CLI variant note after the existing Claude Code sequence diagram | MAR-5 |
-| `plugins/acs/schemas/settings.schema.json` | Add `models.claude-code` and `models.codex` sub-objects (D4 Option A; activates `ci.yml:197-199`) | MAR-6 |
+| `src/acs/schemas/settings.schema.json` | Add `models.claude-code` and `models.codex` sub-objects (D4 Option A; activates `ci.yml:197-199`) | MAR-6 |
 
 **Scope guard:** MAR-4 does NOT edit any of these files. Editing them before the corresponding
 code exists would document behavior that has no implementation, breaking the conformance chain

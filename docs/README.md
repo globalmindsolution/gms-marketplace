@@ -27,8 +27,8 @@ they're auto-discovered):
 | Concern | Where |
 |---------|-------|
 | Security policy | [`SECURITY.md`](../SECURITY.md) (root) |
-| How to contribute / develop the plugin | [`CONTRIBUTING.md`](../CONTRIBUTING.md) (root) + [`plugins/acs/docs/`](../plugins/acs/docs/) (INTERNALS, AUTHORING) |
-| Install / usage / troubleshooting | [`plugins/acs/README.md`](../plugins/acs/README.md) |
+| How to contribute / develop the plugin | [`CONTRIBUTING.md`](../CONTRIBUTING.md) (root) + [`src/acs/docs/`](../src/acs/docs/) (INTERNALS, AUTHORING) |
+| Install / usage / troubleshooting | [`src/acs/README.md`](../src/acs/README.md) |
 
 > This repo dogfoods the marketplace on itself: the **acs** plugin is used as
 > the agentic workflow tool for all active development work here, so these docs

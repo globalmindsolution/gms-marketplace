@@ -8,7 +8,7 @@ Two guards over committed artifacts, both deterministic and stdlib-only:
    `acs_lib.load_settings(REPO_ROOT)` (which folds a configured `e2e` into
    `suites.e2e`, so the resolved view is the one `/acs:ship` actually reads).
    It then applies the shipped post-code test-gate rule
-   (`plugins/acs/skills/ship/SKILL.md`, "Post-code test gate": an explicit
+   (`src/acs/skills/ship/SKILL.md`, "Post-code test gate": an explicit
    `post_code_test.enabled` wins; otherwise the step is ON iff `settings.e2e`
    or `suites.e2e` is set) and requires it to resolve OFF. This pins a
    repo-local configuration choice, not plugin behaviour: the plugin's e2e
@@ -39,7 +39,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

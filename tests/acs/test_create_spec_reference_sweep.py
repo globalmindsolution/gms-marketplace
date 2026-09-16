@@ -1,7 +1,7 @@
 """MAR-164 spec 03 — create-spec reference sweep + DR-1 + CHANGELOG.
 
 Covers AC-2 (no live code-level reference to the deleted /acs:create-spec
-skill remains anywhere in plugins/acs/{skills,agents}/**), the consistency
+skill remains anywhere in src/acs/{skills,agents}/**), the consistency
 half of AC-4 (every Rule-1 site names /acs:code as the positive replacement,
 never merely absence-of-token; every Rule-2 site re-flows without a
 duplicated stage), and the sweep's share of AC-5 (no regression to the
@@ -9,7 +9,7 @@ duplicated stage), and the sweep's share of AC-5 (no regression to the
 surface).
 
 This is the LAST of the ticket's three executor tasks: its assertion-1
-predicate asserts the FINAL whole-tree state of plugins/acs/{skills,agents}/**
+predicate asserts the FINAL whole-tree state of src/acs/{skills,agents}/**
 and only holds once spec 01 has already removed create-ticket/SKILL.md's own
 two create-spec lines. Every assertion here is by file + substring (line-hit
 COUNTS, not line NUMBERS), so ordinary edits above a clause elsewhere in a
@@ -25,7 +25,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
@@ -39,7 +39,7 @@ import acs_lib as lib  # noqa: E402
 # skills-independence refactor, so two of the three survivors moved with them;
 # the line-hit counts per file are unchanged (2, 1, 2).
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 
 # --- This spec's sweep-set files ---
@@ -48,17 +48,11 @@ CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
-CREATE_QUALITY_SKILL = os.path.join(SKILLS_DIR, "create-quality", "SKILL.md")
-CREATE_OPERATIONS_SKILL = os.path.join(SKILLS_DIR, "create-operations", "SKILL.md")
-CREATE_PRINCIPLES_SKILL = os.path.join(SKILLS_DIR, "create-principles", "SKILL.md")
-CREATE_STANDARDS_SKILL = os.path.join(SKILLS_DIR, "create-standards", "SKILL.md")
+CREATE_DOCS_SKILL = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
 CREATE_DESIGN_EXECUTOR = os.path.join(AGENTS_DIR, "create-design-executor.md")
 CREATE_TICKET_EXECUTOR = os.path.join(AGENTS_DIR, "create-ticket-executor.md")
 
-RULE2_IDENTICAL_FILES = [
-    CREATE_ARCHITECTURE_SKILL, CREATE_QUALITY_SKILL, CREATE_OPERATIONS_SKILL,
-    CREATE_PRINCIPLES_SKILL, CREATE_STANDARDS_SKILL,
-]
+RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL, CREATE_DOCS_SKILL]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
 RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
@@ -140,7 +134,7 @@ def line_hit_counts(root_dirs):
 def changelog_unreleased_section(body):
     m = re.search(r"(?m)^## \[Unreleased\]\s*$", body)
     if m is None:
-        raise AssertionError("plugins/acs/CHANGELOG.md must retain the "
+        raise AssertionError("src/acs/CHANGELOG.md must retain the "
                               "'## [Unreleased]' heading")
     start = m.end()
     nxt = re.search(r"(?m)^## \[", body[start:])
@@ -172,13 +166,13 @@ def changelog_entry_section(body):
         if "(MAR-164" in candidate:
             return candidate
     raise AssertionError(
-        "plugins/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
+        "src/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
         "'## [...]' section span")
 
 
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
-    plugins/acs/{skills,agents}/** containing "create-spec" is exactly
+    src/acs/{skills,agents}/** containing "create-spec" is exactly
     {create-impl-plan/SKILL.md, create-impl-plan-planner.md,
     code-verifier.md} with per-file
     line-hit counts {2, 1, 2}. Requires spec 01 already landed (see the
@@ -192,7 +186,7 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER, CODE_VERIFIER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
-            "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
+            "src/acs/{skills,agents}/** must contain \"create-spec\" in "
             "exactly {create-impl-plan/SKILL.md, create-impl-plan-planner.md, "
             "code-verifier.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
@@ -394,7 +388,7 @@ class ChangelogUnreleasedEntryTest(unittest.TestCase):
     def test_entry_section_non_empty(self):
         self.assertTrue(
             self.section.strip(),
-            "plugins/acs/CHANGELOG.md must carry this change's entry under "
+            "src/acs/CHANGELOG.md must carry this change's entry under "
             "[Unreleased] or, after a release cut, the cut version's section")
 
     def test_unreleased_heading_retained(self):
@@ -417,8 +411,8 @@ class ChangelogUnreleasedEntryTest(unittest.TestCase):
 
 
 class NegativeGuardsBackwardCompatTest(unittest.TestCase):
-    """Assertion 7 (over-eager-sweep catch): plugins/acs/hooks/** and
-    plugins/acs/schemas/** still carry their backward-compat create-spec
+    """Assertion 7 (over-eager-sweep catch): src/acs/hooks/** and
+    src/acs/schemas/** still carry their backward-compat create-spec
     anchors — asserted PRESENT, not absent; ship/SKILL.md stays free of the
     token."""
 
@@ -439,7 +433,12 @@ class NegativeGuardsBackwardCompatTest(unittest.TestCase):
         self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
 
     def test_validate_xml_py_set_member_present(self):
-        self.assertIn('"create-spec"', read(VALIDATE_XML_PY))
+        # Since ADR-0093 the validator derives SKILLS from the XSD instead of
+        # spelling it: the retained member is read through that view.
+        sys.path.insert(0, HOOKS_SCRIPTS)
+        import validate_xml  # noqa: E402
+        self.assertIn("create-spec", validate_xml.SKILLS)
+        self.assertNotIn('"create-spec"', read(VALIDATE_XML_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))

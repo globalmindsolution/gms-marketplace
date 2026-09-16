@@ -1,6 +1,6 @@
 """Unit tests for the e2e CI runner /acs:setup Step 7f ships into consumer repos.
 
-run-e2e.py (plugins/acs/templates/ci/run-e2e.py) runs in the consumer's CI
+run-e2e.py (src/acs/templates/ci/run-e2e.py) runs in the consumer's CI
 with ZERO acs dependencies — stdlib only. It reads the e2e command from the
 committed `.acs/settings.json`, resolving it from EITHER `suites["e2e"]` OR
 the raw `e2e` alias (the load-time normalization `acs_lib.load_settings`
@@ -24,7 +24,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RUNNER = os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "run-e2e.py")
+RUNNER = os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "run-e2e.py")
 
 
 class RunE2eCase(unittest.TestCase):

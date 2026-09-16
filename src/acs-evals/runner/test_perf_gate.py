@@ -16,6 +16,7 @@ comes only from `make measure`.
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -68,11 +69,39 @@ def pipeline(pid="PIPE-code", skill="acs:code", n=3, ok=True, seconds=600.0,
     return probe
 
 
-def measurement(probes, version="0.4.10", sset="1.0.0", incomplete=False):
+def unmeasured_pipeline(pid="PIPE-docs-sync", skill="acs:docs-sync",
+                       measured=(), holes=1):
+    """A pipeline probe some of whose runs never reached the skill.
+
+    `measured` is one (ok, status) pair per run that actually ran; `holes` is
+    the number whose setup fell short.
+    """
+    runs = [{"ok": False, "unmeasured": "setup prompt failed: timeout",
+             "seconds": 0.0, "cost_usd": None, "error": "setup prompt failed"}
+            for _ in range(holes)]
+    runs += [{"ok": ok, "seconds": 40.0, "cost_usd": 0.3, "status": status,
+              "quality": {"verify_iterations": 0, "coverage_percent": None,
+                          "blocking_findings": 0}}
+             for ok, status in measured]
+    probe = {"id": pid, "kind": "pipeline", "skill": skill, "runs": runs}
+    probe["aggregate"] = pg.summarize(probe)
+    return probe
+
+
+def measurement(probes, version="0.5.0", sset="1.0.0", incomplete=False,
+                digest=None):
+    build = {"version": version}
+    if digest:
+        build["digest"] = digest
     return {"schema": "acs-evals/measurement/1",
-            "build": {"version": version}, "scenario_set_version": sset,
+            "build": build, "scenario_set_version": sset,
             "environment": {"claude_cli_version": "2.1.263"},
             "incomplete": incomplete, "probes": probes}
+
+
+class _Build:
+    def __init__(self, version="0.5.0", digest="c0ffee", root="/src/acs"):
+        self.version, self.digest, self.root = version, digest, root
 
 
 class TestSummarise(unittest.TestCase):
@@ -102,6 +131,112 @@ class TestSummarise(unittest.TestCase):
         probe = routing(pid="ROUTE-update", skill="acs:update", must=False,
                         routed=[None, "acs:update", None])
         self.assertAlmostEqual(probe["aggregate"]["reliability"]["rate"], 2 / 3)
+
+
+class TestUnmeasuredRuns(unittest.TestCase):
+    """A run that never reached the skill is a hole, not a failure.
+
+    The 2026-09-13 measurement is why this class exists. PIPE-docs-sync's
+    setup prompt is a whole /acs:code cycle; sized by docs-sync's own budget
+    it timed out, and a second run's setup finished clean but left no
+    changeset, so docs-sync correctly refused. Both were scored as docs-sync
+    failing. The skill was never once exercised on the app profile, and the
+    gate reported it as 0% reliable rather than unmeasured.
+    """
+
+    def test_a_hole_leaves_the_reliability_denominator(self):
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        rel = probe["aggregate"]["reliability"]
+        self.assertEqual((rel["hits"], rel["total"], rel["rate"]), (2, 2, 1.0))
+        self.assertEqual(probe["aggregate"]["unmeasured"], 1)
+
+    def test_a_skill_that_ran_and_failed_stays_in_the_denominator(self):
+        # The distinction the whole class turns on: this one IS the plugin's.
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "failed")], holes=0)
+        rel = probe["aggregate"]["reliability"]
+        self.assertEqual((rel["hits"], rel["total"]), (1, 2))
+        self.assertEqual(probe["aggregate"]["unmeasured"], 0)
+
+    def test_a_hole_does_not_drag_the_medians_the_gate_compares(self):
+        # An unmeasured run records zero seconds and no cost.
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        agg = probe["aggregate"]
+        self.assertEqual(agg["seconds"]["median"], 40.0)
+        self.assertEqual(agg["seconds"]["n"], 2)
+        self.assertEqual(agg["cost_usd"]["median"], 0.3)
+
+    def test_a_hole_is_reported_on_its_own_axis(self):
+        probe = unmeasured_pipeline(measured=[(True, "completed"),
+                                              (True, "completed")], holes=1)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        cov = [f for f in found if f["axis"] == "coverage"]
+        self.assertEqual(len(cov), 1)
+        self.assertEqual(cov[0]["severity"], "major")
+        self.assertIn("1 of 3 runs measured nothing", cov[0]["summary"])
+        # ... and not as a reliability failure of the skill.
+        self.assertEqual([f for f in found if f["axis"] == "reliability"], [])
+
+    def test_a_scenario_that_measured_nothing_says_so_rather_than_zero(self):
+        probe = unmeasured_pipeline(pid="PIPE-docs-sync-app", measured=[],
+                                    holes=3)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        summaries = " | ".join(f["summary"] for f in found)
+        self.assertIn("3 of 3 runs measured nothing", summaries)
+        self.assertIn("unevaluated", summaries)
+        self.assertNotIn("completed 0 of 3", summaries)
+
+    def test_a_hole_blocks_even_while_thresholds_are_provisional(self):
+        # It is an absolute finding: nothing was measured, whatever the
+        # ratios would have said.
+        probe = unmeasured_pipeline(measured=[(True, "completed")], holes=2)
+        found = pg.compare(measurement([probe]), None, PROVISIONAL)
+        state, headline, detail = pg.verdict(measurement([probe]), None,
+                                             PROVISIONAL, found)
+        self.assertEqual(state, "fail")
+        self.assertEqual(headline, "Skill performance: BLOCKED")
+        self.assertIn("2 of 3 runs measured nothing", detail)
+
+
+class TestPipelineHits(unittest.TestCase):
+    """A pipeline hit is the measured skill's OWN ledger saying `completed`.
+
+    The 2026-09-14 PIPE-code diagnostic is why: two sessions exited 0 after
+    routing "TKT-1 is ready to implement" to /acs:ship, which ran
+    /acs:analyze-ticket and stopped. /acs:code never ran, so its ledger did
+    not exist, and `status != "failed"` scored both as completions of a
+    skill that was never exercised.
+    """
+
+    def _probe(self, ok, status):
+        probe = {"id": "PIPE-code", "kind": "pipeline", "skill": "acs:code",
+                 "runs": [{"ok": ok, "seconds": 10.0, "cost_usd": 1.0,
+                           "status": status,
+                           "quality": {"verify_iterations": None,
+                                       "coverage_percent": None,
+                                       "blocking_findings": None}}]}
+        return pg.summarize(probe)["reliability"]
+
+    def test_a_clean_session_with_no_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, None)["hits"], 0)
+
+    def test_a_failed_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, "failed")["hits"], 0)
+
+    def test_a_handed_off_ledger_is_not_a_hit(self):
+        self.assertEqual(self._probe(True, "handed_off")["hits"], 0)
+
+    def test_a_completed_ledger_on_a_clean_session_is_a_hit(self):
+        rel = self._probe(True, "completed")
+        self.assertEqual((rel["hits"], rel["total"]), (1, 1))
+
+    def test_a_completed_ledger_on_a_broken_session_is_not_a_hit(self):
+        # The ledger can say completed while the session itself died after
+        # (a post-hook crash, a kill during the report); the session's exit
+        # is still part of what the consumer experienced.
+        self.assertEqual(self._probe(False, "completed")["hits"], 0)
 
 
 class TestAbsoluteGates(unittest.TestCase):
@@ -312,6 +447,98 @@ class TestComparability(unittest.TestCase):
         _, _, detail = pg.verdict(m, None, PROVISIONAL,
                                   pg.compare(m, None, PROVISIONAL))
         self.assertIn("incomplete", detail)
+
+
+class TestBuildIdentity(unittest.TestCase):
+    """The gate judges a measurement of THIS build, or refuses to judge.
+
+    A release quoting numbers taken before its own changes is the failure a
+    gate that runs before every cut exists to prevent, so the comparison is
+    on the tree's content digest -- not the version string, which an
+    unreleased tree shares with the release it supersedes.
+    """
+
+    def test_the_same_content_is_judged(self):
+        m = measurement([routing()], digest="c0ffee")
+        self.assertIsNone(pg.stale_measurement(m, _Build(digest="c0ffee")))
+
+    def test_the_version_label_does_not_matter_when_the_content_does(self):
+        # A cut bumps plugin.json AFTER the gate passed on this content; the
+        # measurement it passed on is still a measurement of it.
+        m = measurement([routing()], version="0.4.9", digest="c0ffee")
+        self.assertIsNone(pg.stale_measurement(
+            m, _Build(version="0.5.0", digest="c0ffee")))
+
+    def test_changed_content_is_refused_and_both_builds_are_named(self):
+        m = measurement([routing()], digest="c0ffee")
+        why = pg.stale_measurement(m, _Build(digest="d15ea5e"))
+        self.assertIn("c0ffee", why)
+        self.assertIn("d15ea5e", why)
+        self.assertIn("/src/acs", why, "name the tree it resolved, so a "
+                      "mismatch caused by resolving the wrong tree is obvious")
+
+    def test_a_measurement_with_no_digest_is_refused(self):
+        m = measurement([routing()])
+        self.assertIn("no content digest", pg.stale_measurement(m, _Build()))
+
+    def test_no_build_in_hand_is_refused_not_assumed(self):
+        m = measurement([routing()], digest="c0ffee")
+        self.assertIn("ACS_PLUGIN_ROOT", pg.stale_measurement(m, None))
+
+    def test_a_stale_verdict_fails_as_unmeasured(self):
+        state, headline, detail = pg.stale_verdict("the plugin changed")
+        self.assertEqual(state, "fail")
+        self.assertIn("UNMEASURED", headline)
+        self.assertIn("the plugin changed", detail)
+        self.assertIn("not unchanged", detail)
+
+    def test_a_root_that_is_not_a_build_resolves_to_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            build, why = pg.build_under_test(d)
+        self.assertIsNone(build)
+        self.assertIn("acs.py", why)
+
+    def test_the_result_file_records_a_stale_verdict(self):
+        """A perf.json left over from the last judged measurement would say
+        PASSED about a build the gate just refused to judge."""
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "perf.json")
+            state, headline, detail = pg.stale_verdict("why")
+            pg.write_result(path, measurement([routing()]), None, None,
+                            PROVISIONAL, state, headline, detail, [],
+                            stale="why")
+            with open(path) as fh:
+                got = json.load(fh)
+        self.assertEqual(got["state"], "fail")
+        self.assertEqual(got["stale"], "why")
+        self.assertEqual(got["findings"], [])
+
+
+class RoutingHoleTest(unittest.TestCase):
+    """A routing run the instrument never delivered to the model leaves the
+    reliability denominator and is reported on the coverage axis, exactly as
+    a pipeline run whose setup fell short."""
+
+    def test_an_unmeasured_routing_run_is_a_hole_not_a_miss(self):
+        probe = {"id": "ROUTE-create-docs", "kind": "routing", "skill": "acs:create-docs",
+                 "expect": {"must_route": True, "skill": "acs:create-docs"},
+                 "runs": [{"ok": True, "routed_to": "acs:create-docs", "seconds": 2.0},
+                          {"ok": False, "routed_to": None, "seconds": 180.0,
+                           "unmeasured": "no model turn, twice"},
+                          {"ok": True, "routed_to": "acs:create-docs", "seconds": 2.5}]}
+        agg = pg.summarize(probe)
+        self.assertEqual((agg["reliability"]["hits"], agg["reliability"]["total"]), (2, 2))
+        self.assertEqual(agg["unmeasured"], 1)
+        self.assertEqual(agg["seconds"]["max"], 2.5)
+
+    def test_a_reply_that_did_not_route_is_still_a_miss(self):
+        probe = {"id": "ROUTE-create-prd", "kind": "routing", "skill": "acs:create-prd",
+                 "expect": {"must_route": True, "skill": "acs:create-prd"},
+                 "runs": [{"ok": True, "routed_to": None, "seconds": 2.4}]}
+        agg = pg.summarize(probe)
+        self.assertEqual((agg["reliability"]["hits"], agg["reliability"]["total"]), (0, 1))
+        self.assertEqual(agg["unmeasured"], 0)
 
 
 if __name__ == "__main__":

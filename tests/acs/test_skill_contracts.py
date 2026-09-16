@@ -18,7 +18,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
 
@@ -93,8 +93,7 @@ _PROJECT_RESPONSES = {
 # (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
 # for one release as the alias directory.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-quality", "create-operations", "create-principles",
-                 "create-standards", "create-requirements", "create-ticket",
+                 "create-docs", "create-requirements", "create-ticket",
                  "create-design", "analyze-ticket", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "docs-sync", "create-e2e-tests", "create-pr",
@@ -103,21 +102,17 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # separately maintained copy by design -- this module never imports the
 # registry for it). `project` is the design-phase fold's umbrella over the
 # two project legs: no agents, no gate, no hook scripts.
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "create-docs", "project"]
+ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "project"]
 ROLES = ["planner", "executor", "verifier"]
 
-# Which agent roles each hooked skill actually owns. Every skill is a triad
-# except /acs:code, whose plan phase moved to /acs:create-impl-plan in the
-# skills-independence refactor: code now starts from an existing plan, so it
-# has an executor and a verifier and no planner at all.
-def _agent_roles():
-    roles = {skill: list(ROLES) for skill in HOOKED_SKILLS}
-    roles.setdefault("create-impl-plan", list(ROLES))
-    roles["code"] = ["executor", "verifier"]
-    return roles
-
-
-AGENT_ROLES = _agent_roles()
+# Which agent roles each skill owns — READ FROM THE REGISTRY, never derived
+# here (ADR-0092). This used to be `{skill: list(ROLES) for skill in
+# HOOKED_SKILLS}` with one hand-carved exception, which is how nineteen skills
+# came to carry a planner nobody chose for them: three of them forbade
+# spawning one in their own prose and shipped the file anyway, held in place
+# by this very test. The shape is now a declaration in workflows/phases.yaml
+# and this asserts the declaration is honoured, not that a default holds.
+AGENT_ROLES = lib.skill_agents()
 
 
 def read(path):
@@ -185,28 +180,54 @@ class TestSkillContracts(unittest.TestCase):
         self.assertNotIn("one subagent per step", body)
         self.assertIsNone(re.search(r"spawn a fresh subagent", body, re.IGNORECASE))
 
-    def test_non_model_invocable_skills(self):
-        # Two classes set disable-model-invocation, and only these two:
-        #   * user-action-only: update + install-hooks change the environment
-        #     (merge-pr is agent/model-invocable since MAR-42, so it is NOT
-        #     in this set);
-        #   * internal legs: the design-phase entry-point fold left each leg
-        #     in the registry's `internal` map Skill-invocable by its own
-        #     entry point but no longer user-facing, so a description can
-        #     never route to it. Read the legs from the registry rather than
-        #     re-listing them: phases.yaml is the single source, and
-        #     test_phases_registry.py pins the map itself.
-        user_action = ("update", "install-hooks")
-        legs = tuple(sorted(lib.skill_legs()))
-        self.assertTrue(legs, "the registry must declare the internal legs")
-        for name in user_action + legs:
-            fm, _ = frontmatter(read(self.skill_path(name)), name)
-            self.assertRegex(fm, r"(?m)^disable-model-invocation: true$", name)
+    def test_every_skill_is_model_invocable(self):
+        # No skill sets disable-model-invocation. The flag is enforced by the
+        # CLI, which refuses the Skill call outright ("cannot be used with
+        # Skill tool due to disable-model-invocation") while leaving the slash
+        # command working -- the exact opposite of what it was used for here.
+        # Six of the eight skills that carried it are dispatched BY another
+        # skill's Skill-tool call (see the next test), so the flag broke both
+        # folds: /acs:create-docs could not start one of its four doc legs and
+        # /acs:project could not start either of its two. The registry said so
+        # all along -- skill_legs()'s own docstring is "stays Skill-invocable,
+        # but whose only user-facing command is the entry point it serves" --
+        # and the frontmatter contradicted it.
+        #
+        # "Not user-facing" is carried by the DESCRIPTION, which is what
+        # steers routing: each leg opens "Internal leg of /acs:<entry>, not a
+        # user-facing command", and the entry point says to run it instead.
         for name in ALL_SKILLS:
-            if name in user_action or name in legs:
-                continue
             fm, _ = frontmatter(read(self.skill_path(name)), name)
-            self.assertNotIn("disable-model-invocation: true", fm, name)
+            self.assertNotIn("disable-model-invocation", fm, name)
+
+    def test_every_skill_a_skill_dispatches_is_invocable(self):
+        """The check that would have caught it: a `Skill(acs:x)` call in one
+        skill must name a skill the model is allowed to invoke."""
+        called = {}
+        for name in ALL_SKILLS:
+            for target in re.findall(r"Skill\(acs:([a-z0-9-]+)\)",
+                                     read(self.skill_path(name))):
+                if target != name:
+                    called.setdefault(target, set()).add(name)
+        self.assertTrue(called, "no skill dispatches another; the fold is gone")
+        for target, callers in sorted(called.items()):
+            self.assertIn(target, ALL_SKILLS,
+                          "%s dispatches unknown skill %s"
+                          % (sorted(callers), target))
+            fm, _ = frontmatter(read(self.skill_path(target)), target)
+            self.assertNotIn(
+                "disable-model-invocation", fm,
+                "%s is dispatched via Skill() by %s, so the CLI must be "
+                "allowed to dispatch it" % (target, ", ".join(sorted(callers))))
+
+    def test_the_internal_legs_are_the_ones_their_entry_points_dispatch(self):
+        """The registry and the skills must agree on who dispatches whom."""
+        legs = lib.skill_legs()
+        self.assertTrue(legs, "the registry must declare the internal legs")
+        for leg, entry in sorted(legs.items()):
+            self.assertIn("Skill(acs:%s)" % leg, read(self.skill_path(entry)),
+                          "%s is registered as %s's leg but %s never "
+                          "dispatches it" % (leg, entry, entry))
 
     def test_merge_pr_is_agent_invocable(self):
         # MAR-42: /acs:merge-pr is agent/model-invocable; the readiness gate +
@@ -405,23 +426,18 @@ class TestMergePrBehindAutoUpdate(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"BEHIND.*update-branch|update-branch.*BEHIND", body, re.DOTALL),
             "SKILL.md must co-locate BEHIND and update-branch (MAR-47 AC-1)")
-
-    def test_planner_behind_routes_to_update_branch(self):
-        body = read(self.agent_path("merge-pr", "planner"))
-        # Basic existence: update-branch is present in the planner prose.
-        self.assertIn("update-branch", body,
-                      "merge-pr-planner.md must mention update-branch (MAR-47 AC-2)")
-        # Co-occurrence: BEHIND and update-branch appear together.
-        self.assertIsNotNone(
-            re.search(r"BEHIND.*update-branch|update-branch.*BEHIND", body, re.DOTALL),
-            "merge-pr-planner.md must co-locate BEHIND and update-branch (MAR-47 AC-2)")
-        # C-7 verdict tokens: pin the verdict shape without requiring the exact
-        # full sentence — robust to minor rewording of surrounding context.
+        # C-7 verdict tokens, re-homed from the deleted planner to the file
+        # that actually records the carve-out's outcome.
         self.assertIn("was BEHIND", body,
-                      "merge-pr-planner.md must carry 'was BEHIND' verdict token (MAR-47 C-7)")
+                      "SKILL.md must carry the 'was BEHIND' verdict token (MAR-47 C-7)")
         self.assertIn("auto-updated", body,
-                      "merge-pr-planner.md must carry 'auto-updated' verdict token (MAR-47 C-7)")
+                      "SKILL.md must carry the 'auto-updated' verdict token (MAR-47 C-7)")
 
+    # MAR-47 AC-2's planner-side assertion is gone with the planner (ADR-0092):
+    # /acs:merge-pr's own prose forbids spawning one, so that file never ran
+    # and pinning the BEHIND carve-out in it pinned nothing. The requirement is
+    # asserted where it executes — the SKILL.md test above (AC-1) and the
+    # executor test below, which also carries the BEHIND-only guard.
     def test_executor_behind_routes_to_update_branch(self):
         body = read(self.agent_path("merge-pr", "executor"))
         # Basic existence: update-branch is present in the executor prose.
@@ -717,22 +733,23 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: user-confirmation gate token lane must survive")
 
     # ------------------------------------------------------------------ Group 6
-    # AC-6: the six triad-keeping skills still reference planner and verifier.
-    # /acs:code kept its verifier but lost its planner to /acs:create-impl-plan
-    # in the skills-independence refactor, so the plan-owning skill stands in
-    # for it here and code is checked for the roles it actually has.
+    # AC-6: the authoring skills still reference their executor and verifier.
+    # ADR-0092 removed every authoring skill's planner (the deliverable IS the
+    # plan), so the pair is what each of them must still name — and no planner
+    # reference may survive in their prose.
 
-    def test_triad_skills_still_reference_planner_and_verifier(self):
-        """AC-6: workflow/product skills must still reference their planner+verifier."""
+    def test_authoring_skills_still_reference_executor_and_verifier(self):
+        """AC-6: workflow/product skills must still reference their executor+verifier."""
         for skill in ("create-impl-plan", "create-prd", "docs-sync",
                       "create-design", "create-architecture", "create-project"):
             body = read(self.skill_path(skill))
-            self.assertIsNotNone(
+            self.assertIsNone(
                 re.search(r"acs:" + skill + r"-planner", body),
-                "AC-6 [%s]: must still reference acs:%s-planner" % (skill, skill))
-            self.assertIsNotNone(
-                re.search(r"acs:" + skill + r"-verifier", body),
-                "AC-6 [%s]: must still reference acs:%s-verifier" % (skill, skill))
+                "AC-6 [%s]: must not reference acs:%s-planner (ADR-0092)" % (skill, skill))
+            for role in ("executor", "verifier"):
+                self.assertIsNotNone(
+                    re.search(r"acs:" + skill + r"-" + role, body),
+                    "AC-6 [%s]: must still reference acs:%s-%s" % (skill, skill, role))
 
     def test_code_references_its_executor_and_verifier(self):
         """AC-6, /acs:code after the plan carve-out: no planner reference may
@@ -783,7 +800,7 @@ class TestApplyTierInline(unittest.TestCase):
 
 class TestCreatePrConventionWiring(unittest.TestCase):
     """MAR-72 spec 02: pin the deterministic-render + pre-open self-check
-    wiring in plugins/acs/skills/create-pr/SKILL.md. Additive only — no
+    wiring in src/acs/skills/create-pr/SKILL.md. Additive only — no
     existing assertion in this file is modified. Written TDD-first (RED
     before Spec 02's SKILL.md edit lands)."""
 
@@ -888,7 +905,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-project", "create-quality", "create-operations")
+    SKILLS = ("create-prd", "create-architecture", "create-project", "create-docs")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -964,7 +981,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
 
 class TestCodeSkillEscalation(unittest.TestCase):
     """MAR-57 Spec 02 (AC-1, AC-2, AC-6): pin the in-loop escalation contract in
-    plugins/acs/skills/code/SKILL.md. Doc-assertion tests that read the prose
+    src/acs/skills/code/SKILL.md. Doc-assertion tests that read the prose
     and assert the presence of normative tokens. The tests are RED before the
     escalation subsection is added; GREEN after.
     """
@@ -1269,7 +1286,8 @@ class TestGeneralizedFold(unittest.TestCase):
         return read(self.skill_path("create-impl-plan"))
 
     def _planner_body(self):
-        return read(self.agent_path("create-impl-plan-planner.md"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan-executor.md"))
 
     def test_fold_activating_condition_has_no_lane_qualifier(self):
         """AC-2: the fold section states the activating condition as
@@ -1894,7 +1912,8 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
     def _planner_body(self):
         # The documentation map is the plan planner's charter item 4; the plan
         # phase moved to /acs:create-impl-plan.
-        return read(self.agent_path("create-impl-plan", "planner"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan", "executor"))
 
     # --- AC-1: prd.md and roadmap.md named in SKILL.md step 4 ---
 
@@ -2352,7 +2371,8 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
 
     def _planner(self):
         # The plan phase (and its planner) moved to /acs:create-impl-plan.
-        return read(self.agent_path("create-impl-plan", "planner"))
+        # the plan charter is the executor's survey since ADR-0092
+        return read(self.agent_path("create-impl-plan", "executor"))
 
     def _verifier(self):
         return read(self.agent_path("code", "verifier"))
@@ -2526,7 +2546,7 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
         charter moved to create-impl-plan-planner.md) must each contain
         'Simplicity First'."""
         for agent in ("code-executor", "code-verifier",
-                      "create-impl-plan-planner"):
+                      "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Simplicity First", body,
                           "%s.md must contain 'Simplicity First' (MAR-2 AC-6)" % agent)
@@ -2534,7 +2554,7 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
     def test_all_three_agents_carry_surgical_changes(self):
         """AC-6: the same three agents must each contain 'Surgical Changes'."""
         for agent in ("code-executor", "code-verifier",
-                      "create-impl-plan-planner"):
+                      "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Surgical Changes", body,
                           "%s.md must contain 'Surgical Changes' (MAR-2 AC-6)" % agent)
@@ -3486,10 +3506,11 @@ class TestChangelogMar107Entry(unittest.TestCase):
 
 
 class TestCreateQualityDocConformance(unittest.TestCase):
-    """MAR-112 spec 04 (AC-7): doc-conformance for the /acs:create-quality
-    doc-set closure — skills.md's new product-level section, configuration.md's
-    quality_path row, and c4-component.md's own +1 triad/reachable-agent/
-    pre-post-pair arithmetic. Structural string/regex assertions only."""
+    """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
+    closure — skills.md's product-level section (since ADR-0094 the
+    /acs:create-docs section, which delivers the quality set), configuration.md's
+    quality_path row, and c4-component.md's own reachable-agent/pre-post-pair
+    arithmetic. Structural string/regex assertions only."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -3500,25 +3521,26 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_has_create_quality_section(self):
-        """AC-7: skills.md carries a '/acs:create-quality' (product-level)
-        section naming quality_path, create-quality-planner, and
-        create-quality-state.json."""
+    def test_skills_md_has_create_docs_section(self):
+        """AC-7, after ADR-0094: skills.md carries a '/acs:create-docs'
+        (product-level) section naming quality_path, create-docs-executor,
+        and create-docs-state.json — the quality set's closure now lives in
+        the one skill that delivers it."""
         body = self._skills_req()
-        heading = "## `/acs:create-quality` (product-level)"
+        heading = "## `/acs:create-docs` (product-level)"
         self.assertIn(heading, body,
                       "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-quality' (product-level) section (MAR-112 AC-7)")
+                      "'/acs:create-docs' (product-level) section (MAR-112 AC-7)")
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
         self.assertIn("quality_path", section,
-                      "the create-quality section must name quality_path (MAR-112 AC-7)")
-        self.assertIn("create-quality-planner", section,
-                      "the create-quality section must name create-quality-planner (MAR-112 AC-7)")
-        self.assertIn("create-quality-state.json", section,
-                      "the create-quality section must name create-quality-state.json (MAR-112 AC-7)")
+                      "the create-docs section must name quality_path (MAR-112 AC-7)")
+        self.assertIn("create-docs-executor", section,
+                      "the create-docs section must name create-docs-executor (MAR-112 AC-7)")
+        self.assertIn("create-docs-state.json", section,
+                      "the create-docs section must name create-docs-state.json (MAR-112 AC-7)")
 
     def test_configuration_md_has_quality_path_row(self):
         """AC-7: configuration.md's Keys table has a quality_path row with
@@ -3541,7 +3563,7 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("12 authoring pairs (24 agents", body,
                       "c4-component.md must read '12 active triads "
                       "(36 agents in triads)' (MAR-112/113 AC-7, superseded "
                       "by MAR-143/MAR-160)")
@@ -3555,10 +3577,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
-        window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
-                      "c4-component.md must read '39 reachable agents' "
+        triad_idx = body.index("12 authoring pairs (24 agents")
+        window = body[triad_idx:triad_idx + 1600]
+        self.assertIn("31 agent files, all reachable", window,
+                      "c4-component.md must read '31 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3635,25 +3657,20 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_has_create_operations_section(self):
-        """AC-7: skills.md carries a '/acs:create-operations' (product-level)
-        section naming operations_path, create-operations-planner, and
-        create-operations-state.json."""
+    def test_skills_md_names_the_operations_set_in_the_create_docs_section(self):
+        """AC-7, after ADR-0094: the operations set's closure lives in the
+        '/acs:create-docs' (product-level) section, which names
+        operations_path, create-docs-executor and create-docs-state.json."""
         body = self._skills_req()
-        heading = "## `/acs:create-operations` (product-level)"
-        self.assertIn(heading, body,
-                      "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-operations' (product-level) section (MAR-113 AC-7)")
+        heading = "## `/acs:create-docs` (product-level)"
+        self.assertIn(heading, body)
         section_start = body.index(heading)
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
-        self.assertIn("operations_path", section,
-                      "the create-operations section must name operations_path (MAR-113 AC-7)")
-        self.assertIn("create-operations-planner", section,
-                      "the create-operations section must name create-operations-planner (MAR-113 AC-7)")
-        self.assertIn("create-operations-state.json", section,
-                      "the create-operations section must name create-operations-state.json (MAR-113 AC-7)")
+        self.assertIn("operations_path", section)
+        self.assertIn("create-docs-executor", section)
+        self.assertIn("create-docs-state.json", section)
 
     def test_configuration_md_has_operations_path_row(self):
         """AC-7: configuration.md's Keys table has an operations_path row with
@@ -3676,7 +3693,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("12 active triads (36 agents", body,
+        self.assertIn("12 authoring pairs (24 agents", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3690,10 +3707,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("12 active triads (36 agents")
-        window = body[triad_idx:triad_idx + 800]
-        self.assertIn("39 reachable agents", window,
-                      "c4-component.md must advance to '39 reachable agents' "
+        triad_idx = body.index("12 authoring pairs (24 agents")
+        window = body[triad_idx:triad_idx + 1600]
+        self.assertIn("31 agent files, all reachable", window,
+                      "c4-component.md must advance to '31 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3932,8 +3949,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
                         "## Finish", "## Completion report"):
             self.assertIn(heading, body, heading)
 
-    def test_three_agent_files_exist(self):
-        for role in ("planner", "executor", "verifier"):
+    def test_the_agent_files_exist(self):
+        for role in ("executor", "verifier"):
             self.assertTrue(
                 os.path.isfile(os.path.join(PLUGIN, "agents", "docs-sync-%s.md" % role)),
                 "docs-sync-%s.md must exist" % role)
@@ -3944,8 +3961,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
 
     # ------------------------------------------------------------------ AC-3
 
-    def test_planner_documents_five_input_contract(self):
-        body = self._agent_body("planner")
+    def test_executor_documents_five_input_contract(self):
+        body = self._agent_body("executor")
         for token in ("git diff", "result.json", "docs_updated", "problems"):
             self.assertIn(token, body, token)
         self.assertRegex(body, r"iter-.*-verify\.md")

@@ -3,8 +3,8 @@
 What an artifact-level eval must assert to count as evidence, and what makes
 one green.
 
-The layers below this one are cheap and already complete: structure is 32 of
-32, gating 20 of 20 hooked, routing 31 of 32. They prove that a skill *ships*,
+The layers below this one are cheap and already complete: structure is 28 of
+28, gating 17 of 17 hooked, routing 27 of 28. They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.

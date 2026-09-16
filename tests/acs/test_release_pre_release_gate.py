@@ -1,11 +1,12 @@
-"""`/acs:release`'s closing reminder is settings-driven, not hardcoded.
+"""`/acs:release` runs the repo's pre-release gate, and never cuts past it.
 
-It used to end by telling the human to run
-`python3 evals/run_evals.py --plugin acs --paid`. That was wrong twice over:
-the path exists only in this marketplace, and it stopped being even this
-repo's gate when MAR-579 retired the per-ticket paid tier. A skill that ships
-to consumer repos cannot name their gate, so it reads one from
-`release.pre_release_gate` and says plainly when none is declared.
+The gate is settings-driven, not hardcoded: the skill used to end by telling
+the human to run `python3 evals/run_evals.py --plugin acs --paid`, a path that
+exists only in this marketplace and that stopped being even this repo's gate
+when MAR-579 retired the per-ticket paid tier. It then read one from
+`release.pre_release_gate` -- and only REMINDED the human to run it, which is
+a rule nothing enforces. Now it runs every command, in order, before a fresh
+cut edits anything, and the first non-zero exit ends the run.
 """
 
 import json
@@ -15,7 +16,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL = os.path.join(PLUGIN, "skills", "release", "SKILL.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
@@ -76,6 +77,62 @@ class SkillReadsItRatherThanHardcodingTest(unittest.TestCase):
         body = read(SKILL)
         self.assertRegex(body, r"(?i)absent.{0,200}pre_release_gate|"
                                r"pre_release_gate.{0,200}absent")
+
+
+class TheGateBlocksTheCutTest(unittest.TestCase):
+    """Before each release the gate runs and passes; no cut proceeds past a
+    failure, and nothing bypasses it."""
+
+    def test_the_gate_runs_before_anything_is_bumped(self):
+        body = read(SKILL)
+        gate = body.find("Run this repo's pre-release gate")
+        bump = body.find("**Bump:**")
+        self.assertTrue(0 < gate < bump,
+                        "the gate step must come before the first write")
+
+    def test_the_commands_run_verbatim_and_in_order(self):
+        self.assertRegex(read(SKILL), r"(?i)verbatim, in the listed order")
+
+    def test_the_first_failure_stops_the_run(self):
+        body = read(SKILL)
+        self.assertRegex(body, r"(?i)first non-zero exit ends the run")
+        self.assertRegex(body, r"nothing has been drafted, bumped, branched "
+                               r"or pushed")
+
+    def test_it_is_no_longer_a_reminder(self):
+        self.assertNotRegex(read(SKILL),
+                            r"(?i)reminder step|do not run the gate yourself|"
+                            r"not a blocking check|remind(ing)? the human")
+
+    def test_nothing_bypasses_it(self):
+        body = read(SKILL)
+        self.assertNotRegex(body, r"--skip-gate|--no-gate|--force-cut")
+        self.assertRegex(body, r"(?i)no flag that bypasses this step")
+        self.assertRegex(body, r"(?i)never skip a command, reorder them,\s+"
+                               r"substitute one of your own")
+
+    def test_a_timeout_is_not_a_pass(self):
+        self.assertRegex(read(SKILL), r"(?i)timeout as a pass")
+
+    def test_long_commands_are_waited_for_not_abandoned(self):
+        body = read(SKILL)
+        self.assertRegex(body, r"(?i)wait for the exit code")
+        self.assertIn("echo $? >", body)
+
+    def test_the_pr_carries_the_gate_evidence(self):
+        self.assertRegex(read(SKILL), r"(?i)exit code and .{0,40}output")
+
+    def test_the_safety_invariants_name_it(self):
+        body = read(SKILL)
+        inv = body[body.find("## SAFETY invariants"):body.find("## Delegation")]
+        self.assertRegex(inv, r"(?i)never.{0,40}cuts past a failing gate")
+
+    def test_the_schema_says_the_skill_runs_them(self):
+        prop = release_block(json.load(open(SCHEMA)))["properties"]["pre_release_gate"]
+        desc = prop["description"]
+        self.assertNotIn("never runs them", desc)
+        self.assertRegex(desc, r"(?i)runs .{0,80}in order")
+        self.assertRegex(desc, r"(?i)first non-zero exit")
 
 
 class ThisRepoDeclaresItsOwnGateTest(unittest.TestCase):

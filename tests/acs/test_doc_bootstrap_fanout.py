@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "pipeline-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
 
 # v1 scope only: principles/standards deliberately unconfigured so the
 # eligible set is exactly the pair (D7-A).
@@ -36,7 +36,7 @@ PAIR_SETTINGS = {
 }
 
 # All four doc-bootstrap paths configured, for exercising the soft-edge
-# batching rule between create-standards and create-principles.
+# batching rule between standards and principles.
 ALL_SETTINGS = {
     "quality_path": "docs/quality",
     "operations_path": "docs/operations",
@@ -61,22 +61,22 @@ class DocSetPresentOnDiskTest(unittest.TestCase):
 
     def test_present_when_sentinel_file_exists(self):
         _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
-        self.assertTrue(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "create-quality"))
+        self.assertTrue(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "quality"))
 
     def test_absent_when_directory_exists_but_sentinel_missing(self):
         # This repo's own live case (design.md D4.2): a populated directory
         # that never actually produced the skill's own output file.
         _touch(os.path.join(self.root, "docs/quality/README.md"))
-        self.assertFalse(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "create-quality"))
+        self.assertFalse(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "quality"))
 
     def test_absent_when_path_unconfigured(self):
         _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
         settings = dict(PAIR_SETTINGS, quality_path=None)
-        self.assertFalse(lib.doc_set_present_on_disk(self.root, settings, "create-quality"))
+        self.assertFalse(lib.doc_set_present_on_disk(self.root, settings, "quality"))
 
     def test_absent_when_checkout_root_missing(self):
         missing_root = os.path.join(self.root, "does-not-exist")
-        self.assertFalse(lib.doc_set_present_on_disk(missing_root, PAIR_SETTINGS, "create-quality"))
+        self.assertFalse(lib.doc_set_present_on_disk(missing_root, PAIR_SETTINGS, "quality"))
 
 
 class DeclaredDependencyTest(unittest.TestCase):
@@ -94,18 +94,19 @@ class DeclaredDependencyTest(unittest.TestCase):
 
     def test_standards_declares_soft_edge_on_principles(self):
         self.assertEqual(
-            lib.DOC_BOOTSTRAP_DEPENDENCIES["create-standards"]["soft"], ["create-principles"])
+            lib.DOC_BOOTSTRAP_DEPENDENCIES["standards"]["soft"], ["principles"])
 
-    def test_settings_key_resolved_via_explicit_map_not_string_building(self):
-        # Every doc-bootstrap skill has its own explicit-map entry -- proof
-        # the settings-key lookup goes through DOC_BOOTSTRAP_SETTINGS_KEY
-        # rather than being derived from the skill name (e.g. "create-quality"
-        # -> "quality_path" is not "create-quality_path").
-        for skill in lib.DOC_BOOTSTRAP_DEPENDENCIES:
-            with self.subTest(skill=skill):
-                self.assertIn(skill, lib.DOC_BOOTSTRAP_SETTINGS_KEY)
-                self.assertIn(skill, lib.DOC_BOOTSTRAP_SENTINEL)
-                self.assertFalse(lib.DOC_BOOTSTRAP_SETTINGS_KEY[skill].startswith(skill))
+    def test_settings_key_resolved_via_the_declared_row_not_string_building(self):
+        # Every doc set's settings key is DECLARED on its DOC_SETS row and
+        # the views are derived from it -- the lookup never string-builds
+        # "<set>_path" from the set name, even though today every row happens
+        # to follow that shape.
+        for name in lib.DOC_BOOTSTRAP_DEPENDENCIES:
+            with self.subTest(set=name):
+                self.assertIn(name, lib.DOC_BOOTSTRAP_SETTINGS_KEY)
+                self.assertIn(name, lib.DOC_BOOTSTRAP_SENTINEL)
+                self.assertEqual(lib.DOC_BOOTSTRAP_SETTINGS_KEY[name],
+                                 lib.DOC_SETS[name]["settings_key"])
 
     def test_standards_and_principles_never_share_a_batch(self):
         # General-case semantics (AC-5): explicit candidates, since v1's
@@ -114,15 +115,15 @@ class DeclaredDependencyTest(unittest.TestCase):
             ALL_SETTINGS, {"tickets": {}}, self.root,
             candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
-            self.assertFalse({"create-standards", "create-principles"} <= set(batch))
+            self.assertFalse({"standards", "principles"} <= set(batch))
 
     def test_soft_edge_alone_never_makes_a_candidate_ineligible(self):
         batches = lib.fanout_batches(
             ALL_SETTINGS, {"tickets": {}}, self.root,
             candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
-        self.assertIn("create-standards", flat)
-        self.assertIn("create-principles", flat)
+        self.assertIn("standards", flat)
+        self.assertIn("principles", flat)
 
 
 class SoftEdgeSymmetryTest(unittest.TestCase):
@@ -135,49 +136,49 @@ class SoftEdgeSymmetryTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
 
     def test_reversed_soft_declaration_still_never_shares_a_batch(self):
-        # Edge declared on create-principles instead of create-standards,
+        # Edge declared on principles instead of standards,
         # with the declaring side processed first -- exposes a check that
         # only ever consults the CURRENT candidate's own declared list.
         reversed_deps = {
-            "create-principles": {"hard": [], "soft": ["create-standards"]},
-            "create-standards": {"hard": [], "soft": []},
+            "principles": {"hard": [], "soft": ["standards"]},
+            "standards": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
             batches = lib.fanout_batches(
                 ALL_SETTINGS, {"tickets": {}}, self.root,
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
-            self.assertFalse({"create-standards", "create-principles"} <= set(batch))
+            self.assertFalse({"standards", "principles"} <= set(batch))
 
     def test_soft_edge_invariant_survives_table_reordering(self):
         # Same declaration direction as production (standards -> principles),
         # but the table's insertion order -- and hence candidates order -- is
         # reversed relative to production (standards processed first).
         reordered_deps = {
-            "create-standards": {"hard": [], "soft": ["create-principles"]},
-            "create-principles": {"hard": [], "soft": []},
+            "standards": {"hard": [], "soft": ["principles"]},
+            "principles": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reordered_deps, clear=True):
             batches = lib.fanout_batches(
                 ALL_SETTINGS, {"tickets": {}}, self.root,
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
-            self.assertFalse({"create-standards", "create-principles"} <= set(batch))
+            self.assertFalse({"standards", "principles"} <= set(batch))
 
     def test_symmetric_check_never_makes_either_side_ineligible(self):
         # Guard against over-correcting the symmetry fix into an eligibility
         # filter: both sides must still land in SOME batch.
         reversed_deps = {
-            "create-principles": {"hard": [], "soft": ["create-standards"]},
-            "create-standards": {"hard": [], "soft": []},
+            "principles": {"hard": [], "soft": ["standards"]},
+            "standards": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
             batches = lib.fanout_batches(
                 ALL_SETTINGS, {"tickets": {}}, self.root,
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
-        self.assertIn("create-standards", flat)
-        self.assertIn("create-principles", flat)
+        self.assertIn("standards", flat)
+        self.assertIn("principles", flat)
 
 
 class V1FanoutGateTest(unittest.TestCase):
@@ -194,19 +195,19 @@ class V1FanoutGateTest(unittest.TestCase):
         # The design-phase consolidation widened the declared eligible set to
         # every doc-bootstrap leg (ONE constant edit; the other three tables
         # already covered four). The v1 pair assertion this replaces was true
-        # only while /acs:create-quality and /acs:create-operations were the
+        # only while /acs:quality and /acs:operations were the
         # sole user-facing doc commands.
         self.assertEqual(
             lib.DOC_BOOTSTRAP_FANOUT_V1,
-            ("create-quality", "create-operations", "create-principles", "create-standards"))
+            ("quality", "operations", "principles", "standards"))
         self.assertEqual(sorted(lib.DOC_BOOTSTRAP_FANOUT_V1),
                          sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
 
     def test_default_batch_covers_every_configured_unshipped_leg(self):
         batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertEqual(sorted(flat), ["create-operations", "create-principles",
-                                        "create-quality", "create-standards"])
+        self.assertEqual(sorted(flat), ["operations", "principles",
+                                        "quality", "standards"])
 
     def test_explicit_candidates_argument_covers_the_general_case(self):
         batches = lib.fanout_batches(
@@ -218,8 +219,8 @@ class V1FanoutGateTest(unittest.TestCase):
     def test_unknown_candidate_name_is_skipped_not_raised(self):
         batches = lib.fanout_batches(
             PAIR_SETTINGS, {"tickets": {}}, self.root,
-            candidates=["create-quality", "not-a-skill"])
-        self.assertEqual(batches, [["create-quality"]])
+            candidates=["quality", "not-a-skill"])
+        self.assertEqual(batches, [["quality"]])
 
 
 class ForFlagParsingTest(unittest.TestCase):
@@ -241,15 +242,37 @@ class ForFlagParsingTest(unittest.TestCase):
 
     def test_single_v1_name_is_accepted(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-quality"), (["create-quality"], []))
+            lib.parse_fanout_for_arg("--for quality"), (["quality"], []))
+
+    def test_the_former_leg_name_still_resolves_for_one_release(self):
+        self.assertEqual(
+            lib.parse_fanout_for_arg("--for create-quality"), (["quality"], []))
+        self.assertEqual(lib.parse_doc_set_arg("create-standards,quality").candidates,
+                         ["standards", "quality"])
+
+    def test_a_delivery_ticket_id_is_a_resume_not_a_selection(self):
+        request = lib.parse_doc_set_arg("SHOP-2")
+        self.assertEqual(request.resume, "SHOP-2")
+        self.assertIsNone(request.candidates)
+        self.assertEqual(request.rejected, [])
+
+    def test_an_open_ticket_matches_by_doc_set_or_title(self):
+        settings = dict(PAIR_SETTINGS)
+        root = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, root, True)
+        by_field = {"tickets": {"MAR-1": {"title": "whatever", "type": "task",
+                                          "status": "in_progress", "doc_set": "quality"}}}
+        self.assertNotIn("quality", [s for b in lib.fanout_batches(settings, by_field, root) for s in b])
+        by_title = {"tickets": {"MAR-1": _ticket(lib.DOC_SET_TITLES["quality"])}}
+        self.assertNotIn("quality", [s for b in lib.fanout_batches(settings, by_title, root) for s in b])
 
     def test_comma_list_order_preserved(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-quality,create-operations"),
-            (["create-quality", "create-operations"], []))
+            lib.parse_fanout_for_arg("--for quality,operations"),
+            (["quality", "operations"], []))
 
     def test_every_doc_leg_is_now_an_accepted_for_name(self):
-        # Was: create-principles is rejected as "not in v1's fan-out set".
+        # Was: principles is rejected as "not in v1's fan-out set".
         # The consolidation widened the declared set to all four legs, so each
         # one is accepted -- the rejection path below now only fires for a
         # name that is no doc set at all.
@@ -259,7 +282,7 @@ class ForFlagParsingTest(unittest.TestCase):
 
     def test_short_set_spelling_is_canonicalized(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for principles"), (["create-principles"], []))
+            lib.parse_fanout_for_arg("--for principles"), (["principles"], []))
 
     def test_unknown_name_is_rejected(self):
         self.assertEqual(
@@ -267,17 +290,17 @@ class ForFlagParsingTest(unittest.TestCase):
 
     def test_mixed_request_splits_candidates_and_rejected(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-quality,not-a-skill"),
-            (["create-quality"], ["not-a-skill"]))
+            lib.parse_fanout_for_arg("--for quality,not-a-skill"),
+            (["quality"], ["not-a-skill"]))
 
     def test_whitespace_around_commas_never_drops_a_name(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for  create-quality , create-operations "),
-            (["create-quality", "create-operations"], []))
+            lib.parse_fanout_for_arg("--for  quality , operations "),
+            (["quality", "operations"], []))
 
     def test_equals_form(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for=create-operations"), (["create-operations"], []))
+            lib.parse_fanout_for_arg("--for=operations"), (["operations"], []))
 
     def test_bare_flag_is_explicit_empty_selection(self):
         self.assertEqual(lib.parse_fanout_for_arg("--for"), ([], []))
@@ -287,22 +310,22 @@ class ForFlagParsingTest(unittest.TestCase):
 
     def test_name_list_stops_at_the_next_flag(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-quality --verbose"),
-            (["create-quality"], []))
+            lib.parse_fanout_for_arg("--for quality --verbose"),
+            (["quality"], []))
 
     def test_duplicate_names_are_deduplicated(self):
         self.assertEqual(
-            lib.parse_fanout_for_arg("--for create-quality,create-quality"),
-            (["create-quality"], []))
+            lib.parse_fanout_for_arg("--for quality,quality"),
+            (["quality"], []))
 
     def test_rejected_names_never_reach_fanout_batches(self):
         candidates, rejected = lib.parse_fanout_for_arg(
-            "--for create-quality,not-a-skill")
+            "--for quality,not-a-skill")
         self.assertEqual(rejected, ["not-a-skill"])
         batches = lib.fanout_batches(
             PAIR_SETTINGS, {"tickets": {}}, self.root, candidates=candidates)
         flat = [skill for batch in batches for skill in batch]
-        self.assertIn("create-quality", flat)
+        self.assertIn("quality", flat)
         self.assertNotIn("not-a-skill", flat)
 
 
@@ -310,13 +333,13 @@ class PositionalDocSetArgTest(unittest.TestCase):
     """The design-phase consolidation's argument contract for
     /acs:create-docs: a positional, comma-separated `<set|all>` selector,
     parsed in acs_lib beside parse_fanout_for_arg (never in skill prose). Both
-    the short spelling (`quality`) and the full skill name (`create-quality`)
+    the short spelling (`quality`) and the former leg name (`create-quality`)
     resolve; an unknown set refuses the whole run with a message naming the
     accepted spellings; the legacy `--for` form still parses, once, with a
     deprecation notice for stderr."""
 
-    ALL_LEGS = ["create-quality", "create-operations",
-                "create-principles", "create-standards"]
+    ALL_LEGS = ["quality", "operations",
+                "principles", "standards"]
 
     def test_no_argument_defers_to_the_declared_default(self):
         for args_text in ("", "   ", None):
@@ -334,26 +357,26 @@ class PositionalDocSetArgTest(unittest.TestCase):
 
     def test_single_set(self):
         request = lib.parse_doc_set_arg("quality")
-        self.assertEqual(request.candidates, ["create-quality"])
+        self.assertEqual(request.candidates, ["quality"])
         self.assertEqual((request.rejected, request.notices), ([], []))
 
     def test_several_sets_comma_separated_order_preserved(self):
         request = lib.parse_doc_set_arg("standards,quality,operations")
         self.assertEqual(request.candidates,
-                         ["create-standards", "create-quality", "create-operations"])
+                         ["standards", "quality", "operations"])
         self.assertEqual(request.rejected, [])
 
     def test_whitespace_and_duplicates_never_break_the_list(self):
         request = lib.parse_doc_set_arg(" quality , quality ,operations ")
-        self.assertEqual(request.candidates, ["create-quality", "create-operations"])
+        self.assertEqual(request.candidates, ["quality", "operations"])
 
     def test_create_prefixed_spelling_resolves_to_the_same_leg(self):
-        for token in ("create-quality", "create-operations",
-                      "create-principles", "create-standards"):
+        for token in ("quality", "operations",
+                      "principles", "standards"):
             with self.subTest(token=token):
                 self.assertEqual(lib.parse_doc_set_arg(token).candidates, [token])
-        mixed = lib.parse_doc_set_arg("create-principles,standards")
-        self.assertEqual(mixed.candidates, ["create-principles", "create-standards"])
+        mixed = lib.parse_doc_set_arg("principles,standards")
+        self.assertEqual(mixed.candidates, ["principles", "standards"])
 
     def test_unknown_set_is_refused_with_a_message_naming_the_spellings(self):
         request = lib.parse_doc_set_arg("qualtiy")
@@ -377,8 +400,8 @@ class PositionalDocSetArgTest(unittest.TestCase):
         self.assertRegex(" ".join(request.notices), r"(?i)all.{0,40}(cannot|never) be combined")
 
     def test_legacy_for_form_still_parses_and_says_the_new_spelling_once(self):
-        request = lib.parse_doc_set_arg("--for create-quality,create-operations")
-        self.assertEqual(request.candidates, ["create-quality", "create-operations"])
+        request = lib.parse_doc_set_arg("--for quality,operations")
+        self.assertEqual(request.candidates, ["quality", "operations"])
         self.assertEqual(request.rejected, [])
         self.assertEqual(len(request.notices), 1,
                          "the deprecation note is said once, not per name")
@@ -388,7 +411,7 @@ class PositionalDocSetArgTest(unittest.TestCase):
 
     def test_legacy_for_form_accepts_the_short_spelling_too(self):
         request = lib.parse_doc_set_arg("--for principles")
-        self.assertEqual(request.candidates, ["create-principles"])
+        self.assertEqual(request.candidates, ["principles"])
         self.assertEqual(len(request.notices), 1)
 
     def test_legacy_for_form_rejects_a_non_doc_set_name(self):
@@ -414,8 +437,8 @@ class PositionalDocSetArgTest(unittest.TestCase):
 
 
 class DeclaredBatchOrderTest(unittest.TestCase):
-    """The widened fan-out set must still batch `create-principles` before
-    `create-standards`, and that ordering must come from the declared soft
+    """The widened fan-out set must still batch `principles` before
+    `standards`, and that ordering must come from the declared soft
     edge in DOC_BOOTSTRAP_DEPENDENCIES -- not from a hard-coded name pair
     inside fanout_batches or from the skill's prose."""
 
@@ -429,7 +452,7 @@ class DeclaredBatchOrderTest(unittest.TestCase):
     def test_principles_batches_before_standards_on_the_default_set(self):
         batches = self._batches()
         index = {skill: n for n, batch in enumerate(batches) for skill in batch}
-        self.assertLess(index["create-principles"], index["create-standards"])
+        self.assertLess(index["principles"], index["standards"])
 
     def test_dropping_the_declared_soft_edge_puts_all_four_in_one_batch(self):
         # The anti-hard-code probe: with no soft edge declared, nothing may
@@ -448,17 +471,17 @@ class DeclaredBatchOrderTest(unittest.TestCase):
         # and the split follows the table there, while principles/standards
         # -- no longer edged -- are free to share a batch.
         moved = {
-            "create-quality": {"hard": [], "soft": ["create-operations"]},
-            "create-operations": {"hard": [], "soft": []},
-            "create-principles": {"hard": [], "soft": []},
-            "create-standards": {"hard": [], "soft": []},
+            "quality": {"hard": [], "soft": ["operations"]},
+            "operations": {"hard": [], "soft": []},
+            "principles": {"hard": [], "soft": []},
+            "standards": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, moved, clear=True):
             batches = self._batches()
         for batch in batches:
-            self.assertFalse({"create-quality", "create-operations"} <= set(batch))
+            self.assertFalse({"quality", "operations"} <= set(batch))
         shared = [batch for batch in batches
-                  if {"create-principles", "create-standards"} <= set(batch)]
+                  if {"principles", "standards"} <= set(batch)]
         self.assertTrue(shared, batches)
 
 
@@ -482,14 +505,14 @@ class CheckoutRootResolutionTest(unittest.TestCase):
 
         # Buggy form: raw cwd (a subdirectory) is passed straight to
         # fanout_batches -- the sentinel file is looked up relative to the
-        # subdirectory, so it is never found, and create-quality is wrongly
+        # subdirectory, so it is never found, and quality is wrongly
         # re-offered even though it already shipped.
         buggy = lib.fanout_batches(settings, {"tickets": {}}, sub)
-        self.assertEqual(buggy, [["create-quality", "create-operations"]])
+        self.assertEqual(buggy, [["quality", "operations"]])
 
         # Fixed form: the Start snippet must resolve checkout_root(cwd) first.
         fixed = lib.fanout_batches(settings, {"tickets": {}}, lib.checkout_root(sub))
-        self.assertEqual(fixed, [["create-operations"]])
+        self.assertEqual(fixed, [["operations"]])
 
 
 class FanoutBatchesTest(unittest.TestCase):
@@ -502,49 +525,46 @@ class FanoutBatchesTest(unittest.TestCase):
 
     def test_pair_batched_when_configured_unshipped_and_no_open_ticket(self):
         batches = lib.fanout_batches(PAIR_SETTINGS, {"tickets": {}}, self.root)
-        self.assertIn(["create-quality", "create-operations"], batches)
+        self.assertIn(["quality", "operations"], batches)
 
     def test_shipped_doc_set_makes_skill_ineligible(self):
         _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
         batches = lib.fanout_batches(PAIR_SETTINGS, {"tickets": {}}, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertNotIn("create-quality", flat)
-        self.assertIn("create-operations", flat)
+        self.assertNotIn("quality", flat)
+        self.assertIn("operations", flat)
 
     def test_open_delivery_ticket_makes_skill_ineligible(self):
         tickets_index = {
-            "tickets": {"MAR-1": _ticket(lib.DELIVERY_TICKET_TITLES["create-quality"])},
+            "tickets": {"MAR-1": _ticket(lib.DOC_SET_TITLES["quality"])},
         }
         batches = lib.fanout_batches(PAIR_SETTINGS, tickets_index, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertNotIn("create-quality", flat)
-        self.assertIn("create-operations", flat)
+        self.assertNotIn("quality", flat)
+        self.assertIn("operations", flat)
 
     def test_done_delivery_ticket_does_not_block_eligibility(self):
         tickets_index = {
             "tickets": {
-                "MAR-1": _ticket(lib.DELIVERY_TICKET_TITLES["create-quality"], status="done"),
+                "MAR-1": _ticket(lib.DOC_SET_TITLES["quality"], status="done"),
             },
         }
         batches = lib.fanout_batches(PAIR_SETTINGS, tickets_index, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertIn("create-quality", flat)
+        self.assertIn("quality", flat)
 
     def test_unconfigured_path_is_never_eligible(self):
         settings = dict(PAIR_SETTINGS, operations_path=None)
         batches = lib.fanout_batches(settings, {"tickets": {}}, self.root)
         flat = [skill for batch in batches for skill in batch]
-        self.assertNotIn("create-operations", flat)
+        self.assertNotIn("operations", flat)
 
 
 class PipelineStateSchemaProductStepsTest(unittest.TestCase):
     """BS-1 (AC-4 area): the steps enum must accept the product-level step
     names acs_lib.update_pipeline already writes for flow: "product" runs."""
 
-    PRODUCT_STEP_NAMES = [
-        "create-quality", "create-operations", "create-principles",
-        "create-standards", "create-requirements",
-    ]
+    PRODUCT_STEP_NAMES = ["create-docs", "create-requirements"]
 
     def setUp(self):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:

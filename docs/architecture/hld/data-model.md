@@ -1,7 +1,7 @@
 # HLD — Data model (workspace state)
 
 All entities are JSON files under `<workspace>/<repo-id>/`; schemas ship with
-the plugin (`plugins/acs/schemas/`). Pretty-printed, atomically written,
+the plugin (`src/acs/schemas/`). Pretty-printed, atomically written,
 human-auditable.
 
 ```mermaid
@@ -18,7 +18,7 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration; plan authored exactly once per run, before the loop, for every triad skill"
+    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration, each with its authoring notes; no plan artifact (ADR-0092)"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
@@ -161,7 +161,7 @@ erDiagram
     }
     PLAN {
         string path "phases/code/plan.md — the only name, every lane"
-        string author "code-planner on STANDARD/COMPLEX; coordinator on TRIVIAL/SMALL (MAR-72)"
+        string author "create-impl-plan-executor on STANDARD/COMPLEX; coordinator on TRIVIAL/SMALL (MAR-72, ADR-0092)"
         string sha256 "digest the PLAN_APPROVAL record pins"
     }
     PLAN_SUPERSEDED {
@@ -289,9 +289,9 @@ MAR-1's/MAR-3's rollouts). This capability is not yet surfaced by
 (MAR-5 → MAR-6 + MAR-7); MAR-7 is the sibling ticket that consumes these
 fields in the rendered view.
 
-**Amendment (MAR-305).** `/acs:create-prd`'s, `/acs:create-quality`'s,
-`/acs:create-standards`'s, `/acs:create-operations`'s, and
-`/acs:create-principles`'s plan artifacts (`phases/<skill>/iter-1-plan.md`
+**Amendment (MAR-305).** `/acs:create-prd`'s plan artifact — and, until ADR
+0094 folded them into the planner-less `/acs:create-docs`, the four doc-set
+legs' — (`phases/<skill>/iter-1-plan.md`
 each) now have the same "exactly one per run, authored before the loop,
 never rewritten in place on a later iteration" cardinality as `/acs:code`'s
 `plan.md`, `/acs:docs-sync`'s, `/acs:create-project`'s, and
@@ -316,6 +316,26 @@ narrowed `PHASE_ARTIFACT` relationship label above, which no longer names
 any per-iteration-plan exception — all twelve triad skills now plan
 exactly once per run. Zero migration: no new state key, no new schema
 field, no new artifact path.
+
+**Amendment (ADR-0092, stage 2 — closes the plan-artifact thread above).**
+No skill writes `iter-<n>-plan.md` any more: the plan phase itself is gone
+from every skill that runs a reflection loop, so every "exactly one per run,
+authored before the loop" amendment above (MAR-300, MAR-301, MAR-302,
+MAR-305 and the plan-once completion) now describes an artifact that no
+longer exists. In its place each authoring skill's executor writes
+`phases/<skill>/iter-<n>-authoring.md` **per iteration** — iteration 1 the
+survey the deliverable was authored from (mode, inputs, evidence, open
+questions; the sections the deterministic floors parse, e.g.
+`/acs:create-prd`'s three corroboration sections and
+`/acs:standardize-project`'s frozen allowlist, live here now), iteration 2+
+the findings addressed — and the verifier's `authoring-conformance`
+dimension reads it. The `PHASE_ARTIFACT` relationship label above is
+re-narrowed accordingly. `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED` are
+unchanged: `/acs:create-impl-plan`'s deliverable is itself the plan, its
+`author` string names the executor in the planner's place, and the
+`clarifications.json` / `ROLE_USAGE` shapes keep their `planner` vocabulary
+for the runs already recorded. Zero migration: no new state key, no new
+schema field; the retired path is simply never written again.
 
 **Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` by default —

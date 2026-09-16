@@ -21,9 +21,9 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
-PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-planner.md")
+PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
 VERIFIER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-verifier.md")
 

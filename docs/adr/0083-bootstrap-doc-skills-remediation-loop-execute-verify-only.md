@@ -1,6 +1,15 @@
 # 0083 — Bootstrap-doc skills' remediation loops become execute → verify only; ADR-0004 amended, ADR-0080/ADR-0081 loop-topology statements superseded
 
-**Status**: Accepted · **Date**: 2026-08-26
+**Status**: Superseded by [0092](0092-skill-machinery-declared-per-skill.md) · **Date**: 2026-08-26
+
+> Superseded 2026-09-13. This ADR made the five bootstrap-doc skills's remediation loop
+> execute — verify only: the plan is authored once per run, before the
+> loop starts. Four sibling ADRs said the same thing for other skill
+> families (0077, 0078, 0079, 0083, 0084) — one decision restated five
+> times, per family, rather than once as a rule. ADR-0092 states it once
+> for the authoring class and goes one step further: a plan authored once
+> and never revisited, for a skill whose deliverable IS a document, does
+> not need a planner agent at all.
 
 > **Forward pointer — ADR-0091 (2026-09-12).** The loop topology decided
 > below is **unamended** and still holds for all five skills exactly as

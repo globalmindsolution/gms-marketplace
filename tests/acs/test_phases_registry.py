@@ -1,4 +1,4 @@
-"""workflows/phases.yaml is the skill registry: every plugins/acs/skills/<dir>
+"""workflows/phases.yaml is the skill registry: every src/acs/skills/<dir>
 appears exactly once -- in a phase list, as an `aliases` key (a directory that
 forwards to a registered skill) or as an `internal` key (a leg that stays
 Skill-invocable but is not user-facing) -- only the five groups exist, and the
@@ -29,7 +29,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
@@ -53,10 +53,6 @@ EXPECTED_GROUPS = {
 #: agents, hooks and gate and stays Skill-invocable, but only the entry point it
 #: maps to is user-facing.
 EXPECTED_INTERNAL = {
-    "create-quality": "create-docs",
-    "create-operations": "create-docs",
-    "create-principles": "create-docs",
-    "create-standards": "create-docs",
     "create-project": "project",
     "standardize-project": "project",
 }
@@ -99,7 +95,7 @@ class TestPhasesRegistry(unittest.TestCase):
                 self.assertNotIn(leg, lib.registered_skills(self.phases))
 
     def test_entry_point_of_names_the_entry_point_or_none(self):
-        self.assertEqual(lib.entry_point_of("create-quality", self.phases), "create-docs")
+        self.assertEqual(lib.entry_point_of("create-project", self.phases), "project")
         self.assertEqual(lib.entry_point_of("standardize-project", self.phases), "project")
         self.assertIsNone(lib.entry_point_of("create-docs", self.phases))
         self.assertIsNone(lib.entry_point_of("not-a-skill", self.phases))
@@ -116,7 +112,7 @@ class TestPhasesRegistry(unittest.TestCase):
 
     def test_every_registry_name_has_a_skill_directory(self):
         """No exceptions: every phase entry, alias key and internal leg has its
-        own plugins/acs/skills/<dir> on disk."""
+        own src/acs/skills/<dir> on disk."""
         dirs = set(skill_dirs())
         missing = [n for n in self.names if n not in dirs]
         self.assertEqual(missing, [], "registered without a skills/<dir>: %s" % missing)
@@ -153,7 +149,7 @@ class TestPhasesRegistry(unittest.TestCase):
             with self.subTest(leg=leg):
                 self.assertEqual(lib.phase_of(leg, self.phases),
                                  lib.phase_of(entry, self.phases))
-        self.assertEqual(lib.phase_of("create-quality", self.phases), "design")
+        self.assertEqual(lib.phase_of("create-project", self.phases), "design")
         self.assertEqual(lib.phase_of("standardize-project", self.phases), "design")
 
     def test_no_internal_leg_is_ship_eligible(self):
@@ -166,7 +162,7 @@ class TestPhasesRegistry(unittest.TestCase):
     def test_registered_skills_excludes_aliases_and_internal_legs(self):
         self.assertNotIn("test", lib.registered_skills(self.phases))
         self.assertIn("run-e2e-tests", lib.registered_skills(self.phases))
-        self.assertNotIn("create-quality", lib.registered_skills(self.phases))
+        self.assertNotIn("create-project", lib.registered_skills(self.phases))
         self.assertIn("create-docs", lib.registered_skills(self.phases))
 
     def test_the_registry_validates_against_its_schema_with_jsonschema(self):
@@ -233,7 +229,7 @@ class TestLoadPhasesRefusals(unittest.TestCase):
         self.assertRefuses(self.BASE + "aliases:\n  a: b\n", 9, "also a registered skill")
 
     def test_an_internal_leg_without_a_skill_directory_is_refused(self):
-        """`zzz` has no plugins/acs/skills/zzz, so it cannot be a leg."""
+        """`zzz` has no src/acs/skills/zzz, so it cannot be a leg."""
         self.assertRefuses(self.BASE + "internal:\n  zzz: a\n", 9, "has no skills/zzz directory")
 
     def test_an_internal_leg_pointing_outside_the_phase_lists_is_refused(self):
@@ -304,7 +300,7 @@ class TestInternalMapIsDocumented(unittest.TestCase):
         registry = self.internals.split("### `workflows/phases.yaml`")[1]
         registry = registry.split("### `workflows/ship.yaml`")[0]
         self.assertIn("/acs:metrics", registry)
-        self.assertIn('phase_of("create-quality")', registry)
+        self.assertIn('phase_of("create-project")', registry)
         for leg in self.legs:
             with self.subTest(leg=leg):
                 self.assertEqual(lib.phase_of(leg), lib.phase_of(self.legs[leg]))
