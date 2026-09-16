@@ -94,6 +94,17 @@
           "set": "source/ref"
         },
         "value_format": "v{version}"
+      },
+      {
+        "file": ".claude-plugin/marketplace.json",
+        "selector": {
+          "pointer": "/plugins",
+          "match": {
+            "name": "acs"
+          },
+          "set": "source/path"
+        },
+        "value_format": "src/acs"
       }
     ],
     "changelog_path": "src/acs/CHANGELOG.md",
