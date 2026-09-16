@@ -178,6 +178,46 @@ skill run, does it finish, does it end clean — and thin on **quality**, where
 it currently judges one count and two baseline-relative medians. Every metric
 that would deepen the quality half is already being collected.
 
+## Per-skill results, and routing as a classification problem
+
+`make report REPORT_ARGS='--measurement results/measurements.json'` adds a
+per-skill section: one row per skill with its routing hits, its precision,
+recall and F1, and its pipeline scenario where it has one. Five of the 28
+skills carry a pipeline scenario; the rest are measured on routing alone, and
+the table says so rather than leaving a blank that reads as a pass.
+
+Routing is a multi-class classification problem, and the gate was only ever
+scoring one half of it. A probe asks which skill a prompt reaches: the truth
+is the expected skill, the prediction is `routed_to`. The hit rate the gate
+reads is **recall**. **Precision** is the half it cannot express — when a
+prompt for A is answered by B, A's probe fails and B is never named, so a
+description that has grown too broad appears only as its neighbours'
+failures. Precision names the skill that took them.
+
+Two rules the label space forces, both learned from the data:
+
+- **Only positive probes enter the matrix.** A negative probe asserts "must
+  not route to X", which is a constraint, not a class. Both of acs's negative
+  probes correctly route to `/acs:project`, the entry point that coordinates
+  the leg; folding that into the matrix scored 10 of 175 runs as errors when
+  every one was the desired outcome. Negatives and controls are reported
+  beside the matrix, scored by their own rule.
+- **Precision is undefined for a skill nothing routed to**, and is reported as
+  null rather than 1.0. Scoring it 1.0 rewards a skill nothing ever reaches.
+
+**These do not gate.** The suite's rule — every positive probe routes
+correctly on every run — is strictly stricter than any average: micro and
+macro both survive one skill failing outright, and a release rule that
+averages over skills is a release rule that ships a broken skill. Micro pools
+runs, so skills with more probes weigh more; macro averages skills, so one bad
+skill stays visible. Both belong in the report, and `thresholds.json` reads
+neither.
+
+On the 2026-09-15 measurement, over 150 runs and 28 labels, micro and macro
+precision, recall and F1 were all 1.000, with no off-diagonal confusions. On a
+clean build these metrics say nothing the hit rate did not. Their value is the
+run where something moves.
+
 ## Changing a metric
 
 Thresholds live in `thresholds.json` and nowhere else. Add or change one there

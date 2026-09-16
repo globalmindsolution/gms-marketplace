@@ -77,9 +77,12 @@ perf-test: ## Self-test the tier-3 comparator's decision rules
 	$(PYTHON) runner/test_verifier_catch_rate.py
 	$(PYTHON) runner/test_baseline_identity.py
 	$(PYTHON) runner/test_dataset_integrity.py
+	$(PYTHON) runner/test_routing_metrics.py
 
-report: ## Render report.md + report.html from the last run
-	$(PYTHON) runner/report.py --json $(JSON) --out $(REPORT)
+REPORT_ARGS ?=
+
+report: ## Render report.md + report.html from the last run (add REPORT_ARGS='--measurement results/measurements.json' for the per-skill section)
+	$(PYTHON) runner/report.py --json $(JSON) --out $(REPORT) $(REPORT_ARGS)
 
 fixture-selftest: ## Build the fixture app in a temp dir and run its own tests
 	$(PYTHON) runner/fixture_app.py selftest
@@ -153,6 +156,7 @@ verify-self: ## Byte-compile the runner, parse every dataset file, self-test the
 	$(PYTHON) runner/test_verifier_catch_rate.py
 	$(PYTHON) runner/test_baseline_identity.py
 	$(PYTHON) runner/test_dataset_integrity.py
+	$(PYTHON) runner/test_routing_metrics.py
 	@$(PYTHON) -c "import glob,json,sys; \
 	  [json.load(open(f)) for f in glob.glob('dataset/**/*.json', recursive=True)]; \
 	  print('dataset: all JSON parses')"
