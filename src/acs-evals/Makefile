@@ -126,7 +126,7 @@ generate: ## Re-render both generated trees (routing cases, schema constraint ca
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
-	$(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)
+	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)
 
 verifier-rates: ## Per-dimension verifier finding rates from an acs workspace (WORKSPACE=<workspace>/<repo_id>)
 	$(PYTHON) runner/verifier_rates.py --workspace $(WORKSPACE) --json results/verifier-rates.json

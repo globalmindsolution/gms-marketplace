@@ -249,7 +249,13 @@ when any case fails. It is slow (~15 s per mutant; 705 sites across eight
 site — and it lists each survivor for a human to read, because a survivor is a
 hole or an equivalent mutant and the tool cannot tell which. It replaces the
 hand-run spot check (6 of 7 decision-table mutations caught) that used to stand
-in for a number.
+in for a number. Like every other measuring target it honours
+`ACS_PLUGIN_ROOT`, which defaults to this checkout's `../acs`; it used to name
+no root at all, so `harness.resolve_build()` fell back to the INSTALLED build
+and the sweep silently measured whatever dev install happened to be in the
+plugin cache. On 2026-09-16 that was a stale `0.5.0-dev`, whose control run
+failed five lane cases and aborted the sweep — the dataset reporting a stale
+build correctly, from a target with no way to aim at source.
 
 Current: **14/40 killed (35%) on a 40-mutant sample** (seed 2026, acs 0.4.9,
 `reports/mutation-cli-acs-0.4.9.json`) — `verdict.py` 4/5 and `readiness.py`
