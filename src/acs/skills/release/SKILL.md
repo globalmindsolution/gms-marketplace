@@ -67,6 +67,17 @@ Mandatory first CLI call, every invocation, before any write:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" status --version <version> --repo-root <checkout_root> --release-config <release_config_json>
 ```
 
+**A non-zero exit is a STOP, never a fresh cut.** The command exits 2 with
+one JSON object on stderr (`{"command", "error"}`) when it cannot resolve the
+probe — most often because `gh` is absent from PATH, its auth has expired, or
+a managed session is refused the repo. Surface that `error` verbatim, add the
+canonical `acs_lib.gh_failure_hint()` hint when the stderr names a
+session-access restriction, and stop. Do NOT treat an unresolved probe as
+"no cut in flight": `open_pr` is this skill's entire re-run safety, and
+proceeding on a probe that never answered is how a second release PR gets
+opened for a version that already has one (ADR-0088's critical class — an
+unevaluable gate is never treated as passed).
+
 Parse the JSON (`manifests_at_target`, `changelog_section_dated`,
 `release_branch`, `open_pr`, `tag_exists` — resolved against the block's
 `version_locations`/`changelog_path`/`tag_format`/`release_branch_format`

@@ -10,8 +10,13 @@ instead of a live repo.
 
 import datetime
 import json
+import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from release_notes_config import ReleaseNotesError
 
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -78,17 +83,44 @@ def release_branch(repo_root, rendered_branch):
 
 
 def gh_pr_list(repo_root, rendered_branch):
-    """The single `gh` seam: resolve the open PR for `rendered_branch`, or None. Tests monkeypatch this."""
-    result = subprocess.run(
-        ["gh", "pr", "list", "--head", rendered_branch, "--state", "open", "--json", "number,url"],
-        cwd=repo_root, capture_output=True, text=True,
-    )
+    """The single `gh` seam: resolve the open PR for `rendered_branch`, or None. Tests monkeypatch this.
+
+    None means ASKED, AND THERE IS NO OPEN PR. A failure to ask at all -- gh
+    absent from PATH, expired auth, a 403 on a managed session, a rate limit,
+    output that is not JSON -- raises `ReleaseNotesError` instead, so `status`
+    exits 2 with gh's own words rather than printing `"open_pr": null`.
+
+    Collapsing the two was a fail-open idempotency gate. `open_pr` is the
+    whole of /acs:release's re-run safety (release/SKILL.md Step 2): read as
+    "no cut in flight", an unevaluable probe is exactly the state in which a
+    second release PR gets opened for a version that already has one. ADR-0088
+    classifies a gate-input read that could not be evaluated as CRITICAL for
+    that reason -- an unevaluable gate is never treated as passed -- and
+    `gh pr list` is named there among them.
+    """
+    argv = ["gh", "pr", "list", "--head", rendered_branch, "--state", "open",
+            "--json", "number,url"]
+    try:
+        result = subprocess.run(argv, cwd=repo_root, capture_output=True, text=True)
+    except OSError as exc:
+        raise ReleaseNotesError(
+            "cannot resolve whether a release PR is already open for %s: "
+            "`gh pr list` could not be run (%s). gh (the GitHub CLI) is acs's "
+            "only GitHub transport (ADR-0088); install and authenticate it "
+            "(gh auth login), or confirm by hand that no PR is open for that "
+            "branch before cutting." % (rendered_branch, exc))
     if result.returncode != 0:
-        return None
+        detail = (result.stderr or result.stdout or "").strip()
+        raise ReleaseNotesError(
+            "cannot resolve whether a release PR is already open for %s: "
+            "`gh pr list` exited %d%s"
+            % (rendered_branch, result.returncode, ": " + detail if detail else ""))
     try:
         data = json.loads(result.stdout)
     except ValueError:
-        return None
+        raise ReleaseNotesError(
+            "cannot resolve whether a release PR is already open for %s: "
+            "`gh pr list` returned output that is not JSON" % rendered_branch)
     if isinstance(data, list) and data:
         entry = data[0]
         if isinstance(entry, dict) and "number" in entry:

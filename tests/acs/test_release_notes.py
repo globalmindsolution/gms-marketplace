@@ -1262,5 +1262,81 @@ class NonAsciiPreservationTest(unittest.TestCase):
                                 "unexpected description/other churn: %r" % content)
 
 
+# ---------------------------------------------------------------------------
+# The idempotency probe fails CLOSED when the forge cannot be asked
+# ---------------------------------------------------------------------------
+
+class ForgeUnevaluableTest(unittest.TestCase):
+    """`open_pr` is the whole of /acs:release's re-run safety (release/SKILL.md
+    Step 2). Until this pinned it, every way of failing to ASK -- gh absent,
+    expired auth, a 403 on a managed session, a rate limit -- came back as
+    `"open_pr": null`, which reads as "no cut in flight" and opens a second
+    release PR for a version that already has one. ADR-0088 classifies a
+    gate-input read that could not be evaluated as critical for that reason."""
+
+    @staticmethod
+    def _only_gh(behaviour):
+        """Patch `gh` alone: every other shell-out (git) still really runs."""
+        git_module = importlib.import_module("release_notes_git")
+        real_run = subprocess.run
+
+        def dispatch(argv, *a, **kw):
+            if argv and argv[0] == "gh":
+                if isinstance(behaviour, BaseException):
+                    raise behaviour
+                return behaviour
+            return real_run(argv, *a, **kw)
+
+        return mock.patch.object(git_module.subprocess, "run", side_effect=dispatch)
+
+    def _status(self, behaviour):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            with self._only_gh(behaviour):
+                return run_cli(["status", "--version", "0.4.2", "--repo-root", root]
+                               + rc_args())
+
+    @staticmethod
+    def _gh(returncode, stdout="", stderr=""):
+        return subprocess.CompletedProcess(args=["gh"], returncode=returncode,
+                                           stdout=stdout, stderr=stderr)
+
+    def test_gh_missing_from_path_exits_2_and_never_claims_no_pr(self):
+        code, out, err = self._status(
+            OSError(2, "No such file or directory: 'gh'"))
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        payload = json.loads(err)
+        self.assertIn("could not be run", payload["error"])
+        self.assertIn("gh auth login", payload["error"])
+        self.assertNotIn("open_pr", err)
+
+    def test_a_failed_gh_call_carries_its_own_stderr(self):
+        code, _out, err = self._status(self._gh(
+            1, stderr="HTTP 403: GitHub access is not enabled for this session"))
+        self.assertEqual(code, 2)
+        self.assertIn("GitHub access is not enabled for this session",
+                      json.loads(err)["error"])
+
+    def test_output_that_is_not_json_is_unevaluable_too(self):
+        code, _out, err = self._status(self._gh(0, stdout="not json at all"))
+        self.assertEqual(code, 2)
+        self.assertIn("not JSON", json.loads(err)["error"])
+
+    def test_asked_and_there_is_no_pr_still_reports_null(self):
+        """The one case that legitimately means "no open PR": gh answered `[]`."""
+        code, out, err = self._status(self._gh(0, stdout="[]"))
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        self.assertIsNone(json.loads(out)["open_pr"])
+
+    def test_an_open_pr_is_still_reported(self):
+        code, out, _err = self._status(self._gh(
+            0, stdout='[{"number": 42, "url": "https://example/pull/42"}]'))
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["open_pr"],
+                         {"number": 42, "url": "https://example/pull/42"})
+
+
 if __name__ == "__main__":
     unittest.main()

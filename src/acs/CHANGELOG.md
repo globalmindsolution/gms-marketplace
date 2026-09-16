@@ -308,6 +308,23 @@ the notes.
   `tests/acs/test_skill_contracts.py` now fails if a skill named by any
   `Skill(acs:…)` call is made non-invocable again.
 
+- **`/acs:release`'s idempotency probe fails closed when the forge cannot be
+  asked.** `release_notes.py status` resolves `open_pr` through one
+  `gh pr list` seam, and that seam returned `None` for every outcome —
+  including `gh` missing from PATH, expired auth, a 403 on a managed session,
+  a rate limit, or output that is not JSON. `None` means "there is no open
+  PR", which is this skill's whole re-run safety (Step 2), so an unevaluable
+  probe read as "no cut in flight" and the next step opens a second release
+  PR for a version that already has one. Worse, a missing `gh` did not even
+  get that far: `subprocess.run` raised `FileNotFoundError` and the mandatory
+  first call of the skill ended in a Python traceback. The seam now raises,
+  `status` exits 2 with gh's own words in its JSON `error`, and the skill
+  stops instead of cutting. `None` is now reserved for the one case that
+  means it: gh answered, and the list was empty. This is ADR-0088's critical
+  class applied where the policy already put `gh pr list` — an unevaluable
+  gate is never treated as passed. **Migration:** none; a repo whose `gh`
+  works sees the same JSON as before.
+
 - **`validate_xml.py` accepts the `lens` attribute on `<result>`.**
   `acs-messages.xsd` has declared `lens` (`A`|`B`|`C`|`D`, naming which
   full-depth review lens a verify result belongs to) since the four-lens
