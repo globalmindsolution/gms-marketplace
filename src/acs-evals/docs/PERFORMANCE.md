@@ -495,8 +495,13 @@ reviewable rather than merely absent.
 
 ## Status and limitations
 
-**No measurement of acs has been taken yet.** `dataset/baselines/` is empty and
-the thresholds are provisional. The 2026-09-15 release gate reached 39 of 41
+**No full measurement of acs has been promoted yet.** `dataset/baselines/`
+holds one routing-scoped baseline, `acs-0.4.9-routing.json`, recorded under
+scenario set 1.5.0 — and the set is 1.15.0 now, so `perf_gate.py` refuses to
+compare against it rather than pretending, and every cost, time, iteration and
+coverage comparison still reports UNCOMPARED. The thresholds are provisional.
+
+The 2026-09-15 release gate reached 39 of 41
 records under scenario set 1.14.0 — every routing probe and control 5/5,
 PIPE-create-ticket, PIPE-code and PIPE-code-app 3/3 — before the finding
 above stopped it, with the seven-day usage window at 0.95 (it resets
