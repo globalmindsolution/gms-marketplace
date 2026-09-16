@@ -8,8 +8,8 @@ module scope.
 
 ``SOURCE_SCRIPTS``, ``installed_scripts_dir()``, and ``Sandbox`` are
 acs-scoped — they resolve the acs plugin build and drive the acs dispatch hook.
-Skills-only plugins (e.g. tabp) use their own per-plugin runner and never
-import this module.
+Skills-only plugins use their own per-plugin runner and never import this
+module.
 
 ``Check`` is plugin-agnostic and may be imported by any plugin's scenario
 runner, though skills-only plugins are free to reimplement it.

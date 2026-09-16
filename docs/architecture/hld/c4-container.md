@@ -10,12 +10,8 @@ C4Container
         Container(agents, "acs Subagents", "31 x agent .md (all reachable)", "Executor + verifier pair for the twelve authoring skills (create-prd/-architecture/-project/-design, create-requirements, standardize-project, docs-sync, analyze-ticket, create-impl-plan/-api-contract/-test-docs/-e2e-tests — 24 agents; no planner, ADR 0092); executor + verifier pairs for code and create-docs (ADR 0089, ADR 0094; 4 agents); the three apply-work skills (create-ticket/-pr/merge-pr) run inline with at most one executor, no verifier (3 agents — their plan/verify files were deleted under ADR 0092); grounding rules; XML I/O")
         Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 15 pre + 15 post hooks; skill-start, new-ticket, handoff, clarify, validate_xml, mermaid_lint, structure_lint, citation_check, prd_conformance_check, status lines; acs_lib")
         Container(schemas, "acs Schemas & templates", "JSON Schema / XSD / md", "9 state schemas, acs-messages.xsd, 6 description templates; templates/ci/ now includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
-        Container(tabp_skills, "tabp Skills", "2 x SKILL.md (screen-cvs, /tabp:usage)", "Screen-CV recruiting workflow; coordinator orchestrates parallel Sonnet-per-CV subagents + Opus synthesis via the coordinator+subagents convention; dispatched via Cowork or Claude Code")
-        Container(tabp_agents, "tabp Subagents", "3 x agent .md", "Three reusable tabp-namespaced agent charters under plugins/tabp/agents/: screen-cv-subagent (Sonnet, one per CV) + synthesis-subagent (Opus, once per run) + screen-verifier-subagent (Sonnet, independent verifier, always-on). Spawned by the screen-cvs coordinator. No foreign-namespace tokens.")
-        Container(tabp_helper, "tabp_helper.py", "Python 3.9+ stdlib only", "stdlib-only Python >= 3.9 helper; atomic .tabp/ writes, spin-lock, schema validation, run-history, usage aggregation (MAR-38); invoked via Bash; no acs import")
     }
     System_Ext(cc, "Claude Code runtime")
-    System_Ext(cowork, "Cowork runtime")
     ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/<ticket>/ partitions + repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); an explicit workspace_path override may point elsewhere")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
@@ -35,11 +31,6 @@ C4Container
     Rel(agents, repo, "executors edit source/docs on ticket branch")
     Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
-    Rel(tabp_skills, cowork, "screen-cvs skill dispatched via Cowork")
-    Rel(tabp_skills, cc, "screen-cvs / /tabp:usage dispatched via Claude Code")
-    Rel(tabp_skills, tabp_agents, "spawns screen-cv-subagent per CV + synthesis-subagent once per run")
-    Rel(tabp_skills, tabp_helper, "run-start / state-write / decision-write / run-finalize / run-status (Bash)")
-    Rel(tabp_helper, ws, ".tabp/ state: run.json, evidence, decision, history, lock")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")
     Rel(hooks, transcript, "usage_reader.py reads the run's exact recorded transcript_path + subagents/, read-only, never a constructed path (MAR-1)")
     Rel(cc, statusline_src, "pipes a JSON payload (model, workspace, session, cost) to statusline.py on every refresh")
@@ -49,9 +40,9 @@ C4Container
 Container responsibilities are deliberately asymmetric: **skills/agents decide,
 the hook layer records and gates** — no prose can unlock a gate, and no script
 makes a judgment call. The marketplace boundary holds heterogeneous plugin
-shapes: acs (full-shape) and tabp (skills + helper + schemas + subagent charters).
-Tooling containers (`tests/<plugin>/`, `src/acs-evals/behavioural/<plugin>/`) are developer/CI support
-and sit outside the runtime boundary.
+shapes (ADR 0021); acs (full-shape) is the one plugin published today.
+Tooling containers (`tests/<plugin>/`, `src/acs-evals/behavioural/<plugin>/`)
+are developer/CI support and sit outside the runtime boundary.
 
 **Transcript store and statusLine payload (MAR-1, ADR 0082).** Both new
 external data sources are read-only from the hook layer's side — the hook

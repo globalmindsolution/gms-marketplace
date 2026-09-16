@@ -45,7 +45,7 @@ repos:
         entry: env ACS_EVAL_SOURCE=1 python3 src/acs-evals/behavioural/run_evals.py --plugin acs
         language: system
         pass_filenames: false
-        files: ^(src/acs/|src/acs-evals/behavioural/|plugins/)
+        files: ^(src/acs/|src/acs-evals/behavioural/)
 
       # acs convention hooks — validate branch/commit against committed formats.*
       # (honour enforcement.checks.* toggles + exempt label/branches).

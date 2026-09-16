@@ -880,11 +880,16 @@ the committed delivery sequence.
   git history and in `prd.md`'s retired tabp feature stub; none of the
   remaining items carry forward as committed work.
 
-**Physical removal is a recommended follow-up delivery ticket** — deleting
-`plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry
-is explicitly **not** performed by this docs-only amendment; this roadmap and
-`prd.md` record the retirement, and the removal ticket is the next
-recommended step.
+**Physical removal — done (2026-09-16).** The follow-up delivery ticket this
+amendment recommended has been executed: `plugins/tabp/**`, the tabp
+behavioural eval subtree, `tests/tabp/`, the tabp `marketplace.json` entry,
+`docs/requirements/functional/tabp.md` and the two tabp LLD flow docs are
+deleted, and the tabp sections of `docs/architecture/hld/*` and
+`docs/architecture/lld/contracts.md` are removed. The active catalog is one
+plugin, `acs`. What deliberately stays: this roadmap's and `prd.md`'s tabp
+sections as the frozen historical record, and ADRs 0023-0027, re-statused
+**Superseded** — an ADR records what was decided and why at a point in time,
+and two of them justify divergences later decisions still refer to.
 
 ### acs M-future — Notion/remote-docs backend
 

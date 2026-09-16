@@ -53,10 +53,12 @@ BASELINE_FLOWS = {
     "hook-gated-skill-run.md",
     "ship-pipeline.md",
     "standardize-project.md",
-    "tabp-screening-state-write.md",
-    "tabp-usage-read.md",
     "ticket-lifecycle.md",
 }
+# tabp-screening-state-write.md and tabp-usage-read.md were in this baseline
+# until the tabp plugin was removed; a flow doc for a plugin the repo no
+# longer ships is not a flow. This guardrail is about accidental ADDITIONS,
+# so dropping a deliberately deleted file is the correct maintenance.
 # MAR-125 (E2E-1) legitimately added enforce-e2e-merge-gate.md — its OWN
 # binding design (MAR-124/design.md Flow 1) requires a new standing flow
 # file, unlike MAR-119's Flow 2 (a re-anchor, no new file). This guardrail

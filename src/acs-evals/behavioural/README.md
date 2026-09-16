@@ -36,15 +36,12 @@ src/acs-evals/behavioural/
 │       ├── s06_update_migration.py
 │       ├── s07_fanout_tracker_sync.py
 │       └── s08_create_pr_forge.py
-└── tabp/               # tabp behavioral eval subtree (MAR-32, live)
-    ├── __init__.py     # tabp package marker
-    ├── run_evals.py    # tabp runner
-    ├── scenarios/      # tabp scenario package
-    └── fixtures/       # tabp test fixtures
 ```
 
-Each plugin owns its eval subtree under `src/acs-evals/behavioural/<plugin>/`, containing at
-minimum a `run_evals.py` runner and a `scenarios/` package.
+Each plugin owns its eval subtree under `src/acs-evals/behavioural/<plugin>/`,
+containing at minimum a `run_evals.py` runner and a `scenarios/` package. `acs`
+is the only one today; the marketplace's other plugin, `tabp`, was removed, and
+its subtree went with it.
 
 ## Why it lives in `src/acs-evals/behavioural/`, not `tests/`
 
@@ -194,9 +191,9 @@ environment problem to fix and re-run, not a red release gate.
    `not sb.teardown_errors` after the `with` block. See
    [`src/acs-evals/behavioural/acs/README.md#driving-a-forge-tier-scenario`](acs/README.md#driving-a-forge-tier-scenario)
    for the full surface.
-4. For a skills-only plugin (e.g. tabp): inside `run()`, drive the skill
-   directly (no `Sandbox`); assert on the artifacts the skill produces. Return a
-   `Check` object with `ok/eq` assertions.
+4. For a skills-only plugin (no `.acs/`, no `hooks/scripts`): inside `run()`,
+   drive the skill directly (no `Sandbox`); assert on the artifacts the skill
+   produces. Return a `Check` object with `ok/eq` assertions.
 
 Assert on **artifacts**, never on prose: a scenario passes because the right
 JSON state exists with the right values, not because the model said the right
@@ -214,7 +211,9 @@ plugin owns its entire eval subtree under `src/acs-evals/behavioural/<plugin>/`.
 - `run_evals.py` — the acs runner. Performs tier selection, runs the scenario
   loop, and prints the "plugin build under test" banner.
 
-**Skills-only plugins** (e.g. tabp — no `.acs/`, no `hooks/scripts`):
+**Skills-only plugins** (no `.acs/`, no `hooks/scripts`) — none today, and the
+dispatcher's tolerance for them is pinned by a synthetic fixture in
+`tests/acs/test_run_evals_dispatch.py` rather than by a shipped plugin:
 - Provide their own `src/acs-evals/behavioural/<plugin>/run_evals.py` that imports only what they
   need — no `Sandbox`, no `installed_scripts_dir`. The thin dispatcher routes
   directly to their runner, so no acs cache resolution ever occurs.
@@ -266,9 +265,10 @@ scenario loop — it simply peels `--plugin` and delegates.
 - **MAR-33 (done)** — `harness.py` and `run_evals.py` relocated under
   `<tree>/acs/`; `<tree>/run_evals.py` rewritten as a thin dispatcher;
   per-plugin runner shape fully established.
-- **MAR-32 (done)** — `<tree>/tabp/` scaffold live on main (`run_evals.py`,
-  `scenarios/`, `fixtures/`, `__init__.py`); `screen-cvs` behavioral scenario
-  in place.
+- **MAR-32 (done, since removed)** — `<tree>/tabp/` scaffold with its
+  `screen-cvs` behavioral scenario. Deleted when the tabp plugin was removed
+  from the marketplace; recorded here because it is why the per-plugin seam
+  above exists.
 
   These three landed while the tree was the repo-root `evals/`, which is what
   `<tree>` reads as above; it is `src/acs-evals/behavioural/` today.

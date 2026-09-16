@@ -30,16 +30,13 @@ Two suites, one tree, because both grade the same plugin:
 | Directory | What it is | What runs it |
 |---|---|---|
 | `dataset/`, `runner/`, `reports/`, `results/` | the **golden dataset** and its runner — the release gate | `release.pre_release_gate` in `.acs/settings.json`, on a release cut |
-| [`behavioural/`](behavioural/README.md) | **behavioural scenarios** that spawn real `claude -p` sessions, per plugin (`behavioural/acs/`, `behavioural/tabp/`) | the `acs-free-evals` pre-commit hook on every commit (free tier); on demand for the paid tier |
+| [`behavioural/`](behavioural/README.md) | **behavioural scenarios** that spawn real `claude -p` sessions, per plugin (`behavioural/acs/`) | the `acs-free-evals` pre-commit hook on every commit (free tier); on demand for the paid tier |
 | `evals/` | the routing cases **generated** from `dataset/routing.json` for `claude plugin eval` | `make generate` / `make check` |
 
 `behavioural/` was the repo-root `evals/` tree until it was folded in here, so
 that the plugin's evaluation lives in one place rather than two. Note the name
 collision it had to avoid: `evals/` in this directory is generated output, not
 a suite anyone writes by hand.
-
-`behavioural/tabp/` grades the *other* marketplace plugin and sits here only
-because it shares the dispatcher; its plugin source is still `plugins/tabp`.
 
 ## How this differs from the plugin's own tests
 

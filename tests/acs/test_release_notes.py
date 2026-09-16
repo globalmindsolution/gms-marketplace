@@ -39,7 +39,7 @@ MARKETPLACE = {
     "version": "0.4.1",
     "plugins": [
         {"name": "acs", "source": {"source": "git-subdir", "ref": "v0.4.1"}},
-        {"name": "tabp", "source": {"source": "git-subdir"}},
+        {"name": "other", "source": {"source": "git-subdir"}},
     ],
 }
 PLUGIN = {"name": "acs", "version": "0.4.1"}
@@ -466,14 +466,14 @@ class ReleaseConfigValidationTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class NameMatchSelectorTest(unittest.TestCase):
-    def test_target_acs_leaves_tabp_byte_identical(self):
+    def test_target_acs_leaves_other_entries_byte_identical(self):
         with TemporaryDirectory() as tmp:
             marketplace = {
                 "name": "gms-marketplace",
                 "version": "0.4.1",
                 "plugins": [
                     {"name": "acs", "source": {"source": "git-subdir", "ref": "v0.4.1"}},
-                    {"name": "tabp"},  # no 'source' key at all
+                    {"name": "other"},  # no 'source' key at all
                 ],
             }
             root = make_repo(os.path.join(tmp, "repo"), marketplace=marketplace)
@@ -483,8 +483,8 @@ class NameMatchSelectorTest(unittest.TestCase):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
 
             market = json.loads(_read_text(os.path.join(root, ".claude-plugin", "marketplace.json")))
-            tabp_entry = next(p for p in market["plugins"] if p["name"] == "tabp")
-            self.assertEqual(tabp_entry, {"name": "tabp"})
+            other_entry = next(p for p in market["plugins"] if p["name"] == "other")
+            self.assertEqual(other_entry, {"name": "other"})
 
     def test_mismatched_name_target_with_no_source_key_exits_2_no_write(self):
         with TemporaryDirectory() as tmp:
@@ -493,7 +493,7 @@ class NameMatchSelectorTest(unittest.TestCase):
                 "version": "0.4.1",
                 "plugins": [
                     {"name": "acs", "source": {"source": "git-subdir", "ref": "v0.4.1"}},
-                    {"name": "tabp"},  # no 'source' key -> intermediate-segment-missing
+                    {"name": "other"},  # no 'source' key -> intermediate-segment-missing
                 ],
             }
             root = make_repo(os.path.join(tmp, "repo"), marketplace=marketplace)
@@ -503,7 +503,7 @@ class NameMatchSelectorTest(unittest.TestCase):
 
             bad_config = dict(PROFILE1_CONFIG, extra_refs=[
                 {"file": ".claude-plugin/marketplace.json",
-                 "selector": {"pointer": "/plugins", "match": {"name": "tabp"}, "set": "source/ref"},
+                 "selector": {"pointer": "/plugins", "match": {"name": "other"}, "set": "source/ref"},
                  "value_format": "v{version}"},
             ])
             with mock_gh(None):
@@ -571,7 +571,7 @@ class BumpAtomicityTest(unittest.TestCase):
                 marketplace={**MARKETPLACE, "version": "0.4.2",
                              "plugins": [{"name": "acs",
                                           "source": {"source": "git-subdir", "ref": "v0.4.2"}},
-                                         {"name": "tabp", "source": {"source": "git-subdir"}}]},
+                                         {"name": "other", "source": {"source": "git-subdir"}}]},
                 plugin={"name": "acs", "version": "0.4.2"},
             )
             workspace = os.path.join(tmp, "ws")
@@ -602,7 +602,7 @@ class BumpAtomicityTest(unittest.TestCase):
 
             self.assertEqual(_read_text(market_path), original)
 
-    def test_real_bump_sets_both_versions_ref_and_leaves_tabp_untouched(self):
+    def test_real_bump_sets_both_versions_ref_and_leaves_other_entries_untouched(self):
         with TemporaryDirectory() as tmp:
             root = make_repo(os.path.join(tmp, "repo"))
             workspace = os.path.join(tmp, "ws")
@@ -627,8 +627,8 @@ class BumpAtomicityTest(unittest.TestCase):
             self.assertEqual(plugin["version"], "0.4.2")
             acs_entry = next(p for p in market["plugins"] if p["name"] == "acs")
             self.assertEqual(acs_entry["source"]["ref"], "v0.4.2")
-            tabp_entry = next(p for p in market["plugins"] if p["name"] == "tabp")
-            self.assertNotIn("ref", tabp_entry["source"])
+            other_entry = next(p for p in market["plugins"] if p["name"] == "other")
+            self.assertNotIn("ref", other_entry["source"])
 
     def test_dry_run_reports_files_changed_without_writing(self):
         with TemporaryDirectory() as tmp:
@@ -673,7 +673,7 @@ class ProfileOneByteEqualRegressionTest(unittest.TestCase):
                 "version": "0.4.2",
                 "plugins": [
                     {"name": "acs", "source": {"source": "git-subdir", "ref": "v0.4.2"}},
-                    {"name": "tabp", "source": {"source": "git-subdir"}},
+                    {"name": "other", "source": {"source": "git-subdir"}},
                 ],
             }
             golden_plugin = {"name": "acs", "version": "0.4.2"}
@@ -1249,7 +1249,7 @@ class StatusSignalsTest(unittest.TestCase):
                 marketplace={**MARKETPLACE, "version": "0.4.2",
                              "plugins": [{"name": "acs",
                                           "source": {"source": "git-subdir", "ref": "v0.4.2"}},
-                                         {"name": "tabp", "source": {"source": "git-subdir"}}]},
+                                         {"name": "other", "source": {"source": "git-subdir"}}]},
                 plugin={"name": "acs", "version": "0.4.2"},
             )
             push_branch(root, "release/v0.4.2")
@@ -1295,9 +1295,9 @@ class NonDefaultFormatsTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class NonAsciiPreservationTest(unittest.TestCase):
-    """The real marketplace.json has literal em-dashes (U+2014) in the acs AND tabp
+    """The real marketplace.json has literal em-dashes (U+2014) in the acs AND other
     descriptions; a bump must NOT escape them to \\u2014 (which would churn the acs
-    line and MUTATE the 'left untouched' tabp block into the human-reviewed PR)."""
+    line and MUTATE the 'left untouched' other block into the human-reviewed PR)."""
 
     def test_bump_preserves_non_ascii_and_diff_is_minimal(self):
         import difflib
@@ -1312,9 +1312,9 @@ class NonAsciiPreservationTest(unittest.TestCase):
                     {"name": "acs",
                      "source": {"source": "git-subdir", "ref": "v0.4.1"},
                      "description": "Autonomous Coding Skills — an agentic workflow — PR, merge."},
-                    {"name": "tabp",
+                    {"name": "other",
                      "source": {"source": "git-subdir"},
-                     "description": "TABP toolkit — CV screening — fairness guardrails."},
+                     "description": "Other toolkit — a second entry — em-dashes and all."},
                 ],
             }
             market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
@@ -1336,8 +1336,8 @@ class NonAsciiPreservationTest(unittest.TestCase):
             self.assertIn("Autonomous Coding Skills — an agentic workflow — PR, merge.", after)
             self.assertNotIn("\\u2014", after)
 
-            # (b) the tabp description line is byte-identical to before the bump.
-            self.assertIn("TABP toolkit — CV screening — fairness guardrails.", after)
+            # (b) the other description line is byte-identical to before the bump.
+            self.assertIn("Other toolkit — a second entry — em-dashes and all.", after)
 
             # (c) the ONLY changed lines vs the pre-bump file are the version + acs source.ref.
             diff = [ln for ln in difflib.ndiff(before.splitlines(), after.splitlines())

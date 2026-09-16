@@ -31,11 +31,11 @@ context and consequences.
 | [0020](0020-ticket-due-date-and-deadline-panel.md) | Deadlines sourced from a `due_date` ticket field (not the GitHub tracker, not deferred) | Accepted |
 | [0021](0021-heterogeneous-plugin-contract-via-directory-convention-shapes.md) | Heterogeneous plugin contract via directory-convention shapes | Accepted |
 | [0022](0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md) | Behavioral evals are local-only; CI runs no LLM calls | Accepted |
-| [0023](0023-tabp-hybrid-quality-mechanism-instruction-driven-plus-stdlib-helper.md) | tabp quality-mechanism: hybrid instruction-driven orchestration plus tabp-namespaced stdlib-Python helper (deliberate divergence from ADR 0001 hook-gated model) | Accepted |
-| [0024](0024-tabp-state-in-cowork-project-folder.md) | tabp state in the Cowork project folder (deliberate divergence from ADR 0003 outside-repo rule) | Accepted |
-| [0025](0025-tabp-independent-verifier-subagent.md) | tabp independent verifier: inline-artifact input contract and bounded (N=3) remediate-and-re-verify loop | Accepted |
-| [0026](0026-tabp-hybrid-cost-sourcing.md) | tabp hybrid cost sourcing: transcript-actuals plus settings-configurable dated-snapshot pricing | Accepted |
-| [0027](0027-tabp-dual-runtime-detection.md) | tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback (cwd-as-project-dir on Claude Code) | Accepted |
+| [0023](0023-tabp-hybrid-quality-mechanism-instruction-driven-plus-stdlib-helper.md) | tabp quality-mechanism: hybrid instruction-driven orchestration plus tabp-namespaced stdlib-Python helper (deliberate divergence from ADR 0001 hook-gated model) | Superseded |
+| [0024](0024-tabp-state-in-cowork-project-folder.md) | tabp state in the Cowork project folder (deliberate divergence from ADR 0003 outside-repo rule) | Superseded |
+| [0025](0025-tabp-independent-verifier-subagent.md) | tabp independent verifier: inline-artifact input contract and bounded (N=3) remediate-and-re-verify loop | Superseded |
+| [0026](0026-tabp-hybrid-cost-sourcing.md) | tabp hybrid cost sourcing: transcript-actuals plus settings-configurable dated-snapshot pricing | Superseded |
+| [0027](0027-tabp-dual-runtime-detection.md) | tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback (cwd-as-project-dir on Claude Code) | Superseded |
 | [0028](0028-merge-pr-agent-invocable.md) | merge-pr is agent/model-invocable; readiness gate + m6 require-APPROVED-for-all | Accepted |
 | [0029](0029-merge-pr-auto-update-behind-branch.md) | merge-pr auto-updates a BEHIND branch then merges in the same run | Accepted |
 | [0030](0030-four-lane-hybrid-routing-from-size-stakes-axes.md) | Adopt four-lane hybrid routing (TRIVIAL/SMALL/STANDARD/COMPLEX) from size x stakes axes | Accepted |
@@ -104,3 +104,10 @@ context and consequences.
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.
+
+**ADRs 0023-0027 (tabp).** These five record decisions for the `tabp` plugin,
+which was retired by the MAR-97 PRD amendment and removed from the repository.
+They are kept, and re-statused **Superseded**, because an ADR records what was
+decided and why at a point in time — deleting them would erase the reasoning
+behind divergences they justified from ADR 0001 (hook-gated model) and ADR 0003
+(state outside the repo), which later decisions still refer to.

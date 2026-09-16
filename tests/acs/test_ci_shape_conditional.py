@@ -42,7 +42,7 @@ PRECOMMIT_YAML = os.path.join(REPO_ROOT, ".pre-commit-config.yaml")
 
 #: The acs-free-evals `files:` glob, in one place so the assertion below and any
 #: future move both read the same string.
-PRECOMMIT_EVAL_GLOB = "^(src/acs/|src/acs-evals/behavioural/|plugins/)"
+PRECOMMIT_EVAL_GLOB = "^(src/acs/|src/acs-evals/behavioural/)"
 
 
 # ---------------------------------------------------------------------------
@@ -560,11 +560,11 @@ class TestSettingsStep(_CIShapeBase):
 
         Scenario: two plugins —
           - "acs" has settings.schema.json (open schema) AND .acs/settings.json
-          - "tabp" has settings.schema.json (additionalProperties:false) but NO
-            .tabp/settings.json
+          - "demo" has settings.schema.json (additionalProperties:false) but NO
+            .demo/settings.json
 
         The step must validate .acs/settings.json against acs's schema (pass),
-        skip tabp's target (absent), and exit 0. It must NOT apply tabp's
+        skip demo's target (absent), and exit 0. It must NOT apply demo's
         additionalProperties:false schema to .acs/settings.json.
         """
         import json as _json
@@ -594,28 +594,28 @@ class TestSettingsStep(_CIShapeBase):
             }),
         )
 
-        # Plugin "tabp": strict schema (additionalProperties:false) but NO .tabp/settings.json
-        tabp_dir = os.path.join(tmp, "plugins", "tabp")
+        # Plugin "demo": strict schema (additionalProperties:false) but NO .demo/settings.json
+        demo_dir = os.path.join(tmp, "plugins", "demo")
         _write_file(
-            os.path.join(tabp_dir, ".claude-plugin", "plugin.json"),
-            _json.dumps({"name": "tabp", "version": "0.1.0"}),
+            os.path.join(demo_dir, ".claude-plugin", "plugin.json"),
+            _json.dumps({"name": "demo", "version": "0.1.0"}),
         )
         _write_file(
-            os.path.join(tabp_dir, "schemas", "settings.schema.json"),
+            os.path.join(demo_dir, "schemas", "settings.schema.json"),
             _json.dumps({
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                    "screening_model": {"type": "string"},
+                    "demo_model": {"type": "string"},
                 },
                 "additionalProperties": False,
             }),
         )
-        # NO .tabp/settings.json created -> step must skip it
+        # NO .demo/settings.json created -> step must skip it
 
         _write_marketplace(tmp, [
             {"name": "acs", "source": "src/acs"},
-            {"name": "tabp", "source": "plugins/tabp"},
+            {"name": "demo", "source": "plugins/demo"},
         ])
 
         result = self._run_py(self.settings_py, tmp)
@@ -856,12 +856,14 @@ class TestCIStructural(unittest.TestCase):
         whose change the free evals are supposed to catch (AC-7).
 
         The hook runs the gate + SessionEnd smoke against the source being
-        committed, so the glob has to name that source. Two moves have
-        invalidated it in place, each time silently: `plugins/acs` -> `src/acs`
-        left the glob matching only tabp under `plugins/`, and `evals/` ->
+        committed, so the glob has to name that source. Two moves invalidated
+        it in place, each time silently: `plugins/acs` -> `src/acs` left the
+        glob matching only tabp under `plugins/`, and `evals/` ->
         `src/acs-evals/behavioural/` would have left the harness itself
         unguarded. Neither failed anything -- the hook simply stopped firing --
         which is why this asserts the whole glob rather than one alternative.
+        `plugins/` is gone from the glob with tabp, which was its last
+        occupant.
         """
         with open(PRECOMMIT_YAML, encoding="utf-8") as fh:
             content = fh.read()
@@ -870,7 +872,7 @@ class TestCIStructural(unittest.TestCase):
             content,
             "acs-free-evals files: glob must be %r" % PRECOMMIT_EVAL_GLOB,
         )
-        for tree in ("src/acs/", "src/acs-evals/behavioural/", "plugins/"):
+        for tree in ("src/acs/", "src/acs-evals/behavioural/"):
             self.assertIn(tree, PRECOMMIT_EVAL_GLOB,
                           "the glob must name %s" % tree)
         # The pre-move globs must be gone, not merely shadowed.

@@ -27,10 +27,10 @@ deterministic at the base, most expensive and least deterministic at the top.
 Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
 `acs-free-evals` pre-commit hook). Layers 5–6 are the paid tier, measured per
 release in **[acs-evals](../../src/acs-evals/README.md)**, which lives in this
-repo at `src/acs-evals/` and is a different suite from the root
-[`src/acs-evals/behavioural/` harness](../../src/acs-evals/behavioural/README.md) — the latter is kept as an on-demand
-tool for the forge-tier scenarios. Layer 7 is a *runtime
-control*, not a test.
+repo at `src/acs-evals/`. It is a different suite from the
+[behavioural harness](../../src/acs-evals/behavioural/README.md) that now sits
+beside it under the same directory — the latter is kept as an on-demand tool
+for the forge-tier scenarios. Layer 7 is a *runtime control*, not a test.
 
 ## Coverage today (per skill)
 

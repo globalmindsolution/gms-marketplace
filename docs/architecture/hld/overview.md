@@ -1,16 +1,17 @@
 # HLD — Overview
 
 > Living architecture doc set for the **GMS Marketplace** — a curated plugin
-> catalog hosting heterogeneous plugins for Claude Code and Cowork (dogfooding:
-> this repo is itself a consumer of acs, one of the marketplace plugins).
+> catalog for Claude Code (dogfooding: this repo is itself a consumer of acs,
+> the marketplace's plugin).
 > Bootstrapped from the implemented system; kept current by the pipeline per
 > the living-architecture rules in `docs/requirements/functional/workflow.md`. All
 > diagrams are Mermaid.
 
 ## System context
 
-The GMS Marketplace is a curated plugin catalog that hosts heterogeneous
-plugins distributed from this repository. Plugins differ in shape:
+The GMS Marketplace is a curated plugin catalog distributed from this
+repository. It is built to host plugins of differing shapes (ADR 0021); one
+is published today:
 
 - **acs** (full-shape: `.acs/`, schemas, hooks, agents, skills) — targets
   **Claude Code**; drives an agentic software-delivery workflow on any
@@ -18,10 +19,6 @@ plugins distributed from this repository. Plugins differ in shape:
   **`.acs/state-machine/` folder inside that repo**, anchored to the repo's
   main checkout so every linked worktree resolves to the same on-disk state
   (an explicit `workspace_path` override may still point anywhere; ADR-0086).
-- **tabp** (fuller shape: `skills/` + `helpers/` + `schemas/` + `agents/` + `.tabp/` state) — targets
-  **Cowork**; provides a screen-CVs recruiting workflow where a coordinator
-  fans out Sonnet-per-CV subagents and an Opus synthesis subagent, persisting
-  all run state in the project folder's `.tabp/` directory.
 
 ## Quality attributes (drive the design)
 

@@ -765,10 +765,10 @@ feature and are not carried forward as acs or marketplace work.
 
 **Git-history pointer:** the full pre-retirement feature text (Must/Should/
 Won't-have bullets, the namespace rule, and the engineering-rigor NFR) is
-preserved in this file's git history as of the MAR-97 amendment commit, and in
-`plugins/tabp/` on disk pending its physical-removal follow-up ticket (see the
-MAR-97 Reversal note in Out of scope; **docs_only** — this amendment does not
-remove `plugins/tabp/**`).
+preserved in this file's git history as of the MAR-97 amendment commit. The
+plugin itself was deleted from disk on 2026-09-16 (see the MAR-97 Reversal note
+in Out of scope), so `plugins/tabp/` is git history too — as are ADRs 0023-0027,
+which remain in the tree, re-statused **Superseded**.
 
 ## Product-level NFRs
 
@@ -876,11 +876,12 @@ testing, model training pipelines, registry distribution beyond the GitHub URL.
 Per-plugin separate PRDs and per-plugin acs configuration are out of scope — this
 single `prd.md` covers the GMS Marketplace product and all its plugin features. The
 MAR-17 restructure (separate per-plugin PRDs) was abandoned. **tabp is now retired**
-(see the MAR-97 Reversal note below); its physical removal — deleting
+(see the MAR-97 Reversal note below), and its physical removal — deleting
 `plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry, plus
-any tabp-coupled CI version logic — is a **recommended follow-up delivery ticket**,
-explicitly **not** performed by this docs-only amendment (this PRD and the roadmap
-record the retirement; the removal is out of scope here).
+any tabp-coupled CI version logic — was carried out on **2026-09-16** by the
+follow-up delivery ticket this PRD recommended. There was no tabp-coupled CI
+version logic left to remove. This PRD and the roadmap keep their tabp sections as
+the frozen historical record.
 
 Automatic wholesale repository restructuring is out of scope. Brownfield
 standardization (`/acs:standardize-project`) is additive-only by constraint
@@ -1002,10 +1003,13 @@ recorded across this PRD:
   (no longer counting tabp as a passing catalog plugin) — it remains the path
   by which future plugins, including a possible reintroduction of a
   screening-adjacent capability, would join the catalog.
-- **Physical removal is a recommended follow-up ticket, not this PR.** This
-  amendment changes only `docs/product/prd.md` and `docs/product/roadmap.md`;
-  `plugins/tabp/**`, the tabp eval suite, and the tabp `marketplace.json` entry
-  remain on disk pending that follow-up ticket.
+- **Physical removal — done (2026-09-16).** The MAR-97 amendment itself changed
+  only `docs/product/prd.md` and `docs/product/roadmap.md`; the follow-up ticket
+  it recommended has since deleted `plugins/tabp/**`, the tabp behavioural eval
+  subtree, `tests/tabp/`, the tabp `marketplace.json` entry,
+  `docs/requirements/functional/tabp.md` and the two tabp LLD flow docs, and
+  stripped tabp from the HLD/LLD architecture docs. ADRs 0023-0027 stay,
+  re-statused **Superseded**.
 - **MAR-94 / PR #182 re-scope flag — resolved.** MAR-94 (PR #182) landed
   **acs-only** (merged as `62b4c99`, "Amend PRD: full evaluation coverage for
   plugins"): its acs-behavioral eval-coverage half shipped as **G31/G32/C-17**
