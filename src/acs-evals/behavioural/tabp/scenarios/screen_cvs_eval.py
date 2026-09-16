@@ -5,7 +5,7 @@ This scenario is LIVE-GATED: it executes only when the developer passes
 and makes NO model call.
 
 How to run locally (requires the full Cowork runtime):
-    python3 evals/run_evals.py --plugin tabp --paid
+    python3 src/acs-evals/behavioural/run_evals.py --plugin tabp --paid
 
 What it asserts (per design lines 377-389 and scoring-rubric.md):
     1. score in [0, 100]  (integer, weighted formula from Step 3)
@@ -45,13 +45,16 @@ META = {
 # Paths (computed at module scope — stdlib only, no I/O)
 # ---------------------------------------------------------------------------
 _SCENARIO_DIR = os.path.dirname(os.path.abspath(__file__))
-_TABP_DIR = os.path.dirname(_SCENARIO_DIR)   # evals/tabp/
+_TABP_DIR = os.path.dirname(_SCENARIO_DIR)   # src/acs-evals/behavioural/tabp/
 _FIXTURES_DIR = os.path.join(_TABP_DIR, "fixtures")
 _CV_FIXTURE = os.path.join(_FIXTURES_DIR, "cv_synthetic.md")
 _JD_FIXTURE = os.path.join(_FIXTURES_DIR, "jd_synthetic.md")
 
 # Locate the screen-cvs skill definition (runtime read-only, not imported)
-_REPO_ROOT = os.path.dirname(os.path.dirname(_TABP_DIR))  # repo root
+# dirname x4 up from src/acs-evals/behavioural/tabp/ — the count is this
+# subtree's depth, so it moved with the tree (it was x2 at evals/tabp/).
+_REPO_ROOT = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.dirname(_TABP_DIR))))
 _SKILL_MD = os.path.join(
     _REPO_ROOT, "plugins", "tabp", "skills", "screen-cvs", "SKILL.md"
 )
@@ -64,12 +67,12 @@ _SKILL_MD = os.path.join(
 def run():
     """Execute the screen-cvs behavioral eval against the synthetic fixtures.
 
-    Returns a Check instance (imported from evals/acs/harness.py inside this
+    Returns a Check instance (imported from src/acs-evals/behavioural/acs/harness.py inside this
     function so the acs harness is never a module-scope dependency of the tabp
     eval).
 
     This function is called only when --paid is passed to
-    evals/tabp/run_evals.py.  It requires the full Cowork model runtime and
+    src/acs-evals/behavioural/tabp/run_evals.py.  It requires the full Cowork model runtime and
     openpyxl to be installed.
     """
     # Defer all non-stdlib imports to inside run() so the module stays
@@ -79,9 +82,9 @@ def run():
     import json
     import tempfile
 
-    # Reuse harness.Check from evals/acs/ (insert its dir on sys.path only
+    # Reuse harness.Check from src/acs-evals/behavioural/acs/ (insert its dir on sys.path only
     # inside run(); the acs harness must NOT be a module-scope dependency).
-    _acs_dir = os.path.join(_REPO_ROOT, "evals", "acs")
+    _acs_dir = os.path.join(_REPO_ROOT, "src", "acs-evals", "behavioural", "acs")
     if _acs_dir not in _sys.path:
         _sys.path.insert(0, _acs_dir)
     from harness import Check  # noqa: PLC0415 (intentional deferred import)

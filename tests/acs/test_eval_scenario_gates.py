@@ -24,7 +24,7 @@ from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
 from scenarios import s03_resume_and_verify as s03  # noqa: E402
 
 BLOCKED_ON_VERIFIER = (

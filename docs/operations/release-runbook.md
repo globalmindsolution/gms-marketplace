@@ -36,7 +36,7 @@ the step-by-step the maintainer follows.
    `make perf` reports, before continuing — do not tag on red, and do not
    cut past the gate: `/acs:release` will not. (The free in-repo smoke already ran on every commit via
    pre-commit. The in-repo paid suite,
-   `python3 evals/run_evals.py --plugin acs --paid`, is an on-demand tool kept
+   `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, is an on-demand tool kept
    for the forge-tier scenarios, not the gate.) When you do run that on-demand
    suite, note that it can exit non-zero with **no** failing scenario, printing
    `PRE-FLIGHT FAILED — the sandbox cannot see the plugin` and

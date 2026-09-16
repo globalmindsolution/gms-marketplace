@@ -1,7 +1,7 @@
-"""Dispatch and gating tests for the evals/tabp behavioral eval subtree.
+"""Dispatch and gating tests for the src/acs-evals/behavioural/tabp behavioral eval subtree.
 
-Tests the routing of ``python3 evals/run_evals.py --plugin tabp`` to
-``evals/tabp/run_evals.py``, the tier gate (default no --paid = no model call),
+Tests the routing of ``python3 src/acs-evals/behavioural/run_evals.py --plugin tabp`` to
+``src/acs-evals/behavioural/tabp/run_evals.py``, the tier gate (default no --paid = no model call),
 the --list output, the acs regression (5 scenarios still listed), the
 import-clean constraint (no module-scope openpyxl), the fixture presence and
 synthetic-data assertions, and the pre-commit exclusion.
@@ -19,8 +19,12 @@ import unittest
 # REPO_ROOT: dirname x3 from tests/tabp/test_tabp_dispatch.py
 # tests/tabp/test_tabp_dispatch.py -> tests/tabp/ -> tests/ -> repo root
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RUN_EVALS = os.path.join(REPO_ROOT, "evals", "run_evals.py")
-FIXTURES_DIR = os.path.join(REPO_ROOT, "evals", "tabp", "fixtures")
+RUN_EVALS = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "run_evals.py")
+FIXTURES_DIR = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "tabp", "fixtures")
+#: The tree root the per-plugin subtrees hang off, and the one sys.path entry
+#: that makes `tabp.scenarios...` importable — `src/acs-evals` cannot be a
+#: package name, so the old `evals.tabp` spelling has no equivalent here.
+BEHAVIOURAL = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural")
 
 _ENV = {"ACS_EVAL_SOURCE": "1", **os.environ}
 
@@ -49,7 +53,7 @@ class TabpDispatchTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_plugin_tabp_list_exits_zero(self):
-        """python3 evals/run_evals.py --plugin tabp --list must exit 0."""
+        """python3 src/acs-evals/behavioural/run_evals.py --plugin tabp --list must exit 0."""
         result = _run(sys.executable, RUN_EVALS, "--plugin", "tabp", "--list")
         self.assertEqual(
             result.returncode, 0,
@@ -102,29 +106,31 @@ class TabpDispatchTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_tabp_import_clean(self):
-        """Importing evals.tabp.scenarios.screen_cvs_eval must not raise.
+        """Importing tabp.scenarios.screen_cvs_eval must not raise.
 
         Proves no module-scope openpyxl / Cowork import exists (openpyxl is
         absent in this stdlib-only repo; a module-scope import would raise
         ModuleNotFoundError immediately).
 
-        The subprocess runs with cwd=REPO_ROOT so sys.path.insert(0, os.getcwd())
-        resolves the repo root, making ``evals.tabp`` importable as a package.
+        The subprocess puts the behavioural tree root on sys.path and imports
+        `tabp.…` from there, which is how `run_evals.py` itself resolves the
+        subtree. It used to insert the repo root and import `evals.tabp`; that
+        spelling died with the fold into `src/acs-evals/`, whose directory name
+        is not a legal Python identifier.
         """
-        # Use os.getcwd() inside the -c script — __file__ is undefined in -c mode.
         result = _run(
             sys.executable,
             "-c",
             (
-                "import sys, os; sys.path.insert(0, os.getcwd()); "
-                "import evals.tabp; "
-                "import evals.tabp.scenarios; "
-                "import evals.tabp.scenarios.screen_cvs_eval"
+                "import sys; sys.path.insert(0, %r); "
+                "import tabp; "
+                "import tabp.scenarios; "
+                "import tabp.scenarios.screen_cvs_eval" % BEHAVIOURAL
             ),
         )
         self.assertEqual(
             result.returncode, 0,
-            "Importing evals.tabp modules raised an error — likely a module-scope "
+            "Importing the tabp modules raised an error — likely a module-scope "
             "openpyxl or missing-module import.\nstdout: %s\nstderr: %s"
             % (result.stdout, result.stderr),
         )
@@ -134,7 +140,7 @@ class TabpDispatchTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_tabp_default_no_model_call(self):
-        """python3 evals/run_evals.py --plugin tabp (no --paid) must exit 0.
+        """python3 src/acs-evals/behavioural/run_evals.py --plugin tabp (no --paid) must exit 0.
 
         The default free-tier run must not invoke any model and must print the
         'no scenarios selected' message (the paid gate applies to screen_cvs_eval
@@ -168,7 +174,7 @@ class TabpDispatchTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_tabp_fixtures_exist(self):
-        """Both synthetic fixture files must exist under evals/tabp/fixtures/."""
+        """Both synthetic fixture files must exist under src/acs-evals/behavioural/tabp/fixtures/."""
         cv_path = os.path.join(FIXTURES_DIR, "cv_synthetic.md")
         jd_path = os.path.join(FIXTURES_DIR, "jd_synthetic.md")
         self.assertTrue(

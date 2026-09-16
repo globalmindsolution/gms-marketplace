@@ -82,7 +82,7 @@ when the entry declares one) against the plugin's own `plugin.json`.
 
 **Before cutting a release** (before bumping `version`), run the pre-release
 quality gate — **[acs-evals](src/acs-evals/README.md)** at
-[`src/acs-evals/`](src/acs-evals/), not this repo's root `evals/` suite. Point
+[`src/acs-evals/`](src/acs-evals/), not this repo's root `src/acs-evals/behavioural/` suite. Point
 it at the release candidate (`ACS_PLUGIN_ROOT` at the sibling plugin source)
 and run:
 
@@ -101,12 +101,12 @@ source is ahead of the last release.
 Treat a clean `make eval-source` as the gate; investigate any failing case, and
 any regression `make measure` / `make perf` reports, before tagging — the
 step-by-step is the [release runbook](docs/operations/release-runbook.md). The
-in-repo **paid** tier (`python3 evals/run_evals.py --plugin acs --paid`, which
+in-repo **paid** tier (`python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, which
 spawns real `claude -p` sessions and needs an authenticated claude CLI) is an
 **on-demand tool** kept for the forge-tier scenarios — not a gate on any ticket,
 PR or release. The free tier alone (gate + cleanup smoke) already runs on every
 commit via the `acs-free-evals` pre-commit hook — see
-[evals/README.md](evals/README.md).
+[src/acs-evals/behavioural/README.md](src/acs-evals/behavioural/README.md).
 
 - **Pinned consumers** (recommended) never receive an update without an
   explicit re-pin: upgrade by re-pinning `ref` to a newer `v<version>` tag,
@@ -159,8 +159,8 @@ The marketplace currently ships two plugins:
 |------|------------------|
 | [`src/acs/`](src/acs/README.md), [`plugins/tabp/`](plugins/tabp/README.md) | The shipped plugins. `marketplace.json` resolves `acs` from `src/acs` at the pinned release tag. |
 | [`tests/`](tests/) | Deterministic unit + contract suites for the plugins (`python3 -m unittest discover -s tests`). |
-| [`evals/`](evals/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. |
-| [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` with its history. |
+| [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` (squash-merged; see below). |
+| [`src/acs-evals/behavioural/`](src/acs-evals/behavioural/README.md) | Behavioural scenarios that spawn real `claude -p` sessions, per plugin. Free tier gates every commit; paid tier is on demand. Was the repo-root `evals/` tree. |
 | [`docs/`](docs/README.md) | Product, requirements, architecture, ADRs, quality and operations docs for this repo. |
 | [`.acs/`](.acs/) | This repo's own acs configuration, CI convention gate, and run ledger. |
 

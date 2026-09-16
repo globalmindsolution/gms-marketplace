@@ -23,7 +23,7 @@ C4Container
     System_Ext(statusline_src, "statusLine cost payload", "Opt-in Claude Code stdin feed to statusline.py — a shape-agnostic total_cost_usd figure, sampled and persisted into the workspace store, never read back from Claude Code directly (MAR-1)")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
-    Container(evals_plugin, "evals/<plugin>/", "Python, run_evals.py", "Per-plugin behavioral evals; run locally only, NOT in CI")
+    Container(evals_plugin, "src/acs-evals/behavioural/<plugin>/", "Python, run_evals.py", "Per-plugin behavioral evals; run locally only, NOT in CI")
 
     Rel(dev, cc, "/acs:*")
     Rel(cc, skills, "expands skill, runs coordinator")
@@ -50,7 +50,7 @@ Container responsibilities are deliberately asymmetric: **skills/agents decide,
 the hook layer records and gates** — no prose can unlock a gate, and no script
 makes a judgment call. The marketplace boundary holds heterogeneous plugin
 shapes: acs (full-shape) and tabp (skills + helper + schemas + subagent charters).
-Tooling containers (`tests/<plugin>/`, `evals/<plugin>/`) are developer/CI support
+Tooling containers (`tests/<plugin>/`, `src/acs-evals/behavioural/<plugin>/`) are developer/CI support
 and sit outside the runtime boundary.
 
 **Transcript store and statusLine payload (MAR-1, ADR 0082).** Both new

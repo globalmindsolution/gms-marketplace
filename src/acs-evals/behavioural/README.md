@@ -5,20 +5,25 @@ deterministic smoke tests) that invoke plugin skills end to end and assert on
 the **artifacts** they produce — never on the model's prose. This is the
 regression net that makes dogfooding (E3) safe.
 
+This tree was the repo-root `evals/` until it was folded into
+[`src/acs-evals/`](../README.md), so that the plugin's evaluation lives in one
+place. Every path below is repo-root-relative and reads as it does today; the
+git history before the fold uses the old `evals/`-rooted paths.
+
 This is the machine version of the [M2-0 validation
-spike](../docs/product/spikes/m2-0-validation-spike.md), which proved the same
-behaviors once, by hand. See the [roadmap](../docs/product/roadmap.md#epic-e1--behavioral-eval-harness-m2-backbone)
+spike](../../../docs/product/spikes/m2-0-validation-spike.md), which proved the same
+behaviors once, by hand. See the [roadmap](../../../docs/product/roadmap.md#epic-e1--behavioral-eval-harness-m2-backbone)
 for E1.1–E1.4.
 
 ## Directory layout
 
 ```
-evals/
-├── run_evals.py        # THIN dispatcher: parses --plugin, delegates to evals/<plugin>/run_evals.py
+src/acs-evals/behavioural/
+├── run_evals.py        # THIN dispatcher: parses --plugin, delegates to src/acs-evals/behavioural/<plugin>/run_evals.py
 ├── README.md
 ├── acs/                # acs behavioral eval subtree
 │   ├── __init__.py     # acs package marker
-│   ├── harness.py      # acs Sandbox + Check (acs-specific; relocated from evals/ root — MAR-33)
+│   ├── harness.py      # acs Sandbox + Check (acs-specific; relocated from the tree root — MAR-33)
 │   ├── run_evals.py    # acs runner: tier selection, scenario loop, banner (MAR-33)
 │   ├── README.md       # acs eval subtree docs
 │   └── scenarios/
@@ -38,10 +43,10 @@ evals/
     └── fixtures/       # tabp test fixtures
 ```
 
-Each plugin owns its eval subtree under `evals/<plugin>/`, containing at
+Each plugin owns its eval subtree under `src/acs-evals/behavioural/<plugin>/`, containing at
 minimum a `run_evals.py` runner and a `scenarios/` package.
 
-## Why it lives in `evals/`, not `tests/`
+## Why it lives in `src/acs-evals/behavioural/`, not `tests/`
 
 PR CI runs `python3 -m unittest discover -s tests`. Those tests cover the
 **deterministic** layer (hooks, gates, state) by driving the Python scripts
@@ -56,11 +61,11 @@ locally on commit and in the *Pre-commit hooks* CI job — with
 out of `tests/` is what stops `unittest discover` from ever picking it up.
 
 A scenario counts as behavioural evidence only if it satisfies
-[`docs/quality/behavioural-eval-rubric.md`](../docs/quality/behavioural-eval-rubric.md)
+[`docs/quality/behavioural-eval-rubric.md`](../../../docs/quality/behavioural-eval-rubric.md)
 — assert on the workspace rather than the transcript, on shape *and* value, with an
 honest tier and preconditions the fixture actually satisfies. How good the skill
 itself is, as opposed to the evidence, is
-[`docs/quality/skill-rubric.md`](../docs/quality/skill-rubric.md).
+[`docs/quality/skill-rubric.md`](../../../docs/quality/skill-rubric.md).
 
 ## Scenario tiers
 
@@ -95,14 +100,14 @@ itself is, as opposed to the evidence, is
 
 ```bash
 # acs — free tier (no cost); --plugin defaults to acs
-python3 evals/run_evals.py
-python3 evals/run_evals.py --plugin acs          # explicit form
+python3 src/acs-evals/behavioural/run_evals.py
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs          # explicit form
 
 # acs — other tiers
-python3 evals/run_evals.py --plugin acs --paid          # + claude-driven scenarios
-python3 evals/run_evals.py --plugin acs --only create_ticket_artifacts --paid
-python3 evals/run_evals.py --plugin acs --list
-python3 evals/run_evals.py --plugin acs --paid --keep   # keep sandbox dirs to inspect
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid          # + claude-driven scenarios
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --only create_ticket_artifacts --paid
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --list
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid --keep   # keep sandbox dirs to inspect
 ```
 
 Exit code is non-zero if any selected scenario has a failing assertion — and
@@ -117,14 +122,14 @@ scenario skips itself) runs no probe.
 ## Pre-commit and CI
 
 **Local-only policy (C-4):** behavioral/LLM evals for **all** plugins run
-**locally** — never in CI. The `evals/` directory is excluded from all CI
-workflows; `grep -rn "run_evals\|evals/" .github/workflows/` returns nothing
+**locally** — never in CI. The `src/acs-evals/behavioural/` directory is excluded from all CI
+workflows; `grep -rn "run_evals\|src/acs-evals/behavioural/" .github/workflows/` returns nothing
 and must continue to return nothing. CI is responsible only for per-plugin
 deterministic tests (`tests/<plugin>/`) and static shape checks; it never
 executes evals.
 
 The **free** tier of the acs eval runs automatically as the `acs-free-evals`
-pre-commit hook whenever `evals/` or `src/acs/` change — locally on
+pre-commit hook whenever `src/acs-evals/behavioural/` or `src/acs/` change — locally on
 `git commit` (run `pre-commit install` once per clone) and in the *Pre-commit
 hooks* CI job — with `ACS_EVAL_SOURCE=1` so it tests the source being
 committed. There is **no dedicated eval CI workflow**; the **paid** tier is
@@ -135,7 +140,7 @@ gate).
 ## Before a release
 
 The **release gate is acs-evals**, which lives in this repo at
-[`src/acs-evals/`](../src/acs-evals/README.md) — a different suite from this
+[`src/acs-evals/`](../../../src/acs-evals/README.md) — a different suite from this
 one, not a tier of it. It replays recorded CLI invocations against a *built*
 plugin; this directory drives real `claude -p` sessions. Point it at the
 release candidate and run:
@@ -158,10 +163,10 @@ forge-tier scenarios (`s07_fanout_tracker_sync`, `s08_create_pr_forge`), which
 have no acs-evals counterpart:
 
 ```bash
-python3 evals/run_evals.py --plugin acs --paid
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid
 ```
 
-See the release steps in the [root README](../README.md#releasing--updating).
+See the release steps in the [root README](../../../README.md#releasing--updating).
 
 Read a non-zero exit carefully: the run opens with a free `/acs:setup`
 registration pre-flight, and an abort there (`PRE-FLIGHT FAILED`, exit 1, no
@@ -170,24 +175,24 @@ environment problem to fix and re-run, not a red release gate.
 
 ## Adding a scenario
 
-1. Drop `evals/<plugin>/scenarios/sNN_<name>.py` exposing:
+1. Drop `src/acs-evals/behavioural/<plugin>/scenarios/sNN_<name>.py` exposing:
    - `META = {"name", "tier", "goal", "summary"}`
    - `run() -> Check`
-2. Register it in `evals/<plugin>/scenarios/__init__.py` (`SCENARIOS` list, in
+2. Register it in `src/acs-evals/behavioural/<plugin>/scenarios/__init__.py` (`SCENARIOS` list, in
    run order).
-3. For acs: inside `run()`, use `evals/acs/harness.Sandbox` for an isolated
+3. For acs: inside `run()`, use `src/acs-evals/behavioural/acs/harness.Sandbox` for an isolated
    repo + workspace, drive behavior with `sb.gate(...)` (free) or
    `sb.run_skill(...)` (paid), and assert with `Check.ok/eq` against
    `sb.repo_json(...)` / `sb.ticket_json(...)`. Import via
-   `from harness import Sandbox, Check` — the acs runner inserts `evals/acs/`
-   on `sys.path` so the import resolves to `evals/acs/harness.py`. A
-   `tier: "forge"` scenario uses `evals/acs/harness.ForgeSandbox` instead of
+   `from harness import Sandbox, Check` — the acs runner inserts `src/acs-evals/behavioural/acs/`
+   on `sys.path` so the import resolves to `src/acs-evals/behavioural/acs/harness.py`. A
+   `tier: "forge"` scenario uses `src/acs-evals/behavioural/acs/harness.ForgeSandbox` instead of
    `Sandbox` — `gate`/`repo_json`/`ticket_json` are `Sandbox`-only and have no
    `ForgeSandbox` counterpart. Seed with `run_script`/`commit_file`, drive
    with `run_skill` against the real pipeline on `sb.repo`/`sb.run_branch`,
    assert with `gh_json` (never the model's prose), and assert
    `not sb.teardown_errors` after the `with` block. See
-   [`evals/acs/README.md#driving-a-forge-tier-scenario`](acs/README.md#driving-a-forge-tier-scenario)
+   [`src/acs-evals/behavioural/acs/README.md#driving-a-forge-tier-scenario`](acs/README.md#driving-a-forge-tier-scenario)
    for the full surface.
 4. For a skills-only plugin (e.g. tabp): inside `run()`, drive the skill
    directly (no `Sandbox`); assert on the artifacts the skill produces. Return a
@@ -199,10 +204,10 @@ thing.
 
 ## Plugin seam
 
-The `evals/` root contains only the **thin dispatcher** (`run_evals.py`). Each
-plugin owns its entire eval subtree under `evals/<plugin>/`.
+The `src/acs-evals/behavioural/` root contains only the **thin dispatcher** (`run_evals.py`). Each
+plugin owns its entire eval subtree under `src/acs-evals/behavioural/<plugin>/`.
 
-**acs** (`evals/acs/`):
+**acs** (`src/acs-evals/behavioural/acs/`):
 - `harness.py` — the acs-specific harness. Contains `SOURCE_SCRIPTS`,
   `installed_scripts_dir()`, and `Sandbox` (acs-scoped) plus `Check`
   (plugin-agnostic). Resolves to the installed acs build or the in-repo source.
@@ -210,13 +215,13 @@ plugin owns its entire eval subtree under `evals/<plugin>/`.
   loop, and prints the "plugin build under test" banner.
 
 **Skills-only plugins** (e.g. tabp — no `.acs/`, no `hooks/scripts`):
-- Provide their own `evals/<plugin>/run_evals.py` that imports only what they
+- Provide their own `src/acs-evals/behavioural/<plugin>/run_evals.py` that imports only what they
   need — no `Sandbox`, no `installed_scripts_dir`. The thin dispatcher routes
   directly to their runner, so no acs cache resolution ever occurs.
-- `Check` may be imported from `evals/acs/harness.py` or reimplemented per
+- `Check` may be imported from `src/acs-evals/behavioural/acs/harness.py` or reimplemented per
   plugin.
 
-The thin dispatcher at `evals/run_evals.py` contains no harness code and no
+The thin dispatcher at `src/acs-evals/behavioural/run_evals.py` contains no harness code and no
 scenario loop — it simply peels `--plugin` and delegates.
 
 ## Status / roadmap
@@ -248,19 +253,22 @@ scenario loop — it simply peels `--plugin` and delegates.
   cleanup against the shipped build. With `install_gate_smoke` (G1), the harness
   now exercises G1–G4 plus cleanup.
 - **E1.4 (done)** — the **free** tier is wired into
-  [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) as the `acs-free-evals`
+  [`.pre-commit-config.yaml`](../../../.pre-commit-config.yaml) as the `acs-free-evals`
   hook, so the gate + SessionEnd smoke runs on every commit touching the plugin
   or harness — locally and in the *Pre-commit hooks* CI job, `$0`, no `claude`.
   The **paid** tier stays a local, on-demand developer action (see
   [Run](#run)); flake handling is per-scenario (e.g. `skill_triggers` re-probes
   a missed case). There is no dedicated eval CI workflow — the deterministic
   free smoke at commit time replaces it.
-- **MAR-28 (done)** — scenarios relocated to `evals/acs/scenarios/`; harness
+- **MAR-28 (done)** — scenarios relocated to `<tree>/acs/scenarios/`; harness
   generalized with `--plugin` selector; skills-only plugin tolerance added;
   README updated.
 - **MAR-33 (done)** — `harness.py` and `run_evals.py` relocated under
-  `evals/acs/`; `evals/run_evals.py` rewritten as a thin dispatcher; per-plugin
-  runner shape fully established.
-- **MAR-32 (done)** — `evals/tabp/` scaffold live on main (`run_evals.py`,
+  `<tree>/acs/`; `<tree>/run_evals.py` rewritten as a thin dispatcher;
+  per-plugin runner shape fully established.
+- **MAR-32 (done)** — `<tree>/tabp/` scaffold live on main (`run_evals.py`,
   `scenarios/`, `fixtures/`, `__init__.py`); `screen-cvs` behavioral scenario
   in place.
+
+  These three landed while the tree was the repo-root `evals/`, which is what
+  `<tree>` reads as above; it is `src/acs-evals/behavioural/` today.

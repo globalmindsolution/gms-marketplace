@@ -46,7 +46,7 @@ import acs_lib as lib  # noqa: E402
 
 PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 ROADMAP_PATH = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
-EVALS_README_PATH = os.path.join(REPO_ROOT, "evals", "README.md")
+EVALS_README_PATH = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "README.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
 RUNBOOK_PATH = os.path.join(REPO_ROOT, "docs", "operations", "release-runbook.md")
 ADR_PATH = os.path.join(
@@ -191,7 +191,7 @@ def _s04_probed_skills():
     assertion existed to catch, twice.
     """
     import ast
-    path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+    path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
     with open(path, encoding="utf-8") as fh:
         tree = ast.parse(fh.read())
     found = set()
@@ -262,7 +262,7 @@ class DocsPolicyTest(unittest.TestCase):
         pre_commit = section(readme, "## Pre-commit and CI")
         self.assertRegex(pre_commit, r"(?i)not a gate")
         # C-4's grep invariant is not this ticket's to narrow.
-        self.assertIn('grep -rn "run_evals\\|evals/" .github/workflows/', pre_commit)
+        self.assertIn('grep -rn "run_evals\\|src/acs-evals/behavioural/" .github/workflows/', pre_commit)
 
         strategy = read(TESTING_STRATEGY_PATH)
         for layer in ("5", "6"):
@@ -270,7 +270,7 @@ class DocsPolicyTest(unittest.TestCase):
         self.assertIn("acs-evals", paragraph(strategy, "Layers 1–4 are free"))
         principle = list_item(strategy, "**Cost-aware tiering.**")
         self.assertIn("acs-evals", principle)
-        self.assertNotIn("`python3 evals/run_evals.py --paid` before tagging", principle)
+        self.assertNotIn("`python3 src/acs-evals/behavioural/run_evals.py --paid` before tagging", principle)
         # The standing G13 validation-record section stays exactly where it was.
         self.assertIn("## G13 e2e-integrity validation", strategy)
 

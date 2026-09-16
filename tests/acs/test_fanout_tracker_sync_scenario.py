@@ -19,7 +19,7 @@ from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
 import scenarios                    # noqa: E402  (the package; resolves s07's `from harness import ...`)
 
 s07 = scenarios.s07_fanout_tracker_sync

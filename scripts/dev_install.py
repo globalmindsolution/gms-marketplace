@@ -57,7 +57,7 @@ PLUGIN_SRC = os.path.join(REPO_ROOT, "src", "acs")
 def _evals_harness():
     """The eval suite's harness, loaded by path.
 
-    `harness` is also the module name of `evals/acs/harness.py`, and a test
+    `harness` is also the module name of `src/acs-evals/behavioural/acs/harness.py`, and a test
     run that imported that one first would hand it back from `sys.modules`
     under a plain import. Loading by path under a private name sidesteps
     the collision instead of depending on import order.

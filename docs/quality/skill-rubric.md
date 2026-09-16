@@ -31,7 +31,7 @@ skill. The dimension asks whether it is *discriminating*, not whether it is
 well written: a description that wins its own probe but also wins its
 neighbour's is worse than a plain one that wins only its own.
 
-- **Evidence**: the skill's probe in `evals/acs/scenarios/s04_skill_triggers.py`
+- **Evidence**: the skill's probe in `src/acs-evals/behavioural/acs/scenarios/s04_skill_triggers.py`
   and `src/acs-evals/dataset/routing.json`, measured over 5 runs.
 - **Blocks** when reliability is below 100%. Routing is an absolute floor —
   `src/acs-evals/docs/PERFORMANCE.md` already treats it as one, and a skill that
@@ -155,7 +155,7 @@ skill that refuses to route is not offset by thirty-one that do.
 ## Using it before a release
 
 1. Run the deterministic tier and the routing measurement. Both are described
-   in `evals/README.md`; the routing half costs money, the rest does not.
+   in `src/acs-evals/behavioural/README.md`; the routing half costs money, the rest does not.
 2. Fill the matrix in
    [`testing-strategy.md`](testing-strategy.md) — it already carries a
    per-skill row per layer, and those layers map onto dimensions 1, 2, 3 and 4.

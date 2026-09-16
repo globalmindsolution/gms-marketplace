@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """acs behavioral eval runner — entry point for the acs plugin's scenario suite.
 
-Runs scenarios from ``evals/acs/scenarios/`` and reports per-assertion
+Runs scenarios from ``src/acs-evals/behavioural/acs/scenarios/`` and reports per-assertion
 pass/fail against workspace artifacts. Free scenarios (no ``claude``) run by
 default; paid scenarios require ``--paid``.
 
 Can be invoked directly or via the top-level dispatcher:
 
-    python3 evals/acs/run_evals.py                    # acs free tier (direct)
-    python3 evals/acs/run_evals.py --paid             # + claude-driven scenarios
-    python3 evals/acs/run_evals.py --list
-    python3 evals/run_evals.py                        # via dispatcher (default acs)
-    python3 evals/run_evals.py --plugin acs           # via dispatcher (explicit)
+    python3 src/acs-evals/behavioural/acs/run_evals.py                    # acs free tier (direct)
+    python3 src/acs-evals/behavioural/acs/run_evals.py --paid             # + claude-driven scenarios
+    python3 src/acs-evals/behavioural/acs/run_evals.py --list
+    python3 src/acs-evals/behavioural/run_evals.py                        # via dispatcher (default acs)
+    python3 src/acs-evals/behavioural/run_evals.py --plugin acs           # via dispatcher (explicit)
 
 Exit code is non-zero if any selected scenario has a failing assertion.
 """
@@ -22,8 +22,8 @@ import os
 import sys
 import traceback
 
-# Insert evals/acs/ onto sys.path at module scope so every scenario file's
-# `from harness import Sandbox, Check` resolves to evals/acs/harness.py
+# Insert src/acs-evals/behavioural/acs/ onto sys.path at module scope so every scenario file's
+# `from harness import Sandbox, Check` resolves to src/acs-evals/behavioural/acs/harness.py
 # without modifying any scenario import line (AC-4).
 _acs_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _acs_dir)
@@ -38,9 +38,9 @@ PREFLIGHT_PROBE = "/acs:setup"
 
 
 def load_scenarios(plugin_name="acs"):
-    """Import SCENARIOS from evals/acs/scenarios/__init__.py.
+    """Import SCENARIOS from src/acs-evals/behavioural/acs/scenarios/__init__.py.
 
-    Inserts the acs runner's own directory (evals/acs/) onto sys.path so that
+    Inserts the acs runner's own directory (src/acs-evals/behavioural/acs/) onto sys.path so that
     ``import scenarios`` resolves to the acs scenarios package.
     """
     plugin_dir = _acs_dir
@@ -127,7 +127,7 @@ def main():
     ap.add_argument(
         "--plugin", default="acs", metavar="NAME",
         help="kept for CLI compatibility when invoked via the dispatcher "
-             "(evals/acs/run_evals.py always runs the acs scenarios); default: acs",
+             "(src/acs-evals/behavioural/acs/run_evals.py always runs the acs scenarios); default: acs",
     )
     ap.add_argument("--paid", action="store_true",
                     help="also run scenarios that spawn `claude -p` (costs money)")

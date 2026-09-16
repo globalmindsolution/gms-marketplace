@@ -28,32 +28,36 @@ python3 -m coverage report
 
 ## Exclusions
 
-Coverage is measured over two trees: `src/acs/hooks/scripts` — the
-hook/CLI layer, `.coveragerc`'s `[run] source` — plus `evals/`, added as a
-`[run] source_dirs` entry (MAR-575). `evals/` is in the denominator because
-the eval harness is what decides whether a paid run's misses are real
-findings, and it has deterministic tests under `tests/acs/` that must not be
-allowed to rot; it is a `source_dirs` entry rather than a second `source`
-line because `tests/acs/test_coverage_measurement_config.py` pins `source`
-and `omit` to exact values, and the hook-scripts path stays the single pinned
-one it has always been. `src/acs/skills/**` prose and the `tests/**` tree
-themselves remain unmeasured. Within the hook/CLI source, `.coveragerc`'s
-`omit` list excludes the **39** pre-`*`/post-`*` argument-forwarder scripts
-(20 `pre-*`, 19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a
-`sys.path` insert, an import, and a `run_pre`/`run_post` call, no
-`def main()` of their own); adding `evals/` changed nothing about that list
-and added **no** omit entry for the eval scenario drivers.
-`post-merge-pr.py` is deliberately **not** omitted: it has a real `--pr`
-branch and is measured, currently at 21 statements / 100%.
+Coverage is measured over two trees: `src/acs/hooks/scripts` — the hook/CLI
+layer, `.coveragerc`'s `[run] source` — plus `src/acs-evals/behavioural/`,
+added as a `[run] source_dirs` entry (MAR-575; the tree lived at `evals/`
+until it was folded into `src/acs-evals/`, and the same files are measured
+either way). The behavioural tree is in the denominator because the eval
+harness is what decides whether a paid run's misses are real findings, and it
+has deterministic tests under `tests/acs/` that must not be allowed to rot; it
+is a `source_dirs` entry rather than a second `source` line because
+`tests/acs/test_coverage_measurement_config.py` pins `source` and `omit` to
+exact values, and the hook-scripts path stays the single pinned one it has
+always been. `src/acs/skills/**` prose and the `tests/**` tree themselves
+remain unmeasured. Within the hook/CLI source, `.coveragerc`'s `omit` list
+excludes the **39** pre-`*`/post-`*` argument-forwarder scripts (20 `pre-*`,
+19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a `sys.path`
+insert, an import, and a `run_pre`/`run_post` call, no `def main()` of their
+own); adding the behavioural tree changed nothing about that list and added
+**no** omit entry for the eval scenario drivers. `post-merge-pr.py` is
+deliberately **not** omitted: it has a real `--pr` branch and is measured,
+currently at 21 statements / 100%.
 
-`evals/` contributes 1140 of the 10925 measured statements and 317 of the 702
-missed. Split by each scenario module's declared `META["tier"]`, those 317 are
-**118** in paid- and forge-tier scenario drivers (85 of them in `evals/tabp`'s
-`screen_cvs_eval.py`), **90** in free-tier acs drivers — deterministic, and
-run by the `acs-free-evals` pre-commit hook whenever `evals/` or `plugins/`
-change, just never in-process under the unit suite — **59** in
-`evals/acs/harness.py` itself and **50** in the two per-plugin `run_evals.py`
-runners; the headroom is the eval layer as a whole, not the paid tier alone.
+`src/acs-evals/behavioural/` contributes 1140 of the 10925 measured statements
+and 317 of the 702 missed. Split by each scenario module's declared
+`META["tier"]`, those 317 are **118** in paid- and forge-tier scenario drivers
+(85 of them in `src/acs-evals/behavioural/tabp`'s `screen_cvs_eval.py`),
+**90** in free-tier acs drivers — deterministic, and run by the
+`acs-free-evals` pre-commit hook whenever `src/acs/`,
+`src/acs-evals/behavioural/` or `plugins/` change, just never in-process under
+the unit suite — **59** in `src/acs-evals/behavioural/acs/harness.py` itself
+and **50** in the two per-plugin `run_evals.py` runners; the headroom is the
+eval layer as a whole, not the paid tier alone.
 If that headroom ever puts TOTAL under the floor, the remedy is a
 unit path for those drivers, not an `omit`:
 [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md) restricts

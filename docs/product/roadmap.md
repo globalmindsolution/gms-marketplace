@@ -107,7 +107,7 @@ the docs. Step-by-step runbook with per-step assertions:
 Traces G1, G3, G4, G5. The regression net that makes dogfooding and every
 future change safe; built on what M2-0 learns by hand.
 
-All four sub-epics are implemented in [`evals/`](../../evals/README.md): a tiered
+All four sub-epics are implemented in [`src/acs-evals/behavioural/`](../../src/acs-evals/behavioural/README.md): a tiered
 runner (free deterministic checks + paid `claude -p`), a `Sandbox`/`Check`
 harness asserting on workspace artifacts, and 8 scenarios covering G1–G4,
 G8+G9, G11, plus cleanup. The 6 free/paid scenarios (`s01`–`s06`) validated

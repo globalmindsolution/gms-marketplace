@@ -161,7 +161,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     create-docs; no CASE survives for a retired leg."""
 
     def _assign(self, name):
-        path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         tree = ast.parse(read(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(

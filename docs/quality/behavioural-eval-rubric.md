@@ -17,7 +17,7 @@ cost.
 > A behavioural eval asserts on the **artifacts a skill produced**, never on
 > what it said while producing them.
 
-That rule is not new — `evals/README.md` and
+That rule is not new — `src/acs-evals/behavioural/README.md` and
 [`README.md`](README.md) both state it. What follows is what it takes to
 satisfy it.
 

@@ -23,8 +23,8 @@ run day to day:
 
 ```bash
 python3 -m unittest discover -s tests -v   # deterministic + contract suites (free)
-python3 evals/run_evals.py                 # free behavioral smoke (gate + cleanup)
-python3 evals/run_evals.py --paid          # full agentic suite — on demand, not a gate ($)
+python3 src/acs-evals/behavioural/run_evals.py                 # free behavioral smoke (gate + cleanup)
+python3 src/acs-evals/behavioural/run_evals.py --paid          # full agentic suite — on demand, not a gate ($)
 ```
 
 - The **free** layers gate every commit (pre-commit) and every PR (CI). Keep

@@ -265,7 +265,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     so a future case-list change cascades to zero test edits here."""
 
     def _source(self):
-        path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         return read(path)
 
     def _list(self, name):
@@ -326,7 +326,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
 
         # No eval scenario anywhere references the deleted skill (AC-1,
         # scope extension): scan the whole scenarios package, not just s04.
-        scenarios_dir = os.path.join(REPO_ROOT, "evals", "acs", "scenarios")
+        scenarios_dir = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios")
         for name in sorted(os.listdir(scenarios_dir)):
             if not name.endswith(".py"):
                 continue

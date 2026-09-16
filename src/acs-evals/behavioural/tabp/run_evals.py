@@ -2,7 +2,7 @@
 """tabp behavioral eval runner — entry point for the tabp plugin's scenario suite.
 
 Self-contained: no Sandbox, no installed_scripts_dir, no acs banner.
-Scenarios live in evals/tabp/scenarios/.  Currently one scenario:
+Scenarios live in src/acs-evals/behavioural/tabp/scenarios/.  Currently one scenario:
   - screen_cvs_eval (tier: paid) — asserts the screen-cvs rubric contract.
 
 The live model invocation is gated behind ``--paid``.  The default
@@ -10,15 +10,15 @@ The live model invocation is gated behind ``--paid``.  The default
 
 Can be invoked directly or via the top-level dispatcher::
 
-    python3 evals/tabp/run_evals.py --list          # list scenarios, exit 0
-    python3 evals/tabp/run_evals.py                 # default: no paid → no-op
-    python3 evals/tabp/run_evals.py --paid          # run screen_cvs_eval (needs Cowork)
+    python3 src/acs-evals/behavioural/tabp/run_evals.py --list          # list scenarios, exit 0
+    python3 src/acs-evals/behavioural/tabp/run_evals.py                 # default: no paid → no-op
+    python3 src/acs-evals/behavioural/tabp/run_evals.py --paid          # run screen_cvs_eval (needs Cowork)
 
 Via dispatcher::
 
-    python3 evals/run_evals.py --plugin tabp --list
-    python3 evals/run_evals.py --plugin tabp
-    python3 evals/run_evals.py --plugin tabp --paid
+    python3 src/acs-evals/behavioural/run_evals.py --plugin tabp --list
+    python3 src/acs-evals/behavioural/run_evals.py --plugin tabp
+    python3 src/acs-evals/behavioural/run_evals.py --plugin tabp --paid
 
 Exit code is non-zero if any selected scenario's Check.passed is False.
 
@@ -28,7 +28,7 @@ Requires: the Cowork model runtime and ``pip install openpyxl`` (absent from
 the stdlib-only repo CI env; deferred inside the paid run path).
 
     pip install openpyxl
-    python3 evals/run_evals.py --plugin tabp --paid
+    python3 src/acs-evals/behavioural/run_evals.py --plugin tabp --paid
 """
 
 import argparse
@@ -38,10 +38,10 @@ import sys
 import traceback
 
 # Insert this file's own directory onto sys.path at module scope so that
-# ``import scenarios`` resolves to evals/tabp/scenarios/__init__.py without
+# ``import scenarios`` resolves to src/acs-evals/behavioural/tabp/scenarios/__init__.py without
 # relying on the calling process's sys.path.  This mirrors the pattern
 # proved in tests/acs/test_run_evals_dispatch.py lines 97-153 and
-# evals/acs/run_evals.py lines 28-29.
+# src/acs-evals/behavioural/acs/run_evals.py lines 28-29.
 _tabp_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _tabp_dir)
 
@@ -52,9 +52,9 @@ TIERS_DEFAULT = {"free"}
 
 
 def load_scenarios():
-    """Import SCENARIOS from evals/tabp/scenarios/__init__.py."""
+    """Import SCENARIOS from src/acs-evals/behavioural/tabp/scenarios/__init__.py."""
     # Clear any stale cached module so repeated calls work correctly (mirrors
-    # evals/acs/run_evals.py lines 47-50).
+    # src/acs-evals/behavioural/acs/run_evals.py lines 47-50).
     if "scenarios" in sys.modules:
         del sys.modules["scenarios"]
     try:

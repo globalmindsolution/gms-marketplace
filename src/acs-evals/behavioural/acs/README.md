@@ -5,7 +5,7 @@ scenario registry. It is the per-plugin eval subtree introduced in MAR-33 as
 part of the fully-per-plugin evals layout.
 
 For the marketplace-level overview (why evals live here, tier policy, pre-commit
-wiring, CI policy) see [`evals/README.md`](../README.md).
+wiring, CI policy) see [`src/acs-evals/behavioural/README.md`](../README.md).
 
 ## Running the acs evals
 
@@ -13,39 +13,39 @@ wiring, CI policy) see [`evals/README.md`](../README.md).
 
 ```bash
 # acs free tier (default; --plugin defaults to acs)
-python3 evals/run_evals.py
+python3 src/acs-evals/behavioural/run_evals.py
 
 # explicit plugin name
-python3 evals/run_evals.py --plugin acs
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs
 
 # paid tier (spawns claude -p; costs money). A free /acs:setup registration
 # pre-flight runs first and aborts the spending tier -- spending nothing -- if a
 # fresh sandbox cannot see the plugin (MAR-575)
-python3 evals/run_evals.py --plugin acs --paid
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid
 
 # forge tier (drives the real pipeline against a configured target repo;
 # skips cleanly with no evals.forge_repo/ACS_FORGE_REPO configured -- see
 # "Forge tier" below)
-python3 evals/run_evals.py --plugin acs --forge
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --forge
 
 # list scenarios without running
-python3 evals/run_evals.py --plugin acs --list
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --list
 
 # run a single scenario by name (implies its tier)
-python3 evals/run_evals.py --plugin acs --only install_gate_smoke
-python3 evals/run_evals.py --plugin acs --only create_pr_forge
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --only install_gate_smoke
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --only create_pr_forge
 
 # keep sandbox temp dirs for inspection after a run
-python3 evals/run_evals.py --plugin acs --paid --keep
+python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid --keep
 ```
 
 ### Directly (useful during scenario development)
 
 ```bash
-python3 evals/acs/run_evals.py
-python3 evals/acs/run_evals.py --list
-python3 evals/acs/run_evals.py --paid
-python3 evals/acs/run_evals.py --only install_gate_smoke
+python3 src/acs-evals/behavioural/acs/run_evals.py
+python3 src/acs-evals/behavioural/acs/run_evals.py --list
+python3 src/acs-evals/behavioural/acs/run_evals.py --paid
+python3 src/acs-evals/behavioural/acs/run_evals.py --only install_gate_smoke
 ```
 
 ### Force the in-repo source tree
@@ -55,8 +55,8 @@ committed rather than a stale installed build. Use this locally too when
 iterating on harness or scenario code:
 
 ```bash
-ACS_EVAL_SOURCE=1 python3 evals/run_evals.py
-ACS_EVAL_SOURCE=1 python3 evals/acs/run_evals.py
+ACS_EVAL_SOURCE=1 python3 src/acs-evals/behavioural/run_evals.py
+ACS_EVAL_SOURCE=1 python3 src/acs-evals/behavioural/acs/run_evals.py
 ```
 
 Exit code is non-zero if any selected scenario has a failing assertion — and
@@ -74,7 +74,7 @@ in CI, where there is no `claude`.
 
 ## The acs Sandbox seam
 
-`evals/acs/harness.py` contains the acs-specific seam between the scenario
+`src/acs-evals/behavioural/acs/harness.py` contains the acs-specific seam between the scenario
 runner and the acs plugin under test.
 
 ### `installed_scripts_dir()` and `SOURCE_SCRIPTS`
@@ -87,7 +87,7 @@ present.
 
 `ACS_EVAL_SOURCE=1` forces the in-repo source tree regardless of what is
 installed. The `REPO_ROOT` constant is resolved as `dirname x3` from
-`evals/acs/harness.py` (one more level than the former root-level location) to
+`src/acs-evals/behavioural/acs/harness.py` (one more level than the former root-level location) to
 reach the repo root correctly.
 
 ### `Sandbox`
@@ -176,7 +176,7 @@ check.passed  # True iff all assertions passed
 
 ## Scenario registry
 
-`evals/acs/scenarios/__init__.py` exposes a `SCENARIOS` list: the ordered list
+`src/acs-evals/behavioural/acs/scenarios/__init__.py` exposes a `SCENARIOS` list: the ordered list
 of scenario modules the runner iterates. Each module exposes:
 
 - `META` — `{"name": str, "tier": "free"|"paid"|"forge", "goal": str, "summary": str}`
@@ -184,12 +184,12 @@ of scenario modules the runner iterates. Each module exposes:
 
 ### Adding a scenario
 
-1. Drop `evals/acs/scenarios/sNN_<name>.py` exposing `META` and `run()`.
-2. Register it in `evals/acs/scenarios/__init__.py` (`SCENARIOS` list, in run
+1. Drop `src/acs-evals/behavioural/acs/scenarios/sNN_<name>.py` exposing `META` and `run()`.
+2. Register it in `src/acs-evals/behavioural/acs/scenarios/__init__.py` (`SCENARIOS` list, in run
    order).
 3. Inside `run()`, import `from harness import Sandbox, Check` — the acs runner
-   inserts `evals/acs/` on `sys.path` at module scope, so this resolves to
-   `evals/acs/harness.py` without any path manipulation in the scenario file.
+   inserts `src/acs-evals/behavioural/acs/` on `sys.path` at module scope, so this resolves to
+   `src/acs-evals/behavioural/acs/harness.py` without any path manipulation in the scenario file.
 4. Assert on **artifacts** (JSON state the pipeline writes), never on the
    model's prose output.
 
@@ -217,7 +217,7 @@ that no local sandbox can exercise.
 
 ### `ForgeSandbox`
 
-`ForgeSandbox` (in `evals/acs/harness.py`) is the forge-tier equivalent of
+`ForgeSandbox` (in `src/acs-evals/behavioural/acs/harness.py`) is the forge-tier equivalent of
 `Sandbox`: a context manager that clones the configured target repo,
 operates on an ephemeral run branch, and tears itself down afterwards.
 
