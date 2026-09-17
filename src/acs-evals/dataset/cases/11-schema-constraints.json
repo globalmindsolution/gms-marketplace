@@ -31878,9 +31878,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32005,9 +32016,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32131,9 +32153,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32257,9 +32290,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32383,9 +32427,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32509,9 +32564,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "__acs_evals_not_in_enum__"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32544,9 +32610,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32669,9 +32746,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32796,9 +32884,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -32922,9 +33021,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -33048,9 +33158,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -33173,9 +33294,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -33300,9 +33432,20 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -33426,14 +33569,573 @@
           }
         ],
         "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
         "merged_from": [
           "A"
-        ]
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
           "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-015",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "tests.passed violates minimum",
+      "constraint": "minimum",
+      "instance_path": "tests.passed",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "lens": null,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "name": "Acceptance-criteria conformance",
+            "result": "pass",
+            "evidence": "reviewed acceptance-criteria conformance"
+          },
+          {
+            "id": 2,
+            "name": "Tests",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 3,
+            "name": "Coverage",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 4,
+            "name": "Business logic",
+            "result": "pass",
+            "evidence": "reviewed business logic"
+          },
+          {
+            "id": 5,
+            "name": "Features",
+            "result": "pass",
+            "evidence": "reviewed features"
+          },
+          {
+            "id": 6,
+            "name": "Quality",
+            "result": "pass",
+            "evidence": "reviewed quality"
+          },
+          {
+            "id": 7,
+            "name": "Technical standards",
+            "result": "pass",
+            "evidence": "reviewed technical standards"
+          },
+          {
+            "id": 8,
+            "name": "Architecture",
+            "result": "pass",
+            "evidence": "reviewed architecture"
+          },
+          {
+            "id": 9,
+            "name": "System design",
+            "result": "pass",
+            "evidence": "reviewed system design"
+          },
+          {
+            "id": 10,
+            "name": "Security",
+            "result": "pass",
+            "evidence": "reviewed security"
+          },
+          {
+            "id": 11,
+            "name": "Documentation",
+            "result": "pass",
+            "evidence": "reviewed documentation"
+          },
+          {
+            "id": 12,
+            "name": "Simplicity & scope",
+            "result": "pass",
+            "evidence": "reviewed simplicity & scope"
+          },
+          {
+            "id": 13,
+            "name": "Audience-style",
+            "result": "pass",
+            "evidence": "reviewed audience-style"
+          },
+          {
+            "id": 15,
+            "name": "Plan conformance",
+            "result": "pass",
+            "evidence": "reviewed plan conformance"
+          },
+          {
+            "id": 16,
+            "name": "Approval-audit",
+            "result": "pass",
+            "evidence": "reviewed approval-audit"
+          }
+        ],
+        "findings": [
+          {
+            "severity": "blocking",
+            "dimension": "x",
+            "detail": "x",
+            "file": "x",
+            "line": 1
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
+        "merged_from": [
+          "A"
+        ],
+        "tests": {
+          "passed": -1,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-016",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "tests.failed violates minimum",
+      "constraint": "minimum",
+      "instance_path": "tests.failed",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "lens": null,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "name": "Acceptance-criteria conformance",
+            "result": "pass",
+            "evidence": "reviewed acceptance-criteria conformance"
+          },
+          {
+            "id": 2,
+            "name": "Tests",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 3,
+            "name": "Coverage",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 4,
+            "name": "Business logic",
+            "result": "pass",
+            "evidence": "reviewed business logic"
+          },
+          {
+            "id": 5,
+            "name": "Features",
+            "result": "pass",
+            "evidence": "reviewed features"
+          },
+          {
+            "id": 6,
+            "name": "Quality",
+            "result": "pass",
+            "evidence": "reviewed quality"
+          },
+          {
+            "id": 7,
+            "name": "Technical standards",
+            "result": "pass",
+            "evidence": "reviewed technical standards"
+          },
+          {
+            "id": 8,
+            "name": "Architecture",
+            "result": "pass",
+            "evidence": "reviewed architecture"
+          },
+          {
+            "id": 9,
+            "name": "System design",
+            "result": "pass",
+            "evidence": "reviewed system design"
+          },
+          {
+            "id": 10,
+            "name": "Security",
+            "result": "pass",
+            "evidence": "reviewed security"
+          },
+          {
+            "id": 11,
+            "name": "Documentation",
+            "result": "pass",
+            "evidence": "reviewed documentation"
+          },
+          {
+            "id": 12,
+            "name": "Simplicity & scope",
+            "result": "pass",
+            "evidence": "reviewed simplicity & scope"
+          },
+          {
+            "id": 13,
+            "name": "Audience-style",
+            "result": "pass",
+            "evidence": "reviewed audience-style"
+          },
+          {
+            "id": 15,
+            "name": "Plan conformance",
+            "result": "pass",
+            "evidence": "reviewed plan conformance"
+          },
+          {
+            "id": 16,
+            "name": "Approval-audit",
+            "result": "pass",
+            "evidence": "reviewed approval-audit"
+          }
+        ],
+        "findings": [
+          {
+            "severity": "blocking",
+            "dimension": "x",
+            "detail": "x",
+            "file": "x",
+            "line": 1
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 0.0,
+          "command": "x",
+          "skipped": "x"
+        },
+        "merged_from": [
+          "A"
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": -1,
+          "command": "x",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-017",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "coverage.percent violates minimum",
+      "constraint": "minimum",
+      "instance_path": "coverage.percent",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "lens": null,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "name": "Acceptance-criteria conformance",
+            "result": "pass",
+            "evidence": "reviewed acceptance-criteria conformance"
+          },
+          {
+            "id": 2,
+            "name": "Tests",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 3,
+            "name": "Coverage",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 4,
+            "name": "Business logic",
+            "result": "pass",
+            "evidence": "reviewed business logic"
+          },
+          {
+            "id": 5,
+            "name": "Features",
+            "result": "pass",
+            "evidence": "reviewed features"
+          },
+          {
+            "id": 6,
+            "name": "Quality",
+            "result": "pass",
+            "evidence": "reviewed quality"
+          },
+          {
+            "id": 7,
+            "name": "Technical standards",
+            "result": "pass",
+            "evidence": "reviewed technical standards"
+          },
+          {
+            "id": 8,
+            "name": "Architecture",
+            "result": "pass",
+            "evidence": "reviewed architecture"
+          },
+          {
+            "id": 9,
+            "name": "System design",
+            "result": "pass",
+            "evidence": "reviewed system design"
+          },
+          {
+            "id": 10,
+            "name": "Security",
+            "result": "pass",
+            "evidence": "reviewed security"
+          },
+          {
+            "id": 11,
+            "name": "Documentation",
+            "result": "pass",
+            "evidence": "reviewed documentation"
+          },
+          {
+            "id": 12,
+            "name": "Simplicity & scope",
+            "result": "pass",
+            "evidence": "reviewed simplicity & scope"
+          },
+          {
+            "id": 13,
+            "name": "Audience-style",
+            "result": "pass",
+            "evidence": "reviewed audience-style"
+          },
+          {
+            "id": 15,
+            "name": "Plan conformance",
+            "result": "pass",
+            "evidence": "reviewed plan conformance"
+          },
+          {
+            "id": 16,
+            "name": "Approval-audit",
+            "result": "pass",
+            "evidence": "reviewed approval-audit"
+          }
+        ],
+        "findings": [
+          {
+            "severity": "blocking",
+            "dimension": "x",
+            "detail": "x",
+            "file": "x",
+            "line": 1
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": -1,
+          "command": "x",
+          "skipped": "x"
+        },
+        "merged_from": [
+          "A"
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-018",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "coverage.percent violates maximum",
+      "constraint": "maximum",
+      "instance_path": "coverage.percent",
+      "json": {
+        "skill": "code",
+        "ticket_id": "TKT-1",
+        "iteration": 1,
+        "lens": null,
+        "passed": true,
+        "dimensions": [
+          {
+            "id": 1,
+            "name": "Acceptance-criteria conformance",
+            "result": "pass",
+            "evidence": "reviewed acceptance-criteria conformance"
+          },
+          {
+            "id": 2,
+            "name": "Tests",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 3,
+            "name": "Coverage",
+            "result": "pass",
+            "evidence": "pytest -q -> 12 passed"
+          },
+          {
+            "id": 4,
+            "name": "Business logic",
+            "result": "pass",
+            "evidence": "reviewed business logic"
+          },
+          {
+            "id": 5,
+            "name": "Features",
+            "result": "pass",
+            "evidence": "reviewed features"
+          },
+          {
+            "id": 6,
+            "name": "Quality",
+            "result": "pass",
+            "evidence": "reviewed quality"
+          },
+          {
+            "id": 7,
+            "name": "Technical standards",
+            "result": "pass",
+            "evidence": "reviewed technical standards"
+          },
+          {
+            "id": 8,
+            "name": "Architecture",
+            "result": "pass",
+            "evidence": "reviewed architecture"
+          },
+          {
+            "id": 9,
+            "name": "System design",
+            "result": "pass",
+            "evidence": "reviewed system design"
+          },
+          {
+            "id": 10,
+            "name": "Security",
+            "result": "pass",
+            "evidence": "reviewed security"
+          },
+          {
+            "id": 11,
+            "name": "Documentation",
+            "result": "pass",
+            "evidence": "reviewed documentation"
+          },
+          {
+            "id": 12,
+            "name": "Simplicity & scope",
+            "result": "pass",
+            "evidence": "reviewed simplicity & scope"
+          },
+          {
+            "id": 13,
+            "name": "Audience-style",
+            "result": "pass",
+            "evidence": "reviewed audience-style"
+          },
+          {
+            "id": 15,
+            "name": "Plan conformance",
+            "result": "pass",
+            "evidence": "reviewed plan conformance"
+          },
+          {
+            "id": 16,
+            "name": "Approval-audit",
+            "result": "pass",
+            "evidence": "reviewed approval-audit"
+          }
+        ],
+        "findings": [
+          {
+            "severity": "blocking",
+            "dimension": "x",
+            "detail": "x",
+            "file": "x",
+            "line": 1
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "coverage": {
+          "percent": 101,
+          "command": "x",
+          "skipped": "x"
+        },
+        "merged_from": [
+          "A"
+        ],
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "command": "x",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "above maximum"
         ]
       }
     }
