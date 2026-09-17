@@ -24,6 +24,14 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="analyze-ticket"/>
       <xs:enumeration value="code"/>
+      <!-- code's four delivery-path legs (ADR-0095). They are skill directories,
+           so they belong in this enum, but no document ever carries one: every
+           leg starts as skill-start.py for `code`, and its task, result and
+           state documents all say `code`. -->
+      <xs:enumeration value="code-complex"/>
+      <xs:enumeration value="code-small"/>
+      <xs:enumeration value="code-standard"/>
+      <xs:enumeration value="code-trivial"/>
       <xs:enumeration value="create-api-contract"/>
       <xs:enumeration value="create-architecture"/>
       <xs:enumeration value="create-design"/>
