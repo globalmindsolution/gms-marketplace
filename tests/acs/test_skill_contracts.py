@@ -937,14 +937,14 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     def test_references_helper_by_name(self):
         """References the Spec-01 helper by name, per skill."""
         for skill in self.SKILLS:
-            body = read(self.skill_path(skill))
+            body = read_skill_contract(skill)
             self.assertIn("pr-conventions.py", body,
                           "%s: SKILL.md must reference pr-conventions.py" % skill)
 
     def test_renders_title_via_helper_not_prose(self):
         """render-title co-occurs with pr_title within a bounded window, per skill."""
         for skill in self.SKILLS:
-            body = read(self.skill_path(skill))
+            body = read_skill_contract(skill)
             self.assertIsNotNone(
                 re.search(r"(?s)render-title.{0,400}pr_title|pr_title.{0,400}render-title", body),
                 "%s: render-title must co-occur with pr_title within a bounded window" % skill)
@@ -954,7 +954,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         invocation in file order, and a mismatch blocks/retries within a
         bounded window."""
         for skill in self.SKILLS:
-            body = read(self.skill_path(skill))
+            body = read_skill_contract(skill)
             check_match = re.search(r'pr-conventions\.py"?\s+check\b', body)
             self.assertIsNotNone(check_match,
                                  "%s: pre-open self-check (check subcommand) must be present" % skill)
@@ -970,13 +970,13 @@ class TestProductSkillConventionWiring(unittest.TestCase):
                 "%s: a check mismatch must block or retry, within a bounded window" % skill)
 
     def test_no_regression_create_prd(self):
-        body = read(self.skill_path("create-prd"))
+        body = read_skill_contract("create-prd")
         self.assertIn("gh label create ACS", body)
         self.assertIn("--label ACS", body)
         self.assertIn("Record the PR number, URL, and branch", body)
 
     def test_no_regression_create_architecture(self):
-        body = read(self.skill_path("create-architecture"))
+        body = read_skill_contract("create-architecture")
         self.assertIn("git checkout -b", body)
         self.assertIn("git diff --cached --name-only", body)
         self.assertIn("gh label create ACS", body)
@@ -984,7 +984,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn("in_review", body)
 
     def test_no_regression_create_project(self):
-        body = read(self.skill_path("create-project"))
+        body = read_skill_contract("create-project")
         self.assertIn("push -u origin", body)
         self.assertIn("gh label create ACS", body)
         self.assertIn("states.pr", body)
@@ -997,7 +997,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         (spec 01) can compute the tracker-native reference -- the same
         uniform mechanism as create-pr, no per-skill carve-out."""
         for skill in self.SKILLS:
-            body = read(self.skill_path(skill))
+            body = read_skill_contract(skill)
             self.assertIsNotNone(
                 re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
                 "%s: render-title must co-occur with --provider within a bounded window" % skill)
