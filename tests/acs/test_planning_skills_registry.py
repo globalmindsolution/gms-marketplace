@@ -30,6 +30,7 @@ sys.path.insert(0, HOOKS_DIR)
 
 import acs_case  # noqa: E402
 import acs_lib  # noqa: E402
+from acs_lib import workflow  # noqa: E402
 
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
 
@@ -190,7 +191,9 @@ class ShipPipelineOrderTableCase(unittest.TestCase):
 
     def test_create_design_is_not_a_ship_workflow_step(self):
         doc = acs_lib.load_workflow(acs_lib.default_workflow_path())[0]
-        skills = {step["skill"] for step in doc["steps"]}
+        # A step's `skill` may be a per-path mapping since ADR-0095, so the set
+        # of skills a workflow can run is the union over every path.
+        skills = {name for step in doc["steps"] for name in workflow.step_skills(step)}
         self.assertNotIn("create-design", skills)
 
     def test_a_blocked_requires_predicate_is_surfaced_to_the_user(self):

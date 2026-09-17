@@ -470,14 +470,25 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(entry["tokens"], {"input": 10, "output": 5, "cache_creation": 0, "cache_read": 0})
 
 
-class TestRecordEscalationEventRequiresRun(unittest.TestCase):
-    """1115: raises ValueError when no run entry exists to attach the event to."""
+class TestRecordGuardEventWithoutARunTest(unittest.TestCase):
+    """No run entry to attach the event to: report it, never raise.
 
-    def test_raises_without_existing_run_entry(self):
+    This used to be `record_escalation_event`, which raised ValueError here —
+    the right answer for an audit write whose absence was itself the signal
+    that a lane change went unrecorded. ADR-0095 retired escalations, and the
+    one recorder left is `record_guard_event`, whose sole caller is the file-map
+    guard's DENY path. That verdict must not depend on whether the recording
+    succeeded, so a missing run entry returns False and the deny still stands."""
+
+    def test_returns_false_without_existing_run_entry(self):
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        with self.assertRaises(ValueError):
-            lib.record_escalation_event(tdir, "code", {"trigger": "x"})
+        self.assertIs(
+            lib.record_guard_event(tdir, "code", {"reason": "outside_map"}),
+            False)
+
+    def test_the_retired_escalation_recorder_is_gone(self):
+        self.assertFalse(hasattr(lib, "record_escalation_event"))
 
 
 class TestComputeTicketTotals(unittest.TestCase):

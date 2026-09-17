@@ -19,6 +19,7 @@ Stdlib-only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_plan_artifact_naming -v
 """
 
+import glob
 import os
 import re
 import unittest
@@ -45,6 +46,37 @@ def read(path):
         return f.read()
 
 
+def code_contract():
+    """/acs:code's contract as one text: the dispatcher, the four delivery-path
+    legs, and the references they share.
+
+    ADR-0095 split one body across these files. Every assertion below is about
+    what the SKILL SAYS, never which of its files says it, so reading the
+    concatenation keeps the pin honest while the layout stays free to change —
+    and a naming rule that genuinely vanishes still fails."""
+    skills = os.path.join(PLUGIN, "skills")
+    parts = []
+    for name in ("code", "code-trivial", "code-small", "code-standard",
+                 "code-complex"):
+        path = os.path.join(skills, name, "SKILL.md")
+        if os.path.isfile(path):
+            parts.append(read(path))
+    for path in sorted(glob.glob(os.path.join(skills, "code", "references",
+                                              "*.md"))):
+        parts.append(read(path))
+    return "\n".join(parts)
+
+
+def code_contract_files():
+    skills = os.path.join(PLUGIN, "skills")
+    paths = [os.path.join(skills, name, "SKILL.md")
+             for name in ("code", "code-trivial", "code-small",
+                          "code-standard", "code-complex")]
+    paths += sorted(glob.glob(os.path.join(skills, "code", "references",
+                                           "*.md")))
+    return [p for p in paths if os.path.isfile(p)]
+
+
 def section_span(body, heading):
     """Char offsets (start, end) of the section at `heading`, up to the next
     level-1/2/3 heading or end of file."""
@@ -59,11 +91,11 @@ class FreshRunNamingTest(unittest.TestCase):
     """AC-1: plan.md is the artifact name on a fresh run."""
 
     def test_plan_md_named_in_coordinator_and_both_agents(self):
-        for path in [CODE_SKILL] + TRIAD_AGENT_FILES:
-            body = read(path)
+        for label, body in [("the /acs:code contract", code_contract())] + [
+                (path, read(path)) for path in TRIAD_AGENT_FILES]:
             self.assertIn("phases/code/plan.md", body,
                            "%s must name phases/code/plan.md (the approval "
-                           "mirror and pre-docs-tree location)" % path)
+                           "mirror and pre-docs-tree location)" % label)
 
     def test_publishing_skill_names_plan_md_with_no_legacy_literal(self):
         body = read(IMPL_PLAN_SKILL)
@@ -90,12 +122,12 @@ class NoLegacyLiteralInTriadTest(unittest.TestCase):
                               % (path, matches))
 
     def test_skill_md_has_zero_legacy_literal(self):
-        body = read(CODE_SKILL)
-        matches = LEGACY.findall(body)
-        self.assertEqual(matches, [],
-                          "%s must carry zero legacy plan literal now that "
-                          "the MAR-70 read-both fallback is retired, found %r"
-                          % (CODE_SKILL, matches))
+        for path in code_contract_files():
+            matches = LEGACY.findall(read(path))
+            self.assertEqual(matches, [],
+                              "%s must carry zero legacy plan literal now that "
+                              "the MAR-70 read-both fallback is retired, found "
+                              "%r" % (path, matches))
 
 
 class XmlPersistenceUnchangedTest(unittest.TestCase):
@@ -103,10 +135,10 @@ class XmlPersistenceUnchangedTest(unittest.TestCase):
     still present and unaffected by the .md rename."""
 
     def test_xml_persistence_mandate_still_present(self):
-        body = read(CODE_SKILL)
+        body = code_contract()
         self.assertIn("<partition>/phases/code/iter-<n>-<phase>.xml", body)
 
     def test_axis_c_execute_and_verify_names_still_present(self):
-        body = read(CODE_SKILL)
+        body = code_contract()
         self.assertIn("iter-<n>-execute", body)
         self.assertIn("iter-<n>-verify", body)

@@ -135,5 +135,66 @@ class ModuleLineBudgetTest(unittest.TestCase):
                     sys.path[:] = saved
 
 
+class WorkflowSplitTest(unittest.TestCase):
+    """`acs_lib.workflow` crossed the budget when ADR-0095's delivery paths
+    landed on top of it, and was split the way the three flat modules above
+    were: into neighbours that own a layer, with the entry point re-exporting
+    their whole surface so no caller had to move.
+
+    The split is by LAYER, not by line count. `phases` answers "which skills
+    exist and where do the plugin's files live" and `schemasubset` answers
+    "does this document satisfy this schema" — both without loading, resolving
+    or validating a pipeline document, which is what let `workflow` shed them
+    in the first place. Anything that needs a workflow stays in `workflow`."""
+
+    #: What `workflow` was split into, and what each neighbour owns.
+    NEIGHBOURS = ("phases", "schemasubset")
+
+    def _modules(self):
+        import importlib
+        sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+        return (importlib.import_module("acs_lib.workflow"),
+                [importlib.import_module("acs_lib." + n) for n in self.NEIGHBOURS])
+
+    def test_workflow_re_exports_each_neighbours_surface_by_identity(self):
+        """`hasattr` alone would pass on a name rebound to something else, so
+        this is identity: the facade must hand back the neighbour's object."""
+        workflow, neighbours = self._modules()
+        for neighbour in neighbours:
+            for name, value in sorted(vars(neighbour).items()):
+                if name.startswith("_"):
+                    continue
+                # Only what the neighbour DEFINES; modules it imported for its
+                # own use are not part of the surface it owes the facade.
+                if getattr(value, "__module__", None) not in (neighbour.__name__, None):
+                    continue
+                with self.subTest(neighbour=neighbour.__name__, name=name):
+                    self.assertTrue(
+                        hasattr(workflow, name),
+                        "acs_lib.workflow dropped %s from its re-exports" % name)
+                    self.assertIs(getattr(workflow, name), value,
+                                  "acs_lib.workflow.%s is not %s's object"
+                                  % (name, neighbour.__name__))
+
+    def test_the_neighbours_do_not_import_workflow_back(self):
+        """A layer that reaches back up is not a layer. This is also what keeps
+        the imports acyclic — `workflow` imports both, so either importing it
+        would be a cycle Python resolves by luck of ordering."""
+        for name in self.NEIGHBOURS:
+            path = os.path.join(PLUGIN, "hooks", "scripts", "acs_lib", "%s.py" % name)
+            with self.subTest(module=name), open(path, encoding="utf-8") as fh:
+                body = fh.read()
+            self.assertNotIn("from .workflow import", body)
+            self.assertNotIn("from . import workflow", body)
+
+    def test_one_error_class_spans_both_documents(self):
+        """`phases.yaml` and `ship.yaml` are two documents of one contract, so
+        a caller catching a bad registry and a caller catching a bad pipeline
+        catch the same class — the split must not have forked it."""
+        workflow, (phases_mod, _) = self._modules()[0], self._modules()[1]
+        self.assertIs(workflow.WorkflowError, phases_mod.WorkflowError)
+        self.assertIs(phases_mod.PhasesError, phases_mod.WorkflowError)
+
+
 if __name__ == "__main__":
     unittest.main()

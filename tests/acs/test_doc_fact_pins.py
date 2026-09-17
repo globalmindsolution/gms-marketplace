@@ -368,7 +368,9 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "asserts a false claim is ABSENT from a skill body; the string must stay verbatim",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/lanes.py"):
             "this allowlist must NAME the retired path to exempt it; the entries "
-            "above are the mention the scanner is seeing",
+            "above are the mention the scanner is seeing. `lanes.py` became "
+            "`planrules.py` when ADR-0095 emptied it of everything but the "
+            "plan rules, so the path is retired twice over",
         ("tests/acs/test_testing_conventions_guard.py", "acs_lib.py"):
             "deliberate stale-path fixture proving the allowlist-staleness detector fires",
         ("tests/acs/test_ticket_id_reconciliation.py", "acs_lib.py"):

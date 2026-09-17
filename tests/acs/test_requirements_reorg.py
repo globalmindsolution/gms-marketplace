@@ -214,11 +214,26 @@ RETIRED_BY_TABP_REMOVAL = {
     ),
 }
 
+#: Retired by ADR-0095 (static delivery-path routing). The `size`/`stakes`
+#: axes and the lane derived from them are gone: rigor is one judgement, made
+#: once from `plan.md` by /ship and recorded on pipeline-state.json, so there
+#: is no axis for /create-ticket to capture, nothing for an in-flight trigger
+#: to raise, and nothing a user has to confirm before it can be lowered. The
+#: guarantees these clauses carried did not lapse — they became unnecessary,
+#: which is the only kind of clause that may be retired rather than re-homed.
+RETIRED_BY_DELIVERY_PATH_ROUTING = {
+    'skills.md': (
+        '- MUST capture **`size`** and **`stakes`** during `/create-ticket` analysis (MAR-56):',
+        'Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires',
+        'axes may be automatically raised by an in-flight trigger, but MUST NOT be',
+    ),
+}
+
 def _retired():
     """Every allowlist, merged: a clause is exempt when any fold retired it."""
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
-                  RETIRED_BY_TABP_REMOVAL):
+                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     return merged

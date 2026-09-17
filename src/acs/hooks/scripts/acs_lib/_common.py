@@ -285,6 +285,25 @@ class GateError(Exception):
     """Raised when a pre-hook gate fails; message is user-facing (stderr, exit 2)."""
 
 
+class WorkflowError(GateError):
+    """A workflow file outside its contract, or a walk that cannot proceed.
+    `line`/`path` locate a file problem; `payload` is the JSON a CLI emits
+    before exiting 2 (the epic refusal)."""
+
+    def __init__(self, reason, path=None, line=None, payload=None):
+        self.reason = reason
+        self.path = path
+        self.line = line
+        self.payload = payload
+        super().__init__(self.render())
+
+    def render(self):
+        where = self.path or ""
+        if self.line:
+            where = "%s:%d" % (where, self.line) if where else "line %d" % self.line
+        return "%s: %s" % (where, self.reason) if where else self.reason
+
+
 class ReconciliationRequired(GateError):
     """Raised by allocate_ticket_id when a (repo_id, prefix) partition has never
     allocated an id; carries the ranked local-evidence proposal for the caller

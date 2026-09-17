@@ -189,7 +189,13 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("28 x SKILL.md", body)
+        # Derived, not pinned: a new skill directory moves the diagram
+        # by itself rather than waiting for someone to notice.
+        shipped = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "skills"))
+            if os.path.isdir(os.path.join(
+                REPO_ROOT, "src", "acs", "skills", n))])
+        self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertNotIn("21 x SKILL.md", body)
         self.assertIn("31 x agent .md (all reachable)", body)
         self.assertNotIn("43 x agent .md (all reachable)", body)
@@ -230,7 +236,11 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (28)", body)
+        # Derived, not pinned: a new skill directory moves this count by
+        # itself rather than waiting for someone to notice the doc is stale.
+        shipped = len([n for n in os.listdir(os.path.join(REPO_ROOT, "src", "acs", "skills"))
+                       if os.path.isdir(os.path.join(REPO_ROOT, "src", "acs", "skills", n))])
+        self.assertIn("acs Skills (%d)" % shipped, body)
         self.assertNotIn("acs Skills (21)", body)
         self.assertIn("31 files, all reachable", body)
         self.assertNotIn("43 files, all reachable", body)

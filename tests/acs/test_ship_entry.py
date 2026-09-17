@@ -98,13 +98,30 @@ class EntryContractTest(unittest.TestCase):
 
     def test_ship_yaml_admits_no_design_phase_skill(self):
         """The prose claim above is the workflow's, not the skill's: ship.yaml
-        may name build/test/ship skills only."""
+        may name build/test/ship skills only.
+
+        A step's `skill` is one name or, since ADR-0095, a mapping keyed by
+        delivery path, so the check reads every name a step can resolve to —
+        `allowed_step_skills` is the wider set that also admits the internal
+        legs a step reaches only through such a mapping."""
         doc = lib.load_workflow(lib.default_workflow_path())[0]
-        allowed = set(lib.allowed_ship_skills())
+        allowed = set(lib.allowed_step_skills())
         for step in doc["steps"]:
-            self.assertIn(step["skill"], allowed)
-        self.assertNotIn("create-ticket", allowed)
-        self.assertNotIn("create-design", allowed)
+            for name in lib.step_skills(step):
+                with self.subTest(step=step["id"], skill=name):
+                    self.assertIn(name, allowed)
+        for retired in ("create-ticket", "create-design"):
+            with self.subTest(skill=retired):
+                self.assertNotIn(retired, allowed)
+                self.assertNotIn(retired, lib.allowed_ship_skills())
+
+    def test_the_user_facing_set_names_no_internal_leg(self):
+        """`allowed_ship_skills` is what a user is offered; a leg is reachable
+        only through a per-path mapping, so offering one would invite the hand
+        pick ADR-0095 took away."""
+        user_facing = set(lib.allowed_ship_skills())
+        self.assertEqual(user_facing & set(lib.CODE_PATH_LEGS), set())
+        self.assertLess(user_facing, set(lib.allowed_step_skills()))
 
 
 class RefusalPointerTest(unittest.TestCase):

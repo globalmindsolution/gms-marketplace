@@ -28,11 +28,14 @@ CANONICAL = "named by the component/behavior under test, never by a ticket id"
 # create-spec outright and folded its test-authoring responsibility into
 # code/SKILL.md and the plan planner. The skills-independence refactor then
 # carved the plan phase out of /acs:code, so the planner surface is
-# create-impl-plan-planner.md.
+# create-impl-plan-executor.md (the survey charter, since ADR-0092); ADR-0095
+# then split /acs:code into a dispatcher plus the references its four delivery
+# paths share, so the skill-side surface is the execute reference -- the one
+# instruction that actually tells an executor how to write a test.
 GUIDANCE_SURFACES = [
-    os.path.join(PLUGIN, "skills", "code", "SKILL.md"),
+    os.path.join(PLUGIN, "skills", "code", "references", "execute.md"),
     os.path.join(PLUGIN, "agents", "code-executor.md"),
-    os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md"),  # the survey charter, since ADR-0092
+    os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md"),
 ]
 STANDARD_DOC = os.path.join(REPO_ROOT, "docs", "standards", "standards.md")
 

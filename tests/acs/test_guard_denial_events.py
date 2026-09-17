@@ -28,7 +28,10 @@ SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.sche
 INTERNALS = os.path.join(REPO_ROOT, "src", "acs", "docs", "INTERNALS.md")
 WORKSPACE_DOC = os.path.join(REPO_ROOT, "docs", "requirements", "functional",
                              "workspace-and-state.md")
-CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references its four
+#: delivery paths share, so what used to be one SKILL.md body is read from
+#: the reference that carries it: the Finish step and the result contract.
+CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "references", "protocol.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -52,8 +55,9 @@ class _Boom(BaseException):
 
 
 class RecordGuardEventTest(unittest.TestCase):
-    """The writer itself: same read-modify-write as record_escalation_event,
-    with the one deliberate difference — no run entry is not an exception."""
+    """The writer itself: a read-modify-write onto the last run entry, with the
+    one property its retired sibling `record_escalation_event` did not have —
+    no run entry is not an exception."""
 
     def setUp(self):
         import shutil
@@ -84,13 +88,17 @@ class RecordGuardEventTest(unittest.TestCase):
                          ["outside_map", "control_input"])
 
     def test_no_run_entry_returns_false_and_never_raises(self):
-        """record_escalation_event raises here. This sibling runs inside a deny
-        path, where an exception would be the caller's problem to catch."""
+        """Its sibling `record_escalation_event` RAISED here, and the contrast
+        was the point: an unrecorded lane change was itself the signal, so the
+        caller had to hear about it. This recorder runs inside a deny path,
+        where an exception would be the caller's problem to catch and where the
+        deny must stand whatever the recording did. ADR-0095 retired the
+        sibling, so what is pinned now is the surviving half's own behaviour —
+        plus the absence of the one that could raise."""
         self.assertIs(lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"}),
                       False)
         self.assertIsNone(self._events())
-        with self.assertRaises(ValueError):
-            lib.record_escalation_event(self.tdir_path, "code", {"reason": "x"})
+        self.assertFalse(hasattr(lib, "record_escalation_event"))
 
 
 class RecordedTargetTest(unittest.TestCase):

@@ -275,7 +275,7 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
 ```
 
    passing that raw output plus the iteration-1 notes' allowlist entries to spec 01's
-   `classify_additive_diff` helper in `acs_lib/lanes.py`. Every returned violation — any `R`,
+   `classify_additive_diff` helper in `acs_lib/planrules.py`. Every returned violation — any `R`,
    any `D`, any out-of-allowlist `M` — becomes `severity="blocking"
    dimension="additive-only"`, citing the exact path and status. The verifier's full
    check-dimension list (additive-only diff-status, doc-set-authorship boundary,

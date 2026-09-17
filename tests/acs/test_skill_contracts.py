@@ -1227,232 +1227,164 @@ class TestAdr0042D3Section(unittest.TestCase):
             "unreachable without a resolved clarify_ref (MAR-108 AC-6)")
 
 
-class TestLaneStatementUserConfirmedExceptionDocs(unittest.TestCase):
-    """MAR-108 (AC-6): overview.md / c4-component.md / reflection.md must
-    each carry the 'never *automatically* downward' + user-confirmed
-    de-escalation exception wording (design D3 architecture conformance)."""
+class TestDeliveryPathStatementDocs(unittest.TestCase):
+    """The three architecture/requirements docs that describe how rigor is
+    chosen must describe the mechanism that exists.
 
-    def _overview_body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld",
-                                  "overview.md"))
+    MAR-108 (AC-6) pinned the opposite wording here: each doc had to carry
+    "never *automatically* downward" plus the user-confirmed de-escalation
+    exception, because a lane could move mid-run and the docs had to say which
+    directions were reachable by which actor. ADR-0095 removed the movement,
+    so both halves of that sentence are now false — and a doc that still
+    carried them would send a reader looking for `confirm_deescalation`.
 
-    def _c4_component_body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld",
-                                  "c4-component.md"))
+    What replaces it is the property that makes the direction question moot:
+    the path is judged once and is never re-judged."""
 
-    def _reflection_body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "requirements",
-                                  "functional", "reflection.md"))
+    DOCS = {
+        "docs/architecture/hld/overview.md": ("docs", "architecture", "hld",
+                                              "overview.md"),
+        "docs/architecture/hld/c4-component.md": ("docs", "architecture", "hld",
+                                                  "c4-component.md"),
+        "docs/requirements/functional/reflection.md": ("docs", "requirements",
+                                                       "functional",
+                                                       "reflection.md"),
+    }
 
-    def _assert_never_automatically_downward_with_exception(self, body, path):
-        self.assertIsNotNone(
-            re.search(r"(?i)never.{0,20}automatically.{0,20}downward",
-                      body, re.DOTALL),
-            "%s must state the precise invariant 'never *automatically* "
-            "downward' (MAR-108 AC-6)" % path)
-        self.assertIsNotNone(
-            re.search(r"(?i)user.confirmed.{0,60}de.escalat|"
-                      r"de.escalat.{0,60}user.confirmed",
-                      body, re.DOTALL),
-            "%s must mention the user-confirmed de-escalation exception "
-            "(MAR-108 AC-6)" % path)
+    def _body(self, parts):
+        return re.sub(r"\s+", " ", read(os.path.join(REPO_ROOT, *parts)))
 
-    def test_overview_md_never_automatically_downward_exception(self):
-        self._assert_never_automatically_downward_with_exception(
-            self._overview_body(), "docs/architecture/hld/overview.md")
+    def test_each_doc_states_the_path_is_judged_once(self):
+        for label, parts in self.DOCS.items():
+            with self.subTest(doc=label):
+                self.assertRegex(
+                    self._body(parts),
+                    r"(?i)judged once|judged onto one|never moves mid-run|"
+                    r"never move mid-run|refuses to move a ticket already",
+                    "%s must state the delivery path is judged once" % label)
 
-    def test_c4_component_md_never_automatically_downward_exception(self):
-        self._assert_never_automatically_downward_with_exception(
-            self._c4_component_body(), "docs/architecture/hld/c4-component.md")
+    def test_no_doc_still_promises_a_de_escalation_path(self):
+        """`confirm_deescalation` is gone; naming it as a live escape hatch
+        would be a pointer at nothing."""
+        for label, parts in self.DOCS.items():
+            body = self._body(parts)
+            for m in re.finditer(r"confirm_deescalation", body):
+                window = body[max(0, m.start() - 300):m.end() + 300]
+                with self.subTest(doc=label):
+                    self.assertRegex(
+                        window, r"(?i)retired|no longer|all three are|used to|"
+                                r"existed to|ADR-0095",
+                        "%s names confirm_deescalation as if it still "
+                        "exists" % label)
 
-    def test_reflection_md_never_automatically_downward_exception(self):
-        self._assert_never_automatically_downward_with_exception(
-            self._reflection_body(), "docs/requirements/functional/reflection.md")
+    def test_no_doc_still_states_the_directional_invariant(self):
+        """"never automatically downward" only says something while something
+        can move at all."""
+        for label, parts in self.DOCS.items():
+            with self.subTest(doc=label):
+                self.assertNotRegex(
+                    self._body(parts),
+                    r"(?i)never.{0,20}automatically.{0,20}downward",
+                    "%s still states the retired directional invariant" % label)
 
 
-class TestMidFlightEscalationContract(unittest.TestCase):
-    """MAR-57 Spec 04 (AC-3, AC-6, AC-7, AC-8): pin the mid-flight escalation
-    contract in docs/requirements/functional/skills.md.
+class TestDeliveryPathContract(unittest.TestCase):
+    """ADR-0095 replacing MAR-57 Spec 04: pin the delivery-path contract in
+    docs/requirements/functional/skills.md.
 
-    Doc-assertion tests reading skills.md and verifying the standing contract
-    is present. RED before the 'Mid-flight lane escalation' subsection is added;
-    GREEN after.
-    """
+    MAR-57's contract stood here — exactly three escalation triggers (a)/(b)/(c),
+    upward-only raises, `derive_lane` as the single routing authority, a
+    monotone verify ceiling, and a de-escalation path that no unattended code
+    could take. Every one of those pins described machinery that existed to
+    make a rigor decision SAFE to change mid-run.
 
-    def _skills_md_path(self):
-        return os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
+    ADR-0095 removed the need for it by moving the decision: rigor is judged
+    once, from `plan.md`, by /ship, and recorded. So what is pinned now is the
+    single judgement and the things that keep it single — the record, the
+    refusal to re-judge, and the review dimension that catches a wrong call —
+    plus the absence of the machinery, because a doc that still described the
+    triggers would send a reader looking for helpers that are gone."""
 
     def _body(self):
-        return read(self._skills_md_path())
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional",
+                                 "skills.md"))
 
-    # --- AC-6: exactly three triggers, each enumerated ---
+    def _norm(self):
+        """Whitespace-collapsed, so a phrase that happens to wrap across two
+        source lines still matches as one substring."""
+        return re.sub(r"\s+", " ", self._body())
 
-    def test_skills_md_contains_escalation_trigger_a(self):
-        """AC-6: skills.md must enumerate trigger (a) — verifier finding signaling
-        higher stakes/size."""
-        body = self._body()
+    def test_the_path_is_judged_once_from_the_plan(self):
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(verifier finding.{0,100}(higher|stakes|size)|"
-                r"finding.{0,60}(higher.{0,30}(stakes|size)|stakes|size))",
-                body),
-            "skills.md must enumerate trigger (a): verifier finding signaling "
-            "higher stakes/size (MAR-57 AC-6)")
-
-    def test_skills_md_contains_escalation_trigger_b(self):
-        """AC-6: skills.md must enumerate trigger (b) — high_stakes_paths glob match."""
-        body = self._body()
-        self.assertIn(
-            "high_stakes_paths", body,
-            "skills.md must enumerate trigger (b): high_stakes_paths glob match "
-            "(MAR-57 AC-6)")
-
-    def test_skills_md_contains_escalation_trigger_c(self):
-        """AC-6: skills.md must enumerate trigger (c) — explicit user/agent escalation
-        request."""
-        body = self._body()
+            re.search(r"(?i)judged onto ONE delivery path", self._norm()),
+            "skills.md must state the ticket is judged onto one delivery path")
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(explicit.{0,60}(user|agent).{0,60}(escalat|request)|"
-                r"user.{0,40}agent.{0,60}escalat)",
-                body),
-            "skills.md must enumerate trigger (c): explicit user/agent escalation "
-            "request (MAR-57 AC-6)")
+            re.search(r"(?i)`/ship` reads `plan\.md`.{0,200}judges the path from it",
+                      self._norm()),
+            "skills.md must say /ship judges the path from the plan")
 
-    def test_skills_md_trigger_set_is_exactly_three(self):
-        """AC-6: skills.md must enumerate exactly triggers (a), (b), (c) in the
-        escalation section — no fourth trigger listed."""
-        body = self._body()
-        # Find the escalation subsection
-        section_match = re.search(
-            r"(?i)mid.?flight.{0,20}(lane.{0,20}escalation|escalation)", body)
+    def test_the_four_paths_are_named(self):
+        body = self._norm()
+        for path in ("trivial", "small", "standard", "complex"):
+            with self.subTest(path=path):
+                self.assertIn("`%s`" % path, body)
+
+    def test_the_judgement_is_recorded_and_re_judging_is_refused(self):
+        body = self._norm()
+        self.assertIn("delivery_path", body)
+        self.assertIn("delivery_path_reason", body)
+        self.assertIn("pipeline-state.json", body)
         self.assertIsNotNone(
-            section_match,
-            "skills.md must have a mid-flight escalation section (MAR-57 AC-6)")
-        section_start = section_match.start()
-        # Take up to 3000 chars after the section heading
-        section = body[section_start:section_start + 3000]
-        # Exactly three labeled triggers (a), (b), (c) in the trigger list
-        trigger_labels = re.findall(r"\(([abc])\)", section)
-        for label in ("a", "b", "c"):
-            self.assertIn(
-                label, trigger_labels,
-                "skills.md escalation section must label trigger (%s) (MAR-57 AC-6)" % label)
-        # Must not list a (d) trigger
-        self.assertNotIn(
-            "d", trigger_labels,
-            "skills.md escalation section must NOT list a fourth trigger (d) "
-            "(MAR-57 AC-6 — bounded trigger set)")
+            re.search(r"(?i)REFUSES to move a ticket already on a path", body),
+            "skills.md must state the writer refuses to re-judge a recorded path")
 
-    # --- AC-3/AC-8: upward-only automatic escalation ---
-
-    def test_skills_md_upward_only_contract(self):
-        """AC-3/AC-8: skills.md must state the upward-only automatic escalation contract."""
-        body = self._body()
+    def test_a_wrong_judgement_is_caught_by_the_review_not_a_trigger(self):
+        body = self._norm()
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(upward.only|upward only|only.{0,30}rais|automatically escalat|"
-                r"automatic.{0,30}escalat)",
-                body),
-            "skills.md must state upward-only automatic escalation contract "
-            "(MAR-57 AC-3/AC-8)")
-
-    # --- AC-3: negative guarantee (no automatic downgrade) ---
-
-    def test_skills_md_negative_guarantee(self):
-        """AC-3: skills.md must state that no automatic/unattended code path lowers
-        the lane or authoritative axes below a user-confirmed value."""
-        body = self._body()
+            re.search(r"(?i)\*\*path audit\*\*", body),
+            "skills.md must name the verifier's path-audit dimension")
+        self.assertIn("plan_superseded", body)
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(never automatic|no automatic.{0,60}(lower|lowers|de.escalat)|"
-                r"automatic.{0,30}(never|not|never).{0,60}(lower|lowers)|"
-                r"negative guarantee|automatic.{0,50}silent)",
-                body),
-            "skills.md must state the negative guarantee: no automatic/unattended "
-            "path lowers the lane or axes below a user-confirmed value (MAR-57 AC-3)")
+            re.search(r"(?i)remedy is a replan", body),
+            "skills.md must state the remedy is a replan, not a re-route")
 
-    # --- AC-3/AC-8: user-confirmed-only de-escalation + interactive downgrade deferred ---
-
-    def test_skills_md_user_confirmed_only_de_escalation(self):
-        """AC-3/AC-8: skills.md must state that de-escalation requires explicit user
-        confirmation and that interactive downgrade is deferred."""
-        body = self._body()
-        # Must state user confirmation required for de-escalation
+    def test_the_cost_of_the_change_is_stated_rather_than_hidden(self):
+        """A design record that only lists what improved is not a record. The
+        thing given up is that rigor can no longer RISE mid-run."""
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(de.escalat.{0,100}(user.confirm|explicit.confirm|explicit.user)|"
-                r"(user.confirm|explicit).{0,100}de.escalat|"
-                r"lower.{0,60}user.confirm)",
-                body),
-            "skills.md must state de-escalation requires explicit user confirmation "
-            "(MAR-57 AC-3/AC-8)")
-        # Must state the interactive downgrade command is deferred
+            re.search(r"(?i)rigor can no longer RISE mid-run", self._norm()),
+            "skills.md must state what the change gives up")
+
+    def test_no_retired_helper_is_still_presented_as_live(self):
+        """Naming one in a sentence that says it is gone is fine; the guard is
+        that no retired helper appears without that context."""
+        body = self._norm()
+        for helper in ("derive_lane", "verify_depth", "escalate_lane",
+                       "guard_axes", "confirm_deescalation",
+                       "VERIFY_ITERATION_CAP"):
+            with self.subTest(helper=helper):
+                for m in re.finditer(re.escape(helper), body):
+                    window = body[max(0, m.start() - 400):m.end() + 400]
+                    self.assertRegex(
+                        window, r"(?i)retired|no longer|used to|went with|"
+                                r"There is no|replaces|ADR-0095",
+                        "%s is named as if it still exists: %r"
+                        % (helper, window[:200]))
+
+    def test_the_ticket_carries_no_rigor_axis(self):
         self.assertIsNotNone(
-            re.search(
-                r"(defer|deferred|out.of.scope).{0,200}(downgrade|de.escalat|interactiv)|"
-                r"(downgrade|de.escalat|interactiv).{0,200}(defer|deferred|out.of.scope)",
-                body, re.IGNORECASE | re.DOTALL),
-            "skills.md must state the interactive downgrade command is deferred "
-            "(MAR-57 AC-3/AC-8)")
+            re.search(r"(?i)`ticket\.json` therefore carries no `size`, "
+                      r"`stakes` or `lane` field", self._norm()),
+            "skills.md must state the ticket schema has no rigor axis")
 
-    # --- AC-5/AC-8: stage re-introduction mentioned ---
-
-    def test_skills_md_stage_reintroduction_mentioned(self):
-        """AC-5/AC-8: skills.md must mention stage re-introduction (picking up
-        create-spec rigor on fast-lane escalation).
-
-        Superseded by ADR 0066/MAR-161: create-spec is retired and every lane
-        already folds spec authoring into /code's plan phase, so there is no
-        stage left to re-enter on escalation. The regex below now pins the
-        replacement claim (no separate stage to re-enter; the verify-iteration
-        ceiling raises monotonically instead)."""
-        body = self._body()
+    def test_apply_tier_inlining_is_still_stated_unchanged(self):
+        """The one MAR-57 sibling claim that survives: MAR-60 was never part of
+        the lane machinery, so retiring it would have lost a true statement."""
         self.assertIsNotNone(
-            re.search(
-                r"(?i)(no\s+(separate\s+)?stage\s+to\s+re-?enter|"
-                r"verify.iteration\s+ceiling\s+monotonically|"
-                r"escalat.{0,150}(never|no).{0,50}(re-?introduc|re-?spawn))",
-                body, re.DOTALL),
-            "skills.md must mention stage re-introduction (picking up create-spec "
-            "rigor on fast-lane escalation) (MAR-57 AC-5/AC-8)")
-
-    # --- AC-8: sibling behaviors MAR-59 / MAR-60 stated unchanged ---
-
-    def test_skills_md_mar59_fold_unchanged(self):
-        """AC-8: skills.md must state that the fast-lane fold (MAR-59) is unchanged
-        for non-escalating tickets."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(MAR.59|fast.lane fold|fast.?lane.{0,60}fold)"
-                r".{0,300}(unchanged|unaffected|not changed|intact)|"
-                r"(unchanged|unaffected|not changed).{0,300}(MAR.59|fast.lane fold)",
-                body, re.DOTALL),
-            "skills.md must state the fast-lane fold (MAR-59) is unchanged for "
-            "non-escalating tickets (MAR-57 AC-8)")
-
-    def test_skills_md_mar60_apply_tier_unchanged(self):
-        """AC-8: skills.md must state that apply-tier inlining (MAR-60) is unchanged."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(MAR.60|apply.tier).{0,300}(unchanged|unaffected|not changed|intact)|"
-                r"(unchanged|unaffected|not changed).{0,300}(MAR.60|apply.tier)",
-                body, re.DOTALL),
-            "skills.md must state apply-tier inlining (MAR-60) is unchanged "
-            "(MAR-57 AC-8)")
-
-    # --- AC-6: routing always via derive_lane ---
-
-    def test_skills_md_derive_lane_as_single_authority(self):
-        """AC-6: skills.md must state routing always via derive_lane (no caller
-        re-implements routing)."""
-        body = self._body()
-        self.assertIn(
-            "derive_lane", body,
-            "skills.md must reference derive_lane as the single routing authority "
-            "(MAR-57 AC-6)")
+            re.search(r"(?i)(MAR.60|apply.tier).{0,300}(unchanged|unaffected)|"
+                      r"(unchanged|unaffected).{0,300}(MAR.60|apply.tier)",
+                      self._norm()),
+            "skills.md must still state apply-tier inlining (MAR-60) is unchanged")
 
 
 class TestAdr0042D4Section(unittest.TestCase):
@@ -1493,80 +1425,74 @@ class TestAdr0042D4Section(unittest.TestCase):
             "(formalize the shipped detection point unchanged) (MAR-107 AC-5)")
 
 
-class TestReflectionMdEscalationCeiling(unittest.TestCase):
-    """MAR-57 Spec 04 (AC-1, AC-7, AC-8): pin the in-loop ceiling-raise contract
-    in docs/requirements/functional/reflection.md.
+class TestReflectionMdCeilingContract(unittest.TestCase):
+    """MAR-57 Spec 04's ceiling contract, as ADR-0095 re-founded it.
 
-    Doc-assertion tests reading reflection.md and verifying the escalation
-    ceiling-raise prose is present and invariants are retained. RED before the
-    ADD-only ceiling-raise paragraph is added; GREEN after.
-    """
+    What stood here pinned the in-loop ceiling RAISE: reflection.md had to
+    describe an escalation recomputing the ceiling mid-run, the iteration-start
+    detection point it happened at (MAR-107 D4), and the fold-boundary stage
+    re-entry that came with crossing from a fast lane into a full one. All
+    three describe motion that no longer happens.
+
+    The invariants those paragraphs were careful not to weaken — the verifier
+    is the in-loop gate everywhere, the TDD/coverage gate is never trimmed —
+    are the part worth keeping, and they are pinned here unchanged. What is new
+    is the reason they are now easy to hold: the ceiling is a property of the
+    path, the path is judged once, and neither moves."""
 
     def _reflection_md_path(self):
-        return os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
+        return os.path.join(REPO_ROOT, "docs", "requirements", "functional",
+                            "reflection.md")
 
     def _body(self):
-        return read(self._reflection_md_path())
+        return re.sub(r"\s+", " ", read(self._reflection_md_path()))
 
     def test_reflection_md_exists_at_expected_path(self):
-        """AC-8: docs/requirements/functional/reflection.md must exist at the expected path."""
         self.assertTrue(
             os.path.isfile(self._reflection_md_path()),
-            "docs/requirements/functional/reflection.md must exist (MAR-57 AC-8)")
+            "docs/requirements/functional/reflection.md must exist")
 
-    def test_reflection_md_in_loop_ceiling_raise(self):
-        """AC-8/AC-1: reflection.md must describe the in-loop ceiling raise on
-        escalation (e.g. 'escalation', 'mid-run', 'ceiling' adjustment, or monotone raise)."""
+    def test_the_ceiling_is_stated_per_path_and_never_moves(self):
         body = self._body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(escalat.{0,200}(ceiling|ceiling raise|mid.run|in.loop|raise)|"
-                r"ceiling.{0,200}(raise|escalat|mid.run)|"
-                r"mid.run.{0,100}ceiling|in.loop.{0,100}ceiling)",
-                body, re.DOTALL),
-            "reflection.md must describe the in-loop ceiling raise on escalation "
-            "(MAR-57 AC-8/AC-1)")
+        self.assertRegex(
+            body, r"(?i)ceiling never moves mid-run|never moves mid-run",
+            "reflection.md must state the ceiling does not move mid-run")
+        self.assertRegex(
+            body, r"(?i)at most \*\*2 iterations\*\*",
+            "reflection.md must state the cheap paths' ceiling")
+        self.assertRegex(
+            body, r"(?i)at most \*\*3 iterations\*\*",
+            "reflection.md must state the deep paths' ceiling")
 
     def test_reflection_md_invariants_preserved(self):
-        """AC-7: reflection.md must retain language about absolute invariants
-        (verifier always runs; TDD/coverage gate immutable) — the existing
-        invariant text is not removed or weakened by this spec's edit."""
+        """AC-7, unchanged in substance: the two absolute invariants survive
+        the rewrite. Only the words that scoped them moved, from "in every
+        lane" to "on every delivery path"."""
         body = self._body()
-        # Check both invariants are still stated
         self.assertIn(
             "Absolute invariants", body,
-            "reflection.md must retain the 'Absolute invariants' block "
-            "(MAR-57 AC-7 — ADD-only, must not remove)")
-        self.assertIsNotNone(
-            re.search(r"(?i)(verifier.{0,60}(always runs|every lane)|every lane.{0,60}verifier)",
-                      body),
-            "reflection.md must retain 'verifier always runs in every lane' invariant "
-            "(MAR-57 AC-7)")
-        self.assertIsNotNone(
-            re.search(r"(?i)(TDD.{0,60}coverage.{0,60}(gate|immutable|never trimmed)|"
-                      r"coverage.{0,60}gate.{0,60}(immutable|never trimmed|full))",
-                      body),
-            "reflection.md must retain 'TDD/coverage gate immutable' invariant "
-            "(MAR-57 AC-7)")
+            "reflection.md must retain the 'Absolute invariants' block")
+        self.assertRegex(
+            body,
+            r"(?i)verifier.{0,80}(always runs|every delivery path|every path)|"
+            r"every (delivery )?path.{0,80}verifier",
+            "reflection.md must retain the verifier-always-runs invariant")
+        self.assertRegex(
+            body,
+            r"(?i)TDD.{0,80}coverage.{0,80}(gate|never trimmed|in full)|"
+            r"coverage.{0,80}gate.{0,80}(never trimmed|in full)",
+            "reflection.md must retain the TDD/coverage-gate invariant")
 
-    # --- MAR-107 D4 AC-6: names the detection point + fold-boundary re-entry ---
-
-    def test_reflection_md_names_d4_detection_point_and_fold_boundary_reentry(self):
-        """MAR-107 AC-6: the mid-flight ceiling-raise paragraph must name the
-        iteration-start detection point and the fold-boundary stage re-entry
-        in D4 terms. Does not edit test_reflection_md_in_loop_ceiling_raise or
-        test_reflection_md_invariants_preserved (both remain unchanged)."""
+    def test_the_retired_motion_is_not_still_described_as_live(self):
         body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)detection point", body),
-            "reflection.md must name the iteration-start 'detection point' "
-            "(MAR-107 AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?i)fold.boundary.{0,200}(re.entry|re.introduc)|"
-                      r"(re.entry|re.introduc).{0,200}fold.boundary",
-                      body, re.DOTALL),
-            "reflection.md must name the fold-boundary stage re-entry "
-            "(MAR-107 AC-6)")
+        for m in re.finditer(r"(?i)detection point|fold.boundary|"
+                             r"VERIFY_ITERATION_CAP", body):
+            window = body[max(0, m.start() - 400):m.end() + 400]
+            self.assertRegex(
+                window, r"(?i)MAR-57 made|retired|no longer|none of that|"
+                        r"used to|went with|ADR-0095",
+                "reflection.md describes retired escalation machinery as "
+                "live: %r" % window[:200])
 
 
 class TestClarifyBatchingContract(unittest.TestCase):
@@ -3186,34 +3112,51 @@ class TestCreatePrInReviewStatusDocs(unittest.TestCase):
             "single-select-option-id in Step 2 cleanup (MAR-102 AC-5)")
 
 
-class TestContractsMdD4FoldBoundaryReentry(unittest.TestCase):
-    """MAR-107 (AC-6): pin the additive sentence in the existing
-    'Escalation-event audit trail (MAR-106)' section of
-    docs/architecture/lld/contracts.md naming the D4 detection point and
-    fold-boundary re-entry — no new section, since the event shape is
-    unchanged by D4."""
+class TestContractsMdDeliveryPathSection(unittest.TestCase):
+    """MAR-107 (AC-6) pinned an additive sentence inside contracts.md's
+    "Escalation-event audit trail (MAR-106)" section, naming the D4 detection
+    point and the fold-boundary re-entry. ADR-0095 retired the event, the
+    detection point and the boundary crossing together, so that section is
+    gone and this pins what took its place: the two fields the path is
+    recorded in, and the refusal that keeps it single."""
 
     def _contracts_body(self):
-        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
+        return re.sub(r"\s+", " ", read(os.path.join(
+            REPO_ROOT, "docs", "architecture", "lld", "contracts.md")))
 
-    def test_escalation_audit_trail_section_names_d4_detection_point_and_reentry(self):
-        """AC-6: the 'Escalation-event audit trail (MAR-106)' section must
-        name the D4 detection point and the fold-boundary re-entry."""
-        body = self._contracts_body()
-        section_start = body.index("## Escalation-event audit trail (MAR-106)")
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
-        section = body[section_start:section_end]
-        self.assertIsNotNone(
-            re.search(r"(?i)detection point", section),
-            "contracts.md's escalation-event audit trail section must name "
-            "the D4 detection point (MAR-107 AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?i)fold.boundary.{0,200}(re.entry|re.introduc)|"
-                      r"(re.entry|re.introduc).{0,200}fold.boundary",
-                      section, re.DOTALL),
-            "contracts.md's escalation-event audit trail section must name "
-            "the fold-boundary re-entry (MAR-107 AC-6)")
+    def _section(self):
+        body = read(os.path.join(REPO_ROOT, "docs", "architecture", "lld",
+                                 "contracts.md"))
+        start = body.index("## Delivery path (ADR-0095)")
+        nxt = re.search(r"\n## ", body[start + 1:])
+        end = start + 1 + nxt.start() if nxt else len(body)
+        return re.sub(r"\s+", " ", body[start:end])
+
+    def test_the_section_declares_both_recorded_fields(self):
+        section = self._section()
+        self.assertIn("delivery_path", section)
+        self.assertIn("delivery_path_reason", section)
+        self.assertIn("pipeline-state.json", section)
+
+    def test_the_section_names_the_one_writer_and_its_three_refusals(self):
+        section = self._section()
+        self.assertIn("record_delivery_path", section)
+        self.assertIn("acs.py path set", section)
+        self.assertRegex(section, r"(?i)ONLY writer")
+        self.assertRegex(section, r"(?i)moving a ticket that is already on a path")
+
+    def test_the_retired_event_is_recorded_as_retired(self):
+        """A reader who knows the old contract must find out what happened to
+        it here, rather than inferring it from the section's absence."""
+        section = self._section()
+        self.assertIn("escalations", section)
+        self.assertIn("confirm_deescalation", section)
+        self.assertRegex(section, r"(?i)All of it is retired")
+
+    def test_the_retired_section_heading_is_gone(self):
+        self.assertNotIn("## Escalation-event audit trail",
+                         read(os.path.join(REPO_ROOT, "docs", "architecture",
+                                           "lld", "contracts.md")))
 
 
 class TestChangelogMar107Entry(unittest.TestCase):

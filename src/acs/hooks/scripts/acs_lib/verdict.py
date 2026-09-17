@@ -45,7 +45,7 @@ VERDICT_DIMENSIONS = {
     13: "Audience-style",
     14: "Regression-risk (git-history)",
     15: "Plan conformance",
-    16: "Approval-audit",
+    16: "Path audit",
 }
 
 #: A dimension's outcome. `n/a` is a real answer, not a missing one: dimension

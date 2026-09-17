@@ -7,14 +7,17 @@ wholesale with `<repo>/.acs/workflows/ship.yaml`), skills are grouped into
 phases by `workflows/phases.yaml`, and /acs:ship is a loop over `acs.py
 workflow next`. This module owns all of that:
 
-  load_phases / allowed_ship_skills   the registry (phases, aliases, internal
-                                      legs) and the ship-eligible subset
   resolve / load_workflow / validate  override-or-default resolution, schema
-                                      (a stdlib subset of JSON Schema, since
-                                      hooks may not import jsonschema) and the
-                                      semantic checks: ids unique, needs name
-                                      EARLIER steps, stop_after exists,
-                                      predicates known, DAG acyclic
+                                      (acs_lib.schemasubset, since hooks may
+                                      not import jsonschema) and the semantic
+                                      checks: ids unique, needs name EARLIER
+                                      steps, stop_after exists, predicates
+                                      known, paths drawn from the declared
+                                      vocabulary, DAG acyclic
+  delivery_of / record_delivery_path  the ADR-0095 delivery paths: the branch
+                                      point a workflow declares, the per-path
+                                      fields a step may carry, and the ONE
+                                      write that records a ticket's path
   PREDICATES                          the four named, pure predicates the
                                       `when` / `requires` keys may name
   next_steps                          the walk: which steps are READY for a
@@ -22,6 +25,12 @@ workflow next`. This module owns all of that:
                                       `single` or `parallel` mode
   pending_needs                       what a hand-invoked skill's predecessors
                                       look like (the pre-hook advisory reads it)
+
+Two neighbours carry what this module needs but does not own, so a caller can
+use them WITHOUT loading a pipeline document: `acs_lib.phases` holds the plugin
+paths and the skill registry (`load_phases`, `allowed_ship_skills`,
+`skill_legs`), and `acs_lib.schemasubset` holds the JSON Schema subset. Both
+are re-exported here, so `workflow.load_phases` keeps working.
 
 Gates stay INPUT and SAFETY checks; nothing here refuses a skill for running
 out of order. Every ledger read goes through acs_lib.state; ticket documents
@@ -33,26 +42,25 @@ import importlib
 import os
 import re
 
-from ._common import GateError, plugin_root, read_json, write_json
+from ._common import GateError, WorkflowError, plugin_root, read_json, write_json  # noqa: F401
 from .repo import find_ticket_partition
 from .state import load_pipeline, skill_completed, update_pipeline
+from . import phases as phases_registry  # noqa: F401
+from . import schemasubset  # noqa: F401
+from .schemasubset import (branch_fits_type, deref, equal, is_type,  # noqa: F401
+    pointer, schema_errors, type_name)
+from .phases import (OVERRIDE_WORKFLOW_RELPATH, PHASES_FILENAME,  # noqa: F401
+    PhasesError,
+    PHASES_SCHEMA_FILENAME, PHASE_GROUPS, SHIP_EXCLUDED_SKILLS, SHIP_FILENAME,
+    SHIP_PHASES, SHIP_SCHEMA_FILENAME, SKILLS_DIRNAME, WORKFLOWS_DIRNAME,
+    agent_roles_of, allowed_ship_skills, allowed_step_skills,
+    default_workflow_path, entry_point_of, load_phases, load_schema,
+    override_workflow_path, phase_of, phases_path, registered_skills,
+    schema_path, skill_agents, skill_aliases, skill_legs, skills_dir,
+    workflows_dir)
 from . import yamlsubset
 from .yamlsubset import YamlSubsetError
 
-WORKFLOWS_DIRNAME = "workflows"
-SKILLS_DIRNAME = "skills"
-PHASES_FILENAME = "phases.yaml"
-SHIP_FILENAME = "ship.yaml"
-#: The consumer override, relative to the checkout root; replaces the default wholesale.
-OVERRIDE_WORKFLOW_RELPATH = os.path.join(".acs", "workflows", "ship.yaml")
-SHIP_SCHEMA_FILENAME = "ship-workflow.schema.json"
-PHASES_SCHEMA_FILENAME = "phases.schema.json"
-
-PHASE_GROUPS = ("design", "build", "test", "ship", "utility")
-#: The phases ship.yaml may draw steps from...
-SHIP_PHASES = ("build", "test", "ship")
-#: ...minus the two ship-phase skills a human always drives.
-SHIP_EXCLUDED_SKILLS = ("merge-pr", "release")
 BOUNDARIES = ("full_verify_stop",)
 DEFAULT_STOP_AFTER = "create-pr"
 DEFAULT_MAX_PARALLEL = 2
@@ -74,335 +82,12 @@ SKIPPED_STATUS = "skipped"
 RERUN_STATUSES = ("failed", "interrupted", "in_progress", "handed_off")
 
 
-class WorkflowError(GateError):
-    """A workflow file outside its contract, or a walk that cannot proceed.
-    `line`/`path` locate a file problem; `payload` is the JSON a CLI emits
-    before exiting 2 (the epic refusal)."""
-
-    def __init__(self, reason, path=None, line=None, payload=None):
-        self.reason = reason
-        self.path = path
-        self.line = line
-        self.payload = payload
-        super().__init__(self.render())
-
-    def render(self):
-        where = self.path or ""
-        if self.line:
-            where = "%s:%d" % (where, self.line) if where else "line %d" % self.line
-        return "%s: %s" % (where, self.reason) if where else self.reason
-
-
 def _lib():
     """The acs_lib facade, resolved at call time: load_ticket and
     design_requirement are looked up through it so a module that later takes
     them over (the docs-tree artifacts reader) is honoured, and so gates --
     which will import this module for its advisory -- is never imported here."""
     return importlib.import_module(__package__ or "acs_lib")
-
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-def workflows_dir(root=None):
-    return os.path.join(root or plugin_root(), WORKFLOWS_DIRNAME)
-
-
-def phases_path(root=None):
-    return os.path.join(workflows_dir(root), PHASES_FILENAME)
-
-
-def skills_dir(root=None):
-    """The plugin's skills/ tree -- where an `internal` leg must have its
-    directory. Always the plugin's own, never a consumer override: phases.yaml
-    has no override (only ship.yaml does), like _load_schema below."""
-    return os.path.join(root or plugin_root(), SKILLS_DIRNAME)
-
-
-def default_workflow_path(root=None):
-    return os.path.join(workflows_dir(root), SHIP_FILENAME)
-
-
-def override_workflow_path(checkout_root):
-    return os.path.join(checkout_root, OVERRIDE_WORKFLOW_RELPATH)
-
-
-def schema_path(name, root=None):
-    return os.path.join(root or plugin_root(), "schemas", name)
-
-
-# ---------------------------------------------------------------------------
-# A stdlib subset of JSON Schema (draft 2020-12 keywords the two workflow
-# schemas use). Hooks are stdlib-only; the tests cross-check the same schemas
-# with the jsonschema package so the subset cannot drift from the real thing.
-# ---------------------------------------------------------------------------
-
-_TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
-
-
-def _is_type(value, typ):
-    if isinstance(typ, list):
-        return any(_is_type(value, t) for t in typ)
-    if typ == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if typ == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    return isinstance(value, _TYPES[typ])
-
-
-def _type_name(value):
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "boolean"
-    for name, cls in (("object", dict), ("array", list), ("string", str), ("integer", int)):
-        if isinstance(value, cls):
-            return name
-    return type(value).__name__
-
-
-def _equal(a, b):
-    """JSON equality: a boolean never equals an integer, unlike Python."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    return a == b
-
-
-def _deref(root, ref):
-    if not ref.startswith("#/"):
-        raise WorkflowError("unsupported $ref %r in schema" % ref)
-    node = root
-    for part in ref[2:].split("/"):
-        node = node[part]
-    return node
-
-
-def _schema_errors(schema, value, root=None, path=()):
-    """[(path, message)] for every violation, in traversal order."""
-    root = schema if root is None else root
-    if "$ref" in schema:
-        schema = _deref(root, schema["$ref"])
-    typ = schema.get("type")
-    if typ and not _is_type(value, typ):
-        return [(path, "expected %s, got %s" % (typ if isinstance(typ, str) else "/".join(typ),
-                                                  _type_name(value)))]
-    errors = []
-    if "const" in schema and not _equal(value, schema["const"]):
-        errors.append((path, "must be %r" % (schema["const"],)))
-    if "enum" in schema and not any(_equal(value, e) for e in schema["enum"]):
-        errors.append((path, "%r is not one of %s" % (value, ", ".join(repr(e) for e in schema["enum"]))))
-    if isinstance(value, dict):
-        for key in schema.get("required", []):
-            if key not in value:
-                errors.append((path + (key,), "missing required key %r" % key))
-        props = schema.get("properties", {})
-        for key, item in value.items():
-            if key in props:
-                errors.extend(_schema_errors(props[key], item, root, path + (key,)))
-            elif schema.get("additionalProperties") is False:
-                errors.append((path + (key,), "unknown key %r" % key))
-            elif isinstance(schema.get("additionalProperties"), dict):
-                errors.extend(_schema_errors(schema["additionalProperties"], item, root, path + (key,)))
-            if "propertyNames" in schema:
-                errors.extend(_schema_errors(schema["propertyNames"], key, root, path + (key,)))
-    if isinstance(value, list):
-        if "minItems" in schema and len(value) < schema["minItems"]:
-            errors.append((path, "needs at least %d item(s)" % schema["minItems"]))
-        if schema.get("uniqueItems") and len({repr(v) for v in value}) != len(value):
-            errors.append((path, "items must be unique"))
-        if "items" in schema:
-            for index, item in enumerate(value):
-                errors.extend(_schema_errors(schema["items"], item, root, path + (index,)))
-    if isinstance(value, str):
-        if "minLength" in schema and len(value) < schema["minLength"]:
-            errors.append((path, "must not be empty"))
-        if "pattern" in schema and not re.search(schema["pattern"], value):
-            errors.append((path, "%r does not match %s" % (value, schema["pattern"])))
-    if _is_type(value, "number"):
-        if "minimum" in schema and value < schema["minimum"]:
-            errors.append((path, "must be >= %s" % schema["minimum"]))
-    if "oneOf" in schema:
-        branch_errors = [_schema_errors(sub, value, root, path) for sub in schema["oneOf"]]
-        matches = sum(1 for errs in branch_errors if not errs)
-        if matches != 1:
-            # Report the branch that best fits the value's own type rather than
-            # the generic "matched no form". A per-path field is `oneOf` a
-            # scalar and a mapping, and a reader who wrote a scalar wants the
-            # scalar branch's complaint -- naming the allowed values -- not a
-            # note that a mapping would also have been acceptable.
-            specific = None
-            for sub, errs in zip(schema["oneOf"], branch_errors):
-                if not errs:
-                    continue
-                if _branch_fits_type(sub, value, root):
-                    specific = errs[0]
-                    break
-            errors.append(specific or
-                          (path, "%r does not match exactly one of the allowed forms" % (value,)))
-    return errors
-
-
-def _branch_fits_type(sub, value, root):
-    """True when this `oneOf` branch describes values of `value`'s own JSON
-    type -- the branch whose complaint is worth surfacing."""
-    if "$ref" in sub:
-        sub = _deref(root, sub["$ref"])
-    if "enum" in sub and not isinstance(value, (dict, list)):
-        return True
-    typ = sub.get("type")
-    return bool(typ) and _is_type(value, typ)
-
-
-def _pointer(path):
-    out = ""
-    for part in path:
-        out += "[%d]" % part if isinstance(part, int) else (".%s" % part if out else str(part))
-    return out or "(document)"
-
-
-def _load_schema(name):
-    schema = read_json(schema_path(name))
-    if not isinstance(schema, dict):
-        raise WorkflowError("cannot read the schema at %s" % schema_path(name))
-    return schema
-
-
-# ---------------------------------------------------------------------------
-# Phases registry
-# ---------------------------------------------------------------------------
-
-def load_phases(path=None):
-    """workflows/phases.yaml, schema-checked, with every skill listed exactly
-    once across the five groups, the `aliases` keys and the `internal` keys,
-    every alias pointing at a registered skill, and every internal leg owning a
-    skills/<dir> and pointing at a phase-listed skill that is not itself a leg.
-    `aliases` and `internal` are always present (an empty mapping when the file
-    has none)."""
-    path = path or phases_path()
-    try:
-        doc, lines = yamlsubset.parse_file(path)
-    except YamlSubsetError as exc:
-        raise WorkflowError(exc.reason, path=exc.path, line=exc.line)
-    errors = _schema_errors(_load_schema(PHASES_SCHEMA_FILENAME), doc)
-    if errors:
-        node, message = errors[0]
-        raise WorkflowError("%s: %s" % (_pointer(node), message), path=path,
-                            line=yamlsubset.line_for(lines, node))
-    seen = {}
-    for group in PHASE_GROUPS:
-        for skill in doc["phases"][group]:
-            if skill in seen:
-                raise WorkflowError("skill %r is listed under both %s and %s" % (skill, seen[skill], group),
-                                    path=path, line=yamlsubset.line_for(lines, ("phases", group)))
-            seen[skill] = group
-    aliases = doc.get("aliases") or {}
-    for alias, target in aliases.items():
-        if alias in seen:
-            raise WorkflowError("alias %r is also a registered skill" % alias, path=path,
-                                line=yamlsubset.line_for(lines, ("aliases", alias)))
-        if target not in seen:
-            raise WorkflowError("alias %r points at unregistered skill %r" % (alias, target), path=path,
-                                line=yamlsubset.line_for(lines, ("aliases", alias)))
-    doc["aliases"] = aliases
-    internal = doc.get("internal") or {}
-    for leg, entry in internal.items():
-        line = yamlsubset.line_for(lines, ("internal", leg))
-        if leg in seen:
-            raise WorkflowError("internal leg %r is also a registered skill" % leg, path=path, line=line)
-        if leg in aliases:
-            raise WorkflowError("internal leg %r is also an alias" % leg, path=path, line=line)
-        if entry in internal:
-            raise WorkflowError("internal leg %r points at %r, which is itself an internal leg" % (leg, entry),
-                                path=path, line=line)
-        if entry not in seen:
-            raise WorkflowError("internal leg %r points at unregistered entry point %r" % (leg, entry),
-                                path=path, line=line)
-    for leg in internal:
-        if not os.path.isdir(os.path.join(skills_dir(), leg)):
-            raise WorkflowError("internal leg %r has no skills/%s directory" % (leg, leg), path=path,
-                                line=yamlsubset.line_for(lines, ("internal", leg)))
-    doc["internal"] = internal
-    return doc
-
-
-def registered_skills(phases=None):
-    """Every registered skill, in group then file order (aliases excluded)."""
-    phases = phases or load_phases()
-    return [skill for group in PHASE_GROUPS for skill in phases["phases"][group]]
-
-
-def skill_aliases(phases=None):
-    """{alias: target} -- a skill directory that forwards to a registered skill."""
-    return dict((phases or load_phases())["aliases"])
-
-
-def skill_legs(phases=None):
-    """{internal-leg: entry-point} -- a skill that keeps its SKILL.md, agents,
-    hooks and gate and stays Skill-invocable, but whose only user-facing
-    command is the entry point it serves. `{}` when the registry declares none."""
-    return dict((phases or load_phases())["internal"])
-
-
-def skill_agents(phases=None):
-    """{skill: [role, ...]} -- the subagent roles each skill owns (ADR-0092).
-
-    A skill declares the machinery its work needs; nothing is inferred from
-    whether it is hooked. A skill absent from the map owns no subagents, which
-    is the right answer for a mechanical action or a dispatcher. `{}` when the
-    registry declares none.
-    """
-    return dict((phases or load_phases()).get("agents") or {})
-
-
-def agent_roles_of(skill, phases=None):
-    """The roles `skill` owns, `[]` when it owns none."""
-    return list(skill_agents(phases).get(skill, []))
-
-
-def entry_point_of(skill, phases=None):
-    """The entry point an internal leg serves, else None (a user-facing skill
-    is nobody's leg)."""
-    return (phases or load_phases())["internal"].get(skill)
-
-
-def phase_of(skill, phases=None):
-    """The group a skill belongs to, else None. An alias resolves to its
-    target and an internal leg to its entry point, so an internal leg reports
-    the group of the command a user actually runs."""
-    phases = phases or load_phases()
-    skill = phases["aliases"].get(skill, skill)
-    skill = phases["internal"].get(skill, skill)
-    for group in PHASE_GROUPS:
-        if skill in phases["phases"][group]:
-            return group
-    return None
-
-
-def allowed_ship_skills(phases=None):
-    """The user-facing skills a ship.yaml step may name: build + test + ship,
-    minus SHIP_EXCLUDED_SKILLS. No internal leg is here — a leg is not a
-    command, and this list has always meant "commands the pipeline may run"."""
-    phases = phases or load_phases()
-    return [skill for group in SHIP_PHASES for skill in phases["phases"][group]
-            if skill not in SHIP_EXCLUDED_SKILLS]
-
-
-def allowed_step_skills(phases=None):
-    """What a step's `skill` may resolve to: allowed_ship_skills(), plus the
-    internal legs those skills serve as entry point. The schema's `skillName`
-    enum mirrors this list.
-
-    The legs are admissible only HERE, and only through a per-path mapping: the
-    `code` step names `code-standard` on one path and `code-trivial` on another
-    (ADR-0095). Keeping that separate from allowed_ship_skills() preserves what
-    that function has always meant — a leg still is not a command — and makes
-    the one place legs become nameable explicit. A leg is admissible exactly
-    when the command it serves is, so a leg of `merge-pr` could never slip in."""
-    phases = phases or load_phases()
-    entry_points = allowed_ship_skills(phases)
-    legs = [leg for leg, entry in phases["internal"].items() if entry in entry_points]
-    return entry_points + sorted(legs)
 
 
 # ---------------------------------------------------------------------------
@@ -534,17 +219,17 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
     the source line when `lines` (from yamlsubset.parse) is given."""
     phases = phases or load_phases()
     if not isinstance(doc, dict):
-        _fail("(document): expected object, got %s" % _type_name(doc), path, lines, ())
+        _fail("(document): expected object, got %s" % type_name(doc), path, lines, ())
     if doc.get("version") != WORKFLOW_VERSION:
         _fail("version: %r is not supported — this build reads version %d. A version-1 "
               "file predates delivery paths (ADR-0095): add a `delivery` block and "
               "replace the `code` step's skill with the per-path mapping from the "
               "plugin default at workflows/ship.yaml."
               % (doc.get("version"), WORKFLOW_VERSION), path, lines, ("version",))
-    errors = _schema_errors(_load_schema(SHIP_SCHEMA_FILENAME), doc)
+    errors = schema_errors(load_schema(SHIP_SCHEMA_FILENAME), doc)
     if errors:
         node, message = errors[0]
-        _fail("%s: %s" % (_pointer(node), message), path, lines, node)
+        _fail("%s: %s" % (pointer(node), message), path, lines, node)
     allowed = allowed_step_skills(phases)
     steps = doc["steps"]
     ids = []

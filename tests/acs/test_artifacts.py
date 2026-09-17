@@ -62,7 +62,7 @@ def full_ticket(ticket_id=TICKET):
         acceptance_criteria=["Widget lists items", "Widget handles an empty list:\nshows a hint"],
         priority="high", parent="SHOP-9", children=[], external={"provider": "jira", "key": "PROJ-1"},
         assignee="jane", story_points=3, needs_design=False, docs_only=False,
-        size="small", stakes="high", due_date="2026-12-01")
+        due_date="2026-12-01")
     doc["status"] = "in_progress"
     return doc
 
@@ -378,7 +378,8 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertTrue(os.path.isfile(self.md_path()))
         self.assertNotIn("ticket.json", os.listdir(tdir))
         self.assertEqual(loaded["status"], "open")
-        for key in ("id", "title", "description", "acceptance_criteria", "external", "lane"):
+        for key in ("id", "title", "description", "acceptance_criteria",
+                    "external", "needs_design", "due_date"):
             with self.subTest(field=key):
                 self.assertEqual(loaded[key], doc[key])
 

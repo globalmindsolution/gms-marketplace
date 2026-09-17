@@ -397,11 +397,15 @@ class StepOneChildBreakdownBulletIsScopedToFanOutRunCase(unittest.TestCase):
         self.assertIn("children: []", tail)
 
 
-class StepTwoChildBreakdownConfirmationIsScopedByModeNotLaneCase(unittest.TestCase):
+class StepTwoChildBreakdownConfirmationIsScopedByModeCase(unittest.TestCase):
     """F1-b/F1-c: Step 2 item 7's sentence stays byte-intact (the fan-out
     section quotes it verbatim) and gains a mode-scoping clause; the
-    over-correction guard (MAR-55 invariant (c), "NOT skipped in any lane")
-    must survive untouched -- scoping is by MODE, never by LANE."""
+    over-correction guard (MAR-55 invariant (c)) must survive untouched.
+
+    The guard used to read "NOT skipped in any lane", because lanes were the
+    thing that might have been thought to skip it. ADR-0095 retired them, so
+    the guard now says what it always meant — the step is never skipped at
+    all — and the scoping clause is the only thing that narrows it."""
 
     def test_step_2_child_breakdown_confirmation_is_scoped_by_mode_not_lane(self):
         section_norm = norm(step2_section())
@@ -414,7 +418,10 @@ class StepTwoChildBreakdownConfirmationIsScopedByModeNotLaneCase(unittest.TestCa
                       r"split/restructure run", tail),
             "item 7 must state it is reached only in the --fan-out mode "
             "or a split/restructure run")
-        self.assertIn("NOT skipped in any lane", section_norm)
+        self.assertIn("it is NOT a verifier and it is never skipped",
+                      section_norm)
+        self.assertNotIn("lane", section_norm.lower(),
+                         "the retired axis must not come back as a scope")
 
 
 class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):

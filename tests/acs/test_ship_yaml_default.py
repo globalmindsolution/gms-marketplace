@@ -47,8 +47,15 @@ class TestShippedDefault(unittest.TestCase):
         self.assertEqual(self.path, os.path.join(PLUGIN, "workflows", "ship.yaml"))
 
     def test_the_shipped_default_validates(self):
-        self.assertEqual(self.doc["version"], 1)
+        self.assertEqual(self.doc["version"], workflow.WORKFLOW_VERSION)
+        self.assertEqual(self.doc["version"], 2)
         self.assertEqual(self.doc["name"], "ship")
+
+    def test_it_declares_the_four_delivery_paths(self):
+        delivery = workflow.delivery_of(self.doc)
+        self.assertIsNotNone(delivery, "the shipped default declares delivery paths")
+        self.assertEqual(delivery["classify_after"], "create-impl-plan")
+        self.assertEqual(delivery["paths"], ["trivial", "small", "standard", "complex"])
 
     def test_it_validates_with_jsonschema_too(self):
         try:
@@ -62,10 +69,15 @@ class TestShippedDefault(unittest.TestCase):
     def test_the_schema_skill_enum_mirrors_the_registry(self):
         with open(os.path.join(PLUGIN, "schemas", "ship-workflow.schema.json"), encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertEqual(schema["$defs"]["step"]["properties"]["skill"]["enum"],
-                         lib.allowed_ship_skills(self.phases))
+        # `skill` and `boundary` are each `oneOf` a scalar and a per-path
+        # mapping since ADR-0095, so the enum lives on the scalar branch and on
+        # the mapping's value schema -- both must mirror the registry.
+        skill_def = schema["$defs"]["skillName"]
+        self.assertEqual(skill_def["enum"], workflow.allowed_step_skills(self.phases))
         self.assertEqual(sorted(schema["$defs"]["predicate"]["enum"]), sorted(lib.PREDICATES))
-        self.assertEqual(schema["$defs"]["step"]["properties"]["boundary"]["enum"],
+        boundary = schema["$defs"]["step"]["properties"]["boundary"]
+        self.assertEqual(boundary["oneOf"][0]["enum"], list(lib.BOUNDARIES))
+        self.assertEqual(boundary["oneOf"][1]["additionalProperties"]["enum"],
                          list(lib.BOUNDARIES))
         self.assertEqual(schema["properties"]["stop_after"]["default"], lib.DEFAULT_STOP_AFTER)
         self.assertEqual(schema["properties"]["max_parallel"]["default"], lib.DEFAULT_MAX_PARALLEL)
@@ -76,8 +88,11 @@ class TestShippedDefault(unittest.TestCase):
     def test_every_listed_skill_is_build_test_or_ship(self):
         for step in self.doc["steps"]:
             with self.subTest(step=step["id"]):
-                self.assertIn(lib.phase_of(step["skill"], self.phases), workflow.SHIP_PHASES)
-                self.assertNotIn(step["skill"], workflow.SHIP_EXCLUDED_SKILLS)
+                for name in workflow.step_skills(step):
+                    # phase_of resolves an internal leg through its entry point,
+                    # so a `code-*` leg reports `build` like `code` itself.
+                    self.assertIn(lib.phase_of(name, self.phases), workflow.SHIP_PHASES)
+                    self.assertNotIn(name, workflow.SHIP_EXCLUDED_SKILLS)
 
     def test_needs_name_earlier_steps_and_the_dag_is_acyclic(self):
         seen = []
@@ -111,9 +126,29 @@ class TestShippedDefault(unittest.TestCase):
     def test_code_is_exclusive_with_the_boundary_and_replan(self):
         code = self.steps["code"]
         self.assertTrue(code["exclusive"])
-        self.assertEqual(code["boundary"], "full_verify_stop")
         self.assertEqual(code["on_replan"], "create-impl-plan")
         self.assertEqual(code["needs"], ["create-test-docs"])
+
+    def test_the_code_step_resolves_to_one_leg_per_delivery_path(self):
+        self.assertEqual(self.steps["code"]["skill"], {
+            "trivial": "code-trivial", "small": "code-small",
+            "standard": "code-standard", "complex": "code-complex"})
+
+    def test_only_the_two_deep_paths_carry_the_boundary(self):
+        """/acs:ship's context is exhausted by the paths that fan out, not by
+        the ones that run one executor and one verifier."""
+        self.assertEqual(self.steps["code"]["boundary"],
+                         {"standard": "full_verify_stop", "complex": "full_verify_stop"})
+        for path in ("trivial", "small"):
+            self.assertIsNone(workflow.per_path(self.steps["code"]["boundary"], path))
+
+    def test_the_trivial_path_skips_test_docs_and_the_e2e_steps(self):
+        """It has no test-cases.md to write e2e rows from, so those steps have
+        no input on that path -- `paths` records them skipped, which satisfies
+        their dependants exactly as a false `when` does."""
+        for sid in ("create-test-docs", "create-e2e-tests", "run-e2e-tests"):
+            with self.subTest(step=sid):
+                self.assertEqual(self.steps[sid]["paths"], ["small", "standard", "complex"])
 
     def test_create_e2e_tests_and_docs_sync_both_need_only_code(self):
         """The parallel pair: both are READY the moment code completes."""

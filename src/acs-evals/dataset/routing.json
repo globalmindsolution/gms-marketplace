@@ -20,6 +20,70 @@
       "why": "A natural-language request in the skill's domain, never naming the skill."
     },
     {
+      "id": "ROUTE-code-trivial-explicit",
+      "skill": "acs:code-trivial",
+      "kind": "positive",
+      "prompt": "/acs:code-trivial",
+      "must_route": true,
+      "why": "The explicit command must keep resolving: a delivery-path leg is invoked directly to resume an interrupted /acs:code run on the trivial path. The leg is dispatched by /acs:code, never chosen by a user from a description (ADR-0095 judges the path from plan.md), so this probe covers the one invocation that is legitimately explicit."
+    },
+    {
+      "id": "ROUTE-code-trivial-negative",
+      "skill": "acs:code-trivial",
+      "kind": "negative",
+      "prompt": "Implement the plan for this ticket.",
+      "must_route": false,
+      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+    },
+    {
+      "id": "ROUTE-code-small-explicit",
+      "skill": "acs:code-small",
+      "kind": "positive",
+      "prompt": "/acs:code-small",
+      "must_route": true,
+      "why": "The explicit command must keep resolving: a delivery-path leg is invoked directly to resume an interrupted /acs:code run on the small path. The leg is dispatched by /acs:code, never chosen by a user from a description (ADR-0095 judges the path from plan.md), so this probe covers the one invocation that is legitimately explicit."
+    },
+    {
+      "id": "ROUTE-code-small-negative",
+      "skill": "acs:code-small",
+      "kind": "negative",
+      "prompt": "Implement the plan for this ticket.",
+      "must_route": false,
+      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+    },
+    {
+      "id": "ROUTE-code-standard-explicit",
+      "skill": "acs:code-standard",
+      "kind": "positive",
+      "prompt": "/acs:code-standard",
+      "must_route": true,
+      "why": "The explicit command must keep resolving: a delivery-path leg is invoked directly to resume an interrupted /acs:code run on the standard path. The leg is dispatched by /acs:code, never chosen by a user from a description (ADR-0095 judges the path from plan.md), so this probe covers the one invocation that is legitimately explicit."
+    },
+    {
+      "id": "ROUTE-code-standard-negative",
+      "skill": "acs:code-standard",
+      "kind": "negative",
+      "prompt": "Implement the plan for this ticket.",
+      "must_route": false,
+      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+    },
+    {
+      "id": "ROUTE-code-complex-explicit",
+      "skill": "acs:code-complex",
+      "kind": "positive",
+      "prompt": "/acs:code-complex",
+      "must_route": true,
+      "why": "The explicit command must keep resolving: a delivery-path leg is invoked directly to resume an interrupted /acs:code run on the complex path. The leg is dispatched by /acs:code, never chosen by a user from a description (ADR-0095 judges the path from plan.md), so this probe covers the one invocation that is legitimately explicit."
+    },
+    {
+      "id": "ROUTE-code-complex-negative",
+      "skill": "acs:code-complex",
+      "kind": "negative",
+      "prompt": "Implement the plan for this ticket.",
+      "must_route": false,
+      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+    },
+    {
       "id": "ROUTE-create-api-contract",
       "skill": "acs:create-api-contract",
       "kind": "positive",

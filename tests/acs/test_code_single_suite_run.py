@@ -52,7 +52,10 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
-CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references its four
+#: delivery paths share, so what used to be one SKILL.md body is read from
+#: the reference that carries it: the execute instruction.
+CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 VERDICT_SCHEMA = os.path.join(PLUGIN, "schemas", "verdict.schema.json")

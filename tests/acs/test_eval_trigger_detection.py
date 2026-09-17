@@ -9,9 +9,10 @@ prompt is decided by the first `Skill` tool_use, an explicit prompt by the
 `init` event's `slash_commands` registration list, and an explicit prompt whose
 stream never reports that list is `unmeasured`, never a pass.
 
-Also pins s04's probe set: 27 cases covering all 25 shipped skills, with no new
-description prompt naming a skill, and every assertion label stating which rule
-decided it.
+Also pins s04's probe set: one case per shipped skill bar the `test` alias,
+with no new description prompt naming a skill, and every assertion label
+stating which rule decided it. The counts are derived from the registry rather
+than written down here, so a new skill or a new leg moves them by itself.
 
 Pure: synthetic stream-json lines and fake sandboxes -- no `claude`, no
 network, no cost.

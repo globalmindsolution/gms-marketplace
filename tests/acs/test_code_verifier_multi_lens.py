@@ -340,18 +340,31 @@ class RequirementsDocsUpdatedTest(unittest.TestCase):
     located by a stable anchor substring that survives the substitution
     itself, plus a file-scope stale-count scan."""
 
-    def test_reflection_md_full_verify_line_states_16_dimension_multi_lens(self):
+    def test_reflection_md_multi_lens_line_states_16_dimension(self):
         line = _line_containing(read(REFLECTION_MD), "multi-lens review + e2e")
         self.assertIn("16-dimension", line)
         self.assertIn("multi-lens", line)
 
-    def test_reflection_md_full_verify_dimension_count_is_16(self):
-        line = _line_containing(read(REFLECTION_MD), "Full verify's")
-        self.assertIn("16 dimensions", line)
+    def test_reflection_md_multi_lens_dimension_count_is_16(self):
+        """Whitespace-normalized: this sentence wraps, and the count and the
+        phrase it qualifies land on different source lines."""
+        body = re.sub(r"\s+", " ", read(REFLECTION_MD))
+        self.assertIn("its 16 dimensions are split across 4 parallel", body)
 
-    def test_reflection_md_light_verify_line_states_15_dimension(self):
+    def test_reflection_md_single_pass_line_states_15_dimension(self):
         line = _line_containing(read(REFLECTION_MD), "single-subagent")
         self.assertIn("15-dimension", line)
+
+    def test_reflection_md_says_which_dimension_makes_the_difference(self):
+        """16 vs 15 is not two review sets: it is one set with dimension 14
+        gated on a lens. A doc that states the counts without that reads as an
+        arbitrary trim, which is how a reader talks themselves into dropping
+        another one."""
+        body = re.sub(r"\s+", " ", read(REFLECTION_MD))
+        self.assertRegex(
+            body,
+            r"(?i)dimension 14 \(Regression-risk, git-history\) is lens D's "
+            r"alone")
 
     def test_reflection_md_has_no_stale_dimension_count(self):
         body = read(REFLECTION_MD)

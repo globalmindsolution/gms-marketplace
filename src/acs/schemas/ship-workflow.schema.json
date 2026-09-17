@@ -53,8 +53,8 @@
     "stepId": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
     "pathName": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
     "skillName": {
-      "description": "phases.yaml build + test + ship skills and their internal legs, minus merge-pr and release (acs_lib.workflow.allowed_ship_skills).",
-      "enum": ["analyze-ticket", "create-api-contract", "create-impl-plan", "create-test-docs", "code", "code-trivial", "code-small", "code-standard", "code-complex", "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr"]
+      "description": "phases.yaml build + test + ship skills, minus merge-pr and release, plus the internal legs those skills serve as entry point (acs_lib.workflow.allowed_step_skills). A leg is nameable only through a per-path mapping.",
+      "enum": ["analyze-ticket", "create-api-contract", "create-impl-plan", "create-test-docs", "code", "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr", "code-complex", "code-small", "code-standard", "code-trivial"]
     },
     "predicate": {
       "description": "The predicate vocabulary acs_lib.workflow.PREDICATES implements.",
