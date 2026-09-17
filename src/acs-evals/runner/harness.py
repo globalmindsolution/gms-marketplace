@@ -235,10 +235,13 @@ SETTINGS = {
 PROFILES = ("bare", "seeded", "ticketed", "epic", "app", "app-ticketed")
 
 #: Settings for the fixture-app profiles: a real coverage floor the gate can
-#: bite on, a payments path under high_stakes_paths so the stakes trigger can
-#: fire, and the fixture's own test command.
+#: bite on and the fixture's own test command. It also carried
+#: `high_stakes_paths=["orders/payments/**"]` so the stakes-escalation trigger
+#: had something to fire on; ADR-0095 retired both the setting and the
+#: trigger. The payments path still matters to what these profiles measure —
+#: it is what should make a plan touching it judged `standard` or `complex` —
+#: but that is now a judgement over the plan, not a glob over settings.
 APP_SETTINGS = dict(SETTINGS, test_coverage_percent=85,
-                    high_stakes_paths=["orders/payments/**"],
                     tests={"command": "python3 -m coverage run -m unittest discover -s tests "
                                       "&& python3 -m coverage report --fail-under=$ACS_COVERAGE"})
 
@@ -327,12 +330,12 @@ class Sandbox:
             json.dump({"reconciled": True, "seed_source": "explicit-user",
                        "seeded_at": "2026-01-01T00:00:00Z", "next": 1},
                       fh, indent=2)
+        # No `--size`/`--stakes`: ADR-0095 retired the axes, and rigor is
+        # judged from `plan.md` by /acs:ship rather than declared at mint time.
         if self.profile == "ticketed":
-            self.ticket_id = self._mint("Add user login", "task",
-                                        "--size", "small", "--stakes", "low")
+            self.ticket_id = self._mint("Add user login", "task")
         elif self.profile == "epic":
-            self.ticket_id = self._mint("Checkout revamp", "epic",
-                                        "--size", "large", "--stakes", "high")
+            self.ticket_id = self._mint("Checkout revamp", "epic")
 
     def _build_app(self):
         from fixture_app import build as build_fixture  # runner/ is on sys.path
@@ -349,8 +352,7 @@ class Sandbox:
                       fh, indent=2)
         if self.profile == "app-ticketed":
             self.ticket_id = self._mint(APP_TICKET["title"], "task",
-                                        "--description", APP_TICKET["description"],
-                                        "--size", "small", "--stakes", "normal")
+                                        "--description", APP_TICKET["description"])
 
     def _mint(self, title, kind, *extra):
         out = self.run("new-ticket.py", "--title", title, "--type", kind, *extra)

@@ -1,20 +1,25 @@
-"""s04 — routing evals for 27 of the 28 skills (paid, E1.2).
+"""s04 — routing evals for 31 of the 32 skills (paid, E1.2).
 
-Three kinds of probe, 31 in all, covering 27 of the 28 skill directories:
+Three kinds of probe, 37 in all, covering 31 of the 32 skill directories:
 
-1. Description-trigger (23 model-invocable skills): a natural-language request
-   that describes the intent *without naming the skill* must route to that
-   skill. A miss is a real finding — the skill's `description` frontmatter
-   isn't discriminating that request from its neighbors.
+1. Description-trigger (25 skills): a natural-language request that describes
+   the intent *without naming the skill* must route to that skill. A miss is a
+   real finding — the skill's `description` frontmatter isn't discriminating
+   that request from its neighbors.
 
-2. Explicit-invocation (the two internal legs of /acs:project,
-   `create-project` and `standardize-project`): the explicit `/acs:<skill>`
-   command must still route to the leg, because a user types it to resume an
-   interrupted delivery ticket.
+2. Explicit-invocation (the six internal legs: /acs:project's `create-project`
+   and `standardize-project`, and /acs:code's four ADR-0095 delivery-path legs
+   `code-trivial`, `code-small`, `code-standard`, `code-complex`): the explicit
+   `/acs:<skill>` command must still route to the leg, because a user types it
+   to resume an interrupted run on the path that run was already judged onto.
 
-3. Negative-routing (the same two legs): a bare description of their intent
-   must NOT auto-route to them — their entry point should pick it up. What
-   delivers that is each leg's description, never a frontmatter flag.
+3. Negative-routing (the same six legs): a description of the leg's own subject
+   must NOT auto-route to it — its entry point should pick it up. What delivers
+   that is each leg's description, never a frontmatter flag. The four
+   delivery-path negatives deliberately plant the path word itself ("a trivial
+   two-line change", "a complex change: several modules, a migration"), because
+   the leg is chosen from the ticket's recorded `delivery_path` — judged once
+   from the plan — and never from how the request happens to be phrased.
 
 The four doc-set legs /acs:create-docs used to fan out (`create-quality`,
 `create-operations`, `create-principles`, `create-standards`) were folded INTO
@@ -33,16 +38,15 @@ refactor renamed `test` to `run-e2e-tests` and left `test` behind as a
 deprecated alias directory whose description points at the new name, so the
 intent that used to route to `test` must now route to `run-e2e-tests`.
 
-The 25 probed skills are not every skill directory on disk. The `test` alias is
-deliberately unprobed (see above), and the five Build/Test skills the
-skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
-`create-api-contract`, `create-test-docs`, `create-e2e-tests`) plus the
-design-phase fold's `project` umbrella have no probe yet: adding probes moves
-the measured "all N green" routing-coverage claim the PRD and roadmap carry, so
-they are added together with a fresh paid measurement, not alongside the
-refactor that created the skills. The
-create-docs, create-requirements and docs-sync probes below are new here and
-are likewise unmeasured until the next paid run.
+The 31 probed skills are every skill directory on disk but one: the `test`
+alias is deliberately unprobed (see above), because a probe of its own would
+measure the same routing decision twice under a name the registry keeps for
+one release only.
+
+Adding a probe moves the measured "all N green" routing-coverage claim the PRD
+and roadmap carry, so a newly added probe is UNMEASURED until the next paid
+run — it is not a green one. The eight delivery-path probes below (four
+explicit, four negative) are new with ADR-0095 and are in exactly that state.
 """
 
 from harness import Sandbox, Check
@@ -51,7 +55,7 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 27 of 28 (25 by description, 2 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
+    "summary": "right skill routes for 31 of 32 (25 by description, 6 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
 }
 
 # Description-trigger + explicit-invocation cases.
@@ -59,12 +63,12 @@ META = {
 #   - 25 skills are probed by description, with a request that avoids naming
 #     the skill. Every shipped skill is model-invocable, so that is the
 #     default; no skill sets disable-model-invocation.
-#   - The 2 internal legs of /acs:project are probed by
-#     the explicit `/acs:<skill>` command instead, because that command must
-#     keep resolving: a user invokes a leg directly to resume an interrupted
-#     delivery ticket, which is what its argument-hint offers. What a leg must
-#     NOT do is pick up a plain description of its own subject — its entry
-#     point should — and that is covered by NEGATIVE below.
+#   - The 6 internal legs — /acs:project's two, /acs:code's four delivery-path
+#     legs — are probed by the explicit `/acs:<skill>` command instead, because
+#     that command must keep resolving: a user invokes a leg directly to resume
+#     an interrupted run, which is what its argument-hint offers. What a leg
+#     must NOT do is pick up a description of its own subject — its entry point
+#     should — and that is covered by NEGATIVE below.
 CASES = [
     ("setup", False,
      "Set up and initialize the acs configuration for this repository.",
@@ -101,6 +105,18 @@ CASES = [
     ("standardize-project", True,
      "/acs:standardize-project",
      "standardize-project"),
+    ("code-trivial", True,
+     "/acs:code-trivial",
+     "code-trivial"),
+    ("code-small", True,
+     "/acs:code-small",
+     "code-small"),
+    ("code-standard", True,
+     "/acs:code-standard",
+     "code-standard"),
+    ("code-complex", True,
+     "/acs:code-complex",
+     "code-complex"),
     ("create-ticket", True,
      "Create a ticket to add a dark mode toggle to the settings page.",
      "create-ticket"),
@@ -207,6 +223,22 @@ NEGATIVE = [
      "tooling, then additively scaffold whatever's missing without ever "
      "touching the source we already have.",
      "standardize-project"),
+    ("code-trivial", True,
+     "TKT-1's plan is approved and it is a trivial two-line change. "
+     "Implement it.",
+     "code-trivial"),
+    ("code-small", True,
+     "TKT-1's plan is approved — a small change, one module and a handful of "
+     "tests. Implement it.",
+     "code-small"),
+    ("code-standard", True,
+     "TKT-1's plan is approved. It is a standard-sized change across a few "
+     "modules. Implement it.",
+     "code-standard"),
+    ("code-complex", True,
+     "TKT-1's plan is approved and it is a complex change: several modules, a "
+     "migration, and a public API. Implement it.",
+     "code-complex"),
 ]
 
 

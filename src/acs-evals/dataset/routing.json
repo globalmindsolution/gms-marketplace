@@ -1,7 +1,7 @@
 {
-  "description": "Routing probes for all 32 model-invocable acs skills. 30 get one natural-language request that must route to them without naming them. The 8 user-only skills (disable-model-invocation:true — `install-hooks`, `update`, and the six ADR 0091 legs) get a pair each: an explicit invocation that MUST route, and a bare description of their intent that must NOT.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into evals/**/case.yaml for `claude plugin eval`; dataset/cases/10-skills.json pins the routing SURFACE (each skill's shipped description and invocation flag) deterministically, with no model.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
-  "skill_count": 28,
-  "probe_count": 35,
+  "description": "Routing probes for all 32 acs skills. Every skill is model-invocable, so routing is measurable for all of them. 24 get one natural-language request that must route to them without naming them. `install-hooks` and `update` are user actions rather than pipeline steps, so each gets two positives: the explicit command and the natural-language request. The six INTERNAL legs -- `workflows/phases.yaml`'s `internal` map: `create-project`, `standardize-project`, and the four ADR-0095 delivery-path legs `code-trivial`, `code-small`, `code-standard` and `code-complex` -- get a pair each: an explicit invocation that MUST route, because a leg is dispatched and resumed by name, and a bare description of its intent that must NOT, because only its entry point (`/acs:project`, `/acs:code`) may answer that.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into evals/**/case.yaml for `claude plugin eval`; dataset/cases/10-skills.json pins the routing SURFACE (each skill's shipped description and invocation flag) deterministically, with no model.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
+  "skill_count": 32,
+  "probe_count": 43,
   "probes": [
     {
       "id": "ROUTE-analyze-ticket",
@@ -31,9 +31,9 @@
       "id": "ROUTE-code-trivial-negative",
       "skill": "acs:code-trivial",
       "kind": "negative",
-      "prompt": "Implement the plan for this ticket.",
+      "prompt": "TKT-1's plan is approved and it is a trivial two-line change. Implement it.",
       "must_route": false,
-      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+      "why": "A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the trivial path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold."
     },
     {
       "id": "ROUTE-code-small-explicit",
@@ -47,9 +47,9 @@
       "id": "ROUTE-code-small-negative",
       "skill": "acs:code-small",
       "kind": "negative",
-      "prompt": "Implement the plan for this ticket.",
+      "prompt": "TKT-1's plan is approved — a small change, one module and a handful of tests. Implement it.",
       "must_route": false,
-      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+      "why": "A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the small path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold."
     },
     {
       "id": "ROUTE-code-standard-explicit",
@@ -63,9 +63,9 @@
       "id": "ROUTE-code-standard-negative",
       "skill": "acs:code-standard",
       "kind": "negative",
-      "prompt": "Implement the plan for this ticket.",
+      "prompt": "TKT-1's plan is approved. It is a standard-sized change across a few modules. Implement it.",
       "must_route": false,
-      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+      "why": "A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the standard path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold."
     },
     {
       "id": "ROUTE-code-complex-explicit",
@@ -79,9 +79,9 @@
       "id": "ROUTE-code-complex-negative",
       "skill": "acs:code-complex",
       "kind": "negative",
-      "prompt": "Implement the plan for this ticket.",
+      "prompt": "TKT-1's plan is approved and it is a complex change: several modules, a migration, and a public API. Implement it.",
       "must_route": false,
-      "why": "A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand."
+      "why": "A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the complex path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold."
     },
     {
       "id": "ROUTE-create-api-contract",

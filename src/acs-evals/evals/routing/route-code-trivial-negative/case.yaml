@@ -13,9 +13,9 @@ runs: 3
 # pays for the skill body to run, which this case does not assert on.
 max_turns: 2
 prompt: |
-  Implement the plan for this ticket.
+  TKT-1's plan is approved and it is a trivial two-line change. Implement it.
 graders:
   - name: does-not-route-to-acs-code-trivial
     tool_not_used: Skill
     skill: acs:code-trivial
-  # A plain request to implement a ticket must reach /acs:code, the entry point, and never a leg directly: which leg runs is decided from the ticket's recorded delivery_path, not from the wording of the request. What delivers that is the leg's DESCRIPTION saying it is dispatched and never chosen by hand.
+  # A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the trivial path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold.
