@@ -145,6 +145,22 @@ def _extract_run_block_body(lines, step_name):
 # Fixture builders
 # ---------------------------------------------------------------------------
 
+def _install_discovery(tmp):
+    """Give the fixture the plugin-discovery script the ci.yml steps import.
+
+    The per-plugin lint steps used to find the plugin by reading `path` out of
+    marketplace.json. They now ask .github/scripts/plugin_source_dirs.py, so a
+    fixture without it is not a faithful stand-in for the repo -- the step
+    would fail on the import rather than on the thing under test.
+    """
+    dest = os.path.join(tmp, ".github", "scripts")
+    os.makedirs(dest, exist_ok=True)
+    shutil.copy(
+        os.path.join(REPO_ROOT, ".github", "scripts", "plugin_source_dirs.py"),
+        os.path.join(dest, "plugin_source_dirs.py"),
+    )
+
+
 def _make_marketplace_json(plugin_entries, plugin_root=None):
     """Return a dict suitable for marketplace.json."""
     metadata = {}
@@ -424,6 +440,7 @@ class _CIShapeBase(unittest.TestCase):
     def _tmp_fixture(self):
         tmp = tempfile.mkdtemp(prefix="acs-cisfixture-")
         self.addCleanup(shutil.rmtree, tmp, True)
+        _install_discovery(tmp)
         return tmp
 
 
