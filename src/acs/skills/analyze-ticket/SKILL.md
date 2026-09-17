@@ -61,7 +61,8 @@ Parse the printed context JSON. Fields you will use:
   published), `prd_path`, `requirements_path`, `architecture_path`,
   `contracts_path`, `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_run_status` — see
+  `references/resume.md`.
 - `post_hook` — absolute path to `post-analyze-ticket.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -117,30 +118,16 @@ path that opens the next gate. Call it `<analysis_path>` below.
 The working draft lives at `<partition>/phases/analyze-ticket/analysis.md`;
 the published file is a copy of those exact bytes (see Publish).
 
-## Resume & reconcile
+## The two references, and when to open each
 
-If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
-`handed_off`), verify recorded progress against reality BEFORE continuing:
+Nearly all of this skill is one flow: survey what the ticket touches, author
+the analysis, verify it, publish it. Two parts are not, and each is read by
+exactly one kind of run:
 
-1. Read `<partition>/analyze-ticket-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/analyze-ticket/` to see where
-   the prior run stopped.
-2. Re-resolve the analysis artifact (above) and read it if it exists. Trust
-   nothing you cannot see in a file: an analysis recorded published that is not
-   on disk is not published.
-3. Read the clarification ledger (`clarify.py list --ticket <id>`): questions
-   the prior run asked are already recorded, and answers that arrived since are
-   the point of the resume.
-4. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
-
-If `context.handoff_summary` exists, read it plus
-`<partition>/phases/analyze-ticket/handoff-context.md` (when present), do a
-light reconcile, and continue from where it points.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure; a fresh run skips it. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/not-ready-for-planning.md` | You have concluded, by the rule under "User interaction" below, that a question genuinely blocks — no default could settle it without risking the wrong build. It carries the `ready_for_planning: false` / `needs_input` procedure. Most analyses never open it, and that is the intended outcome. |
 
 ## Inputs — gather before the loop
 
@@ -394,8 +381,6 @@ This skill is where a ticket's ambiguities are SUPPOSED to surface, so its
 - `## Questions` in the published analysis names each entry by its `C-n` id and
   its status, so the next skill can see what is still open.
 
-### Not ready for planning → `needs_input`
-
 **A question with a conventional default is an assumption, not a blocker.**
 When the ticket's words plus the repository's conventions settle a detail
 well enough that a competent implementer would not stop to ask — "prints"
@@ -408,25 +393,9 @@ in `## Refined acceptance criteria`, and keep `ready_for_planning: true`. The
 2026-09-15 release gate lost a two-line login ticket to exactly three such
 defaults asked as blockers, on a run with nobody to answer them.
 
-When the analysis cannot honestly say the ticket is plannable — a question
-where every default could build the wrong thing is still open (a
-contradiction with the code, a design document or an ADR; a behaviour the
-acceptance criteria depend on that nothing defines; a fork in scope), the
-ticket contradicts the design or the requirements, or the problem itself is
-undefined — set front-matter `ready_for_planning: false`, say exactly what is
-missing in `## Verdict`, and finish as `needs_input`:
-
-1. Record every outgoing question as `open` (`clarify.py add` without
-   `--answer`).
-2. Publish the analysis anyway when it verified — a not-ready analysis is still
-   the artifact the answers come back to.
-3. Write result.json with `"status": "needs_input"`, `stop_reason` "needs user
-   input", `states.ready_for_planning: false`, run the Finish steps, and return
-   a `<handoff status="needs_input">` whose `<questions>` carry them.
-
-`/acs:ship` asks the user each question and re-invokes this same skill with the
-answers as context; a direct invocation stops with the questions in the
-completion report.
+When a question survives that test — no default could settle it without
+risking the wrong build — the ticket is not plannable, and
+`references/not-ready-for-planning.md` carries what to do about it.
 
 ## Context pressure
 

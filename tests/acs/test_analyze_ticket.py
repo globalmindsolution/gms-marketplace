@@ -35,6 +35,23 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS = os.path.join(PLUGIN, "hooks", "scripts")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "analyze-ticket", "SKILL.md")
+SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-ticket", "references")
+
+
+def skill_contract():
+    """SKILL.md plus the references it points at.
+
+    The reconcile procedure and the `ready_for_planning: false` arm moved into
+    `references/` under progressive disclosure -- a fresh run that finds the
+    ticket plannable reads neither. The rule for deciding whether a question
+    blocks stayed inline, because it fires on every run. These pins say what
+    the skill SAYS, never which of its files says it.
+    """
+    import glob as _glob
+    parts = [read(SKILL_PATH)]
+    parts += [read(q) for q in
+              sorted(_glob.glob(os.path.join(SKILL_REFERENCES, "*.md")))]
+    return "\n".join(parts)
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
@@ -371,7 +388,7 @@ class TestNotReadyArm(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_not_ready_finishes_as_needs_input_with_open_questions(self):
         self.assertIn("ready_for_planning: false", self.body)
