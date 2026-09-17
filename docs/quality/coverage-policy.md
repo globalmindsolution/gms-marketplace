@@ -14,8 +14,10 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **95%** (10845 statements,
-581 missed, measured 2026-09-16) — above the 90 floor. Re-derive it directly — the same
+for its sequence diagram. Repo-wide TOTAL is **94%** (10782 statements,
+598 missed, measured 2026-09-17) — above the 90 floor. It read 95% (10845 /
+581) a day earlier; ADR-0095 deleted more covered code than uncovered, so the
+percentage moved without any test being lost. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
 
@@ -48,9 +50,11 @@ own); adding the behavioural tree changed nothing about that list and added
 deliberately **not** omitted: it has a real `--pr` branch and is measured,
 currently at 21 statements / 100%.
 
-`src/acs-evals/behavioural/` contributes 966 of the 10845 measured statements
-and 199 of the 581 missed (measured 2026-09-16, after the tabp plugin was
-removed; the tree was 1140 of 10925 and 317 of 702 with `behavioural/tabp/`
+`src/acs-evals/behavioural/` contributes 966 of the 10782 measured statements
+and 199 of the 598 missed (measured 2026-09-17; unchanged in absolute terms by
+ADR-0095, which touched the plugin rather than the scenario drivers — so its
+SHARE of the missed total rose, which is the same headroom finding the tabp
+removal produced, reading louder; the tree was 1140 of 10925 and 317 of 702 with `behavioural/tabp/`
 still in it). Split by each scenario module's declared `META["tier"]`, those
 199 are **90** in free-tier drivers — deterministic, and run by the
 `acs-free-evals` pre-commit hook whenever `src/acs/` or
