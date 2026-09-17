@@ -143,26 +143,41 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
     check in this file and still could not be installed.
     """
 
+    #: A ref of 7-40 hex characters is a commit SHA by shape. Branch and tag
+    #: names in this repo are not (`main`, `v0.4.9` both carry non-hex
+    #: characters), so the shape alone decides it.
     SHA = re.compile(r"\A[0-9a-f]{7,40}\Z")
 
     def test_no_entry_pins_a_bare_sha(self):
+        """Lexical on purpose: no git call, so it holds in a SHALLOW clone.
+
+        The first draft of this test asked git to confirm the ref resolved
+        before calling it a SHA. That inverted the guard exactly where it
+        matters: `ci.yml` checks out at the default `fetch-depth: 1`, where
+        `rev-parse` on an arbitrary SHA FAILS, the `and` chain short-circuits,
+        and the assertion passes on the very value it exists to reject. A
+        guard that cannot fail in CI is the mistake this whole file is about,
+        so the check that carries the weight asks no questions it might not
+        get an answer to.
+        """
         for name, source in entries():
             ref = source.get("ref")
             with self.subTest(plugin=name):
                 if not ref:
                     continue  # tracks the default branch; nothing to clone by name
-                self.assertFalse(
-                    self.SHA.match(ref) and
-                    git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode == 0
-                    and git("show-ref", "--verify", "--quiet", "refs/heads/" + ref).returncode != 0
-                    and git("show-ref", "--verify", "--quiet", "refs/tags/" + ref).returncode != 0,
-                    "%s: ref %r is a bare commit SHA. It resolves, so the checks "
-                    "above pass, but the installer runs `git clone --branch %s` "
-                    "and git refuses: 'Remote branch %s not found in upstream "
-                    "origin'. Use a branch name (the default branch between "
-                    "releases) or a tag." % (name, ref, ref, ref))
+                self.assertIsNone(
+                    self.SHA.fullmatch(ref),
+                    "%s: ref %r is a bare commit SHA. It resolves — every check "
+                    "above passes — but the installer runs `git clone --branch "
+                    "%s` and git refuses: 'Remote branch %s not found in "
+                    "upstream origin'. Use a branch name (the default branch "
+                    "between releases) or a tag." % (name, ref, ref, ref))
 
     def test_the_ref_names_a_branch_or_a_tag(self):
+        """Best-effort companion: needs a clone that HAS the refs, so it skips
+        in CI's shallow checkout. The lexical test above is the load-bearing
+        one; this adds the case a SHA-shaped check cannot see — a ref that is
+        neither hex nor an existing branch or tag, e.g. a deleted branch."""
         for name, source in entries():
             ref = source.get("ref")
             with self.subTest(plugin=name):
