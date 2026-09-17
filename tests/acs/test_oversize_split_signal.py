@@ -61,6 +61,24 @@ def read(path):
         return fh.read()
 
 
+def create_ticket_split_section():
+    """/acs:create-ticket's split/restructure mode, wherever it lives.
+
+    It moved out of SKILL.md into `references/split-ticket.md` under
+    progressive disclosure -- a run that mints a fresh ticket never reads it.
+    Prefer the reference when it exists and fall back to slicing SKILL.md, so
+    these assertions pin what the skill SAYS, never which file says it.
+    """
+    ref = os.path.join(PLUGIN, "skills", "create-ticket", "references",
+                       "split-ticket.md")
+    heading = "## Splitting an existing oversized ticket"
+    if os.path.isfile(ref):
+        body = read(ref)
+        return body[body.index(heading):]
+    body = read(CREATE_TICKET_SKILL)
+    return body[body.index(heading):body.index("## Resume & reconcile")]
+
+
 def _req_tree_bodies():
     bodies = []
     for d in (REQ_FUNCTIONAL, REQ_NON_FUNCTIONAL):
@@ -126,10 +144,7 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
         end = planner_body.index("3. **Test strategy per spec")
         cls.item2 = planner_body[start:end]
 
-        ticket_body = read(CREATE_TICKET_SKILL)
-        start = ticket_body.index("## Splitting an existing oversized ticket")
-        end = ticket_body.index("## Resume & reconcile")
-        cls.split_section = ticket_body[start:end]
+        cls.split_section = create_ticket_split_section()
 
     def test_planner_clause_names_plan_artifact_path_token(self):
         self.assertIn("phases/create-impl-plan/plan.md", self.item2)
@@ -157,10 +172,7 @@ class CreateTicketSplitPathRewriteTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        body = read(CREATE_TICKET_SKILL)
-        start = body.index("## Splitting an existing oversized ticket")
-        end = body.index("## Resume & reconcile")
-        cls.section = body[start:end]
+        cls.section = create_ticket_split_section()
 
     def test_no_create_spec_reference(self):
         self.assertNotIn("create-spec", self.section)

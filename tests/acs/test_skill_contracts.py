@@ -2341,7 +2341,9 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         branch carries the acs-ticket-id-on-issue-body instruction co-occurring
         with `gh issue create`, and the three type description templates each
         contain the acs-id line rendered identically (`acs-ticket: {ticket_id}`)."""
-        body = read(self.skill_path("create-ticket"))
+        # Step 5 moved into `references/tracker-sync.md` -- it only runs when
+        # the tracker provider is github or jira -- so read the contract.
+        body = read_skill_contract("create-ticket")
         self.assertIsNotNone(
             re.search(r"(?s)gh issue create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}gh issue create", body),
             "create-ticket/SKILL.md Step 5 must co-locate 'acs-ticket:' with "
@@ -2357,7 +2359,7 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         (ACS + type, create-if-absent), assignee-when-known, milestone-when-
         defined, and Project field-fill, plus surfacing a schema-undefined
         field rather than silently skipping it."""
-        body = read(self.skill_path("create-ticket"))
+        body = read_skill_contract("create-ticket")
         # MAR-525: the enumeration moved into `acs.py tracker sync`, so AC-6 is
         # read from the calls it makes; the skill states the same coverage.
         calls = " | ".join(_sync_calls())
@@ -2410,7 +2412,7 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         """AC-4 (prose proof): create-ticket/SKILL.md and create-pr/SKILL.md
         each state the local/unsynced non-regression clause — no Closes #
         line is emitted when the ticket is unsynced."""
-        create_ticket_body = read(self.skill_path("create-ticket"))
+        create_ticket_body = read_skill_contract("create-ticket")
         create_pr_body = read_skill_contract("create-pr")
         self.assertIsNotNone(
             re.search(r"(?i)local.{0,200}(unsynced|skip)|unsynced.{0,200}local", create_ticket_body),
@@ -2850,7 +2852,10 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
 
     def _bodies(self):
         return {
-            "create-ticket/SKILL.md": read(self.skill_path("create-ticket")),
+            # The tracker-sync step this class pins now lives in
+            # `references/tracker-sync.md`; the contract read keeps the
+            # co-occurrence windows measuring the same contiguous prose.
+            "create-ticket/SKILL.md": read_skill_contract("create-ticket"),
             "create-ticket-executor.md": read(self.agent_path("create-ticket", "executor")),
         }
 
@@ -2931,7 +2936,7 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         TestReconcileTicketIssueLinkage pins for create-ticket/SKILL.md, as a
         belt-and-suspenders regression guard co-located with this ticket's
         own test class."""
-        body = read(self.skill_path("create-ticket"))
+        body = read_skill_contract("create-ticket")
         # MAR-525 replaced the gh recipe with `acs.py tracker sync`, so the
         # co-location AC now reads against the command that performs it. The
         # `acs-ticket:` body line is unchanged prose and still pinned.

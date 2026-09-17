@@ -103,20 +103,25 @@ def read(path):
         return fh.read()
 
 
-def merge_pr_contract():
-    """/acs:merge-pr's contract: SKILL.md plus the references it points at.
+def skill_contract(name):
+    """A skill's contract: its SKILL.md plus the references it points at.
 
-    The exempt-PR mode moved into `references/exempt-pr-mode.md` so a routine
-    ticket merge never reads it. These assertions pin what the SKILL SAYS,
-    never which of its files says it, so reading the concatenation keeps the
-    pin honest while the layout stays free to change -- and a rule that
-    genuinely vanishes still fails.
+    Progressive disclosure moved parts of these skills into `references/` --
+    merge-pr's exempt-PR mode, create-ticket's `--fan-out`, split and
+    tracker-sync steps -- because each is read by exactly one kind of run.
+    These assertions pin what the SKILL SAYS, never which of its files says
+    it, so reading the concatenation keeps the pin honest while the layout
+    stays free to change, and a rule that genuinely vanishes still fails.
     """
-    parts = [read(MERGE_PR_SKILL)]
-    refs = os.path.join(PLUGIN, "skills", "merge-pr", "references", "*.md")
-    for path in sorted(glob.glob(refs)):
+    base = os.path.join(PLUGIN, "skills", name)
+    parts = [read(os.path.join(base, "SKILL.md"))]
+    for path in sorted(glob.glob(os.path.join(base, "references", "*.md"))):
         parts.append(read(path))
     return "\n".join(parts)
+
+
+def merge_pr_contract():
+    return skill_contract("merge-pr")
 
 
 def norm(body):
@@ -299,7 +304,7 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
     MAR-403 T2b) to match the plan's table."""
 
     def test_gh_issue_create_guard_is_preserved_verbatim_and_gains_the_hint(self):
-        body = read(CREATE_TICKET_SKILL)
+        body = skill_contract("create-ticket")
         # The pre-existing batch-continuation mechanics (byte-identical) must
         # survive untouched -- only the severity/replayable/class label changed.
         self.assertIn(
@@ -318,7 +323,7 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
         )
 
     def test_gh_issue_create_call_site_states_error_severity_not_info(self):
-        body = read(CREATE_TICKET_SKILL)
+        body = skill_contract("create-ticket")
         idx = body.index("run the `gh issue create` sequence below once per ticket")
         window_norm = norm(body[idx: idx + 500])
         self.assertRegex(window_norm, r"(?i)error.{0,60}severity finding")
