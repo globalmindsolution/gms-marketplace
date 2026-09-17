@@ -328,12 +328,12 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    silently dropping it. When the Test plan names e2e flows
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
-2. **Implement** until the tests pass. Iterate against the tests your change
-   touches — that is the feedback loop you actually act on. The full unit suite
-   runs **once per executor**, after its last spec, not once per spec and not
-   after every edit: it answers "did the assembled work break anything", and
-   that question has one answer per changeset, however many specs went into it.
-   Code comments stay **minimal and idea-only**
+2. **Implement** until the tests pass, iterating against the tests the change
+   touches — that is the feedback loop the executor acts on. **Executors never
+   run the full unit suite.** It runs exactly once per iteration, in verify,
+   and that single run is both the regression check and the coverage
+   measurement; a second run of the same command on the same tree answers a
+   question already answered. Code comments stay **minimal and idea-only**
    — one short single-responsibility line per new function (SOLID:
    one unit, one job), never a ticket id in source, and on edits only the
    comments the change actually invalidates (e.g. a changed parameter); no
@@ -342,13 +342,12 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    the originating ticket reference lives in the module docstring.
    The executor also applies the **Simplicity First** and **Surgical
    Changes** authoring rules (see code-executor.md Charter) throughout.
-3. **Measure coverage** against `settings.test_coverage_percent`. Read step 2's
-   run first: a `tests.command` that already reports coverage has answered
-   this, and that is the common shape, because the same command usually backs
-   the repo's own coverage gate. Spend a second run only when the test command
-   genuinely produces no coverage number. If the target cannot be reached
-   (e.g. untestable generated code), the executor reports the achieved number
-   and the reason — see Coverage hard fail below.
+3. **Coverage** is measured in verify, off that same run, against
+   `settings.test_coverage_percent`; executors record
+   `{"percent": null, "target": "measured in verify"}`. When a spec's code
+   genuinely cannot be covered (e.g. untestable generated code), the executor
+   says so in `problems` — that reason, not a number, is what you need for the
+   hard-fail decision. See Coverage hard fail below.
 4. **Reconcile product-doc facts — part of the change, not a follow-up**:
 
    **Product-doc factual reconciliation (also part of the change):** when the
@@ -667,8 +666,11 @@ MANDATORY final step — never skipped, also on failure:
    - `specs_implemented`: spec basenames fully implemented AND verified, in
      order.
    - `tests`: `{passed, failed, coverage_percent, coverage_target}` — **derived**
-     from the last iteration's `iter-<n>-execute*.json` reports (`coverage_target`
-     from `settings.test_coverage_percent`). Kept as you wrote it only when no
+     from the last iteration's `iter-<n>-verdict.json`, the verifier's own run
+     of the suite, falling back to the `iter-<n>-execute*.json` reports when
+     the verdict records no numbers (a docs-only ticket, or a run that ended
+     before any verifier wrote one). `coverage_target` comes from
+     `settings.test_coverage_percent`. Kept as you wrote it only when no
      execute report records a run.
    - `docs_updated`: repo-relative paths of every doc file changed.
    - `review`: `{iterations, findings_open}` — `iterations` is **derived** by

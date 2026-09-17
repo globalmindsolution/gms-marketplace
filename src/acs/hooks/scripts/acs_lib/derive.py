@@ -177,15 +177,76 @@ def derive_verifier_passed(tdir, skill, ticket_id=None, since=None):
 
 
 def derive_tests(tdir, skill, settings=None):
-    """(value, why) for states.tests, from the executors' recorded runs.
+    """(value, why) for states.tests, preferring the VERIFIER's own run.
+
+    /acs:code runs the full unit suite once, in the verify phase. The executor
+    iterates against the tests its change touches, which answers "is my work
+    done" without paying for the whole suite on every edit, and the verifier's
+    single independent run is what the recorded numbers come from.
+
+    That ordering is not only cheaper, it is better evidence. `states.tests`
+    used to be the executor's self-report of its own work; it is now the
+    review's finding about that work, established by an agent that shares no
+    memory with it and trusts nothing it recorded. The padded-coverage failure
+    mode the executor charter warns about stops being a thing a report can
+    even claim.
+
+    The execute reports remain the fallback, because some runs legitimately
+    have no verifier numbers to read: a docs-only ticket measures no coverage,
+    a run can end before any verifier wrote a verdict, and state written by an
+    earlier version of this skill predates the verdict carrying them at all.
+    """
+    value, why = _tests_from_verdict(tdir, skill)
+    if value is None:
+        value, why = _tests_from_execute_reports(tdir, skill)
+    if value is None:
+        return None, why
+
+    target = (settings or {}).get("test_coverage_percent")
+    if target is not None:
+        value["coverage_target"] = target
+    return value, why
+
+
+def _tests_from_verdict(tdir, skill):
+    """The verifier's recorded run of the full suite, when it recorded one."""
+    iteration, doc = latest_verdict(tdir, skill)
+    if not isinstance(doc, dict):
+        return None, "no verdict.json to read test numbers from"
+
+    tests = doc.get("tests") if isinstance(doc.get("tests"), dict) else {}
+    coverage = doc.get("coverage") if isinstance(doc.get("coverage"), dict) else {}
+    value = {}
+    if isinstance(tests.get("passed"), int):
+        value["passed"] = tests["passed"]
+    if isinstance(tests.get("failed"), int):
+        value["failed"] = tests["failed"]
+    if isinstance(coverage.get("percent"), (int, float)):
+        value["coverage_percent"] = coverage["percent"]
+    if not value:
+        return None, ("iteration-%s verdict records no test or coverage numbers"
+                      % iteration)
+
+    commands = []
+    for key, holder in (("tests", tests), ("coverage", coverage)):
+        recorded = holder.get("commands") or holder.get("command")
+        if isinstance(recorded, str) and recorded.strip():
+            commands.append("%s: %s" % (key, recorded.strip()))
+        elif isinstance(recorded, list) and recorded:
+            commands.append("%s: %s" % (key, "; ".join(str(c) for c in recorded)))
+    why = "iteration-%s verdict (the verifier's own run)" % iteration
+    why += (" [%s]" % " | ".join(commands)) if commands else \
+           " [no command recorded -- numbers are unbacked]"
+    return value, why
+
+
+def _tests_from_execute_reports(tdir, skill):
+    """Fallback: the executors' recorded runs.
 
     Only the LAST iteration's reports count -- earlier ones describe a suite
     that has since changed. Within it: `failed` is the maximum any executor
     saw, because a suite that was red for anyone was red; `passed` and
-    `coverage_percent` are the maxima, because within one iteration each
-    executor runs the suite when its own work is done, so the largest
-    observation is the latest state of the tree. `coverage_target` comes from
-    settings, which is not a claim at all.
+    `coverage_percent` come from ONE report, as a coherent set.
     """
     reports = execute_reports(tdir, skill)
     if not reports:
@@ -226,10 +287,6 @@ def derive_tests(tdir, skill, settings=None):
             value["failed"] = other["failed"]
             if os.path.basename(path) not in sources:
                 sources.append(os.path.basename(path))
-
-    target = (settings or {}).get("test_coverage_percent")
-    if target is not None:
-        value["coverage_target"] = target
 
     if not value:
         return None, "iteration-%d execute reports record no tests or coverage" % last

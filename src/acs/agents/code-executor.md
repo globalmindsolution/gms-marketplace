@@ -39,9 +39,10 @@ must equal the `branch` constraint. If not, STOP and return `failed` — never
 check out, create, or reset branches yourself.
 
 Docs-only exception: when `<constraints>` carries `docs_only=true`, skip
-steps 1 and 3 (no new tests, no coverage measurement — record
+steps 1 and 3 (no new tests, no coverage — record
 `"coverage": {"percent": null, "target": "n/a — docs_only"}` in your execute
-report) but STILL run the full suite once in step 2 and require it green. If
+report). The suite still has to be green, and the verifier's run establishes
+that, same as on any other ticket. If
 your spec forces you to touch executable code or tests anyway, STOP and
 return `failed` with the contradiction in `<errors>` — the flag is wrong;
 never quietly do code work under a docs-only ticket.
@@ -55,14 +56,18 @@ never quietly do code work under a docs-only ticket.
    `TC-n` id in the test's docstring so the verifier can trace it, and record
    any case you could not write — with the reason — in your execute report's
    `problems` field. Never silently drop a case, and never renumber one.
-2. **Implement** until those tests pass. Iterate against the tests your change
-   touches: that is the loop whose result you act on, and re-running an entire
-   suite after every edit tells you nothing the affected tests did not. Run the
-   full unit suite ONCE, after your LAST spec, with the commands from the
-   plan's test strategy. Once per executor, not once per spec: "did the
-   assembled work break anything" has a single answer for the whole file map,
-   and asking it per spec buys the same answer at N times the cost. That single
-   run is the regression check, and step 3 reads it rather than repeating it.
+2. **Implement** until those tests pass, iterating against the tests your
+   change touches — the ones you wrote plus any covering the code you edited.
+   That is the loop whose result you act on.
+
+   **You do not run the full unit suite.** /acs:code runs it exactly once per
+   iteration, in the verify phase, and that run is both the regression check
+   and the coverage measurement. Running it here too would answer the same
+   question twice on the same tree at the same cost, and the verifier's answer
+   is the one that counts: it shares no memory with you and trusts nothing you
+   recorded. Pick your affected set honestly — a regression you miss is one the
+   verifier finds, which costs a whole extra execute-verify round, so breadth
+   where you are unsure is cheap and guesswork is not.
    When `<constraints>` carries `e2e_command` and your spec's Test plan names
    e2e flows: write/update those e2e tests too and run the AFFECTED e2e tests
    once (with `e2e_setup` first and `e2e_teardown` after, pass or fail) —
@@ -99,20 +104,19 @@ never quietly do code work under a docs-only ticket.
    - Match the existing style of the files you touch.
    - Only remove orphans your own change created; do not remove pre-existing
      dead code — mention it in the execute-report `problems` field instead.
-3. **Measure coverage** against `coverage_target` — but read step 2's run
-   first. Most repos' test command already reports coverage —
-   it is usually the same command their coverage gate runs — so the number
-   is in output you have. Run the suite a second time only if that output
-   carries no coverage figure at all.
-   Whichever way you get it, the number has to come from the suite: a path
-   reached only through a subprocess (a CLI the tests spawn) is uncovered
-   until a test reaches it in-process, and topping the number up by appending
-   manual invocations to the data file is caught, because the verifier
-   re-measures from the suite alone and the gap is a blocking finding.
-   If the target genuinely cannot be reached (e.g. untestable generated code),
-   record the achieved number and the concrete reason — never pad with
-   meaningless tests and never lower the bar yourself; the coordinator owns the
-   hard-fail decision.
+3. **Coverage is measured by the verifier, not by you.** It falls out of the
+   verify phase's single full-suite run, so record
+   `"coverage": {"percent": null, "target": "measured in verify"}` rather than
+   a number of your own.
+
+   Write tests as if the target still binds, because it does — it is simply
+   judged one phase later. A path reached only through a subprocess (a CLI the
+   tests spawn) is uncovered until a test reaches it in-process, so cover it
+   in-process. If your spec's code genuinely cannot be covered (untestable
+   generated code, say), say so in `problems` with the reason: that is the
+   input the coordinator needs for the hard-fail decision, and it is worth far
+   more than a number you cannot stand behind. Never pad with meaningless
+   tests, and never lower the bar.
 4. **Reconcile product-doc facts — part of the change, not a follow-up**:
 
    **Product-doc factual reconciliation (also part of the change):** when the
@@ -150,7 +154,7 @@ Shape:
   "spec": "02-import-endpoint.md",
   "files_changed": ["src/import/api.py", "tests/test_import_api.py", "docs/api/import.md"],
   "tests": {"commands": ["pytest -q"], "passed": 84, "failed": 0},
-  "coverage": {"command": "pytest --cov=src -q", "percent": 93.4, "target": 90},
+  "coverage": {"percent": null, "target": "measured in verify"},
   "docs_updated": ["README.md", "docs/api/import.md", "docs/architecture/lld/flows/bulk-import.md"],
   "commits": ["a1b2c3d SHOP-123 add bulk import endpoint"],
   "problems": ["flaky test test_retry quarantined upstream; reran 3x green"],
@@ -190,11 +194,11 @@ after it. Self-check it first:
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>
   </outputs>
-  <stop-reason>Spec 02 green: 84/84 tests pass, coverage 93.4% vs target 90, 2 commits.</stop-reason>
+  <stop-reason>Spec 02 green: 84/84 affected tests pass, 2 commits. Full suite and coverage: verify.</stop-reason>
 </result>
 ```
 
-- `status="completed"` — tests green, coverage target met, docs updated, work
+- `status="completed"` — your affected tests green, docs updated, work
   committed.
 - `status="needs_input"` — blocked on an ambiguity or an out-of-map file;
   questions in `<questions>`, partial green work committed and recorded in the

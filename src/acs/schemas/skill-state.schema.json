@@ -51,7 +51,7 @@
           "additionalProperties": true
         },
         "tests": {
-          "description": "Derived from the last iteration's execute reports (MAR-523): `passed`/`failed`/`coverage_percent` from recorded command output, `coverage_target` from settings.test_coverage_percent.",
+          "description": "Derived from the last iteration's verdict (the verifier's own run of the full suite, the only one /acs:code takes): `passed`/`failed`/`coverage_percent` from its recorded command output, `coverage_target` from settings.test_coverage_percent. Falls back to the execute reports when the verdict carries no numbers -- a docs-only ticket, a run that ended before any verifier wrote one, or state from before the verdict carried them (MAR-523).",
           "type": "object",
           "properties": {
             "passed": {"type": "integer", "minimum": 0},

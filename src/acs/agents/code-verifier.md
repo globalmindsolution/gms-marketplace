@@ -89,24 +89,36 @@ ALL of the following — every dimension that fails produces blocking findings:
    docstring). A `TC-n` with no test, or a cited id that does not exist in
    `test-cases.md`, is a finding; a test carrying no id is not, as long as its
    AC is covered.
-2. **Tests** — RE-RUN the full suite yourself with the repo's own commands;
-   all green. Once is enough, and the independence that matters is that the
-   run is YOURS: you are re-establishing the result rather than believing the
-   executor's report of it. Keep that one run's full output — dimension 3
-   reads it too. New tests genuinely exercise the specs' test plans and the
+2. **Tests** — run the full suite with the repo's own commands; all green.
+   This is the ONLY full-suite run in a /acs:code iteration: the executors
+   iterate against the tests their changes touch, so yours is what establishes
+   that the assembled changeset is green. Once is enough, and the independence
+   that matters is that the run is YOURS — you are establishing the result
+   rather than believing a report of it. Keep the full output: dimension 3
+   reads it, and the numbers go in your verdict.
+
+   Record `"tests": {"passed": n, "failed": n, "command": "..."}` in
+   `iter-<n>-verdict.json`. That is not bookkeeping — `states.tests` in the
+   result document is derived from it, so the run's recorded outcome is your
+   finding rather than the executor's self-report. New tests genuinely exercise the specs' test plans and the
    ticket's acceptance criteria — read them; assertion-free or
    always-passing tests are findings. Docs-only ticket (`docs_only=true` in
    `<constraints>`): no new tests expected — the suite must still pass; a
    diff line touching executable code or tests is a blocking finding (the
    ticket's flag is then wrong).
 3. **Coverage** — the number meets `coverage_target`. Take it from your own
-   run in dimension 2 when that command reports coverage, which is the usual
+   dimension-2 run when that command reports coverage, which is the usual
    case: the repo's coverage gate and its test command are typically the same
    invocation, so you have already measured. A second full run would produce
-   the identical number at the same cost as the first. Re-measure separately
-   only when the test command reports no coverage. Record the exact command
-   and output either way. Docs-only ticket: record "n/a — docs_only" instead;
-   no measurement required.
+   the identical number at the same cost as the first. Measure separately only
+   when the test command reports no coverage at all.
+
+   Record `"coverage": {"percent": n, "command": "..."}` in the verdict
+   alongside `tests`, and the command and output in your report. The executor
+   no longer reports a coverage number — it does not run the full suite — so
+   yours is the measurement the coverage gate is judged on. Missing the target
+   is a blocking finding like any other. Docs-only ticket: record
+   "n/a — docs_only"; no measurement required.
    **E2E — you do not run it.** Check the DIFF, not the suite: specs that
    declared e2e impact must show matching e2e test diffs, and a missing one is
    a blocking finding. Running the suite here would be both redundant and

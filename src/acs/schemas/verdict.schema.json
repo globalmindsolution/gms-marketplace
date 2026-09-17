@@ -129,6 +129,25 @@
     },
     "written_at": {
       "type": "string"
+    },
+    "tests": {
+      "type": "object",
+      "description": "The verifier's own run of the full unit suite (dimension 2), as numbers rather than prose. /acs:code runs that suite once, in verify; the executor iterates against the tests its change touches. states.tests is derived from here, so the recorded result is the review's independent finding rather than the executor's self-report. Optional: a docs-only ticket has no coverage to record, and a run can end before any verifier writes a verdict -- acs_lib.derive_tests falls back to the execute reports then.",
+      "properties": {
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "command": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "coverage": {
+      "type": "object",
+      "description": "Coverage read off the SAME run recorded in `tests` (dimension 3), not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
+      "properties": {
+        "percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "command": {"type": "string"}
+      },
+      "additionalProperties": true
     }
   }
 }

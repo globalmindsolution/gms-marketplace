@@ -102,6 +102,24 @@ the notes.
   shared `read_skill_contract()` helper, because what they pin is what the
   skill says, not which of its files says it.
 
+- **`/acs:code` runs the full unit suite exactly once per iteration, in verify.**
+  Executors no longer run it at all: they iterate against the tests their change
+  touches, and the verifier's single independent run establishes both that the
+  assembled changeset is green and what the coverage is. A clean ticket now
+  spends one full-suite run for the whole `/acs:code` invocation; only a ticket
+  that fails review iterates.
+
+  The saving is the smaller half of this. `states.tests` used to be the
+  executor's self-report about its own work and is now the review's finding
+  about that work, established by an agent that shares no memory with it — so
+  the padded-coverage failure mode the executor charter used to warn about
+  stops being something a report can even claim. `iter-<n>-verdict.json` gains
+  optional `tests` and `coverage` objects (`verdict.schema.json`), and
+  `acs_lib.derive_tests` reads them first, falling back to the execute reports
+  when a verdict carries no numbers: a docs-only ticket, a run that ended
+  before any verifier wrote one, or state written before the verdict carried
+  them. Both fields are optional, so every verdict already on disk stays valid.
+
 - **The /acs:code verifier no longer runs the e2e suite; `/acs:run-e2e-tests`
   owns it.** Each suite now has exactly one full-run owner, and the pipeline
   decides which: `workflows/ship.yaml` orders `code → create-e2e-tests →
