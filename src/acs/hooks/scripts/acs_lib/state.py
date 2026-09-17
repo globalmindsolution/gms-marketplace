@@ -16,7 +16,6 @@ import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, PRODUCT_SKILLS, RUN_STATUSES, ReconciliationRequired, now_iso, parse_iso, read_json, write_json
 from .repo import _guarded_repo_write, checkout_id, checkout_root, index_path, lock_path, repo_dir, repo_guard, scan_local_ticket_evidence, state_path
-from .lanes import VERIFY_ITERATION_CAP, derive_lane, verify_depth
 from .metrics import _measure_run_usage, compute_ticket_totals
 from . import artifacts
 
@@ -115,27 +114,11 @@ def finalize_run(tdir, skill, ticket_id, result):
     return state, entry
 
 
-def record_escalation_event(tdir, skill, event):
-    """Append `event` (13-field escalation shape) to runs[-1].escalations on
-    <skill>-state.json, creating the list if absent. Requires an existing
-    in-progress run (last_run(state) must not be None) — callers MUST call
-    this only after append_in_progress_run; no run entry is synthesized here.
-    Callers MUST NOT call this twice for the same trigger firing."""
-    state = load_state(tdir, skill)
-    entry = last_run(state)
-    if entry is None:
-        raise ValueError("record_escalation_event requires an existing run entry "
-                          "(call append_in_progress_run first)")
-    entry.setdefault("escalations", []).append(event)
-    write_json(state_path(tdir, skill), state)
-    return state
-
-
 def record_guard_event(tdir, skill, event):
     """Append `event` (one file-map guard denial) to runs[-1].guard_events on
     <skill>-state.json, creating the list if absent. Returns True when the
     event landed and False when there is no run entry to carry it — unlike
-    record_escalation_event, which raises: the sole caller is a deny path whose
+    an escalation event once did: the sole caller is a deny path whose
     verdict must not depend on whether the recording succeeded."""
     state = load_state(tdir, skill)
     entry = last_run(state)
@@ -144,61 +127,6 @@ def record_guard_event(tdir, skill, event):
     entry.setdefault("guard_events", []).append(event)
     write_json(state_path(tdir, skill), state)
     return True
-
-
-def confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes, clarify_ref):
-    """The ONLY function in acs_lib capable of writing a size/stakes value
-    lower than the ticket's current confirmed value. REQUIRES clarify_ref
-    (a non-empty C-<n> string identifying an answered clarify.py ledger
-    entry); raises ValueError if clarify_ref is falsy or does not resolve
-    to an answered entry (an "assumed" or "open" entry is rejected, same as
-    a missing one) — no write in that case. Recomputes lane via derive_lane
-    (never hand-sets it — ADR 0030). Persists ticket.json / pipeline-state.json /
-    tickets-index.json exactly like the upward path (save_ticket /
-    update_pipeline / update_index), then calls record_escalation_event
-    with direction="down" and confirmation_ref=clarify_ref. Callable ONLY
-    from the /code coordinator's boundary-only de-escalation subsection —
-    never from the in-loop trigger-evaluation code path."""
-    if not clarify_ref:
-        raise ValueError("confirm_deescalation requires a non-empty clarify_ref")
-    ledger = read_json(os.path.join(tdir, "clarifications.json"))
-    entries = ledger.get("clarifications") if isinstance(ledger, dict) else None
-    entry = next((e for e in (entries or []) if isinstance(e, dict) and e.get("id") == clarify_ref), None)
-    if entry is None or entry.get("status") != "answered":
-        raise ValueError("clarify_ref %r does not resolve to an answered clarify.py "
-                          "ledger entry" % (clarify_ref,))
-
-    from_lane, from_size, from_stakes = ticket["lane"], ticket["size"], ticket["stakes"]
-    new_lane = derive_lane(confirmed_size, confirmed_stakes, ticket["needs_design"], ticket["type"])
-
-    ticket["size"] = confirmed_size
-    ticket["stakes"] = confirmed_stakes
-    ticket["lane"] = new_lane
-    save_ticket(tdir, ticket)
-    workspace = os.path.dirname(os.path.dirname(tdir))
-    repo_id = os.path.basename(os.path.dirname(tdir))
-    state = load_state(tdir, "code")
-    run_status = (last_run(state) or {}).get("status", "in_progress")
-    update_pipeline(tdir, ticket["id"], "code", run_status, lane=new_lane)
-    update_index(workspace, repo_id, ticket)
-
-    event = {
-        "ts": now_iso(),
-        "from_lane": from_lane,
-        "to_lane": new_lane,
-        "from_size": from_size,
-        "from_stakes": from_stakes,
-        "to_size": confirmed_size,
-        "to_stakes": confirmed_stakes,
-        "trigger": "user_confirmed_deescalation",
-        "source": "user-confirmed de-escalation via clarify.py %s" % clarify_ref,
-        "ceiling_before": VERIFY_ITERATION_CAP[verify_depth(from_lane, from_stakes)],
-        "ceiling_after": VERIFY_ITERATION_CAP[verify_depth(new_lane, confirmed_stakes)],
-        "direction": "down",
-        "confirmation_ref": clarify_ref,
-    }
-    record_escalation_event(tdir, "code", event)
-    return ticket
 
 
 # ---------------------------------------------------------------------------
@@ -214,8 +142,7 @@ def load_pipeline(tdir, ticket_id, flow="ticket"):
     return data
 
 
-def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lane=None,
-                    extra=None):
+def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, extra=None):
     """Record a pipeline step transition.
 
     `extra` merges caller-supplied fields into the step dict (e.g. /ship's
@@ -242,8 +169,6 @@ def update_pipeline(tdir, ticket_id, skill, status, summary=None, flow=None, lan
                 step.pop(key, None)
             else:
                 step[key] = value
-    if lane is not None:
-        data["lane"] = lane
     data["totals"] = compute_ticket_totals(tdir)
     write_json(os.path.join(tdir, "pipeline-state.json"), data)
     return data
@@ -284,14 +209,6 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         "story_points": kw.get("story_points"),
         "needs_design": kw.get("needs_design", ttype == "epic"),
         "docs_only": kw.get("docs_only", False),
-        "size":   kw.get("size",   "standard"),
-        "stakes": kw.get("stakes", "normal"),
-        "lane":   derive_lane(
-                      kw.get("size",   "standard"),
-                      kw.get("stakes", "normal"),
-                      kw.get("needs_design", ttype == "epic"),
-                      ttype
-                  ),
         "due_date": kw.get("due_date"),
         "created_at": now_iso(),
         "updated_at": now_iso(),
@@ -365,7 +282,6 @@ def update_index(workspace, repo_id, ticket, archived=None):
             "parent": ticket.get("parent"),
             "children": ticket.get("children", []),
             "needs_design": ticket.get("needs_design"),
-            "lane": ticket.get("lane"),
             "external": ticket.get("external"),
             "due_date": ticket.get("due_date"),
             "updated_at": now_iso(),

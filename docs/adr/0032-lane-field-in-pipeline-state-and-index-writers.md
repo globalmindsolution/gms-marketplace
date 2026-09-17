@@ -1,6 +1,6 @@
 # 0032 — Measure G14/G15/G16 by adding one lane field to the existing pipeline-state.json and tickets-index.json writers
 
-**Status**: Accepted · **Date**: 2026-06-25
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-06-25
 
 ## Context
 

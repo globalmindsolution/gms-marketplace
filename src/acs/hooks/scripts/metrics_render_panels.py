@@ -23,7 +23,7 @@ from metrics_render_html import _html_no_data
 def _term_render_delivery_summary(panel):
     """Terminal renderer for the delivery_summary panel (spec 02 §_render_delivery_summary_terminal).
 
-    Renders 5 KPIs + the additive escalations sub-object (MAR-109 D5) in fixed order.
+    Renders 5 KPIs + the delivery-path distribution (ADR-0095) in fixed order.
     'no data' string or non-dict -> single 'no data' row (B1).
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
@@ -41,18 +41,22 @@ def _term_render_delivery_summary(panel):
                                                else NO_DATA))
     cov = panel.get("coverage_pass_rate", NO_DATA)
     out.append("  coverage pass rate:  %s" % _esc(str(cov)))
-    esc = panel.get("escalations") if isinstance(panel.get("escalations"), dict) else {}
-    out.append("  escalation events:          %s" % _esc(str(esc.get("events", 0))))
-    out.append("  fast-lane escalated:        %s" % _esc(str(esc.get("fast_lane_escalated", 0))))
-    out.append("  deescalations:              %s" % _esc(str(esc.get("deescalations", 0))))
-    out.append("  silent reversals:           %s" % _esc(str(esc.get("silent_reversals", 0))))
+    dp = panel.get("delivery_paths") if isinstance(panel.get("delivery_paths"), dict) else {}
+    by_path = dp.get("by_path") if isinstance(dp.get("by_path"), dict) else {}
+    out.append("  classified/unclassified:    %s/%s"
+               % (_esc(str(dp.get("classified", 0))), _esc(str(dp.get("unclassified", 0)))))
+    out.append("  delivery paths:             %s"
+               % _esc(", ".join("%s %s" % (name, by_path.get(name, 0))
+                                for name in ("trivial", "small", "standard", "complex"))))
+    if dp.get("other_paths"):
+        out.append("  other declared paths:       %s" % _esc(str(dp["other_paths"])))
     return out
 
 
 def _html_render_delivery_summary(panel):
     """HTML renderer for the delivery_summary panel (spec 02 §_render_delivery_summary_html).
 
-    Self-contained table with 5 KPI rows + the additive escalations sub-object (MAR-109 D5).
+    Self-contained table with 5 KPI rows + the delivery-path distribution (ADR-0095).
     'no data' string or non-dict -> nodata div (B1).
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
@@ -72,13 +76,15 @@ def _html_render_delivery_summary(panel):
     rows.append("<tr><td>avg cycle time</td><td%s>%s</td></tr>" % (cls, _esc(cycle_str)))
     cov = panel.get("coverage_pass_rate", NO_DATA)
     rows.append("<tr><td>coverage pass rate</td><td>%s</td></tr>" % _esc(str(cov)))
-    esc = panel.get("escalations") if isinstance(panel.get("escalations"), dict) else {}
-    rows.append("<tr><td>escalation events</td><td>%s</td></tr>" % _esc(str(esc.get("events", 0))))
-    rows.append("<tr><td>fast-lane escalated</td><td>%s</td></tr>"
-                % _esc(str(esc.get("fast_lane_escalated", 0))))
-    rows.append("<tr><td>deescalations</td><td>%s</td></tr>" % _esc(str(esc.get("deescalations", 0))))
-    rows.append("<tr><td>silent reversals</td><td>%s</td></tr>"
-                % _esc(str(esc.get("silent_reversals", 0))))
+    dp = panel.get("delivery_paths") if isinstance(panel.get("delivery_paths"), dict) else {}
+    by_path = dp.get("by_path") if isinstance(dp.get("by_path"), dict) else {}
+    rows.append("<tr><td>tickets classified</td><td>%s</td></tr>" % _esc(str(dp.get("classified", 0))))
+    rows.append("<tr><td>tickets unclassified</td><td>%s</td></tr>"
+                % _esc(str(dp.get("unclassified", 0))))
+    for name in ("trivial", "small", "standard", "complex"):
+        rows.append("<tr><td>path: %s</td><td>%s</td></tr>" % (name, _esc(str(by_path.get(name, 0)))))
+    if dp.get("other_paths"):
+        rows.append("<tr><td>other declared paths</td><td>%s</td></tr>" % _esc(str(dp["other_paths"])))
     return "<table>" + "".join(rows) + "</table>"
 
 

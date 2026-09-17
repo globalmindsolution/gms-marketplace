@@ -33,7 +33,7 @@ import importlib
 import os
 import re
 
-from ._common import GateError, plugin_root, read_json
+from ._common import GateError, plugin_root, read_json, write_json
 from .repo import find_ticket_partition
 from .state import load_pipeline, skill_completed, update_pipeline
 from . import yamlsubset
@@ -56,6 +56,17 @@ SHIP_EXCLUDED_SKILLS = ("merge-pr", "release")
 BOUNDARIES = ("full_verify_stop",)
 DEFAULT_STOP_AFTER = "create-pr"
 DEFAULT_MAX_PARALLEL = 2
+#: The only version this build reads. A v1 file predates delivery paths and
+#: names a `code` skill that no longer exists, so it is refused, not adapted.
+WORKFLOW_VERSION = 2
+#: Where the judged path and its reason live on pipeline-state.json. Written
+#: once by /acs:ship after `delivery.classify_after`; read by every later walk,
+#: which is what keeps a resumed run on the path its first session chose.
+DELIVERY_PATH_KEY = "delivery_path"
+DELIVERY_REASON_KEY = "delivery_path_reason"
+#: Step fields that may be given per delivery path, as a mapping keyed by path
+#: instead of a scalar. One rule, applied to both, so a reader learns it once.
+PER_PATH_FIELDS = ("skill", "boundary")
 #: A step with one of these ledger statuses counts as satisfied for its dependants.
 SATISFIED_STATUSES = ("completed", "skipped")
 SKIPPED_STATUS = "skipped"
@@ -345,10 +356,104 @@ def phase_of(skill, phases=None):
 
 def allowed_ship_skills(phases=None):
     """The skills a ship.yaml step may name: build + test + ship, minus
-    SHIP_EXCLUDED_SKILLS. The schema's `skill` enum mirrors this list."""
+    SHIP_EXCLUDED_SKILLS, plus the internal legs those skills serve as entry
+    point. The schema's `skillName` enum mirrors this list.
+
+    The legs are here because a per-path `skill` mapping names them directly
+    (`code` resolves to `code-standard`). A leg is admissible exactly when the
+    command it serves is itself admissible, so a leg of `merge-pr` could never
+    slip in through this door."""
     phases = phases or load_phases()
-    return [skill for group in SHIP_PHASES for skill in phases["phases"][group]
-            if skill not in SHIP_EXCLUDED_SKILLS]
+    entry_points = [skill for group in SHIP_PHASES for skill in phases["phases"][group]
+                    if skill not in SHIP_EXCLUDED_SKILLS]
+    legs = [leg for leg, entry in phases["internal"].items() if entry in entry_points]
+    return entry_points + sorted(legs)
+
+
+# ---------------------------------------------------------------------------
+# Delivery paths (ADR-0095)
+# ---------------------------------------------------------------------------
+
+def delivery_of(doc):
+    """The workflow's `delivery` block, or None when it declares no paths."""
+    delivery = doc.get("delivery")
+    return delivery if isinstance(delivery, dict) else None
+
+
+def declared_paths(doc):
+    """The path vocabulary, `[]` when the workflow has no delivery block."""
+    delivery = delivery_of(doc)
+    return list(delivery["paths"]) if delivery else []
+
+
+def per_path(value, path):
+    """Resolve a step field that may be per-path.
+
+    A scalar applies on every path. A mapping applies only where it names the
+    path -- an omitted path yields None, which is how `boundary` says "no stop
+    on this path" without a second key. An unknown path (None, before the
+    classification) yields None too: a caller must not read a per-path field
+    before the path is decided, and returning None rather than guessing is what
+    makes that a visible bug instead of a silent wrong answer."""
+    if isinstance(value, dict):
+        return value.get(path)
+    return value
+
+
+def is_path_dependent(step):
+    """True when this step filters on, or varies by, the delivery path."""
+    return bool(step.get("paths")) or any(isinstance(step.get(field), dict)
+                                          for field in PER_PATH_FIELDS)
+
+
+def step_skills(step):
+    """Every skill this step could resolve to, in declaration order."""
+    skill = step.get("skill")
+    if isinstance(skill, dict):
+        return list(dict.fromkeys(skill.values()))
+    return [skill] if skill else []
+
+
+def recorded_delivery_path(tdir, ticket_id):
+    """The path this ticket was judged onto, or None if it has not been.
+
+    Read, never derived. A resumed run takes the path its first session chose,
+    because re-judging a plan in a fresh session could land somewhere else and
+    leave half a pipeline on each path."""
+    value = load_pipeline(tdir, ticket_id).get(DELIVERY_PATH_KEY)
+    return value if isinstance(value, str) and value else None
+
+
+def recorded_delivery_reason(tdir, ticket_id):
+    """Why that path was chosen, or None. Recorded beside it so a reader can
+    audit a judgement that a scoring function would have made checkable."""
+    value = load_pipeline(tdir, ticket_id).get(DELIVERY_REASON_KEY)
+    return value if isinstance(value, str) and value else None
+
+
+def record_delivery_path(tdir, ticket_id, path, reason, doc=None):
+    """Write the judged path once. Refuses an unknown path, and refuses to
+    move a ticket already on one -- the re-judgement a resume must not make.
+
+    Returns the pipeline document. Raises WorkflowError on either refusal, so
+    a caller that tries cannot quietly half-succeed."""
+    paths = declared_paths(doc) if doc else []
+    if paths and path not in paths:
+        raise WorkflowError("delivery path %r is not one of: %s" % (path, ", ".join(paths)))
+    if not (isinstance(reason, str) and reason.strip()):
+        raise WorkflowError("a delivery path is recorded with the reason it was chosen")
+    current = recorded_delivery_path(tdir, ticket_id)
+    if current and current != path:
+        raise WorkflowError(
+            "ticket %s is already on the %s delivery path; it is judged once, from the plan, "
+            "and a resumed run reads it rather than re-judging. Re-run "
+            "/acs:create-impl-plan to change the plan the judgement was made from."
+            % (ticket_id, current))
+    data = load_pipeline(tdir, ticket_id)
+    data[DELIVERY_PATH_KEY] = path
+    data[DELIVERY_REASON_KEY] = reason.strip()
+    write_json(os.path.join(tdir, "pipeline-state.json"), data)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +489,12 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
     """Schema plus semantic checks; returns `doc`, raises WorkflowError naming
     the source line when `lines` (from yamlsubset.parse) is given."""
     phases = phases or load_phases()
+    if doc.get("version") != WORKFLOW_VERSION:
+        _fail("version: %r is not supported — this build reads version %d. A version-1 "
+              "file predates delivery paths (ADR-0095): add a `delivery` block and "
+              "replace the `code` step's skill with the per-path mapping from the "
+              "plugin default at workflows/ship.yaml."
+              % (doc.get("version"), WORKFLOW_VERSION), path, lines, ("version",))
     errors = _schema_errors(_load_schema(SHIP_SCHEMA_FILENAME), doc)
     if errors:
         node, message = errors[0]
@@ -396,11 +507,42 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
         if step["id"] in ids:
             _fail("steps[%d].id: duplicate step id %r" % (index, step["id"]), path, lines, node + ("id",))
         ids.append(step["id"])
+    paths = declared_paths(doc)
+    delivery = delivery_of(doc)
+    if delivery and delivery["classify_after"] not in ids:
+        _fail("delivery.classify_after: %r is not a step id" % delivery["classify_after"],
+              path, lines, ("delivery", "classify_after"))
     for index, step in enumerate(steps):
         node = ("steps", index)
-        if step["skill"] not in allowed:
-            _fail("steps[%d].skill: %r is not a build/test/ship skill (allowed: %s)"
-                  % (index, step["skill"], ", ".join(allowed)), path, lines, node + ("skill",))
+        if not paths and is_path_dependent(step):
+            _fail("steps[%d]: uses delivery paths, but the workflow declares no `delivery` block"
+                  % index, path, lines, node)
+        for field in PER_PATH_FIELDS:
+            value = step.get(field)
+            if not isinstance(value, dict):
+                continue
+            unknown = [name for name in value if name not in paths]
+            if unknown:
+                _fail("steps[%d].%s: unknown delivery path(s) %s (declared: %s)"
+                      % (index, field, ", ".join(repr(u) for u in sorted(unknown)), ", ".join(paths)),
+                      path, lines, node + (field,))
+            # `skill` is required on every path; an omitted path would leave the
+            # step unrunnable there. `boundary` is optional by nature, so a
+            # partial mapping is exactly how it says "no stop on this path".
+            if field == "skill":
+                missing = [name for name in paths if name not in value]
+                if missing:
+                    _fail("steps[%d].skill: no skill for delivery path(s) %s — a per-path "
+                          "skill mapping must name every declared path"
+                          % (index, ", ".join(repr(m) for m in missing)), path, lines, node + ("skill",))
+        for name in step.get("paths") or []:
+            if name not in paths:
+                _fail("steps[%d].paths: unknown delivery path %r (declared: %s)"
+                      % (index, name, ", ".join(paths)), path, lines, node + ("paths",))
+        for skill in step_skills(step):
+            if skill not in allowed:
+                _fail("steps[%d].skill: %r is not a build/test/ship skill (allowed: %s)"
+                      % (index, skill, ", ".join(allowed)), path, lines, node + ("skill",))
         for need in step.get("needs") or []:
             if need not in ids[:index]:
                 _fail("steps[%d].needs: %r must name an EARLIER step" % (index, need),
@@ -426,7 +568,33 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
     if stop_after not in ids:
         _fail("stop_after: %r is not a step id" % stop_after, path, lines, ("stop_after",))
     _check_acyclic(steps, path, lines)
+    if delivery:
+        _check_path_dependants(steps, delivery["classify_after"], path, lines)
     return doc
+
+
+def _check_path_dependants(steps, classify_after, path, lines):
+    """Every path-dependent step must descend from `classify_after`.
+
+    A step that filters on or varies by the path, but could become READY before
+    the classification has happened, has no path to read. The walk would have to
+    either guess one or stall, and both are worse than refusing the file: this is
+    a property of the workflow, knowable when it is written."""
+    needs = {step["id"]: list(step.get("needs") or []) for step in steps}
+    descends = {}
+
+    def reaches(sid):
+        if sid not in descends:
+            descends[sid] = False  # cycles are already refused; this also stops recursion
+            descends[sid] = any(need == classify_after or reaches(need) for need in needs.get(sid, []))
+        return descends[sid]
+
+    for index, step in enumerate(steps):
+        if is_path_dependent(step) and not reaches(step["id"]):
+            _fail("steps[%d] (%s): depends on the delivery path but does not descend from "
+                  "%r, so it could be ready before the path is decided — add it to `needs`, "
+                  "directly or transitively" % (index, step["id"], classify_after),
+                  path, lines, ("steps", index))
 
 
 def _check_acyclic(steps, path, lines):
@@ -611,17 +779,30 @@ def _pointer_for(predicate, wctx):
 # ---------------------------------------------------------------------------
 
 def _ledger_keys(step, aliases):
-    """Ledger keys that record this step: its id, its skill (post-hooks write
-    the skill name), and any alias directory that forwards to the skill."""
+    """Ledger keys that record this step: its id, every skill it could resolve
+    to (post-hooks write the skill name), and any alias directory forwarding to
+    one of them.
+
+    A per-path step contributes all four of its skills. Only one of them ever
+    runs, so at most one can carry a status -- and listing them all is what lets
+    the walk read a step that a previous session ran under a different path's
+    skill name, rather than offering it again."""
     keys = [step["id"]]
-    if step["skill"] not in keys:
-        keys.append(step["skill"])
-    keys.extend(alias for alias, target in aliases.items() if target == step["skill"])
+    for skill in step_skills(step):
+        if skill not in keys:
+            keys.append(skill)
+        keys.extend(alias for alias, target in aliases.items()
+                    if target == skill and alias not in keys)
     return keys
 
 
-def _walk(wctx, doc, aliases, record_skips):
-    """(ready_entries, blocked_by, statuses, satisfied) over the steps in file order."""
+def _walk(wctx, doc, aliases, record_skips, path=None):
+    """(ready_entries, blocked_by, statuses, satisfied) over the steps in file order.
+
+    `path` is the ticket's recorded delivery path, or None when the workflow
+    declares no paths or the classification has not happened yet. A
+    path-dependent step is never offered on None: `next_steps` holds the walk
+    at the classification point instead."""
     ledger = load_pipeline(wctx["tdir"], wctx["ticket_id"])["steps"]
     memo = {}
 
@@ -629,6 +810,12 @@ def _walk(wctx, doc, aliases, record_skips):
         if predicate not in memo:
             memo[predicate] = bool(PREDICATES[predicate](wctx))
         return memo[predicate]
+
+    def excluded_by_paths(step):
+        """True when the step declares `paths` and the active one is not among
+        them. Unknown path -> False: undecided is not the same as excluded."""
+        declared = step.get("paths")
+        return bool(declared) and path is not None and path not in declared
 
     ready, blocked, statuses, satisfied = [], None, {}, {}
     for step in doc["steps"]:
@@ -641,7 +828,12 @@ def _walk(wctx, doc, aliases, record_skips):
                 break
         statuses[sid] = status
         when = step.get("when")
-        if status == "completed" or (status == SKIPPED_STATUS and (not when or not holds(when))):
+        # A recorded skip stands while the reason for it stands -- a false
+        # `when`, or a `paths` list the active path is not in. Either turning
+        # true makes the step ready again, which is what lets a re-classified
+        # ticket pick up a step its first path skipped.
+        skip_stands = (not when or not holds(when)) and not (step.get("paths") and not excluded_by_paths(step))
+        if status == "completed" or (status == SKIPPED_STATUS and skip_stands):
             satisfied[sid] = True
             continue
         satisfied[sid] = False
@@ -656,16 +848,25 @@ def _walk(wctx, doc, aliases, record_skips):
             statuses[sid] = SKIPPED_STATUS
             satisfied[sid] = True
             continue
+        if excluded_by_paths(step):
+            reason = "paths: %s does not run on the %s path" % (sid, path)
+            if record_skips and status != SKIPPED_STATUS:
+                update_pipeline(wctx["tdir"], wctx["ticket_id"], sid, SKIPPED_STATUS,
+                                summary=reason, extra={"reason": reason, "paths": list(step["paths"]),
+                                                       DELIVERY_PATH_KEY: path})
+            statuses[sid] = SKIPPED_STATUS
+            satisfied[sid] = True
+            continue
         requires = step.get("requires")
         if requires and not holds(requires):
             if blocked is None:
                 blocked = {"step": sid, "predicate": requires, "pointer": _pointer_for(requires, wctx)}
             continue
-        ready.append(_entry(wctx, step, status, needs, statuses))
+        ready.append(_entry(wctx, step, status, needs, statuses, path))
     return ready, blocked, statuses, satisfied
 
 
-def _entry(wctx, step, status, needs, statuses):
+def _entry(wctx, step, status, needs, statuses, path=None):
     reason = ("needs satisfied (%s)" % ", ".join("%s %s" % (n, statuses.get(n)) for n in needs)
               if needs else "entry step (no needs)")
     if status in RERUN_STATUSES:
@@ -681,13 +882,14 @@ def _entry(wctx, step, status, needs, statuses):
     args = step.get("args")
     return {
         "step": step["id"],
-        "skill": step["skill"],
+        "skill": per_path(step["skill"], path),
         "args": args.replace("{ticket_id}", wctx["ticket_id"]) if isinstance(args, str) else None,
         "reason": reason,
-        "boundary": step.get("boundary"),
+        "boundary": per_path(step.get("boundary"), path),
         "on_fail": on_fail,
         "on_replan": step.get("on_replan"),
         "exclusive": bool(step.get("exclusive")),
+        "delivery_path": path,
     }
 
 
@@ -721,10 +923,29 @@ def next_steps(wctx, resolved=None, record_skips=True):
                                               "pointer": pointer})
     resolved, doc = _validated(wctx, resolved)
     aliases = load_phases()["aliases"]
-    ready, blocked, statuses, _satisfied = _walk(wctx, doc, aliases, record_skips)
+    delivery = delivery_of(doc)
+    path = recorded_delivery_path(wctx["tdir"], wctx["ticket_id"]) if delivery else None
+    ready, blocked, statuses, satisfied = _walk(wctx, doc, aliases, record_skips, path)
     stop_after = doc.get("stop_after", DEFAULT_STOP_AFTER)
     max_parallel = doc.get("max_parallel", DEFAULT_MAX_PARALLEL)
     done = statuses.get(stop_after) == "completed"
+
+    delivery_report = None
+    if delivery:
+        # The classification is owed once its step is satisfied and no path is
+        # recorded. Hold every path-dependent step back until it is: offering
+        # one with `path=None` would resolve its per-path fields to None.
+        owed = bool(satisfied.get(delivery["classify_after"])) and path is None
+        if owed:
+            ready = [entry for entry in ready
+                     if not is_path_dependent(_step_by_id(doc, entry["step"]))]
+        delivery_report = {
+            "path": path,
+            "reason": recorded_delivery_reason(wctx["tdir"], wctx["ticket_id"]) if path else None,
+            "classify_after": delivery["classify_after"],
+            "paths": list(delivery["paths"]),
+            "awaiting_classification": owed,
+        }
     if done:
         ready = []
     if len(ready) > 1 and max_parallel > 1 and not any(r["exclusive"] for r in ready):
@@ -738,10 +959,18 @@ def next_steps(wctx, resolved=None, record_skips=True):
         "done": done,
         "blocked_by": blocked,
         "statuses": statuses,
+        "delivery": delivery_report,
         "workflow": {"source": resolved["source"], "path": resolved["path"],
                      "name": doc.get("name"), "stop_after": stop_after,
                      "max_parallel": max_parallel},
     }
+
+
+def _step_by_id(doc, sid):
+    for step in doc["steps"]:
+        if step["id"] == sid:
+            return step
+    return {}
 
 
 def pending_needs(wctx, skill, resolved=None):
@@ -752,12 +981,22 @@ def pending_needs(wctx, skill, resolved=None):
     resolved, doc = _validated(wctx, resolved)
     phases = load_phases()
     skill = phases["aliases"].get(skill, skill)
-    _ready, _blocked, statuses, satisfied = _walk(wctx, doc, phases["aliases"], False)
+    path = (recorded_delivery_path(wctx["tdir"], wctx["ticket_id"])
+            if delivery_of(doc) else None)
+    _ready, _blocked, statuses, satisfied = _walk(wctx, doc, phases["aliases"], False, path)
     by_id = {step["id"]: step for step in doc["steps"]}
+
+    def names(step):
+        """A per-path step answers to its entry point too, so invoking
+        /acs:code directly finds the step whose mapping holds the legs."""
+        return set(step_skills(step)) | {step["id"]}
+
     for step in doc["steps"]:
-        if step["skill"] != skill:
+        if skill not in names(step):
             continue
-        return [{"step": need, "skill": by_id[need]["skill"], "status": statuses.get(need)}
+        return [{"step": need,
+                 "skill": per_path(by_id[need]["skill"], path) or step_skills(by_id[need])[0],
+                 "status": statuses.get(need)}
                 for need in step.get("needs") or [] if not satisfied.get(need)]
     return []
 

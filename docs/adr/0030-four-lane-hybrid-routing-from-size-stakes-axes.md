@@ -1,6 +1,6 @@
 # 0030 — Adopt four-lane hybrid routing (TRIVIAL/SMALL/STANDARD/COMPLEX) from size x stakes axes
 
-**Status**: Accepted · **Date**: 2026-06-25
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-06-25
 
 ## Context
 

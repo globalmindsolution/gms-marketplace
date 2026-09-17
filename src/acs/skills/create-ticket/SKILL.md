@@ -16,7 +16,7 @@ epic's own creation run always ends with `children: []`; when invoked as
 epic's child story/task tickets (see "Epic fan-out mode" below). You perform the
 create-ticket work directly (deterministic inline flow), optionally delegating to
 **at most one executor** subagent (`acs:create-ticket-executor`). You NEVER spawn a
-planner or a verifier subagent in any lane. Decomposition is YOURS alone (subagents
+planner or a verifier subagent, ever. Decomposition is YOURS alone (subagents
 never spawn subagents).
 
 Notation: `<partition>` = `context.partition`, `<id>` = `context.ticket_id`,
@@ -147,7 +147,7 @@ epic, after that epic's own design is approved. Resulting precedence:
    child already listed there (see Resume & reconcile, below).
 7. **Mint.** For each user-confirmed child, run Step 4 exactly as written
    below. Steps 1-3 do NOT run in this mode — the epic's own `ticket.json`
-   (title, description, acceptance criteria, size/stakes/lane, needs_design)
+   (title, description, acceptance criteria, needs_design)
    is not re-analyzed or rewritten; only the epic's `children` array
    changes, via `new-ticket.py`. After minting, write each confirmed
    child's `acceptance_criteria` into the child's own `ticket.json` —
@@ -216,12 +216,12 @@ tedious.
 
 ## Inline apply flow
 
-This inline flow applies regardless of lane (TRIVIAL, SMALL, STANDARD, COMPLEX, and
-absent/unknown). No lane re-introduces a planner or a verifier for /acs:create-ticket.
+This inline flow is the same on every run: /acs:create-ticket has no planner and
+no verifier, and nothing about a ticket re-introduces either.
 create-ticket carries no in-skill verifier subagent because this is **deterministic
 minting** — schema completeness is enforced by the schema, and the user-confirmation
 gate (step 2 below) is the quality checkpoint. The in-loop verifier gate (MAR-55
-invariant (d)) belongs to the upstream code/spec lanes; there is no upstream
+invariant (d)) belongs to the downstream code review; there is no upstream
 code-verifier for create-ticket — the correctness mechanism here is the schema plus the
 user-confirmation gate.
 
@@ -254,12 +254,11 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   proposal presented to the user in Step 2
 - `prd_trace`: the PRD feature/goal this ticket traces to (epics to a roadmap
   milestone), or a divergence flag when the request goes beyond the PRD
-- `size` (trivial/small/standard/large) + one-line rationale
-- `stakes` (low/normal/high) + one-line rationale; run path-glob match against
-  `high_stakes_paths` (settings; default seed: `auth/**`, `payments/**`,
-  `migrations/**`, `public-api/**`, `security/**`) — any match RECOMMENDS
-  stakes=high; include matched paths in the rationale when high
-- `lane` derived via `derive_lane(size, stakes, needs_design, type)` — for display
+- a PR-size reading in prose — is this one reviewable PR, or should it be an
+  epic with children? — feeding the oversize judgement below. It is a
+  recommendation about SHAPE, not a stored axis: a ticket carries no `size` or
+  `stakes` field since ADR-0095, and how much rigor the work gets is judged
+  later, from its plan, by `/acs:ship`.
 - For epics: proposed child story/task breakdown with title, type, and
   points (children are always `needs_design: false` — the epic carries the
   design) — apply the same concreteness/testability judgment to any
@@ -273,7 +272,7 @@ inline.
 ### Step 2 — User-confirmation gate (human-in-the-loop checkpoint)
 
 **This step is a deliberate design requirement (MAR-55 invariant (c)) — it is NOT a
-verifier and it is NOT skipped in any lane.** The coordinator presents the proposal
+verifier and it is never skipped.** The coordinator presents the proposal
 and blocks until the user confirms or overrides:
 
 1. Resolve every ambiguity ABOUT THE TICKET RECORD with the user before
@@ -298,15 +297,9 @@ and blocks until the user confirms or overrides:
    not ask). For `docs_only`, present the recommendation and obtain USER CONFIRMATION
    when recommended `true` (it relaxes /acs:code's TDD/coverage gates — never set it
    without explicit user confirmation; when `false`, don't ask).
-5. **Size and stakes**: present recommended values with a one-line rationale
-   (include matched paths when stakes=high). Obtain USER CONFIRMATION or override
-   for each. Derive `lane` from the confirmed values via
-   `derive_lane(size, stakes, needs_design, type)` and display it so the user sees
-   the pipeline lane. Stakes MAY be raised freely; de-escalation requires explicit
-   user confirmation — never silently lower a user-confirmed value (invariant (c)).
-6. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
+5. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
    blank").
-7. **Epic only**: present the proposed child breakdown and obtain user confirmation
+6. **Epic only**: present the proposed child breakdown and obtain user confirmation
    or edits before any child is minted. This item is reached only in the
    `--fan-out` mode or a split/restructure run; an epic's own creation run has
    no child breakdown to present and ends with `children: []`.
@@ -319,7 +312,7 @@ open `<questions>` instead of guessing — see Finish.
 the request itself says to decide without waiting — "you decide", "use your
 judgement", "no need to confirm", "raise it with sensible defaults" — items
 1 and 3-6 are answered by that delegation: record each field you settle
-(type, priority, size, stakes, every acceptance criterion, no due date)
+(type, priority, every acceptance criterion, no due date)
 with `clarify.py add … --source assumption --rationale "…"`, keep
 `docs_only` at `false` (the one value a delegation never sets to `true`),
 list the assumptions under the completion report's Findings, and continue
@@ -342,11 +335,6 @@ setting all fields required by `schemas/ticket.schema.json`:
   `story_points` (or null), `needs_design`, `docs_only` (confirmed value, default
   false), `due_date` (ISO-8601 date string or null); refresh `updated_at`
   (ISO-8601 UTC).
-- `size` (trivial|small|standard|large, default standard), `stakes`
-  (low|normal|high, default normal), and `lane` — the `lane` field MUST be
-  computed by `derive_lane(size, stakes, needs_design, ticket_type)` from the
-  confirmed axes — NEVER copy lane verbatim from user input; always recompute to
-  ensure cache consistency (invariant D5).
 
 Render the title from `settings.formats.tickets.<type>.title` with placeholders
 `{ticket_id}`, `{type}`, `{title}`, `{external_key}` (empty string when unsynced).
@@ -380,16 +368,13 @@ For each user-confirmed child, run:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
 ```
 
-Do NOT pass `--size` or `--stakes` when minting child tickets in the fan-out.
-This ensures children mint with conservative defaults (size=standard, stakes=normal,
-lane=STANDARD). Children are confirmed ONCE, at the `--fan-out` mode's own
-confirmation gate (Step 2 item 7) — or, in a split/restructure run, at that
-mode's own user confirmation of the seams (above) — never individually
-re-confirmed by a
-child's own `/acs:create-ticket` run, since a child never runs one (below); a
-child's axes are only ever raised afterward by `/acs:code`'s mid-flight
-`escalate_lane` or an explicit user edit. Conservative defaults never
-silently assign a fast lane to unconfirmed work.
+A child carries no rigor axes to pass — there are none (ADR-0095). Children are
+confirmed ONCE, at the `--fan-out` mode's own confirmation gate (Step 2 item 6)
+— or, in a split/restructure run, at that mode's own user confirmation of the
+seams (above) — never individually re-confirmed by a child's own
+`/acs:create-ticket` run, since a child never runs one (below). How much rigor
+each child's implementation gets is decided later and per child, when
+`/acs:ship` judges that child's own plan onto a delivery path.
 
 This mints the child id, writes BOTH link directions (child `parent`, epic
 `children`), and records a completed create-ticket run for the child — children do

@@ -1,6 +1,6 @@
 # 0074 — Lane-conditional planning: no `code-planner` spawn on TRIVIAL/SMALL; coordinator authors `plan.md` itself
 
-**Status**: Accepted · **Date**: 2026-08-23
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-08-23
 
 ## Context
 

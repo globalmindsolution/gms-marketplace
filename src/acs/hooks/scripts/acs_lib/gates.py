@@ -20,7 +20,8 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS, RUN_STATUSES, now_iso, plugin_root, read_json, write_json
+from ._common import (CODE_PATH_LEGS, DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
+                      RUN_STATUSES, now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
 from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, update_index, update_pipeline
@@ -215,7 +216,7 @@ def gate_create_test_docs(ctx, payload):
 def gate_code(ctx, payload):
     # Inputs: the ticket resolves and is not an epic, and an implementation plan
     # exists -- /acs:create-impl-plan carved the plan phase out of /acs:code, so
-    # code now REQUIRES the artifact it used to author. No lane branch, no
+    # code now REQUIRES the artifact it used to author. No path branch, no
     # create-spec precondition (the fold is create-impl-plan's concern), and no
     # predecessor-completed check: the order lives in ship.yaml. Epics are
     # refused before the plan is looked for, because an epic never has one.
@@ -372,6 +373,14 @@ GATES = {
     "merge-pr": gate_merge_pr,
     "standardize-project": gate_standardize_project,
 }
+# The four delivery-path legs pass `code`'s gate, unchanged -- a leg is an
+# implementation of the `code` step, so its precondition is `code`'s
+# precondition. Mapping them here rather than resolving legs to entry points
+# generally is deliberate: `create-project` and `standardize-project` are also
+# internal legs and own DIFFERENT gates, so a blanket rule would break them.
+for _leg in CODE_PATH_LEGS:
+    GATES[_leg] = gate_code
+del _leg
 
 #: What each gate checks, by skill -- the declared classification
 #: tests/acs/test_acs_lib_gates.py asserts against GATES, so the table and the
@@ -390,7 +399,7 @@ GATE_INPUTS = {
     "architecture": ("create-project", "standardize-project") + ARCHITECTURE_DEPENDENT_SKILLS,
     "ticket": ("create-design", "analyze-ticket", "create-impl-plan", "create-api-contract",
                "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
-               "merge-pr"),
+               "merge-pr") + tuple(CODE_PATH_LEGS),
 }
 
 

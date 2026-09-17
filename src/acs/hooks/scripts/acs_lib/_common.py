@@ -14,7 +14,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 # The scripts dir, one level up from this package. Done ONCE, here: the
 # facade imports _common first, so every sibling import in the package
-# (claude_code_adapter in repo, markdown_headings in lanes) resolves
+# (claude_code_adapter in repo, markdown_headings in planrules) resolves
 # without each module pushing its own duplicate entry onto sys.path.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import claude_code_adapter as cc  # noqa: E402
@@ -37,7 +37,16 @@ WORKFLOW_SKILLS = ["create-ticket", "analyze-ticket", "create-impl-plan", "creat
                    "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
                    "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
-HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
+# `code`'s four delivery-path legs (ADR-0095). They are hooked -- each is a real
+# Skill-tool call and must pass the SAME gate `code` passes -- but they are NOT
+# in WORKFLOW_SKILLS: that list is the metrics funnel's columns and the ticket
+# flow's step names, and a leg is an implementation of the `code` step, not a
+# step of its own. Everything a leg writes on disk is `code`'s: it starts with
+# `skill-start.py --skill code`, so `phases/code/`, `code-state.json`, the
+# `code` ledger key and `post-code.py` are shared by all four. The leg name
+# exists in exactly two places -- the Skill invocation and this gate mapping.
+CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
+HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS + CODE_PATH_LEGS
 # `run-e2e-tests` is the Test-phase suite runner (today's `test`, renamed) and
 # stays UNHOOKED: it writes no run entry and spawns no reflection triad, so
 # dispatch.py passes it through and skill-start.py cannot select it. `test` is
@@ -187,19 +196,7 @@ DOC_BOOTSTRAP_DEPENDENCIES = {name: {"hard": list(row["hard"]), "soft": list(row
 DOC_BOOTSTRAP_SETTINGS_KEY = {name: row["settings_key"] for name, row in DOC_SETS.items()}
 DOC_BOOTSTRAP_SENTINEL = {name: next(iter(row["files"])) for name, row in DOC_SETS.items()}
 DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
-"""Iteration cap keyed by verify depth (AC-3: light=1; AC-4: full=3).
-
-Used by the /acs:code coordinator to bound the reflection loop:
-  depth = verify_depth(ticket.lane, ticket.stakes)
-  ceiling = VERIFY_ITERATION_CAP[depth]
-"""
-"""Canonical lane ordering from lowest to highest rigor (ADR 0030).
-
-Index 0 = TRIVIAL (lowest) … index 3 = COMPLEX (highest).
-Used by lane_rank() for comparisons only; never use this list to produce
-a lane value — derive_lane() is the single authoritative producer (ADR 0030:56-61).
-"""
-"""The six plan headings create-impl-plan/SKILL.md requires on every lane."""
+"""The six plan headings create-impl-plan/SKILL.md requires on every run."""
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""
 """The two mandatory verbatim clauses the fold requires (code/SKILL.md:398-401)."""

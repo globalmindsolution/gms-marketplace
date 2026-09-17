@@ -203,33 +203,6 @@
               "additionalProperties": true
             }
           },
-          "escalations": {
-            "description": "Lane-escalation audit trail (MAR-57, MAR-106, MAR-108): one 13-field event per lane change, appended in firing order by acs_lib.state.record_escalation_event. Upward events come from `acs.py lane apply` (direction `up`, confirmation_ref null); a downward event comes only from confirm_deescalation (direction `down`, confirmation_ref the answered C-<n> ledger entry). Optional and forward-only: a run that never escalated carries none.",
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["ts", "from_lane", "to_lane", "from_size", "from_stakes", "to_size", "to_stakes", "trigger", "source", "ceiling_before", "ceiling_after", "direction", "confirmation_ref"],
-              "properties": {
-                "ts": {"type": "string"},
-                "from_lane": {"oneOf": [{"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]}, {"type": "null"}]},
-                "to_lane": {"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]},
-                "from_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
-                "from_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
-                "to_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
-                "to_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
-                "trigger": {
-                  "description": "`a` (verifier finding), `b` (high_stakes_paths match), `c` (explicit request), or `user_confirmed_deescalation`.",
-                  "type": "string"
-                },
-                "source": {"type": "string"},
-                "ceiling_before": {"type": "integer", "minimum": 1},
-                "ceiling_after": {"type": "integer", "minimum": 1},
-                "direction": {"enum": ["up", "down"]},
-                "confirmation_ref": {"oneOf": [{"type": "string", "pattern": "^C-[0-9]+$"}, {"type": "null"}]}
-              },
-              "additionalProperties": true
-            }
-          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {

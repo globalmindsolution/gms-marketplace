@@ -38,11 +38,11 @@ context and consequences.
 | [0027](0027-tabp-dual-runtime-detection.md) | tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback (cwd-as-project-dir on Claude Code) | Superseded |
 | [0028](0028-merge-pr-agent-invocable.md) | merge-pr is agent/model-invocable; readiness gate + m6 require-APPROVED-for-all | Accepted |
 | [0029](0029-merge-pr-auto-update-behind-branch.md) | merge-pr auto-updates a BEHIND branch then merges in the same run | Accepted |
-| [0030](0030-four-lane-hybrid-routing-from-size-stakes-axes.md) | Adopt four-lane hybrid routing (TRIVIAL/SMALL/STANDARD/COMPLEX) from size x stakes axes | Accepted |
-| [0031](0031-axes-authoritative-lane-derived-cache.md) | Store size + stakes as authoritative axes; lane is a derived cache, recomputable by the routing function | Accepted |
-| [0032](0032-lane-field-in-pipeline-state-and-index-writers.md) | Measure G14/G15/G16 by adding one lane field to the existing pipeline-state.json and tickets-index.json writers | Accepted |
-| [0033](0033-stakes-first-class-with-path-glob-detection.md) | Treat stakes as a first-class independent axis with configurable path-glob detection | Accepted |
-| [0034](0034-light-verify-one-iteration-cap.md) | Light verify = single verifier pass with one-iteration cap; full verify unchanged; TDD/coverage gate immutable in every lane | Accepted |
+| [0030](0030-four-lane-hybrid-routing-from-size-stakes-axes.md) | Adopt four-lane hybrid routing (TRIVIAL/SMALL/STANDARD/COMPLEX) from size x stakes axes | Superseded by [0095](0095-static-delivery-path-routing.md) |
+| [0031](0031-axes-authoritative-lane-derived-cache.md) | Store size + stakes as authoritative axes; lane is a derived cache, recomputable by the routing function | Superseded by [0095](0095-static-delivery-path-routing.md) |
+| [0032](0032-lane-field-in-pipeline-state-and-index-writers.md) | Measure G14/G15/G16 by adding one lane field to the existing pipeline-state.json and tickets-index.json writers | Superseded by [0095](0095-static-delivery-path-routing.md) |
+| [0033](0033-stakes-first-class-with-path-glob-detection.md) | Treat stakes as a first-class independent axis with configurable path-glob detection | Superseded by [0095](0095-static-delivery-path-routing.md) |
+| [0034](0034-light-verify-one-iteration-cap.md) | Light verify = single verifier pass with one-iteration cap; full verify unchanged; TDD/coverage gate immutable in every lane | Superseded by [0095](0095-static-delivery-path-routing.md) |
 | [0035](0035-pr-title-ticket-ref-token.md) | Introduce a `pr_title`-only `{ticket_ref}` alternation token instead of overloading `{ticket_id}` | Accepted |
 | [0036](0036-compute-ticket-ref-in-build-title.md) | Compute `ticket_ref` inside `build_title` via a `provider` parameter and a `--provider` CLI flag, one uniform template for every caller | Accepted |
 | [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md) | Add a spec-time simplicity-evaluation step to the `create-spec-planner` charter, surfaced by the coordinator | Superseded by 0089 |
@@ -50,7 +50,7 @@ context and consequences.
 | [0039](0039-spec-simplicity-gate-planner-only-scope.md) | The spec-simplicity gate is scoped to `create-spec-planner` only; no `create-spec-verifier` dimension or meta-check is added | Superseded by 0089 |
 | [0040](0040-codeowners-derived-pr-reviewers.md) | CODEOWNERS-derived PR reviewers (not a settings key) | Accepted |
 | [0041](0041-fixed-field-name-table-group-b-sync.md) | Fixed case-insensitive field-name table for Priority/Story Points/Parent, with type-driven value mapping and tracker-key-valued Parent field | Accepted |
-| [0042](0042-dynamic-mid-flight-lane-correctness.md) | Dynamic mid-flight lane correctness | Accepted |
+| [0042](0042-dynamic-mid-flight-lane-correctness.md) | Dynamic mid-flight lane correctness | Superseded by [0095](0095-static-delivery-path-routing.md) |
 | [0043](0043-suites-map-generalization.md) | `suites` map generalization with soft-deprecated `e2e` alias | Accepted |
 | [0044](0044-acs-test-closed-loop-ticketing.md) | `/acs:test` closed-loop ticketing semantics | Accepted |
 | [0045](0045-dedicated-acs-e2e-workflow-runner-pair.md) | Dedicated `acs-e2e.yml` + `run-e2e.py` CI workflow pair, independent of the tests gate | Accepted |
@@ -80,7 +80,7 @@ context and consequences.
 | [0071](0071-coverage-omit-true-forwarder-shims-only.md) | Coverage `omit` rule excludes true argument-forwarder shims only; `post-merge-pr.py`'s real `--pr` branch stays measured, never waived | Accepted |
 | [0072](0072-shared-importable-test-fixture.md) | Shared importable test fixture (`tests/acs/acs_case.py`) for concurrent per-module test authoring across child tickets | Accepted |
 | [0073](0073-verifier-anchors-on-an-approved-plan.md) | Verifier anchors on an approved plan for a bounded new plan-conformance dimension, amending ADR-0004's verifier-anchoring clause (append-only; ADR-0004 itself unedited) | Accepted |
-| [0074](0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md) | Lane-conditional planning: `/acs:code`'s coordinator spawns `code-planner` only on STANDARD/COMPLEX; TRIVIAL/SMALL get a coordinator-authored `plan.md` instead | Accepted |
+| [0074](0074-lane-conditional-planning-no-planner-spawn-on-fast-lanes.md) | Lane-conditional planning: `/acs:code`'s coordinator spawns `code-planner` only on STANDARD/COMPLEX; TRIVIAL/SMALL get a coordinator-authored `plan.md` instead | Superseded by [0095](0095-static-delivery-path-routing.md) |
 | [0075](0075-planning-implementation-pipeline-split-epics-never-implemented.md) | Pipeline splits into a planning phase (`create-ticket(epic) → create-design → fan-out`) and an implementation phase (`create-ticket → code → … → merge-pr`); epics are never implemented | Accepted |
 | [0076](0076-plan-approval-deterministic-predicate-hook-script-sole-writer.md) | Coordinator plan approval: a deterministic predicate, recorded by a hook script, never gated this release | Accepted |
 | [0077](0077-docs-sync-remediation-loop-execute-verify-only.md) | Docs-sync remediation loop is execute → verify only, amending ADR-0004's `/acs:code` carve-out to also name `/acs:docs-sync` (append-only; ADR-0004 itself unedited) | Superseded by 0092 |
@@ -101,6 +101,7 @@ context and consequences.
 | [0092](0092-skill-machinery-declared-per-skill.md) | Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default (supersedes 0077, 0078, 0079, 0083, 0084) | Accepted — classes B–E landed (0094 for `create-docs`; stage 2, 2026-09-14, for the other twelve authoring skills) |
 | [0093](0093-one-declaration-per-contract.md) | One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds | Accepted (implemented 2026-09-14) |
 | [0094](0094-doc-set-legs-fold-into-create-docs.md) | The four doc-set legs fold into `/acs:create-docs`: one hooked skill, a declared `DOC_SETS` table, one executor + verifier pair for every set, no planner (ADR-0092 class D applied), one delivery ticket per set | Accepted |
+| [0095](0095-static-delivery-path-routing.md) | The delivery path is classified once from the plan by `/acs:ship` and declared in `ship.yaml` v2; four `code` legs replace the runtime lane fork and the size/stakes axes, mid-flight escalation and boundary de-escalation are retired (supersedes 0030, 0031, 0032, 0033, 0034, 0042, 0074) | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

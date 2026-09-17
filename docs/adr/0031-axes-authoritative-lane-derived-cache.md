@@ -1,6 +1,6 @@
 # 0031 — Store size + stakes as authoritative axes; lane is a derived cache, recomputable by the routing function
 
-**Status**: Accepted · **Date**: 2026-06-25
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-06-25
 
 ## Context
 

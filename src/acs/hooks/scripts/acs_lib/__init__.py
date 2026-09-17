@@ -7,7 +7,7 @@ it always did. In dependency order:
   _common        json/time/path primitives, the skill registry, GateError
   settings       .acs settings load/validate/merge, model and format resolution
   repo           git and checkout identity, workspace layout, ticket-id resolution
-  lanes          lane/axis derivation and the plan-approval predicate
+  planrules      the plan-approval predicate and the additive-diff classifier
   state          run ledgers, pipeline state, tickets, index, counters, locking
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
@@ -28,13 +28,13 @@ that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
+from . import (_common, settings, repo, planrules, state, metrics, setup_helpers,  # noqa: F401
                forge, verdict, derive, gate_inputs, gates, lifecycle, advisory)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
     DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES, DOC_SETS,
-    GateError, HOOKED_SKILLS,
+    CODE_PATH_LEGS, GateError, HOOKED_SKILLS,
     PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
     PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, RUN_STATUSES, ReconciliationRequired, TICKET_ID_RE,
@@ -60,11 +60,9 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     session_marker_path, sessions_dir, state_path, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
-from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
-    PLAN_REQUIRED_SECTIONS, VERIFY_ITERATION_CAP, _PLAN_HEADING_RE, _SIZE_ORDER,
-    _STAKES_ORDER, _coverage_target_stated, _plan_headings, classify_additive_diff,
-    derive_lane, escalate_lane, guard_axes, lane_rank, plan_approval_eligible,
-    recommend_stakes, verify_depth)  # noqa: F401
+from .planrules import (PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
+    PLAN_REQUIRED_SECTIONS, _PLAN_HEADING_RE, _coverage_target_stated,
+    _plan_headings, classify_additive_diff, plan_approval_eligible)  # noqa: F401
 
 from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
@@ -73,9 +71,9 @@ from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
 
 from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
     acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
-    check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
+    check_lock, empty_state, finalize_run, force_release_lock,
     last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
-    lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
+    lock_is_stale, lock_staleness, new_ticket_doc, read_lock,
     record_guard_event, release_lock, save_ticket, skill_completed, update_index,
     update_pipeline)  # noqa: F401
 

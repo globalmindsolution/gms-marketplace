@@ -1,6 +1,6 @@
 # 0033 — Treat stakes as a first-class independent axis with configurable path-glob detection
 
-**Status**: Accepted · **Date**: 2026-06-25
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-06-25
 
 ## Context
 

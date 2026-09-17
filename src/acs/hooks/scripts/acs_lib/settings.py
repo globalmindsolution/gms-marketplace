@@ -33,13 +33,6 @@ BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-defaul
 DEFAULT_SETTINGS = {
     "test_coverage_percent": 90,
     "merge_strategy": "squash",
-    "high_stakes_paths": [
-        "auth/**",
-        "payments/**",
-        "migrations/**",
-        "public-api/**",
-        "security/**",
-    ],
     "prd_path": "docs/product",
     "architecture_path": "docs/architecture",
     "requirements_path": "docs/requirements",

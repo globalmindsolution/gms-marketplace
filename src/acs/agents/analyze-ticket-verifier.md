@@ -59,7 +59,7 @@ cosmetic defect — it is the wrong pipeline.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; api_surface: bool; stakes_recommendation: normal|high; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
   --ticket SHOP-123 <partition>/phases/analyze-ticket/analysis.md
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \

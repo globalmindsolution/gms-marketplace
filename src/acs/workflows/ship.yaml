@@ -4,10 +4,23 @@
 # Entry is a ticket id: create-ticket and create-design are Design work, run before ship.
 # Steps whose `needs` are all satisfied are READY together and run in parallel (up to
 # max_parallel), each as a leg in its own worktree; `exclusive: true` runs a step alone.
-version: 1
+#
+# Version 2 (ADR-0095) adds delivery paths. After `delivery.classify_after`
+# completes, /acs:ship reads the plan and records ONE path on the ticket; every
+# step may then filter on it (`paths:`) or vary by it (a field given as a
+# mapping keyed by path). A step whose `paths:` excludes the active path is
+# recorded `skipped`, which already satisfies a `needs` edge — so the four
+# paths reconverge on create-pr with no extra wiring.
+version: 2
 name: ship
 stop_after: create-pr
 max_parallel: 2
+
+delivery:
+  # The step after which the path is judged, once, from its artifact.
+  classify_after: create-impl-plan
+  # Cheapest first. A step's per-path mapping must cover every name here.
+  paths: [trivial, small, standard, complex]
 
 steps:
   - id: analyze-ticket
@@ -20,19 +33,27 @@ steps:
     skill: create-api-contract
     needs: [create-impl-plan]
     when: api_surface_changed
-  - id: create-test-docs
+  - id: create-test-docs             # trivial implements against the plan's own test strategy
     skill: create-test-docs
     needs: [create-impl-plan, create-api-contract]
+    paths: [small, standard, complex]
   - id: code
-    skill: code
+    skill:                           # one step, one ledger key, four implementations
+      trivial: code-trivial
+      small: code-small
+      standard: code-standard
+      complex: code-complex
     needs: [create-test-docs]
     exclusive: true
-    boundary: full_verify_stop
+    boundary:                        # only the deep paths exhaust /acs:ship's context
+      standard: full_verify_stop
+      complex: full_verify_stop
     on_replan: create-impl-plan
-  - id: create-e2e-tests          # runs in parallel with docs-sync (both need only code)
+  - id: create-e2e-tests             # runs in parallel with docs-sync (both need only code)
     skill: create-e2e-tests
     needs: [code]
     when: e2e_configured
+    paths: [small, standard, complex]   # trivial has no test-cases.md to read e2e rows from
   - id: docs-sync
     skill: docs-sync
     needs: [code]
@@ -41,6 +62,7 @@ steps:
     args: "--for-ticket {ticket_id}"
     needs: [create-e2e-tests]
     when: post_code_test_active
+    paths: [small, standard, complex]
     on_fail:
       relay_to: code
       max_loops: post_code_test_fix_loops_cap

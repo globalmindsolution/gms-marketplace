@@ -29,10 +29,13 @@ Ground rules, non-negotiable:
 - You have **no executor/verifier** of your own. Each step skill —
   invoked directly via the Skill tool — runs its OWN reflection cycle (it
   spawns its own executor/verifier); you never do the step's work.
-- Keep your own context tiny. Never read step transcripts, phase XML files,
-  plans, or diffs. You read exactly four kinds of things: the `workflow next`
-  JSON, `pipeline-state.json`, the ticket document, and the compact
-  `<handoff>` XML each step returns (~1 KB). Between steps your context is
+- Keep your own context tiny. Never read step transcripts, phase XML files, or
+  diffs. You read exactly five kinds of things: the `workflow next` JSON,
+  `pipeline-state.json`, the ticket document, the compact `<handoff>` XML each
+  step returns (~1 KB), and — ONCE per ticket, at the classification point
+  below — `plan.md`. That fifth read is the one exception and it is bounded: it
+  happens once, it produces one word and one sentence, and you drop the plan
+  from your working context immediately after. Between steps your context is
   safe to compact — the ledger holds everything you need to continue. One
   step is an exception: a step carrying `boundary: full_verify_stop` (today,
   `code`) runs its own full reflection cycle inline in your context, and that
@@ -123,6 +126,7 @@ prints one JSON object:
 | `done` | `true` once `stop_after` is completed → go to Finish |
 | `blocked_by` | `{step, predicate, pointer}` — a step whose `requires` predicate is false |
 | `statuses` | every step id → its ledger status (or `null`), for your report |
+| `delivery` | `{path, reason, classify_after, paths, awaiting_classification}` — null when the workflow declares no paths; see "Classify the delivery path" |
 | `workflow` | `{source, path, name, stop_after, max_parallel}` — which file the order came from |
 
 Branch strictly on what comes back:
@@ -139,7 +143,12 @@ Branch strictly on what comes back:
 4. **`ready` empty, not `done`, nothing blocked** → stop and report the
    `statuses` map; the workflow has nothing to offer, which means the ledger
    and the file disagree — run `acs.py workflow validate` and surface it.
-5. Otherwise run the ready step(s), per `mode`.
+5. **`delivery.awaiting_classification: true`** → the plan is written and the
+   path has not been judged. Do that now (next section), then run the walk
+   again. `ready` is empty or short in this state by construction: the walk
+   holds back every step that depends on the path, because a step resolved
+   against an unknown path would resolve to nothing.
+6. Otherwise run the ready step(s), per `mode`.
 
 Invoking a step is always the same: the Skill tool with skill
 `acs:<ready.skill>` and args = `ready.args` when it is non-null (ship.yaml
@@ -150,6 +159,45 @@ Run the walk again after every step. A step recorded `in_progress`, `failed`,
 `interrupted`, or `handed_off` simply becomes ready again — the step's own
 skill-start reconciles recorded state against reality; you never reconcile
 yourself, and you never re-record a step's own status.
+
+## Classify the delivery path
+
+Once `delivery.awaiting_classification` is true, this ticket needs one word and
+one sentence from you before the pipeline can continue. It is the only
+judgement /acs:ship makes about the work itself, and it is made exactly once.
+
+Read the rubric — it is the contract, not a summary of it:
+
+> `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`
+
+In short: read `plan.md` (the file `delivery.classify_after` produced; resolve
+it the way that step's handoff names it, or under the ticket's docs folder,
+else `<partition>/phases/code/plan.md`). Judge it onto one of
+`delivery.paths`. Prefer the more expensive path whenever two fit — an
+unnecessary lens pass costs tokens, a missed regression in a load-bearing path
+costs more. Then record it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" path set \
+  --ticket <ticket-id> --path <trivial|small|standard|complex> \
+  --reason "<one sentence naming what in the plan decided it>"
+```
+
+On exit 2, surface stderr verbatim and stop — it refuses an unknown path, an
+empty reason, and any attempt to move a ticket already on one. That last
+refusal is the mechanism, not an obstacle: the path is judged once, and a
+resumed run reads it. If you believe a recorded path is wrong, the route is
+`/acs:create-impl-plan` and a fresh judgement from the corrected plan, never a
+second `path set`.
+
+Then **drop `plan.md` from your working context** and go back to the walk. You
+will not read it again this run; from here on the path is a word in
+`pipeline-state.json`, which is what keeps your context small enough to reach
+the end of the pipeline.
+
+**A plan you cannot classify is an unfinished plan.** If it has no file map, or
+a Test strategy that says nothing, stop and say so — the remedy is re-running
+`/acs:create-impl-plan`, not a guess that every later step inherits.
 
 ## Single mode — invoke the one ready step
 
@@ -263,57 +311,46 @@ fan-out shape `/acs:create-docs` already uses (`skills/create-docs/SKILL.md`,
    post-hook already recorded what happened. Each leg's ledger entry is its
    own — you write none of them.
 
-## Full-verify pipeline boundary
+## The context boundary
 
 A ready step may carry `boundary: full_verify_stop`. Today exactly one does
-(`code`), and it is the one step whose full reflection cycle — every
-executor, and (on a full-verify lane) up to three multi-lens verifier
-iterations — lands entirely inside your own coordinator context, because you
-run it as its coordinator (see "Single mode"). On a light-verify lane that is
-small; on a full-verify lane it routinely leaves too little context left to
-safely reach the end of the walk. Left unacknowledged, the run just trails off
-after the step completes — an implicit silent stop that reads as a failure.
-This section replaces that implicit stop with a **designed boundary, not a
-failure**.
+(`code`), and only on two of its four delivery paths — `ship.yaml` gives the
+boundary as a per-path mapping naming `standard` and `complex`. That is the
+step whose whole reflection cycle lands inside your own coordinator context,
+because you run it as its coordinator (see "Single mode"): every executor, and
+on `complex` up to three rounds of four merged verifier lenses. On `trivial`
+and `small` that is small. On the two deep paths it routinely leaves too little
+context to safely reach the end of the walk. Left unacknowledged, the run just
+trails off after the step completes — an implicit silent stop that reads as a
+failure. This section replaces that implicit stop with a **designed boundary,
+not a failure**.
 
-**Deciding the depth.** After a `boundary: full_verify_stop` step returns
-`completed`, re-read the ticket (already a permitted read — see "Keep your own
-context tiny") and resolve the depth with the same inline-Python
-`import acs_lib as lib` pattern Step 1 already uses, passing the `<partition>` path resolved in Step 1 as the script argument:
+**You do not decide the depth; the walk already did.** The `ready` entry you
+invoked carried `boundary` already resolved for this ticket's recorded path:
+`"full_verify_stop"` on `standard` and `complex`, `null` on `trivial` and
+`small`. There is nothing to recompute and no ticket to re-read — the mapping
+lives in `ship.yaml` where a reviewer can see which paths are expensive, and
+`workflow next` resolved it against the path recorded once at classification.
 
-```bash
-python3 - "<partition>" <<'PY'
-import os, sys
-sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
-import acs_lib as lib
-ticket = lib.load_ticket(sys.argv[1]) or {}
-print(lib.verify_depth(ticket.get("lane"), ticket.get("stakes")))
-PY
-```
+- `boundary` was **null** → no stop. Go straight back to the walk and continue
+  through the remaining ready steps (docs-sync, create-pr, and the e2e steps
+  when they apply) exactly as before.
+- `boundary` was **`full_verify_stop`** and the step returned `completed` →
+  STOP, before the next `workflow next` — the test step's own work would also
+  run in your context, so stopping before it is strictly safer. Do not mark any
+  step `failed`, and do not run `handoff.py` (unchanged: /acs:ship is not
+  hooked and owns no run entry).
 
-Re-read the ticket here rather than trusting whatever depth you resolved
-before the step ran — it may have escalated the lane mid-flight and durably
-written the escalation back.
+**The stop report.** The boundary step is complete and /acs:ship stops here by
+design. The remaining steps run in a fresh session. Resume with
+`/acs:ship <ticket-id>` — `<partition>/pipeline-state.json` already records the
+step completed AND the delivery path, so the resumed run's first
+`workflow next` picks up at the steps ready after it, on the same path, with no
+re-judgement. Close with the standard completion report block below,
+`<status>` = `handed_off`.
 
-- `"light"` → no stop. Cheap-tail pipelines are unaffected by this section:
-  go straight back to the walk and continue through the remaining ready steps
-  (docs-sync, create-pr, and the e2e steps when they apply) exactly as today.
-- `"full"` → STOP. Stop right after the step completes, before the next
-  `workflow next` — the test step's own work would also run in your context,
-  so stopping before it is strictly safer. Do not mark any step `failed`,
-  and do not run `handoff.py` (unchanged: /acs:ship is not hooked and owns
-  no run entry).
-
-**The stop report.** The boundary step is complete on a full-verify lane, and
-/acs:ship stops here by design. The remaining steps run in a fresh session.
-Resume with `/acs:ship <ticket-id>` — `<partition>/pipeline-state.json`
-already records the step completed, so the resumed run's very first
-`workflow next` picks up at the steps that are ready after it. Close with the
-standard completion report block below, `<status>` = `handed_off`.
-
-This section changes only **when** the tail runs, never **which** steps run
-or in what order — that stays ship.yaml's to declare and the walk's to
-compute.
+This section changes only **when** the tail runs, never **which** steps run or
+in what order — that stays ship.yaml's to declare and the walk's to compute.
 
 ## Fix loop (`on_fail`)
 

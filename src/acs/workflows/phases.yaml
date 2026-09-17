@@ -49,9 +49,17 @@ aliases:
 # command for it — an entry-point fold, not a collapse. (The four doc legs
 # create-docs used to fan out were collapsed INTO it — ADR-0094 — so it is a
 # skill of its own now, not an entry point over legs.)
+# `code`'s four legs are the delivery paths of ADR-0095: /acs:ship names one in
+# its ship.yaml per-path `skill` mapping, and /acs:code dispatches to the same
+# one when invoked directly. They are legs, not commands, because which one a
+# ticket gets is decided from its plan — never chosen by hand.
 internal:
   create-project: project
   standardize-project: project
+  code-trivial: code
+  code-small: code
+  code-standard: code
+  code-complex: code
 # Subagent roles each skill owns, per ADR-0092. A skill declares the machinery
 # its work needs; nothing is inferred from whether it is hooked. Omit a skill
 # and it owns no subagents at all (classes A and B: mechanical actions and
@@ -66,9 +74,16 @@ internal:
 #     deliverable against those notes (create-docs was the first, with
 #     ADR-0094; the other twelve followed in ADR-0092's stage 2);
 #   * code keeps an executor and a verifier; its plan phase is its own skill.
+#     Its four delivery-path legs (ADR-0095) own the same pair -- what differs
+#     between them is how many of each run and how deep the verifier looks,
+#     which is each leg's own SKILL.md to declare, not a role difference.
 agents:
   analyze-ticket: [executor, verifier]
   code: [executor, verifier]
+  code-trivial: [executor, verifier]
+  code-small: [executor, verifier]
+  code-standard: [executor, verifier]
+  code-complex: [executor, verifier]
   create-api-contract: [executor, verifier]
   create-architecture: [executor, verifier]
   create-design: [executor, verifier]

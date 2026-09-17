@@ -1,6 +1,6 @@
 # 0042 — Dynamic mid-flight lane correctness
 
-**Status**: Accepted · **Date**: 2026-07-05
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-07-05
 
 ## Context
 

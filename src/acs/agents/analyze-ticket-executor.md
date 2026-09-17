@@ -107,7 +107,6 @@ these types, and exactly these seven headings in this order:
 ticket: SHOP-123
 ready_for_planning: true
 api_surface: true
-stakes_recommendation: normal
 needs_design_recommendation: false
 ---
 
@@ -124,17 +123,14 @@ needs_design_recommendation: false
 
 - **Front matter.** `ticket` is the ticket id. `ready_for_planning` is the
   verdict below, as a boolean. `api_surface` is your API-surface verdict.
-  `stakes_recommendation` is `normal` or `high` — write `normal` unless the
-  coordinator's `<context>` carries the recommender's `high`; the coordinator
-  runs `acs.py stakes recommend` over your impact map and is the only source
-  for this value. `needs_design_recommendation` is your design-significance
-  verdict. Never invent a sixth key and never omit one of the five.
+`needs_design_recommendation` is your design-significance
+  verdict. Never invent a fifth key and never omit one of the four.
 - **`## Problem restated`** — the ticket in terms of this repository: the
   behaviour that changes, for whom, and what "done" means. Name every
   disagreement between the ticket's prose and the code, each citing the file
   that contradicts it.
 - **`## Impact map`** — a table, and its FIRST column is a repo-relative path,
-  because the coordinator feeds that column to the stakes recommender:
+  because that column is how a reader sees what this ticket actually touches:
 
   | Path | Component | Change | Evidence |
   | --- | --- | --- | --- |
@@ -185,9 +181,10 @@ After writing the draft, write
 }
 ```
 
-`impact_paths` is the impact map's first column, verbatim — the coordinator
-feeds it to the stakes recommender, so a path missing here is a stakes signal
-silently dropped.
+`impact_paths` is the impact map's first column, verbatim. A path missing here
+is a surface nobody downstream knows the ticket touches — and since the delivery
+path is judged from what the work touches (ADR-0095), an omission there is rigor
+silently lost.
 
 ## Input contract
 

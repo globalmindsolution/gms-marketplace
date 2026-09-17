@@ -10,9 +10,8 @@ Result-document `states` this run records for the steps that follow it:
     predicate and the /acs:create-api-contract gate actually read.
   * questions_open      int  — clarifications still unanswered in the ledger.
 
-The two recommendations the analysis may carry (stakes, needs_design) are
-applied through their own CLIs (`acs.py stakes recommend` / `acs.py lane
-apply`), so they are findings here, not states.
+The needs_design recommendation the analysis may carry is applied through its
+own CLI (`acs.py ticket save`), so it is a finding here, not a state.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-analyze-ticket.py --result-file <result.json>     # or JSON on stdin

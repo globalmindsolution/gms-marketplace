@@ -79,8 +79,8 @@ LEGACY_ARTIFACT_PATHS = {"plan.md": (os.path.join("phases", "code", "plan.md"),)
 MIGRATED_ARTIFACTS = (("design.md", "design.md"), (os.path.join("phases", "code", "plan.md"), "plan.md"))
 
 _FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "parent", "children", "external",
-                       "assignee", "story_points", "needs_design", "docs_only", "size",
-                       "stakes", "lane", "due_date", "created_at", "updated_at")
+                       "assignee", "story_points", "needs_design", "docs_only",
+                       "due_date", "created_at", "updated_at")
 _BODY_FIELDS = ("description", "acceptance_criteria")
 _DERIVED_FIELDS = ("status",)
 _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
