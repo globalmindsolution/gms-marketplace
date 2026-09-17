@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the spec fold, and plan approval on the STANDARD/COMPLEX lanes. Writes plan.md to the ticket's docs folder. Use after /acs:analyze-ticket and before /acs:code, which requires the plan.
+description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its executors run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-ticket and before /acs:code, which requires the plan.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,7 +9,7 @@ You are the coordinator of /acs:create-impl-plan. Your job: turn ONE ticket
 into the implementation plan `/acs:code` executes — the spec analysis, the
 executor decomposition with its file map, the test strategy, the
 documentation map, the risks, and the verifier checklist — published as
-`plan.md` for the ticket and, on the STANDARD/COMPLEX lanes, recorded as an
+`plan.md` for the ticket, published to its docs folder and mirrored for an
 approved plan. You orchestrate executor/verifier subagents — execute → verify,
 no planner (ADR-0092) — persist
 every phase artifact to the ticket partition, and finish by writing the
@@ -55,7 +55,8 @@ Parse the printed context JSON. Fields you will use:
   `standards_path`, `artifacts.tickets_path` (where the plan is published),
   `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
 - `models` — per-role `{model, effort}` for executor/verifier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_run_status` — see
+  `references/not-a-first-run.md`.
 - `post_hook` — absolute path to `post-create-impl-plan.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -93,14 +94,14 @@ follow.
 ### Plan artifact resolution
 
 `plan.md` is the ticket's implementation plan — ONE file per ticket, one name,
-in every lane, on every run. Resolve where it lives before anything else:
+on every run. Resolve where it lives before anything else:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
 ```
 
 - `artifacts["plan.md"]` non-null → that existing file is the plan; this run
-  REVISES it (see Plan revocation).
+  REVISES it (see `references/not-a-first-run.md`).
 - else `docs_dir` non-null → the plan is published to `<docs_dir>/plan.md`.
 - else → the plan is published to `<partition>/plan.md`.
 
@@ -118,27 +119,16 @@ Two derived paths follow from it, and both are written from the SAME bytes:
   path for its plan-conformance dimension. The mirror is a byte-identical copy
   of the published plan, never an independent edit.
 
-## Resume & reconcile
+## The re-run reference, and when to open it
 
-If `context.reconcile` is true, verify recorded progress against reality BEFORE
-continuing:
+Nearly all of this skill is one flow: survey the ticket, author a plan draft,
+verify it, publish it. One part is not — what a run does when the ticket
+already carries an interrupted prior run, or a published plan that has since
+been superseded. It lives in a reference so a first run never reads it:
 
-1. Read `<partition>/create-impl-plan-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/create-impl-plan/` to see
-   where the prior run stopped.
-2. Re-resolve the plan artifact (above) and read it if it exists. Trust
-   nothing you cannot see in a file: a plan recorded published that is not on
-   disk is not published.
-3. Continue from the first unfinished phase (an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`).
-4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
-
-If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-impl-plan/handoff-context.md` (when present), do a
-light reconcile, and continue from where it points.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-impl-plan/references/not-a-first-run.md` | `context.reconcile` or `context.handoff_summary` is set, OR a `plan.md` already exists for this ticket and this run is revising it (including the re-plan `/acs:ship` drives after `/acs:code` stops with `plan_superseded`). It carries the reconcile procedure and the plan-revocation escape hatch. |
 
 ## Inputs — gather before the loop
 
@@ -165,50 +155,23 @@ skill and covers the API surface this plan declares.
 ## Reflection loop — execute → verify, no planner
 
 Run execute → verify until the verifier returns zero blocking findings or the
-ceiling is reached. There is no plan phase: on STANDARD/COMPLEX iteration 1's
+ceiling is reached. There is no plan phase: iteration 1's
 executor surveys — spec intake, the decomposition with its file map, the test
 strategy, the documentation map, the risks, the verifier checklist — into its
-authoring notes and renders the draft from them; on TRIVIAL/SMALL the
-coordinator authors the draft itself. The verifier judges the draft fresh in
-every lane.
+authoring notes and renders the draft from them. The verifier judges the draft
+fresh every iteration.
 
-**Lane fork (the same shape `/acs:code` uses).** Recompute
-`derive_lane(ticket.size, ticket.stakes, ticket.needs_design, ticket.type)`
-(`acs_lib/lanes.py`) fresh — never the cached `ticket.lane`, which can be stale
-or hand-edited. Then:
+**One shape, on every run — and it could not be otherwise.** This skill runs
+BEFORE the delivery path exists: `plan.md` is the artifact /acs:ship judges the
+path FROM (ADR-0095, `delivery.classify_after: create-impl-plan`). A plan skill
+that branched on the path would be reading a decision its own output has not
+yet been made to produce. So there is no fork here, and the ceiling is a fixed
+**3** execute → verify rounds. Iteration 1's executor surveys before it writes.
 
-- **STANDARD/COMPLEX** — execute → verify with a ceiling of **3**
-  iterations; iteration 1's executor surveys before it writes.
-- **TRIVIAL/SMALL** — light: **zero** `acs:create-impl-plan-executor`
-  spawns. The coordinator authors the
-  `plan.md` draft itself against the IDENTICAL artifact contract below, and the
-  verifier judges it; on blocking findings the coordinator revises its own
-  draft against every finding and the verifier judges again, up to TWICE
-  (ceiling **3** verify rounds — the same round count as the full lane,
-  ADR-0074 as amended 2026-09-15; here a round costs one verifier call, not
-  an executor pass, and a draft still failing after its second revision
-  ends the run `failed`). The verifier is the in-loop quality gate in EVERY
-  lane; light differs only in who authors, never in whether or how often the
-  plan is judged.
-
-  Two rules make those revisions land, and both bind the coordinator
-  exactly as the executor's charter binds the executor:
-
-  - **Ground your own draft.** State a repo fact — a tool installed, a file
-    present, a command available, a test runner configured — only after
-    checking it in THIS run, and cite the command or file next to the claim.
-    The verifier's grounding dimension re-checks every such claim; an
-    unchecked one costs the round.
-  - **A finding names one place; fix every place.** Before re-verifying,
-    search the whole draft for the claim, path or wording each finding names
-    and correct every occurrence — `## Risks` restates what `## Test
-    strategy` says, and a claim fixed in one section and left in the other
-    is the same blocking finding again. Then re-read the draft end to end
-    against the full findings list — counts and names included: a test
-    list enumerated as four and described as "five" is a finding too. Each
-    verify round may be the last. (The 2026-09-15 gate lost two SMALL-lane
-    plans exactly this way — an uncited "coverage is not installed" written
-    twice and fixed once, then a "five" for a four-test list.)
+That symmetry is worth stating plainly: every ticket gets the same planning
+rigor, and the plan is what earns a cheap or expensive implementation. Spending
+less on a plan because someone guessed the work was small is exactly the
+guess ADR-0095 removed.
 
 **What an iteration counts:** one execute → verify round.
 
@@ -230,11 +193,9 @@ Messaging rules (`schemas/acs-messages.xsd`):
   the run and record the error in the result document's `errors`.
 - Persist every phase output to
   `<partition>/phases/create-impl-plan/iter-<n>-<phase>.xml` at the phase
-  boundary, BEFORE starting the next phase. On TRIVIAL/SMALL no executor
-  subagent is spawned, so no `<task phase="execute">` message is sent and
-  none is persisted; the draft itself remains the durable record.
-- Spawn subagents with the Agent tool: `acs:create-impl-plan-executor`
-  (STANDARD/COMPLEX only), `acs:create-impl-plan-verifier` (every lane) —
+  boundary, BEFORE starting the next phase.
+- Spawn subagents with the Agent tool: `acs:create-impl-plan-executor` and
+  `acs:create-impl-plan-verifier` —
   fall back to the un-namespaced name only if the runtime rejects the
   namespaced one. Apply `context.models.<role>.model` / `.effort` at spawn
   when not `"inherit"`; if the runtime rejects the model or effort, FAIL the
@@ -250,7 +211,7 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 ### Execute (per iteration) — survey, then author the plan draft
 
-On STANDARD/COMPLEX, iteration 1's executor surveys and decides before it
+Iteration 1's executor surveys and decides before it
 writes the deliverable. Task it with `<inputs>` of the ticket file,
 `analysis.md` and `design.md` when they exist, every `<partition>/specs/*.md`,
 and the consumer-repo source/docs the ticket touches. Its authoring notes are
@@ -282,14 +243,13 @@ in the order `create-impl-plan-executor.md`'s survey defines:
 - Risks and the verifier checklist `/acs:code`'s verifier will run on top of
   its standing dimensions.
 
-**Spec authoring fold (`specs/` absent or empty, every lane)**
+**Spec authoring fold (`specs/` absent or empty)**
 
 Before producing the standard plan content, check whether
 `<partition>/specs/` already has `.md` content.
 
-When `<partition>/specs/` is empty or absent — on EVERY lane, no lane check —
-the plan's author (the `create-impl-plan-executor` on STANDARD/COMPLEX, the
-coordinator on TRIVIAL/SMALL) ADDITIONALLY produces, as part of the draft,
+When `<partition>/specs/` is empty or absent, the plan's author (the
+`create-impl-plan-executor`) ADDITIONALLY produces, as part of the draft,
 the spec content a standalone
 create-spec planner would once have produced. This content covers, in order:
 
@@ -316,7 +276,7 @@ reads (see User interaction for the split-answer termination).
   plan will write" (AC-4)
 
 If specs already exist, the fold does NOT activate — the plan's author reads
-the existing specs normally, on every lane. The fold only activates when
+the existing specs normally. The fold only activates when
 `<partition>/specs/` is absent or empty.
 
 **The draft.** Send the executor a `<task phase="execute">` naming the
@@ -336,17 +296,16 @@ in the exact order
 checks, plus the two mandatory verbatim clauses above and an explicit
 statement of which intake mode applied (pre-existing specs, or folded).
 
-**"Minimal" never means empty.** On TRIVIAL/SMALL the coordinator skips the
-separate-subagent authorship step — never a section: a section that is empty,
-a placeholder, or "see ticket" fails the verifier's completeness sub-check,
-which judges this artifact identically whether the executor or the
-coordinator wrote it. At minimum every lane carries the AC-to-test
-mapping, the executor file map, the test/coverage commands and tooling, the
-`docs/product/prd.md`/`docs/product/roadmap.md` factual assessment, and the
-verifier checklist. The remaining survey items — the Boy-scout drift
-survey, the E1-E4 doc-graph-gap check, the spec-simplicity gate and the
-oversize signal — are best-effort on TRIVIAL/SMALL only; their omission is
-never a finding there.
+**"Minimal" never means empty.** A section that is empty, a placeholder, or
+"see ticket" fails the verifier's completeness sub-check. Every plan carries
+the AC-to-test mapping, the executor file map, the test/coverage commands and
+tooling, the `docs/product/prd.md`/`docs/product/roadmap.md` factual
+assessment, and the verifier checklist — and the **Test strategy** section
+earns its keep twice over now, because `/acs:code`'s executors take their
+targeted test set from it and never re-derive one. The remaining survey items
+— the Boy-scout drift survey, the E1-E4 doc-graph-gap check, the
+spec-simplicity gate and the oversize signal — are best-effort; their omission
+is never a finding.
 
 **Declare the file map** once the draft's `## Executor tasks & file map` is
 settled — one call per task, additive (declaring task 2 never erases task 1),
@@ -377,10 +336,7 @@ the verifier did not report.
 ALL blocking findings block — zero blocking findings = pass. On findings:
 persist the verify output, then AUTOMATICALLY re-execute, passing every
 finding to the next iteration's executor in `<context>` with no plan phase
-in between — on TRIVIAL/SMALL, where there is no executor, revise the draft
-yourself against every finding and re-run verify. After the lane's ceiling
-(light: 3 verify rounds of the coordinator's draft / full: 3 execute →
-verify rounds) with findings
+in between. After the ceiling of **3** execute → verify rounds with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
 the artifact it requires was never written, and on a re-plan the ticket keeps
@@ -405,70 +361,19 @@ Then commit `<plan_path>` on the ticket branch when it is inside the repo
 (the docs tree active); the partition copy and the mirror are workspace state
 and are never committed.
 
-### Plan approval (STANDARD/COMPLEX, after the plan, before /acs:code)
+### Plan approval happens later, not here
 
-On STANDARD/COMPLEX lanes only — the same freshly recomputed lane as the Plan
-step above — immediately after the plan is published, run:
+Approval binds on the `standard` and `complex` delivery paths only — and this
+skill runs before any path exists, because `plan.md` is the artifact the path
+is judged FROM. So `plan-approval.py` is not run here. The `code-standard` and
+`code-complex` legs run it at their own Start, over the approval mirror this
+skill publishes at `<partition>/phases/code/plan.md`, which is exactly why
+Publish writes that copy from the same bytes.
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <id>
-```
-
-This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
-— never a subagent's `Write` tool, and never the coordinator's own `Write`
-either. An LLM-asserted approval is not an approval: eligibility is computed
-by `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
-`settings.test_coverage_percent`, never by any agent's self-report. It hashes
-the approval mirror (`<partition>/phases/code/plan.md`), which is why Publish
-writes it from the same bytes; an explicit `--plan` must resolve within
-`<partition>/phases/code/` and the script rejects (clean stderr, exit 2, no
-record written) any path whose realpath escapes that directory.
-
-The script writes at most one record per approved plan digest: a second
-invocation over the same plan bytes is a no-op that re-asserts the existing
-verdict (idempotent on resume, once per run otherwise); a revised plan (a new
-sha256 digest) writes a fresh record. On TRIVIAL/SMALL the script no-ops with
-`plan_approved: false` and writes no record at all — this release does not
-extend approval to the fast lanes.
-
-An ineligible plan does NOT block this release: the script exits 0, prints the
-failing checks, and the coordinator continues with
-`states.plan_approved: false`, at most revising the plan once and re-running
-the script before moving on — no loop, and nothing gates on `plan_approved`
-in this release.
-
-Copy the script's printed `plan_approved` value verbatim into
-`<partition>/phases/create-impl-plan/result.json`'s `states.plan_approved` at
-Finish — never assert it yourself.
-
-### Plan revocation
-
-The escape hatch reached when a plan already exists and is wrong — a re-run of
-this skill on a planned ticket, including the one `/acs:ship` drives when
-`/acs:code` ends with `stop_reason: plan_superseded`.
-
-**Never automatic for a plan nobody challenged.** Revocation is reached only
-at an iteration or run boundary — never mid-iteration — and only on a recorded
-trigger: an explicit user answer recorded via `clarify.py add`, or a
-`/acs:code` run whose result document records `stop_reason: plan_superseded`.
-Letting the loop dissolve its own contract without that record is precisely
-the rubber-stamp failure ADR 0004 exists to prevent.
-
-1. **Copy before revise, never move.**
-   `cp plan.md plan-superseded-<k>.md` inside `<partition>/phases/code/`,
-   `<k>` the smallest positive integer with no existing file. The copy is
-   byte-identical, so every `plan.md:<line>` citation already written into an
-   earlier `/acs:code` `iter-<n>-verify.md` resolves unchanged against
-   `plan-superseded-<k>.md` — the operation is a copy, never a rename or
-   move, and the superseded bytes are never deleted.
-2. **Revise the draft and re-publish** it over the same `plan_path` (Publish
-   above), so the plan the next `/acs:code` reads is the current one.
-3. **Re-run `plan-approval.py --ticket <id>`.** The new digest writes a fresh
-   record, so `plan-approval.json` always describes the *current* plan, and
-   the superseded copies are the audit trail.
-4. **`plan-superseded-<k>.md` is never an approval input and never a
-   conformance contract** — guaranteed by `/acs:code`'s dimension 15
-   activation condition that `plan_path` must equal `phases/code/plan.md`.
+What this skill owes approval is therefore one thing: **publish the mirror from
+the same bytes as the plan.** `plan_approval_eligible` hashes it, and a mirror
+that differs from the published plan makes every later approval a verdict about
+the wrong document.
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 
@@ -571,7 +476,7 @@ MANDATORY final step — never skipped, also on failure:
      "stop_reason": "plan published and approved; 3 executor tasks, disjoint file maps",
      "states": {
        "plan_path": "docs/tickets/SHOP-123/plan.md",
-       "plan_approved": true,
+       "plan_approved": false,
        "file_map": {"1": ["src/import/api.py", "tests/test_import_api.py"],
                     "2": ["docs/api/import.md"]}
      },
@@ -585,9 +490,10 @@ MANDATORY final step — never skipped, also on failure:
    - `plan_path`: where `plan.md` was published (the ticket docs folder, or
      the partition when `artifacts.tickets_path` is null). `/acs:code`'s gate
      resolves the file itself; this records which path this run chose.
-   - `plan_approved`: `true`/`false`, copied verbatim from `plan-approval.py`'s
-     printed output on STANDARD/COMPLEX; `false` on TRIVIAL/SMALL or an
-     ineligible plan. Not a gate this release.
+   - `plan_approved`: always `false` here. Approval is judged per delivery
+     path, and the path does not exist yet when this skill runs — the
+     `code-standard` and `code-complex` legs establish it at their own Start
+     (ADR-0095). Recording `false` is the honest value, not a failure.
    - `file_map`: the declared executor file map as `acs.py filemap set`
      returned it (task id → repo paths), so a later run can see what scope the
      plan claimed.
@@ -629,7 +535,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; plan_approved
+- **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code executors will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <plan path, partition phase artifacts, branch>
 - **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>

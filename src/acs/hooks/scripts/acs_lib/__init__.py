@@ -7,7 +7,7 @@ it always did. In dependency order:
   _common        json/time/path primitives, the skill registry, GateError
   settings       .acs settings load/validate/merge, model and format resolution
   repo           git and checkout identity, workspace layout, ticket-id resolution
-  lanes          lane/axis derivation and the plan-approval predicate
+  planrules      the plan-approval predicate and the additive-diff classifier
   state          run ledgers, pipeline state, tickets, index, counters, locking
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
@@ -28,13 +28,13 @@ that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import (_common, settings, repo, lanes, state, metrics, setup_helpers,  # noqa: F401
+from . import (_common, settings, repo, planrules, state, metrics, setup_helpers,  # noqa: F401
                forge, verdict, derive, gate_inputs, gates, lifecycle, advisory)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
     DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES, DOC_SETS,
-    GateError, HOOKED_SKILLS,
+    CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
     PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, RUN_STATUSES, ReconciliationRequired, TICKET_ID_RE,
@@ -60,11 +60,9 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     session_marker_path, sessions_dir, state_path, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
-from .lanes import (LANE_ORDER, PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
-    PLAN_REQUIRED_SECTIONS, VERIFY_ITERATION_CAP, _PLAN_HEADING_RE, _SIZE_ORDER,
-    _STAKES_ORDER, _coverage_target_stated, _plan_headings, classify_additive_diff,
-    derive_lane, escalate_lane, guard_axes, lane_rank, plan_approval_eligible,
-    recommend_stakes, verify_depth)  # noqa: F401
+from .planrules import (PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
+    PLAN_REQUIRED_SECTIONS, _PLAN_HEADING_RE, _coverage_target_stated,
+    _plan_headings, classify_additive_diff, plan_approval_eligible)  # noqa: F401
 
 from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
@@ -73,9 +71,9 @@ from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
 
 from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
     acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
-    check_lock, confirm_deescalation, empty_state, finalize_run, force_release_lock,
+    check_lock, empty_state, finalize_run, force_release_lock,
     last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
-    lock_is_stale, lock_staleness, new_ticket_doc, read_lock, record_escalation_event,
+    lock_is_stale, lock_staleness, new_ticket_doc, read_lock,
     record_guard_event, release_lock, save_ticket, skill_completed, update_index,
     update_pipeline)  # noqa: F401
 
@@ -144,15 +142,20 @@ from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
 from . import yamlsubset, workflow  # noqa: F401,E402
 from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
 from .workflow import (BOUNDARIES, DEFAULT_MAX_PARALLEL, DEFAULT_STOP_AFTER,  # noqa: F401
-    MAX_LOOPS_NAMES, OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS, PREDICATES,
-    SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WorkflowError,
-    allowed_ship_skills, api_surface_changed, default_workflow_path, design_approved,
-    e2e_configured, load_phases, load_workflow, next_steps, override_workflow_path,
+    DELIVERY_PATH_KEY, DELIVERY_REASON_KEY, MAX_LOOPS_NAMES,
+    OVERRIDE_WORKFLOW_RELPATH, PER_PATH_FIELDS, PHASE_GROUPS, PREDICATES,
+    SATISFIED_STATUSES, SHIP_EXCLUDED_SKILLS, SHIP_PHASES, WORKFLOW_VERSION,
+    WorkflowError,
+    allowed_ship_skills, allowed_step_skills, api_surface_changed,
+    declared_paths, default_workflow_path, delivery_of, design_approved,
+    e2e_configured, is_path_dependent, load_phases, load_workflow, next_steps,
+    override_workflow_path, per_path,
     entry_point_of, pending_needs, phase_of, phases_path, post_code_test_active,
-    post_code_test_fix_loops_cap, registered_skills, resolve_workflow, skill_agents,
+    post_code_test_fix_loops_cap, record_delivery_path, recorded_delivery_path,
+    recorded_delivery_reason, registered_skills, resolve_workflow, skill_agents,
     agent_roles_of, skill_aliases,
-    skill_legs, ticket_artifact_path, ticket_context, validate_workflow,
-    validate_workflow_file)
+    skill_legs, step_matches, step_skills, ticket_artifact_path, ticket_context,
+    validate_workflow, validate_workflow_file)
 
 from . import artifacts  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401

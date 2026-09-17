@@ -189,7 +189,13 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_c4_container_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md"))
-        self.assertIn("28 x SKILL.md", body)
+        # Derived, not pinned: a new skill directory moves the diagram
+        # by itself rather than waiting for someone to notice.
+        shipped = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "skills"))
+            if os.path.isdir(os.path.join(
+                REPO_ROOT, "src", "acs", "skills", n))])
+        self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertNotIn("21 x SKILL.md", body)
         self.assertIn("31 x agent .md (all reachable)", body)
         self.assertNotIn("43 x agent .md (all reachable)", body)
@@ -230,7 +236,11 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
     def test_tech_stack_skill_and_agent_counts(self):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
-        self.assertIn("acs Skills (28)", body)
+        # Derived, not pinned: a new skill directory moves this count by
+        # itself rather than waiting for someone to notice the doc is stale.
+        shipped = len([n for n in os.listdir(os.path.join(REPO_ROOT, "src", "acs", "skills"))
+                       if os.path.isdir(os.path.join(REPO_ROOT, "src", "acs", "skills", n))])
+        self.assertIn("acs Skills (%d)" % shipped, body)
         self.assertNotIn("acs Skills (21)", body)
         self.assertIn("31 files, all reachable", body)
         self.assertNotIn("43 files, all reachable", body)
@@ -265,7 +275,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     so a future case-list change cascades to zero test edits here."""
 
     def _source(self):
-        path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         return read(path)
 
     def _list(self, name):
@@ -326,7 +336,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
 
         # No eval scenario anywhere references the deleted skill (AC-1,
         # scope extension): scan the whole scenarios package, not just s04.
-        scenarios_dir = os.path.join(REPO_ROOT, "evals", "acs", "scenarios")
+        scenarios_dir = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios")
         for name in sorted(os.listdir(scenarios_dir)):
             if not name.endswith(".py"):
                 continue

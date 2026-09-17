@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """plan-approval.py — the sole writer of <partition>/phases/code/plan-approval.json.
 
-On a STANDARD/COMPLEX-lane /acs:code run, records the deterministic verdict of
+On a `standard`/`complex` delivery-path /acs:code run, records the deterministic verdict of
 acs_lib.plan_approval_eligible against the current plan artifact, once per
 approved plan digest, and mirrors the outcome into code-state.json's
 states.plan_approved. Never a subagent Write, never a gate.
@@ -20,6 +20,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
+from acs_lib import workflow  # noqa: E402
+
+#: The delivery paths on which an approved plan is a precondition for /acs:code
+#: (ADR-0095). The two cheap paths run against the plan without one, and their
+#: legs say so; the plan-conformance review dimension then reports N/A.
+APPROVAL_PATHS = ("standard", "complex")
 
 RECORD_NAME = "plan-approval.json"
 
@@ -89,12 +95,20 @@ def main():
         sys.stderr.write("acs plan-approval: no readable ticket.json for %s\n" % ticket_id)
         sys.exit(2)
 
-    # Recomputed, never the cached ticket["lane"] (SKILL.md:67-70).
-    lane = lib.derive_lane(ticket.get("size"), ticket.get("stakes"),
-                           ticket.get("needs_design"), ticket.get("type"))
-
-    if lane not in ("STANDARD", "COMPLEX"):
-        print(json.dumps({"ok": True, "skipped": "lane", "lane": lane,
+    # Approval binds on the two deep delivery paths only (ADR-0095). The path is
+    # READ, never derived here: /acs:ship judged it once from this very plan and
+    # recorded it, so recomputing would be a second opinion about a decision that
+    # has already been made and acted on.
+    delivery_path = workflow.recorded_delivery_path(tdir, ticket_id)
+    if delivery_path is None:
+        # No path yet means the plan has not been judged, which means nothing
+        # downstream is waiting on an approval. Not an error -- just not due.
+        print(json.dumps({"ok": True, "skipped": "unclassified",
+                          "delivery_path": None, "plan_approved": False}, indent=2))
+        sys.exit(0)
+    if delivery_path not in APPROVAL_PATHS:
+        print(json.dumps({"ok": True, "skipped": "delivery_path",
+                          "delivery_path": delivery_path,
                           "plan_approved": False}, indent=2))
         sys.exit(0)
 
@@ -133,7 +147,7 @@ def main():
         record = {
             "ticket_id": ticket_id,
             "skill": "code",
-            "lane": lane,
+            "delivery_path": delivery_path,
             "approved_at": lib.now_iso(),
             "eligible": True,
             "plan_path": os.path.relpath(plan_path, tdir),
@@ -152,7 +166,7 @@ def main():
     lib.write_json(lib.state_path(tdir, "code"), state)
 
     print(json.dumps({"ok": True, "eligible": bool(eligible),
-                      "plan_approved": bool(eligible), "lane": lane,
+                      "plan_approved": bool(eligible), "delivery_path": delivery_path,
                       "failures": evaluation.get("failures", [])}, indent=2))
     sys.exit(0)
 

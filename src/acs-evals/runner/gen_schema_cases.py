@@ -343,7 +343,12 @@ def _gaps(schema, instance, root, path=()):
         # Descend a branch the instance already satisfies, so filling it in
         # cannot flip which branch matches.
         try:
-            if not js.validate(instance, _deref(branch, root)):
+            # `root` must be passed: without it js.validate falls back to the
+            # BRANCH as its own root, so any `$ref` inside the branch resolves
+            # against the branch and a `#/$defs/...` pointer raises KeyError.
+            # Nothing hit it until a schema put a `$ref` under `propertyNames`
+            # inside a `oneOf` (the per-path mappings of ADR-0095).
+            if not js.validate(instance, _deref(branch, root), root):
                 yield from _gaps(branch, instance, root, path)
         except js.UnsupportedKeyword:
             continue
@@ -495,23 +500,51 @@ class _AnyKey(str):
 _ANY_KEY = _AnyKey("*")
 
 
-def resolve(instance, ipath):
-    """Walk an instance path, resolving the any-key marker against the seed."""
-    node = instance
-    concrete = []
-    for step in ipath:
-        if isinstance(step, _AnyKey):
-            if not isinstance(node, dict) or not node:
-                return None, None
-            step = sorted(node)[0]
-        if isinstance(step, int):
-            if not isinstance(node, list) or not node:
-                return None, None
-        elif not isinstance(node, dict) or step not in node:
+def resolve(instance, ipath, want=None):
+    """Walk an instance path, resolving the any-key marker against the seed.
+
+    An ARRAY index in `ipath` means "an item of this array", not "item 0". The
+    schema describes every item identically, but the seed's items differ, and
+    a constraint under an optional property is only reachable through an item
+    that actually carries it: `ship.yaml`'s first step has a scalar `skill`,
+    so the per-path-mapping constraints under `steps[].skill` were unreachable
+    while this walked index 0 alone — and the document CANNOT be reordered to
+    fix that, since a path-dependent step must descend from the classify step
+    and therefore can never be first.
+
+    So an index tries each item in order and keeps the first whose REMAINING
+    path resolves, which is the array analogue of what `_AnyKey` already does
+    for open maps. `concrete` records the index actually taken, so the
+    mutation lands where the value was found.
+
+    `want` narrows what counts as resolved. A `propertyNames` constraint needs
+    an OBJECT to rename a key in, and the same `steps[].skill` path reaches a
+    scalar on one item and a mapping on another — without `want`, the walk
+    would stop at the scalar and report the constraint unreachable.
+    """
+    if not ipath:
+        if want is not None and not want(instance):
             return None, None
-        node = node[step]
-        concrete.append(step)
-    return node, concrete
+        return instance, []
+    step, rest = ipath[0], ipath[1:]
+    if isinstance(step, _AnyKey):
+        if not isinstance(instance, dict) or not instance:
+            return None, None
+        step = sorted(instance)[0]
+    if isinstance(step, int):
+        if not isinstance(instance, list) or not instance:
+            return None, None
+        for index in range(len(instance)):
+            node, tail = resolve(instance[index], rest, want)
+            if tail is not None:
+                return node, [index] + tail
+        return None, None
+    if not isinstance(instance, dict) or step not in instance:
+        return None, None
+    node, tail = resolve(instance[step], rest, want)
+    if tail is None:
+        return None, None
+    return node, [step] + tail
 
 
 def violate(constraint, schema, value):
@@ -579,7 +612,9 @@ def build(schema_name, schema, seed):
             continue
         seen.add(key)
         where = ".".join(str(p) for p in ipath) or "(root)"
-        target, concrete = resolve(seed, ipath)
+        # A `key`-mode constraint renames a key, so only an object will do.
+        want = (lambda n: isinstance(n, dict) and bool(n)) if mode == "key" else None
+        target, concrete = resolve(seed, ipath, want)
         if concrete is None:
             skipped.append((schema_name, constraint, where,
                             "the seed instance has no value at this path"))

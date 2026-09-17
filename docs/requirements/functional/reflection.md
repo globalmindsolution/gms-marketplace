@@ -31,11 +31,12 @@ dimensions (`authoring-conformance`). `create-docs` was the first to take
 this shape (ADR-0094); the other twelve followed in ADR-0092's stage 2.
 `code` runs the same cycle against a plan `/acs:create-impl-plan` wrote
 (ADR-0089). **`/acs:create-impl-plan` is the one skill whose deliverable is
-itself a plan, and its execute phase is lane-conditional (MAR-72,
-ADR-0074):** on STANDARD/COMPLEX its executor's survey (the former
-`code-planner` charter) renders the `plan.md` draft; on TRIVIAL/SMALL the
-coordinator authors `plan.md` itself and spawns no executor at all, against
-the identical artifact contract — verify stays unconditional on every lane.
+itself a plan**, and its executor's survey (the former `code-planner`
+charter) renders the `plan.md` draft on every run. MAR-72/ADR-0074 made that
+execute phase lane-conditional — the coordinator authored the plan itself on
+TRIVIAL/SMALL, spawning no executor — and ADR-0095 removed the fork with the
+lanes: this skill runs BEFORE any delivery path exists, because `plan.md` is
+the artifact the path is judged from, so there is nothing to condition on.
 Each phase runs in a separate context window so the verify phase judges the work
 fresh rather than rubber-stamping its own output. The table below shows the
 two phases and their responsibilities for a representative skill:
@@ -51,7 +52,8 @@ The **apply-work** group — `/acs:create-pr`, `/acs:merge-pr`, and
 `/acs:create-ticket` — does **not** apply the Reflection pattern. These skills
 are inline and deterministic: the coordinator handles the work directly,
 optionally delegating to at most one executor subagent. No plan-phase subagent
-and no verify-phase subagent are spawned — this holds in every lane. Upstream
+and no verify-phase subagent are spawned — this holds on every delivery path.
+Upstream
 quality is gated by the code-verifier (before the PR is opened or merged) or by
 the user-confirmation gate (at ticket creation); there is no in-skill verify
 phase for these three skills.
@@ -73,76 +75,70 @@ Requirements:
   `/acs:create-design`, and `/acs:create-requirements`); ADR-0092 then
   retired the plan phase itself. On iteration 2+ the executor's authoring
   notes carry a **Findings addressed** section mapping each finding to what
-  changed. For `/acs:create-impl-plan` on TRIVIAL/SMALL specifically there
-  is no executor to feed back into — the plan was coordinator-authored with
-  zero executor spawns; escalating mid-flight to STANDARD/COMPLEX never
-  retro-spawns one either (MAR-72, D-3). No other skill has a
-  lane-conditional executor — each runs a fixed iteration cap of 3 in every
-  lane; only `/acs:code`'s cap is lane-driven (below).
-  - The cycle runs at most **lane-driven iterations**:
-    - **TRIVIAL/SMALL lanes** (low/normal stakes): at most **2 iterations** (light
-      verify — the single verifier pass plus at most one iteration on blocking
-      findings; cap = `VERIFY_ITERATION_CAP["light"]` = 2, ADR-0034 as amended
-      2026-09-14 — a cap of 1 left no round to fix what the verifier found).
-    - **STANDARD/COMPLEX lanes**, or any **high-stakes** ticket: at most
-      **3 iterations** (full verify — execute → verify loop against the plan
-      `/acs:create-impl-plan` approved before it starts, never a
-      per-iteration re-plan, + full 16-dimension, multi-lens review + e2e
-      when configured; an iteration is one execute+verify round; cap =
-      `VERIFY_ITERATION_CAP["full"]` = 3). Full verify's 16 dimensions are
-      split across 4 parallel independent lenses (each reading a distinct
-      evidence source), followed by a coordinator-performed
-      confidence-scoring/adversarial merge pass before findings count; light
-      verify keeps today's single-subagent, 15-dimension pass unchanged.
-    - When `ticket.lane` or `ticket.stakes` are absent or unrecognized, default
-      conservatively to full (3-iteration ceiling).
-    - On hitting the lane's cap with findings remaining, the skill stops and
+  changed. Every skill but `/acs:code` runs a fixed iteration cap of 3; only
+  `/acs:code` varies, and it varies by the ticket's recorded DELIVERY PATH
+  rather than by a lane derived from the ticket's axes (ADR-0095).
+  - `/acs:code`'s cycle runs at most **path-driven iterations**, and each leg
+    states its own ceiling in its own SKILL.md rather than looking one up:
+    - **`trivial` and `small`**: at most **2 iterations** — the single
+      verifier pass plus at most one round on blocking findings (ADR-0034 as
+      amended 2026-09-14: a cap of 1 left no round to fix what the verifier
+      found).
+    - **`standard` and `complex`**: at most **3 iterations** — execute →
+      verify against the plan `/acs:create-impl-plan` published before the run
+      started, never a per-iteration re-plan, plus the review and e2e when
+      configured. An iteration is one execute+verify round. Both deep paths
+      run all 16 dimensions; `complex` is the one that runs the
+      16-dimension, multi-lens review + e2e, splitting them across 4 parallel
+      independent lenses (each reading a distinct evidence source) followed by a
+      coordinator-performed confidence-scoring/adversarial merge pass before
+      findings count. `standard` runs the same 16 in a single subagent pass.
+
+      Dimension 14 (Regression-risk, git-history) is what separates 16 from
+      15: it is scoped to the two DEEP paths, and on `complex` it is lens D's.
+      It reads the recorded `delivery_path` itself to decide — not the
+      presence of a `verify_lens`, which was the same question while deep
+      always meant multi-lens and stopped being it when `standard` became
+      deep AND single-pass. With no path recorded it EVALUATES: the
+      dispatcher runs `standard` on a missing answer, and a missing answer
+      must never buy a cheaper review.
+    - When `pipeline-state.json` carries no `delivery_path`, `/acs:code`'s
+      dispatcher runs the `standard` leg — the conservative default, never a
+      cheap path on a missing answer.
+    - On hitting the ceiling with findings remaining, the skill stops and
       records its findings and stop reason in its state file.
 
-  **Absolute invariants — apply in every lane regardless of verify depth:**
+  **Absolute invariants — they hold on every delivery path:**
 
-  - The **verifier subagent is the in-loop quality gate in every lane** (C-5).
-    Light verify differs from full only in iteration ceiling; the verifier always
-    runs. There is no inline human-approval gate; the human-in-the-loop
-    checkpoint is the PR review before merge.
-  - The **TDD/coverage gate runs in full in every lane and is never trimmed by
-    verify-depth selection** (invariant a, MAR-55). Depth selection is not a
-    verify dimension that light mode drops.
+  - The **verifier subagent is the in-loop quality gate on every path** (C-5).
+    The cheap paths differ from the deep ones in iteration ceiling and review
+    shape; the verifier always runs. There is no inline human-approval gate;
+    the human-in-the-loop checkpoint is the PR review before merge.
+  - The **TDD/coverage gate runs in full on every path and is never trimmed
+    by the path** (invariant a, MAR-55). The path is not a review dimension a
+    cheap run drops.
 
-  **Mid-flight ceiling raise on escalation (MAR-57).** The lane-driven ceiling
-  stated above is the *initial* ceiling, computed at the start of the `/code`
-  run. If an in-flight escalation trigger fires mid-run (verifier finding of
-  higher stakes/size, a `high_stakes_paths` glob match on a touched file, or an
-  explicit user/agent request), the coordinator recomputes the ceiling via
-  `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raises the
-  in-flight ceiling **monotonically** — it is never lowered. A ticket that
-  starts at a TRIVIAL/SMALL ceiling (2 iterations) and escalates to
-  STANDARD/COMPLEX (3 iterations) immediately acquires the full 3-iteration
-  ceiling for all remaining iterations. The absolute invariants above (verifier
-  always runs in every lane; TDD/coverage gate immutable in every lane) hold
-  regardless of any in-flight ceiling change. Every escalation event is
-  durably recorded — not just a ceiling change — via `record_escalation_event`
-  appending a fixed 13-field event (from/to lane, from/to axes, trigger,
-  source, ceiling before/after, direction, confirmation ref) to
-  `runs[-1].escalations` on `code-state.json` (MAR-106), so no lane change is
-  silent. Re-selection happens at the iteration-start **detection point**: the
-  start of each iteration, after the prior verifier and before the current
-  execute — so an escalation always lands before the next verifier pass
-  (MAR-107 D4). When a fast lane (TRIVIAL/SMALL) crosses the fold boundary
-  into a full lane (STANDARD/COMPLEX), the former fold-boundary stage re-entry
-  no longer applies: since ADR 0066 every lane authors its spec content inside
-  the plan `/acs:create-impl-plan` writes (ADR 0089), so there is no decomposition stage left to
-  re-enter — the crossing raises the verify depth and the in-flight iteration
-  ceiling only, monotonically and never lowered (`code/SKILL.md`'s "In-loop
-  escalation check" and "Spec authoring fold" sections). The lane/axes are never *automatically* downward — the
-  one exception is a user-confirmed de-escalation (MAR-108), offered only at
-  an iteration or run boundary, never mid-iteration, requiring an explicit
-  `AskUserQuestion` confirmation recorded via `clarify.py` before the
-  dedicated `confirm_deescalation` writer (`acs_lib/state.py`) is called with that
-  ledger reference. `confirm_deescalation` is unreachable without a resolved,
-  answered `clarify_ref`, and every such drop is durably audited exactly like
-  an upward event (`direction: "down"`, non-null `confirmation_ref`) — no
-  lane change, up or down, is ever silent.
+  **The ceiling never moves mid-run (ADR-0095).** MAR-57 made the ceiling
+  above an *initial* value: an in-flight trigger — a verifier finding of
+  higher stakes or size, a `high_stakes_paths` glob match on a touched file,
+  or an explicit user or agent request — recomputed it through
+  `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raised it
+  monotonically, recording a 13-field escalation event so that no lane change
+  was silent, with a user-confirmed de-escalation path (MAR-108) as the one
+  sanctioned way down.
+
+  None of that exists now. The path is judged once, from `plan.md`, before
+  `/acs:code` starts, and is read from `pipeline-state.json` thereafter; there
+  is no trigger, no recompute, no escalation ledger and no de-escalation
+  writer, because there is no decision left to move. What replaces the
+  triggers is the verifier's **path audit** dimension: it reads the recorded
+  path and its reason, judges the diff against them, and blocks when they
+  contradict. Its remedy is a REPLAN — the run ends `failed` with
+  `stop_reason: plan_superseded` and `ship.yaml`'s `on_replan` edge returns to
+  `/acs:create-impl-plan` — never a mid-run re-route, because a run split
+  across two rigors is exactly what this replaces. The cost is that rigor can
+  no longer rise within a run; the gain is that every run has one rigor, and
+  a recorded sentence saying why.
 
 - Subagent naming convention: `<skill>-executor`, `<skill>-verifier`; no
   skill ships a `<skill>-planner` (ADR-0092).
@@ -213,9 +209,9 @@ Requirements:
 > the rule.
 >
 > **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author
-> (`create-impl-plan-executor`'s survey — the former `code-planner` charter —
-> on STANDARD/COMPLEX; the coordinator on TRIVIAL/SMALL, **best-effort**,
-> MAR-72)
+> (`create-impl-plan-executor`'s survey — the former `code-planner` charter;
+> MAR-72's best-effort fast path went with the lanes, ADR-0095, so the survey
+> now runs on every plan)
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
 > finding to the user/spec owner for a **decision** — a spec-time check on
@@ -232,7 +228,6 @@ flowchart TD
     CO[Coordinator] -->|XML task: survey, then author| EX[executor]
     EX -->|iter-n-authoring.md + deliverable| WS[(partition)]
     EX -->|XML result, or needs_input before any file| CO
-    CO -->|/acs:create-impl-plan on TRIVIAL/SMALL: self-authors plan.md, no executor spawn| CO
     CO -->|XML task + artifact refs| VF[verifier]
     VF -->|XML verdict| CO
     CO -->|verdict = fail, iterations left: findings in context| EX
@@ -243,10 +238,11 @@ A failing verdict with iterations left routes straight back to the
 **executor** (`EX`) with the findings in its `<context>` — there is no plan
 phase to route to (ADR-0092); the survey was made once, by iteration 1's
 executor, and the notes it left are what the verifier judged against. **The
-`CO -->|XML task| EX` edge is lane-conditional for `/acs:create-impl-plan`
-only (MAR-72, ADR-0074):** it fires on STANDARD/COMPLEX; on TRIVIAL/SMALL
-the coordinator instead takes the self-loop edge above, authoring `plan.md`
-itself with zero executor spawns.
+`CO -->|XML task| EX` edge fires for every skill on every run.** It was
+lane-conditional for `/acs:create-impl-plan` (MAR-72, ADR-0074), which took a
+coordinator self-loop on TRIVIAL/SMALL and spawned no executor; ADR-0095
+removed both the lanes and that self-loop, so the diagram above has one
+execute edge and no exception to it.
 
 ## Coordinator ↔ subagent communication: XML
 
@@ -304,9 +300,9 @@ during design:
   produced, repo files changed, commands run with outcomes), the verifier
   `iter-<n>-verify.md` (every check with evidence, every finding in detail).
   No skill writes `iter-<n>-plan.md` any more (ADR-0092).
-  `/acs:code` additionally persists `phases/code/plan-approval.json` on
-  STANDARD/COMPLEX — written by `plan-approval.py`, **not** by a subagent
-  (MAR-73, slice 3 of MAR-69). XML results reference these files, never
+  `/acs:code` additionally persists `phases/code/plan-approval.json` on the
+  `standard` and `complex` delivery paths — written by `plan-approval.py`,
+  **not** by a subagent (MAR-73, slice 3 of MAR-69). XML results reference these files, never
   inline their bodies.
 - **Grounding**: every subagent decision, claim, and finding MUST be traceable
   to a source read or run in that task — cited file/section next to the

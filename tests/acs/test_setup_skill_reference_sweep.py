@@ -451,11 +451,11 @@ T2_T3_SETUP_PATHS = (
     "docs/requirements/non-functional/portability.md",
     "docs/requirements/non-functional/security.md",
     "tests/acs/fixtures/mar145_clause_inventory.json",
-    "evals/acs/README.md",
-    "evals/acs/harness.py",
-    "evals/acs/scenarios/s01_install_gate_smoke.py",
-    "evals/acs/scenarios/s04_skill_triggers.py",
-    "evals/acs/scenarios/s06_update_migration.py",
+    "src/acs-evals/behavioural/acs/README.md",
+    "src/acs-evals/behavioural/acs/harness.py",
+    "src/acs-evals/behavioural/acs/scenarios/s01_install_gate_smoke.py",
+    "src/acs-evals/behavioural/acs/scenarios/s04_skill_triggers.py",
+    "src/acs-evals/behavioural/acs/scenarios/s06_update_migration.py",
 )
 
 SETUP_LITERAL_RE = re.compile(r"/acs:setup|(?<![A-Za-z0-9_-])setup(?![A-Za-z0-9_-])")
@@ -648,7 +648,7 @@ class EvalTriggerCaseTest(unittest.TestCase):
     """AC-5: s04_skill_triggers.py's CASES list names no "init" expected skill."""
 
     def test_eval_trigger_case_expects_setup(self):
-        s04_path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        s04_path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         body = read(s04_path)
         m = re.search(r"CASES\s*=\s*\[(.*?)\n\]\n", body, re.S)
         self.assertIsNotNone(m, "CASES list not found in %s" % s04_path)

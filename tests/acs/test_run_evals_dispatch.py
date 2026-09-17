@@ -1,7 +1,7 @@
-"""Unit tests for the per-plugin dispatcher in evals/run_evals.py.
+"""Unit tests for the per-plugin dispatcher in src/acs-evals/behavioural/run_evals.py.
 
 TDD surface: plugin-name → per-plugin-runner dispatch (subprocess delegation),
-flag forwarding to evals/<plugin>/run_evals.py, non-zero exit propagation, and
+flag forwarding to src/acs-evals/behavioural/<plugin>/run_evals.py, non-zero exit propagation, and
 skills-only banner-gate tolerance. Driven as subprocesses (mirrors
 tests/acs/test_run_tests.py) so sys.path mutation in run_evals.py does not leak
 into the unittest process.
@@ -18,11 +18,11 @@ import textwrap
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RUN_EVALS = os.path.join(REPO_ROOT, "evals", "run_evals.py")
+RUN_EVALS = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "run_evals.py")
 
 
 class DispatchAcsPluginTest(unittest.TestCase):
-    """--plugin acs routes to evals/acs/run_evals.py which lists 8 scenarios."""
+    """--plugin acs routes to src/acs-evals/behavioural/acs/run_evals.py which lists 8 scenarios."""
 
     def test_plugin_acs_list_shows_eight_scenarios(self):
         """--plugin acs --list must list exactly 8 scenarios without import error."""
@@ -72,12 +72,12 @@ class SkillsOnlyPluginTest(unittest.TestCase):
 
     def setUp(self):
         # Drive a COPY of the eval tree from a tmp dir so the skills-only
-        # fixture never touches the tracked repo evals/ (C-3).
+        # fixture never touches the tracked repo src/acs-evals/behavioural/ (C-3).
         self.tmp = tempfile.mkdtemp(prefix="acs-eval-skillsonly-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.evals_dir = os.path.join(self.tmp, "evals")
         shutil.copytree(
-            os.path.join(REPO_ROOT, "evals"),
+            os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural"),
             self.evals_dir,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
@@ -88,7 +88,7 @@ class SkillsOnlyPluginTest(unittest.TestCase):
         with open(os.path.join(scenarios_dir, "__init__.py"), "w") as fh:
             fh.write("SCENARIOS = []\n")
         # Fabricate a minimal per-plugin runner for TESTPLUGIN.
-        # The thin dispatcher resolves evals/TESTPLUGIN/run_evals.py and
+        # The thin dispatcher resolves src/acs-evals/behavioural/TESTPLUGIN/run_evals.py and
         # delegates to it — without this file the dispatcher exits 1 (missing
         # runner), which would fail the skills-only tolerance tests.
         # This runner:
@@ -237,7 +237,7 @@ class ExitCodePropagationTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.evals_dir = os.path.join(self.tmp, "evals")
         shutil.copytree(
-            os.path.join(REPO_ROOT, "evals"),
+            os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural"),
             self.evals_dir,
             ignore=shutil.ignore_patterns("__pycache__"),
         )

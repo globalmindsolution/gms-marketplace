@@ -23,6 +23,10 @@ SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references every
+#: delivery path shares; the verdict is read in the shared verify reference.
+CODE_VERIFY_REF = os.path.join(PLUGIN, "skills", "code", "references",
+                               "verify.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "verdict.schema.json")
 sys.path.insert(0, SCRIPTS)
 
@@ -500,6 +504,8 @@ class ProseTest(unittest.TestCase):
             cls.verifier = fh.read()
         with open(CODE_SKILL, encoding="utf-8") as fh:
             cls.skill = fh.read()
+        with open(CODE_VERIFY_REF, encoding="utf-8") as fh:
+            cls.verify_ref = fh.read()
 
     def test_the_verifier_is_told_to_write_the_verdict(self):
         self.assertIn("iter-<n>-verdict.json", self.verifier)
@@ -509,10 +515,12 @@ class ProseTest(unittest.TestCase):
         self.assertNotIn("the coordinator sets `verifier_passed: true`", self.verifier)
 
     def test_the_coordinator_reads_the_verdict_rather_than_concluding_it(self):
-        self.assertIn("acs.py\" verdict show", self.skill)
-        self.assertIn("acs.py\" verdict merge", self.skill)
-        self.assertNotIn("`verifier_passed`: `true` ONLY on a zero-findings verifier pass",
-                         self.skill)
+        self.assertIn("acs.py\" verdict show", self.verify_ref)
+        self.assertIn("acs.py\" verdict merge", self.verify_ref)
+        for body in (self.skill, self.verify_ref):
+            self.assertNotIn(
+                "`verifier_passed`: `true` ONLY on a zero-findings verifier pass",
+                body)
 
 
 if __name__ == "__main__":

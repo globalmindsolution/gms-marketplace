@@ -13,6 +13,7 @@ hooked, one delivery ticket per set, executor + verifier, no planner.
 Run:  python3 -m unittest tests.acs.test_create_docs_skill -v
 """
 
+import glob
 import os
 import re
 import sys
@@ -40,11 +41,24 @@ def norm(body):
 
 
 def _body():
-    return read(SKILL_PATH)
+    """The skill's contract: SKILL.md plus the references it points at.
+
+    Two branches moved into `references/` under progressive disclosure -- the
+    multi-set fan-out machinery and the resume/handoff seam -- because each is
+    read by exactly one kind of run. These assertions pin what the skill SAYS,
+    never which of its files says it, so reading the concatenation keeps the
+    pin honest while the layout stays free to change, and a rule that
+    genuinely vanishes still fails.
+    """
+    parts = [read(SKILL_PATH)]
+    refs = os.path.join(SKILLS_DIR, "create-docs", "references", "*.md")
+    parts.extend(read(q) for q in sorted(glob.glob(refs)))
+    return "\n".join(parts)
 
 
 def _frontmatter():
-    m = re.match(r"^---\n(.*?)\n---\n", _body(), re.DOTALL)
+    # Frontmatter is a property of SKILL.md itself, never of a reference.
+    m = re.match(r"^---\n(.*?)\n---\n", read(SKILL_PATH), re.DOTALL)
     assert m, "create-docs/SKILL.md must open with a front-matter block"
     return m.group(1)
 

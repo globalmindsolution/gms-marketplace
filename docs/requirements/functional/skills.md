@@ -42,7 +42,7 @@ Every **workflow** skill MUST:
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
   per MAR-55 invariant (b): the coordinator, optionally delegating to at
   most one executor subagent, performs the apply-work directly — no
-  verifier subagent, in every lane. The skills-independence refactor moved
+  verifier subagent, on every delivery path. The skills-independence refactor moved
   `/code`'s plan phase out into `/create-impl-plan` and added five
   Build/Test skills (analyze-ticket, create-impl-plan, create-api-contract,
   create-test-docs, create-e2e-tests); ADR-0092 then retired the planner
@@ -158,9 +158,12 @@ command.
   `workflow next` against `pipeline-state.json` and continues from whatever
   is ready.
 - MUST stop after `/code` completes and before the post-code test gate when
-  the ticket's resolved verify depth is `full` (`verify_depth(lane,
-  stakes)`), re-read from the ticket document after `/code` returns because
-  `/code` may escalate the lane mid-flight and write it back durably. The
+  the `code` step declares a `full_verify_stop` boundary for the ticket's
+  recorded delivery path — `standard` and `complex` in the shipped
+  `workflows/ship.yaml`, read from the step's per-path `boundary` mapping
+  (ADR-0095). The path is read from `pipeline-state.json`, where it was
+  recorded once after `/create-impl-plan`; it cannot have changed while
+  `/code` ran, because a path is never raised mid-run. The
   stop is a designed boundary, not a failure: no step is marked `failed`,
   no run entry is written (`/ship` is unhooked and owns none),
   `pipeline-state.json` records `code` completed, and the run ends with
@@ -723,7 +726,7 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   records the audit in its authoring notes (`iter-1-authoring.md`), then
   scaffolds from them (the per-iteration re-plan went with MAR-302, the
   plan phase itself with ADR-0092). The loop body is execute → verify only,
-  cap 3 in every lane, counting execute+verify rounds.
+  cap 3 on every run, counting execute+verify rounds.
 - **Allowlist provenance and immutability (MAR-302).** The Additive-surface
   allowlist is authored exactly once, by the iteration-1 executor, in
   `iter-1-authoring.md`, and is frozen and authoritative for the whole run: the
@@ -817,8 +820,8 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
   directly, optionally delegating to at most one `create-ticket-executor`
   subagent; no planner subagent; no verifier subagent. Correctness is gated by
-  schema validation and the user-confirmation gate (size/stakes/lane),
-  not an in-skill verifier.
+  schema validation and the user-confirmation gate (`docs_only`, and the
+  child breakdown in a `--fan-out` run), not an in-skill verifier.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
   per-repo counter lives in `<workspace>/<repo>/counters.json`. The
   **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
@@ -850,25 +853,14 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
   full suite still runs once and must stay green, and a diff line touching
   executable code under the flag is a blocking verifier finding.
-- MUST capture **`size`** and **`stakes`** during `/create-ticket` analysis (MAR-56):
-  - The coordinator surveys the codebase or diff to identify likely touched file surfaces
-    and runs path-glob matching against `high_stakes_paths` (from settings; default seed:
-    `auth/**`, `payments/**`, `migrations/**`, `public-api/**`, `security/**`) to
-    RECOMMEND a `stakes` value. Any match yields `stakes=high` (full-verify); no match
-    yields `stakes=normal`. It also recommends `size` based on scope analysis.
-  - The user CONFIRMS or overrides both values (same pattern as `docs_only`).
-    Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires
-    explicit user confirmation.
-  - The executor writes the confirmed `size`, `stakes`, and the derived `lane` (computed
-    via `derive_lane(size, stakes, needs_design, type)`) into `ticket.json`. `lane` is
-    always recomputed from the axes — never accepted verbatim from user input.
-  - Defaults when axes are absent or unrecognized: `size=standard`, `stakes=normal`,
-    `lane=STANDARD` (conservative — full-verify rigor, never a fast lane on unknown inputs).
-  - The verifier re-checks that `ticket.json` carries all three fields and that
-    `lane == derive_lane(size, stakes, needs_design, type)` (cache consistency guard).
-  - Ticket schema: `size` enum `trivial|small|standard|large`; `stakes` enum
-    `low|normal|high`; `lane` enum `TRIVIAL|SMALL|STANDARD|COMPLEX`. All three are
-    optional and additive — existing tickets without them remain valid.
+- MUST NOT classify the ticket's rigor. `/create-ticket` used to capture a
+  `size` and a `stakes` axis (MAR-56) and derive a `lane` from them; ADR-0095
+  retired all three. Rigor is now ONE judgement, made once, by `/ship`, from
+  the implementation plan — the first artifact that says what the change
+  actually is, rather than what a request sounded like before anyone read the
+  code. `ticket.json` therefore carries no `size`, `stakes` or `lane` field,
+  and a ticket that still has them from an older build is read as if it did
+  not (`docs/adr/0095-static-delivery-path-routing.md`).
 - MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400
   changed lines, one concern, grounded in a codebase survey); above the bar the
   coordinator recommends an epic with children cut at PR-sized, independently
@@ -974,8 +966,8 @@ is ready to plan.
   codebase. Pre-hook input check: the ticket resolves. Brake: an **epic** is
   refused (epics are designed and fanned out, never implemented).
 - MUST write `analysis.md` to the ticket's docs folder with front matter
-  `{ticket, ready_for_planning, api_surface, stakes_recommendation,
-  needs_design_recommendation}` and the sections: Problem restated; Impact
+  `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
+  and the sections: Problem restated; Impact
   map (components/files/tests likely touched); Questions; Assumptions;
   Risks; Refined acceptance criteria; Verdict.
 - Every question MUST go through the clarification ledger — asked with
@@ -983,9 +975,13 @@ is ready to plan.
   `--source assumption` with a rationale. Refined acceptance criteria are
   **proposals** recorded in the ledger; the ticket's own criteria are
   amended only on user confirmation.
-- MUST run the stakes recommendation over the impact paths and, on `high`,
-  apply the existing lane-apply path, so stakes rise **before** code rather
-  than mid-flight.
+- MUST NOT set any rigor itself. The stakes recommendation this step used to
+  run over the impact paths went with the axis (ADR-0095); what replaces it is
+  EVIDENCE, not a setting. When the impact map reaches a surface the repo
+  treats as load-bearing — auth, payments, a migration or any stored shape, a
+  public API, concurrency or ordering — the analysis MUST say so in `## Risks`,
+  naming the paths, because that is what `/create-impl-plan` carries into the
+  plan and what the delivery-path judgement is then made from.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
@@ -1005,13 +1001,14 @@ an approved `plan.md`.
 - MUST keep every mechanism the phase had inside `/code`, unchanged: the
   survey (the former planner charter, carried by the executor since
   ADR-0092), the spec fold, the executor file map, plan approval
-  (STANDARD/COMPLEX only) and the plan-revocation path
+  (`standard`/`complex` only, run by those legs) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
 - MUST write `plan.md` to the ticket's docs folder (the partition when
-  `artifacts.tickets_path` is `null`). On TRIVIAL/SMALL the coordinator
-  authors it with no executor spawn and no approval step, exactly as before
-  (ADR-0074); the verifier judges it, and on blocking findings the coordinator
-  revises its own draft once before the verifier judges again (ceiling 2
+  `artifacts.tickets_path` is `null`). It is always authored by the executor:
+  the ADR-0074 fast path, on which the coordinator authored the plan itself
+  with no executor spawn, went with the lanes it forked on (ADR-0095). The
+  verifier judges every draft, and on blocking findings the executor authors
+  the remediation (ceiling 3
   verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
   not fail the run on its first verdict.
 - MUST plan against the ticket as written when `analysis.md` says
@@ -1093,12 +1090,11 @@ Purpose: implement the ticket's approved plan in the consumer repo using TDD.
 > `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back
 > to `/create-impl-plan`.
 
-**Spec authoring (folded into the plan phase, every lane — ADR 0066).** When
-`<partition>/specs/` is absent or empty the plan's author (the
-`create-impl-plan-executor` on STANDARD/COMPLEX, the coordinator on
-TRIVIAL/SMALL — MAR-72) authors the
-spec content itself inside the plan artifact `plan.md`, on EVERY lane with no
-lane check; when specs are already present it reads them unchanged. The
+**Spec authoring (folded into the plan phase — ADR 0066).** When
+`<partition>/specs/` is absent or empty the plan's author — always
+`create-impl-plan-executor` — writes the spec content itself inside the plan
+artifact `plan.md`, unconditionally; when specs are already present it reads
+them unchanged. The
 obligations below — from ticket clarification through the oversized-ticket
 escalation — moved here from the retired spec-authoring section (MAR-161,
 ADR 0066) and now bind the plan phase, wherever it runs:
@@ -1155,10 +1151,9 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   <partition>/phases/code/plan.md`.
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
   MAR-73).** The plan artifact is a single per-ticket
-  `<partition>/phases/code/plan.md` (authored by `create-impl-plan-executor`
-  on STANDARD/COMPLEX, by the coordinator on TRIVIAL/SMALL — MAR-72), written
-  exactly once per run, before the loop. `plan.md` is the only name ever
-  read or written for the plan artifact, in every case, on every lane — the
+  `<partition>/phases/code/plan.md`, authored by `create-impl-plan-executor`,
+  written exactly once per run, before the loop. `plan.md` is the only name
+  ever read or written for the plan artifact, in every case — the
   MAR-70-era resume-only read-both fallback to the highest-numbered
   `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
   explicit product decision); a ticket that never completed its MAR-70-era
@@ -1175,21 +1170,23 @@ ADR 0066) and now bind the plan phase, wherever it runs:
 - **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
   execute → verify: the plan above is authored exactly once per run, before
   the loop starts, so exactly one plan-authoring `create-impl-plan-executor`
-  is spawned across the whole `/create-impl-plan` run **on STANDARD/COMPLEX**,
-  however many iterations `/code` uses.
-  On TRIVIAL/SMALL the coordinator authors `plan.md` itself, with zero
-  executor spawns, against the identical artifact contract (MAR-72, slice 2
-  of MAR-69, ADR 0074). On iteration 2+, the
-  verifier's findings are delivered to the executor's `<context>` — never to
-  a new plan-authoring spawn — and the executor authors the remediation, on every
-  lane. The
-  light=1 / full=3 verify-depth caps are unchanged in value; they now count
-  execute+verify rounds; there is no plan phase to count (ADR-0092). Mid-flight
-  escalation (MAR-57)'s detection point and monotone ceiling are unaffected;
-  escalation never retro-spawns a plan author (D-3).
+  is spawned across the whole `/create-impl-plan` run, however many iterations
+  `/code` then uses. The fast-path fork MAR-72 introduced — the coordinator
+  authoring `plan.md` itself on TRIVIAL/SMALL, with zero executor spawns — is
+  gone: `/create-impl-plan` runs BEFORE any delivery path exists, because
+  `plan.md` is the artifact the path is judged from, so there is nothing to
+  fork on and its ceiling is a fixed 3 execute → verify rounds. On iteration
+  2+, the verifier's findings are delivered to the executor's `<context>` —
+  never to a new plan-authoring spawn — and the executor authors the
+  remediation. The per-path ceilings live on the four `/code` legs (2 on
+  `trivial` and `small`, 3 on `standard` and `complex`) and count
+  execute+verify rounds; there is no plan phase to count (ADR-0092) and no
+  mid-flight escalation to raise them (ADR-0095).
 - **Coordinator plan approval (MAR-73, slice 3 of MAR-69).** On
-  **STANDARD/COMPLEX** only, after `plan.md` is authored and before the loop
-  starts, `/code` MUST record a **deterministic plan-approval verdict**:
+  the **`standard`** and **`complex`** delivery paths only, at the leg's
+  Start — after `/create-impl-plan` published `plan.md` and after `/ship`
+  judged the path from it — `/code` MUST record a **deterministic
+  plan-approval verdict**:
   `plan-approval.py` computes `acs_lib.plan_approval_eligible` from the plan
   artifact's own content plus `settings.test_coverage_percent` and is the
   **sole writer** of `<partition>/phases/code/plan-approval.json` — never a
@@ -1199,7 +1196,8 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   plan digest** (idempotent on resume; a revised `plan.md` writes a fresh
   record). `states.plan_approved` is copied verbatim into `/code`'s
   `result.json` and mirrored into `code-state.json`; it is **`false`** on
-  TRIVIAL/SMALL (no record is written at all) and on an ineligible plan. An
+  the `trivial` and `small` paths (no record is written at all) and on an
+  ineligible plan. An
   ineligible plan **does not block** this release: the run continues, at
   most revising `plan.md` once and re-running the script. **Nothing gates on
   `plan_approved`** — the `/create-pr` gate remains `verifier_passed` alone.
@@ -1212,16 +1210,15 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   no `create-impl-plan-executor` re-spawn) → re-run `plan-approval.py` for a fresh
   record; superseded copies are the audit trail and are never deleted, never
   an approval input, never a conformance contract.
-- **Fast-lane charter scoping (MAR-72).** On TRIVIAL/SMALL, the four
-  `code-planner.md` charter items (now `create-impl-plan-executor.md`'s
-  survey items) that would otherwise run as part of the
-  (unspawned) executor — the spec-simplicity gate, the oversize signal, the
-  ADR-0012 doc-graph-gap check (E1-E4), and the Boy-scout drift survey — are
-  **best-effort**, carried by the coordinator instead, and their omission on
-  those lanes is never a finding. This does **not** extend to the
+- **Fast-lane charter scoping (MAR-72) — retired.** MAR-72 made four of the
+  survey's charter items best-effort on TRIVIAL/SMALL, because on those lanes
+  no executor was spawned to carry them and the coordinator did the work
+  itself. ADR-0095 removed the fork: `/create-impl-plan` always spawns its
+  executor, so the spec-simplicity gate, the oversize signal, the ADR-0012
+  doc-graph-gap check (E1-E4) and the Boy-scout drift survey all run on every
+  run, and their omission is a finding again. The
   `docs/product/prd.md`/`docs/product/roadmap.md` factual-impact assessment
-  below, which stays **BLOCKING on every lane** regardless of who performs
-  it.
+  below was BLOCKING throughout and is unchanged.
 
 `/code`'s own obligations — unchanged by that migration — follow:
 
@@ -1274,18 +1271,23 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   `plan_path` is `phases/code/plan.md` and whose digest matches the current
   `plan.md` bytes; the verifier computes activation itself; strictly
   **subordinate to acceptance-criteria conformance**, which an approved plan
-  can never substitute for), and **approval-audit** (MAR-74, slice 4 of MAR-69
-  — re-runs `recommend_stakes` over the changed files; a `"high"` return
-  unaccounted for by `ticket.stakes: "high"` or a recorded upward escalation
-  event is blocking)
+  can never substitute for), and **path audit** (blocking; every path — reads
+  `delivery_path` and `delivery_path_reason` from `pipeline-state.json` and
+  judges whether the changeset is the work that reason describes, weighing
+  what it TOUCHES rather than how much. A contradiction is blocking, and the
+  remedy is a replan, never a re-route: the delivery path is judged once and
+  is never raised mid-run, ADR-0095. This replaces the **approval-audit**
+  dimension, which re-ran `recommend_stakes` over the changed files and
+  blocked on a `"high"` return that no escalation event accounted for — the
+  same job, against evidence that still exists)
   — in addition to spec conformance, tests, and coverage. The architecture /
   system-design review judges the changeset against the approved `design.md`
-  when one exists (the ticket's own or its parent epic's). On full-depth
-  tickets (`verify_depth=="full"`) the review additionally gains a
+  when one exists (the ticket's own or its parent epic's). On the `complex`
+  delivery path the review additionally gains a
   **multi-lens** shape: 4 parallel independent lenses, each reading a
   different evidence source, plus a coordinator-performed confidence-scoring/
-  adversarial merge pass before findings count; light-depth review stays the
-  unchanged single-pass shape. Blocking findings
+  adversarial merge pass before findings count; every other path keeps the
+  single-pass shape. Blocking findings
   trigger automatic remediation iterations (max 3); findings and stop
   reasons land in `code-state.json`
   ([workflow.md](workflow.md#review-feedback-loop)).
@@ -1300,26 +1302,29 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   that an approved **`plan.md` exists** for it (the input `/code` now
   consumes rather than produces — a ticket without one is refused with a
   pointer at `/acs:create-impl-plan <id>`), and that the ticket's own `type`
-  is not `epic`: the check is unconditional on lane and has no `specs/`
+  is not `epic`: the check is unconditional and has no `specs/`
   precondition, but an epic ticket is refused outright with a `GateError`
   directing the user to `/acs:create-design` (if the epic has no design yet)
   then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
   otherwise it exits 2 to stop the skill. It MUST NOT require that
   `/create-ticket`, `/analyze-ticket` or any other skill has completed.
   Whether `<partition>/specs/` already has
-  content is discovered by the plan's author (`create-impl-plan-executor` on
-  STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72), not asserted
-  by the gate — when
+  content is discovered by `create-impl-plan-executor`, not asserted by the
+  gate — when
   it is absent or empty, spec authoring (scope, approach, API/data changes,
   and a test plan with every acceptance criterion mapped to a test) is folded
-  into `/create-impl-plan`'s plan by the plan's author, on EVERY lane. The
-  TDD/coverage hard-fail and verifier-as-gate (light cap 2 — one pass plus
-  one remediation round, ADR-0034 as amended 2026-09-14; no inline human
-  gate) are preserved unchanged in every lane.
+  into `/create-impl-plan`'s plan. The
+  TDD/coverage hard-fail and the verifier-as-gate are preserved unchanged on
+  every delivery path; what varies by path is only the iteration ceiling (2
+  on `trivial` and `small` — one pass plus one remediation round — 3 on
+  `standard` and `complex`) and the review's shape.
 - Subagents: `code-executor`, `code-verifier`. `/code` ships **no planner**:
   the plan phase and `code-planner.md` moved to `/create-impl-plan` (§2b),
-  whose executor's survey inherited that charter (ADR-0092) and keeps the
-  STANDARD/COMPLEX-only spawn (MAR-72).
+  whose executor's survey inherited that charter (ADR-0092) and is spawned on
+  every run — MAR-72's STANDARD/COMPLEX-only spawn went with the lanes
+  (ADR-0095). The four delivery-path legs `code-trivial`, `code-small`,
+  `code-standard` and `code-complex` own no agents of their own: each spawns
+  these same two.
 - When the coverage target cannot be reached, `/code` MUST **hard fail**:
   stop, record the achieved coverage and reason in `code-state.json`. A
   failed run leaves `verifier_passed` unset, which is what `/create-pr`'s
@@ -1339,79 +1344,53 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   and embeds the `<ticket-id>` so later skills and hooks can resolve ticket
   context from it.
 
-### Mid-flight lane escalation (MAR-57)
+### The delivery path is judged once (ADR-0095)
 
-When a ticket is being processed by `/code` and an in-flight signal reveals
-the work is higher-stakes or larger than its original classification, the
-pipeline automatically escalates to the higher lane without restarting the
-run. The following contract governs all automatic mid-flight lane changes:
+`/code` used to escalate mid-flight: when an in-flight signal revealed the work
+was larger or higher-stakes than its original classification, the coordinator
+recomputed the lane, raised the verify ceiling, re-persisted the axes to three
+state files, and appended a thirteen-field audit event — all without restarting
+the run (MAR-57). Three triggers could fire it, one of them deterministic
+(a `high_stakes_paths` glob match), and the whole contract was upward-only so
+that nothing could quietly lower rigor a user had confirmed.
 
-1. **Upward-only automatic escalation.** Escalation is always upward-only:
-   no automatic or unattended code path lowers a ticket's `lane` or its
-   authoritative `stakes` or `size` below a user-confirmed value. When an
-   in-flight signal fires, the coordinator recomputes and raises the lane
-   immediately — on the **first** such signal, conservative rigor-sooner —
-   without waiting for N persistent findings or for the verify cap to be
-   exhausted. Completed work is preserved; there is no restart.
+None of that survives. A ticket is judged onto ONE delivery path — `trivial`,
+`small`, `standard` or `complex` — after `/create-impl-plan` publishes the
+plan, and that judgement stands for the run:
 
-2. **The trigger set is exactly three (a), (b), (c) — bounded:**
-   - (a) A verifier finding signaling higher stakes or larger scope than the
-     ticket's current classification.
-   - (b) A `high_stakes_paths` glob match on a file touched during the
-     implementation iteration — reuses the `recommend_stakes`/`high_stakes_paths`
-     glob mechanism from `settings.json` (the same path-glob matching used at
-     `/create-ticket` time; no re-implementation of the glob logic).
-   - (c) An explicit user or agent escalation request (any subagent, coordinator,
-     or user may raise rigor; subagents may NEVER lower it).
-   No trigger outside this set causes an automatic escalation.
+1. **One judgement, from the plan.** `/ship` reads `plan.md` after the step
+   `delivery.classify_after` names and judges the path from it, using the
+   rubric in `skills/code/references/classify.md`. The plan is the first
+   artifact that says what the change actually IS — its file map, its test
+   strategy, the surfaces it names — rather than what the request sounded like
+   before anyone read the code, which is what the axes were guessing at.
 
-3. **Recompute via `derive_lane` — single routing authority.** On escalation,
-   the new lane is always computed via `derive_lane(size, stakes, needs_design,
-   type)` (never hand-set; ADR 0030). The new verify depth and iteration ceiling
-   are computed via `verify_depth(new_lane, new_stakes)` and
-   `VERIFY_ITERATION_CAP[depth]`. All three are recomputed from the authoritative
-   axes, then persisted via the escalation helper `escalate_lane`.
+2. **Recorded once, read thereafter.** The path and the one-sentence reason
+   for it are written to `pipeline-state.json` as `delivery_path` and
+   `delivery_path_reason` (`acs.py path set`). The writer REFUSES to move a
+   ticket already on a path, so a resumed run reads the recorded value instead
+   of judging again and splitting one pipeline across two rigors.
 
-4. **Re-persist via existing writers — no new state-file fields.** The escalated
-   lane is written back to `ticket.json` (via `save_ticket`), `pipeline-state.json`
-   (via `update_pipeline`), and `tickets-index.json` (via `update_index`). No new
-   fields are added to any state file.
+3. **No raise, no lower, no ceiling arithmetic.** There is no `derive_lane`,
+   no `verify_depth`, no iteration-ceiling recompute and no escalation event,
+   because there is nothing to move. Each leg states its own ceiling in its own
+   SKILL.md, which is both the cheaper read and the harder thing to get wrong.
 
-5. **Axis monotone guard (`guard_axes`).** The authoritative `size` and `stakes`
-   axes may be automatically raised by an in-flight trigger, but MUST NOT be
-   automatically lowered below a user-confirmed value. The `guard_axes` helper
-   enforces this: given the current confirmed axes and the proposed new axes, it
-   returns the element-wise maximum by rank — current wins when the proposed is
-   lower.
+4. **What catches a wrong judgement is the review, not a trigger.** The
+   `code-verifier`'s **path audit** dimension (blocking, every path) reads the
+   recorded path and reason and judges the diff against them. Its remedy is a
+   replan — the run fails with `stop_reason: plan_superseded` and `/ship`
+   returns to `/create-impl-plan` — never a mid-run re-route, because half a
+   run at one rigor and half at another is exactly what this replaces.
 
-6. **De-escalation is never automatic or silent (negative guarantee).** No
-   automatic or unattended code path lowers a ticket's `lane`, `stakes`, or
-   `size` below a user-confirmed value. De-escalation requires explicit user
-   confirmation (mirrors the existing create-ticket rule for stakes; see
-   classification contract above). An interactive mid-flight downgrade command
-   is deferred (out of scope — not yet implemented).
+5. **What got worse, and why that is accepted.** Rigor can no longer RISE
+   mid-run, so a plan that understates the work is caught at the next review
+   rather than the next iteration. The cost is bounded by the replan; the thing
+   bought is that every run has one rigor, decided from evidence, with a
+   recorded reason a reviewer can read.
 
-7. **Ceiling raise on fast-lane escalation.** A ticket that escalates from a
-   fast lane (TRIVIAL/SMALL) into STANDARD/COMPLEX raises its
-   verify-iteration ceiling monotonically (item 3's `escalate_lane`
-   recompute) with no separate stage to re-enter and no re-spawn of any prior
-   phase: spec content for every lane already lives inside `/code`'s own plan
-   phase (`code/SKILL.md`'s "In-loop escalation check" and "Spec authoring
-   fold" sections). Completed iterations are
-   preserved; the higher ceiling applies from that point forward.
-
-8. **Conservative default preserved.** When in-flight signals are absent,
-   ambiguous, or unrecognized, the ticket stays at its current lane. The
-   default floor for unknown/absent `lane` is STANDARD — never a fast lane on
-   ambiguous inputs.
-
-9. **Sibling behavior unchanged.** The spec-authoring fold (MAR-59, universal
-   since ADR 0066: the plan's author — `create-impl-plan-executor` on STANDARD/COMPLEX,
-   the coordinator on TRIVIAL/SMALL, MAR-72 — self-authors the spec content on
-   every lane when `<partition>/specs/` is absent or empty) applies to
-   non-escalating tickets and is not changed by this contract. The apply-tier
-   inlining (MAR-60: `create-pr` → `merge-pr` → `create-ticket`) is also
-   unchanged.
+6. **Sibling behavior unchanged.** The apply-tier inlining (MAR-60:
+   `create-pr` → `merge-pr` → `create-ticket`) is unaffected.
 
 ## 3a. `/create-e2e-tests`
 

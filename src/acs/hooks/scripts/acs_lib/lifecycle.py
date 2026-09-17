@@ -340,9 +340,7 @@ def render_handoff_context(tdir, ticket_id, skill):
         "## Ticket",
         "",
         "- **%s** — %s" % (ticket_id, ticket.get("title") or "(no title recorded)"),
-        "- type `%s` · status `%s` · lane `%s` · size `%s` · stakes `%s`"
-        % (ticket.get("type"), ticket.get("status"), ticket.get("lane"),
-           ticket.get("size"), ticket.get("stakes")),
+        "- type `%s` · status `%s`" % (ticket.get("type"), ticket.get("status")),
         "- partition: `%s`" % tdir,
     ]
     if ticket.get("parent"):

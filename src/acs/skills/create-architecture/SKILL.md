@@ -121,8 +121,8 @@ next executor `<task>` `<context>` and the executor authors the remediation.
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 **What an iteration counts:** one execute -> verify round.
-`/acs:create-architecture` has no lane-driven verify-depth selection: the
-cap is a fixed 3 in every lane.
+`/acs:create-architecture` has no path-driven verify-depth selection: the
+cap is a fixed 3 on every run.
 
 Spawn subagents with the Agent tool: subagent_type
 `acs:create-architecture-executor` /
@@ -231,8 +231,8 @@ nothing is lost, but do NOT push or open the PR.
 
 ## Delivery (branch, commit, PR)
 
-The delivery-ticket pattern (same as /acs:create-prd — you do this yourself;
-/acs:create-design and /acs:code are not involved):
+The delivery-ticket pattern, done by you
+(/acs:create-design and /acs:code are not involved):
 
 1. **Branch** (before the first executor writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
@@ -246,52 +246,11 @@ The delivery-ticket pattern (same as /acs:create-prd — you do this yourself;
    `architecture_path`). Commit with `settings.formats.commit_message`
    (default `{ticket_id} {summary}`), e.g.
    `SHOP-2 Add product architecture doc set` (or `Regenerate …` on re-run).
-3. **Push & PR**: `git push -u origin <branch>`, then render the title via the
-   helper — NOT LLM prose composition — capturing its stdout as
-   `<rendered title>`:
-
-```bash
-gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-  --title "<delivery ticket's title>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-  --provider "<ticket.external.provider or empty>"
-```
-
-   The title renders `settings.formats.pr_title` (default
-   `[{ticket_id}] {title}`). The body comes from
-   `settings.formats.pr_description_template`: built-in name `pr-default` ->
-   `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-   `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
-   Fill its placeholders from `ticket.json` and the verifier result — never
-   from conversation memory.
-
-   **Pre-open self-check** — before `gh pr create`, self-check the rendered
-   title and filled body with the helper's `check` subcommand (a
-   deterministic CLI call, never a spawned subagent):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-  --title "<rendered title>" --body-file <body.md> --require-label ACS \
-  --pr-title-format "<settings.formats.pr_title>" \
-  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-  --ticket-prefix <settings.ticket_prefix>
-```
-
-   On pass, proceed to `gh pr create` unchanged. On failure, this check
-   blocks/retries: apply a bounded local re-render/re-check (up to 2
-   attempts) rather than opening a non-conforming PR; if still failing after
-   the bounded retries, STOP — do not call `gh pr create` — surface the
-   blocking finding with the failing heading(s)/detail(s) in the result
-   document.
-
-```bash
-gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file <body.md> --label ACS
-```
-
-4. Record `{number, url, branch}` for the result document. The post-hook
-   moves the delivery ticket to `in_review`; /acs:merge-pr later lands it
-   like any other ticket.
+3. **Push & PR**: `git push -u origin <branch>`, then follow
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,
+   the rendered title, the body template, the pre-open self-check, `gh pr
+   create`, and recording `{number, url, branch}` for the result document.
+   Nothing about this skill changes those steps.
 
 ## User interaction
 

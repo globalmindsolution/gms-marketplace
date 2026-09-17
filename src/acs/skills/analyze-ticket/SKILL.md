@@ -1,6 +1,6 @@
 ---
 name: analyze-ticket
-description: Analyze a ticket before anything is planned — restate the problem, map the impact across components/files/tests, record open questions through the clarification ledger, state assumptions and risks, propose refined acceptance criteria, and recommend stakes and whether a design is needed. Produces analysis.md, whose api_surface flag decides whether an API contract is written. Use as the first Build step on a ticket, before /acs:create-impl-plan.
+description: Analyze a ticket before anything is planned — restate the problem, map the impact across components/files/tests, record open questions through the clarification ledger, state assumptions and risks, propose refined acceptance criteria, and name the load-bearing surfaces it touches and whether a design is needed. Produces analysis.md, whose api_surface flag decides whether an API contract is written. Use as the first Build step on a ticket, before /acs:create-impl-plan.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -42,7 +42,7 @@ lives in `workflows/ship.yaml`, not in this gate).
 Parse the printed context JSON. Fields you will use:
 
 - `ticket_id`, `ticket` — the resolved ticket (title, type, description,
-  `acceptance_criteria`, `size`, `stakes`, `needs_design`, `docs_only`,
+  `acceptance_criteria`, `needs_design`, `docs_only`,
   `parent`, `external`). The analysis is about THIS ticket.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `<partition>/phases/analyze-ticket/`; the run ledger stays
@@ -59,10 +59,10 @@ Parse the printed context JSON. Fields you will use:
   opinion on it.
 - `settings` — you need `artifacts.tickets_path` (where `analysis.md` is
   published), `prd_path`, `requirements_path`, `architecture_path`,
-  `high_stakes_paths` (the globs behind the stakes recommendation),
   `contracts_path`, `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_run_status` — see
+  `references/resume.md`.
 - `post_hook` — absolute path to `post-analyze-ticket.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -118,30 +118,16 @@ path that opens the next gate. Call it `<analysis_path>` below.
 The working draft lives at `<partition>/phases/analyze-ticket/analysis.md`;
 the published file is a copy of those exact bytes (see Publish).
 
-## Resume & reconcile
+## The two references, and when to open each
 
-If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
-`handed_off`), verify recorded progress against reality BEFORE continuing:
+Nearly all of this skill is one flow: survey what the ticket touches, author
+the analysis, verify it, publish it. Two parts are not, and each is read by
+exactly one kind of run:
 
-1. Read `<partition>/analyze-ticket-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/analyze-ticket/` to see where
-   the prior run stopped.
-2. Re-resolve the analysis artifact (above) and read it if it exists. Trust
-   nothing you cannot see in a file: an analysis recorded published that is not
-   on disk is not published.
-3. Read the clarification ledger (`clarify.py list --ticket <id>`): questions
-   the prior run asked are already recorded, and answers that arrived since are
-   the point of the resume.
-4. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
-
-If `context.handoff_summary` exists, read it plus
-`<partition>/phases/analyze-ticket/handoff-context.md` (when present), do a
-light reconcile, and continue from where it points.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure; a fresh run skips it. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/not-ready-for-planning.md` | You have concluded, by the rule under "User interaction" below, that a question genuinely blocks — no default could settle it without risking the wrong build. It carries the `ready_for_planning: false` / `needs_input` procedure. Most analyses never open it, and that is the intended outcome. |
 
 ## Inputs — gather before the loop
 
@@ -168,8 +154,8 @@ inline a file body):
 ## Reflection loop — execute → verify, no planner
 
 Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** in every lane — `/acs:analyze-ticket`
-has no lane-driven verify depth. There is no plan phase: iteration 1's
+cap is reached. The cap is a fixed **3** on every run — `/acs:analyze-ticket`
+has no path-driven verify depth. There is no plan phase: iteration 1's
 executor surveys the ticket against the codebase, writes its authoring notes,
 and authors the draft from them; the verifier judges the result fresh. On
 iterations 2-3 the verifier's findings go verbatim into the next executor
@@ -241,7 +227,6 @@ these seven headings, in this order:
 ticket: SHOP-123
 ready_for_planning: true
 api_surface: true
-stakes_recommendation: normal
 needs_design_recommendation: false
 ---
 
@@ -258,8 +243,9 @@ needs_design_recommendation: false
 
 What each section carries is defined in `analyze-ticket-executor.md`; the
 contract that matters here is that `## Impact map` is a table whose first
-column is a repo-relative path (that column is the input to the stakes step
-below), and that the front-matter values agree with the sections beneath them.
+column is a repo-relative path (that column is what the load-bearing-surface
+step below reads), and that the front-matter values agree with the sections
+beneath them.
 
 On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
 else — no plan phase in between.
@@ -288,7 +274,7 @@ never patched by you.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; api_surface: bool; stakes_recommendation: normal|high; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
   --ticket <id> "<partition>/phases/analyze-ticket/analysis.md"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
@@ -300,37 +286,25 @@ The front-matter check uses the same parser the gate and the
 `api_surface_changed` predicate use, so a draft it accepts cannot be rejected
 downstream for its front matter.
 
-### Stakes recommendation (deterministic, before code)
+### Load-bearing surfaces — name them in `## Risks`
 
-Once the impact map is settled, feed its repo-relative paths — one per line,
-the table's first column — to the stakes recommender:
+The impact map is the first place anyone can see WHAT this ticket touches, and
+that is the single strongest input to the delivery-path judgement /acs:ship
+makes later from the plan (ADR-0095). Nothing here writes a rigor setting —
+there is no `stakes` axis any more, and this skill does not classify — but the
+analysis is where the evidence for that judgement is recorded.
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" stakes recommend --paths-from - <<'PATHS'
-src/auth/session.py
-tests/test_session.py
-PATHS
-```
+So when the impact map reaches a surface the repo treats as load-bearing —
+authentication or authorization, payments, a migration or any stored shape, a
+public API other systems call, concurrency or ordering, anything the repo's own
+architecture docs flag — say so explicitly in `## Risks`, naming the paths. A
+risk entry that names a boundary is read by `/acs:create-impl-plan` (which
+carries it into the plan's own Risks section) and then by whoever judges the
+path, and it is what turns a one-file change into a `standard` or `complex`
+run instead of a `trivial` one.
 
-It prints `{"stakes": "normal"|"high", "paths_considered": n}` and writes
-nothing. Record the value verbatim as the front matter's
-`stakes_recommendation`.
-
-On `"high"`, apply it — the whole point of analyzing before planning is that
-stakes rise BEFORE code, not mid-implementation:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" lane apply \
-  --ticket <id> --proposed-stakes high --trigger c --skill analyze-ticket \
-  --source "analysis impact map matched high_stakes_paths: <the matching path(s)>"
-```
-
-Trigger `c` (an explicit agent escalation request) is deliberate: trigger `b`
-is `/acs:code`'s mid-implementation glob match, and this raise happens before
-any implementation exists. `lane apply` carries the axis guard and writes the
-audit event; never hand-set `stakes` or `lane` on the ticket. On `"normal"` do
-nothing — a recommendation is not a write, and this command must not be run to
-"confirm" normal, because it can only raise.
+Prose, not a setting: what makes this work is that the risk is stated where a
+reader will weigh it, not that a glob matched.
 
 ### needs_design and refined acceptance criteria — recommendations, not writes
 
@@ -351,8 +325,7 @@ both are carried to the user through the clarification ledger:
   ```
 
   (`needs_design` is patched the same way, as `{"needs_design": true}`.) The
-  document is a PATCH merged over the stored ticket; `size`, `stakes` and
-  `lane` are refused there on purpose — they move only through `lane apply`.
+  document is a PATCH merged over the stored ticket.
 - With no user answer, leave the ticket untouched: the refined criteria stay a
   proposal in `analysis.md` and an open ledger entry, and
   `/acs:create-impl-plan` plans against the ticket as written.
@@ -408,8 +381,6 @@ This skill is where a ticket's ambiguities are SUPPOSED to surface, so its
 - `## Questions` in the published analysis names each entry by its `C-n` id and
   its status, so the next skill can see what is still open.
 
-### Not ready for planning → `needs_input`
-
 **A question with a conventional default is an assumption, not a blocker.**
 When the ticket's words plus the repository's conventions settle a detail
 well enough that a competent implementer would not stop to ask — "prints"
@@ -422,25 +393,9 @@ in `## Refined acceptance criteria`, and keep `ready_for_planning: true`. The
 2026-09-15 release gate lost a two-line login ticket to exactly three such
 defaults asked as blockers, on a run with nobody to answer them.
 
-When the analysis cannot honestly say the ticket is plannable — a question
-where every default could build the wrong thing is still open (a
-contradiction with the code, a design document or an ADR; a behaviour the
-acceptance criteria depend on that nothing defines; a fork in scope), the
-ticket contradicts the design or the requirements, or the problem itself is
-undefined — set front-matter `ready_for_planning: false`, say exactly what is
-missing in `## Verdict`, and finish as `needs_input`:
-
-1. Record every outgoing question as `open` (`clarify.py add` without
-   `--answer`).
-2. Publish the analysis anyway when it verified — a not-ready analysis is still
-   the artifact the answers come back to.
-3. Write result.json with `"status": "needs_input"`, `stop_reason` "needs user
-   input", `states.ready_for_planning: false`, run the Finish steps, and return
-   a `<handoff status="needs_input">` whose `<questions>` carry them.
-
-`/acs:ship` asks the user each question and re-invokes this same skill with the
-answers as context; a direct invocation stops with the questions in the
-completion report.
+When a question survives that test — no default could settle it without
+risking the wrong build — the ticket is not plannable, and
+`references/not-ready-for-planning.md` carries what to do about it.
 
 ## Context pressure
 
@@ -488,8 +443,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - `questions_open` (int): clarifications still unanswered in the ledger —
      the count `clarify.py list --open --ticket <id>` prints after this run.
 
-   The stakes and needs_design recommendations are applied through their own
-   CLIs (`acs.py lane apply`, `acs.py ticket save`), so they belong in
+   The needs_design recommendation is applied through its own CLI
+   (`acs.py ticket save`), so it belongs in
    `findings` and the completion report, not in `states`. On failure keep
    whatever is true: `ready_for_planning: false`, the open findings in
    `findings`, and the reason (iteration cap, needs input) in `stop_reason`.
@@ -505,7 +460,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 
 3. Report:
    - Direct invocation: a compact summary — the verdict, the impact map's
-     component/file/test counts, whether an API surface changes, the stakes
+     component/file/test counts, whether an API surface changes, the
      recommendation and whether it was applied, any needs_design or refined-AC
      proposal awaiting the user, open questions, and the next step
      (`/acs:create-impl-plan <id>`).
@@ -528,7 +483,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>
-- **Results**: verdict (ready_for_planning); impact map counts; api_surface; stakes recommendation and whether it was applied; needs_design / refined-AC proposals
+- **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; needs_design / refined-AC proposals
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <analysis path, partition phase artifacts, branch>
 - **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>

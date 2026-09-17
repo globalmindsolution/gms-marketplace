@@ -111,7 +111,7 @@ not need, or drive the whole thing yourself. The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 28 skills
+## The 32 skills
 
 Skills are grouped into five phases by `workflows/phases.yaml` — the registry
 every other surface derives from (this table, the ship-workflow schema's
@@ -165,6 +165,20 @@ scaffold ticket in `tickets-index.json`).
 |-----|-------------|----------------------|--------------|
 | `create-project` | `/acs:project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
 | `standardize-project` | `/acs:project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
+| `code-trivial` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `trivial` delivery path: one executor, one verifier pass, a two-iteration ceiling, no plan approval. |
+| `code-small` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `small` delivery path: one executor, one verifier pass, a two-iteration ceiling, `test-cases.md` as the test contract. |
+| `code-standard` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `standard` delivery path: parallel executors per the plan's file map, one verifier pass over all sixteen dimensions, a three-iteration ceiling, plan approval enforced. |
+| `code-complex` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `complex` delivery path: parallel executors, four merged verifier lenses, a three-iteration ceiling, plan approval enforced. |
+
+**The four `code` legs are delivery paths (ADR-0095), not modes a user picks.**
+`/acs:ship` judges the path once from `plan.md` after `/acs:create-impl-plan`
+and records it on `pipeline-state.json`; `/acs:code` dispatches to the recorded
+one. They differ from the project legs in owning no agents and no hook scripts:
+each starts `skill-start.py --skill code`, passes `code`'s gate, spawns
+`acs:code-executor` / `acs:code-verifier` and finishes through `post-code.py`,
+so everything they write on disk is `code`'s. The protocol they share lives in
+`skills/code/references/`; each leg's SKILL.md carries only what makes its path
+different.
 
 ### Build — analyze, plan, specify, implement
 
@@ -174,7 +188,7 @@ scaffold ticket in `tickets-index.json`).
 | `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
 | `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the executor's survey (the former planner charter), the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
 | `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
-| `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | TDD implementation on a ticket branch against the coverage target, writing tests from `test-cases.md` when present; reconciles factual product-doc claims; verifier review loop (max 3 iterations). |
+| `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | Dispatches to the delivery-path leg the ticket was judged onto (ADR-0095). TDD implementation on a ticket branch against the coverage target, writing tests from `test-cases.md` when present; reconciles factual product-doc claims; verifier review loop, the path's ceiling. |
 | `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 
 ### Test — end-to-end coverage

@@ -23,10 +23,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 
-BOUNDARY_HEADING = "## Full-verify pipeline boundary"
+BOUNDARY_HEADING = "## The context boundary"
 BOUNDARY_HEADING_RE = re.compile(
-    r"(?m)^## .*full-verify.*(boundary|handoff|stop).*$", re.IGNORECASE)
-BOUNDARY_MARKER_RE = re.compile(r"(?i)full-verify pipeline boundary")
+    r"(?m)^## .*(context|full-verify).*(boundary|handoff|stop).*$", re.IGNORECASE)
+BOUNDARY_MARKER_RE = re.compile(r"(?i)(context|full-verify pipeline) boundary")
 
 
 def read(path):
@@ -61,17 +61,26 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
             "an H2 heading naming the full-verify boundary/handoff/stop "
             "must exist in ship/SKILL.md")
 
-    def test_boundary_keyed_to_verify_depth(self):
+    def test_boundary_is_resolved_by_the_walk_not_recomputed(self):
+        """ADR-0095: the ready entry arrives with `boundary` already resolved
+        for the ticket's recorded delivery path. /acs:ship recomputes nothing —
+        the mapping lives in ship.yaml, where a reviewer can see which paths
+        are expensive."""
         sect = section(self.body, BOUNDARY_HEADING)
-        self.assertIn("verify_depth", sect)
-        self.assertIn('"full"', sect)
-        self.assertIn('"light"', sect)
+        self.assertIn("standard", sect)
+        self.assertIn("complex", sect)
+        self.assertIn("trivial", sect)
+        self.assertIn("small", sect)
+        self.assertNotIn("verify_depth", sect,
+                         "the depth computation was retired; the walk resolves "
+                         "the boundary from the recorded path")
+        self.assertRegex(normalize(sect), r"(?i)nothing to recompute")
 
-    def test_full_verify_lane_stops_with_resume_command(self):
+    def test_a_deep_path_stops_with_a_resume_command(self):
         sect = normalize(section(self.body, BOUNDARY_HEADING))
         self.assertIsNotNone(
-            re.search(r'(?i)"full".{0,200}STOP', sect),
-            "the section must state that a full-verify lane STOPs")
+            re.search(r"(?i)full_verify_stop.{0,200}STOP", sect),
+            "the section must state that a boundary step STOPs")
         self.assertIn("/acs:ship <ticket-id>", sect)
         self.assertIn("pipeline-state.json", sect)
 
@@ -80,12 +89,11 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
         self.assertIsNotNone(re.search(r"(?i)designed boundary", sect))
         self.assertIsNotNone(re.search(r"(?i)not a failure", sect))
 
-    def test_light_verify_lanes_explicitly_unaffected(self):
+    def test_the_cheap_paths_are_explicitly_unaffected(self):
         sect = normalize(section(self.body, BOUNDARY_HEADING))
         self.assertIsNotNone(
-            re.search(r'(?i)"light".{0,200}(continue|unaffected)', sect),
-            "the section must state that a light-verify lane continues "
-            "unaffected")
+            re.search(r"(?i)null.{0,200}(continue|no stop)", sect),
+            "the section must state that a null boundary continues unaffected")
         self.assertIsNotNone(re.search(r"(?i)docs-sync", sect))
         self.assertIsNotNone(re.search(r"(?i)create-pr", sect))
 
@@ -149,65 +157,30 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
         self.assertIsNone(re.search(r"spawn a fresh subagent", self.body, re.IGNORECASE))
 
     def test_boundary_vocabulary_confined_to_ship_skill(self):
+        """Only /acs:ship acts on the boundary. A leg may NAME
+        `full_verify_stop` to say the boundary applies to it -- the two deep
+        ones do -- but the stop itself is the coordinator's, so the section
+        heading belongs to exactly one file."""
         skill_files = sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")))
         matches = [p for p in skill_files if BOUNDARY_MARKER_RE.search(read(p))]
         self.assertEqual(matches, [SHIP_SKILL])
 
-    def test_boundary_snippet_has_no_free_names(self):
+    def test_the_boundary_needs_no_snippet_at_all(self):
+        """This used to pin that the section's inline-Python heredoc had no
+        free names, because /acs:ship recomputed the depth itself by calling
+        verify_depth over the ticket.
+
+        ADR-0095 removed the computation: `workflow next` resolves `boundary`
+        against the ticket's recorded delivery path and hands it back on the
+        ready entry. So the strongest form of "the snippet is correct" is that
+        there is no snippet -- no re-read of the ticket, nothing to get wrong.
+        """
         sect = section(self.body, BOUNDARY_HEADING)
-        fence_m = re.search(r"```bash\n(.*?)```", sect, re.DOTALL)
-        self.assertIsNotNone(
-            fence_m, "the boundary section must contain a bash code fence")
-        lines = fence_m.group(1).splitlines()
-        self.assertTrue(
-            lines and lines[0].startswith("python3 -"),
-            "the fence must open with a `python3 -` heredoc invocation")
-        invocation_line = lines[0]
-
-        body_lines = []
-        for line in lines[1:]:
-            if line.strip() == "PY":
-                break
-            body_lines.append(line)
-        body = "\n".join(body_lines)
-        tree = ast.parse(body)
-
-        assigned = set()
-        imported = set()
-        used = set()
-
-        class Visitor(ast.NodeVisitor):
-            def visit_Import(self, node):
-                for alias in node.names:
-                    imported.add(alias.asname or alias.name.split(".")[0])
-
-            def visit_ImportFrom(self, node):
-                for alias in node.names:
-                    imported.add(alias.asname or alias.name)
-
-            def visit_Name(self, node):
-                if isinstance(node.ctx, ast.Store):
-                    assigned.add(node.id)
-                elif isinstance(node.ctx, ast.Load):
-                    used.add(node.id)
-                self.generic_visit(node)
-
-            def visit_FunctionDef(self, node):
-                assigned.add(node.name)
-                self.generic_visit(node)
-
-        Visitor().visit(tree)
-        bound = assigned | imported | set(dir(builtins))
-        free = sorted(used - bound)
-        self.assertEqual(
-            free, [],
-            "boundary snippet references unbound name(s): %r" % free)
-
-        if "sys.argv" in body:
-            self.assertRegex(
-                invocation_line, r"^python3 -\s+(?!<<)\S+\s+<<",
-                "the invocation line must pass at least one argument after "
-                "`python3 -` since the body reads sys.argv")
+        self.assertNotIn("```bash", sect,
+                         "the boundary is resolved by the walk; a code fence "
+                         "here means /acs:ship is recomputing it again")
+        self.assertNotIn("verify_depth", sect)
+        self.assertRegex(normalize(sect), r"(?i)the walk already did")
 
 
 if __name__ == "__main__":

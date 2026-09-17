@@ -1,8 +1,10 @@
-"""Verifier plan-conformance + approval-audit dimensions; ADR-0073 amending
+"""Verifier plan-conformance + path-audit dimensions; ADR-0073 amending
 ADR-0004; plan-revocation escape hatch (MAR-74, slice 4 of epic MAR-69).
 
-Prose-contract tests over `src/acs/agents/code-verifier.md` (new
-dimensions 15 "Plan conformance" and 16 "Approval-audit"),
+Prose-contract tests over `src/acs/agents/code-verifier.md` (dimensions 15
+"Plan conformance" and 16 "Path audit" — the latter was "Approval-audit"
+until ADR-0095 replaced the stakes axis it audited with the recorded
+delivery path),
 `src/acs/skills/create-impl-plan/SKILL.md` (the `### Plan revocation`
 subsection, which moved there with the plan phase), and the
 `docs/adr/0073-*.md` + `docs/adr/README.md` deliverables.
@@ -30,6 +32,11 @@ ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
+#: The revocation escape hatch moved here under progressive disclosure -- it is
+#: reached only by a run revising a plan that already exists, so a first run
+#: never loads it.
+IMPL_PLAN_RERUN_REF = os.path.join(
+    PLUGIN, "skills", "create-impl-plan", "references", "not-a-first-run.md")
 MULTI_LENS_TEST = os.path.join(REPO_ROOT, "tests", "acs", "test_code_verifier_multi_lens.py")
 
 # Pinned at plan time from `main` (af0a11b), before any edit in this ticket --
@@ -187,32 +194,57 @@ class Dimension1SubordinationTest(unittest.TestCase):
                         n, label))
 
 
-class Dimension16ApprovalAuditTest(unittest.TestCase):
-    """AC-3: the approval-audit dimension blocks on unaccounted-for
-    high-stakes paths."""
+class Dimension16PathAuditTest(unittest.TestCase):
+    """AC-3, as ADR-0095 re-founded it: dimension 16 still audits the ROUTING
+    rather than the code, but the thing it audits changed.
 
-    def test_dimension_16_approval_audit_exists(self):
+    It used to re-run `recommend_stakes` over the changed files and block when
+    a high-stakes path was not accounted for by an `escalations` entry with
+    `direction: "up"`. Those three mechanisms are gone with the axes: there is
+    no stakes recommender, no escalation ledger, and no mid-run raise. What
+    survives is the reason the dimension existed — the routing decision is
+    made once, early, from less evidence than the changeset itself, so
+    SOMEONE has to check it against what was actually built — and it now
+    reads the recorded `delivery_path`/`delivery_path_reason` and judges the
+    diff against that reason."""
+
+    def test_dimension_16_path_audit_exists(self):
         body = code_verifier_body()
         self.assertRegex(
-            body, r"(?m)^16\.\s+\*\*Approval-audit\*\*",
-            "code-verifier.md must have a '16. **Approval-audit**' "
-            "dimension item")
+            body, r"(?m)^16\.\s+\*\*Path audit\*\*",
+            "code-verifier.md must have a '16. **Path audit**' dimension item")
 
-    def test_dimension_16_reruns_recommend_stakes_over_changed_files(self):
-        window = dimension_window(code_verifier_body(), 16, "Approval-audit")
-        self.assertIn("recommend_stakes", window)
+    def test_dimension_16_reads_the_recorded_path_from_disk(self):
+        window = dimension_window(code_verifier_body(), 16, "Path audit")
+        self.assertIn("delivery_path", window)
+        self.assertIn("delivery_path_reason", window)
+        self.assertIn("pipeline-state.json", window)
+        self.assertRegex(
+            window, r"(?i)fresh, from disk, never a coordinator-relayed value")
+
+    def test_dimension_16_judges_the_diff_against_that_reason(self):
+        window = dimension_window(code_verifier_body(), 16, "Path audit")
         self.assertIn("git diff --name-only", window)
-
-    def test_dimension_16_blocks_when_unaccounted_for(self):
-        window = dimension_window(code_verifier_body(), 16, "Approval-audit")
         self.assertIn('severity="blocking"', window)
-        self.assertIn('dimension="approval-audit"', window)
+        self.assertIn('dimension="path-audit"', window)
 
-    def test_dimension_16_accounted_for_escape_paths(self):
-        window = dimension_window(code_verifier_body(), 16, "Approval-audit")
-        self.assertRegex(window, r'stakes.{0,10}[:=].{0,10}"?high"?')
-        self.assertIn("escalations", window)
-        self.assertRegex(window, r'direction.{0,10}[:=].{0,10}"?up"?')
+    def test_dimension_16_never_re_routes(self):
+        """The remedy is a replan, not a raise: a mid-run path change is the
+        mid-flight escalation ADR-0095 deliberately retired."""
+        window = dimension_window(code_verifier_body(), 16, "Path audit")
+        self.assertIn("The remedy is never to re-route", window)
+        self.assertIn("plan_superseded", window)
+        self.assertIn("/acs:create-impl-plan", window)
+
+    def test_dimension_16_is_na_when_no_path_was_recorded(self):
+        window = dimension_window(code_verifier_body(), 16, "Path audit")
+        self.assertRegex(window, r"(?i)report the dimension N/A")
+
+    def test_no_retired_axis_mechanism_survives_in_the_dimension(self):
+        window = dimension_window(code_verifier_body(), 16, "Path audit")
+        for dead in ("recommend_stakes", "escalations", "approval-audit"):
+            with self.subTest(mechanism=dead):
+                self.assertNotIn(dead, window)
 
 
 class Adr0073Test(unittest.TestCase):
@@ -258,19 +290,20 @@ class PlanRevocationTest(unittest.TestCase):
     citations stay resolvable."""
 
     def _section(self):
-        body = skill_body()
-        start = body.index("### Plan revocation")
-        end = body.index("### Docs-only tickets")
-        self.assertLess(start, end)
-        return body[start:end]
+        # Revocation is the last section of the re-run reference, so the slice
+        # runs to end of file.
+        body = read(IMPL_PLAN_RERUN_REF)
+        return body[body.index("### Plan revocation"):]
 
     def test_skill_documents_a_plan_revocation_subsection(self):
+        """The subsection must exist and SKILL.md must route to it. Where it
+        lives is the reference's business; that a run revising a plan can
+        still find it is this test's."""
+        self.assertIn("### Plan revocation", read(IMPL_PLAN_RERUN_REF))
         body = skill_body()
-        approval_idx = body.index("### Plan approval")
-        revocation_idx = body.index("### Plan revocation")
-        docs_only_idx = body.index("### Docs-only tickets")
-        self.assertLess(approval_idx, revocation_idx)
-        self.assertLess(revocation_idx, docs_only_idx)
+        self.assertIn("references/not-a-first-run.md", body)
+        self.assertLess(body.index("### Plan approval"),
+                        body.index("### Docs-only tickets"))
 
     def test_revocation_copies_never_moves(self):
         section = norm(self._section())
@@ -291,9 +324,9 @@ class PlanRevocationTest(unittest.TestCase):
         self.assertRegex(section, r"(?i)never\s+automatic|not\s+automatic")
 
     def test_reservation_sentence_retired(self):
-        body = skill_body()
-        self.assertNotIn(
-            "is not written or read by any behavior today", body)
+        for body in (skill_body(), read(IMPL_PLAN_RERUN_REF)):
+            self.assertNotIn(
+                "is not written or read by any behavior today", body)
         section = norm(self._section())
         self.assertRegex(
             section,

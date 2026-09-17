@@ -95,21 +95,27 @@ The epic path in one sentence: `create-ticket` (epic, `children: []`) →
 `create-design` → `create-ticket <epic-id> --fan-out` → STOP; implementation
 is the separate, per-child pipeline diagrammed above.
 
-> **NOTE (MAR-56):** The ship coordinator reads `ticket.lane` from `ticket.json` (written
-> by `/create-ticket`) to determine which pipeline steps are active. The `lane` field is
-> always derived from the ticket's authoritative axes (`size` × `stakes`) via
-> `derive_lane(size, stakes, needs_design, type)`. This field is available in
-> `pipeline-state.json` (alongside `flow`) and in `tickets-index.json` (alongside
-> `needs_design`) for observability and metrics (G14/G15).
+> **NOTE (ADR-0095 — supersedes the MAR-56 lane note):** The ship coordinator
+> no longer reads a `ticket.lane` written at ticket time. After the step
+> `delivery.classify_after` names (`create-impl-plan` in the shipped workflow)
+> it JUDGES the ticket onto one delivery path from `plan.md`, using the rubric
+> in `skills/code/references/classify.md`, and records `delivery_path` plus a
+> one-sentence `delivery_path_reason` on `pipeline-state.json` (`acs.py path
+> set`). Every later step reads the recorded value — a step's `paths:` filter
+> decides whether it runs at all, and its `skill`/`boundary` may be given as a
+> mapping keyed by path — so a resumed run stays on the path its first session
+> chose. Those two fields are also what the metrics layer slices by (G14/G15),
+> in place of the retired `lane`.
 >
 > **NOTE (MAR-161 — supersedes the MAR-59 fast-lane-fold note):**
 > The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
 > `[create-design]` bracketing above is still conditional — on
-> `ticket.needs_design`, independent of lane — but there is no
-> bracketed spec-authoring step on any lane: the plan's author (the
-> `create-impl-plan-executor` on STANDARD/COMPLEX, the coordinator on TRIVIAL/SMALL — MAR-72)
+> `ticket.needs_design` — but there is no
+> bracketed spec-authoring step at all: the plan's author,
+> `create-impl-plan-executor` (MAR-72's coordinator-authored fast path went
+> with the lanes, ADR-0095),
 > self-authors the five-section spec content (Scope, Approach, API/data
-> changes, Test plan, Out of scope) inside its plan phase on EVERY lane when
+> changes, Test plan, Out of scope) inside the plan when
 > `<partition>/specs/` is absent or empty, and reads pre-existing specs
 > unchanged when they are present (backward-compat with tickets minted
 > before this ADR). See `ship/SKILL.md` "Pipeline order" (the `code` row) and

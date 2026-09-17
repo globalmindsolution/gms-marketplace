@@ -24,8 +24,19 @@ the notes.
 > 2. **The human-facing ticket documents moved out of the workspace** into `docs/tickets/<ID>/`. Run **`acs.py artifacts migrate`** once per repo, or set `artifacts.tickets_path: null` in `.acs/settings.json` to keep everything in the workspace partition exactly as before.
 > 3. **`/acs:code` no longer plans.** It requires a `plan.md` written by the new `/acs:create-impl-plan`; a ticket with no plan is refused with a pointer to it.
 > 4. **`/acs:test` is renamed `/acs:run-e2e-tests`.** `/acs:test` survives as an alias for one release and is then removed.
+> 5. **The `size`, `stakes` and `lane` ticket fields are gone, and `workflows/ship.yaml` is now version 2.** A v1 workflow file is refused with a migration pointer rather than adapted, because its single `code` step names a skill that no longer exists. Nothing on disk needs converting: a ticket minted by an older build that still carries the three fields is read as if it did not, and the rigor decision those fields fed is made instead by `/acs:ship` after `/acs:create-impl-plan`, from the plan, and recorded on `pipeline-state.json`. A repo that has **overridden** `.acs/workflows/ship.yaml` must port its override to v2 — add a `delivery:` block and give the `code` step a per-path `skill:` mapping (the shipped `workflows/ship.yaml` is the worked example). The retired helpers `derive_lane`, `verify_depth`, `escalate_lane`, `guard_axes`, `recommend_stakes`, `confirm_deescalation` and `record_escalation_event` are removed outright, along with `acs.py lane apply` / `lane deescalate` and the `settings.high_stakes_paths` glob list they read; `acs.py path show | set` replaces them. See ADR-0095.
 
 ### Added
+
+- **One delivery path, judged once, from the plan** (ADR-0095). `workflows/ship.yaml` v2 declares a `delivery:` block — `classify_after` (the step after which the judgement is made; `create-impl-plan` in the shipped workflow) and `paths` (the vocabulary, cheapest first: `trivial`, `small`, `standard`, `complex`). After that step is satisfied, `/acs:ship` reads `plan.md`, judges the ticket onto ONE path using the rubric in `skills/code/references/classify.md`, and records `delivery_path` plus a one-sentence `delivery_path_reason` on `pipeline-state.json` via `acs.py path set`. Every later read takes the recorded value; the writer REFUSES to move a ticket already on a path, which is what keeps a resumed run from splitting one pipeline across two rigors.
+
+- **Two new per-step keys, and per-path values for two existing ones.** A step may carry `paths: [...]` and is recorded `skipped` on any other path — exactly as a false `when` is, so it already satisfies a `needs` edge and the four paths reconverge without a single extra edge. `skill` and `boundary` may each be given as a mapping keyed by path instead of a scalar. In the shipped workflow that is what makes `trivial` skip `create-test-docs` and both e2e steps, and what gives only `standard` and `complex` the `full_verify_stop` boundary.
+
+- **Four `/acs:code` legs**: `code-trivial`, `code-small`, `code-standard`, `code-complex`. `/acs:code` is now a ~130-line dispatcher that resolves the recorded path and calls the matching leg; each leg declares its own executor shape, verifier shape and iteration ceiling (2 on the cheap paths, 3 on the deep ones), and they share the protocol, execute and verify instructions under `skills/code/references/`. The legs own no agents and no hook scripts: each runs `skill-start.py --skill code`, so the partition, `code-state.json`, the ledger key and `post-code.py` are `code`'s throughout, and each spawns `acs:code-executor` / `acs:code-verifier`. They are internal legs in `workflows/phases.yaml`, nameable only through a per-path mapping.
+
+- **`acs.py path show | set`** — read and write the judged path. `set` refuses an undeclared path, an empty reason, and any attempt to re-judge; `show` prints the recorded path and reason.
+
+- **The verifier's dimension 16 is `Path audit`** (replacing `Approval-audit`). It reads `delivery_path` and `delivery_path_reason` fresh from `pipeline-state.json` and judges whether the changeset is the work that reason describes, weighing what it TOUCHES rather than how much. A contradiction is a blocking finding whose remedy is a REPLAN — the run ends `failed` with `stop_reason: plan_superseded` and `ship.yaml`'s `on_replan` edge returns to `/acs:create-impl-plan` — never a mid-run re-route.
 
 - **The delivery pipeline's ORDER is declared in `workflows/ship.yaml`** — a data file, not prose and not hook code. `version`, `name`, `stop_after`, `max_parallel` and a list of `steps`, each with `id`, `skill`, `needs`, `when`/`requires` predicates, `args`, `boundary`, `on_fail`, `on_replan` and `exclusive`. A consumer replaces it wholesale with `<repo>/.acs/workflows/ship.yaml` (override, never a merge). `workflows/phases.yaml` is the companion registry that groups every skill into exactly one of five phases — design, build, test, ship, utility — and is the single source for the workflow schema's allowed-skill enum, the README skill table and `/acs:metrics` grouping. Both are parsed by `acs_lib/yamlsubset.py`, a strict, line-numbered, stdlib-only YAML subset (no pyyaml, per the plugin's no-dependency rule), and validated against `schemas/ship-workflow.schema.json` / `schemas/phases.schema.json`.
 
@@ -61,6 +72,125 @@ the notes.
   pays for a model run of its own.
 
 ### Changed
+
+- **The `size` × `stakes` lane grid is retired; rigor is a delivery path judged
+  once, from the plan** (ADR-0095, superseding ADRs 0030, 0031, 0032, 0033,
+  0034, 0042 and 0074). The grid asked `/acs:create-ticket` to classify a change
+  before anyone had read the code, then spent seven ADRs' worth of machinery
+  making that guess safe to revise: an upward-only mid-flight escalation with
+  exactly three triggers, a monotone verify ceiling, a 13-field escalation
+  event so no lane change was silent, and a user-confirmed de-escalation writer
+  unreachable without an answered clarification. Moving the decision to where
+  the evidence is — `plan.md`, which names the files, the tests and the
+  surfaces — makes all of it unnecessary: one judgement, one recorded reason,
+  one rigor for the whole run.
+
+  Gone with it: `ticket.json`'s `size`, `stakes` and `lane` fields and their
+  mirrors on `pipeline-state.json` and `tickets-index.json`; the
+  `settings.high_stakes_paths` glob list; `acs_lib/lanes.py` (renamed
+  `acs_lib/planrules.py`, keeping only `classify_additive_diff` and
+  `plan_approval_eligible`); `runs[-1].escalations`; and the
+  `/acs:create-impl-plan` fast path on which the coordinator authored the plan
+  itself with no executor spawn — that skill now runs before any path exists,
+  because its output is what the path is judged from.
+
+  **What this gives up, stated plainly:** rigor can no longer RISE mid-run. A
+  plan that understates the work is caught at the next review rather than the
+  next iteration, by the verifier's new `Path audit` dimension, and its remedy
+  is a replan rather than a raise. The cost is bounded by that replan; what it
+  buys is that every run has one rigor and a recorded sentence saying why.
+
+- **`/acs:code` spends one full-suite run where it used to spend several.** A
+  repo's test command is one artifact that usually answers several questions at
+  once — did the tests pass, what is the coverage, does it clear the threshold —
+  but the skill asked each as its own numbered step, and a numbered step reads
+  as "run something". The executor ran the suite to reach green and again to
+  measure coverage; the verifier re-ran it for tests and again for coverage; and
+  resume re-ran it once per implemented spec. Each agent now reads the run it
+  already has, and the executor iterates against the tests its change touches,
+  keeping the full suite as a per-spec regression check rather than a per-edit
+  one. On a repo with a large instrumented suite this removes most of a
+  `/acs:code` run's test wall-clock; on a repo whose suite takes seconds it
+  changes nothing measurable. What did NOT change is the review's basis: the
+  verifier still runs the suite itself and still trusts nothing the executor
+  recorded — deduplicating *within* an agent is free, deduplicating *across*
+  them would remove the check that catches a padded coverage number.
+
+- **`/acs:code`'s conditional lane-change branches move to `references/`.**
+  `skills/code/SKILL.md` was 918 lines and every one of them sat in the
+  coordinator's context on every run — including three branches that most runs
+  never enter: the non-epic COMPLEX breakdown recommendation, the in-loop
+  escalation check, and boundary-only de-escalation. They now live in
+  `skills/code/references/lane-changes.md`, which the coordinator reads only
+  when one of them applies, leaving SKILL.md at 742 lines. This is the first
+  acs skill to bundle a `references/` directory; `shutil.copytree` and the
+  git-subdir install both carry it, and the pointers use
+  `${CLAUDE_PLUGIN_ROOT}/skills/code/references/...` so they resolve wherever
+  the plugin is installed.
+
+  Nothing about the contract changed: the three sections moved **verbatim**,
+  which is what made the move auditable — the only test failures it could
+  produce were "wrong file", never "wrong wording". Those failures then earned
+  their keep twice over, by catching a block of general orchestration rules
+  (XML validation, phase persistence, the no-nested-subagents rule, the
+  executor and verifier agent names) that sat under the de-escalation heading
+  without a heading of its own and would have been carried out of the hot path
+  with it. The 21 assertions that legitimately followed the moved text now read
+  the skill's full contract — SKILL.md plus its `references/*.md` — through a
+  shared `read_skill_contract()` helper, because what they pin is what the
+  skill says, not which of its files says it.
+
+- **That one run goes last, after the review, and the executor's targeted set
+  comes from the plan.** The verifier judges every dimension answered by
+  reading — the diff, the ticket, the plan, the specs — before reaching for the
+  suite, and defers the run when one of them already blocks: an iteration going
+  back to the executor does not need a suite run to say so, and the tree it
+  would measure is about to change. On a ticket that takes three iterations to
+  come clean, that is two full suite runs not spent. It is a rule about order
+  and never about skipping — a zero-findings verdict still requires a green run
+  on the iteration being passed, and a red suite under a changeset that reads
+  perfectly is exactly what this phase exists to catch. Coverage defers with
+  the run it is read from, and `verdict.schema.json` declares the
+  `{"skipped": "..."}` shape both take.
+
+  The executor's targeted set is now read from `plan.md`'s test strategy rather
+  than guessed per executor: `/acs:create-impl-plan` authors that plan and
+  `/acs:code` does not plan, so which suites the work bears on is already
+  answered — and a declared scope can be reviewed where an invented one cannot.
+
+- **`/acs:code` runs the full unit suite exactly once per iteration, in verify.**
+  Executors no longer run it at all: they iterate against the tests their change
+  touches, and the verifier's single independent run establishes both that the
+  assembled changeset is green and what the coverage is. A clean ticket now
+  spends one full-suite run for the whole `/acs:code` invocation; only a ticket
+  that fails review iterates.
+
+  The saving is the smaller half of this. `states.tests` used to be the
+  executor's self-report about its own work and is now the review's finding
+  about that work, established by an agent that shares no memory with it — so
+  the padded-coverage failure mode the executor charter used to warn about
+  stops being something a report can even claim. `iter-<n>-verdict.json` gains
+  optional `tests` and `coverage` objects (`verdict.schema.json`), and
+  `acs_lib.derive_tests` reads them first, falling back to the execute reports
+  when a verdict carries no numbers: a docs-only ticket, a run that ended
+  before any verifier wrote one, or state written before the verdict carried
+  them. Both fields are optional, so every verdict already on disk stays valid.
+
+- **The /acs:code verifier no longer runs the e2e suite; `/acs:run-e2e-tests`
+  owns it.** Each suite now has exactly one full-run owner, and the pipeline
+  decides which: `workflows/ship.yaml` orders `code → create-e2e-tests →
+  run-e2e-tests` and has no dedicated unit step, so the code verifier owns the
+  full unit run and the dedicated skill owns the full e2e run. Running e2e in
+  the verifier was not only the slowest suite twice per ticket — it ran
+  *before* `/acs:create-e2e-tests` had written the ticket's e2e tests, so a
+  green result there was a pass over a suite that was still missing them. What
+  the verifier keeps is the obligation rather than the run: a spec that
+  declared e2e impact with no matching e2e test change is still a blocking
+  finding. `settings.e2e.per_iteration` is accordingly **accepted and inert** —
+  it existed only to skip a verifier e2e run that no longer happens — and
+  `post_code_test` was already ON by default under exactly the condition that
+  gave the verifier its `e2e_command`, so no repo loses e2e gating by default.
+  `tests/acs/test_code_single_suite_run.py` pins all of this.
 
 - **⚠️ BREAKING: six Design-phase skills became internal legs (ADR 0091).**
   `/acs:create-docs <set|all>` is now the only user-facing command for the four
@@ -290,6 +420,18 @@ the notes.
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
 
 ### Fixed
+
+- **The verifier's dimension 14 runs on `standard` again.** `Regression-risk
+  (git-history)` was gated on the task carrying a `verify_lens`, which was a
+  faithful proxy for "full depth" while full depth always meant the multi-lens
+  review. ADR-0095's `standard` path is deep AND single-pass, so the proxy
+  broke: `code-standard/SKILL.md` says all 16 dimensions including this one,
+  while the verifier would have skipped it for want of a lens. It now reads
+  `delivery_path` from `pipeline-state.json` for itself — the same fresh,
+  from-disk read dimension 16 makes — evaluating on `standard` and `complex`,
+  skipping on `trivial` and `small`, and evaluating when no path is recorded,
+  because `/acs:code` dispatches a missing answer to the `standard` leg and a
+  missing answer must not buy a cheaper review.
 
 - **`/acs:create-docs` and `/acs:project` can start their legs again.** Both
   entry points dispatch each leg with a real `Skill(acs:<leg>)` call, and all

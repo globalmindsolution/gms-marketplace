@@ -4,14 +4,15 @@ A user-typed `/acs:<skill>` is expanded into the prompt by the CLI and never
 dispatched through the `Skill` tool, so a detector that only watches for a
 `Skill` tool_use can never see an explicit probe: the two
 `disable-model-invocation` skills scored as misses on every paid run. The rule
-pinned here is the one `evals/acs/harness.py` implements -- a description
+pinned here is the one `src/acs-evals/behavioural/acs/harness.py` implements -- a description
 prompt is decided by the first `Skill` tool_use, an explicit prompt by the
 `init` event's `slash_commands` registration list, and an explicit prompt whose
 stream never reports that list is `unmeasured`, never a pass.
 
-Also pins s04's probe set: 27 cases covering all 25 shipped skills, with no new
-description prompt naming a skill, and every assertion label stating which rule
-decided it.
+Also pins s04's probe set: one case per shipped skill bar the `test` alias,
+with no new description prompt naming a skill, and every assertion label
+stating which rule decided it. The counts are derived from the registry rather
+than written down here, so a new skill or a new leg moves them by itself.
 
 Pure: synthetic stream-json lines and fake sandboxes -- no `claude`, no
 network, no cost.
@@ -28,7 +29,7 @@ from unittest import mock
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402  (the registry is the single source for legs)
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)

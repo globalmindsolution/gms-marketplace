@@ -16,6 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
+from acs_lib import workflow  # noqa: E402
 
 from acs_cli import (context_or_die, die, emit, load_ticket_or_die,
     partition_or_die, read_json_arg)  # noqa: E402
@@ -75,183 +76,39 @@ def cmd_gate(args):
 
 
 # ---------------------------------------------------------------------------
-# lane
+# delivery path
 # ---------------------------------------------------------------------------
 
-def _lane_triple(lane, stakes):
-    depth = lib.verify_depth(lane, stakes)
-    return {"lane": lane, "depth": depth, "ceiling": lib.VERIFY_ITERATION_CAP[depth]}
+def cmd_path_show(args):
+    """The recorded delivery path and the reason it was chosen, or nulls."""
+    ticket_id, tdir, _ctx = partition_or_die("path show", args.ticket)
+    emit({"ok": True, "ticket_id": ticket_id,
+          "delivery_path": workflow.recorded_delivery_path(tdir, ticket_id),
+          "reason": workflow.recorded_delivery_reason(tdir, ticket_id)})
 
 
-def cmd_lane_derive(args):
-    lane = lib.derive_lane(args.size, args.stakes, args.needs_design, args.type)
-    out = _lane_triple(lane, args.stakes)
-    out["rank"] = lib.lane_rank(lane)
-    emit(out)
+def cmd_path_set(args):
+    """Record the judged delivery path, once (ADR-0095).
 
-
-def cmd_lane_rank(args):
-    emit({"lane": args.lane, "rank": lib.lane_rank(args.lane)})
-
-
-def cmd_lane_escalate(args):
-    """Pure computation — no write. `escalated` says whether the candidate beat
-    the current lane; `lane apply` is what persists a raise."""
-    lane, depth, ceiling = lib.escalate_lane(
-        args.current_lane, args.size, args.stakes, args.needs_design, args.type)
-    emit({"lane": lane, "depth": depth, "ceiling": ceiling,
-          "escalated": lib.lane_rank(lane) > lib.lane_rank(args.current_lane),
-          "from_lane": args.current_lane})
-
-
-def cmd_lane_apply(args):
-    """The on-trigger escalation sequence of code/SKILL.md, in its documented
-    order: guard_axes, escalate_lane, then (only on a real raise) save_ticket,
-    update_pipeline, update_index, and finally record_escalation_event.
-
-    The audit event is written LAST on purpose: the axes and lane are durably
-    applied first, so a failed event write leaves a lane change with no matching
-    event — detectable — rather than an event for a persistence that never
-    landed. A no-op raise writes nothing, which is what makes a resumed run
-    idempotent."""
-    ticket_id, tdir, ctx = partition_or_die("lane apply", args.ticket)
-    ticket = load_ticket_or_die("lane apply", tdir, ticket_id)
-
-    from_lane = ticket.get("lane")
-    from_size, from_stakes = ticket.get("size"), ticket.get("stakes")
-    eff_size, eff_stakes = lib.guard_axes(from_size, from_stakes,
-                                          args.proposed_size, args.proposed_stakes)
-    # The lane is derived from the GUARDED axes, unchanged: guard_axes floors an
-    # absent axis at the lowest rank, and derive_lane must see that floor. Null
-    # them here instead and derive_lane(None, ...) returns its STANDARD default,
-    # so a call carrying no signal at all would escalate and raise the ceiling.
-    new_lane, depth, ceiling_after = lib.escalate_lane(
-        from_lane, eff_size, eff_stakes, ticket.get("needs_design"), ticket.get("type"))
-
-    # PERSISTENCE guard, applied after the derivation and only to what is
-    # written: an axis nobody has stated must not be materialised at the guard's
-    # floor by a rigor-RAISING path, where it would anchor every later
-    # comparison. Computed here, so it cannot influence the lane above.
-    write_size = None if (from_size is None and args.proposed_size is None) else eff_size
-    write_stakes = None if (from_stakes is None and args.proposed_stakes is None) else eff_stakes
-
-    ceiling_before = (args.ceiling_before if args.ceiling_before is not None
-                      else lib.VERIFY_ITERATION_CAP[lib.verify_depth(from_lane, from_stakes)])
-    result = {"ticket_id": ticket_id, "from_lane": from_lane, "lane": new_lane,
-              "depth": depth, "ceiling_before": ceiling_before,
-              "ceiling_after": max(ceiling_before, ceiling_after)}
-
-    if lib.lane_rank(new_lane) <= lib.lane_rank(from_lane):
-        # Report what is ON DISK, not the computed effective axes: nothing was
-        # written, and a caller branching on out["stakes"] must not read a raise
-        # that never happened. What was asked for is reported separately.
-        result.update({"lane": from_lane, "size": from_size, "stakes": from_stakes,
-                       "proposed_size": args.proposed_size,
-                       "proposed_stakes": args.proposed_stakes,
-                       "escalated": False, "event_recorded": False, "event": None,
-                       "reason": "candidate lane is not strictly higher — no write"})
-        emit(result)
-        return
-
-    result["size"], result["stakes"] = write_size, write_stakes
-
-    if write_size is not None:
-        ticket["size"] = write_size
-    if write_stakes is not None:
-        ticket["stakes"] = write_stakes
-    ticket["lane"] = new_lane
-    lib.save_ticket(tdir, ticket)
-    lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", lane=new_lane)
-    # The index is repo-level, so its guard can refuse. That must NOT skip the
-    # escalation event below: the index entry is rebuilt from ticket.json by
-    # the next write, while the audit event has no other source and the lane
-    # raise is already durable. Report the gap after the event is safe.
-    index_error = None
+    Refuses an unknown path, an empty reason, and any attempt to move a ticket
+    already on a path -- the last is the one that matters, because it is what
+    makes a resumed run READ the path rather than judge it again and risk
+    splitting one pipeline across two."""
+    ticket_id, tdir, ctx = partition_or_die("path set", args.ticket)
     try:
-        lib.update_index(ctx["workspace"], ctx["repo_id"], ticket)
-    except lib.GuardTimeout as exc:
-        index_error = str(exc)
-    result["escalated"] = True
-    result["index_updated"] = index_error is None
-
-    event = {"ts": lib.now_iso(), "from_lane": from_lane, "to_lane": new_lane,
-             "from_size": from_size, "from_stakes": from_stakes,
-             "to_size": write_size, "to_stakes": write_stakes,
-             "trigger": args.trigger, "source": args.source or args.trigger,
-             "ceiling_before": ceiling_before, "ceiling_after": result["ceiling_after"],
-             "direction": "up", "confirmation_ref": None}
-    try:
-        lib.record_escalation_event(tdir, args.skill, event)
-    except (ValueError, OSError) as exc:
-        result.update({"event_recorded": False, "error": str(exc), "event": event})
-        emit(result)
-        die("lane apply",
-            "axes and lane are applied but the escalation event was not recorded: %s" % exc)
-    result.update({"event_recorded": True, "event": event})
-    if index_error:
-        result["error"] = index_error
-        emit(result)
-        die("lane apply",
-            "the lane raise (%s -> %s) and its escalation event ARE recorded, but "
-            "tickets-index.json was not updated: %s\nThe index entry is rebuilt "
-            "from ticket.json by the next write to it, so this self-heals; "
-            "re-running would be a no-op, since the raise is already applied."
-            % (from_lane, new_lane, index_error))
-    emit(result)
-
-
-def cmd_lane_deescalate(args):
-    """confirm_deescalation — the only sanctioned lane-lowering path, and it
-    refuses without an answered clarify.py ledger id.
-
-    confirm_deescalation persists ticket.json, pipeline-state.json and the index
-    BEFORE recording its audit event, exactly like the upward path. So a failure
-    is not automatically "nothing happened": on any error this re-reads the
-    ticket and reports what actually landed, the way `lane apply` does. Exit 2
-    with `applied: true` means a rigor-LOWERING write is durable with no
-    matching event — the loudest case in the system, and previously reported as
-    a bare refusal with empty stdout."""
-    ticket_id, tdir, _ctx = partition_or_die("lane deescalate", args.ticket)
-    ticket = load_ticket_or_die("lane deescalate", tdir, ticket_id)
-    before = {"lane": ticket.get("lane"), "size": ticket.get("size"),
-              "stakes": ticket.get("stakes")}
-    try:
-        updated = lib.confirm_deescalation(tdir, ticket, args.size, args.stakes,
-                                           args.clarify_ref)
-    except (ValueError, KeyError, OSError) as exc:
-        # "Did anything actually change on disk?" -- NOT "does the ticket now
-        # hold the requested values?", which is also true when the ticket
-        # already sat at them and the call refused before writing a byte.
-        # OSError is caught because the failure this handler exists for is the
-        # audit write, which fails that way on a full or read-only disk.
-        on_disk = lib.load_ticket(tdir) or {}
-        applied = any(on_disk.get(k) != before[k] for k in ("lane", "size", "stakes"))
-        if not applied:
-            if isinstance(exc, KeyError):
-                die("lane deescalate", "ticket.json for %s has no %s field to lower"
-                    % (ticket_id, exc))
-            die("lane deescalate", str(exc))
-        emit({"ok": False, "ticket_id": ticket_id, "from": before,
-              "lane": on_disk.get("lane"), "size": on_disk.get("size"),
-              "stakes": on_disk.get("stakes"), "applied": True,
-              "event_recorded": False, "error": str(exc),
-              "confirmation_ref": args.clarify_ref})
-        die("lane deescalate",
-            "axes and lane are LOWERED but the de-escalation event was not "
-            "recorded: %s" % exc)
-    recorded = lib.last_run(lib.load_state(tdir, "code")) or {}
-    events = recorded.get("escalations") or []
-    emit({"ok": True, "ticket_id": ticket_id, "from": before,
-          "lane": updated["lane"], "size": updated["size"], "stakes": updated["stakes"],
-          "applied": True, "event_recorded": True,
-          # Both audited lane-writing paths report `event`, so a coordinator can
-          # branch on it uniformly instead of only on the upward one.
-          "event": events[-1] if events else None,
-          "confirmation_ref": args.clarify_ref})
+        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
+        doc = workflow.validate_workflow_file(resolved["path"])
+        workflow.record_delivery_path(tdir, ticket_id, args.delivery_path,
+                                      args.reason, doc=doc)
+    except lib.GateError as exc:
+        die("path set", str(exc))
+    emit({"ok": True, "ticket_id": ticket_id,
+          "delivery_path": workflow.recorded_delivery_path(tdir, ticket_id),
+          "reason": workflow.recorded_delivery_reason(tdir, ticket_id)})
 
 
 # ---------------------------------------------------------------------------
-# stakes
+# file lists
 # ---------------------------------------------------------------------------
 
 def read_lines_arg(command, path):
@@ -269,41 +126,6 @@ def read_lines_arg(command, path):
             return handle.read().splitlines()
     except OSError as exc:
         die(command, "could not read %s: %s" % (path, exc))
-
-
-def _paths_from(args, command):
-    paths = list(args.path or [])
-    if args.paths_from:
-        if args.paths_from == "-":
-            if sys.stdin.isatty():
-                die(command, "--paths-from - expects paths on stdin, one per line")
-            text = sys.stdin.read()
-        else:
-            try:
-                with open(args.paths_from, "r", encoding="utf-8") as fh:
-                    text = fh.read()
-            except OSError as exc:
-                die(command, "cannot read %s: %s" % (args.paths_from, exc))
-        paths.extend(line.strip() for line in text.splitlines() if line.strip())
-    return paths
-
-
-def cmd_stakes_recommend(args):
-    """recommend_stakes over a changed-file set. A recommendation only — it
-    never writes stakes; `lane apply` is what acts on it."""
-    ctx = context_or_die("stakes recommend")
-    paths = _paths_from(args, "stakes recommend")
-    emit({"stakes": lib.recommend_stakes(paths, ctx["settings"]),
-          "paths_considered": len(paths)})
-
-
-def cmd_stakes_guard(args):
-    """guard_axes — the higher of each axis, so no unattended path can lower a
-    confirmed value. Call before escalate_lane."""
-    size, stakes = lib.guard_axes(args.current_size, args.current_stakes,
-                                  args.proposed_size, args.proposed_stakes)
-    emit({"size": size, "stakes": stakes,
-          "changed": (size, stakes) != (args.current_size, args.current_stakes)})
 
 
 # ---------------------------------------------------------------------------
@@ -327,8 +149,9 @@ def cmd_ticket_save(args):
     it and blanking the index row, which `gate_code`, `_epic_auto_done` and
     `fanout_batches` all read.
 
-    Refuses to write axes or lane: those move only through `lane apply` /
-    `lane deescalate`, which carry the guard and the audit event."""
+    Refuses to write a delivery path: it is judged once from the plan and
+    recorded through `acs.py path set`, which is the call that refuses to move
+    a ticket already on one (ADR-0095)."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
@@ -338,10 +161,11 @@ def cmd_ticket_save(args):
     if "id" in incoming and incoming["id"] != current["id"]:
         die("ticket save", "document id %r does not match the partition's %r"
             % (incoming.get("id"), current.get("id")))
-    guarded = [k for k in ("size", "stakes", "lane")
+    guarded = [k for k in ("delivery_path", "delivery_path_reason")
                if k in incoming and incoming[k] != current.get(k)]
     if guarded:
-        die("ticket save", "%s move only through `acs.py lane apply` / `lane deescalate`"
+        die("ticket save", "%s is not a ticket field — the delivery path lives on "
+            "pipeline-state.json and moves only through `acs.py path set`"
             % ", ".join(guarded))
 
     updated = dict(current)

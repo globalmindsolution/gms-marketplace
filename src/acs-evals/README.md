@@ -23,14 +23,29 @@ git log FETCH_HEAD -- dataset/cases/06-gates.json   # not src/acs-evals/dataset/
 
 Built as the release gate for **v0.5.0**.
 
-## Why this exists, and how it differs from the plugin's own tests
+## What lives here
 
-This repo already has two layers: `tests/` (unit tests, driving Python
-functions directly) and `evals/` (behavioural scenarios that spawn `claude -p`),
-both at the repo root. This dataset is a third thing, and the difference is
-what makes it useful:
+Two suites, one tree, because both grade the same plugin:
+
+| Directory | What it is | What runs it |
+|---|---|---|
+| `dataset/`, `runner/`, `reports/`, `results/` | the **golden dataset** and its runner — the release gate | `release.pre_release_gate` in `.acs/settings.json`, on a release cut |
+| [`behavioural/`](behavioural/README.md) | **behavioural scenarios** that spawn real `claude -p` sessions, per plugin (`behavioural/acs/`) | the `acs-free-evals` pre-commit hook on every commit (free tier); on demand for the paid tier |
+| `evals/` | the routing cases **generated** from `dataset/routing.json` for `claude plugin eval` | `make generate` / `make check` |
+
+`behavioural/` was the repo-root `evals/` tree until it was folded in here, so
+that the plugin's evaluation lives in one place rather than two. Note the name
+collision it had to avoid: `evals/` in this directory is generated output, not
+a suite anyone writes by hand.
+
+## How this differs from the plugin's own tests
+
+`tests/` at the repo root is a third layer again — unit tests that drive Python
+functions directly. The difference is what makes each useful:
 
 - `tests/` asserts that a **function** does what its author intended.
+- `behavioural/` asserts that a **real session** reaches the right skill and
+  leaves the right artifacts behind.
 - This dataset asserts that a **shipped build's observable surface** — exit
   codes, JSON documents, refusal messages, schemas, skill frontmatter — has not
   moved since the last release, whoever changed what underneath.

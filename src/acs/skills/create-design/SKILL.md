@@ -123,8 +123,8 @@ and the executor authors the remediation. Decomposition is YOURS alone —
 subagents never spawn subagents.
 
 **What an iteration counts:** one execute → verify round.
-`/acs:create-design` has no lane-driven verify-depth selection: the cap is
-a fixed 3 in every lane.
+`/acs:create-design` has no path-driven verify-depth selection: the cap is
+a fixed 3 on every run.
 
 For every phase:
 

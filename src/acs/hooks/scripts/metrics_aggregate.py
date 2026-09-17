@@ -85,7 +85,7 @@ from metrics_aggregate_common import (PANEL_KEYS, _ITER_RE, _NEW_PANEL_KEYS,
     _elapsed_seconds, _is_number, _parse_due_date,
     _read_text, _safe_avg, _share_pct, _to_int)  # noqa: F401
 from metrics_aggregate_panels import (_deadline_panel, _delivery_summary,
-    _escalations_tally, _issues_panel, _progress_panel,
+    _delivery_paths_tally, _issues_panel, _progress_panel,
     _usage_summary_panel)  # noqa: F401
 from metrics_aggregate_usage import (_apply_panel6_shares, _empty_model_bucket,
     _empty_panel6_bucket, _empty_skill_duration_bucket,
@@ -170,9 +170,9 @@ def aggregate(workspace, repo_id, now=None):
     _merge_ended_at = {}
     # _tickets_due_data: [{id, due_date, status}] for deadline panel (spec 02)
     _tickets_due_data = []
-    # _escalations_by_ticket: {ticket_id -> [event, ...]} unioned across a ticket's runs
-    # (MAR-109 spec 01; code_state already read below for panels 4/5 — no extra file read).
-    _escalations_by_ticket = {}
+    # _paths_by_ticket: {ticket_id -> delivery_path or None}, read off the same
+    # pipeline-state.json the funnel already loads — no extra file read (ADR-0095).
+    _paths_by_ticket = {}
 
     for ticket_id in tickets:
         tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
@@ -194,14 +194,9 @@ def aggregate(workspace, repo_id, now=None):
         p4_rows.append(_panel4_row(ticket_id, code_state, degrade))
         p5_rows.append(_panel5_row(ticket_id, tdir, code_state, degrade))
 
-        # Collect escalation events across all of this ticket's runs (spec 01:73-81).
-        runs = code_state.get("runs") if isinstance(code_state, dict) else None
-        events = []
-        for run in (runs or []):
-            if isinstance(run, dict):
-                events.extend(run.get("escalations") or [])
-        if events:
-            _escalations_by_ticket[ticket_id] = events
+        # The delivery path this ticket was judged onto, or None (ADR-0095).
+        _paths_by_ticket[ticket_id] = (pipeline.get("delivery_path")
+                                       if isinstance(pipeline, dict) else None)
 
         p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
 
@@ -258,9 +253,9 @@ def aggregate(workspace, repo_id, now=None):
 
     # ---- New panels (MAR-14 spec 01) ----
 
-    # delivery_summary: 5 PM KPIs + additive escalations sub-object (MAR-109 D5)
+    # delivery_summary: 5 PM KPIs + the delivery-path distribution (ADR-0095)
     delivery_summary = _delivery_summary(
-        tickets, prs, panel7, p4_rows, degrade, _escalations_by_ticket
+        tickets, prs, panel7, p4_rows, degrade, _paths_by_ticket
     )
 
     # issues: sorted list of all index entries (spec 01:129-149)

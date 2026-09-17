@@ -16,8 +16,8 @@ from metrics_aggregate_common import _is_number, _parse_due_date, _safe_avg
 # New panel builders (MAR-14 spec 01) — read-only, no writes, stdlib-only
 # ---------------------------------------------------------------------------
 
-def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, escalations_by_ticket=None):
-    """Compute the delivery_summary panel (5 PM KPIs + additive escalations) from
+def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, paths_by_ticket=None):
+    """Compute the delivery_summary panel (5 PM KPIs + the path distribution) from
     already-resolved data.
 
     Keys (spec 01:92-127):
@@ -27,15 +27,16 @@ def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, escalations_by_tic
       avg_cycle_seconds        — float or "no data" from panel7["avg_cycle_seconds"].
       coverage_pass_rate       — "<passed>/<measured>" or "no data"; measured from p4_rows where
                                   cell != "no data"; passed where also passed==True.
-      escalations              — additive sub-object (MAR-109 D5), four integer tallies computed
-                                  from escalations_by_ticket {ticket_id -> [event, ...]}:
-                                    events              — total events across all tickets.
-                                    fast_lane_escalated — distinct tickets whose earliest event's
-                                                          from_lane is fast (TRIVIAL/SMALL) and whose
-                                                          highest-ever to_lane reaches >=STANDARD
-                                                          (per-ticket tally, user decision C-1).
-                                    deescalations       — events with direction == "down".
-                                    silent_reversals    — "down" events with a falsy confirmation_ref.
+      delivery_paths           — additive sub-object (ADR-0095), the distribution of
+                                  tickets over delivery paths, from
+                                  paths_by_ticket {ticket_id -> path or None}:
+                                    classified    — tickets carrying a recorded path.
+                                    unclassified  — tickets with none (never reached /acs:ship's
+                                                    classification, or predate it).
+                                    by_path       — counts for trivial/small/standard/complex.
+                                    other_paths   — counts for any path a consumer ship.yaml
+                                                    declares outside that four, so the total
+                                                    always reconciles.
 
     meta.degraded entry added only when measured == 0 (coverage_pass_rate unavailable).
     """
@@ -71,7 +72,7 @@ def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, escalations_by_tic
     else:
         coverage_pass_rate = "%d/%d" % (passed, measured)
 
-    escalations = _escalations_tally(escalations_by_ticket or {})
+    delivery_paths = _delivery_paths_tally(paths_by_ticket or {})
 
     return {
         "tickets_done_over_total": tickets_done_over_total,
@@ -79,45 +80,38 @@ def _delivery_summary(tickets, prs, panel7, p4_rows, degrade, escalations_by_tic
         "avg_lead_seconds": avg_lead_seconds,
         "avg_cycle_seconds": avg_cycle_seconds,
         "coverage_pass_rate": coverage_pass_rate,
-        "escalations": escalations,
+        "delivery_paths": delivery_paths,
     }
 
 
-def _escalations_tally(escalations_by_ticket):
-    """Reduce {ticket_id -> [event, ...]} to the four G25 tallies (MAR-109 D5)."""
-    events_total = 0
-    fast_lane_escalated = 0
-    deescalations = 0
-    silent_reversals = 0
+def _delivery_paths_tally(paths_by_ticket):
+    """Reduce {ticket_id -> delivery_path or None} to the distribution.
 
-    for ticket_events in escalations_by_ticket.values():
-        events_total += len(ticket_events)
-
-        origin_rank = None
-        highest_rank = None
-        for event in ticket_events:
-            if not isinstance(event, dict):
-                continue
-            from_rank = acs_lib.lane_rank(event.get("from_lane"))
-            to_rank = acs_lib.lane_rank(event.get("to_lane"))
-            if origin_rank is None:
-                origin_rank = from_rank
-            highest_rank = to_rank if highest_rank is None else max(highest_rank, to_rank)
-
-            if event.get("direction") == "down":
-                deescalations += 1
-                if not event.get("confirmation_ref"):
-                    silent_reversals += 1
-
-        if (origin_rank is not None and origin_rank <= acs_lib.lane_rank("SMALL")
-                and highest_rank is not None and highest_rank >= acs_lib.lane_rank("STANDARD")):
-            fast_lane_escalated += 1
-
+    This replaced the escalation tallies when ADR-0095 retired mid-flight lane
+    changes. There is nothing left to count about rigor CHANGING -- a ticket is
+    judged onto one path and finishes there -- so what is worth measuring is the
+    judgement itself: how the repo's work actually distributes, and how much of
+    it was never classified at all. A repo whose tickets are all `standard` is
+    either doing uniform work or not reading its plans.
+    """
+    counts = {"trivial": 0, "small": 0, "standard": 0, "complex": 0}
+    unclassified = 0
+    other = 0
+    for path in paths_by_ticket.values():
+        if path is None:
+            unclassified += 1
+        elif path in counts:
+            counts[path] += 1
+        else:
+            # A consumer ship.yaml may declare its own vocabulary; count it
+            # rather than dropping it, so the total always reconciles.
+            other += 1
+    classified = sum(counts.values()) + other
     return {
-        "events": events_total,
-        "fast_lane_escalated": fast_lane_escalated,
-        "deescalations": deescalations,
-        "silent_reversals": silent_reversals,
+        "classified": classified,
+        "unclassified": unclassified,
+        "by_path": counts,
+        "other_paths": other,
     }
 
 

@@ -152,7 +152,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     skill that carries the prose."""
 
     def _cases(self):
-        path = os.path.join(REPO_ROOT, "evals", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         tree = ast.parse(read(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(

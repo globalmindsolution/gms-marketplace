@@ -106,22 +106,41 @@ class PrdAiProductBuilderRowTest(unittest.TestCase):
         self.assertIn("**%d**" % on_disk, read(PRD))
 
 
-class PrdDeliveryLanesTest(unittest.TestCase):
-    """AC-3. The TRIVIAL/STANDARD lane bullets no longer mention create-spec
-    and describe the spec-authoring fold as universal across every lane."""
+class PrdDeliveryPathsTest(unittest.TestCase):
+    """AC-3, re-anchored by ADR-0095. The four routing bullets no longer
+    mention create-spec, and spec authoring is described as unconditional.
+
+    The slice was "Four delivery lanes" up to the high-stakes floor. Both
+    anchors went with the lane grid: the four bullets are now delivery PATHS,
+    judged once from `plan.md`, and the floor is a judgement the rubric states
+    rather than a `stakes = high` value a glob could set. The claim this test
+    exists for is unchanged — spec authoring is folded in everywhere, and the
+    skill that used to own it is not named as if it still does."""
 
     @classmethod
     def setUpClass(cls):
         body = read(PRD)
-        start = body.index("Four delivery lanes")
-        end = body.index("**High-stakes floor:**", start)
+        start = body.index("Four paths, cheapest first")
+        end = body.index("**How this differs from what shipped in v0.3.0", start)
         cls.slice = body[start:end]
 
     def test_no_create_spec(self):
         self.assertNotIn("create-spec", self.slice)
 
-    def test_fold_described_as_universal(self):
-        self.assertIn("universal", self.slice)
+    def test_the_four_paths_are_named_cheapest_first(self):
+        order = [self.slice.index("`%s`" % name)
+                 for name in ("trivial", "small", "standard", "complex")]
+        self.assertEqual(order, sorted(order),
+                         "the four paths must read cheapest first")
+
+    def test_spec_authoring_is_unconditional(self):
+        """It was "universal across every lane"; with no lanes to be universal
+        across, the claim is that it has no condition at all."""
+        body = read(PRD)
+        self.assertRegex(
+            body,
+            r"(?s)Spec content is\s+authored inside `/acs:create-impl-plan`'s "
+            r"plan when `<partition>/specs/` is\s+absent or empty")
 
 
 class PrdNoDivergenceMentionTest(unittest.TestCase):

@@ -242,34 +242,33 @@ class TerminalSurface(unittest.TestCase):
         first = data["meta"]["degraded"][0]
         self.assertIn(first["ticket_id"], out)
 
-    def test_escalations_rows_appear_in_fixed_order_after_five_kpi_rows(self):
-        """MAR-109 spec 01: the four escalation rows render, fixed order, after the 5 KPI rows."""
+    def test_delivery_path_rows_appear_in_fixed_order_after_five_kpi_rows(self):
+        """ADR-0095: the distribution renders after the 5 KPI rows, in one fixed
+        order, so a reader comparing two runs is comparing the same positions."""
         panel = {
             "tickets_done_over_total": "2/3", "prs_merged": 2,
             "avg_lead_seconds": 100.0, "avg_cycle_seconds": 50.0,
             "coverage_pass_rate": "2/2",
-            "escalations": {"events": 3, "fast_lane_escalated": 1,
-                             "deescalations": 1, "silent_reversals": 0},
+            "delivery_paths": {"classified": 3, "unclassified": 1,
+                               "by_path": {"trivial": 1, "small": 0,
+                                           "standard": 2, "complex": 0},
+                               "other_paths": 0},
         }
         out = metrics_render._term_render_delivery_summary(panel)
         joined = "\n".join(out)
-        self.assertIn("3", joined)
-        self.assertIn("1", joined)
-        self.assertIn("0", joined)
-        # fixed order: events, fast_lane_escalated, deescalations, silent_reversals — each
-        # after the five existing KPI rows (coverage_pass_rate is the last of the five).
+        self.assertIn("3/1", joined)
+        self.assertIn("trivial 1", joined)
+        self.assertIn("standard 2", joined)
         idx_cov = next(i for i, r in enumerate(out) if "coverage" in r.lower())
-        idx_events = next(i for i, r in enumerate(out) if "events" in r.lower())
-        idx_fast = next(i for i, r in enumerate(out) if "fast" in r.lower())
-        idx_deesc = next(i for i, r in enumerate(out) if "deescalation" in r.lower())
-        idx_silent = next(i for i, r in enumerate(out) if "silent" in r.lower())
-        self.assertLess(idx_cov, idx_events)
-        self.assertLess(idx_events, idx_fast)
-        self.assertLess(idx_fast, idx_deesc)
-        self.assertLess(idx_deesc, idx_silent)
+        idx_class = next(i for i, r in enumerate(out) if "classified" in r.lower())
+        idx_paths = next(i for i, r in enumerate(out) if "delivery paths" in r.lower())
+        self.assertLess(idx_cov, idx_class)
+        self.assertLess(idx_class, idx_paths)
 
-    def test_escalations_zero_tallies_render_as_zero_not_no_data(self):
-        """A pre-feature panel (no escalations key) renders the four rows as 0, not crash/no-data."""
+    def test_a_panel_without_the_distribution_renders_zeros_not_a_crash(self):
+        """A pre-ADR-0095 panel carries no delivery_paths key. It must render
+        zeros rather than crash or print 'no data': the distribution is a fact
+        about tickets, and zero tickets classified is a real answer."""
         panel = {
             "tickets_done_over_total": "0/0", "prs_merged": 0,
             "avg_lead_seconds": "no data", "avg_cycle_seconds": "no data",
@@ -277,17 +276,9 @@ class TerminalSurface(unittest.TestCase):
         }
         out = metrics_render._term_render_delivery_summary(panel)
         joined = "\n".join(out).lower()
-        self.assertIn("events", joined)
-        self.assertIn("fast", joined)
-        self.assertIn("deescalation", joined)
-        self.assertIn("silent", joined)
-
-
-# ---------------------------------------------------------------------------
-# HTML surface
-# ---------------------------------------------------------------------------
-
-class HtmlSurface(unittest.TestCase):
+        self.assertIn("classified/unclassified:    0/0", joined)
+        for name in ("trivial", "small", "standard", "complex"):
+            self.assertIn("%s 0" % name, joined)
     def test_six_panel_sections_present(self):
         out = metrics_render.render_html(_full_workspace_data())
         for header in PANEL_HEADERS:
@@ -359,46 +350,36 @@ class HtmlSurface(unittest.TestCase):
         self.assertTrue(out.strip().startswith("<"))
         self.assertIn("</", out)
 
-    def test_escalations_rows_appear_in_fixed_order_after_five_kpi_rows(self):
-        """MAR-109 spec 01: the four escalation rows render, fixed order, after the 5 KPI rows."""
+    def test_delivery_path_rows_appear_in_fixed_order_after_five_kpi_rows(self):
+        """ADR-0095: the distribution renders after the 5 KPI rows, fixed order."""
         panel = {
             "tickets_done_over_total": "2/3", "prs_merged": 2,
             "avg_lead_seconds": 100.0, "avg_cycle_seconds": 50.0,
             "coverage_pass_rate": "2/2",
-            "escalations": {"events": 3, "fast_lane_escalated": 1,
-                             "deescalations": 1, "silent_reversals": 0},
+            "delivery_paths": {"classified": 3, "unclassified": 1,
+                               "by_path": {"trivial": 1, "small": 0,
+                                           "standard": 2, "complex": 0},
+                               "other_paths": 0},
         }
-        out = metrics_render._html_render_delivery_summary(panel)
-        idx_cov = out.lower().index("coverage")
-        idx_events = out.lower().index("events")
-        idx_fast = out.lower().index("fast")
-        idx_deesc = out.lower().index("deescalation")
-        idx_silent = out.lower().index("silent")
-        self.assertLess(idx_cov, idx_events)
-        self.assertLess(idx_events, idx_fast)
-        self.assertLess(idx_fast, idx_deesc)
-        self.assertLess(idx_deesc, idx_silent)
+        html = metrics_render._html_render_delivery_summary(panel)
+        self.assertIn("<td>tickets classified</td><td>3</td>", html)
+        self.assertIn("<td>path: standard</td><td>2</td>", html)
+        self.assertLess(html.index("coverage pass rate"), html.index("tickets classified"))
+        self.assertLess(html.index("tickets classified"), html.index("path: trivial"))
+        for earlier, later in (("trivial", "small"), ("small", "standard"),
+                               ("standard", "complex")):
+            self.assertLess(html.index("path: %s" % earlier), html.index("path: %s" % later))
 
-    def test_escalations_zero_tallies_render_as_zero_not_no_data(self):
-        """A pre-feature panel (no escalations key) renders the four rows as 0, not crash/no-data."""
+    def test_a_panel_without_the_distribution_renders_zeros_not_a_crash(self):
         panel = {
             "tickets_done_over_total": "0/0", "prs_merged": 0,
             "avg_lead_seconds": "no data", "avg_cycle_seconds": "no data",
             "coverage_pass_rate": "no data",
         }
-        out = metrics_render._html_render_delivery_summary(panel)
-        low = out.lower()
-        self.assertIn("events", low)
-        self.assertIn("fast", low)
-        self.assertIn("deescalation", low)
-        self.assertIn("silent", low)
-
-
-# ---------------------------------------------------------------------------
-# Empty workspace (whole-payload 'no data') — both surfaces, never raise
-# ---------------------------------------------------------------------------
-
-class EmptyWorkspace(unittest.TestCase):
+        html = metrics_render._html_render_delivery_summary(panel)
+        self.assertIn("<td>tickets classified</td><td>0</td>", html)
+        for name in ("trivial", "small", "standard", "complex"):
+            self.assertIn("<td>path: %s</td><td>0</td>" % name, html)
     def test_terminal_six_no_data_frames(self):
         data = _empty_workspace_data()
         self.assertEqual(data["meta"]["ticket_count"], 0)

@@ -62,16 +62,16 @@ same set names and adds exactly one deprecated-form note on stderr saying the
 positional form is the spelling now. Bare `--for`, with no names, selects
 nothing: report the notice and stop.
 
-## Concurrency cap
+## The two references, and when to open each
 
-Never run every set at once: run **at most 2** sets concurrently. That cap is
-the ship workflow's `max_parallel` default (`DEFAULT_MAX_PARALLEL` in
-`acs_lib`), and this repo's `workflows/ship.yaml` — or its
-`.acs/workflows/ship.yaml` override — wins when it declares its own value,
-which the Start snippet resolves and prints as `max_parallel`. Walk each batch
-`fanout_batches` returns in **slices of at most `max_parallel`** sets,
-finishing one slice's sets before starting the next. Everything below that
-says "this slice" means those at-most-`max_parallel` sets.
+Nearly all of this skill is one flow: resolve the argument, mint a delivery
+ticket per set, author it, ship it. Two parts are not, and each is read by
+exactly one kind of run — so they live in references rather than inline:
+
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-docs/references/fan-out.md` | The eligible batch Start hands you holds MORE THAN ONE set. It defines **slice** and what `max_parallel` does with it, the worktree-per-set rule, and per-set failure isolation — so open it before the Reflection loop, which drives a slice. A single-set run and every resume run one set in the session checkout and skip it. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-docs/references/resume-and-handoff.md` | `context.reconcile` is true for a set, the argument was a delivery-ticket id, or your own context is running low. It carries the reconcile procedure and the handoff it reconciles against. A fresh run that finishes in one session skips it. |
 
 ## Start — the argument, the table, and the eligible batch
 
@@ -209,63 +209,6 @@ pointer, marker and cost cursor are therefore shared between the slice's sets
 — display-level only; every downstream consumer is given the ticket id
 explicitly.
 
-## Worktrees — one per set, created before that set's Start
-
-For every set in this slice, create one git worktree outside the consumer
-repo (`docs/requirements/functional/workspace-and-state.md`'s
-worktree-per-unit-of-work convention), with a **generic, set-scoped**
-directory name — never ticket-id-named, because the delivery ticket id does
-not exist until that set's Start runs:
-
-```bash
-git worktree add --detach <path> <default-branch>
-```
-
-The `--detach` form is required: the session checkout already has
-`<default-branch>` checked out, so a plain `git worktree add <path>
-<default-branch>` fails outright (`fatal: '<default-branch>' is already used
-by worktree at …`). `--detach` leaves the new worktree at the branch tip with
-`git status --porcelain` empty, which is exactly the clean-tree precondition
-the set's Branch step needs. Once that set's Start has minted its ticket id,
-enter its worktree and run Delivery step 1 (Branch) there — **before the
-Execute phase** — so every subsequent write for that set (the executor's doc
-writes and Delivery steps 2-4) happens inside that worktree on that branch;
-each executor's `<task>` carries that set's worktree-absolute output paths, so
-its writes cannot land in the session checkout. A single-set run may skip the
-worktree and use the session checkout, provided the clean-tree precondition
-holds.
-
-## Resume & reconcile
-
-If `context.reconcile` is true for a set, verify recorded progress against
-reality BEFORE continuing:
-
-- Read `<partition>/phases/create-docs/` — the persisted
-  `iter-<n>-<phase>.xml` files tell you the last completed phase and iteration.
-- Re-read the actual artifacts: which of the set's files under
-  `<checkout_root>/<path>/` exist and are complete; whether the ticket branch
-  exists (`git branch --list`), is committed, pushed, or already has a PR
-  (`gh pr list --head <branch>`).
-- Distrust the record where it is cheap to re-check (a doc "written" but
-  missing or truncated counts as not done).
-- Continue from the first unfinished phase of the recorded iteration: an
-  execute with no verify → verify it; a verify with findings and no later
-  execute → the next execute, with those findings as `<context>`.
-
-If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-docs/handoff-context.md` (if present), do a light
-reconcile (spot-check the claimed artifacts), and continue from where the
-summary points.
-
-Re-running `/acs:create-docs` with a set argument simply re-derives the
-eligible batch: a set with an open (non-`done`) delivery ticket, or an
-already-shipped doc set, is excluded from a **new** batch — it is already
-accounted for, either in flight (resume it by ticket id) or done. There is no
-fan-out ledger of its own: each set's own `pipeline-state.json`, written under
-`flow: "product"` with the step key `create-docs`, is the complete resume
-record for that set. `/acs:ship` never drives these — its `flow: "product"`
-refusal (`ship/SKILL.md`) stands.
-
 ## Inputs & mode
 
 The upstream inputs are declared per set in `doc_sets[<set>].upstream`:
@@ -318,7 +261,7 @@ executor reads the upstream inputs, decides the mode, authors the set, and
 writes its authoring notes; the verifier judges the result fresh. On
 iterations 2-3 the verifier's findings go verbatim into the next executor
 `<task>` `<context>` and the executor authors the remediation. This skill has
-no lane-driven verify-depth selection: the cap is a fixed 3 for every set.
+no path-driven verify-depth selection: the cap is a fixed 3 for every set.
 
 Drive this slice's sets together from this coordinator, in parallel phase
 batches — the mechanism `/acs:code`'s coordinator already uses to run several
@@ -461,8 +404,8 @@ with the `<questions>` list instead.
 
 ## Delivery (branch, commit, PR) — per set, one independent PR each
 
-The delivery-ticket pattern (same as /acs:create-architecture — you do this
-yourself, inside that set's worktree; /acs:create-design and /acs:code are not involved):
+The delivery-ticket pattern, done by you, inside that set's worktree
+(/acs:create-design and /acs:code are not involved):
 
 1. **Branch** (before the first executor writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
@@ -475,82 +418,14 @@ yourself, inside that set's worktree; /acs:create-design and /acs:code are not i
    the set's path). Commit with `settings.formats.commit_message` (default
    `{ticket_id} {summary}`), e.g. `SHOP-2 Add product quality doc set` (or
    `Regenerate …` on re-run).
-3. **Push & PR**: `git push -u origin <branch>`, then render the title via the
-   helper — NOT LLM prose composition — capturing its stdout as
-   `<rendered title>`:
+3. **Push & PR**: `git push -u origin <branch>`, then follow
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,
+   the rendered title, the body template, the pre-open self-check, `gh pr
+   create`, and recording `{number, url, branch}` for the result document.
 
-```bash
-gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-  --title "<delivery ticket's title>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-  --provider "<ticket.external.provider or empty>"
-```
-
-   The title renders `settings.formats.pr_title` (default
-   `[{ticket_id}] {title}`). The body comes from
-   `settings.formats.pr_description_template`: built-in name `pr-default` ->
-   `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-   `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
-   Fill its placeholders from `ticket.json` and the verifier result — never
-   from conversation memory.
-
-   **Pre-open self-check** — before `gh pr create`, self-check the rendered
-   title and filled body with the helper's `check` subcommand (a
-   deterministic CLI call, never a spawned subagent):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-  --title "<rendered title>" --body-file <body.md> --require-label ACS \
-  --pr-title-format "<settings.formats.pr_title>" \
-  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-  --ticket-prefix <settings.ticket_prefix>
-```
-
-   On pass, proceed to `gh pr create` unchanged. On failure, this check
-   blocks/retries: apply a bounded local re-render/re-check (up to 2
-   attempts) rather than opening a non-conforming PR; if still failing after
-   the bounded retries, STOP — do not call `gh pr create` — surface the
-   blocking finding with the failing heading(s)/detail(s) in that set's
-   result document.
-
-```bash
-gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file <body.md> --label ACS
-```
-
-4. Record `{number, url, branch}` for the result document. The post-hook
-   moves the delivery ticket to `in_review`; /acs:merge-pr later lands it
-   like any other ticket.
-
-The result is one independent delivery ticket and one independent docs-only
-PR **per set** — never one shared branch, never a combined PR.
-
-## Failure isolation — per set
-
-Every failure is isolated to its own set — a verifier cap reached at
-iteration 3, a lock held by another session, a refused push. The failing
-set's run status, ticket, partition and lock are its own; every OTHER set's
-run, PR and ledger are never touched by it. Report each set's outcome
-independently, each with its own resume command
-(`/acs:create-docs <delivery-ticket-id>`). The one shared precondition, the
-architecture doc set, was checked by the pre-hook before any set started, so
-there is no shared failure left to carve out.
-
-## Context pressure
-
-Your own context carries the slice's phase bookkeeping — bounded by
-`max_parallel` sets' worth of prose, which is why the cap exists. If you run
-low mid-run: flush in-flight work plus soft context (mode decision, partial
-verifier findings, gotchas) for each set to its own
-`<partition>/phases/create-docs/handoff-context.md`, then, per set:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
-```
-
-Tell the user the `continue_with` command it prints (re-running this skill
-with the delivery-ticket id resumes that set via the Per-set Start's resume
-form).
+Run those three steps once **per set**, in that set's own worktree. The result
+is one independent delivery ticket and one independent docs-only PR **per set**
+— never one shared branch, never a combined PR.
 
 ## Finish — per set
 

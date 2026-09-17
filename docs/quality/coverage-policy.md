@@ -14,8 +14,10 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
 (`.acs/settings.json:122`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
-for its sequence diagram. Repo-wide TOTAL is **94%** (10925 statements,
-702 missed) — above the 90 floor. Re-derive it directly — the same
+for its sequence diagram. Repo-wide TOTAL is **94%** (10782 statements,
+598 missed, measured 2026-09-17) — above the 90 floor. It read 95% (10845 /
+581) a day earlier; ADR-0095 deleted more covered code than uncovered, so the
+percentage moved without any test being lost. Re-derive it directly — the same
 pipeline as the gate, minus the failing `--fail-under` threshold, so it
 reports the same TOTAL the gate enforces — with:
 
@@ -28,34 +30,45 @@ python3 -m coverage report
 
 ## Exclusions
 
-Coverage is measured over two trees: `src/acs/hooks/scripts` — the
-hook/CLI layer, `.coveragerc`'s `[run] source` — plus `evals/`, added as a
-`[run] source_dirs` entry (MAR-575). `evals/` is in the denominator because
-the eval harness is what decides whether a paid run's misses are real
-findings, and it has deterministic tests under `tests/acs/` that must not be
-allowed to rot; it is a `source_dirs` entry rather than a second `source`
-line because `tests/acs/test_coverage_measurement_config.py` pins `source`
-and `omit` to exact values, and the hook-scripts path stays the single pinned
-one it has always been. `src/acs/skills/**` prose and the `tests/**` tree
-themselves remain unmeasured. Within the hook/CLI source, `.coveragerc`'s
-`omit` list excludes the **39** pre-`*`/post-`*` argument-forwarder scripts
-(20 `pre-*`, 19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a
-`sys.path` insert, an import, and a `run_pre`/`run_post` call, no
-`def main()` of their own); adding `evals/` changed nothing about that list
-and added **no** omit entry for the eval scenario drivers.
-`post-merge-pr.py` is deliberately **not** omitted: it has a real `--pr`
-branch and is measured, currently at 21 statements / 100%.
+Coverage is measured over two trees: `src/acs/hooks/scripts` — the hook/CLI
+layer, `.coveragerc`'s `[run] source` — plus `src/acs-evals/behavioural/`,
+added as a `[run] source_dirs` entry (MAR-575; the tree lived at `evals/`
+until it was folded into `src/acs-evals/`, and the same files are measured
+either way). The behavioural tree is in the denominator because the eval
+harness is what decides whether a paid run's misses are real findings, and it
+has deterministic tests under `tests/acs/` that must not be allowed to rot; it
+is a `source_dirs` entry rather than a second `source` line because
+`tests/acs/test_coverage_measurement_config.py` pins `source` and `omit` to
+exact values, and the hook-scripts path stays the single pinned one it has
+always been. `src/acs/skills/**` prose and the `tests/**` tree themselves
+remain unmeasured. Within the hook/CLI source, `.coveragerc`'s `omit` list
+excludes the **39** pre-`*`/post-`*` argument-forwarder scripts (20 `pre-*`,
+19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a `sys.path`
+insert, an import, and a `run_pre`/`run_post` call, no `def main()` of their
+own); adding the behavioural tree changed nothing about that list and added
+**no** omit entry for the eval scenario drivers. `post-merge-pr.py` is
+deliberately **not** omitted: it has a real `--pr` branch and is measured,
+currently at 21 statements / 100%.
 
-`evals/` contributes 1140 of the 10925 measured statements and 317 of the 702
-missed. Split by each scenario module's declared `META["tier"]`, those 317 are
-**118** in paid- and forge-tier scenario drivers (85 of them in `evals/tabp`'s
-`screen_cvs_eval.py`), **90** in free-tier acs drivers — deterministic, and
-run by the `acs-free-evals` pre-commit hook whenever `evals/` or `plugins/`
-change, just never in-process under the unit suite — **59** in
-`evals/acs/harness.py` itself and **50** in the two per-plugin `run_evals.py`
-runners; the headroom is the eval layer as a whole, not the paid tier alone.
-If that headroom ever puts TOTAL under the floor, the remedy is a
-unit path for those drivers, not an `omit`:
+`src/acs-evals/behavioural/` contributes 966 of the 10782 measured statements
+and 199 of the 598 missed (measured 2026-09-17; unchanged in absolute terms by
+ADR-0095, which touched the plugin rather than the scenario drivers — so its
+SHARE of the missed total rose, which is the same headroom finding the tabp
+removal produced, reading louder; the tree was 1140 of 10925 and 317 of 702 with `behavioural/tabp/`
+still in it). Split by each scenario module's declared `META["tier"]`, those
+199 are **90** in free-tier drivers — deterministic, and run by the
+`acs-free-evals` pre-commit hook whenever `src/acs/` or
+`src/acs-evals/behavioural/` change, just never in-process under the unit
+suite — **28** in paid-tier drivers, **5** in forge-tier drivers, **59** in
+`src/acs-evals/behavioural/acs/harness.py` itself and **17** in the two
+`run_evals.py` runners (the dispatcher and acs's own).
+
+Note where that leaves the headroom, because the removal moved it: the
+free tier is now the largest block of missed statements in the eval layer, not
+the paid one. The three free drivers are $0 and deterministic — they simply run
+out-of-process under the pre-commit hook rather than in-process under
+`unittest`. If TOTAL ever drops under the floor, the remedy is a unit path for
+those drivers, not an `omit`:
 [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md) restricts
 `omit` to true argument-forwarder shims, and PRD **G3** requires the target be
 met or hard-failed, never silently waived.

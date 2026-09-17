@@ -20,6 +20,15 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
+SHIP_FAILURE_PATHS = os.path.join(
+    PLUGIN, "skills", "ship", "references", "failure-paths.md")
+
+
+def ship_contract():
+    """SKILL.md plus the reference it points at. `on_fail` and `on_replan`
+    moved into `references/failure-paths.md` -- a pipeline whose steps all
+    complete never reads them -- so a pin on what the skill SAYS reads both."""
+    return read(SHIP_SKILL) + "\n" + read(SHIP_FAILURE_PATHS)
 
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
@@ -98,13 +107,30 @@ class EntryContractTest(unittest.TestCase):
 
     def test_ship_yaml_admits_no_design_phase_skill(self):
         """The prose claim above is the workflow's, not the skill's: ship.yaml
-        may name build/test/ship skills only."""
+        may name build/test/ship skills only.
+
+        A step's `skill` is one name or, since ADR-0095, a mapping keyed by
+        delivery path, so the check reads every name a step can resolve to —
+        `allowed_step_skills` is the wider set that also admits the internal
+        legs a step reaches only through such a mapping."""
         doc = lib.load_workflow(lib.default_workflow_path())[0]
-        allowed = set(lib.allowed_ship_skills())
+        allowed = set(lib.allowed_step_skills())
         for step in doc["steps"]:
-            self.assertIn(step["skill"], allowed)
-        self.assertNotIn("create-ticket", allowed)
-        self.assertNotIn("create-design", allowed)
+            for name in lib.step_skills(step):
+                with self.subTest(step=step["id"], skill=name):
+                    self.assertIn(name, allowed)
+        for retired in ("create-ticket", "create-design"):
+            with self.subTest(skill=retired):
+                self.assertNotIn(retired, allowed)
+                self.assertNotIn(retired, lib.allowed_ship_skills())
+
+    def test_the_user_facing_set_names_no_internal_leg(self):
+        """`allowed_ship_skills` is what a user is offered; a leg is reachable
+        only through a per-path mapping, so offering one would invite the hand
+        pick ADR-0095 took away."""
+        user_facing = set(lib.allowed_ship_skills())
+        self.assertEqual(user_facing & set(lib.CODE_PATH_LEGS), set())
+        self.assertLess(user_facing, set(lib.allowed_step_skills()))
 
 
 class RefusalPointerTest(unittest.TestCase):
@@ -192,9 +218,14 @@ class LoopDelegationTest(unittest.TestCase):
                       "the fan-out mechanism is cited, not reinvented")
 
     def test_on_replan_and_on_fail_are_keyed_on_the_step_fields(self):
-        self.assertIn("## Replan", self.body)
-        self.assertIn("## Fix loop", self.body)
-        replan = section(self.body, "## Replan")
+        # Both sections now live in `references/failure-paths.md`; SKILL.md
+        # routes to them. What is pinned is that each stays keyed on its own
+        # step field, not which file states it.
+        contract = ship_contract()
+        self.assertIn("## Replan", contract)
+        self.assertIn("## Fix loop", contract)
+        self.assertIn("references/failure-paths.md", self.body)
+        replan = section(contract, "## Replan")
         self.assertIn("plan_superseded", replan)
         self.assertIn("on_replan", replan)
 

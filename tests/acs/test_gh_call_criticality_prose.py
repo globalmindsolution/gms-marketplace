@@ -103,6 +103,27 @@ def read(path):
         return fh.read()
 
 
+def skill_contract(name):
+    """A skill's contract: its SKILL.md plus the references it points at.
+
+    Progressive disclosure moved parts of these skills into `references/` --
+    merge-pr's exempt-PR mode, create-ticket's `--fan-out`, split and
+    tracker-sync steps -- because each is read by exactly one kind of run.
+    These assertions pin what the SKILL SAYS, never which of its files says
+    it, so reading the concatenation keeps the pin honest while the layout
+    stays free to change, and a rule that genuinely vanishes still fails.
+    """
+    base = os.path.join(PLUGIN, "skills", name)
+    parts = [read(os.path.join(base, "SKILL.md"))]
+    for path in sorted(glob.glob(os.path.join(base, "references", "*.md"))):
+        parts.append(read(path))
+    return "\n".join(parts)
+
+
+def merge_pr_contract():
+    return skill_contract("merge-pr")
+
+
 def norm(body):
     """Collapse whitespace runs so markdown line-wrap can never break a
     phrase-spanning match, and strip markdown blockquote `> ` line markers so
@@ -283,7 +304,7 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
     MAR-403 T2b) to match the plan's table."""
 
     def test_gh_issue_create_guard_is_preserved_verbatim_and_gains_the_hint(self):
-        body = read(CREATE_TICKET_SKILL)
+        body = skill_contract("create-ticket")
         # The pre-existing batch-continuation mechanics (byte-identical) must
         # survive untouched -- only the severity/replayable/class label changed.
         self.assertIn(
@@ -302,7 +323,7 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
         )
 
     def test_gh_issue_create_call_site_states_error_severity_not_info(self):
-        body = read(CREATE_TICKET_SKILL)
+        body = skill_contract("create-ticket")
         idx = body.index("run the `gh issue create` sequence below once per ticket")
         window_norm = norm(body[idx: idx + 500])
         self.assertRegex(window_norm, r"(?i)error.{0,60}severity finding")
@@ -357,7 +378,7 @@ class MergePrExemptModeTest(unittest.TestCase):
     critical rule as the ticketed path's Step 1."""
 
     def test_merge_pr_exempt_mode_carries_the_same_merge_rule(self):
-        norm_body = norm(read(MERGE_PR_SKILL))
+        norm_body = norm(merge_pr_contract())
         # Target only the two REAL command invocations (Step 1's and the
         # exempt path's), not the classification section's own abbreviated
         # mention of the same command (`gh pr merge <number> --<strategy>`).
@@ -386,8 +407,12 @@ class McpRemovalTest(unittest.TestCase):
         self.assertNotIn("mcp__github__", body)
 
     def test_no_acs_skill_or_agent_offers_an_mcp_transport(self):
+        # References are scanned alongside SKILL.md: a skill that moves prose
+        # into `references/` must not thereby move an MCP mention out of this
+        # guard's reach -- the rule is about what the skill SAYS, not where.
         paths = (
             glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+            + glob.glob(os.path.join(PLUGIN, "skills", "*", "references", "*.md"))
             + glob.glob(os.path.join(PLUGIN, "agents", "*.md"))
         )
         self.assertTrue(paths, "expected to find skill/agent files to scan")
@@ -400,22 +425,24 @@ class McpRemovalTest(unittest.TestCase):
 
 class FrozenPayloadTest(unittest.TestCase):
     """R-B/R-C: deleting the MCP-fallback section must not strand the
-    frozen-payload troubleshooting section it used to point into."""
+    frozen-payload troubleshooting section it used to point into.
+
+    The section has since moved into `references/ci-convention-check.md` under
+    progressive disclosure -- only a run whose convention check comes back red
+    needs it. Reachability is therefore the same requirement stated across two
+    files: the section exists, and SKILL.md routes to it."""
 
     FROZEN_HEADING = "### CI convention-check troubleshooting (frozen-payload gotcha)"
+    FROZEN_REF = os.path.join(
+        PLUGIN, "skills", "create-pr", "references", "ci-convention-check.md")
 
     def test_frozen_payload_section_is_still_reachable(self):
-        body = read(CREATE_PR_SKILL)
-        self.assertIn(self.FROZEN_HEADING, body)
-        idx = body.index(self.FROZEN_HEADING)
-        before = body[:idx]
-        self.assertRegex(
-            before, r"(?i)frozen-payload gotcha",
-            "a pointer into the frozen-payload section must exist earlier in the file",
-        )
+        self.assertIn(self.FROZEN_HEADING, read(self.FROZEN_REF))
+        self.assertIn("references/ci-convention-check.md", read(CREATE_PR_SKILL),
+                      "SKILL.md must route to the frozen-payload section")
 
     def test_frozen_payload_guidance_is_preserved(self):
-        body = read(CREATE_PR_SKILL)
+        body = read(self.FROZEN_REF)
         self.assertIn(
             "Never treat a rerun of a stale/superseded run as a valid re-check.",
             body,
@@ -425,7 +452,7 @@ class FrozenPayloadTest(unittest.TestCase):
         self.assertIn("Never call `rerun_workflow_run` on a stale/superseded run", body)
 
     def test_mcp_aside_removed_and_unverified_rule_added(self):
-        section = extract_section(read(CREATE_PR_SKILL), self.FROZEN_HEADING)
+        section = extract_section(read(self.FROZEN_REF), self.FROZEN_HEADING)
         self.assertNotIn("actions_list", section)
         self.assertNotIn("actions_get", section)
         self.assertNotIn("when `gh` is unavailable", section)

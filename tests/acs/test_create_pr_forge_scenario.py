@@ -22,7 +22,7 @@ from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
 import harness                      # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 import scenarios                    # noqa: E402  (the package; resolves s08's `from harness import ...`)
 
@@ -348,7 +348,7 @@ class RealRunnerSkipTest(unittest.TestCase):
         env.pop("ACS_FORGE_REPO", None)
         env["ACS_EVAL_SOURCE"] = "1"
         result = subprocess.run(
-            [sys.executable, os.path.join(REPO_ROOT, "evals", "run_evals.py"),
+            [sys.executable, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "run_evals.py"),
              "--plugin", "acs", "--only", "create_pr_forge"],
             capture_output=True, text=True, cwd=REPO_ROOT, env=env,
         )

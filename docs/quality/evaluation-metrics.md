@@ -140,7 +140,7 @@ Of the goals that are statements about pipeline runtime behaviour:
 **Gated today** — a threshold reads the number and can fail a release:
 
 - Routing accuracy, positive and negative, and the control probes (G8a).
-  Positive routing coverage is 28 of 28 shipped skills, now pinned by
+  Positive routing coverage is 32 of 32 shipped skills, now pinned by
   `runner/test_dataset_integrity.py` rather than asserted in prose.
 - Pipeline completion, and cost as a release-over-release ratio (G5).
 - Unresolved blocking findings, at a rate ceiling of zero.

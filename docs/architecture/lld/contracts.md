@@ -100,48 +100,46 @@ failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_
 in-process under a bounded alarm that fails closed (exit 2 blocks);
 `SessionEnd` → `dispatch.py session-end` (finalize `interrupted`, release lock).
 
-## Ticket classification fields (MAR-56)
+## Delivery path (ADR-0095)
 
-`ticket.json` carries three new optional fields (additive; legacy tickets without them remain valid):
-- `size` — authoritative axis (enum: `trivial`, `small`, `standard`, `large`; default `standard` when absent)
-- `stakes` — authoritative axis (enum: `low`, `normal`, `high`; default `normal` when absent)
-- `lane` — derived cache, recomputable via `derive_lane(size, stakes, needs_design, type)` (enum: `TRIVIAL`, `SMALL`, `STANDARD`, `COMPLEX`; default `STANDARD`). As of MAR-76, `needs_design` is accepted for signature stability but no longer affects the result — the lane derives from `size` × `stakes` plus the epic override only.
+`pipeline-state.json` carries the ticket's judged delivery path and the reason
+for it:
+- `delivery_path` — one of the names `workflows/ship.yaml`'s `delivery.paths`
+  declares (shipped vocabulary: `trivial`, `small`, `standard`, `complex`)
+- `delivery_path_reason` — one non-empty sentence naming what in `plan.md`
+  decided it, which is what the verifier's path-audit dimension judges the
+  changeset against
 
-`pipeline-state.json` records `lane` alongside `flow` (written by `update_pipeline`).
-`tickets-index.json` mirrors `lane` per entry alongside `needs_design` (written by `update_index`).
+`record_delivery_path(tdir, ticket_id, path, reason, doc=None)`
+(`acs_lib/workflow.py`, exposed as `acs.py path set`) is the ONLY writer. It
+refuses three things, and the third is the load-bearing one:
 
-## Escalation-event audit trail (MAR-106)
+1. a path the workflow does not declare;
+2. an empty reason — a path recorded without one cannot be audited later;
+3. moving a ticket that is already on a path. This is what makes a resumed run
+   READ the recorded path rather than judge it again, so one pipeline cannot
+   end up half at one rigor and half at another.
 
-`code-state.json` run entries carry an additive, optional `escalations` array
-(`runs[-1].escalations: [{...}]`), appended by `record_escalation_event(tdir,
-skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists via the
-existing pretty-printed `write_json`. Each event is a fixed 13-field dict:
-`ts, from_lane, to_lane, from_size, from_stakes, to_size, to_stakes, trigger,
-source, ceiling_before, ceiling_after, direction, confirmation_ref` —
-`direction` is `"up"` or `"down"`; `trigger` is `"a"`, `"b"`, `"c"`, or
-`"user_confirmed_deescalation"`; `confirmation_ref` is `null` for every
-upward/automatic event. No schema file edit is required — run-entry items
-already declare `additionalProperties: true`. Events are recorded at the
-iteration-start **detection point** (start of each iteration, after the prior
-verifier and before the current execute — MAR-107 D4); crossing the
-fast→full fold boundary raises the iteration ceiling and verify depth to the
-escalated lane's values only — monotonically, never lowered, with no stage
-re-entry and no re-spawn of any prior stage (`code/SKILL.md`'s "In-loop
-escalation check" section).
+`recorded_delivery_path` / `recorded_delivery_reason` are the read side. The
+walk (`next_steps`) reports `delivery: {path, reason, classify_after, paths,
+awaiting_classification}` and HOLDS at `delivery.classify_after` until a path
+is recorded, so nothing downstream of the branch point runs unclassified.
 
-`confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
-clarify_ref)` (`acs_lib/state.py`, MAR-108) is the only writer capable of lowering
-`size`/`stakes`/`lane` below the ticket's current confirmed value. It hard-
-requires `clarify_ref` to resolve to a `clarify.py` ledger entry with
-`status == "answered"` exactly — a falsy ref, an unresolvable id, an `"open"`
-entry, or an `"assumed"` entry all raise `ValueError` with no write of any
-kind (ticket, pipeline, index, or escalation event). On success it recomputes
-`lane` via `derive_lane` (never hand-set), persists via the same three
-writers as the upward path (`save_ticket` / `update_pipeline` /
-`update_index`), and only then records a `direction:"down"` event via
-`record_escalation_event` with `trigger:"user_confirmed_deescalation"` and
-`confirmation_ref` set to the resolved `C-<n>` id — persist-then-record,
-mirroring the upward on-trigger sequence's ordering (design.md:506-518).
+**What this replaced.** MAR-56 put three optional fields on `ticket.json` —
+`size` (`trivial|small|standard|large`), `stakes` (`low|normal|high`) and a
+`lane` cache derived from them by `derive_lane` — mirrored onto
+`pipeline-state.json` and `tickets-index.json`. MAR-106 added an
+`escalations` array on `code-state.json` run entries, a fixed 13-field event
+appended by `record_escalation_event` at an iteration-start detection point,
+so that a mid-run lane change was never silent. MAR-108 added
+`confirm_deescalation`, the only writer able to lower those axes, unreachable
+without an *answered* `clarify.py` reference.
+
+All of it is retired. The axes were a guess made before anyone read the code;
+the escalation ledger and the de-escalation writer existed only to make that
+guess safe to revise mid-run. One judgement, made from the plan and recorded
+once, needs none of them. A ticket from an older build that still carries
+`size`, `stakes` or `lane` is read as if it did not.
 
 ## Guard-denial audit trail (MAR-578)
 
@@ -151,9 +149,11 @@ skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists v
 the same pretty-printed `write_json`. The state file is the denied executor's
 own (`code-state.json` is the common case, not the only one): the guard records
 under the active executor's skill, and the derivation below is skill-agnostic.
-Unlike `record_escalation_event`, it returns `False` instead of raising when
-there is no run entry to carry the event — its sole caller is a deny path whose
-verdict must not depend on the recording.
+It returns `False` instead of raising when there is no run entry to carry the
+event — its sole caller is a deny path whose verdict must not depend on the
+recording. (Its retired sibling `record_escalation_event` raised there, which
+was right for an audit write whose absence was itself the signal that a lane
+change went unrecorded; this recorder has the opposite obligation.)
 
 Each event is a fixed 7-field dict: `ts, skill, iteration, tool, target, reason,
 declared_count` — `iteration` is a **string** (the highest declared file-map
@@ -167,8 +167,9 @@ Two bounds hold at every deny site. An event is recorded **only on a deny** —
 every fail-open branch (not a write tool, no partition, no active executor)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
-lock. Unlike `escalations`, the item shape **is** declared in
-`src/acs/schemas/skill-state.schema.json`; run-entry items already declare
+lock. The item shape **is** declared in
+`src/acs/schemas/skill-state.schema.json` — the retired `escalations` array
+never was; run-entry items already declare
 `additionalProperties: true`, so that declaration documents the entry rather
 than tightening what a run entry may carry.
 
@@ -200,7 +201,7 @@ per-key merge local → project → user; validated by every pre-hook
 `test_coverage_percent`, `merge_strategy`, `prd_path`, `architecture_path`,
 `requirements_path?`, `requirements_layout?`, `adr_path?`, `principles_path?`,
 `standards_path?`, `quality_path?`, `operations_path?`, `e2e?`, `suites?`,
-`tests?`, `enforcement?`, `models`, `tracker`, `formats`, `high_stakes_paths?`
+`tests?`, `enforcement?`, `models`, `tracker`, `formats`
 (array of glob strings; absent key resolves to the seed default
 `["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
 `e2e?` is a deprecated compatibility alias, normalized at load time into
@@ -309,218 +310,3 @@ names, and a one-sentence `reason` the skill states back to the user. The
 partial case is deterministic and deliberate: **any** single present row means
 `standardize`, so only a repo with no declared evidence at all is `bootstrap`
 — failing toward the additive, idempotent leg.
-
----
-
-## tabp plugin contracts
-
-Source: `MAR-2/specs/01-tabp-state-json-schemas.md`. Schemas live in
-`plugins/tabp/schemas/`. Validated at runtime by `tabp_helper.py` (spec 02).
-All `$id` URIs use tabp-namespaced GitHub paths; no acs identifiers.
-
-### tabp settings.json
-
-**File path:** `<project>/tabp settings.json` — literal filename with a space,
-at the Cowork project folder root (NOT inside `.tabp/`). Read by
-`tabp_helper.py settings-read --project-dir <path>` at skill start. Validated
-by `tabp_helper.py settings-validate --project-dir <path>` before reading.
-
-**Schema:** `plugins/tabp/schemas/settings.schema.json` (JSON Schema
-Draft-2020-12; all fields optional; `additionalProperties: false`;
-`state_write_mode` enum `["helper", "instructed"]`; no `workspace_path`, no
-secrets).
-
-**Shape table:**
-
-| Field | Type | Default | Notes |
-|---|---|---|---|
-| `screening_model` | string | coordinator default Sonnet | Model for per-CV screening subagents. |
-| `synthesis_model` | string | coordinator default Opus | Model for synthesis subagent. |
-| `cv_folder` | string | `./cvs` | Relative to project folder. |
-| `jd_folder` | string | `./jds` | Relative to project folder. |
-| `state_write_mode` | `"helper"` or `"instructed"` | `"helper"` | `"instructed"` when Cowork denies shell (degraded mode). |
-
-**Observable fallback envelope** — `settings-read` stdout:
-
-```json
-{
-  "settings": { ...resolved fields... },
-  "settings_source": "file" | "absent" | "corrupt",
-  "from_file": [...keys present in file...],
-  "from_default": [...remaining keys that fell back to defaults...]
-}
-```
-
-When the file is absent: `settings_source = "absent"`, `from_file = []`, all
-five keys in `from_default`. When the file is corrupt: `settings_source =
-"corrupt"`, same. The coordinator reads resolved values from
-`result["settings"]` and can surface which settings came from the file vs.
-which are defaults.
-
-**MAR-38 — `model_pricing` (runtime-read-only, no schema file):** an optional
-`model_pricing` block may appear in `settings.json` to override the built-in
-pricing snapshot on a per-model basis. No `settings.schema.json` is created for
-this key (DEV-1: MAR-3-owned schema boundary; would activate `ci.yml:197-199`).
-Format:
-```json
-{
-  "model_pricing": {
-    "claude-opus-4-8":   { "input_per_mtok": 15.00, "output_per_mtok": 75.00 },
-    "claude-sonnet-4-6": { "input_per_mtok":  3.00, "output_per_mtok": 15.00 }
-  }
-}
-```
-Values are USD per million tokens (numbers). No credentials or API keys.
-If absent, the built-in `_MODEL_PRICING` snapshot (dated `_PRICING_SNAPSHOT_DATE`)
-is used. Surfaced via `settings-read` output when present (`_cmd_settings_read`,
-MAR-38). Validated/sanitised at usage-read time by `_resolve_pricing`.
-
-### `.tabp/` state record schemas
-
-All state files are written to `<project>/.tabp/` in the Cowork project folder.
-PII-minimal rule: `candidate_name` holds only a name or anonymised label — no
-contact details, no protected-class attributes, no secrets.
-
-#### Run record — `run.json`
-
-Path: `<project>/.tabp/runs/<run-id>/run.json`
-Schema: `plugins/tabp/schemas/run.schema.json`
-
-| Field | Type | Description |
-|---|---|---|
-| `run_id` | string | Unique run ID, format `run-<ISO8601>`. E.g. `run-20260620T091530Z`. |
-| `skill` | string | Skill name. Always `"screen-cvs"` for the current skill. |
-| `started_at` | date-time | ISO-8601 datetime the run started. |
-| `ended_at` | date-time or null | ISO-8601 datetime the run ended. Null while `in_progress`. |
-| `status` | enum | `"in_progress"`, `"completed"`, `"failed"`, `"interrupted"`. |
-| `stop_reason` | string or null | Reason run stopped early. Null unless `failed` or `interrupted`. |
-| `state_write_mode` | enum | `"helper"` (tabp_helper.py subcommands) or `"instructed"` (degraded mode). |
-| `usage.usage_source` | enum | `"cowork"` (self-reported, cost_basis=actual), `"claude-code"` (transcript tokens, cost_basis=estimate), `"estimate"` (heuristic, cost_basis=estimate), `"unavailable"` (no data). |
-| `usage.tokens_in` | integer or null | Input token count. Null when `usage_source = "unavailable"`. |
-| `usage.tokens_out` | integer or null | Output token count. Null when `usage_source = "unavailable"`. |
-| `usage.cost_usd` | number or null | Cost in USD. Null when `usage_source = "unavailable"`. |
-| `usage.cost_basis` | enum (optional) | `"actual"` (self-reported by runtime), `"estimate"` (derived from tokens x pricing), `"unavailable"` (no cost data). Absent on legacy records — treated as `"unavailable"`. |
-| `usage.duration_seconds` | number or null | Wall-clock duration in seconds. |
-| `candidates_screened` | integer | Number of candidates screened. |
-| `jd_slug` | string | Job description slug. E.g. `"backend-engineer"`. |
-| `scorecard_file` | string (optional) | Filename of the Excel scorecard produced. |
-
-#### Evidence record — `evidence-<candidate-id>.json`
-
-Path: `<project>/.tabp/runs/<run-id>/evidence-<candidate-id>.json`
-Schema: `plugins/tabp/schemas/evidence.schema.json`
-
-| Field | Type | Description |
-|---|---|---|
-| `run_id` | string | Parent run identifier. |
-| `candidate_id` | string | Unique candidate ID within the run. |
-| `candidate_name` | string | Name or anonymised label only (PII-minimal rule). |
-| `requirements` | array | Per-requirement judgments. Each item: `requirement`, `category`, `judgment`, `evidence` (minLength:1 — AC-4). |
-| `score` | number | Composite score 0..100. |
-| `band` | enum | `"Strong"`, `"Moderate"`, `"Weak"`. |
-| `recommendation` | enum | `"Recommend"`, `"Hold"`, `"Reject"`. |
-| `must_have_gate` | string | Pattern `^(OK\|Missing:.+)$`. `"OK"` or `"Missing:<list>"`. |
-| `fairness_check_passed` | boolean | Whether the fairness guardrail check passed. |
-| `bias_flags` | array (optional) | List of bias flag strings. Empty when none detected. |
-
-AC-4 constraint: every `requirements[].evidence` must be a non-empty string (minLength:1).
-No invented evidence is permitted; all judgments must cite CV source.
-
-#### Decision record — `decision.json`
-
-Path: `<project>/.tabp/runs/<run-id>/decision.json`
-Schema: `plugins/tabp/schemas/decision.schema.json`
-
-| Field | Type | Description |
-|---|---|---|
-| `run_id` | string | Parent run identifier. |
-| `verification_passed` | boolean | Whether the self-verification step passed (AC-3). |
-| `verification_notes` | string (optional) | Notes from the self-verification step. |
-| `presented_at` | date-time | ISO-8601 datetime when results were presented. |
-| `sign_off` | object or null | Null until recruiter confirms in-chat. Object has: `recruiter` (string), `confirmed_at` (date-time), `notes` (string, optional). |
-
-#### Append-only run history — `history.json`
-
-Path: `<project>/.tabp/history.json`
-Schema: `plugins/tabp/schemas/history.schema.json`
-
-| Field | Type | Description |
-|---|---|---|
-| `runs` | array | Append-only array of run summary objects. `runs[-1]` is the most recent run. |
-| `runs[].run_id` | string | Run identifier. |
-| `runs[].skill` | string | Skill name. |
-| `runs[].started_at` | date-time | Run start time. |
-| `runs[].status` | enum | `"in_progress"`, `"completed"`, `"failed"`, `"interrupted"`. |
-| `runs[].ended_at` | date-time or null (optional) | Run end time. |
-| `runs[].candidates_screened` | integer (optional) | Number of candidates screened. |
-| `runs[].jd_slug` | string (optional) | Job description slug. |
-| `runs[].duration_seconds` | number or null (optional) | Wall-clock duration. |
-| `runs[].usage_source` | enum (optional) | `"cowork"`, `"claude-code"`, `"estimate"`, or `"unavailable"`. |
-
-The append-only invariant (no deletion) is enforced at runtime by `tabp_helper.py`.
-
-#### Lock — `.lock`
-
-Path: `<project>/.tabp/.lock`
-Schema: `plugins/tabp/schemas/lock.schema.json`
-
-| Field | Type | Description |
-|---|---|---|
-| `pid` | integer (>= 1) | PID of the process holding the lock. |
-| `hostname` | string | Hostname of the machine holding the lock. |
-| `created_at` | date-time | ISO-8601 datetime the lock was acquired. |
-
-Stale locks (process gone or different host) are reported for manual removal,
-never auto-stolen. Released when the run transitions out of `in_progress`.
-
-### `/tabp:usage` read contract output shape
-
-_Implemented in MAR-38. Replaces the MAR-6 placeholder stub._
-
-`tabp_helper.py usage-read --project-dir <path> [--run-id <id>|all]` aggregates
-from `history.json` + per-run `run.json` records and prints to stdout:
-
-```json
-{
-  "total_runs": 12,
-  "completed_runs": 11,
-  "failed_runs": 1,
-  "total_candidates_screened": 47,
-  "total_duration_seconds": 19205,
-  "total_tokens_in": 284000,
-  "total_tokens_out": 52000,
-  "total_cost_usd": 4.12,
-  "cost_basis": "estimate",
-  "pricing_snapshot_date": "2025-08-01",
-  "usage_note": "Cost is a derived estimate (tokens x pricing table snapshot 2025-08-01). Token counts are actuals from Claude Code transcript where available; estimate otherwise. Unavailable runs excluded from totals.",
-  "runs": [
-    {
-      "run_id": "run-20260620T091530Z",
-      "started_at": "2026-06-20T09:15:30Z",
-      "status": "completed",
-      "candidates_screened": 5,
-      "duration_seconds": 1902,
-      "usage_source": "claude-code",
-      "tokens_in": 28000,
-      "tokens_out": 5200,
-      "cost_usd": 0.41,
-      "cost_basis": "estimate",
-      "usage_note": "Tokens: actuals from Claude Code transcript. Cost: derived estimate."
-    }
-  ]
-}
-```
-
-When `usage_source = "unavailable"`: `tokens_in`, `tokens_out`, `cost_usd` are
-`null`; `cost_basis` is `"unavailable"`; the run is included in `runs[]` but
-excluded from token/cost totals.
-
-When `usage_source = "cowork"`: `cost_basis = "actual"` (self-reported by
-Cowork runtime — forward hook, MAR-40).
-
-`pricing_snapshot_date` is always present (`_PRICING_SNAPSHOT_DATE` constant).
-`cost_basis` is the aggregate: `"actual"` if any non-unavailable run has actual,
-else `"estimate"`, else `"unavailable"`.
-
-Read-only: no writes, no network calls, no re-screening. No transcript text is
-persisted into `.tabp/` state files.

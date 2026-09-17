@@ -39,9 +39,10 @@ must equal the `branch` constraint. If not, STOP and return `failed` — never
 check out, create, or reset branches yourself.
 
 Docs-only exception: when `<constraints>` carries `docs_only=true`, skip
-steps 1 and 3 (no new tests, no coverage measurement — record
+steps 1 and 3 (no new tests, no coverage — record
 `"coverage": {"percent": null, "target": "n/a — docs_only"}` in your execute
-report) but STILL run the full suite once in step 2 and require it green. If
+report). The suite still has to be green, and the verifier's run establishes
+that, same as on any other ticket. If
 your spec forces you to touch executable code or tests anyway, STOP and
 return `failed` with the contradiction in `<errors>` — the flag is wrong;
 never quietly do code work under a docs-only ticket.
@@ -55,12 +56,27 @@ never quietly do code work under a docs-only ticket.
    `TC-n` id in the test's docstring so the verifier can trace it, and record
    any case you could not write — with the reason — in your execute report's
    `problems` field. Never silently drop a case, and never renumber one.
-2. **Implement** until those tests pass, iterating to green. Then run the FULL
-   suite with the commands from the plan's test strategy — no regressions.
+2. **Implement** until those tests pass, iterating against the TARGETED set:
+   the tests you wrote in step 1, plus the suites the plan's test strategy
+   names for your file map, plus anything covering the code you edited. Run
+   them with the commands that strategy gives. `/acs:create-impl-plan` wrote
+   it — this skill does not plan — so which tests your work bears on is a
+   question already answered in `plan.md`, not one to re-derive here. That is
+   the loop whose result you act on.
+
+   **You do not run the full unit suite.** /acs:code runs it exactly once per
+   iteration, in the verify phase, and that run is both the regression check
+   and the coverage measurement. Running it here too would answer the same
+   question twice on the same tree at the same cost, and the verifier's answer
+   is the one that counts: it shares no memory with you and trusts nothing you
+   recorded. Pick your affected set honestly — a regression you miss is one the
+   verifier finds, which costs a whole extra execute-verify round, so breadth
+   where you are unsure is cheap and guesswork is not.
    When `<constraints>` carries `e2e_command` and your spec's Test plan names
    e2e flows: write/update those e2e tests too and run the AFFECTED e2e tests
    once (with `e2e_setup` first and `e2e_teardown` after, pass or fail) —
-   the full e2e suite is the verifier's job, not yours.
+   the full e2e suite is `/acs:run-e2e-tests`' job, not yours and not the
+   verifier's.
 
    **Code-comment policy — minimal, idea-only (token discipline).** Comments
    are output you pay for; keep them lean:
@@ -92,17 +108,19 @@ never quietly do code work under a docs-only ticket.
    - Match the existing style of the files you touch.
    - Only remove orphans your own change created; do not remove pre-existing
      dead code — mention it in the execute-report `problems` field instead.
-3. **Measure coverage** with the repo's own tooling against `coverage_target`
-   — one instrumented run of the test suite, the same measurement the
-   verifier repeats. A path reached only through a subprocess (a CLI the
-   tests spawn) is uncovered until a test reaches it in-process; never top
-   the number up by appending manual invocations to the data file, since
-   the verifier re-measures from the suite alone and the gap is a blocking
-   finding.
-   If the target genuinely cannot be reached (e.g. untestable generated code),
-   record the achieved number and the concrete reason — never pad with
-   meaningless tests and never lower the bar yourself; the coordinator owns the
-   hard-fail decision.
+3. **Coverage is measured by the verifier, not by you.** It falls out of the
+   verify phase's single full-suite run, so record
+   `"coverage": {"percent": null, "target": "measured in verify"}` rather than
+   a number of your own.
+
+   Write tests as if the target still binds, because it does — it is simply
+   judged one phase later. A path reached only through a subprocess (a CLI the
+   tests spawn) is uncovered until a test reaches it in-process, so cover it
+   in-process. If your spec's code genuinely cannot be covered (untestable
+   generated code, say), say so in `problems` with the reason: that is the
+   input the coordinator needs for the hard-fail decision, and it is worth far
+   more than a number you cannot stand behind. Never pad with meaningless
+   tests, and never lower the bar.
 4. **Reconcile product-doc facts — part of the change, not a follow-up**:
 
    **Product-doc factual reconciliation (also part of the change):** when the
@@ -140,7 +158,7 @@ Shape:
   "spec": "02-import-endpoint.md",
   "files_changed": ["src/import/api.py", "tests/test_import_api.py", "docs/api/import.md"],
   "tests": {"commands": ["pytest -q"], "passed": 84, "failed": 0},
-  "coverage": {"command": "pytest --cov=src -q", "percent": 93.4, "target": 90},
+  "coverage": {"percent": null, "target": "measured in verify"},
   "docs_updated": ["README.md", "docs/api/import.md", "docs/architecture/lld/flows/bulk-import.md"],
   "commits": ["a1b2c3d SHOP-123 add bulk import endpoint"],
   "problems": ["flaky test test_retry quarantined upstream; reran 3x green"],
@@ -180,11 +198,11 @@ after it. Self-check it first:
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>
   </outputs>
-  <stop-reason>Spec 02 green: 84/84 tests pass, coverage 93.4% vs target 90, 2 commits.</stop-reason>
+  <stop-reason>Spec 02 green: 84/84 affected tests pass, 2 commits. Full suite and coverage: verify.</stop-reason>
 </result>
 ```
 
-- `status="completed"` — tests green, coverage target met, docs updated, work
+- `status="completed"` — your affected tests green, docs updated, work
   committed.
 - `status="needs_input"` — blocked on an ambiguity or an out-of-map file;
   questions in `<questions>`, partial green work committed and recorded in the

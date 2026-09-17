@@ -153,43 +153,42 @@ then derives into `states.review.guard_denials`. It records on a deny only —
 never on any of the guard's fail-open branches — and never changes the deny it
 describes, so no gate, exit code or warning in the flow above moves.
 
-## Verify-depth scaling (MAR-58 / D4)
+## Delivery-path routing (ADR-0095)
 
-The iteration ceiling for the reflection loop is **lane-driven**:
+The iteration ceiling for the reflection loop is **path-driven**, and the path
+is **judged once, from the plan, and recorded** — never derived per run.
 
-- **TRIVIAL/SMALL lanes** (low/normal stakes): cap = **1** iteration — light
-  verify (single verifier pass that may iterate once on blocking findings).
-- **STANDARD/COMPLEX lanes** (or any high-stakes ticket): cap = **3** iterations
-  — full verify (execute → verify loop against the plan approved before it
-  starts, never a per-iteration re-plan, + full
-  16-dimension review + e2e when configured); the cap counts execute+verify
-  rounds (MAR-71, slice 1b of MAR-69).
+After `create-impl-plan` completes, `/acs:ship` reads `plan.md` and judges the
+ticket onto one of four delivery paths, writing `delivery_path` and
+`delivery_path_reason` to `pipeline-state.json`. Every later read takes the
+recorded value, which is what keeps a resumed run on the path its first session
+chose. `/acs:code` dispatches to that path's leg:
 
-The ceiling is determined by `verify_depth(ticket.lane, ticket.stakes)` in
-`acs_lib/lanes.py` (see `VERIFY_ITERATION_CAP`). High-stakes tickets ALWAYS use full
-verify regardless of size (stakes floor; AC-2).
+| Path | Leg | Executors | Verifier | Ceiling | Plan approval |
+|---|---|---|---|---|---|
+| `trivial` | `code-trivial` | one | one pass | 2 | not required |
+| `small` | `code-small` | one | one pass | 2 | not required |
+| `standard` | `code-standard` | parallel, per file map | one pass, 16 dimensions | 3 | enforced |
+| `complex` | `code-complex` | parallel, per file map | four merged lenses | 3 | enforced |
 
-This initial ceiling is the **starting** value only. At the start of each
-iteration `/code` runs the in-loop **upward escalation check** (MAR-57): on a
-verifier finding signaling higher stakes/size, a `recommend_stakes` glob match
-firing `"high"`, or an explicit user/agent request, `guard_axes` clamps each
-axis upward and `escalate_lane` recomputes the lane via `derive_lane`; the
-ceiling is then raised to `max(current, new)` — **monotone, never lowered**.
-Completed iterations are preserved (no restart). De-escalation is never
-automatic. If escalation crosses the fast→full fold boundary (TRIVIAL/SMALL →
-STANDARD/COMPLEX), the iteration ceiling and verify depth are raised to the
-escalated lane's values; there is no stage re-entry and no re-spawn of any
-prior phase — including no retro-spawn of `/acs:create-impl-plan`'s executor
-for a run that started on a fast lane (**D-3**, MAR-72): the escalation
-raises verify depth and the iteration ceiling only; it never spawns a plan
-author after the fact.
-Completed iterations are preserved (`code/SKILL.md`'s "In-loop
-escalation check" section).
+Each leg states its own ceiling in its SKILL.md. There is no depth function, no
+`VERIFY_ITERATION_CAP` table and no lane to derive: `derive_lane`,
+`verify_depth`, `escalate_lane`, `guard_axes` and `recommend_stakes` were all
+retired with the `size`/`stakes` axes they read.
 
-**The verifier subagent runs in every lane as the in-loop gate (C-5).** Light
-verify reduces the iteration ceiling only — the verifier always runs; there is
-no inline human-approval gate. The TDD/coverage gate (Coverage hard fail) is
-never trimmed by the verify-depth selection and applies in full in every lane.
+**The ceiling does not move mid-run.** ADR-0042's upward escalation check and
+ADR-0034's boundary-only de-escalation are both gone, and deliberately: they
+were a correction loop for a classification made before anyone had looked at
+the work. The remedy for a path that turns out wrong is `on_replan` — the
+verifier's **Path audit** dimension raises it, the run fails with
+`stop_reason: plan_superseded`, `/acs:ship` re-runs `/acs:create-impl-plan`,
+and the corrected plan is judged fresh. That fixes the artifact everything
+downstream reads instead of compensating for it.
+
+**The verifier subagent runs on every path as the in-loop gate (C-5).** A
+cheaper path spends less looking — fewer executors, one verifier instead of
+four merged lenses, one fewer iteration — never less rigor per dimension it
+checks. The TDD/coverage gate (Coverage hard fail) is identical on all four.
 
 ## Amendment — skills-independence refactor (ADR-0089)
 

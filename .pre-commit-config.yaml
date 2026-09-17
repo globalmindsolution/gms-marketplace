@@ -37,15 +37,15 @@ repos:
   # acs behavioral evals — FREE tier only (deterministic, $0, no `claude`).
   # Runs the gate + SessionEnd smoke against the source being committed when the
   # plugin or the harness changes. The paid tier (real `claude -p` sessions) is
-  # never run here — run it locally on demand: `python3 evals/run_evals.py --paid`.
+  # never run here — run it locally on demand: `python3 src/acs-evals/behavioural/run_evals.py --paid`.
   - repo: local
     hooks:
       - id: acs-free-evals
         name: acs free evals (gate + cleanup smoke)
-        entry: env ACS_EVAL_SOURCE=1 python3 evals/run_evals.py --plugin acs
+        entry: env ACS_EVAL_SOURCE=1 python3 src/acs-evals/behavioural/run_evals.py --plugin acs
         language: system
         pass_filenames: false
-        files: ^(evals/|plugins/)
+        files: ^(src/acs/|src/acs-evals/behavioural/)
 
       # acs convention hooks — validate branch/commit against committed formats.*
       # (honour enforcement.checks.* toggles + exempt label/branches).

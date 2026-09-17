@@ -12,7 +12,7 @@ that the C3 literal-preservation constraints on the advisory rewrite of the
 living-requirements sub-check hold, and that the result-document surfacing
 of advisory documentation findings (result.json `findings` /
 `review.findings_open` / `verifier_passed`, and the Completion report's
-`**Findings**` line) is documented in both `code/SKILL.md` and
+`**Findings**` line) is documented in both /acs:code's own prose and
 `code-verifier.md`.
 
 Stdlib-only (os, re, unittest). Run:
@@ -27,6 +27,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references every
+#: delivery path shares. The Finish step and the Completion report live in
+#: `protocol.md`; the review's dimension bullets live in `verify.md`.
+CODE_PROTOCOL_REF = os.path.join(PLUGIN, "skills", "code", "references",
+                                 "protocol.md")
+CODE_VERIFY_REF = os.path.join(PLUGIN, "skills", "code", "references",
+                               "verify.md")
 
 BLOCKING_DOC = 'severity="blocking" dimension="documentation"'
 
@@ -218,11 +225,12 @@ class ResultDocumentAdvisorySurfacingTest(unittest.TestCase):
     """F8: advisory documentation findings surface in result.json's
     findings array and the Completion report's Findings line, but never
     count toward review.findings_open or verifier_passed. Documented in
-    both `code/SKILL.md` and `code-verifier.md` (dimension 11)."""
+    both /acs:code's shared protocol reference and `code-verifier.md`
+    (dimension 11)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = read(CODE_PROTOCOL_REF)
 
     def test_finish_step_states_advisory_findings_carried_but_excluded(self):
         anchor = self.body.find("Canonical `states` keys")
@@ -252,13 +260,13 @@ class ResultDocumentAdvisorySurfacingTest(unittest.TestCase):
 
 
 class VerifyDocumentationBulletAc2Test(unittest.TestCase):
-    """AC-2: code/SKILL.md's Verify-section Documentation bullet names
+    """AC-2: the shared review reference's Documentation bullet names
     docs-sync as the owner of per-commit doc updates, while the
     Product-doc-consistency paragraph stays as-is."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = read(CODE_VERIFY_REF)
 
     def test_documentation_bullet_names_docs_sync_ownership(self):
         anchor = self.body.find("**Documentation**")

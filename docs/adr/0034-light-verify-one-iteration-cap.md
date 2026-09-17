@@ -1,6 +1,6 @@
 # 0034 — Light verify = single verifier pass with one-iteration cap; full verify unchanged; TDD/coverage gate immutable in every lane
 
-**Status**: Accepted · **Date**: 2026-06-25
+**Status**: Superseded by [0095](0095-static-delivery-path-routing.md) · **Date**: 2026-06-25
 
 ## Context
 

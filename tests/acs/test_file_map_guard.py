@@ -27,7 +27,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
 CODE_EXECUTOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "code-executor.md")
-CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references its four
+#: delivery paths share, so what used to be one SKILL.md body is read from
+#: the reference that carries it: the execute instruction.
+CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "references", "execute.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

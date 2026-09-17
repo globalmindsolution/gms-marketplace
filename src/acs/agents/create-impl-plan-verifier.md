@@ -53,8 +53,9 @@ findings:
    `## Executor tasks & file map`, `## Test strategy`, `## Documentation map`,
    `## Risks`, `## Verifier checklist`) are all present, in order, and
    SUBSTANTIVE: a section that is empty, a placeholder, or "see ticket" is a
-   finding. Judge a coordinator-authored draft (TRIVIAL/SMALL) identically to
-   an executor-authored one — authorship is never grounds for a waiver.
+   finding. Authorship is never grounds for a waiver — a rule that predates
+   ADR-0095, when a draft could be coordinator-authored on a fast lane, and
+   that costs nothing to keep now that every draft is the executor's.
 3. **Structure (fold only)** — when the draft states the fold was active,
    run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
    --sections "Scope; Approach; API/data changes; Test plan; Out of scope"
@@ -95,14 +96,17 @@ findings:
    finding, and so is one whose source says otherwise: unverifiable work is
    unverified work. The right file cited at the wrong lines, with the fact
    intact, is not — note the location and move on.
-10. **Authoring-conformance** (STANDARD/COMPLEX only) — the draft is a
+10. **Authoring-conformance** — ALWAYS active. The draft is a
     faithful rendering of the executor's authoring notes
     (`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`): every task,
     test, documentation-map item and risk in the notes appears in the draft,
     nothing in the draft lacks a basis in the notes or the inputs, and every
     entry in the notes cites a file you can open or a command you can re-run.
-    Missing notes on these lanes are a blocking finding on their own; on
-    TRIVIAL/SMALL there are no notes and this dimension is N/A.
+    **Missing notes are a blocking finding on their own.** This dimension was
+    STANDARD/COMPLEX-only, N/A on the fast lanes where no executor ran and so
+    no notes existed; ADR-0095 retired those lanes and the executor is spawned
+    on every run, so there is no longer any run where absent notes are
+    innocent.
 
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.

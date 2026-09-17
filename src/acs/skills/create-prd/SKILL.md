@@ -105,7 +105,7 @@ and — once the open questions are answered — authors `prd.md` and
 `<context>` and the executor authors the remediation.
 
 **What an iteration counts:** one execute -> verify round. `/acs:create-prd`
-has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+has no path-driven verify-depth selection: the cap is a fixed 3 in every
 lane, and this ticket introduces none.
 
 Spawn subagents with the Agent tool:
@@ -275,57 +275,22 @@ Only after the verifier passes:
 git add "<settings.prd_path>/prd.md" "<settings.prd_path>/roadmap.md"
 git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}, e.g. "SHOP-1 Add product requirements document and roadmap"
 git push -u origin "<branch>"
-gh label create ACS 2>/dev/null || true                # create the label if missing
 ```
 
-- PR title renders via the helper — NOT LLM prose composition — capturing its
-  stdout as `<rendered title>`:
+Then follow `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` for the
+label, the rendered title, the body template, the pre-open self-check and
+`gh pr create` — the mechanics every delivery-ticket skill shares. Three
+things are this run's own:
 
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-    --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-    --title "<delivery ticket's title>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-    --provider "<ticket.external.provider or empty>"
-  ```
-
-  Default `[{ticket_id}] {title}`, e.g. `[MAR-51] Amend PRD: add org-level
-  enforcement policy`.
-- PR body: resolve `settings.formats.pr_description_template` (default
-  `pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; a custom name ->
-  `<repo>/.acs/templates/<name>.md`; else an absolute path). Fill `{ticket_id}`,
-  `{type}`, `{title}`, `{summary}`, `{external_key}` from `ticket.json` and this
-  run's state — never from conversation memory. Changes = the PRD files added or
-  amended; Test plan = the verifier dimensions checked; mark TDD/coverage checklist
-  items `N/A (docs-only PR)`. Write the filled body to
-  `<partition>/phases/create-prd/pr-body.md` before the self-check below.
-- **Pre-open self-check** — before `gh pr create`, self-check the rendered
-  title and filled body with the helper's `check` subcommand (a deterministic
-  CLI call, never a spawned subagent):
-
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-    --title "<rendered title>" --body-file "<partition>/phases/create-prd/pr-body.md" \
-    --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
-    --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-    --ticket-prefix <settings.ticket_prefix>
-  ```
-
-  On pass, proceed to `gh pr create` unchanged. On failure, this check
-  blocks/retries: apply a bounded local re-render/re-check (up to 2
-  attempts) rather than opening a non-conforming PR; if still failing after
-  the bounded retries, STOP — do not call `gh pr create` — surface the
-  blocking finding with the failing heading(s)/detail(s) in the result
-  document.
-
-```bash
-gh pr create --base "$DEFAULT_BRANCH" --head "<branch>" \
-  --title "<rendered title>" \
-  --body-file "<partition>/phases/create-prd/pr-body.md" \
-  --label ACS
-gh pr view "<branch>" --json number,url
-```
-
-- Record the PR number, URL, and branch for the result document.
+- **Where the body lives.** Write the filled body to
+  `<partition>/phases/create-prd/pr-body.md`, and pass that path as
+  `--body-file` to both the self-check and `gh pr create`.
+- **What goes in it**, beyond the template's placeholders: Changes = the PRD
+  files added or amended; Test plan = the verifier dimensions checked; mark
+  TDD/coverage checklist items `N/A (docs-only PR)`. The default title renders
+  e.g. `[MAR-51] Amend PRD: add org-level enforcement policy`.
+- **Reading the number back**: `gh pr view "<branch>" --json number,url`.
+  Record the PR number, URL, and branch for the result document.
 
 ## User interaction
 

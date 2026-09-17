@@ -129,6 +129,27 @@
     },
     "written_at": {
       "type": "string"
+    },
+    "tests": {
+      "type": "object",
+      "description": "The verifier's own run of the full unit suite (dimension 2), as numbers rather than prose. /acs:code runs that suite once, in verify; the executor iterates against the tests its change touches. states.tests is derived from here, so the recorded result is the review's independent finding rather than the executor's self-report. Optional: a docs-only ticket has no coverage to record, and a run can end before any verifier writes a verdict -- acs_lib.derive_tests falls back to the execute reports then.",
+      "properties": {
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "command": {"type": "string"},
+        "skipped": {"type": "string", "description": "Why no run was taken on this iteration. The verifier judges the reading dimensions first and defers the suite when one of them already blocks -- the changeset is going back to the executor, so a run against this tree answers a question nobody will ask. A deferral is never a pass: a zero-findings verdict requires a green run on the iteration being passed."}
+      },
+      "additionalProperties": true
+    },
+    "coverage": {
+      "type": "object",
+      "description": "Coverage read off the SAME run recorded in `tests` (dimension 3), not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
+      "properties": {
+        "percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "command": {"type": "string"},
+        "skipped": {"type": "string", "description": "Deferred with the dimension-2 run it is read from; same rule."}
+      },
+      "additionalProperties": true
     }
   }
 }

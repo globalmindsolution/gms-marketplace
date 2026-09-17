@@ -4,8 +4,12 @@ code/SKILL.md `standards_path` wiring.
 Prose-contract tests over `src/acs/agents/code-verifier.md` dimension 7
 "Technical standards" (re-anchored to read `standards/` at `standards_path`,
 changeset-scoped block/surface verdict, graceful degradation) and
-`src/acs/skills/code/SKILL.md`'s settings-fields + Verify sections (which
-must read and pass `standards_path` to the verifier).
+/acs:code's own settings-fields + verify prose, which must read
+`standards_path` and pass it to the verifier. ADR-0095 split that prose out of
+`skills/code/SKILL.md` — the dispatcher — into the references every delivery
+path shares, so the two halves are read from where they now live: `## Start`
+in `references/protocol.md` and the verifier's constraints in
+`references/verify.md`.
 
 Stdlib-only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_mar119_code_verifier_standards -v
@@ -120,25 +124,35 @@ class CodeVerifierInputContractTest(unittest.TestCase):
 
 
 class CodeSkillMdWiringTest(unittest.TestCase):
-    """AC-4 code half: code/SKILL.md reads and passes standards_path to the
-    verifier's constraints."""
+    """AC-4 code half: /acs:code reads standards_path and passes it to the
+    verifier's constraints — and to the verifier ONLY, because an executor
+    told the standards would be writing to satisfy them rather than being
+    judged against them."""
 
-    def _skill(self):
-        return read(os.path.join(PLUGIN, "skills", "code", "SKILL.md"))
+    def _reference(self, name):
+        return read(os.path.join(PLUGIN, "skills", "code", "references", name))
 
     def test_settings_fields_bullet_mentions_standards_path(self):
-        body = self._skill()
-        window = section(body, "## Start")
+        window = section(self._reference("protocol.md"), "## Start")
         self.assertIn("standards_path", window,
                        "the Start settings-fields bullet must mention "
                        "standards_path")
 
+    def test_the_setting_is_passed_to_the_verifier_only(self):
+        window = section(self._reference("protocol.md"), "## Start")
+        self.assertRegex(
+            window,
+            r"(?s)`<constraint name=\"standards_path\">`.{0,60}"
+            r"\*\*verifier only\*\*.{0,40}not to\s+executors")
+
     def test_verify_section_passes_standards_path_to_verifier(self):
-        body = self._skill()
-        window = section(body, "### Verify (per iteration) — this IS the changeset review")
-        self.assertIn("standards_path", window,
-                       "the Verify section must state standards_path is "
-                       "passed to the verifier's constraints")
+        body = self._reference("verify.md")
+        self.assertIn("standards_path", body,
+                       "the verify reference must state standards_path is "
+                       "included in the verifier's constraints")
+        self.assertRegex(
+            body, r"(?s)`standards_path` is included in the verifier's\s+"
+                  r"`<constraints>`")
 
 
 if __name__ == "__main__":

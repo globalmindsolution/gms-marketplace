@@ -213,7 +213,11 @@ class LensRoundTripTest(unittest.TestCase):
         self.assertIn("verify_lens", body)
 
     def test_the_coordinator_expects_it_on_lens_results(self):
-        self.assertIn('lens="<A|B|C|D>"', read(CODE_SKILL))
+        """The multi-lens review is the `complex` delivery path's alone, so the
+        coordinator half of the round trip lives in that leg (ADR-0095), not in
+        the dispatcher every path goes through."""
+        leg = os.path.join(PLUGIN, "skills", "code-complex", "SKILL.md")
+        self.assertIn('lens="<A|B|C|D>"', read(leg))
 
     def test_the_hook_reads_it(self):
         self.assertIn('root.get("lens")', read(LIFECYCLE))
@@ -226,9 +230,14 @@ class LensRoundTripTest(unittest.TestCase):
 
 
 class StateSchemaDeclaresLoadBearingStateTest(unittest.TestCase):
-    ESCALATION_FIELDS = ["ts", "from_lane", "to_lane", "from_size", "from_stakes",
-                         "to_size", "to_stakes", "trigger", "source", "ceiling_before",
-                         "ceiling_after", "direction", "confirmation_ref"]
+    #: The one per-run event array the schema still declares. `escalations`
+    #: stood here with a thirteen-field event (from_lane/to_lane, both axes on
+    #: each side, the ceiling before and after, a direction); ADR-0095 retired
+    #: mid-flight escalation, so there is no lane to move and no event to
+    #: record. `guard_events` is what remains: file-map guard denials, which
+    #: describe something that happened rather than something that was decided.
+    GUARD_EVENT_FIELDS = ["ts", "skill", "iteration", "tool", "target",
+                          "reason", "declared_count"]
 
     @classmethod
     def setUpClass(cls):
@@ -244,10 +253,18 @@ class StateSchemaDeclaresLoadBearingStateTest(unittest.TestCase):
         self.assertEqual(props["pr"]["required"], ["number", "url", "branch", "base"])
         self.assertTrue(self.schema["properties"]["states"]["additionalProperties"])
 
-    def test_escalations_declare_the_thirteen_field_event(self):
-        items = self.schema["properties"]["runs"]["items"]["properties"]["escalations"]["items"]
-        self.assertEqual(items["required"], self.ESCALATION_FIELDS)
-        self.assertEqual(items["properties"]["direction"]["enum"], ["up", "down"])
+    def test_guard_events_declare_the_seven_field_denial(self):
+        items = self.schema["properties"]["runs"]["items"]["properties"]["guard_events"]["items"]
+        self.assertEqual(items["required"], self.GUARD_EVENT_FIELDS)
+        self.assertEqual(items["properties"]["reason"]["enum"],
+                         ["outside_map", "control_input", "unreadable_payload"])
+
+    def test_the_retired_escalation_array_is_gone_from_the_schema(self):
+        """Not merely unused: a schema that still declared it would keep
+        validating documents no writer can produce any more."""
+        self.assertNotIn(
+            "escalations",
+            self.schema["properties"]["runs"]["items"]["properties"])
 
     def test_findings_carry_a_severity(self):
         items = self.schema["properties"]["findings"]["items"]
@@ -255,12 +272,10 @@ class StateSchemaDeclaresLoadBearingStateTest(unittest.TestCase):
         self.assertEqual(items["properties"]["severity"]["enum"], ["blocking", "info"])
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed")
-    def test_a_recorded_escalation_and_a_bare_finding_validate_as_the_writers_shape_them(self):
-        event = {"ts": "2026-09-14T00:00:00Z", "from_lane": "SMALL", "to_lane": "STANDARD",
-                 "from_size": "small", "from_stakes": "normal", "to_size": "small",
-                 "to_stakes": "high", "trigger": "b", "source": "auth/session.py",
-                 "ceiling_before": 1, "ceiling_after": 3, "direction": "up",
-                 "confirmation_ref": None}
+    def test_a_recorded_guard_denial_and_a_bare_finding_validate_as_the_writers_shape_them(self):
+        event = {"ts": "2026-09-14T00:00:00Z", "skill": "code", "iteration": "1",
+                 "tool": "Write", "target": "auth/session.py",
+                 "reason": "outside_map", "declared_count": 3}
         state = {"skill": "code", "ticket_id": "MAR-1",
                  "states": {"verifier_passed": True,
                             "pr": {"number": 42, "url": "u", "branch": "b", "base": "main"},
@@ -268,13 +283,13 @@ class StateSchemaDeclaresLoadBearingStateTest(unittest.TestCase):
                  "findings": [{"severity": "blocking", "dimension": "coverage", "detail": "x"}],
                  "errors": [],
                  "runs": [{"started_at": "2026-09-14T00:00:00Z", "status": "completed",
-                           "escalations": [event]}]}
+                           "guard_events": [event]}]}
         jsonschema.validate(state, self.schema)
         state["findings"] = [{"dimension": "coverage"}]
         with self.assertRaises(jsonschema.ValidationError):
             jsonschema.validate(state, self.schema)
         state["findings"] = []
-        state["runs"][0]["escalations"] = [dict(event, direction="sideways")]
+        state["runs"][0]["guard_events"] = [dict(event, reason="felt_like_it")]
         with self.assertRaises(jsonschema.ValidationError):
             jsonschema.validate(state, self.schema)
 

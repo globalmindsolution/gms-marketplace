@@ -35,7 +35,7 @@ ORIGINAL_FLAT_FILES = (
 
 EXPECTED_FUNCTIONAL_FILES = {
     "workflow.md", "skills.md", "hooks.md", "reflection.md",
-    "configuration.md", "workspace-and-state.md", "usage.md", "tabp.md",
+    "configuration.md", "workspace-and-state.md", "usage.md",
 }
 
 EXPECTED_NON_FUNCTIONAL_FILES = {
@@ -161,10 +161,79 @@ RETIRED_BY_DOC_SET_FOLD = {
 }
 
 
+#: MAR-97 retired the tabp feature and this change removed it from disk, so
+#: every clause the inventory captured from `tabp.md` has no destination file
+#: to land in. Retiring them here rather than deleting them from the fixture
+#: keeps the inventory a faithful record of the pre-reorg tree, and keeps the
+#: exactly-one-home guarantee in force for every clause that still has a home.
+RETIRED_BY_TABP_REMOVAL = {
+    'tabp.md': (
+        '| File | Kind | Change |',
+        '| File | Kind | Runtime path |',
+        '| `"claude-code"` | Run executed under Claude Code runtime | `"estimate"` | Actuals from `~/.claude/projects/<cwd-slug>/*.jsonl` (MAR-38 auto-detect) |',
+        '| `"cowork"` | Cowork self-reported usage (future hook, MAR-40) | `"actual"` | Self-reported in `run.json usage.tokens_in/out/cost_usd` |',
+        '| `"estimate"` | Heuristic token estimate (e.g. Cowork estimate) | `"estimate"` | Pre-written tokens in `run.json usage.tokens_in/out` |',
+        '| `"unavailable"` | No usage data available | `"unavailable"` | None — omitted from aggregate totals |',
+        '| `docs/adr/0023-tabp-hybrid-quality-mechanism-instruction-driven-plus-stdlib-helper.md` | ADR | EDIT — appended MAR-40 amendment extending scope to dual-runtime |',
+        '| `docs/adr/0024-tabp-state-in-cowork-project-folder.md` | ADR | EDIT — appended MAR-40 amendment documenting cwd-as-project-dir + no-git + `.gitignore` guidance |',
+        '| `docs/adr/0025-tabp-independent-verifier-subagent.md` | ADR | NEW — records D1 (inline-artifact input), D2 (N=3 cap), always-on rule, and residual risk |',
+        '| `docs/adr/0026-tabp-hybrid-cost-sourcing.md` | ADR | NEW — records D3a (transcript-actuals) and D3b (dated snapshot pricing + settings override) |',
+        '| `docs/adr/0027-tabp-dual-runtime-detection.md` | ADR | NEW — records the dual-runtime detection decision (explicit flag + auto-detect + cwd-as-project-dir) |',
+        '| `docs/architecture/hld/c4-container.md` | HLD C4 container diagram | EDIT line 13: `tabp_skills` skill count 1→2 (added /tabp:usage) |',
+        '| `docs/architecture/hld/c4-container.md` | HLD C4 container diagram | EDIT — added `Rel(tabp_skills, cc, …)` dual-runtime edge; repaired `tabp_agents` count 2→3 (added `screen-verifier-subagent`) |',
+        '| `docs/architecture/hld/tech-stack.md` | HLD tech-stack table | EDIT line 5: skill count 1→2; removed "not yet shipped" clause |',
+        '| `docs/architecture/hld/tech-stack.md` | HLD tech-stack table | EDIT — tabp runtime framing → "Cowork + Claude Code" |',
+        '| `docs/architecture/lld/flows/tabp-usage-read.md` | LLD flow doc (Mermaid sequence) | NEW — /tabp:usage read flow with step annotations |',
+        '| `plugins/tabp/.claude-plugin/plugin.json` | Plugin manifest | EDIT — description runtime clause → "Claude Cowork and Claude Code" |',
+        '| `plugins/tabp/README.md` | Plugin README | EDIT — dual-runtime framing; new "Runtimes & project folder" and `.gitignore` guidance subsections |',
+        '| `plugins/tabp/README.md` | Plugin README | EDIT: added `### usage` subsection under `## Skills`; refreshed "usage stubs" → "usage aggregation" |',
+        "| `plugins/tabp/agents/screen-verifier-subagent.md` | Subagent charter | NEW — defines the verifier's role, artifact-only input contract, five re-judgment checks, and `pass\\|blocking` output contract |",
+        '| `plugins/tabp/helpers/tabp_helper.py` | Python stdlib helper | EDIT — added `_add_runtime_arg`, `_resolve_runtime`, `--runtime` on the coordinator subcommands, and the `usage-read` runtime override (no git dependency in `.tabp/` derivation) |',
+        '| `plugins/tabp/helpers/tabp_helper.py` | Python stdlib helper | REPLACED `_cmd_usage_read` stub with real aggregation; added `_MODEL_PRICING`, `_PRICING_SNAPSHOT_DATE`, `_resolve_pricing`, `_cwd_slug`, `_read_transcript_tokens`, `_derive_cost`; extended `_cmd_run_finalize` args; extended `_cmd_settings_read` for `model_pricing` pass-through |',
+        '| `plugins/tabp/schemas/README.md` | Contract documentation | — |',
+        '| `plugins/tabp/schemas/decision.schema.json` | JSON Schema Draft 2020-12 | `<project>/.tabp/runs/<run-id>/decision.json` |',
+        '| `plugins/tabp/schemas/decision.schema.json` | JSON Schema | UPDATED — `verification_passed` and `verification_notes` descriptions updated to reflect independent verifier step |',
+        '| `plugins/tabp/schemas/evidence.schema.json` | JSON Schema Draft 2020-12 | `<project>/.tabp/runs/<run-id>/evidence-<candidate-id>.json` |',
+        '| `plugins/tabp/schemas/history.schema.json` | JSON Schema Draft 2020-12 | WIDENED `runs[].usage_source` enum to four values |',
+        '| `plugins/tabp/schemas/history.schema.json` | JSON Schema Draft 2020-12 | `<project>/.tabp/history.json` |',
+        '| `plugins/tabp/schemas/lock.schema.json` | JSON Schema Draft 2020-12 | `<project>/.tabp/.lock` |',
+        '| `plugins/tabp/schemas/run.schema.json` | JSON Schema Draft 2020-12 | WIDENED `usage.usage_source` enum to four values; ADDED optional `usage.cost_basis` field |',
+        '| `plugins/tabp/schemas/run.schema.json` | JSON Schema Draft 2020-12 | `<project>/.tabp/runs/<run-id>/run.json` |',
+        '| `plugins/tabp/schemas/samples/decision.sample.json` | Validating sample | — |',
+        '| `plugins/tabp/schemas/samples/evidence.sample.json` | Validating sample | — |',
+        '| `plugins/tabp/schemas/samples/history.sample.json` | Validating sample | — |',
+        '| `plugins/tabp/schemas/samples/lock.sample.json` | Validating sample | — |',
+        '| `plugins/tabp/schemas/samples/run.sample.json` | Validating sample | — |',
+        '| `plugins/tabp/skills/screen-cvs/SKILL.md` Step 5a | Coordinator instruction | REPLACED — coordinator self-verification retired; independent verifier spawn + remediate loop (N=3) inserted |',
+        '| `plugins/tabp/skills/screen-cvs/SKILL.md` Step 5b | Coordinator instruction | UPDATED — records independent verifier verdict (`verification_passed`), not a coordinator self-attestation |',
+        '| `plugins/tabp/skills/screen-cvs/SKILL.md` | Coordinator protocol (SKILL.md) | EDIT — Step 0 reworded runtime-agnostically; Claude Code `--runtime claude-code` / `--project-dir <session-cwd>` note; no-git assertion; Bash-denied note generalized to "the runtime" |',
+        '| `plugins/tabp/skills/usage/SKILL.md` | Coordinator protocol (SKILL.md) | EDIT — "recruiter\'s Cowork project folder" → "recruiter\'s project folder" (retained `usage_source` enum and the Cowork self-reported note unchanged) |',
+        '| `plugins/tabp/skills/usage/SKILL.md` | Coordinator protocol (SKILL.md) | NEW — /tabp:usage skill with frontmatter, usage-read invocation, per-run + totals rendering, honesty rule, degradation path, guardrails |',
+        '| `tests/tabp/test_tabp_usage_skill.py` | Structural test module (stdlib unittest) | NEW — TU-01..TU-30 asserting file presence, frontmatter, invocation markers, rendering markers, honesty/degradation, namespace guard |',
+        '| `usage_source` | Meaning | `cost_basis` | Token source |',
+    ),
+}
+
+#: Retired by ADR-0095 (static delivery-path routing). The `size`/`stakes`
+#: axes and the lane derived from them are gone: rigor is one judgement, made
+#: once from `plan.md` by /ship and recorded on pipeline-state.json, so there
+#: is no axis for /create-ticket to capture, nothing for an in-flight trigger
+#: to raise, and nothing a user has to confirm before it can be lowered. The
+#: guarantees these clauses carried did not lapse — they became unnecessary,
+#: which is the only kind of clause that may be retired rather than re-homed.
+RETIRED_BY_DELIVERY_PATH_ROUTING = {
+    'skills.md': (
+        '- MUST capture **`size`** and **`stakes`** during `/create-ticket` analysis (MAR-56):',
+        'Stakes MUST NOT be silently lowered from a user-confirmed value; de-escalation requires',
+        'axes may be automatically raised by an in-flight trigger, but MUST NOT be',
+    ),
+}
+
 def _retired():
     """Every allowlist, merged: a clause is exempt when any fold retired it."""
     merged = {}
-    for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD):
+    for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
+                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     return merged

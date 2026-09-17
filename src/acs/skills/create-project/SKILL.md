@@ -104,7 +104,7 @@ Decomposition is YOURS alone — subagents never spawn subagents. Before the
 loop: `mkdir -p <partition>/phases/create-project`.
 
 **What an iteration counts:** one execute -> verify round. create-project
-has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+has no path-driven verify-depth selection: the cap is a fixed 3 in every
 lane, and this ticket introduces none.
 
 Messaging rules for every phase:
@@ -240,7 +240,10 @@ stop and go to Finish with `status: "failed"` and the findings recorded.
 Only after a verify pass (zero findings):
 
 1. Commit on the scaffold branch, message per `settings.formats.commit_message`
-   (default `{ticket_id} {summary}`), and push:
+   (default `{ticket_id} {summary}`), and push. `git add -A` is right here and
+   only here: a scaffold is new files by definition, so there is no existing
+   source for a broad add to sweep up (contrast /acs:standardize-project, which
+   forbids the same command for exactly that reason):
 
 ```bash
 git -C <checkout_root> add -A
@@ -248,53 +251,17 @@ git -C <checkout_root> commit -m "SHOP-3 Scaffold project skeleton per architect
 git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
 ```
 
-2. Render the PR body from `settings.formats.pr_description_template`: built-in name
-   `pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-   `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path. Fill every
-   placeholder from workspace state (ticket.json, scaffold plan, verifier results) —
-   never from conversation memory. Write it to
-   `<partition>/phases/create-project/pr-body.md`.
+2. **Open the PR** by following
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
+   rendered title, the body template, the pre-open self-check, `gh pr create`,
+   and recording `{number, url, branch}` as `states.pr`. Write the filled body
+   to `<partition>/phases/create-project/pr-body.md` and pass that path as
+   `--body-file` to both the self-check and `gh pr create`; fill its
+   placeholders from workspace state (ticket.json, scaffold plan, verifier
+   results). Read the number back with
+   `gh pr view --json number,url,headRefName`.
 
-3. Open the PR with the `ACS` label (create the label first; ignore "already exists"),
-   title per `settings.formats.pr_title` (default `[{ticket_id}] {title}`) —
-   rendered via the helper, NOT LLM prose composition, capturing its stdout
-   as `<rendered title>`:
-
-```bash
-gh label create ACS --color 5319E7 --description "Created by the acs pipeline" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type task \
-  --title "Project scaffold" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-  --provider "<ticket.external.provider or empty>"
-```
-
-   **Pre-open self-check** — before `gh pr create`, self-check the rendered
-   title and filled body with the helper's `check` subcommand (a
-   deterministic CLI call, never a spawned subagent):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-  --title "<rendered title>" --body-file <partition>/phases/create-project/pr-body.md \
-  --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
-  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-  --ticket-prefix <settings.ticket_prefix>
-```
-
-   On pass, proceed to `gh pr create` unchanged. On failure, this check
-   blocks/retries: apply a bounded local re-render/re-check (up to 2
-   attempts) rather than opening a non-conforming PR; if still failing after
-   the bounded retries, STOP — do not call `gh pr create` — surface the
-   blocking finding with the failing heading(s)/detail(s) in the result
-   document.
-
-```bash
-gh pr create --title "<rendered title>" --body-file <partition>/phases/create-project/pr-body.md --label ACS
-gh pr view --json number,url,headRefName
-```
-
-   Record `number`, `url`, and the branch for `states.pr`.
-
-4. CI proof — the scaffolded workflow runs on this very PR; green locally is not
+3. CI proof — the scaffolded workflow runs on this very PR; green locally is not
    enough:
 
 ```bash

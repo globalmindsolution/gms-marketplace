@@ -16,6 +16,7 @@ tests/acs/test_code_loop_topology.py. Stdlib only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_create_impl_plan -v
 """
 
+import io
 import os
 import re
 import unittest
@@ -27,6 +28,11 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
+#: `## Resume & reconcile` and `### Plan revocation` moved here under
+#: progressive disclosure: both answer what a run does when the ticket already
+#: carries a prior run or a superseded plan, and a first run reads neither.
+IMPL_PLAN_RERUN_REF = os.path.join(
+    SKILLS_DIR, "create-impl-plan", "references", "not-a-first-run.md")
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_EXECUTOR = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")
 IMPL_PLAN_VERIFIER = os.path.join(AGENTS_DIR, "create-impl-plan-verifier.md")
@@ -51,6 +57,29 @@ C9_STOP_REASON = "user chose to split; restructure required before implementatio
 
 # .md-anchored only — iter-<n>-plan.xml (the message snapshot) must NOT match.
 LEGACY_PLAN_LITERAL = re.compile(r"iter-(?:<n>|\{n\}|\*|\d+)-plan\.md")
+
+
+def _code_contract():
+    """/acs:code's contract: the dispatcher, the four delivery-path legs, and
+    the references they share.
+
+    ADR-0095 split one 750-line body this way. These assertions pin what the
+    SKILL SAYS, never which of its files says it, so reading the concatenation
+    keeps the pin honest while the layout stays free to change -- and a rule
+    that genuinely vanishes still fails.
+    """
+    import glob as _glob
+    base = os.path.join(PLUGIN, "skills")
+    parts = []
+    for name in ("code", "code-trivial", "code-small", "code-standard", "code-complex"):
+        path = os.path.join(base, name, "SKILL.md")
+        if os.path.isfile(path):
+            with io.open(path, encoding="utf-8") as fh:
+                parts.append(fh.read())
+    for path in sorted(_glob.glob(os.path.join(base, "code", "references", "*.md"))):
+        with io.open(path, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
 
 
 def read(path):
@@ -161,54 +190,6 @@ class PlanPhaseContractTest(unittest.TestCase):
     def test_the_executor_surveys_on_iteration_one(self):
         self.assertRegex(self.norm, r"(?i)There is no plan phase")
         self.assertRegex(self.norm, r"(?i)iteration 1'?s executor surveys")
-
-
-class LaneForkTest(unittest.TestCase):
-    """The MAR-72 lane fork moved with the phase: one planner spawn on
-    STANDARD/COMPLEX, zero on TRIVIAL/SMALL with a coordinator-authored plan."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
-        cls.norm = norm(cls.body)
-        cls.planner_norm = norm(read(IMPL_PLAN_PLANNER))
-
-    def test_fast_lane_no_spawn_contract_colocated(self):
-        for m in re.finditer(r"TRIVIAL/SMALL", self.norm):
-            window = self.norm[max(0, m.start() - 400):m.end() + 400]
-            if (re.search(r"(?i)zero.{0,60}create-impl-plan-executor.{0,20}spawn",
-                          window)
-                    and "coordinator" in window.lower()
-                    and "plan.md" in window):
-                return
-        self.fail(
-            "create-impl-plan/SKILL.md must co-locate TRIVIAL/SMALL, a "
-            "zero-planner-spawn phrase, 'coordinator' and 'plan.md' within one "
-            "bounded window")
-
-    def test_no_planner_clause_survives_and_the_survey_is_lane_qualified(self):
-        self.assertNotIn("acs:create-impl-plan-planner", self.body)
-        self.assertNotIn("iter-1-plan.md", self.body)
-        self.assertRegex(
-            self.norm,
-            r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\* "
-            r"iterations; iteration 1'?s executor surveys before it writes")
-
-    def test_planner_states_standard_complex_only_spawn(self):
-        self.assertRegex(
-            self.planner_norm,
-            r"(?i)spawned only.{0,40}STANDARD.{0,10}(/|or).{0,10}COMPLEX")
-
-    def test_no_execute_xml_message_on_fast_lanes(self):
-        self.assertRegex(
-            self.norm,
-            r'(?i)no executor subagent is spawned, so no `<task phase="execute">` message is sent')
-        self.assertNotIn('<task phase="plan">', self.body)
-
-    def test_iteration_counts_execute_verify_rounds(self):
-        self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one execute → verify round")
-
-
 class PublishTest(unittest.TestCase):
     """`plan.md` is resolved through the artifacts resolver, written by the
     coordinator (never a guarded executor), and mirrored for plan approval."""
@@ -275,7 +256,7 @@ class FileMapTest(unittest.TestCase):
             r"(?i)an undeclared map means no enforcement at all")
 
     def test_code_still_redeclares_for_its_own_iterations(self):
-        code_norm = norm(read(CODE_SKILL))
+        code_norm = norm(_code_contract())
         self.assertIn("filemap set", code_norm)
         self.assertRegex(
             code_norm,
@@ -283,42 +264,52 @@ class FileMapTest(unittest.TestCase):
 
 
 class PlanApprovalContractTest(unittest.TestCase):
-    """Plan approval moved with the phase, unchanged in substance: the hook
-    script is the sole writer, STANDARD/COMPLEX only, gating nothing."""
+    """Plan approval moved AGAIN with ADR-0095, and for a structural reason:
+    it binds per delivery path, and this skill produces the artifact the path
+    is judged from, so no path exists while it runs. The call site is now the
+    `code-standard` and `code-complex` legs; what this skill owes is the
+    approval mirror and an explanation of where the call went."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
 
     def _section(self):
-        return slice_between(self.body, "### Plan approval", "### Plan revocation")
+        return slice_between(self.body, "### Plan approval", "### Docs-only tickets")
 
-    def test_subsection_sits_between_plan_and_revocation(self):
+    def test_subsection_sits_after_execute_and_before_docs_only(self):
+        """The pin is where the approval note sits, not which sibling follows
+        it: `### Plan revocation` used to, and has since moved into
+        `references/not-a-first-run.md`, leaving docs-only as the next
+        heading and the slice above as exactly the approval note."""
         plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.body.index("### Plan approval")
-        revocation_idx = self.body.index("### Plan revocation")
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
-        self.assertLess(approval_idx, revocation_idx)
-        self.assertLess(revocation_idx, docs_only_idx)
+        self.assertLess(approval_idx, docs_only_idx)
+        self.assertNotIn("### Plan revocation", self.body)
 
-    def test_subsection_is_lane_qualified_and_non_gating(self):
+    def test_subsection_says_which_paths_bind_and_where_the_call_went(self):
         section_norm = norm(self._section())
-        self.assertRegex(section_norm, r"(?i)STANDARD/COMPLEX")
-        self.assertRegex(section_norm, r"(?i)TRIVIAL/SMALL.{0,80}no-ops?")
-        self.assertRegex(section_norm, r"(?i)nothing gates.{0,60}this release")
+        self.assertRegex(section_norm, r"(?i)`standard` and `complex` delivery paths")
+        self.assertRegex(section_norm, r"(?i)code-standard.{0,40}code-complex")
+        self.assertRegex(section_norm, r"(?i)before any path exists")
 
-    def test_subsection_carries_the_exact_command(self):
-        self.assertIn("hooks/scripts/plan-approval.py", self._section())
+    def test_the_subsection_does_not_run_the_command_itself(self):
+        """Running it here would produce a verdict for a path that does not
+        exist yet, and the review would then activate plan-conformance against
+        it."""
+        self.assertNotIn("python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py",
+                         self._section())
 
     def test_subsection_avoids_forbidden_literals(self):
         section = self._section()
         self.assertNotIn("create-spec", section)
-        self.assertNotIn("E2", section)
         self.assertNotIn("hld/data-model.md", section)
 
     def test_script_is_the_sole_writer_of_the_record(self):
-        section_norm = norm(self._section())
+        # The prohibition travelled with the call site, to the deep legs.
+        section_norm = norm(read(os.path.join(SKILLS_DIR, "code-standard", "SKILL.md")))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), section_norm):
             window = section_norm[max(0, m.start() - 250):m.end() + 250]
@@ -331,9 +322,11 @@ class PlanApprovalContractTest(unittest.TestCase):
             "no bounded window around plan-approval.json co-locates a "
             "Write-tool prohibition and never/only")
 
-    def test_printed_value_is_copied_verbatim(self):
-        self.assertRegex(norm(self._section()),
-                         r"(?i)copy.{0,60}plan_approved.{0,60}verbatim")
+    def test_this_skill_records_plan_approved_false(self):
+        """It is the honest value: approval is judged per path, and the path
+        does not exist yet when this skill finishes."""
+        self.assertRegex(norm(self.body),
+                         r"(?i)`plan_approved`:\s*always `false` here")
 
 
 class PlanRevocationTest(unittest.TestCase):
@@ -341,9 +334,10 @@ class PlanRevocationTest(unittest.TestCase):
     citations stay resolvable."""
 
     def _section(self):
-        body = read(IMPL_PLAN_SKILL)
-        return norm(slice_between(body, "### Plan revocation",
-                                  "### Docs-only tickets"))
+        # Revocation is the last section of the re-run reference, so the slice
+        # runs to end of file.
+        body = read(IMPL_PLAN_RERUN_REF)
+        return norm(body[body.index("### Plan revocation"):])
 
     def test_revocation_copies_never_moves(self):
         section = self._section()
@@ -532,41 +526,41 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = _code_contract()
         cls.norm = norm(cls.body)
 
     def test_plan_authoring_sections_are_gone(self):
-        for heading in ("### Plan (once", "### Plan approval",
-                        "### Plan revocation", "### Plan artifact resolution"):
+        """The `code` contract never AUTHORS a plan. It may now RUN approval —
+        the deep legs do, because approval binds per delivery path and the path
+        does not exist while create-impl-plan runs (ADR-0095) — so what is
+        pinned is the authoring, not the word "approval"."""
+        for heading in ("### Plan (once", "### Plan revocation",
+                        "### Plan artifact resolution"):
             self.assertNotIn(heading, self.body,
-                             "%r moved to create-impl-plan" % heading)
+                             "%r belongs to create-impl-plan" % heading)
+        self.assertNotIn("survey, then author the plan draft", self.body)
 
     def test_plan_input_resolution_replaces_them(self):
+        """It lives in the shared protocol now (ADR-0095) -- every leg reads
+        the plan the same way, so one copy is right."""
         self.assertIn("### Plan input resolution", self.body)
-        section = slice_between(self.body, "### Plan input resolution",
-                                "## Reflection loop")
-        section_norm = norm(section)
-        self.assertIn("artifacts show --ticket", section)
-        self.assertRegex(section_norm, r"(?i)never author or revise")
-        self.assertIn("plan_superseded", section)
+        self.assertIn("artifacts show --ticket", self.body)
+        self.assertRegex(self.norm, r"(?i)never author or revise")
+        self.assertIn("plan_superseded", self.body)
 
     def test_start_names_the_plan_input_gate_and_its_producer(self):
-        section = slice_between(self.body, "## Start", "### Non-epic COMPLEX")
-        section_norm = norm(section)
-        self.assertIn("no plan.md found for", section_norm)
-        self.assertIn("/acs:create-impl-plan", section_norm)
+        self.assertIn("no plan.md found for", self.norm)
+        self.assertIn("/acs:create-impl-plan", self.norm)
 
     def test_the_gate_refusal_wording_matches_the_gate(self):
         gate = read(GATE_INPUTS)
         self.assertIn("no %s found for %s", gate)
         self.assertIn("run /acs:%s %s first.", gate)
 
-    def test_no_planner_subagent_in_any_lane(self):
+    def test_no_planner_subagent_on_any_delivery_path(self):
         self.assertNotIn("acs:code-planner", self.body)
-        self.assertRegex(
-            self.norm,
-            r"(?i)no planner subagent in any lane|no plan phase and \*\*no "
-            r"planner subagent")
+        self.assertRegex(self.norm,
+                         r"(?i)no plan\s+phase and no planner subagent")
 
     def test_plan_superseded_is_the_replan_stop_reason(self):
         self.assertIn("plan_superseded", self.body)
@@ -578,9 +572,10 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
         self.assertNotIn('"plan_approved"', example)
 
     def test_executor_writes_tests_from_test_cases(self):
-        for path in (CODE_SKILL, CODE_EXECUTOR):
-            with self.subTest(path=os.path.basename(path)):
-                body_norm = norm(read(path))
+        for label, body in (("code contract", self.body),
+                            ("code-executor", read(CODE_EXECUTOR))):
+            with self.subTest(source=label):
+                body_norm = norm(body)
                 self.assertIn("test-cases.md", body_norm)
                 self.assertRegex(body_norm, r"(?i)TC-n")
 
@@ -599,54 +594,6 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class LightLaneRevisesOnceTest(unittest.TestCase):
-    """ADR-0074's 2026-09-14 amendment: on TRIVIAL/SMALL the coordinator's
-    draft gets one revision against the verifier's blocking findings before
-    the run fails — two verify rounds, not the cap-1 inherited from /acs:code
-    where every round re-runs executors. The 2026-09-14 PIPE-code diagnostic
-    lost a run to the literal reading (a fixable test strategy, one verdict,
-    `failed`)."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.norm = norm(read(IMPL_PLAN_SKILL))
-
-    def test_the_fast_lane_revises_the_draft_up_to_twice(self):
-        # 2026-09-15 amendment: two rounds lost two setups to one-line
-        # repairs; the fast lane now has the full lane's three verdicts.
-        self.assertRegex(self.norm, r"(?i)revises its own draft against every finding and the verifier judges again, up to TWICE")
-        self.assertIn("ceiling **3** verify rounds", self.norm)
-        self.assertNotIn("ceiling **2** verify rounds", self.norm)
-        self.assertNotIn("ceiling **1**", self.norm)
-        self.assertIn("light: 3 verify rounds of the coordinator's draft", self.norm)
-
-    def test_the_full_lane_keeps_three_executor_rounds(self):
-        self.assertRegex(self.norm, r"(?i)STANDARD/COMPLEX\*\* — execute → verify with a ceiling of \*\*3\*\*")
-        self.assertIn("full: 3 execute → verify rounds", self.norm)
-
-    def test_the_findings_loop_names_the_coordinator_as_the_fast_lane_reviser(self):
-        self.assertRegex(self.norm, r"(?i)on TRIVIAL/SMALL, where there is no executor, revise the draft yourself")
-
-    def test_a_draft_failing_after_its_revisions_still_fails_the_run(self):
-        self.assertRegex(self.norm, r"(?i)still failing after its second revision ends the run `failed`")
-
-    def test_the_coordinator_grounds_its_own_draft(self):
-        # The executor's grounding charter binds the coordinator's draft too:
-        # the 2026-09-15 gate lost a SMALL-lane plan to an uncited, wrong
-        # "coverage is not installed" the verifier re-checked.
-        self.assertIn("Ground your own draft.", self.norm)
-        self.assertRegex(self.norm, r"(?i)only after checking it in THIS run, and cite the command or file")
-
-    def test_a_revision_fixes_every_occurrence_of_a_finding(self):
-        # One revision is all the fast lane gets, so a claim fixed in Test
-        # strategy and left in Risks is the same blocking finding again.
-        self.assertIn("A finding names one place; fix every place.", self.norm)
-        self.assertRegex(self.norm, r"(?i)correct every occurrence")
-        self.assertRegex(self.norm, r"(?i)Each verify round may be the last")
-
-
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     """analyze-ticket promises that with no user answer create-impl-plan
     plans against the ticket as written; the plan skill has to keep that

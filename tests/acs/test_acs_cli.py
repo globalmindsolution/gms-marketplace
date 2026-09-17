@@ -84,95 +84,6 @@ class TestGate(AcsCliCase):
         res = self.acs("gate", "--skill", "create-architecture")
         self.assertEqual(res.returncode, 2)
         self.assertEqual(json.loads(res.stdout)["ok"], False)
-
-
-class TestLanePureCommands(AcsCliCase):
-
-    def test_derive_returns_the_lane_depth_ceiling_triple(self):
-        out = self.ok_json(self.acs("lane", "derive", "--size", "large",
-                                    "--stakes", "high", "--type", "task"))
-        self.assertEqual(out["lane"], "COMPLEX")
-        self.assertEqual(out["depth"], "full")
-        self.assertEqual(out["ceiling"], lib.VERIFY_ITERATION_CAP["full"])
-        self.assertEqual(out["rank"], lib.lane_rank("COMPLEX"))
-
-    def test_derive_agrees_with_the_library_across_the_axis_grid(self):
-        """The CLI must not re-derive anything: for every axis pair it reports
-        exactly what derive_lane reports."""
-        for size in ("trivial", "small", "standard", "large"):
-            for stakes in ("low", "normal", "high"):
-                out = self.ok_json(self.acs("lane", "derive", "--size", size,
-                                            "--stakes", stakes, "--type", "task"))
-                self.assertEqual(out["lane"], lib.derive_lane(size, stakes, False, "task"),
-                                 msg="size=%s stakes=%s" % (size, stakes))
-
-    def test_rank_exposes_the_ordering_escalation_compares_on(self):
-        out = self.ok_json(self.acs("lane", "rank", "--lane", "STANDARD"))
-        self.assertEqual(out, {"lane": "STANDARD", "rank": lib.lane_rank("STANDARD")})
-
-    def test_escalate_reports_a_raise(self):
-        out = self.ok_json(self.acs("lane", "escalate", "--current-lane", "SMALL",
-                                    "--size", "large", "--stakes", "normal", "--type", "task"))
-        self.assertTrue(out["escalated"])
-        self.assertEqual(out["lane"], "COMPLEX")
-        self.assertEqual(out["from_lane"], "SMALL")
-
-    def test_escalate_holds_when_the_candidate_is_not_higher(self):
-        out = self.ok_json(self.acs("lane", "escalate", "--current-lane", "COMPLEX",
-                                    "--size", "trivial", "--stakes", "low", "--type", "task"))
-        self.assertFalse(out["escalated"])
-        self.assertEqual(out["lane"], "COMPLEX")
-
-    def test_an_unknown_size_is_rejected_by_the_parser(self):
-        res = self.acs("lane", "derive", "--size", "enormous", "--stakes", "low")
-        self.assertEqual(res.returncode, 2)
-        self.assertIn("invalid choice", res.stderr)
-
-
-class TestStakes(AcsCliCase):
-
-    def test_recommend_matches_a_high_stakes_glob(self):
-        out = self.ok_json(self.acs("stakes", "recommend", "--path", "auth/login.py"))
-        self.assertEqual(out, {"stakes": "high", "paths_considered": 1})
-
-    def test_recommend_returns_normal_for_ordinary_paths(self):
-        out = self.ok_json(self.acs("stakes", "recommend", "--path", "README.md"))
-        self.assertEqual(out["stakes"], "normal")
-
-    def test_recommend_reads_a_changed_file_set_from_stdin(self):
-        out = self.ok_json(self.acs("stakes", "recommend", "--paths-from", "-",
-                                    stdin="README.md\nauth/token.py\n"))
-        self.assertEqual(out["stakes"], "high")
-        self.assertEqual(out["paths_considered"], 2)
-
-    def test_recommend_reads_a_changed_file_set_from_a_file(self):
-        listing = os.path.join(self.tmp, "changed.txt")
-        with open(listing, "w", encoding="utf-8") as fh:
-            fh.write("docs/readme.md\npayments/charge.py\n")
-        out = self.ok_json(self.acs("stakes", "recommend", "--paths-from", listing))
-        self.assertEqual(out["stakes"], "high")
-        self.assertEqual(out["paths_considered"], 2)
-
-    def test_recommend_refuses_an_unreadable_paths_file(self):
-        self.refusal(self.acs("stakes", "recommend", "--paths-from", "/nope/missing.txt"),
-                     "cannot read")
-
-    def test_guard_takes_the_higher_of_each_axis(self):
-        out = self.ok_json(self.acs("stakes", "guard", "--current-size", "small",
-                                    "--current-stakes", "normal", "--proposed-stakes", "high"))
-        self.assertEqual(out["size"], "small")
-        self.assertEqual(out["stakes"], "high")
-        self.assertTrue(out["changed"])
-
-    def test_guard_never_lowers_a_confirmed_axis(self):
-        out = self.ok_json(self.acs("stakes", "guard", "--current-size", "large",
-                                    "--current-stakes", "high", "--proposed-size", "trivial",
-                                    "--proposed-stakes", "low"))
-        self.assertEqual(out["size"], "large")
-        self.assertEqual(out["stakes"], "high")
-        self.assertFalse(out["changed"])
-
-
 class TestTicket(AcsCliCase):
 
     def setUp(self):
@@ -202,13 +113,6 @@ class TestTicket(AcsCliCase):
                          "a clarified description")
         index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
         self.assertIn(self.ticket, json.dumps(index))
-
-    def test_save_refuses_to_move_an_axis_behind_the_escalation_guard(self):
-        doc = self.ok_json(self.acs("ticket", "show", "--ticket", self.ticket))["ticket"]
-        doc["stakes"] = "high"
-        self.refusal(self.acs("ticket", "save", "--ticket", self.ticket,
-                              stdin=json.dumps(doc)), "stakes", "lane apply")
-
     def test_save_refuses_a_document_for_a_different_ticket(self):
         doc = self.ok_json(self.acs("ticket", "show", "--ticket", self.ticket))["ticket"]
         doc["id"] = "SHOP-999"
@@ -226,128 +130,6 @@ class TestTicket(AcsCliCase):
     def test_save_refuses_a_json_document_that_is_not_an_object(self):
         self.refusal(self.acs("ticket", "save", "--ticket", self.ticket, stdin="[1, 2]"),
                      "got list")
-
-
-class TestLaneApply(AcsCliCase):
-    """The on-trigger escalation sequence: guard, escalate, persist, then audit."""
-
-    def setUp(self):
-        super(TestLaneApply, self).setUp()
-        self.ticket = self.new_ticket("Add a widget", "task", "--size", "small")
-        self.tpath = self.tdir(self.ticket)
-
-    def start_run(self):
-        lib.append_in_progress_run(self.tpath, "code", self.ticket)
-
-    def test_a_raise_persists_axes_lane_and_a_thirteen_field_event(self):
-        self.start_run()
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                                    "--proposed-size", "large", "--trigger", "verifier_finding"))
-        self.assertTrue(out["escalated"])
-        self.assertTrue(out["event_recorded"])
-        self.assertEqual(out["lane"], "COMPLEX")
-
-        ticket = lib.load_ticket(self.tpath)
-        self.assertEqual((ticket["size"], ticket["lane"]), ("large", "COMPLEX"))
-
-        events = lib.last_run(lib.load_state(self.tpath, "code"))["escalations"]
-        self.assertEqual(len(events), 1)
-        self.assertEqual(set(events[0]), {
-            "ts", "from_lane", "to_lane", "from_size", "from_stakes", "to_size",
-            "to_stakes", "trigger", "source", "ceiling_before", "ceiling_after",
-            "direction", "confirmation_ref"})
-        self.assertEqual(events[0]["direction"], "up")
-        self.assertIsNone(events[0]["confirmation_ref"])
-        self.assertEqual(events[0]["trigger"], "verifier_finding")
-
-    def test_a_second_apply_is_a_no_op_so_a_resumed_run_records_nothing_twice(self):
-        self.start_run()
-        self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                              "--proposed-size", "large", "--trigger", "verifier_finding"))
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                                    "--proposed-size", "large", "--trigger", "verifier_finding"))
-        self.assertFalse(out["escalated"])
-        self.assertFalse(out["event_recorded"])
-        self.assertEqual(len(lib.last_run(lib.load_state(self.tpath, "code"))["escalations"]), 1)
-
-    def test_a_proposal_that_does_not_raise_writes_nothing(self):
-        self.start_run()
-        before = lib.load_ticket(self.tpath)
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                                    "--proposed-size", "trivial", "--trigger", "verifier_finding"))
-        self.assertFalse(out["escalated"])
-        self.assertEqual(lib.load_ticket(self.tpath), before)
-
-    def test_the_axis_guard_runs_before_escalation(self):
-        """A proposal below the current axis cannot lower it, so it cannot
-        lower the lane either."""
-        self.start_run()
-        self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                              "--proposed-size", "large", "--trigger", "t"))
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", self.ticket,
-                                    "--proposed-size", "trivial", "--trigger", "t"))
-        self.assertEqual(out["size"], "large")
-        self.assertEqual(lib.load_ticket(self.tpath)["size"], "large")
-
-    def test_an_unrecordable_event_still_leaves_the_lane_applied_and_says_so(self):
-        """No run entry means record_escalation_event refuses. The axes are
-        already durable by then — that ordering is deliberate, so the CLI
-        reports the applied state and fails loudly rather than silently."""
-        res = self.acs("lane", "apply", "--ticket", self.ticket,
-                       "--proposed-size", "large", "--trigger", "verifier_finding")
-        self.assertEqual(res.returncode, 2)
-        out = json.loads(res.stdout)
-        self.assertTrue(out["escalated"])
-        self.assertFalse(out["event_recorded"])
-        self.assertIn("escalation event was not recorded", res.stderr)
-        self.assertEqual(lib.load_ticket(self.tpath)["lane"], "COMPLEX")
-
-    def test_apply_refuses_an_unknown_ticket(self):
-        self.refusal(self.acs("lane", "apply", "--ticket", "SHOP-4242",
-                              "--proposed-size", "large", "--trigger", "t"),
-                     "no partition for SHOP-4242")
-
-
-class TestLaneDeescalate(AcsCliCase):
-
-    def setUp(self):
-        super(TestLaneDeescalate, self).setUp()
-        self.ticket = self.new_ticket("Add a widget", "task", "--size", "large")
-        self.tpath = self.tdir(self.ticket)
-        lib.append_in_progress_run(self.tpath, "code", self.ticket)
-
-    def answered_ref(self):
-        self.run_script("clarify.py", "add", "--skill", "code", "--ticket", self.ticket,
-                        "--question", "Lower the size?")
-        out = self.run_script("clarify.py", "answer", "--id", "C-1", "--ticket", self.ticket,
-                              "--answer", "yes, small is right")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        return "C-1"
-
-    def test_an_answered_clarification_lowers_the_axes_and_records_direction_down(self):
-        ref = self.answered_ref()
-        out = self.ok_json(self.acs("lane", "deescalate", "--ticket", self.ticket,
-                                    "--size", "small", "--stakes", "low", "--clarify-ref", ref))
-        self.assertEqual(out["size"], "small")
-        self.assertEqual(out["from"]["size"], "large")
-        event = lib.last_run(lib.load_state(self.tpath, "code"))["escalations"][-1]
-        self.assertEqual(event["direction"], "down")
-        self.assertEqual(event["confirmation_ref"], ref)
-
-    def test_an_unresolved_clarify_ref_is_refused_with_no_write(self):
-        before = lib.load_ticket(self.tpath)
-        self.refusal(self.acs("lane", "deescalate", "--ticket", self.ticket, "--size", "small",
-                              "--stakes", "low", "--clarify-ref", "C-99"),
-                     "does not resolve")
-        self.assertEqual(lib.load_ticket(self.tpath), before)
-
-    def test_the_clarify_ref_is_not_optional(self):
-        res = self.acs("lane", "deescalate", "--ticket", self.ticket,
-                       "--size", "small", "--stakes", "low")
-        self.assertEqual(res.returncode, 2)
-        self.assertIn("--clarify-ref", res.stderr)
-
-
 class TestPhaseValidate(AcsCliCase):
 
     def test_a_complete_result_document_validates(self):
@@ -480,13 +262,7 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         self.ticket = self.new_ticket("Add a widget", "task")
 
     COVERAGE = {
-        "derive_lane": ("lane", "derive", "--size", "small", "--stakes", "low"),
-        "lane_rank": ("lane", "rank", "--lane", "SMALL"),
-        "escalate_lane": ("lane", "escalate", "--current-lane", "SMALL",
-                          "--size", "small", "--stakes", "low"),
-        "guard_axes": ("stakes", "guard", "--current-size", "small",
-                       "--current-stakes", "low"),
-        "recommend_stakes": ("stakes", "recommend", "--path", "README.md"),
+        "recorded_delivery_path": ("path", "show", "--ticket", "@ticket"),
         "slugify": ("slug", "--text", "a title"),
         "check_toolchain": ("doctor",),
         "build_context": ("context",),
@@ -503,25 +279,28 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
                 json.loads(res.stdout)  # the stdout contract: one JSON object
 
     def test_the_writers_are_reachable_only_through_their_audited_commands(self):
-        """save_ticket, update_pipeline, update_index and
-        record_escalation_event are named by SKILL.md as ONE persistence
-        sequence, so they are exposed as the three commands that perform it
-        whole — `lane apply`, `lane deescalate`, `ticket save` — and never as
-        four separate writes a caller could half-perform."""
-        lane_help = self.acs("lane", "--help")
-        self.assertEqual(lane_help.returncode, 0)
-        for command in ("apply", "deescalate"):
-            self.assertIn(command, lane_help.stdout)
+        """save_ticket, update_pipeline and update_index are named by SKILL.md
+        as ONE persistence sequence, so they are exposed as the commands that
+        perform it whole — `ticket save`, and `path set` for the delivery path
+        — never as separate writes a caller could half-perform.
+
+        ADR-0095 removed `lane apply` and `lane deescalate` from this list by
+        removing what they wrote. `path set` replaces them, and carries the one
+        refusal that matters now: a ticket already on a path cannot be moved."""
+        path_help = self.acs("path", "--help")
+        self.assertEqual(path_help.returncode, 0)
+        for command in ("show", "set"):
+            self.assertIn(command, path_help.stdout)
         self.assertIn("save", self.acs("ticket", "--help").stdout)
         for orphan in ("save-ticket", "update-index", "update-pipeline",
-                       "record-escalation-event"):
+                       "record-delivery-path", "lane", "stakes"):
             self.assertNotIn(orphan, self.acs("--help").stdout,
                              msg="%s must not be a standalone write" % orphan)
 
     def test_a_group_without_a_subcommand_prints_usage_and_exits_two(self):
-        """`acs.py lane` names a group, not a command. It must say so rather
+        """`acs.py path` names a group, not a command. It must say so rather
         than exiting 0 having done nothing."""
-        res = self.acs("lane")
+        res = self.acs("path")
         self.assertEqual(res.returncode, 2)
         self.assertIn("usage", res.stderr.lower())
         self.assertEqual(res.stdout, "")
@@ -529,7 +308,7 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
     def test_help_lists_every_group(self):
         res = self.acs("--help")
         self.assertEqual(res.returncode, 0)
-        for group in ("context", "gate", "lane", "stakes", "ticket", "pr",
+        for group in ("context", "gate", "path", "ticket", "pr",
                       "tracker", "readiness",
                       "lock", "filemap", "verdict",
                       "phase", "slug", "fanout", "doctor", "start", "finish", "plan"):
@@ -598,59 +377,6 @@ class TestReviewFixes(AcsCliCase):
         row = json.dumps(index)
         self.assertIn("Add a widget", row)
         self.assertNotIn('"title": null', row)
-
-    def test_lane_apply_does_not_invent_an_absent_axis(self):
-        """guard_axes floors an absent axis at the lowest rank; a rigor-RAISING
-        path must not use that to write size: trivial."""
-        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
-        tpath = self.tdir(ticket)
-        doc = lib.load_ticket(tpath)
-        doc.pop("size", None)
-        lib.save_ticket(tpath, doc)
-        lib.append_in_progress_run(tpath, "code", ticket)
-
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
-                                    "--proposed-stakes", "high", "--trigger", "b"))
-        self.assertIsNone(out["size"])
-        self.assertNotIn("size", lib.load_ticket(tpath))
-        self.assertTrue(out["escalated"], "the fixture must actually escalate, "
-                        "or the assertions below silently stop running")
-        if out["escalated"]:
-            event = lib.last_run(lib.load_state(tpath, "code"))["escalations"][-1]
-            self.assertIsNone(event["to_size"])
-
-    def test_lane_apply_no_op_reports_the_disk_state_not_the_proposal(self):
-        """A caller branching on out["stakes"] must not read a raise that was
-        never persisted."""
-        ticket = self.new_ticket("Add a widget", "task")   # standard/normal
-        tpath = self.tdir(ticket)
-        lib.append_in_progress_run(tpath, "code", ticket)
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
-                                    "--proposed-stakes", "high", "--trigger", "b"))
-        self.assertFalse(out["escalated"])
-        self.assertEqual(out["stakes"], lib.load_ticket(tpath).get("stakes"))
-        self.assertEqual(out["proposed_stakes"], "high")
-        self.assertIsNone(out["event"], "the documented `event` key must be present")
-
-    def test_lane_deescalate_reports_a_write_that_landed_without_its_event(self):
-        """confirm_deescalation persists BEFORE recording its event. With no run
-        entry the event write fails — and the axes are already lowered, so a bare
-        exit-2 refusal would hide a durable rigor-lowering write."""
-        ticket = self.new_ticket("Add a widget", "task", "--size", "large")
-        tpath = self.tdir(ticket)
-        self.run_script("clarify.py", "add", "--skill", "code", "--ticket", ticket,
-                        "--question", "Lower it?")
-        self.run_script("clarify.py", "answer", "--id", "C-1", "--ticket", ticket,
-                        "--answer", "yes")
-        res = self.acs("lane", "deescalate", "--ticket", ticket, "--size", "small",
-                       "--stakes", "low", "--clarify-ref", "C-1")
-        self.assertEqual(res.returncode, 2)
-        out = json.loads(res.stdout)
-        self.assertTrue(out["applied"])
-        self.assertFalse(out["event_recorded"])
-        self.assertIn("LOWERED", res.stderr)
-        self.assertEqual(lib.load_ticket(tpath)["size"], "small")
-
     def test_context_says_whether_the_partition_exists(self):
         out = self.ok_json(self.acs("context", "--ticket", "SHOP-4242"))
         self.assertFalse(out["exists"],
@@ -672,73 +398,17 @@ class TestReviewFixes(AcsCliCase):
                 self.assertIn(row["name"], out["missing_required"])
 
     def test_a_group_prints_its_own_subcommands_not_the_root_help(self):
-        res = self.acs("lane")
+        res = self.acs("path")
         self.assertEqual(res.returncode, 2)
-        self.assertIn("acs.py lane", res.stderr)
-        for sub in ("derive", "escalate", "apply", "deescalate"):
+        self.assertIn("acs.py path", res.stderr)
+        for sub in ("show", "set"):
             self.assertIn(sub, res.stderr)
-        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not lane's")
+        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not path's")
 
 
 class TestReviewFixesRoundTwo(AcsCliCase):
     """A review of the fixes above caught two regressions IN them, both
     reproduced live. These pin the corrected behaviour."""
-
-    def test_apply_carrying_no_signal_writes_nothing(self):
-        """Nulling the axes before escalate_lane changed the DERIVATION, not
-        just the persistence: derive_lane(None, ...) returns its STANDARD
-        default, so a call with no proposal at all escalated SMALL -> STANDARD,
-        wrote three files and raised the verify ceiling 1 -> 3."""
-        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
-        tpath = self.tdir(ticket)
-        doc = lib.load_ticket(tpath)
-        doc.pop("size", None)
-        doc["lane"], doc["stakes"] = "SMALL", "normal"
-        lib.save_ticket(tpath, doc)
-        lib.append_in_progress_run(tpath, "code", ticket)
-        before = lib.load_ticket(tpath)
-
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket, "--trigger", "b"))
-        self.assertFalse(out["escalated"])
-        self.assertEqual(out["ceiling_before"], out["ceiling_after"])
-        self.assertEqual(lib.load_ticket(tpath), before)
-        self.assertEqual(lib.last_run(lib.load_state(tpath, "code")).get("escalations", []), [])
-
-    def test_a_real_raise_still_fires_without_inventing_the_absent_axis(self):
-        """The guard must not have been bought by disabling escalation."""
-        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
-        tpath = self.tdir(ticket)
-        doc = lib.load_ticket(tpath)
-        doc.pop("size", None)
-        doc["lane"], doc["stakes"] = "SMALL", "normal"
-        lib.save_ticket(tpath, doc)
-        lib.append_in_progress_run(tpath, "code", ticket)
-
-        out = self.ok_json(self.acs("lane", "apply", "--ticket", ticket,
-                                    "--proposed-stakes", "high", "--trigger", "b"))
-        self.assertTrue(out["escalated"])
-        self.assertIsNone(out["size"])
-        self.assertNotIn("size", lib.load_ticket(tpath))
-
-    def test_deescalate_refusal_at_the_target_values_is_a_plain_refusal(self):
-        """`applied` must mean "the ticket changed", not "the ticket now holds
-        the requested values" — which is also true when the call refused before
-        writing a byte, firing the loudest alarm in the system for nothing."""
-        ticket = self.new_ticket("Add a widget", "task", "--size", "small")
-        tpath = self.tdir(ticket)
-        doc = lib.load_ticket(tpath)
-        doc.update({"size": "small", "stakes": "low", "lane": "SMALL"})
-        lib.save_ticket(tpath, doc)
-        before = lib.load_ticket(tpath)
-
-        res = self.acs("lane", "deescalate", "--ticket", ticket, "--size", "small",
-                       "--stakes", "low", "--clarify-ref", "C-99")
-        self.assertEqual(res.returncode, 2)
-        self.assertEqual(res.stdout.strip(), "", "a refusal that wrote nothing prints nothing")
-        self.assertIn("does not resolve", res.stderr)
-        self.assertNotIn("LOWERED", res.stderr)
-        self.assertEqual(lib.load_ticket(tpath), before)
-
     def test_a_marker_with_a_real_session_is_never_blanked(self):
         """Guarded at the root now, so a caller that forgets record_marker=False
         cannot cost the next run its attribution."""

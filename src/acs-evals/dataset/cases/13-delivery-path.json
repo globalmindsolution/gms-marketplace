@@ -1,0 +1,139 @@
+{
+  "group": "delivery path",
+  "description": "The one write that decides a ticket's rigor (ADR-0095). `/acs:ship` judges the path from `plan.md` after `create-impl-plan` and records it on `pipeline-state.json`; every later step reads the recorded value.\n\nThe case that matters most is the re-judge refusal. Without it a resumed run would judge again, from the same plan but a different session, and a pipeline could end up half at one rigor and half at another — which is exactly the failure mode the mid-flight escalation this replaced was built to manage.\n\nProfile: ticketed = one open task ticket (TKT-1), unclassified.",
+  "surface": "acs path",
+  "covers": [
+    "ADR-0095"
+  ],
+  "profile": "ticketed",
+  "severity": "critical",
+  "cases": [
+    {
+      "id": "PATH-001",
+      "title": "an unclassified ticket reports no path, rather than guessing one",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "path",
+          "show",
+          "--ticket",
+          "TKT-1"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "ticket_id": "TKT-1",
+          "delivery_path": null,
+          "reason": null
+        }
+      }
+    },
+    {
+      "id": "PATH-002",
+      "title": "recording a path prints it back with the reason that decided it",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "path",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--path",
+          "small",
+          "--reason",
+          "one module, two tests, no stored shape"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "ticket_id": "TKT-1",
+          "delivery_path": "small",
+          "reason": "one module, two tests, no stored shape"
+        }
+      }
+    },
+    {
+      "id": "PATH-003",
+      "title": "a path the workflow does not declare is refused",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "path",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--path",
+          "medium",
+          "--reason",
+          "somewhere in between"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": "is not one of"
+      }
+    },
+    {
+      "id": "PATH-004",
+      "title": "a path recorded without a reason is refused — an unexplained path cannot be audited later",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "path",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--path",
+          "small",
+          "--reason",
+          "   "
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": "recorded with the reason it was chosen"
+      }
+    },
+    {
+      "id": "PATH-005",
+      "title": "a ticket already on a path is never moved — the refusal is what makes a resumed run read rather than re-judge",
+      "profile": "ticketed",
+      "files": [
+        {
+          "base": "ticket",
+          "path": "pipeline-state.json",
+          "json": {
+            "ticket_id": "TKT-1",
+            "flow": "ticket",
+            "steps": {},
+            "delivery_path": "small",
+            "delivery_path_reason": "one module, two tests"
+          }
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "path",
+          "set",
+          "--ticket",
+          "TKT-1",
+          "--path",
+          "complex",
+          "--reason",
+          "on reflection this is bigger"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "already on the small delivery path",
+          "judged once, from the plan"
+        ]
+      }
+    }
+  ]
+}

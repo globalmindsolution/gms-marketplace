@@ -1,9 +1,10 @@
 """MAR-152 spec 03 — dogfood migration coverage/topology gate.
 
-Gates the migration of this repo's 3 in-scope-citation docs
-(`docs/architecture/lld/runtime-coupling-inventory.md`,
-`docs/architecture/lld/flows/tabp-usage-read.md`,
-`docs/requirements/functional/tabp.md`) into `.evidence.md` sidecars:
+Gates the migration of this repo's in-scope-citation docs into `.evidence.md`
+sidecars. It covered three: `runtime-coupling-inventory.md`, and the two tabp
+docs (`lld/flows/tabp-usage-read.md`, `requirements/functional/tabp.md`) that
+were deleted with the tabp plugin, leaving the first as the live subject. The
+properties gated are unchanged:
 (a) every human body under docs/requirements + docs/architecture (sidecars
 excluded) greps to 0 in-scope code-evidence citations; (b) per sidecar,
 coverage is preserved (never reduced) against the pinned pre-migration
@@ -46,10 +47,6 @@ CITATION_RE = re.compile(r"(?:[A-Za-z0-9_./-]+\.(?:py|json|sh|xsd)|SKILL\.md):[0
 
 RUNTIME_COUPLING_SIDECAR = os.path.join(
     DOCS_ARCHITECTURE, "lld", "runtime-coupling-inventory.evidence.md")
-TABP_USAGE_READ_SIDECAR = os.path.join(
-    DOCS_ARCHITECTURE, "lld", "flows", "tabp-usage-read.evidence.md")
-TABP_REQUIREMENTS_SIDECAR = os.path.join(
-    DOCS_REQUIREMENTS, "functional", "tabp.evidence.md")
 
 # Pinned pre-migration inline counts, re-derived this task via
 #   grep -oE '<CITATION_RE pattern>' <file> | wc -l
@@ -57,8 +54,6 @@ TABP_REQUIREMENTS_SIDECAR = os.path.join(
 # NOT the design's "~26+~7" approximation (design.md:504-508), which counted
 # .md:NN workspace provenance the scope rule excludes.
 RUNTIME_COUPLING_PRE_MIGRATION_COUNT = 16
-TABP_USAGE_READ_PRE_MIGRATION_COUNT = 1
-TABP_REQUIREMENTS_PRE_MIGRATION_COUNT = 1
 
 DRAFT_MARKER = "DRAFT — human-confirm-required"
 
@@ -132,15 +127,6 @@ class CoverageNotReducedTest(unittest.TestCase):
             self._sidecar_citation_count(RUNTIME_COUPLING_SIDECAR),
             RUNTIME_COUPLING_PRE_MIGRATION_COUNT)
 
-    def test_tabp_usage_read_sidecar_count_not_reduced(self):
-        self.assertGreaterEqual(
-            self._sidecar_citation_count(TABP_USAGE_READ_SIDECAR),
-            TABP_USAGE_READ_PRE_MIGRATION_COUNT)
-
-    def test_tabp_requirements_sidecar_count_not_reduced(self):
-        self.assertGreaterEqual(
-            self._sidecar_citation_count(TABP_REQUIREMENTS_SIDECAR),
-            TABP_REQUIREMENTS_PRE_MIGRATION_COUNT)
 
     def test_runtime_coupling_inventory_anchors_each_keep_both_occurrences(self):
         # The 8 distinct anchors are each cited TWICE pre-migration (once in
@@ -171,15 +157,6 @@ class CoverageNotReducedTest(unittest.TestCase):
                     "verification occurrence contexts), found %d" %
                     (anchor, body.count(anchor)))
 
-    def test_tabp_usage_read_anchor_has_entry(self):
-        body = read(TABP_USAGE_READ_SIDECAR)
-        self.assertIn("Step 3", body)
-        self.assertIn("tabp_helper.py:1072-1077", body)
-
-    def test_tabp_requirements_anchor_has_entry(self):
-        body = read(TABP_REQUIREMENTS_SIDECAR)
-        self.assertIn("tabp independent verifier", body)
-        self.assertIn("SKILL.md:173-177", body)
 
 
 class C22MarkersIntactTest(unittest.TestCase):
@@ -187,9 +164,9 @@ class C22MarkersIntactTest(unittest.TestCase):
     literal DRAFT marker is unchanged by this migration — a general,
     re-runnable invariant (not a hardcoded "0"). This repo's
     docs/requirements predates G37 and carries no such marker in any real
-    area file today (grep-confirmed, this task) — including
-    functional/tabp.md, the only file this spec migrates under
-    docs/requirements — so this check passes vacuously (0 files before, 0
+    area file today (grep-confirmed) — this held for functional/tabp.md, the
+    only file this spec migrated under docs/requirements, and still holds now
+    that it is deleted — so this check passes vacuously (0 files before, 0
     files after) here; it is written generally so it is meaningful for a
     consumer repo whose docs/requirements DOES carry real markers."""
 

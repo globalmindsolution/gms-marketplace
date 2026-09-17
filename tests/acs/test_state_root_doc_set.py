@@ -66,7 +66,11 @@ MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 # Every touched file not listed here has a baseline of 0.
 MAR1_BASELINE = {
     C4_CONTAINER: 5,
-    DATA_MODEL: 27,
+    # DATA_MODEL: was 27 until the tabp plugin was removed. The 27th token was
+    # the deleted "## tabp plugin data model" section's own source line
+    # (`MAR-1/design.md:652-722`) -- a citation that went with the section it
+    # cited, not a count this repo's edits shifted underneath live content.
+    DATA_MODEL: 26,
     # CONTRACTS: 3 ADR-0082 citations + 1 from a separately-numbered MAR-1
     # (doc-bootstrap parallel fan-out, merged to main after this ticket
     # branched) -- both are pre-existing, unrelated MAR-1 tokens this

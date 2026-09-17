@@ -95,7 +95,7 @@
     },
     {
       "id": "TICKET-001",
-      "title": "a minted task carries its derived lane and the axis values it was minted with",
+      "title": "a minted task carries the fields the ticket schema still declares",
       "profile": "ticketed",
       "invoke": {
         "argv": [
@@ -115,9 +115,6 @@
             "title": "Add user login",
             "type": "task",
             "status": "open",
-            "size": "small",
-            "stakes": "low",
-            "lane": "SMALL",
             "needs_design": false,
             "docs_only": false,
             "priority": "medium",
@@ -127,12 +124,13 @@
             "acceptance_criteria": []
           }
         }
-      }
+      },
+      "note": "It carried `size`, `stakes` and a derived `lane` until ADR-0095 retired the axes; rigor is now judged from `plan.md` and recorded on pipeline-state.json, not declared at mint time. The remaining key set is the contract, and its ABSENCES matter — see TICKET-005."
     },
     {
       "id": "TICKET-002",
-      "title": "an epic defaults to needs_design true and the COMPLEX lane",
-      "note": "This is what makes /acs:create-design's gate open for an epic and /acs:code's refuse it \u2014 see GATE-041 and GATE-042.",
+      "title": "an epic defaults to needs_design true",
+      "note": "This is what makes /acs:create-design's gate open for an epic and /acs:code's refuse it — see GATE-041 and GATE-042.",
       "profile": "epic",
       "invoke": {
         "argv": [
@@ -148,10 +146,7 @@
           "ok": true,
           "ticket": {
             "type": "epic",
-            "needs_design": true,
-            "lane": "COMPLEX",
-            "size": "large",
-            "stakes": "high"
+            "needs_design": true
           }
         }
       }
@@ -178,7 +173,7 @@
     {
       "id": "TICKET-004",
       "title": "ticket save MERGES: a field absent from the document is kept, not cleared",
-      "note": "A behaviour change MAR-521's own migration note called 'none'. The save sends only id and priority; every other field must SURVIVE, which is what the on-disk assertion checks \u2014 a caller can no longer clear a field by omitting it.",
+      "note": "A behaviour change MAR-521's own migration note called 'none'. The save sends only id and priority; every other field must SURVIVE, which is what the on-disk assertion checks — a caller can no longer clear a field by omitting it.",
       "profile": "ticketed",
       "invoke": {
         "argv": [
@@ -206,10 +201,31 @@
               "priority": "critical",
               "title": "Add user login",
               "type": "task",
-              "size": "small",
-              "lane": "SMALL"
+              "needs_design": false
             }
           }
+        ]
+      }
+    },
+    {
+      "id": "TICKET-006",
+      "title": "a minted ticket carries no rigor axis at all",
+      "note": "TICKET-001 asserts a SUBSET, so removing `size`/`stakes`/`lane` from it would also pass on a build that still wrote them. This case is the other half: the fields must be absent from the document on disk, because a stale axis is exactly the kind of thing a later reader would trust.",
+      "profile": "ticketed",
+      "invoke": {
+        "argv": [
+          "ticket",
+          "show",
+          "--ticket",
+          "{{ticket}}"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_excludes": [
+          "\"size\"",
+          "\"stakes\"",
+          "\"lane\""
         ]
       }
     },
@@ -290,14 +306,7 @@
             "workspace_path": "../ws",
             "adr_path": "docs/adr",
             "architecture_path": "docs/architecture",
-            "prd_path": "docs/product",
-            "high_stakes_paths": [
-              "auth/**",
-              "payments/**",
-              "migrations/**",
-              "public-api/**",
-              "security/**"
-            ]
+            "prd_path": "docs/product"
           }
         }
       }

@@ -1,7 +1,7 @@
 """`/acs:release` runs the repo's pre-release gate, and never cuts past it.
 
 The gate is settings-driven, not hardcoded: the skill used to end by telling
-the human to run `python3 evals/run_evals.py --plugin acs --paid`, a path that
+the human to run `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, a path that
 exists only in this marketplace and that stopped being even this repo's gate
 when MAR-579 retired the per-ticket paid tier. It then read one from
 `release.pre_release_gate` -- and only REMINDED the human to run it, which is

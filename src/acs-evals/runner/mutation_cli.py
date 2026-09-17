@@ -49,10 +49,11 @@ from harness import BuildError, resolve_build  # noqa: E402
 
 #: The modules that hold decisions the deterministic tier claims to pin.
 DEFAULT_MODULES = ("derive.py", "verdict.py", "readiness.py", "gates.py",
-                   "lanes.py", "filemap.py", "state.py", "settings.py")
+                   "planrules.py", "workflow.py", "filemap.py", "state.py",
+                   "settings.py")
 
 #: The CLI cases: everything the schema and skill-manifest kinds do not drive.
-CLI_CASE_GLOBS = ("GATE-*", "LANE-*", "READY-*", "VERDICT-*", "STAKES-*",
+CLI_CASE_GLOBS = ("GATE-*", "PATH-*", "READY-*", "VERDICT-*",
                   "FILEMAP-*", "LOCK-*", "TICKET-*", "MINT-*", "PRCONV-*",
                   "SLUG-*", "STRUCT-*", "CONTEXT-*", "STATUS-*", "METRICS-*",
                   "FANOUT-*", "DOCTOR-*", "SESSIONEND-*", "GUARD-*")

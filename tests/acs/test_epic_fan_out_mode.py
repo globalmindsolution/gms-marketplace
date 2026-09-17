@@ -84,8 +84,20 @@ def _section(body, heading):
     return body[start:end]
 
 
+#: Three of /acs:create-ticket's sections moved into `references/` under
+#: progressive disclosure, because each is read by exactly one kind of run:
+#: the `--fan-out` mode, the split/restructure mode, and Step 5's tracker sync
+#: (skipped entirely on the default `local` provider). The section readers
+#: below name the file that now carries each one, so the assertions keep
+#: pinning what the skill SAYS rather than which file says it.
+CT_REFERENCES = os.path.join(SKILLS_DIR, "create-ticket", "references")
+FAN_OUT_REF = os.path.join(CT_REFERENCES, "epic-fan-out.md")
+SPLIT_REF = os.path.join(CT_REFERENCES, "split-ticket.md")
+TRACKER_SYNC_REF = os.path.join(CT_REFERENCES, "tracker-sync.md")
+
+
 def fan_out_section():
-    return _section(read(CREATE_TICKET_SKILL), FAN_OUT_HEADING)
+    return _section(read(FAN_OUT_REF), FAN_OUT_HEADING)
 
 
 def step4_section():
@@ -93,7 +105,9 @@ def step4_section():
 
 
 def step5_section():
-    return _section(read(CREATE_TICKET_SKILL), STEP5_HEADING)
+    # SKILL.md keeps a short stub under the same heading, pointing here; the
+    # step itself is the reference.
+    return _section(read(TRACKER_SYNC_REF), STEP5_HEADING)
 
 
 def step1_section():
@@ -113,10 +127,8 @@ def finish_section():
 
 
 def split_section():
-    body = read(CREATE_TICKET_SKILL)
-    start = body.index(SPLIT_HEADING)
-    end = body.index(RESUME_HEADING)
-    return body[start:end]
+    body = read(SPLIT_REF)
+    return body[body.index(SPLIT_HEADING):]
 
 
 def ship_fan_out_section():
@@ -397,11 +409,15 @@ class StepOneChildBreakdownBulletIsScopedToFanOutRunCase(unittest.TestCase):
         self.assertIn("children: []", tail)
 
 
-class StepTwoChildBreakdownConfirmationIsScopedByModeNotLaneCase(unittest.TestCase):
+class StepTwoChildBreakdownConfirmationIsScopedByModeCase(unittest.TestCase):
     """F1-b/F1-c: Step 2 item 7's sentence stays byte-intact (the fan-out
     section quotes it verbatim) and gains a mode-scoping clause; the
-    over-correction guard (MAR-55 invariant (c), "NOT skipped in any lane")
-    must survive untouched -- scoping is by MODE, never by LANE."""
+    over-correction guard (MAR-55 invariant (c)) must survive untouched.
+
+    The guard used to read "NOT skipped in any lane", because lanes were the
+    thing that might have been thought to skip it. ADR-0095 retired them, so
+    the guard now says what it always meant — the step is never skipped at
+    all — and the scoping clause is the only thing that narrows it."""
 
     def test_step_2_child_breakdown_confirmation_is_scoped_by_mode_not_lane(self):
         section_norm = norm(step2_section())
@@ -414,7 +430,10 @@ class StepTwoChildBreakdownConfirmationIsScopedByModeNotLaneCase(unittest.TestCa
                       r"split/restructure run", tail),
             "item 7 must state it is reached only in the --fan-out mode "
             "or a split/restructure run")
-        self.assertIn("NOT skipped in any lane", section_norm)
+        self.assertIn("it is NOT a verifier and it is never skipped",
+                      section_norm)
+        self.assertNotIn("lane", section_norm.lower(),
+                         "the retired axis must not come back as a scope")
 
 
 class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):

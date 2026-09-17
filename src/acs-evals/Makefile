@@ -7,6 +7,11 @@
 # This suite lives at src/acs-evals/ inside the gms-marketplace repo, so the
 # plugin source it grades is a sibling: ../acs.
 #
+# `make behavioural` is the other half: the real-session scenarios under
+# behavioural/, which were the repo-root evals/ tree before they were folded in
+# here. They are not part of `gate` — the free tier already runs on every commit
+# via the acs-free-evals pre-commit hook, and the paid tier spends money.
+#
 # ACS_PLUGIN_ROOT selects the build under test. Leave it unset and the runner
 # resolves the newest INSTALLED acs build, which is what a consumer actually
 # runs; set it to point at a working tree instead. `make eval-source` is that
@@ -26,7 +31,8 @@ REPORT  ?= $(RESULTS)/report
 MEASURE ?= $(RESULTS)/measurements.json
 
 .DEFAULT_GOAL := help
-.PHONY: help gate eval eval-source report check generate mutation list record clean verify-self
+.PHONY: help gate eval eval-source report check generate mutation list record clean verify-self \
+        behavioural behavioural-paid
 
 help: ## Show this help
 	@printf '\nacs-evals — evaluation process\n\n'
@@ -145,6 +151,16 @@ mutation: ## Measure schema coverage by deleting each constraint (must stay >= 9
 list: ## List every case without running anything
 	$(PYTHON) runner/run_golden.py --list
 
+# The behavioural tree at behavioural/ is the other half of this suite: real
+# `claude -p` sessions asserting on the artifacts a run leaves behind, rather
+# than recorded CLI surfaces. Its dispatcher takes --plugin and resolves paths
+# from the repo root, hence the `cd`.
+behavioural: ## Run the behavioural FREE tier (deterministic, $0, no model) against this checkout
+	cd ../.. && ACS_EVAL_SOURCE=1 $(PYTHON) src/acs-evals/behavioural/run_evals.py --plugin acs
+
+behavioural-paid: ## The behavioural PAID tier — SPENDS MONEY; needs an authenticated `claude`
+	cd ../.. && $(PYTHON) src/acs-evals/behavioural/run_evals.py --plugin acs --paid
+
 verify-self: ## Byte-compile the runner, parse every dataset file, self-test the gate
 	$(PYTHON) -m py_compile runner/*.py
 	$(PYTHON) runner/test_perf_gate.py
@@ -169,3 +185,4 @@ record: ## DANGER — rewrite goldens from this build. Read the diff before comm
 
 clean: ## Remove generated results and caches
 	rm -rf $(RESULTS) runner/__pycache__
+	find behavioural -name __pycache__ -type d -prune -exec rm -rf {} +

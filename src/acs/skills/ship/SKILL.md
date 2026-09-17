@@ -29,10 +29,13 @@ Ground rules, non-negotiable:
 - You have **no executor/verifier** of your own. Each step skill —
   invoked directly via the Skill tool — runs its OWN reflection cycle (it
   spawns its own executor/verifier); you never do the step's work.
-- Keep your own context tiny. Never read step transcripts, phase XML files,
-  plans, or diffs. You read exactly four kinds of things: the `workflow next`
-  JSON, `pipeline-state.json`, the ticket document, and the compact
-  `<handoff>` XML each step returns (~1 KB). Between steps your context is
+- Keep your own context tiny. Never read step transcripts, phase XML files, or
+  diffs. You read exactly five kinds of things: the `workflow next` JSON,
+  `pipeline-state.json`, the ticket document, the compact `<handoff>` XML each
+  step returns (~1 KB), and — ONCE per ticket, at the classification point
+  below — `plan.md`. That fifth read is the one exception and it is bounded: it
+  happens once, it produces one word and one sentence, and you drop the plan
+  from your working context immediately after. Between steps your context is
   safe to compact — the ledger holds everything you need to continue. One
   step is an exception: a step carrying `boundary: full_verify_stop` (today,
   `code`) runs its own full reflection cycle inline in your context, and that
@@ -123,6 +126,7 @@ prints one JSON object:
 | `done` | `true` once `stop_after` is completed → go to Finish |
 | `blocked_by` | `{step, predicate, pointer}` — a step whose `requires` predicate is false |
 | `statuses` | every step id → its ledger status (or `null`), for your report |
+| `delivery` | `{path, reason, classify_after, paths, awaiting_classification}` — null when the workflow declares no paths; see "Classify the delivery path" |
 | `workflow` | `{source, path, name, stop_after, max_parallel}` — which file the order came from |
 
 Branch strictly on what comes back:
@@ -139,7 +143,12 @@ Branch strictly on what comes back:
 4. **`ready` empty, not `done`, nothing blocked** → stop and report the
    `statuses` map; the workflow has nothing to offer, which means the ledger
    and the file disagree — run `acs.py workflow validate` and surface it.
-5. Otherwise run the ready step(s), per `mode`.
+5. **`delivery.awaiting_classification: true`** → the plan is written and the
+   path has not been judged. Do that now (next section), then run the walk
+   again. `ready` is empty or short in this state by construction: the walk
+   holds back every step that depends on the path, because a step resolved
+   against an unknown path would resolve to nothing.
+6. Otherwise run the ready step(s), per `mode`.
 
 Invoking a step is always the same: the Skill tool with skill
 `acs:<ready.skill>` and args = `ready.args` when it is non-null (ship.yaml
@@ -150,6 +159,45 @@ Run the walk again after every step. A step recorded `in_progress`, `failed`,
 `interrupted`, or `handed_off` simply becomes ready again — the step's own
 skill-start reconciles recorded state against reality; you never reconcile
 yourself, and you never re-record a step's own status.
+
+## Classify the delivery path
+
+Once `delivery.awaiting_classification` is true, this ticket needs one word and
+one sentence from you before the pipeline can continue. It is the only
+judgement /acs:ship makes about the work itself, and it is made exactly once.
+
+Read the rubric — it is the contract, not a summary of it:
+
+> `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`
+
+In short: read `plan.md` (the file `delivery.classify_after` produced; resolve
+it the way that step's handoff names it, or under the ticket's docs folder,
+else `<partition>/phases/code/plan.md`). Judge it onto one of
+`delivery.paths`. Prefer the more expensive path whenever two fit — an
+unnecessary lens pass costs tokens, a missed regression in a load-bearing path
+costs more. Then record it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" path set \
+  --ticket <ticket-id> --path <trivial|small|standard|complex> \
+  --reason "<one sentence naming what in the plan decided it>"
+```
+
+On exit 2, surface stderr verbatim and stop — it refuses an unknown path, an
+empty reason, and any attempt to move a ticket already on one. That last
+refusal is the mechanism, not an obstacle: the path is judged once, and a
+resumed run reads it. If you believe a recorded path is wrong, the route is
+`/acs:create-impl-plan` and a fresh judgement from the corrected plan, never a
+second `path set`.
+
+Then **drop `plan.md` from your working context** and go back to the walk. You
+will not read it again this run; from here on the path is a word in
+`pipeline-state.json`, which is what keeps your context small enough to reach
+the end of the pipeline.
+
+**A plan you cannot classify is an unfinished plan.** If it has no file map, or
+a Test strategy that says nothing, stop and say so — the remedy is re-running
+`/acs:create-impl-plan`, not a guess that every later step inherits.
 
 ## Single mode — invoke the one ready step
 
@@ -263,140 +311,57 @@ fan-out shape `/acs:create-docs` already uses (`skills/create-docs/SKILL.md`,
    post-hook already recorded what happened. Each leg's ledger entry is its
    own — you write none of them.
 
-## Full-verify pipeline boundary
+## The context boundary
 
 A ready step may carry `boundary: full_verify_stop`. Today exactly one does
-(`code`), and it is the one step whose full reflection cycle — every
-executor, and (on a full-verify lane) up to three multi-lens verifier
-iterations — lands entirely inside your own coordinator context, because you
-run it as its coordinator (see "Single mode"). On a light-verify lane that is
-small; on a full-verify lane it routinely leaves too little context left to
-safely reach the end of the walk. Left unacknowledged, the run just trails off
-after the step completes — an implicit silent stop that reads as a failure.
-This section replaces that implicit stop with a **designed boundary, not a
-failure**.
+(`code`), and only on two of its four delivery paths — `ship.yaml` gives the
+boundary as a per-path mapping naming `standard` and `complex`. That is the
+step whose whole reflection cycle lands inside your own coordinator context,
+because you run it as its coordinator (see "Single mode"): every executor, and
+on `complex` up to three rounds of four merged verifier lenses. On `trivial`
+and `small` that is small. On the two deep paths it routinely leaves too little
+context to safely reach the end of the walk. Left unacknowledged, the run just
+trails off after the step completes — an implicit silent stop that reads as a
+failure. This section replaces that implicit stop with a **designed boundary,
+not a failure**.
 
-**Deciding the depth.** After a `boundary: full_verify_stop` step returns
-`completed`, re-read the ticket (already a permitted read — see "Keep your own
-context tiny") and resolve the depth with the same inline-Python
-`import acs_lib as lib` pattern Step 1 already uses, passing the `<partition>` path resolved in Step 1 as the script argument:
+**You do not decide the depth; the walk already did.** The `ready` entry you
+invoked carried `boundary` already resolved for this ticket's recorded path:
+`"full_verify_stop"` on `standard` and `complex`, `null` on `trivial` and
+`small`. There is nothing to recompute and no ticket to re-read — the mapping
+lives in `ship.yaml` where a reviewer can see which paths are expensive, and
+`workflow next` resolved it against the path recorded once at classification.
 
-```bash
-python3 - "<partition>" <<'PY'
-import os, sys
-sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
-import acs_lib as lib
-ticket = lib.load_ticket(sys.argv[1]) or {}
-print(lib.verify_depth(ticket.get("lane"), ticket.get("stakes")))
-PY
-```
+- `boundary` was **null** → no stop. Go straight back to the walk and continue
+  through the remaining ready steps (docs-sync, create-pr, and the e2e steps
+  when they apply) exactly as before.
+- `boundary` was **`full_verify_stop`** and the step returned `completed` →
+  STOP, before the next `workflow next` — the test step's own work would also
+  run in your context, so stopping before it is strictly safer. Do not mark any
+  step `failed`, and do not run `handoff.py` (unchanged: /acs:ship is not
+  hooked and owns no run entry).
 
-Re-read the ticket here rather than trusting whatever depth you resolved
-before the step ran — it may have escalated the lane mid-flight and durably
-written the escalation back.
+**The stop report.** The boundary step is complete and /acs:ship stops here by
+design. The remaining steps run in a fresh session. Resume with
+`/acs:ship <ticket-id>` — `<partition>/pipeline-state.json` already records the
+step completed AND the delivery path, so the resumed run's first
+`workflow next` picks up at the steps ready after it, on the same path, with no
+re-judgement. Close with the standard completion report block below,
+`<status>` = `handed_off`.
 
-- `"light"` → no stop. Cheap-tail pipelines are unaffected by this section:
-  go straight back to the walk and continue through the remaining ready steps
-  (docs-sync, create-pr, and the e2e steps when they apply) exactly as today.
-- `"full"` → STOP. Stop right after the step completes, before the next
-  `workflow next` — the test step's own work would also run in your context,
-  so stopping before it is strictly safer. Do not mark any step `failed`,
-  and do not run `handoff.py` (unchanged: /acs:ship is not hooked and owns
-  no run entry).
+This section changes only **when** the tail runs, never **which** steps run or
+in what order — that stays ship.yaml's to declare and the walk's to compute.
 
-**The stop report.** The boundary step is complete on a full-verify lane, and
-/acs:ship stops here by design. The remaining steps run in a fresh session.
-Resume with `/acs:ship <ticket-id>` — `<partition>/pipeline-state.json`
-already records the step completed, so the resumed run's very first
-`workflow next` picks up at the steps that are ready after it. Close with the
-standard completion report block below, `<status>` = `handed_off`.
+## The failure-path reference, and when to open it
 
-This section changes only **when** the tail runs, never **which** steps run
-or in what order — that stays ship.yaml's to declare and the walk's to
-compute.
+Nearly all of this skill is one loop: ask `acs.py workflow next` what is
+ready, invoke it, record the outcome, ask again. One part is not — what to do
+when an invoked step comes back `failed` and its `ready[]` entry says the
+pipeline is allowed to recover rather than stop:
 
-## Fix loop (`on_fail`)
-
-A ready step may carry `on_fail: {relay_to: <step id>, max_loops: <int>}`.
-That step is allowed to fail and be fixed: on a failing run, relay the
-failure into the named step, re-run it, and try again — up to `max_loops`
-times. `max_loops` arrives already resolved (ship.yaml may name a settings
-key; the walk reads it for you). Resolve `relay_to`'s skill from
-`acs.py workflow show` (`workflow.steps[].id` → `.skill`) — never assume the
-id and the skill are spelled the same.
-
-Every write below goes through the `pipeline-step.py` CLI — never embedded
-Python (ADR 0001). `--set fix_loops=<n>` merges the counter onto the step
-entry and `--unset fix_loops` removes it; the step's own `status` and
-timestamps stay owned by the step's own run. Read the current value from
-`statuses` / `<partition>/pipeline-state.json.steps.<step id>.fix_loops`
-(default `0` when absent). `fix_loops` is independent of any step's own
-internal iteration cap — the two counters never interact.
-
-1. **Re-entry reset.** If the existing `steps.<step id>` entry is `failed`,
-   this is a resumed run re-entering the step after a previous cap. Reset the
-   counter first and treat `fix_loops` as `0` below:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status in_progress --unset fix_loops
-   ```
-
-   Without this the resumed run re-reads the capped value, falls straight
-   into case 4 on its first failure, and can never make progress.
-2. **The step completed** → it recorded its own `completed` entry. Clear the
-   counter and go back to the walk:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status completed --unset fix_loops
-   ```
-3. **The step failed and `fix_loops < max_loops`** → increment the counter,
-   then relay the failure output into `/acs:<relay_to skill> <ticket-id>`
-   **exactly via the existing "Re-invoke after needs_input" pattern** (see
-   "Single mode" above) — the failure output is the relayed context text, in
-   place of `Q: ... A: ...` lines; it is not a new mechanism. When that run
-   completes, go back to the walk, which offers the failed step again; this
-   is the fix-and-re-try loop.
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status in_progress \
-     --set fix_loops=<fix_loops + 1>
-   ```
-4. **The step failed and `fix_loops == max_loops`** → record the cap on the
-   step and STOP, mirroring the failed-handling shape below. A later resumed
-   run clears the counter via the re-entry reset in case 1:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status failed \
-     --set fix_loops=<max_loops> --summary "fix_loops cap reached"
-   ```
-
-**Orchestration, not step-work.** The counter and its cap are /acs:ship's to
-keep; the step's own pass/fail outcome is recorded by the run that produced
-it. The split is what keeps the two from overwriting each other, and it is
-consistent with "You orchestrate; you never implement" above — the step's
-actual work stays entirely inside the step skill you invoked.
-
-## Replan (`on_replan`)
-
-A ready step may carry `on_replan: <step id>` — the step to re-run when this
-one discovers that the work it was given is wrong rather than merely broken.
-When such a step returns `failed` with `stop_reason: plan_superseded` (and
-only then), do NOT stop the pipeline:
-
-1. Resolve the named step's skill from `acs.py workflow show`, as above.
-2. Invoke it directly (`acs:<skill> <ticket-id>`) so it produces a fresh
-   artifact; the superseded one is preserved by that skill's own revocation
-   path, not by you.
-3. Go back to the walk. The boundary step is ready again — its own ledger
-   entry says `failed` — and runs against the new artifact.
-
-Any other `failed` reason is an ordinary stop (below). Do not re-run a step
-more than once for the same `plan_superseded` reason: a second one means the
-ticket needs a human, so stop and say so.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/ship/references/failure-paths.md` | A step returned `failed` AND its `ready[]` entry carries `on_fail` (relay the failure into a named step and re-try, up to a cap this skill keeps as `fix_loops`) or `on_replan` (re-run a named step, but only for `stop_reason: plan_superseded`). A step that fails carrying neither is an ordinary stop — see "Handling the handoff" below. |
 
 ## Handling the handoff
 
@@ -414,8 +379,9 @@ Branch strictly on `status`:
   fixed cap, but if the same step returns needs_input three times with
   substantially the same questions, stop and surface the impasse to the user.
 - **failed** or **interrupted** — STOP the pipeline, unless the step carries
-  `on_replan` and the reason is `plan_superseded` (see "Replan"), or it
-  carries `on_fail` and the counter is under its cap (see "Fix loop").
+  `on_replan` and the reason is `plan_superseded`, or it carries `on_fail`
+  and the counter is under its cap — both in
+  `references/failure-paths.md`.
   Otherwise: surface the handoff `<summary>` verbatim, say where the state
   lives (`<partition>` and `<partition>/phases/<step>/`), and tell the user
   how to resume: `/acs:ship <ticket-id>` to retry the pipeline from this
@@ -424,7 +390,8 @@ Branch strictly on `status`:
 - **handed_off** — treat as interrupted: stop and print the same resume
   commands; the step flushed its own handoff context to the partition.
 - **fix-loop cap reached** — when an `on_fail` step's `fix_loops` counter
-  reaches its `max_loops` on a failing run (see "Fix loop" above), STOP the
+  reaches its `max_loops` on a failing run (`references/failure-paths.md`),
+  STOP the
   pipeline the same way as failed/interrupted: surface a "persistent failure"
   report, say where the state lives (`<partition>` and
   `<partition>/phases/<step>/`), and tell the user how to resume:

@@ -21,7 +21,10 @@ PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
-CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+#: ADR-0095 split /acs:code into a dispatcher plus the references its four
+#: delivery paths share, so what used to be one SKILL.md body is read from
+#: the reference that carries it: the execute instruction.
+CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 
 

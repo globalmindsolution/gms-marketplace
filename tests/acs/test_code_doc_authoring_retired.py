@@ -4,8 +4,10 @@ Falsifiable AC-1 guard: asserts the doc-authoring instructions (README/API/
 usage/changelog authoring, the living-requirements merge, the HLD/lld-flows/
 ADR-commit clause, the functional/non-functional classification rubric, the
 `.evidence.md` sidecar routing rule) are ABSENT from the exact span they are
-retired from in `code/SKILL.md`'s execute step and `code-executor.md`'s
-charter, that the relocated clauses (code-comment policy, test-filename rule,
+retired from: /acs:code's own execute prose — which ADR-0095 moved out of
+`skills/code/SKILL.md`, now a dispatcher, into `references/execute.md`, the
+one execute instruction all four delivery paths share — and
+`code-executor.md`'s charter, that the relocated clauses (code-comment policy, test-filename rule,
 Simplicity First pointer) and the retained product-doc factual-reconciliation
 paragraph survive in those same producers, that the re-homed content actually
 landed in `docs-sync-executor.md`, and that the plan planner
@@ -22,7 +24,8 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
-CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+CODE_EXECUTE_REF = os.path.join(PLUGIN, "skills", "code", "references",
+                                "execute.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
 IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 DOCS_SYNC_EXECUTOR = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
@@ -34,9 +37,10 @@ def read(path):
 
 
 def execute_span(body):
-    """code/SKILL.md's Execute (per iteration) section, up to Verify."""
-    return body[body.index("### Execute (per iteration)"):
-                body.index("### Verify (per iteration)")]
+    """The shared execute reference IS the span: the file exists to carry the
+    execute phase and nothing else, so the heading-to-heading slice that used
+    to carve it out of a 750-line SKILL.md is now the whole document."""
+    return body
 
 
 def charter_span(body):
@@ -46,12 +50,12 @@ def charter_span(body):
 
 
 class CodeSkillExecuteSpanRetiredTest(unittest.TestCase):
-    """The doc-authoring tokens no longer appear inside code/SKILL.md's
-    Execute span — the span this ticket retires them from."""
+    """The doc-authoring tokens no longer appear inside /acs:code's execute
+    instruction — the span this ticket retires them from."""
 
     @classmethod
     def setUpClass(cls):
-        cls.span = execute_span(read(CODE_SKILL))
+        cls.span = execute_span(read(CODE_EXECUTE_REF))
 
     def test_absence_update_the_docs_heading(self):
         self.assertNotIn("**Update the docs", self.span)
@@ -69,9 +73,9 @@ class CodeSkillExecuteSpanRetiredTest(unittest.TestCase):
 
     def test_absence_lld_flows(self):
         # Span-scoped ONLY: "lld/flows" legitimately survives elsewhere in
-        # code/SKILL.md (spec 02's Verify bullet and the result.json
-        # example), both outside the Execute span — do not widen this to a
-        # whole-body assertion.
+        # /acs:code's prose (the verify reference's Documentation bullet and
+        # the result.json example), both outside the execute instruction — do
+        # not widen this to a whole-contract assertion.
         self.assertNotIn("lld/flows", self.span)
 
     def test_absence_accepted_decision_records(self):

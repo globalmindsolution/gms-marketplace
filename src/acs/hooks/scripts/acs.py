@@ -3,9 +3,8 @@
 
 ADR 0001's rule is that a skill reaches Python through a CLI, never by naming a
 function for the model to invoke however it sees fit. The SKILL.md files broke
-that rule in one direction only: they name `acs_lib` functions — derive_lane,
-guard_axes, escalate_lane, save_ticket, update_pipeline, update_index,
-record_escalation_event, recommend_stakes, confirm_deescalation — with no
+that rule in one direction only: they name `acs_lib` functions — save_ticket,
+update_pipeline, update_index, record_delivery_path, plan_approval_eligible — with no
 command to reach them, so a coordinator had to improvise heredoc Python. Every
 such function is reachable here as a subcommand that takes flags and prints one
 JSON object.
@@ -13,7 +12,7 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, lane, stakes, ticket, pr, tracker, readiness, lock, filemap,
+    context, gate, path, ticket, pr, tracker, readiness, lock, filemap,
     guard, verdict, phase, slug, fanout, doctor, workflow, artifacts.
   * Delegated — the verbs an existing script already implements: `start`
     (skill-start.py), `finish` (pipeline-step.py), `plan check`
@@ -28,19 +27,15 @@ Conventions, uniform across every subcommand:
   * A usage or precondition failure writes `acs <command>: <reason>` to stderr
     and exits 2 — the same shape and code the existing scripts use.
   * Exit 0 means the command ran; it does NOT mean the answer was yes. Read
-    the JSON (`escalated`, `eligible`, `ok`) for the verdict.
+    the JSON (`delivery_path`, `eligible`, `ok`) for the verdict.
 
 Usage:
   acs.py context
   acs.py gate --skill code [--ticket MAR-1]
   acs.py start --skill code --args MAR-1
   acs.py finish --ticket MAR-1 --skill test --status completed
-  acs.py lane derive --size large --stakes high --type task
-  acs.py lane escalate --current-lane SMALL --size large --stakes high --type task
-  acs.py lane apply --ticket MAR-1 --proposed-stakes high --trigger high_stakes_paths
-  acs.py lane deescalate --ticket MAR-1 --size small --stakes low --clarify-ref C-2
-  acs.py stakes recommend --path src/acs/hooks/scripts/acs_lib/state.py
-  acs.py stakes guard --current-size small --current-stakes normal --proposed-stakes high
+  acs.py path show --ticket MAR-1
+  acs.py path set --ticket MAR-1 --path standard --reason "adds a public endpoint and migrates orders"
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
@@ -85,11 +80,10 @@ from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E40
     partition_or_die, read_json_arg)
 from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F401
     cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show, cmd_gate,
-    cmd_guard_events, cmd_lane_apply, cmd_lane_deescalate, cmd_lane_derive,
-    cmd_lane_escalate,
-    cmd_lane_rank, cmd_lock_force_unlock, cmd_lock_status, cmd_phase_validate,
-    cmd_pr_metadata_fill, cmd_readiness, cmd_slug, cmd_stakes_guard,
-    cmd_stakes_recommend, cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
+    cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status, cmd_path_set,
+    cmd_path_show, cmd_phase_validate,
+    cmd_pr_metadata_fill, cmd_readiness, cmd_slug,
+    cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
     cmd_verdict_merge, cmd_verdict_show, cmd_workflow_next, cmd_workflow_show,
     cmd_workflow_validate, cmd_artifacts_migrate, cmd_artifacts_show)
 
@@ -105,8 +99,6 @@ DELEGATED = {
     "setup": "setup_wizard.py",
 }
 
-SIZES = ("trivial", "small", "standard", "large")
-STAKES = ("low", "normal", "high")
 
 
 # ---------------------------------------------------------------------------
@@ -147,62 +139,20 @@ def build_parser():
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)
 
-    lane = group("lane", help="lane derivation, escalation and the audited apply")
-    lane_sub = lane.add_subparsers(dest="cmd")
+    path = group("path", help="the ticket's delivery path (ADR-0095)")
+    path_sub = path.add_subparsers(dest="cmd")
 
-    derive = lane_sub.add_parser("derive", help="derive_lane")
-    derive.add_argument("--size", choices=SIZES)
-    derive.add_argument("--stakes", choices=STAKES)
-    derive.add_argument("--needs-design", dest="needs_design", action="store_true")
-    derive.add_argument("--type", dest="type", default="task")
-    derive.set_defaults(func=cmd_lane_derive)
+    path_show = path_sub.add_parser("show", help="the recorded path and why")
+    path_show.add_argument("--ticket")
+    path_show.set_defaults(func=cmd_path_show)
 
-    rank = lane_sub.add_parser("rank", help="lane_rank")
-    rank.add_argument("--lane", required=True)
-    rank.set_defaults(func=cmd_lane_rank)
-
-    esc = lane_sub.add_parser("escalate", help="escalate_lane (pure, no write)")
-    esc.add_argument("--current-lane", dest="current_lane")
-    esc.add_argument("--size", choices=SIZES)
-    esc.add_argument("--stakes", choices=STAKES)
-    esc.add_argument("--needs-design", dest="needs_design", action="store_true")
-    esc.add_argument("--type", dest="type", default="task")
-    esc.set_defaults(func=cmd_lane_escalate)
-
-    apply_ = lane_sub.add_parser("apply", help="the audited on-trigger escalation sequence")
-    apply_.add_argument("--ticket")
-    apply_.add_argument("--proposed-size", dest="proposed_size", choices=SIZES)
-    apply_.add_argument("--proposed-stakes", dest="proposed_stakes", choices=STAKES)
-    apply_.add_argument("--trigger", required=True,
-                        help="which trigger fired, recorded on the escalation event")
-    apply_.add_argument("--source", help="free-text provenance (defaults to --trigger)")
-    apply_.add_argument("--skill", default="code")
-    apply_.add_argument("--ceiling-before", dest="ceiling_before", type=int,
-                        help="the in-flight ceiling, when already raised this run")
-    apply_.set_defaults(func=cmd_lane_apply)
-
-    deesc = lane_sub.add_parser("deescalate", help="confirm_deescalation (needs --clarify-ref)")
-    deesc.add_argument("--ticket")
-    deesc.add_argument("--size", required=True, choices=SIZES)
-    deesc.add_argument("--stakes", required=True, choices=STAKES)
-    deesc.add_argument("--clarify-ref", dest="clarify_ref", required=True)
-    deesc.set_defaults(func=cmd_lane_deescalate)
-
-    stakes = group("stakes", help="stakes recommendation and the axis guard")
-    stakes_sub = stakes.add_subparsers(dest="cmd")
-
-    rec = stakes_sub.add_parser("recommend", help="recommend_stakes over changed paths")
-    rec.add_argument("--path", action="append", default=[])
-    rec.add_argument("--paths-from", dest="paths_from", metavar="FILE",
-                     help="read paths one per line ('-' for stdin)")
-    rec.set_defaults(func=cmd_stakes_recommend)
-
-    guard = stakes_sub.add_parser("guard", help="guard_axes")
-    guard.add_argument("--current-size", dest="current_size", choices=SIZES)
-    guard.add_argument("--current-stakes", dest="current_stakes", choices=STAKES)
-    guard.add_argument("--proposed-size", dest="proposed_size", choices=SIZES)
-    guard.add_argument("--proposed-stakes", dest="proposed_stakes", choices=STAKES)
-    guard.set_defaults(func=cmd_stakes_guard)
+    path_set = path_sub.add_parser("set", help="record the judged path, once")
+    path_set.add_argument("--ticket")
+    path_set.add_argument("--path", dest="delivery_path", required=True,
+                          help="one of the paths workflows/ship.yaml declares")
+    path_set.add_argument("--reason", required=True,
+                          help="one sentence naming what in the plan decided it")
+    path_set.set_defaults(func=cmd_path_set)
 
     ticket = group("ticket", help="read and write ticket.json")
     ticket_sub = ticket.add_subparsers(dest="cmd")
@@ -376,7 +326,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     func = getattr(args, "func", None)
     if func is None:
-        # A group with no subcommand ("acs.py lane") — show THAT group's usage,
+        # A group with no subcommand ("acs.py path") — show THAT group's usage,
         # which is what names its subcommands; the root help does not.
         (groups.get(getattr(args, "group", None)) or parser).print_help(sys.stderr)
         sys.exit(2)

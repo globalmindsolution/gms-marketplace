@@ -141,7 +141,13 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()
-        self.assertIn("28 x SKILL.md", body)
+        # Derived, not pinned: a new skill directory moves the diagram
+        # by itself rather than waiting for someone to notice.
+        shipped = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "skills"))
+            if os.path.isdir(os.path.join(
+                REPO_ROOT, "src", "acs", "skills", n))])
+        self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertIn("31 x agent .md (all reachable)", body)
         self.assertIn("twelve authoring skills", body)
         self.assertIn("create-requirements", body)

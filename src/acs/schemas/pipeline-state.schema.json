@@ -11,17 +11,28 @@
       "description": "ticket = the ticket delivery pipeline workflows/ship.yaml declares; product = a product-level delivery ticket (PRD / architecture / scaffold).",
       "enum": ["ticket", "product"]
     },
+    "delivery_path": {
+      "description": "The delivery path this ticket was judged onto, once, from its plan (ADR-0095). Written by /acs:ship (or by /acs:code when a ticket reaches it unclassified) through `acs.py path set`, and READ by every later walk — a resumed run never re-judges. Its value is one of the names workflows/ship.yaml's `delivery.paths` declares; absent means the classification has not happened yet.",
+      "type": "string",
+      "minLength": 1
+    },
+    "delivery_path_reason": {
+      "description": "One sentence naming what in the plan decided the path. Recorded beside it so the choice is auditable: /acs:code's review reads it back in the Path audit dimension and judges the changeset against it.",
+      "type": "string",
+      "minLength": 1
+    },
     "steps": {
       "type": "object",
       "propertyNames": {
-        "enum": ["create-prd", "create-architecture", "create-project", "create-docs", "create-requirements", "create-ticket", "create-design", "analyze-ticket", "create-impl-plan", "create-api-contract", "create-test-docs", "code", "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr", "merge-pr"]
+        "enum": ["create-prd", "create-architecture", "create-project", "create-docs", "create-requirements", "create-ticket", "create-design", "analyze-ticket", "create-impl-plan", "create-api-contract", "create-test-docs", "code", "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr", "merge-pr"],
+        "description": "A delivery-path leg (code-trivial and its siblings) never appears here: a leg is an implementation of the `code` step, and everything it writes on disk is `code`'s (ADR-0095)."
       },
       "additionalProperties": {
         "type": "object",
         "required": ["status"],
         "properties": {
           "status": {
-            "description": "skipped = workflows/ship.yaml recorded this step as not applicable for this ticket (its `when` predicate is false); it counts as satisfied for the walk and is never re-run unless the predicate turns true.",
+            "description": "skipped = workflows/ship.yaml recorded this step as not applicable for this ticket — either its `when` predicate is false, or its `paths` list does not contain the ticket's delivery_path. It counts as satisfied for the walk and is never re-run unless that reason stops holding.",
             "enum": ["in_progress", "completed", "failed", "interrupted", "handed_off", "skipped"]
           },
           "started_at": {"type": "string", "format": "date-time"},

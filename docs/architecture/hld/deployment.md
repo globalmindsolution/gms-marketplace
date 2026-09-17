@@ -4,9 +4,9 @@
 flowchart LR
     subgraph github["GitHub"]
         MR["globalmindsolution/gms-marketplace<br/>(marketplace repo)"]
-        ACT["GitHub Actions<br/>CI: tests/acs/ + tests/tabp/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
+        ACT["GitHub Actions<br/>CI: tests/acs/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
-        EVALS["evals/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
+        EVALS["src/acs-evals/behavioural/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
         subgraph gates["Consumer-repo required-check gates (opt-in, /acs:setup-installed)"]
             G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
             G_TEST["acs-tests.yml<br/>Tests & coverage"]
@@ -17,9 +17,7 @@ flowchart LR
 
     subgraph machine["Developer machine"]
         CC["Claude Code<br/>(plugin host — acs)"]
-        CW["Cowork<br/>(plugin host — tabp)"]
         PI_ACS["Installed acs plugin<br/>~/.claude/... (full-shape)"]
-        PI_TABP["Installed tabp plugin<br/>Cowork environment (fuller shape: skills + helper + schemas + subagent charters)"]
         subgraph checkouts["Consumer repo checkouts"]
             CO1["main checkout"]
             CO2["worktree per ticket (parallel sessions)"]
@@ -29,12 +27,9 @@ flowchart LR
     end
 
     MR -- "claude plugin install acs@gms-marketplace" --> PI_ACS
-    MR -- "claude plugin install tabp@gms-marketplace" --> PI_TABP
     MR --- ACT
     CC --> PI_ACS
     PI_ACS -- hooks/skills --> CC
-    CW --> PI_TABP
-    PI_TABP -- skills --> CW
     CC --> CO1 & CO2
     CO1 -- "all pipeline state" --> WS
     CO2 -. "resolves to the same WS via main-checkout anchor" .-> WS
@@ -53,9 +48,8 @@ Key facts:
   `release/*` PR, then stops for a human merge; `release.yml` itself is
   reused unchanged.
 - **Per-plugin install paths**: acs installs into Claude Code
-  (`claude plugin install acs@gms-marketplace`); tabp installs into the Cowork
-  environment (`claude plugin install tabp@gms-marketplace`). Each plugin
-  targets a different runtime host.
+  (`claude plugin install acs@gms-marketplace`). The catalog is designed so a
+  plugin names its own runtime host (ADR 0021); acs is the only one today.
 - **In-repo by default, one workspace store per repo checkout** (ADR-0086):
   the workspace defaults to `<main-checkout>/.acs/state-machine/`,
   gitignored, anchored to the repo's main checkout (`git rev-parse
@@ -65,16 +59,16 @@ Key facts:
   location shared across repos, for anyone who wants the old topology — with
   partitions keyed by repo identity derived from the git remote either way.
 - **No server-side anything**: the plugins are files; all execution happens in
-  the user's Claude Code / Cowork session and shell. Tracker/PR access goes
+  the user's Claude Code session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.
 - **This repo's own CI** runs the deterministic-layer suite (Python 3.9 +
   3.12), JSON/schema validation, and the prose contract tests on every PR via
-  per-plugin test discovery (`tests/acs/` and `tests/tabp/`). Coverage
+  per-plugin test discovery (`tests/acs/`). Coverage
   measurement is a separate, single-interpreter run of that same suite,
   gated by its own **`Tests & coverage`** required check
   (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
   graded repo-wide against the 90% floor. Behavioral evals
-  (`evals/<plugin>/`) run **locally only** — they make LLM calls and are not
+  (`src/acs-evals/behavioural/<plugin>/`) run **locally only** — they make LLM calls and are not
   coupled to CI.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions

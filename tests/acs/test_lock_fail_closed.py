@@ -389,22 +389,47 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
                          "the safety net must release the lock it came to release")
         self.assertEqual(lib.last_run_status(tdir, "code"), "interrupted")
 
-    def test_lane_apply_records_the_escalation_event_even_when_the_index_refuses(self):
-        """The raise landed between the durable lane change and its audit
-        event, so a refusal produced a lane raise with no event and no index
-        row -- delivered as a traceback."""
+    def test_path_set_has_no_second_half_to_diverge(self):
+        """`acs.py lane apply` used to stand here: it wrote the ticket, the
+        pipeline and the index, then recorded its audit event, and a refusal
+        landing between the durable lane change and that event produced a lane
+        raise with no event and no index row -- as a traceback.
+
+        ADR-0095 retired that writer. `acs.py path set` replaces it and has no
+        interior to be interrupted: one refusal check, then ONE write to
+        pipeline-state.json, no ticket field, no index row, no audit event. So
+        the property to hold is the stronger one -- a held index lock cannot
+        reach it at all, and the recorded path is either absent or complete."""
         ticket = self.new_ticket("Audit", "task")
         self.start("code", ticket)
         tdir = self.tdir(ticket)
         self._hold("tickets-index.json.lock")
-        out = self.run_script("acs.py", "lane", "apply", "--ticket", ticket,
-                              "--skill", "code", "--proposed-size", "large",
-                              "--trigger", "verifier", env=self._env())
-        self._assert_clean_refusal(out, "lane apply")
-        doc = lib.load_ticket(tdir)
-        self.assertEqual((doc["size"], doc["lane"]), ("large", "COMPLEX"))
-        events = (lib.last_run(lib.load_state(tdir, "code", ticket)) or {}).get("escalations")
-        self.assertTrue(events, "the audit event has no other source; the index has one")
+        out = self.run_script("acs.py", "path", "set", "--ticket", ticket,
+                              "--path", "standard",
+                              "--reason", "three modules and a migration",
+                              env=self._env())
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(lib.recorded_delivery_path(tdir, ticket), "standard")
+        self.assertEqual(lib.recorded_delivery_reason(tdir, ticket),
+                         "three modules and a migration")
+
+    def test_re_judging_a_recorded_path_is_a_clean_refusal(self):
+        """The refusal that keeps one pipeline on one path: a resumed run reads
+        the recorded path, and an attempt to move it exits 2 with the reason,
+        never a traceback and never a silent second judgement."""
+        ticket = self.new_ticket("Audit", "task")
+        self.start("code", ticket)
+        tdir = self.tdir(ticket)
+        first = self.run_script("acs.py", "path", "set", "--ticket", ticket,
+                                "--path", "small", "--reason", "one module",
+                                env=self._env())
+        self.assertEqual(first.returncode, 0, first.stderr)
+        out = self.run_script("acs.py", "path", "set", "--ticket", ticket,
+                              "--path", "complex", "--reason", "changed my mind",
+                              env=self._env())
+        self._assert_clean_refusal(out, "path set")
+        self.assertIn("already on the small delivery path", out.stderr)
+        self.assertEqual(lib.recorded_delivery_path(tdir, ticket), "small")
 
 
 class PostHookReportsGuardTimeoutTest(AcsWorkspaceCase):

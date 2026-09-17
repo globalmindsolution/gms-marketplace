@@ -180,7 +180,7 @@ class TestAdvisoryFollowsTheOverride(AdvisoryCase):
     advisory names ITS step ids and needs."""
 
     def test_override_step_ids_are_what_the_line_names(self):
-        self.override("version: 1\nname: custom\nstop_after: build\nsteps:\n"
+        self.override("version: 2\nname: custom\nstop_after: build\nsteps:\n"
                       "  - id: analyze\n    skill: analyze-ticket\n"
                       "  - id: build\n    skill: code\n    needs: [analyze]\n")
         self.plan()
@@ -194,7 +194,7 @@ class TestAdvisoryFollowsTheOverride(AdvisoryCase):
         self.assertEqual(advisory_lines(result.stderr), [])
 
     def test_a_skill_the_override_does_not_name_prints_nothing(self):
-        self.override("version: 1\nname: custom\nstop_after: build\nsteps:\n"
+        self.override("version: 2\nname: custom\nstop_after: build\nsteps:\n"
                       "  - id: build\n    skill: code\n")
         result = self.pre("docs-sync", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -208,7 +208,7 @@ class TestAdvisoryFollowsTheOverride(AdvisoryCase):
     def test_a_broken_override_yields_no_advisory_and_no_refusal(self):
         """Advice, not enforcement: a workflow that cannot be read is
         `acs.py workflow validate`'s to report, never the hook's to block on."""
-        self.override("version: 1\nsteps: [\n")
+        self.override("version: 2\nsteps: [\n")
         result = self.pre("docs-sync", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(advisory_lines(result.stderr), [])

@@ -4,7 +4,7 @@ What an artifact-level eval must assert to count as evidence, and what makes
 one green.
 
 The layers below this one are cheap and already complete: structure is 28 of
-28, gating 17 of 17 hooked, routing 27 of 28. They prove that a skill *ships*,
+32, gating 17 of 17 hooked, routing 27 of 32. They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.
@@ -17,7 +17,7 @@ cost.
 > A behavioural eval asserts on the **artifacts a skill produced**, never on
 > what it said while producing them.
 
-That rule is not new — `evals/README.md` and
+That rule is not new — `src/acs-evals/behavioural/README.md` and
 [`README.md`](README.md) both state it. What follows is what it takes to
 satisfy it.
 

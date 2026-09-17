@@ -1,7 +1,7 @@
 """markdown_headings.py — the one markdown heading scanner (MAR-522).
 
 Three copies of this six-line loop existed: `citation_check._headings`,
-`structure_lint._headings`, and `acs_lib.lanes._plan_headings`, whose docstring
+`structure_lint._headings`, and `acs_lib.planrules._plan_headings`, whose docstring
 even recorded the duplication and justified it ("kept import-free so this
 predicate stays pure"). That justification is what shapes this module: it
 imports `re` and nothing else, so the dependency-light CLIs and the pure

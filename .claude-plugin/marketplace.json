@@ -6,7 +6,7 @@
     "name": "Global Mind Solution"
   },
   "metadata": {
-    "description": "Global Mind Solution plugin marketplace for Claude Code and Claude Cowork. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge) and tabp (Cowork screen-cvs — CV screening with weighted scoring, fairness guardrails, and Excel scorecard). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
+    "description": "Global Mind Solution plugin marketplace for Claude Code. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
   },
   "plugins": [
     {
@@ -18,15 +18,6 @@
         "ref": "e7e633f180492f8803f31e9e5167444f923fcc26"
       },
       "description": "Autonomous Coding Skills - an agentic software-delivery workflow: PRD, architecture, tickets, design, specs, TDD implementation with review loop, PR, and merge; hook-gated, resumable, workspace-backed."
-    },
-    {
-      "name": "tabp",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/globalmindsolution/gms-marketplace.git",
-        "path": "plugins/tabp"
-      },
-      "description": "TABP team toolkit for Claude Cowork — a skills-only plugin starting with screen-cvs, a skill that screens CVs against a job description with weighted scoring, fairness guardrails, and an Excel scorecard."
     }
   ]
 }

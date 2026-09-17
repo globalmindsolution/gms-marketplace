@@ -7,7 +7,7 @@
   "required": ["skill", "ticket_id", "states", "findings", "errors", "runs"],
   "properties": {
     "skill": {
-      "enum": ["analyze-ticket", "code", "create-api-contract", "create-architecture", "create-design", "create-docs", "create-e2e-tests", "create-impl-plan", "create-pr", "create-prd", "create-project", "create-requirements", "create-test-docs", "create-ticket", "docs-sync", "handoff", "install-hooks", "merge-pr", "metrics", "project", "release", "run-e2e-tests", "setup", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
+      "enum": ["analyze-ticket", "code", "code-complex", "code-small", "code-standard", "code-trivial", "create-api-contract", "create-architecture", "create-design", "create-docs", "create-e2e-tests", "create-impl-plan", "create-pr", "create-prd", "create-project", "create-requirements", "create-test-docs", "create-ticket", "docs-sync", "handoff", "install-hooks", "merge-pr", "metrics", "project", "release", "run-e2e-tests", "setup", "ship", "standardize-project", "test", "update", "usage", "create-spec"]
     },
     "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "states": {
@@ -51,7 +51,7 @@
           "additionalProperties": true
         },
         "tests": {
-          "description": "Derived from the last iteration's execute reports (MAR-523): `passed`/`failed`/`coverage_percent` from recorded command output, `coverage_target` from settings.test_coverage_percent.",
+          "description": "Derived from the last iteration's verdict (the verifier's own run of the full suite, the only one /acs:code takes): `passed`/`failed`/`coverage_percent` from its recorded command output, `coverage_target` from settings.test_coverage_percent. Falls back to the execute reports when the verdict carries no numbers -- a docs-only ticket, a run that ended before any verifier wrote one, or state from before the verdict carried them (MAR-523).",
           "type": "object",
           "properties": {
             "passed": {"type": "integer", "minimum": 0},
@@ -199,33 +199,6 @@
                 },
                 "reason": {"enum": ["outside_map", "control_input", "unreadable_payload"]},
                 "declared_count": {"type": "integer", "minimum": 0}
-              },
-              "additionalProperties": true
-            }
-          },
-          "escalations": {
-            "description": "Lane-escalation audit trail (MAR-57, MAR-106, MAR-108): one 13-field event per lane change, appended in firing order by acs_lib.state.record_escalation_event. Upward events come from `acs.py lane apply` (direction `up`, confirmation_ref null); a downward event comes only from confirm_deescalation (direction `down`, confirmation_ref the answered C-<n> ledger entry). Optional and forward-only: a run that never escalated carries none.",
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["ts", "from_lane", "to_lane", "from_size", "from_stakes", "to_size", "to_stakes", "trigger", "source", "ceiling_before", "ceiling_after", "direction", "confirmation_ref"],
-              "properties": {
-                "ts": {"type": "string"},
-                "from_lane": {"oneOf": [{"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]}, {"type": "null"}]},
-                "to_lane": {"enum": ["TRIVIAL", "SMALL", "STANDARD", "COMPLEX"]},
-                "from_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
-                "from_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
-                "to_size": {"oneOf": [{"enum": ["trivial", "small", "standard", "large"]}, {"type": "null"}]},
-                "to_stakes": {"oneOf": [{"enum": ["low", "normal", "high"]}, {"type": "null"}]},
-                "trigger": {
-                  "description": "`a` (verifier finding), `b` (high_stakes_paths match), `c` (explicit request), or `user_confirmed_deescalation`.",
-                  "type": "string"
-                },
-                "source": {"type": "string"},
-                "ceiling_before": {"type": "integer", "minimum": 1},
-                "ceiling_after": {"type": "integer", "minimum": 1},
-                "direction": {"enum": ["up", "down"]},
-                "confirmation_ref": {"oneOf": [{"type": "string", "pattern": "^C-[0-9]+$"}, {"type": "null"}]}
               },
               "additionalProperties": true
             }

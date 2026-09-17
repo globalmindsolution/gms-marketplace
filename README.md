@@ -7,14 +7,9 @@ A curated catalog of Claude plugins for agentic and AI-assisted workflows.
 - **Claude Code** (for the `acs` plugin) — install per the
   [official guide](https://docs.claude.com/en/docs/claude-code/overview), then
   confirm the `claude` CLI is on your `PATH` (`claude --version`).
-- **Claude Cowork** (for the `tabp` plugin) — `tabp` is a Cowork plugin; install
-  it from a Cowork session.
-- Each plugin has its own runtime tools (e.g. `acs` needs `git`, `python3` 3.9+,
+- Each plugin has its own runtime tools (`acs` needs `git`, `python3` 3.9+,
   and an authenticated `gh`). See the per-plugin READMEs linked below for the
   full list.
-
-Not sure which plugin you want? **`acs`** automates the coding workflow inside
-**Claude Code**; **`tabp`** screens CVs inside **Claude Cowork**.
 
 ## Plugin marketplace
 
@@ -29,9 +24,6 @@ claude plugin marketplace add globalmindsolution/gms-marketplace@v0.2.0
 
 # Install the acs plugin (full-shape: Claude Code agentic workflow)
 claude plugin install acs@gms-marketplace
-
-# Install the tabp plugin (skills-only: Cowork screen-cvs)
-claude plugin install tabp@gms-marketplace
 
 # Rolling: track the default branch — updates arrive on every version bump
 claude plugin marketplace add globalmindsolution/gms-marketplace
@@ -82,7 +74,7 @@ when the entry declares one) against the plugin's own `plugin.json`.
 
 **Before cutting a release** (before bumping `version`), run the pre-release
 quality gate — **[acs-evals](src/acs-evals/README.md)** at
-[`src/acs-evals/`](src/acs-evals/), not this repo's root `evals/` suite. Point
+[`src/acs-evals/`](src/acs-evals/), not this repo's root `src/acs-evals/behavioural/` suite. Point
 it at the release candidate (`ACS_PLUGIN_ROOT` at the sibling plugin source)
 and run:
 
@@ -101,12 +93,12 @@ source is ahead of the last release.
 Treat a clean `make eval-source` as the gate; investigate any failing case, and
 any regression `make measure` / `make perf` reports, before tagging — the
 step-by-step is the [release runbook](docs/operations/release-runbook.md). The
-in-repo **paid** tier (`python3 evals/run_evals.py --plugin acs --paid`, which
+in-repo **paid** tier (`python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, which
 spawns real `claude -p` sessions and needs an authenticated claude CLI) is an
 **on-demand tool** kept for the forge-tier scenarios — not a gate on any ticket,
 PR or release. The free tier alone (gate + cleanup smoke) already runs on every
 commit via the `acs-free-evals` pre-commit hook — see
-[evals/README.md](evals/README.md).
+[src/acs-evals/behavioural/README.md](src/acs-evals/behavioural/README.md).
 
 - **Pinned consumers** (recommended) never receive an update without an
   explicit re-pin: upgrade by re-pinning `ref` to a newer `v<version>` tag,
@@ -149,18 +141,14 @@ The marketplace currently ships two plugins:
   couple of *safety brakes*, so every skill is runnable on its own: running
   one out of the declared order prints a one-line advisory, never a refusal.
 
-- **`tabp` (Team AI Builder Pack)** — skills-only plugin targeting Claude Cowork.
-  Starts with `screen-cvs`, a skill that screens CVs against a job description
-  with weighted scoring, fairness guardrails, and an Excel scorecard.
-
 ## Repository layout
 
 | Path | What lives there |
 |------|------------------|
-| [`src/acs/`](src/acs/README.md), [`plugins/tabp/`](plugins/tabp/README.md) | The shipped plugins. `marketplace.json` resolves `acs` from `src/acs` at the pinned release tag. |
-| [`tests/`](tests/) | Deterministic unit + contract suites for the plugins (`python3 -m unittest discover -s tests`). |
-| [`evals/`](evals/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. |
-| [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` with its history. |
+| [`src/acs/`](src/acs/README.md) | The shipped plugin. `marketplace.json` resolves `acs` from `src/acs` at the pinned release tag. |
+| [`tests/`](tests/) | Deterministic unit + contract suites for the plugin (`python3 -m unittest discover -s tests`). |
+| [`src/acs-evals/`](src/acs-evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` (squash-merged; see below). |
+| [`src/acs-evals/behavioural/`](src/acs-evals/behavioural/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. Was the repo-root `evals/` tree. |
 | [`docs/`](docs/README.md) | Product, requirements, architecture, ADRs, quality and operations docs for this repo. |
 | [`.acs/`](.acs/) | This repo's own acs configuration, CI convention gate, and run ledger. |
 
@@ -178,4 +166,3 @@ commands for reading it.
 | [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
 | [src/acs/README.md](src/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
 | [src/acs/docs/INTERNALS.md](src/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
-| [plugins/tabp/README.md](plugins/tabp/README.md) | tabp plugin usage: install, quick start, screen-cvs skill reference |

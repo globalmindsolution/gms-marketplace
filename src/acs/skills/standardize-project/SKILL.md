@@ -225,7 +225,7 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 **What an iteration counts:** one execute -> verify round. `standardize-project` has
-no lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this
+no path-driven verify-depth selection: the cap is a fixed 3 on every run, and this
 ticket introduces none.
 
 Example iteration-1 execute task (illustrates the audit-inputs contract and the
@@ -275,7 +275,7 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
 ```
 
    passing that raw output plus the iteration-1 notes' allowlist entries to spec 01's
-   `classify_additive_diff` helper in `acs_lib/lanes.py`. Every returned violation — any `R`,
+   `classify_additive_diff` helper in `acs_lib/planrules.py`. Every returned violation — any `R`,
    any `D`, any out-of-allowlist `M` — becomes `severity="blocking"
    dimension="additive-only"`, citing the exact path and status. The verifier's full
    check-dimension list (additive-only diff-status, doc-set-authorship boundary,
@@ -320,8 +320,7 @@ so nothing is lost, but do NOT push or open the PR.
 
 ## Delivery
 
-Mirrors `create-standards/SKILL.md:215-277` in structure — the delivery-ticket pattern,
-done by the coordinator itself:
+The delivery-ticket pattern, done by the coordinator itself:
 
 1. **Branch** (before the first executor writes, so the verifier's `git diff
    --name-status <default_branch>...HEAD` has a meaningful base): require a clean
@@ -329,46 +328,26 @@ done by the coordinator itself:
    and the slugified title (e.g. `task/SHOP-9-brownfield-project-standardization`);
    `git checkout -b` from the default branch.
 2. **Commit** (after the verifier passes): stage exactly the files the verifier's final
-   passing diff-status check confirmed (never a broader `git add -A` that could sweep up
-   something outside the allowlist); commit with `settings.formats.commit_message` (e.g.
+   passing diff-status check confirmed — **never a broader `git add -A`**, which could
+   sweep up source this skill is forbidden to touch. (/acs:create-project uses `git add
+   -A` on its own scaffold, where every file is new; that carve-out does not reach
+   here.) Commit with `settings.formats.commit_message` (e.g.
    `SHOP-9 Additively scaffold missing docs/config/tooling`).
-3. **Push & PR**: `git push -u origin <branch>`; render the PR title via the helper —
-   NOT LLM prose composition — capturing its stdout:
+3. **Push & PR**: `git push -u origin <branch>`, then follow
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
+   rendered title, the body template, the pre-open self-check, `gh pr create`, and
+   recording `{number, url, branch}` for the result document.
 
-```bash
-gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type task \
-  --title "Brownfield project standardization" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-  --provider "<ticket.external.provider or empty>"
-```
+   **One addition to the body, this skill's own.** After filling the standard template
+   placeholders, append a `## Recommended follow-ups` section listing every
+   `recommended_follow_ups` entry as a bullet (`- **<title>**: <rationale> (target:
+   <target_path>)`), or the single line "None — no structural or doc-set gaps found"
+   when the array is empty. This is an ADDITIONAL section appended to the rendered
+   body, not a new global template placeholder — so append it BEFORE the pre-open
+   self-check runs, or the check judges a body the PR will not carry.
 
-   The body comes from `settings.formats.pr_description_template`. Fill its placeholders
-   from `ticket.json` and the verifier result — never from conversation memory. **After
-   filling the standard template placeholders, append a `## Recommended follow-ups`
-   section** listing every `recommended_follow_ups` entry as a bullet (`- **<title>**:
-   <rationale> (target: <target_path>)`), or the single line "None — no structural or
-   doc-set gaps found" when the array is empty. This is an ADDITIONAL section appended
-   to the rendered body, not a new global template placeholder.
-
-   **Pre-open self-check** via `pr-conventions.py check` before `gh pr create`; on
-   failure, bounded local re-render/re-check (up to 2 attempts); if still failing, STOP
-   — do not call `gh pr create` — surface the blocking finding.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-  --title "<rendered title>" --body-file <body.md> --require-label ACS \
-  --pr-title-format "<settings.formats.pr_title>" \
-  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-  --ticket-prefix <settings.ticket_prefix>
-```
-
-   On pass, `gh pr create --base <default-branch> --head <branch> --title "<rendered
-   title>" --body-file <body.md> --label ACS`.
-4. Record `{number, url, branch}` for the result document. The post-hook moves the
-   delivery ticket to `in_review`; `/acs:merge-pr` lands it like any other ticket.
-   Exactly ONE PR per run — a structural gap NEVER triggers a second PR or an
-   auto-mint, it only adds an entry to `recommended_follow_ups`.
+Exactly ONE PR per run — a structural gap NEVER triggers a second PR or an
+auto-mint, it only adds an entry to `recommended_follow_ups`.
 
 ## User interaction
 

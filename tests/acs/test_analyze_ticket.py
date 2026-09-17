@@ -15,9 +15,12 @@ markdown and would otherwise drift away from the deterministic layer:
     post-analyze-ticket.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
     no predecessor-completed check, because there no longer is one;
-  * the two recommendations (stakes, refined ACs / needs_design) going through
-    their CLIs — `acs.py lane apply`, `acs.py ticket save` — and never through
-    a hand-written ticket field;
+  * the one recommendation (refined ACs / needs_design) going through its CLI
+    — `acs.py ticket save` — and never through a hand-written ticket field;
+  * that the skill classifies NOTHING: ADR-0095 retired the `stakes` axis, and
+    the delivery path is judged once from the plan by /acs:ship. What this step
+    owes that judgement is evidence — load-bearing surfaces named in `## Risks`
+    — not a rigor setting written ahead of it;
   * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_analyze_ticket -v
@@ -32,6 +35,23 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS = os.path.join(PLUGIN, "hooks", "scripts")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "analyze-ticket", "SKILL.md")
+SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-ticket", "references")
+
+
+def skill_contract():
+    """SKILL.md plus the references it points at.
+
+    The reconcile procedure and the `ready_for_planning: false` arm moved into
+    `references/` under progressive disclosure -- a fresh run that finds the
+    ticket plannable reads neither. The rule for deciding whether a question
+    blocks stayed inline, because it fires on every run. These pins say what
+    the skill SAYS, never which of its files says it.
+    """
+    import glob as _glob
+    parts = [read(SKILL_PATH)]
+    parts += [read(q) for q in
+              sorted(_glob.glob(os.path.join(SKILL_REFERENCES, "*.md")))]
+    return "\n".join(parts)
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
@@ -50,9 +70,10 @@ STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
 SECTIONS = ["Problem restated", "Impact map", "Questions", "Assumptions",
             "Risks", "Refined acceptance criteria", "Verdict"]
 
-#: The five front-matter keys the analysis publishes.
+#: The four front-matter keys the analysis publishes. `stakes_recommendation`
+#: left with the axis it set (ADR-0095).
 FRONT_MATTER_KEYS = ["ticket", "ready_for_planning", "api_surface",
-                     "stakes_recommendation", "needs_design_recommendation"]
+                     "needs_design_recommendation"]
 
 
 def read(path):
@@ -184,7 +205,7 @@ class TestGateAgreement(unittest.TestCase):
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
-    """The machine-read half: five keys, and the documented example passes the
+    """The machine-read half: four keys, and the documented example passes the
     checker the skill tells the coordinator (and the verifier) to run."""
 
     @classmethod
@@ -196,19 +217,19 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
     def test_the_skill_declares_exactly_one_require_spec(self):
         self.assertEqual(len(self.specs), 1, self.specs)
 
-    def test_the_spec_declares_the_five_keys_with_their_types(self):
+    def test_the_spec_declares_the_four_keys_with_their_types(self):
         spec = fmc.parse_spec(self.specs[0])
         self.assertEqual([key for key, _ in spec], FRONT_MATTER_KEYS)
         self.assertEqual(dict(spec)["api_surface"], "bool")
         self.assertEqual(dict(spec)["ready_for_planning"], "bool")
-        self.assertEqual(dict(spec)["stakes_recommendation"], "normal|high")
+        self.assertEqual(dict(spec)["needs_design_recommendation"], "bool")
 
     def test_the_documented_example_satisfies_the_documented_spec(self):
         findings = fmc.check_front_matter(self.example, fmc.parse_spec(self.specs[0]),
                                           ticket="SHOP-123")
         self.assertEqual(findings, [])
 
-    def test_the_executor_emits_the_same_five_keys(self):
+    def test_the_executor_emits_the_same_four_keys(self):
         example = doc_front_matter_example(agent("executor"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
@@ -302,35 +323,46 @@ class TestResultDocument(unittest.TestCase):
         self.assertIn("clarify.py list --open --ticket <id>", self.body)
 
     def test_the_recommendations_are_not_states(self):
-        """stakes and needs_design are applied through their own CLIs, so a
-        `states` key for them would be a second, divergent source of truth."""
+        """needs_design is applied through its own CLI, so a `states` key for it
+        would be a second, divergent source of truth — and `stakes` is not a
+        field anywhere any more."""
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
         self.assertNotIn("stakes", block)
         self.assertNotIn("needs_design", block)
 
 
-class TestStakesRecommendation(unittest.TestCase):
-    """The brief's one deterministic side effect: stakes rise BEFORE code."""
+class TestItClassifiesNothingTest(unittest.TestCase):
+    """ADR-0095: this step sets no rigor. It records the evidence the delivery
+    judgement will read, and leaves the judgement to /acs:ship.
+
+    The stakes recommendation used to live here — `acs.py stakes recommend`
+    over the impact map, applied through `acs.py lane apply --proposed-stakes
+    high`. Both commands are gone with the axis. What survives is the reason
+    the recommendation existed: the impact map is the first place anyone can
+    see which load-bearing surfaces a ticket touches, so the analysis must say
+    so where the plan (and then the judge) will read it."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
 
-    def test_it_recommends_over_the_impact_map_paths(self):
-        self.assertIn("stakes recommend --paths-from -", self.body)
-        self.assertRegex(self.body, r"(?s)impact map.*?first column")
+    def test_no_retired_axis_command_survives(self):
+        for dead in ("stakes recommend", "lane apply", "--proposed-stakes",
+                     "--proposed-size", "derive_lane", "verify_depth"):
+            with self.subTest(command=dead):
+                self.assertNotIn(dead, self.body)
 
-    def test_a_high_recommendation_is_applied_through_lane_apply(self):
-        self.assertIn("lane apply", self.body)
-        self.assertIn("--proposed-stakes high", self.body)
-        self.assertIn("--trigger c", self.body)
-        self.assertIn("--skill analyze-ticket", self.body)
+    def test_it_says_outright_that_it_does_not_classify(self):
+        self.assertRegex(
+            self.body,
+            r"(?s)no `stakes` axis any more, and this skill does not classify")
 
-    def test_normal_writes_nothing(self):
-        self.assertRegex(self.body, r'On `"normal"` do\s+nothing')
+    def test_load_bearing_surfaces_are_named_in_risks(self):
+        self.assertRegex(self.body,
+                         r"(?s)load-bearing.{0,400}`## Risks`, naming the paths")
 
-    def test_stakes_are_never_hand_set(self):
-        self.assertRegex(self.body, r"never hand-set `stakes` or `lane`")
+    def test_the_evidence_is_addressed_to_the_delivery_judgement(self):
+        self.assertRegex(self.body, r"(?s)delivery-path judgement.{0,200}ADR-0095")
 
 
 class TestTicketAmendments(unittest.TestCase):
@@ -356,7 +388,7 @@ class TestNotReadyArm(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_not_ready_finishes_as_needs_input_with_open_questions(self):
         self.assertIn("ready_for_planning: false", self.body)
@@ -456,7 +488,8 @@ class TestTriadShape(unittest.TestCase):
         self.assertNotIn("acs:analyze-ticket-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-ticket-planner.md")))
-        self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
+        self.assertRegex(body, r"fixed \*\*3\*\*\s+on every run")
+        self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())
 
     def test_the_executor_surveys_first_and_does_not_plan_the_implementation(self):

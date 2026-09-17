@@ -8,6 +8,13 @@ ten fixed minutes apiece, and the 1800s setup budget ran out as iteration 2
 began. Across 56 measured sessions, 17 such sleep loops appeared in 6
 transcripts. The rule now sits beside every spawn instruction.
 
+A skill's contract is its SKILL.md plus any `references/` the skill points at:
+ADR-0095's four delivery-path legs each spawn `acs:code-executor` and
+`acs:code-verifier`, and each reads the spawn protocol from the reference all
+four share rather than repeating it. Reading the concatenation is what keeps
+that honest — the rule has to be somewhere the coordinator reads, and this
+test does not care which file that is.
+
 Run: python3 -m unittest tests.acs.test_coordinators_spawn_in_foreground -v
 """
 
@@ -31,9 +38,23 @@ class CoordinatorsSpawnInForegroundTest(unittest.TestCase):
     def setUpClass(cls):
         cls.spawning = {}
         for path in sorted(glob.glob(os.path.join(SKILLS, "*", "SKILL.md"))):
-            body = open(path, encoding="utf-8").read()
-            if re.search(r"acs:[a-z0-9-]+-(executor|verifier)", body) and "Agent tool" in body:
-                cls.spawning[os.path.basename(os.path.dirname(path))] = norm(body)
+            skill = os.path.basename(os.path.dirname(path))
+            own = open(path, encoding="utf-8").read()
+            if not (re.search(r"acs:[a-z0-9-]+-(executor|verifier)", own)
+                    and "Agent tool" in own):
+                continue
+            cls.spawning[skill] = norm("\n".join([own] + cls._references(own)))
+
+    @staticmethod
+    def _references(body):
+        """The reference files this SKILL.md tells its coordinator to read."""
+        out = []
+        for rel in sorted(set(re.findall(
+                r"skills/([a-z0-9-]+/references/[a-z0-9-]+\.md)", body))):
+            path = os.path.join(SKILLS, rel)
+            if os.path.isfile(path):
+                out.append(open(path, encoding="utf-8").read())
+        return out
 
     def test_the_rule_covers_every_spawning_coordinator(self):
         self.assertGreaterEqual(len(self.spawning), 14, sorted(self.spawning))

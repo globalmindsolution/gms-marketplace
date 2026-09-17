@@ -18,9 +18,9 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
-HARNESS_PATH = os.path.join(REPO_ROOT, "evals", "acs", "harness.py")
+HARNESS_PATH = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "harness.py")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 
 # Captured pre-existing sibling blocks (e2e/suites/tests), re-serialized from
@@ -248,7 +248,7 @@ class OnboardingRunbookDocTest(unittest.TestCase):
     """AC-6: the onboarding runbook is the shipped (non-code) half of AC-6."""
 
     def test_onboarding_runbook_section_present_in_evals_acs_readme(self):
-        readme_path = os.path.join(REPO_ROOT, "evals", "acs", "README.md")
+        readme_path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "README.md")
         with open(readme_path, encoding="utf-8") as fh:
             readme = fh.read()
         self.assertIn("Forge tier", readme)

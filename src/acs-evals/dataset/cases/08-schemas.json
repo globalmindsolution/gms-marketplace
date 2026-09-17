@@ -1,6 +1,6 @@
 {
   "group": "shipped JSON schemas",
-  "description": "Hand-written conformance cases for the 14 shipped JSON schemas: the ones that carry JUDGEMENT \u2014 why a constraint matters, or where the shape/meaning split lies. Each schema gets an instance that must be ACCEPTED (which also serves as the seed for the generated tier) and instances that must be REJECTED, naming the constraint that did it.\n\nSCOPE, measured rather than claimed: these cases alone pin about 9% of the constraints the schemas declare. The mechanical remainder is generated into 11-schema-constraints.json, which lifts measured coverage to 100% of the 224 constraints that any instance could distinguish. Run `make mutation` for the current number, `make mutation MUTATION_ARGS=--holes` for anything still pinned by nothing, and `--inert` for the keyword occurrences that restrict nothing and are therefore not in the denominator.\n\nValidated by runner/jsonschema_mini.py, a stdlib subset validator. It raises on any keyword it does not implement rather than silently passing, so a schema that grows one fails loudly.\n\nschemas/acs-messages.xsd is XML, not JSON Schema. It is NOT covered by this dataset \u2014 the plugin's validate_xml.py is an untested surface here.",
+  "description": "Hand-written conformance cases for the 14 shipped JSON schemas: the ones that carry JUDGEMENT — why a constraint matters, or where the shape/meaning split lies. Each schema gets an instance that must be ACCEPTED (which also serves as the seed for the generated tier) and instances that must be REJECTED, naming the constraint that did it.\n\nSCOPE, measured rather than claimed: these cases alone pin about 9% of the constraints the schemas declare. The mechanical remainder is generated into 11-schema-constraints.json, which lifts measured coverage to 100% of the 224 constraints that any instance could distinguish. Run `make mutation` for the current number, `make mutation MUTATION_ARGS=--holes` for anything still pinned by nothing, and `--inert` for the keyword occurrences that restrict nothing and are therefore not in the denominator.\n\nValidated by runner/jsonschema_mini.py, a stdlib subset validator. It raises on any keyword it does not implement rather than silently passing, so a schema that grows one fails loudly.\n\nschemas/acs-messages.xsd is XML, not JSON Schema. It is NOT covered by this dataset — the plugin's validate_xml.py is an untested surface here.",
   "surface": "schemas/*.json",
   "covers": [
     "MAR-527",
@@ -123,8 +123,8 @@
       "id": "SCHEMA-VERDICT-002",
       "kind": "schema",
       "schema": "verdict.schema.json",
-      "title": "verdict: SHAPE ONLY \u2014 the lying verdict passes the schema, and is caught by validate_verdict instead",
-      "note": "Deliberate and documented in the schema's own description: `passed` must equal 'no blocking finding' is not expressible in JSON Schema. This case exists so the division of labour is explicit \u2014 see VERDICT-002 for the check that does reject it.",
+      "title": "verdict: SHAPE ONLY — the lying verdict passes the schema, and is caught by validate_verdict instead",
+      "note": "Deliberate and documented in the schema's own description: `passed` must equal 'no blocking finding' is not expressible in JSON Schema. This case exists so the division of labour is explicit — see VERDICT-002 for the check that does reject it.",
       "fixture": "verdict/lying-pass.json",
       "expect": {
         "valid": true
@@ -134,7 +134,7 @@
       "id": "SCHEMA-VERDICT-003",
       "kind": "schema",
       "schema": "verdict.schema.json",
-      "title": "verdict: iteration 0 is rejected \u2014 iterations are 1-based",
+      "title": "verdict: iteration 0 is rejected — iterations are 1-based",
       "json": {
         "skill": "code",
         "ticket_id": "TKT-1",
@@ -234,7 +234,7 @@
       "id": "SCHEMA-VERDICT-007",
       "kind": "schema",
       "schema": "verdict.schema.json",
-      "title": "verdict: lens null is valid \u2014 a light-depth verdict covers no single lens",
+      "title": "verdict: lens null is valid — a light-depth verdict covers no single lens",
       "json": {
         "skill": "code",
         "ticket_id": "TKT-1",
@@ -267,7 +267,7 @@
       "id": "SCHEMA-LOCK-002",
       "kind": "schema",
       "schema": "lock.schema.json",
-      "title": "lock: pid 0 is rejected \u2014 a pid is 1 or greater",
+      "title": "lock: pid 0 is rejected — a pid is 1 or greater",
       "json": {
         "checkout_id": "repo-abc",
         "created_at": "2026-01-01T00:00:00Z",
@@ -326,7 +326,7 @@
       "id": "SCHEMA-LOCKEV-002",
       "kind": "schema",
       "schema": "lock-events.schema.json",
-      "title": "lock-events: the reason is required \u2014 an unexplained break is not a record",
+      "title": "lock-events: the reason is required — an unexplained break is not a record",
       "json": {
         "event": "lock_force_released",
         "at": "2026-01-01T00:00:00Z"
@@ -359,7 +359,7 @@
       "id": "SCHEMA-LOCKEV-004",
       "kind": "schema",
       "schema": "lock-events.schema.json",
-      "title": "lock-events: a recorded break must carry its evidence \u2014 lock_force_released without staleness_verdict is rejected",
+      "title": "lock-events: a recorded break must carry its evidence — lock_force_released without staleness_verdict is rejected",
       "json": {
         "event": "lock_force_released",
         "at": "2026-01-01T00:00:00Z",
@@ -388,7 +388,7 @@
       "id": "SCHEMA-LOCKEV-005",
       "kind": "schema",
       "schema": "lock-events.schema.json",
-      "title": "lock-events: a failed break must say what failed \u2014 lock_force_release_failed without error is rejected",
+      "title": "lock-events: a failed break must say what failed — lock_force_release_failed without error is rejected",
       "json": {
         "event": "lock_force_release_failed",
         "at": "2026-01-01T00:00:00Z",
@@ -418,7 +418,7 @@
       "id": "SCHEMA-LOCKEV-006",
       "kind": "schema",
       "schema": "lock-events.schema.json",
-      "title": "lock-events: the two event kinds carry different keys \u2014 a failed break is accepted WITHOUT the released-only evidence",
+      "title": "lock-events: the two event kinds carry different keys — a failed break is accepted WITHOUT the released-only evidence",
       "json": {
         "event": "lock_force_release_failed",
         "at": "2026-01-01T00:00:00Z",
@@ -448,7 +448,7 @@
       "id": "SCHEMA-COUNTERS-002",
       "kind": "schema",
       "schema": "counters.schema.json",
-      "title": "counters: next 0 is rejected \u2014 ids are 1-based",
+      "title": "counters: next 0 is rejected — ids are 1-based",
       "json": {
         "next": 0
       },
@@ -493,7 +493,7 @@
       "id": "SCHEMA-PIPELINE-002",
       "kind": "schema",
       "schema": "pipeline-state.schema.json",
-      "title": "pipeline-state: an unknown flow is rejected \u2014 there are exactly two",
+      "title": "pipeline-state: an unknown flow is rejected — there are exactly two",
       "json": {
         "ticket_id": "TKT-1",
         "flow": "release",
@@ -527,7 +527,7 @@
       "id": "SCHEMA-SKILLSTATE-002",
       "kind": "schema",
       "schema": "skill-state.schema.json",
-      "title": "skill-state: the skill enum is closed \u2014 an unknown skill name is rejected",
+      "title": "skill-state: the skill enum is closed — an unknown skill name is rejected",
       "note": "This enum is the plugin's own list of skills, so it is also the schema-level record of what ships.",
       "json": {
         "skill": "deploy",
@@ -627,7 +627,7 @@
       "id": "SCHEMA-INDEX-002",
       "kind": "schema",
       "schema": "tickets-index.schema.json",
-      "title": "tickets-index: tickets is required \u2014 an empty document is not an index",
+      "title": "tickets-index: tickets is required — an empty document is not an index",
       "json": {},
       "expect": {
         "valid": false,
@@ -716,7 +716,7 @@
       "id": "SCHEMA-PHASES-001",
       "kind": "schema",
       "schema": "phases.schema.json",
-      "title": "phases: the shipped registry validates \u2014 the file the plugin loads is the instance this schema is for",
+      "title": "phases: the shipped registry validates — the file the plugin loads is the instance this schema is for",
       "json": {
         "version": 1,
         "phases": {
@@ -772,7 +772,7 @@
       "id": "SCHEMA-PHASES-002",
       "kind": "schema",
       "schema": "phases.schema.json",
-      "title": "phases: a skill name must match the shipped spelling \u2014 lowercase, digits and hyphens, so a phase list cannot name a directory that could not exist",
+      "title": "phases: a skill name must match the shipped spelling — lowercase, digits and hyphens, so a phase list cannot name a directory that could not exist",
       "json": {
         "version": 1,
         "phases": {
@@ -831,12 +831,21 @@
       "id": "SCHEMA-SHIPWF-001",
       "kind": "schema",
       "schema": "ship-workflow.schema.json",
-      "title": "ship-workflow: the shipped ship.yaml validates \u2014 the delivery order the plugin actually runs is a conforming document",
+      "title": "ship-workflow: the shipped ship.yaml validates — the delivery order the plugin actually runs is a conforming document",
       "json": {
-        "version": 1,
+        "version": 2,
         "name": "ship",
         "stop_after": "create-pr",
         "max_parallel": 2,
+        "delivery": {
+          "classify_after": "create-impl-plan",
+          "paths": [
+            "trivial",
+            "small",
+            "standard",
+            "complex"
+          ]
+        },
         "steps": [
           {
             "id": "analyze-ticket",
@@ -864,16 +873,29 @@
             "needs": [
               "create-impl-plan",
               "create-api-contract"
+            ],
+            "paths": [
+              "small",
+              "standard",
+              "complex"
             ]
           },
           {
             "id": "code",
-            "skill": "code",
+            "skill": {
+              "trivial": "code-trivial",
+              "small": "code-small",
+              "standard": "code-standard",
+              "complex": "code-complex"
+            },
             "needs": [
               "create-test-docs"
             ],
             "exclusive": true,
-            "boundary": "full_verify_stop",
+            "boundary": {
+              "standard": "full_verify_stop",
+              "complex": "full_verify_stop"
+            },
             "on_replan": "create-impl-plan"
           },
           {
@@ -882,7 +904,12 @@
             "needs": [
               "code"
             ],
-            "when": "e2e_configured"
+            "when": "e2e_configured",
+            "paths": [
+              "small",
+              "standard",
+              "complex"
+            ]
           },
           {
             "id": "docs-sync",
@@ -899,6 +926,11 @@
               "create-e2e-tests"
             ],
             "when": "post_code_test_active",
+            "paths": [
+              "small",
+              "standard",
+              "complex"
+            ],
             "on_fail": {
               "relay_to": "code",
               "max_loops": "post_code_test_fix_loops_cap"
@@ -922,9 +954,9 @@
       "id": "SCHEMA-SHIPWF-002",
       "kind": "schema",
       "schema": "ship-workflow.schema.json",
-      "title": "ship-workflow: a step without a skill is rejected \u2014 a step that names no skill cannot be run",
+      "title": "ship-workflow: a step without a skill is rejected — a step that names no skill cannot be run",
       "json": {
-        "version": 1,
+        "version": 2,
         "name": "ship",
         "stop_after": "create-pr",
         "max_parallel": 2,

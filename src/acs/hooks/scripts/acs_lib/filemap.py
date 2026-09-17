@@ -176,7 +176,7 @@ def file_map_guard(payload):
 
     Fails OPEN at every step where the answer is not clearly "outside the map":
     not an acs partition, no executor running, no map declared for this
-    iteration (a TRIVIAL lane spawns no executor and declares no map), or a tool whose payload
+    iteration (a run that spawned no executor declares no map), or a tool whose payload
     does not name a path. The rule exists to stop scope creep, not to stop work
     the plan never had an opinion about.
     """
