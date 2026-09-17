@@ -117,17 +117,17 @@ class TestGates(AcsWorkspaceCase):
         with open(os.path.join(self.tdir(ticket), "plan.md"), "w") as fh:
             fh.write("# plan\n")
 
-    def test_gate_code_never_requires_create_spec_any_lane(self):
+    def test_gate_code_never_requires_create_spec(self):
         # AC-4: gate_code no longer requires a completed create-spec step or a
-        # non-empty specs/ directory, on ANY lane -- given a plan it is a
-        # pass-through; no predecessor run (create-ticket or otherwise) is
-        # checked, the order lives in ship.yaml.
-        cases = [
-            ("X", ["--size", "trivial", "--stakes", "low"]),
-            ("Y", ["--size", "small", "--stakes", "normal"]),
-            ("Z", []),  # default size=standard, stakes=normal -> STANDARD
-            ("W", ["--size", "large"]),  # -> COMPLEX
-        ]
+        # non-empty specs/ directory -- given a plan it is a pass-through; no
+        # predecessor run (create-ticket or otherwise) is checked, the order
+        # lives in ship.yaml.
+        #
+        # This used to sweep the four size/stakes combinations that produced the
+        # four lanes. ADR-0095 retired the axes, and the gate never branched on
+        # them anyway: it is one gate for one step, and its four delivery-path
+        # legs all run through it unchanged.
+        cases = [("X", []), ("Y", []), ("Z", []), ("W", [])]
         for title, args in cases:
             with self.subTest(title=title):
                 t = self.new_ticket(title, "task", *args)
@@ -423,7 +423,9 @@ class TestPipelineSequence(AcsWorkspaceCase):
         plugin = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "src", "acs")
-        skill_path = os.path.join(plugin, "skills", "code", "SKILL.md")
+        # docs_only is a rule of every delivery path, so it lives in the shared
+        # protocol the four legs read (ADR-0095), not in the dispatcher.
+        skill_path = os.path.join(plugin, "skills", "code", "references", "protocol.md")
         with open(skill_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("docs_only", body,

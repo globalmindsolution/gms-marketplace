@@ -37,16 +37,21 @@ WORKFLOW_SKILLS = ["create-ticket", "analyze-ticket", "create-impl-plan", "creat
                    "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
                    "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
-# `code`'s four delivery-path legs (ADR-0095). They are hooked -- each is a real
-# Skill-tool call and must pass the SAME gate `code` passes -- but they are NOT
-# in WORKFLOW_SKILLS: that list is the metrics funnel's columns and the ticket
-# flow's step names, and a leg is an implementation of the `code` step, not a
-# step of its own. Everything a leg writes on disk is `code`'s: it starts with
+HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
+# `code`'s four delivery-path legs (ADR-0095). Each is a real Skill-tool call
+# and must pass the SAME gate `code` passes -- but it is NOT in HOOKED_SKILLS,
+# because that list means "owns its own pre-/post- hook scripts and agents" and
+# a leg owns neither. It is gated AS its entry point: dispatch.py resolves the
+# leg to `code` before looking up the gate, which is the honest reading -- a leg
+# is an implementation of the `code` step, not a step of its own.
+#
+# Everything a leg writes on disk is `code`'s: it starts with
 # `skill-start.py --skill code`, so `phases/code/`, `code-state.json`, the
 # `code` ledger key and `post-code.py` are shared by all four. The leg name
-# exists in exactly two places -- the Skill invocation and this gate mapping.
+# exists in exactly two places -- the Skill invocation, and this mapping.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
-HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS + CODE_PATH_LEGS
+#: {leg: the skill whose gate, hooks and state it runs under}.
+LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # `run-e2e-tests` is the Test-phase suite runner (today's `test`, renamed) and
 # stays UNHOOKED: it writes no run entry and spawns no reflection triad, so
 # dispatch.py passes it through and skill-start.py cannot select it. `test` is

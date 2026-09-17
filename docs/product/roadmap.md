@@ -58,8 +58,9 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 28 skills + 31 agent files on disk (verified `ls src/acs/skills` = 28,
-  `ls src/acs/agents` = 31); the reflection (execute→verify) protocol is
+- 32 skills + 31 agent files on disk (verified `ls src/acs/skills` = 32,
+  `ls src/acs/agents` = 31; ADR-0095 added `/acs:code`'s four delivery-path
+  legs, which own no agents of their own and spawn `code`'s pair); the reflection (execute→verify) protocol is
   active on the fourteen skills that run a loop — the twelve authoring
   skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
   since ADR 0092 (the per-iteration re-plan went first — MAR-71 for

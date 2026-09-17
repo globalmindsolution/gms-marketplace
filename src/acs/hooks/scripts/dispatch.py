@@ -233,6 +233,13 @@ def main():
         sys.exit(run_lifecycle(mode, payload))
 
     skill = skill_name_from_payload(payload)
+    # A delivery-path leg is gated AS its entry point (ADR-0095): `code-standard`
+    # is an implementation of the `code` step, so its precondition is `code`'s.
+    # Resolving here rather than giving each leg its own GATES row keeps one gate
+    # for one step -- and the mapping is explicit, not a blanket leg rule, because
+    # `create-project` and `standardize-project` are also legs and own DIFFERENT
+    # gates of their own.
+    skill = acs_lib.LEG_ENTRY_POINTS.get(skill, skill)
     if skill not in acs_lib.HOOKED_SKILLS:
         sys.exit(0)
 

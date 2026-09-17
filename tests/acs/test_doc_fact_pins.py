@@ -286,10 +286,19 @@ class SkillCountDenominatorPinTest(unittest.TestCase):
                           if os.path.isdir(os.path.join(SKILLS_DIR, n)) and not n.startswith(".")])
         cls.hooked = len(lib.HOOKED_SKILLS)
         cls.unhooked = len(lib.UNHOOKED_SKILLS)
+        # A delivery-path leg is a third category: gated (as `code`), but owning
+        # neither its own hook scripts nor its own agents, so it is in neither
+        # list. ADR-0095 introduced the first four.
+        cls.legs = len(lib.LEG_ENTRY_POINTS)
 
     def test_the_registry_split_adds_up_to_the_directory_count(self):
-        """Sanity on the derivation itself, so a wrong pin cannot look right."""
-        self.assertEqual(self.hooked + self.unhooked, self.skills)
+        """Sanity on the derivation itself, so a wrong pin cannot look right.
+
+        Three categories, not two: hooked skills own their pre-/post- scripts
+        and agents; unhooked ones own neither and are not gated; a delivery-path
+        leg is gated as its entry point while owning neither (ADR-0095). Every
+        directory is in exactly one."""
+        self.assertEqual(self.hooked + self.unhooked + self.legs, self.skills)
 
     def test_every_denominator_in_the_doc_is_a_live_count(self):
         """EXHAUSTIVE, deliberately. Asserting that a correct "32 of 32" appears
@@ -342,6 +351,13 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
     ALLOWED = {
         ("src/acs/CHANGELOG.md", "acs_lib.py"):
             "a changelog records what past releases did; rewriting it would falsify history",
+        ("docs/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
+            "a superseded ADR records what was decided and where it lived AT THE TIME; "
+            "ADR-0095 retired the routing and renamed the module to planrules.py, and "
+            "rewriting the record would falsify the decision it documents",
+        ("docs/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
+            "same: superseded by ADR-0095, kept verbatim as the record of the "
+            "verify-depth decision it made",
         ("tests/acs/acs_case.py", "acs_lib.py"):
             "describes the MAR-522 split itself (what reading acs_lib.py used to give)",
         ("tests/acs/test_evidence_sidecar_topology.py", "acs_lib.py"):
@@ -350,6 +366,9 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "explains why a guard went vacuous once MAR-522 deleted acs_lib.py",
         ("tests/acs/test_ship_fix_retest_loop.py", "acs_lib.py"):
             "asserts a false claim is ABSENT from a skill body; the string must stay verbatim",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/lanes.py"):
+            "this allowlist must NAME the retired path to exempt it; the entries "
+            "above are the mention the scanner is seeing",
         ("tests/acs/test_testing_conventions_guard.py", "acs_lib.py"):
             "deliberate stale-path fixture proving the allowlist-staleness detector fires",
         ("tests/acs/test_ticket_id_reconciliation.py", "acs_lib.py"):
