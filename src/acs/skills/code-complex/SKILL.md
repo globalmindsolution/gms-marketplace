@@ -162,9 +162,11 @@ model/effort resolution, the foreground-wait rule, the XML task and
 result contract, and the phase-artifact persistence are identical on
 every path.
 
-## The /acs:ship context boundary
+## After this path completes, /acs:ship stops
 
-`ship.yaml` gives this path `boundary: full_verify_stop`. Four lens spawns per
+`ship.yaml` gives this path `boundary: full_verify_stop`. The stop is
+/acs:ship's, not yours — this section is here so a reader of this leg knows
+what happens after it, not because the leg does anything about it. Four lens spawns per
 iteration, up to three iterations, all inside the ship coordinator's context: this
 is the path that boundary was written for. /acs:ship stops after you complete and
 runs the pipeline's tail in a fresh session. You simply finish normally.

@@ -117,9 +117,11 @@ model/effort resolution, the foreground-wait rule, the XML task and
 result contract, and the phase-artifact persistence are identical on
 every path.
 
-## The /acs:ship context boundary
+## After this path completes, /acs:ship stops
 
-`ship.yaml` gives this path `boundary: full_verify_stop`. Your whole reflection
+`ship.yaml` gives this path `boundary: full_verify_stop`. The stop is
+/acs:ship's, not yours — this section is here so a reader of this leg knows
+what happens after it, not because the leg does anything about it. Your whole reflection
 cycle runs inside the ship coordinator's context, so when /acs:ship invoked you
 it stops after you complete rather than carrying on to the tail of the pipeline.
 That is a designed boundary, not a failure, and it is /acs:ship's to act on —

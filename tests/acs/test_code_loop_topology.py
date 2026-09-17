@@ -124,59 +124,32 @@ class FindingsRouteStraightToExecutorTest(unittest.TestCase):
 
 
 class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
-    """AC-2/AC-4: the verify-depth section defines an iteration as one
-    execute -> verify round, not a plan+execute+verify triad; cap values
-    (light 1 / full 3) are unchanged."""
+    """An iteration is one execute -> verify round, not a plan+execute+verify
+    triad, and each delivery path states its own cap.
 
-    @classmethod
-    def setUpClass(cls):
-        body = _code_contract()
-        # The escalation heading that used to close this window moved to
-        # references/lane-changes.md; the pointer section that replaced it is
-        # the new boundary.
-        cls.window = section(
-            body, "### Verify-depth", "### Lane changes mid-run")
-        cls.window_norm = norm(cls.window)
+    ADR-0095 replaced the verify-depth section this used to slice: there is no
+    depth to compute and no table to look a ceiling up in. Each leg declares
+    its own, which is both the cheaper read and the harder thing to get wrong."""
 
-    def test_verify_depth_section_defines_an_iteration_as_an_execute_verify_round(self):
-        self.assertRegex(self.window_norm, r"(?i)execute\s*(->|→|\+|and)\s*verify")
-        self.assertRegex(self.window_norm, r"(?i)round|iteration")
-        self.assertRegex(
-            self.window_norm,
-            r"(?i)not.{0,60}(triad|plan\W{0,4}execute\W{0,4}verify)")
+    CEILINGS = {"code-trivial": 2, "code-small": 2,
+                "code-standard": 3, "code-complex": 3}
 
-    def test_cap_values_light_two_full_three(self):
-        self.assertIn("ceiling = **2** iterations", self.window)
-        self.assertIn("ceiling = **3** iterations", self.window)
+    def test_each_path_states_its_own_ceiling_in_execute_verify_rounds(self):
+        for leg, ceiling in self.CEILINGS.items():
+            with self.subTest(leg=leg):
+                body = read(os.path.join(PLUGIN, "skills", leg, "SKILL.md"))
+                self.assertIn("**%d** execute -> verify rounds" % ceiling, body)
 
+    def test_no_path_reintroduces_a_computed_depth(self):
+        for leg in self.CEILINGS:
+            body = read(os.path.join(PLUGIN, "skills", leg, "SKILL.md"))
+            for token in ("verify_depth", "VERIFY_ITERATION_CAP", "derive_lane"):
+                with self.subTest(leg=leg, symbol=token):
+                    self.assertNotIn(token, body)
 
-class EscalationDetectionPointUnchangedTest(unittest.TestCase):
-    """AC-3: mid-flight escalation's detection point and monotone-ceiling
-    guarantee are unaffected by this ticket (regression pins)."""
-
-    @classmethod
-    def setUpClass(cls):
-        # The escalation contract these pin now lives in the skill's
-        # references/ (progressive disclosure), so read the whole
-        # contract rather than SKILL.md alone.
-        cls.body_norm = norm("\n".join(
-            [_code_contract()]
-            + [read(p) for p in sorted(glob.glob(os.path.join(
-                PLUGIN, "skills", "code", "references", "*.md")))]))
-
-    def test_detection_point_stays_after_prior_verifier_and_before_current_execute(self):
-        self.assertIn(
-            "after the verifier for the previous iteration has run and "
-            "before launching the current iteration's execute phase",
-            self.body_norm)
-
-    def test_ceiling_raise_is_monotone(self):
-        self.assertIn(
-            "monotone raise only, never lower an already-higher ceiling",
-            self.body_norm)
-        self.assertIn("max(current_ceiling, new_ceiling)", self.body_norm)
-
-
+    def test_there_is_no_plan_phase_inside_an_iteration(self):
+        contract_norm = norm(_code_contract())
+        self.assertRegex(contract_norm, r"(?i)no plan\s+phase and no planner subagent")
 class ExecutorScopeEscapeHatchTest(unittest.TestCase):
     """AC-2 corollary: the executor's out-of-map escape hatch no longer
     promises a coordinator re-plan."""
