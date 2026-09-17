@@ -95,11 +95,37 @@ jobs:
               tracks the default branch) is judged against the tree.
               """
               target = os.path.join(rel, ".claude-plugin", "plugin.json")
-              if not ref:
+
+              def from_tree():
                   if not os.path.exists(target):
                       return None, target
                   with open(target, encoding="utf-8") as fh:
                       return json.load(fh), target
+
+              if not ref:
+                  return from_tree()
+
+              # A ref that does not exist yet is the release-cut window: the
+              # cut rewrites ref to v{version} and commits, and only the push
+              # to main creates that tag (release.yml). The commit under test
+              # IS the one about to be tagged, so the tree is exactly what the
+              # tag will capture -- judging it there is judging the fixpoint
+              # the cut is in the middle of establishing. Refusing instead
+              # would make every release PR unmergeable.
+              #
+              # This is not a hole for the 2026-09-16 break: that entry named
+              # v0.4.9, which existed, so it is judged at the ref and caught.
+              # ci.yml checks out at fetch-depth 0, so tags really are present
+              # and "absent" means "not created yet" rather than "not fetched".
+              exists = subprocess.run(["git", "rev-parse", "--verify", "--quiet",
+                                       ref + "^{commit}"], capture_output=True, text=True)
+              if exists.returncode != 0:
+                  pj, where = from_tree()
+                  print(f"note: ref '{ref}' does not exist yet (release cut in "
+                        f"progress?); judging {rel} against the working tree, "
+                        f"which is what tagging this commit will capture")
+                  return pj, where
+
               at_ref = "%s:%s/.claude-plugin/plugin.json" % (ref, rel)
               proc = subprocess.run(["git", "cat-file", "-p", at_ref],
                                     capture_output=True, text=True)

@@ -456,3 +456,55 @@ class PathIsJudgedAtTheRefTest(MarketplaceConsistencyTest):
         self.assertEqual(out.returncode, 0,
                          "stderr=%r" % out.stderr)
         self.assertIn("OK", out.stdout)
+
+
+class TheReleaseCutWindowTest(MarketplaceConsistencyTest):
+    """The cut writes ref=v{version} before that tag exists; CI must not block it.
+
+    release.extra_refs rewrites source/ref and source/path in the release
+    commit, and release.yml creates the tag only once that commit reaches
+    main. So on the release PR the advertised ref names nothing yet. Judging
+    that as a broken pair would make every release PR unmergeable -- the
+    commit under test is precisely the one about to be tagged, so the tree is
+    what the tag will capture.
+    """
+
+    def test_ref_that_does_not_exist_yet_is_judged_against_the_tree(self):
+        entry = {
+            "name": "acs",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/acs", "ref": "v0.5.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="src/acs",
+            plugin_json={"name": "acs", "version": "1.0.0"},
+        )
+        # _make_fixture tags the ref; drop it so the tag is genuinely absent,
+        # which is the state a release PR is actually in.
+        subprocess.run(["git", "tag", "-d", "v0.5.0"], cwd=tmp,
+                       capture_output=True, check=True)
+        out = self._run(tmp)
+        self.assertEqual(out.returncode, 0,
+                         "a release cut would be unmergeable. stderr=%r" % out.stderr)
+        self.assertIn("does not exist yet", out.stdout)
+
+    def test_but_a_ref_that_DOES_exist_is_still_judged_there(self):
+        """The carve-out must not swallow the 2026-09-16 break."""
+        entry = {
+            "name": "myplugin",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/myplugin", "ref": "v1.0.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="plugins/myplugin",
+            plugin_json={"name": "myplugin", "version": "1.0.0"},
+        )
+        os.renames(os.path.join(tmp, "plugins", "myplugin"),
+                   os.path.join(tmp, "src", "myplugin"))
+        out = self._run(tmp)
+        self.assertEqual(
+            out.returncode, 1,
+            "the release-cut carve-out swallowed the #540 break: v1.0.0 EXISTS "
+            "and lacks src/myplugin, so this pair must still be rejected")
