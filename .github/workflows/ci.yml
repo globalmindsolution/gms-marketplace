@@ -19,6 +19,16 @@ jobs:
         python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Tags, so tests/acs/test_marketplace_ref_resolves.py can ask
+          # whether the marketplace ref actually resolves. Between
+          # releases `ref` is the default branch and the check runs
+          # anyway; after a cut it is a tag, absent from the default
+          # depth-1 checkout, and the check SKIPS -- inert in exactly
+          # the steady state it exists to police. That is how #540
+          # (path moved to src/acs, ref left at v0.4.9) passed CI and
+          # broke every install.
+          fetch-tags: true
 
       - uses: actions/setup-python@v6
         with:
