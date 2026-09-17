@@ -33,6 +33,20 @@ def norm(text):
     return re.sub(r"\s+", " ", text)
 
 
+def contract():
+    """The skill's contract: SKILL.md plus the references it points at.
+
+    The resume/handoff seam moved into `references/resume-and-handoff.md` --
+    a fresh run that finishes in one session never reads it. The pin is that
+    the rule EXISTS, not which file states it.
+    """
+    import glob
+    parts = [read(SKILL)]
+    refs = os.path.join(PLUGIN, "skills", "create-docs", "references", "*.md")
+    parts.extend(read(q) for q in sorted(glob.glob(refs)))
+    return "\n".join(parts)
+
+
 class NoPlannerTest(unittest.TestCase):
 
     def test_the_registry_declares_executor_and_verifier_only(self):
@@ -89,7 +103,7 @@ class ExecuteVerifyLoopTest(unittest.TestCase):
             self.assertRegex(norm(body), r"(?i)the same agent file serves every set")
 
     def test_resume_never_reintroduces_a_plan_artifact(self):
-        body = norm(read(SKILL))
+        body = norm(contract())
         self.assertRegex(body, r"(?i)an execute with no verify → verify it")
         self.assertNotRegex(body, r"(?i)second planner")
 
