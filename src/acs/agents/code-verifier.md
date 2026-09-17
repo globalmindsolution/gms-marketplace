@@ -28,9 +28,9 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   the coordinator resolved (the ticket's docs folder, the partition, or the
   pre-docs-tree `<partition>/phases/code/plan.md`); read ONLY its
   `## Verifier checklist` — it is a
-  floor, never a ceiling. `/acs:create-impl-plan` wrote that plan; on
-  TRIVIAL/SMALL it is coordinator-authored rather than planner-authored.
-  Judge it identically either way — dimensions 1, 8, 9, and 13 apply in full
+  floor, never a ceiling. `/acs:create-impl-plan`'s executor wrote that plan,
+  on every run and every delivery path — ADR-0074's coordinator-authored fast
+  path went with the lanes (ADR-0095). Dimensions 1, 8, 9 and 13 apply in full
   and are never waived on authorship grounds. Also `test-cases.md` and
   `api-contract.md` when they exist (dimensions 1 and 9), and
   `<partition>/phases/code/plan-approval.json`,
@@ -39,7 +39,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   from the directory containing the run ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target`, `branch`, `default_branch`;
   plus `architecture_path`, `adr_path`, `standards_path`, and `verify_lens`
-  when set (full-depth lens spawns only — see Multi-lens review);
+  when set (the `complex` path's lens spawns only — see Multi-lens review);
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
 
@@ -285,10 +285,18 @@ it safe: no pass without a green run, on the iteration where it counts.
     `<finding severity="info" dimension="audience-style">`, which does not
     block.
 
-14. **Regression-risk (git-history)** — BLOCKING, full-depth only, lens D
-    (evaluated only when the task's `<constraints>` carries `verify_lens` —
-    never when `verify_lens` is absent, keeping light-depth's dimension set
-    at 15 and AC-2's zero-functional-change guarantee intact): read git
+14. **Regression-risk (git-history)** — BLOCKING; the two DEEP delivery paths
+    only, `standard` and `complex`, and on `complex` it is lens D's. Read
+    `delivery_path` from `<partition>/pipeline-state.json` — the same fresh,
+    from-disk read dimension 16 makes, never a coordinator-relayed value — and
+    evaluate this dimension on `standard` and `complex`, skip it as N/A on
+    `trivial` and `small`, which is what keeps a cheap path's dimension set at
+    15. With NO recorded path, EVALUATE it: `/acs:code`'s dispatcher runs the
+    `standard` leg when nothing is recorded, and a missing answer must never
+    buy a cheaper review. (This was gated on the task carrying a `verify_lens`,
+    which worked while deep always meant multi-lens; ADR-0095's `standard` path
+    is deep AND single-pass, so the lens was no longer the thing being asked
+    about.) Read git
     history on the changeset's touched paths (`git log --follow -p` /
     `git log --oneline`, bounded lookback, scoped to touched files) for a
     prior revert/hotfix pattern on the same lines, or whether the diff
@@ -400,10 +408,12 @@ Each lens spawn writes its own artifact
 the `/acs:code` coordinator (never a subagent) performs the confidence-
 scoring merge pass and writes the single `iter-<n>-verify.md` itself.
 
-When `verify_lens` is absent from `<constraints>` (light depth, or any spawn
-that predates this multi-lens shape), behavior is unchanged from today: all
-15 base dimensions are checked (never dimension 14, which is full-depth/
-lens-D-only) and this spawn writes `iter-<n>-verify.md` directly.
+When `verify_lens` is absent from `<constraints>` — every path but `complex`,
+or any spawn that predates this multi-lens shape — this is a single-pass
+review and this spawn writes `iter-<n>-verify.md` directly. The dimension set
+is NOT decided by the lens's absence: dimension 14 reads the recorded
+`delivery_path` for itself, so a `standard` single pass checks all 16 and a
+`trivial` or `small` one checks 15.
 
 ## Phase artifact
 
@@ -454,7 +464,7 @@ together.
 ```
 
 - One entry per dimension you actually evaluated, by the number this file gives
-  it. `"n/a"` is a real answer — dimension 14 is full-depth only, 15 is inactive
+  it. `"n/a"` is a real answer — dimension 14 is the deep paths' only, 15 is inactive
   without an approved plan, 2 and 3 are n/a under `docs_only` — and it is not
   the same as omitting the dimension.
 - `evidence` carries the command and its relevant output, or the `file:line`
@@ -501,7 +511,7 @@ When your `<task>` carried `verify_lens`, set `lens="A|B|C|D"` (the same
 value) on your `<result>` — the coordinator matches the four lens results by
 it, and the SubagentStop hook reads it to locate your lens verdict file
 (`iter-<n>-verdict-lens-<lens>.json`); a lens result without it is read as a
-light-depth verdict and refused. A light-depth result carries no `lens`.
+single-pass verdict and refused. A single-pass result carries no `lens`.
 
 ```xml
 <result skill="code" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">

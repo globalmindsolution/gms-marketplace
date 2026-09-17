@@ -421,6 +421,18 @@ the notes.
 
 ### Fixed
 
+- **The verifier's dimension 14 runs on `standard` again.** `Regression-risk
+  (git-history)` was gated on the task carrying a `verify_lens`, which was a
+  faithful proxy for "full depth" while full depth always meant the multi-lens
+  review. ADR-0095's `standard` path is deep AND single-pass, so the proxy
+  broke: `code-standard/SKILL.md` says all 16 dimensions including this one,
+  while the verifier would have skipped it for want of a lens. It now reads
+  `delivery_path` from `pipeline-state.json` for itself — the same fresh,
+  from-disk read dimension 16 makes — evaluating on `standard` and `complex`,
+  skipping on `trivial` and `small`, and evaluating when no path is recorded,
+  because `/acs:code` dispatches a missing answer to the `standard` leg and a
+  missing answer must not buy a cheaper review.
+
 - **`/acs:create-docs` and `/acs:project` can start their legs again.** Both
   entry points dispatch each leg with a real `Skill(acs:<leg>)` call, and all
   six legs (`create-quality`, `create-operations`, `create-principles`,

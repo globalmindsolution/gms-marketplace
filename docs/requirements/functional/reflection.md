@@ -87,15 +87,21 @@ Requirements:
     - **`standard` and `complex`**: at most **3 iterations** — execute →
       verify against the plan `/acs:create-impl-plan` published before the run
       started, never a per-iteration re-plan, plus the review and e2e when
-      configured. An iteration is one execute+verify round. `complex` is the
-      one path that runs the 16-dimension, multi-lens review + e2e: its 16
-      dimensions are split across 4 parallel independent lenses (each reading
-      a distinct evidence source), followed by a coordinator-performed
-      confidence-scoring/adversarial merge pass before findings count. Every
-      other path keeps the single-subagent, 15-dimension pass — dimension 14
-      (Regression-risk, git-history) is lens D's alone, evaluated only when
-      the task carries a `verify_lens`, which is exactly what makes the
-      multi-lens review's set 16 and every other path's 15.
+      configured. An iteration is one execute+verify round. Both deep paths
+      run all 16 dimensions; `complex` is the one that runs the
+      16-dimension, multi-lens review + e2e, splitting them across 4 parallel
+      independent lenses (each reading a distinct evidence source) followed by a
+      coordinator-performed confidence-scoring/adversarial merge pass before
+      findings count. `standard` runs the same 16 in a single subagent pass.
+
+      Dimension 14 (Regression-risk, git-history) is what separates 16 from
+      15: it is scoped to the two DEEP paths, and on `complex` it is lens D's.
+      It reads the recorded `delivery_path` itself to decide — not the
+      presence of a `verify_lens`, which was the same question while deep
+      always meant multi-lens and stopped being it when `standard` became
+      deep AND single-pass. With no path recorded it EVALUATES: the
+      dispatcher runs `standard` on a missing answer, and a missing answer
+      must never buy a cheaper review.
     - When `pipeline-state.json` carries no `delivery_path`, `/acs:code`'s
       dispatcher runs the `standard` leg — the conservative default, never a
       cheap path on a missing answer.

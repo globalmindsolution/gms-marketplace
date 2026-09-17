@@ -348,7 +348,11 @@ growth path.
   and the TDD/coverage gate always runs, on every path. (This generalizes
   Claude Code's own adaptivity — Plan mode for complex, skipped for simple —
   but keeps an automated in-loop gate because acs must stay correct on
-  unattended `/acs:ship` runs where no human is watching.)
+  unattended `/acs:ship` runs where no human is watching.) Spec content is
+  authored inside `/acs:create-impl-plan`'s plan when `<partition>/specs/` is
+  absent or empty, and pre-existing specs are read unchanged when they are
+  present — a fold that was "universal across every lane" (MAR-59, ADR 0066)
+  and is now simply unconditional, there being no lane to be universal across.
 
   **Routing is ONE judgement, made once, from the implementation plan.** After
   `/acs:create-impl-plan` publishes `plan.md`, `/acs:ship` judges the ticket
@@ -362,13 +366,16 @@ growth path.
   2. **`small`** — one executor, the same 2-round ceiling, and the full step
      set: test docs and e2e when configured.
   3. **`standard`** — up to **3** execute→verify rounds against the plan
-     (never a per-iteration re-plan), the single-subagent 15-dimension review,
+     (never a per-iteration re-plan), a single-subagent review over all 16
+     dimensions — **Regression-risk (git-history)** is the one a cheap path
+     skips, and `standard` is deep enough to owe it —
      a deterministic plan-approval record (`states.plan_approved`, computed
      from the plan's own content by a hook script and gating nothing this
      release), and the `full_verify_stop` boundary that ends `/acs:ship`'s run
      rather than carrying the review's context onward.
-  4. **`complex`** — `standard` plus parallel executors and the 16-dimension,
-     4-lens review with a coordinator-performed adversarial merge pass.
+  4. **`complex`** — `standard` plus parallel executors, and the 16-dimension, multi-lens review:
+     4 parallel lenses, each reading a distinct evidence source, with a
+     coordinator-performed adversarial merge pass before findings count.
 
   Apply-work skills (create-pr, merge-pr, create-ticket) run **inline**
   (coordinator + at most one executor), never a reflection loop, on every path.
@@ -797,8 +804,10 @@ its own mechanisms (acs via stdlib Python + hooks; future plugins via their own 
   review's shape**, not whether the verifier runs: `trivial` and `small` get a
   single verifier pass plus at most one iteration on its findings (cap 2) and
   the single-subagent 15-dimension review; `standard` and `complex` get the
-  up-to-3-iteration loop, and `complex` additionally the 16-dimension,
-  4-lens review with an adversarial merge pass. e2e runs where configured. The
+  up-to-3-iteration loop and all 16 dimensions — **Regression-risk
+  (git-history)** is the one the cheap paths skip — with `complex` alone running the 16-dimension, multi-lens review:
+  4 parallel lenses and an adversarial merge pass. e2e runs where configured.
+  The
   code TDD/coverage gate **always** runs in full on every path and is never
   trimmed by the path. Gates fail closed — the gate is never the thing dropped.
   (Composes with "Graceful degradation of the conformance chain" above:

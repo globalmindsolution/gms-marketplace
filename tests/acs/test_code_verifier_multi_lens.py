@@ -181,16 +181,34 @@ class NewDimensionTest(unittest.TestCase):
             m, "code-verifier.md must have a '14. **Regression-risk**' "
                "dimension item")
 
-    def test_dimension_14_is_full_depth_lens_d_only(self):
+    def test_dimension_14_is_scoped_to_the_deep_paths(self):
+        """It was documented as "full-depth only, lens D". ADR-0095 split
+        those apart: `standard` is deep AND single-pass, so gating on the
+        lens's presence would have silently dropped the dimension there. The
+        scope is now the recorded delivery path, read from disk, with lens D
+        owning it only on `complex`."""
         body = code_verifier_body()
         m = re.search(r"(?m)^14\.\s+\*\*Regression-risk.*$", body)
         self.assertIsNotNone(m)
-        window = body[m.start():m.start() + 800]
-        self.assertRegex(
-            window, r"(?i)full-depth",
-            "dimension 14 must be documented as full-depth only")
+        window = re.sub(r"\s+", " ", body[m.start():m.start() + 1400])
+        self.assertIn("`standard` and `complex`", window,
+                      "dimension 14 must name the two deep paths it runs on")
         self.assertIn("lens D", window,
-                       "dimension 14 must be documented as lens D")
+                      "dimension 14 must still be lens D's on `complex`")
+        self.assertIn("delivery_path", window,
+                      "dimension 14 must read the recorded path for itself")
+
+    def test_dimension_14_evaluates_when_no_path_was_recorded(self):
+        """The conservative default has to be stated, not left to inference:
+        /acs:code's dispatcher runs `standard` on a missing path, so skipping
+        here would let a missing answer buy a cheaper review."""
+        body = code_verifier_body()
+        m = re.search(r"(?m)^14\.\s+\*\*Regression-risk.*$", body)
+        window = re.sub(r"\s+", " ", body[m.start():m.start() + 1400])
+        self.assertRegex(
+            window,
+            r"(?i)With NO recorded path, EVALUATE it.{0,200}"
+            r"never buy a cheaper review")
 
     def test_dimension_14_appended_after_13_before_retired(self):
         body = code_verifier_body()
@@ -345,26 +363,32 @@ class RequirementsDocsUpdatedTest(unittest.TestCase):
         self.assertIn("16-dimension", line)
         self.assertIn("multi-lens", line)
 
-    def test_reflection_md_multi_lens_dimension_count_is_16(self):
-        """Whitespace-normalized: this sentence wraps, and the count and the
-        phrase it qualifies land on different source lines."""
+    def test_reflection_md_says_both_deep_paths_run_all_sixteen(self):
+        """`standard` is deep and single-pass, so "16" and "multi-lens" are
+        two different claims about two different sets of paths."""
         body = re.sub(r"\s+", " ", read(REFLECTION_MD))
-        self.assertIn("its 16 dimensions are split across 4 parallel", body)
-
-    def test_reflection_md_single_pass_line_states_15_dimension(self):
-        line = _line_containing(read(REFLECTION_MD), "single-subagent")
-        self.assertIn("15-dimension", line)
+        self.assertIn("Both deep paths run all 16 dimensions", body)
+        self.assertIn("`standard` runs the same 16 in a single subagent pass",
+                      body)
 
     def test_reflection_md_says_which_dimension_makes_the_difference(self):
-        """16 vs 15 is not two review sets: it is one set with dimension 14
-        gated on a lens. A doc that states the counts without that reads as an
-        arbitrary trim, which is how a reader talks themselves into dropping
-        another one."""
+        """16 vs 15 is one set with dimension 14 scoped to the deep paths, not
+        two review sets. A doc that states the counts without saying which
+        dimension moves reads as an arbitrary trim — which is how a reader
+        talks themselves into dropping another one."""
         body = re.sub(r"\s+", " ", read(REFLECTION_MD))
         self.assertRegex(
             body,
-            r"(?i)dimension 14 \(Regression-risk, git-history\) is lens D's "
-            r"alone")
+            r"(?i)Dimension 14 \(Regression-risk, git-history\) is what "
+            r"separates 16 from 15")
+        self.assertIn("scoped to the two DEEP paths", body)
+
+    def test_reflection_md_says_the_lens_is_not_the_gate(self):
+        """The gate is the recorded path. Documenting the lens as the gate is
+        exactly the bug ADR-0095 introduced and this fixed."""
+        body = re.sub(r"\s+", " ", read(REFLECTION_MD))
+        self.assertIn("reads the recorded `delivery_path` itself to decide", body)
+        self.assertRegex(body, r"(?i)With no path recorded it EVALUATES")
 
     def test_reflection_md_has_no_stale_dimension_count(self):
         body = read(REFLECTION_MD)
@@ -395,8 +419,12 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
     '15-dimension' (lane-neutral) or '16-dimension, multi-lens'
     (full-verify-specific)."""
 
-    # anchor substring -> the physical prd.md line it identifies (lane-neutral:
-    # generic gate-list mentions, not singling out full verify).
+    # anchor substring -> the physical prd.md line it identifies
+    # (path-neutral: generic gate-list mentions, not singling out the deep
+    # review). "Lane-neutral" was the original name; ADR-0095 retired the
+    # lanes, and these mentions are neutral for the same reason they always
+    # were — they describe the review the pipeline runs, not the route that
+    # decides how deep it goes.
     LANE_NEUTRAL_ANCHORS = [
         "G6 — Portability",
         "G11 — Tracker-first delivery",
@@ -404,13 +432,25 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
         "gated pipeline (ordering/gating",
     ]
 
-    # anchor substring -> the physical prd.md line it identifies (mentions
-    # that explicitly describe only the full-depth verify loop).
-    FULL_VERIFY_ANCHORS = [
-        "full verify (the",
+    # Mentions that explicitly describe the deepest review. ADR-0095 split
+    # what used to be one bucket in two, because "16 dimensions" and
+    # "multi-lens" stopped being the same claim: `standard` is deep enough to
+    # owe dimension 14 (Regression-risk, git-history) and runs all 16 in a
+    # SINGLE pass, while only `complex` splits them across four lenses. One
+    # bucket would now assert multi-lens of a path that is not.
+    #
+    # Two anchors moved with the rewrite — "full verify (the" was the fourth
+    # lane's bullet and "e2e when configured) for" the verifier-as-gate NFR.
+    # An anchor still has to survive the substitution it locates, which is why
+    # none of them contains "16-dimension".
+    DEEP_REVIEW_ANCHORS = [
         "(≤ 3 iterations)",
         "never a per-iteration re-plan",
-        "e2e when configured) for",
+    ]
+
+    MULTI_LENS_ANCHORS = [
+        "plus parallel executors",
+        "with `complex` alone",
     ]
 
     def _line_containing(self, body, anchor):
@@ -437,17 +477,33 @@ class PrdDimensionConsistencyTest(unittest.TestCase):
                 "lane-neutral prd.md line near anchor %r must read "
                 "'15-dimension'" % anchor)
 
-    def test_full_verify_lines_mention_16_dimension_multi_lens(self):
+    def test_deep_path_lines_state_all_sixteen_dimensions(self):
+        """`standard` and `complex` both owe every dimension. A line may say
+        so as "16-dimension" or "all 16"; what it may not do is claim the
+        cheap paths' trimmed set on a deep path."""
         body = read(PRD_MD)
-        for anchor in self.FULL_VERIFY_ANCHORS:
+        for anchor in self.DEEP_REVIEW_ANCHORS:
+            line = self._line_containing(body, anchor)
+            self.assertRegex(
+                line, r"(?i)16[- ]dimension|all 16\b",
+                "deep-path prd.md line near anchor %r must state all 16 "
+                "dimensions" % anchor)
+            self.assertNotIn(
+                "15-dimension", line,
+                "deep-path prd.md line near anchor %r must not claim the "
+                "cheap paths' 15" % anchor)
+
+    def test_multi_lens_lines_mention_16_dimension_multi_lens(self):
+        body = read(PRD_MD)
+        for anchor in self.MULTI_LENS_ANCHORS:
             line = self._line_containing(body, anchor)
             self.assertIn(
                 "16-dimension", line,
-                "full-verify-specific prd.md line near anchor %r must "
+                "complex-specific prd.md line near anchor %r must "
                 "mention '16-dimension'" % anchor)
             self.assertIn(
                 "multi-lens", line,
-                "full-verify-specific prd.md line near anchor %r must "
+                "complex-specific prd.md line near anchor %r must "
                 "mention 'multi-lens'" % anchor)
 
 
