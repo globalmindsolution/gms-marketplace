@@ -49,7 +49,8 @@ Parse the printed context JSON. Fields you will use:
 - `checkout_root`, `plugin_root` — for template resolution.
 - `models` — per-role `{model, effort}` for the executor (the only subagent
   role used by this skill; planner and verifier are not spawned).
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_run_status` — see
+  `references/resume.md`.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
   required, the design document — `artifacts["design.md"]` from
@@ -73,24 +74,16 @@ State inputs (read these; conversation history is NOT an input):
 - `<partition>/specs/*.md` — scope and API/data changes per spec.
 - `<design_doc>` — the decision, when `design.required`.
 
-## Resume & reconcile
+## The two references, and when to open each
 
-If `context.reconcile` is true, verify recorded state against reality BEFORE
-continuing:
+Nearly all of this skill is one flow: check nothing is already open, push the
+branch, render the title and body, open the PR, record it. Two parts are not,
+and each is read by exactly one kind of run:
 
-1. Read `<partition>/create-pr-state.json` (`runs[-1]`) and any
-   `<partition>/phases/create-pr/iter-*-*.xml` to see how far the prior run got.
-2. Re-check reality: does the branch exist on origin
-   (`git ls-remote origin <branch>`)? Does an open PR for it exist
-   (`gh pr list --head <branch> --state open --json number,url,baseRefName`)?
-   A PR recorded but missing remotely is not done; a PR that exists but was
-   never recorded is done-but-unfinalized — verify it, then finish normally.
-3. Continue from the first unfinished phase of the recorded iteration.
-
-If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-pr/handoff-context.md` (if present), do a light
-reconcile (trust the summary, cheaply spot-check the PR/branch it names), and
-continue from where it points.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure, whose first job is to find out whether a PR already exists for this branch. A fresh run skips it. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md` | The "Branch / PR / commit conventions" check reports failing after the PR is open. It carries the frozen-payload rule: a red run may be stale, a rerun replays the same stale payload, and an unverified check is never assumed green. |
 
 ## Inline apply flow
 
@@ -333,46 +326,8 @@ Per-call classification in this skill:
   (step 7, PR back-reference); the `gh run list` CI-run diagnostic read
   below.
 
-See "CI convention-check troubleshooting (frozen-payload gotcha)" below for
-that last read's one extra rule (an unverified check is never assumed
-green).
-
-### CI convention-check troubleshooting (frozen-payload gotcha)
-
-`.github/workflows/acs-conventions.yml` reads `ACS_PR_TITLE`, `ACS_PR_BODY`,
-`ACS_PR_BRANCH`, `ACS_BASE_REF`, and `ACS_PR_LABELS` from
-`github.event.pull_request.*` in its `env:` block — the webhook payload as it
-was FROZEN at the moment that specific triggering event fired, never a live
-`gh pr view`/API call. A label, title, or body change applied via a separate
-call AFTER a given event fired is invisible to that event's own check run;
-only a later event (its own `edited`/`labeled`/`synchronize` run) observes it.
-
-Re-running a completed workflow run (e.g. `rerun_workflow_run`) replays that
-run's ORIGINAL frozen payload — it can never pick up a label, title, or body
-change made afterward. Rerunning an `opened`-triggered run that failed for
-missing-label reasons will fail again every time, no matter how many times
-it's rerun. Worse, if that rerun finishes AFTER a separate, correctly-passing
-run (e.g. the `labeled` run), its stale failing conclusion can become the
-"latest" one GitHub reports for the check, shadowing the real, already-green
-result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
-
-Before treating a failing "Branch / PR / commit conventions" check as real:
-
-1. List the workflow runs for the PR's head SHA
-   (`gh run list --branch <head-ref> --commit <head-sha>`), ordered by
-   recency. This is a **non-critical** read: on failure, one `info` finding
-   plus a replayable `gh run list --branch <head-ref> --commit <head-sha>`
-   block, never abort — but the convention check itself is then reported
-   **unverified, never assumed green**, since the newest run's conclusion
-   could not be confirmed.
-2. Read the NEWEST run's conclusion — that is the check's actual current
-   state, regardless of what any older run for the same SHA reported.
-3. If the newest run is already green, the check is fine; no action needed.
-4. If a genuine re-check is needed (e.g. the payload really was wrong and a
-   fix has since landed), trigger a FRESH webhook event rather than rerunning
-   an old one — toggle a label off and back on (the workflow's `labeled`/
-   `unlabeled` trigger types already listen for this), or push a new commit.
-   Never call `rerun_workflow_run` on a stale/superseded run as the fix.
+See `references/ci-convention-check.md` for that last read's one extra rule
+(an unverified check is never assumed green).
 
 ## User interaction
 

@@ -425,22 +425,24 @@ class McpRemovalTest(unittest.TestCase):
 
 class FrozenPayloadTest(unittest.TestCase):
     """R-B/R-C: deleting the MCP-fallback section must not strand the
-    frozen-payload troubleshooting section it used to point into."""
+    frozen-payload troubleshooting section it used to point into.
+
+    The section has since moved into `references/ci-convention-check.md` under
+    progressive disclosure -- only a run whose convention check comes back red
+    needs it. Reachability is therefore the same requirement stated across two
+    files: the section exists, and SKILL.md routes to it."""
 
     FROZEN_HEADING = "### CI convention-check troubleshooting (frozen-payload gotcha)"
+    FROZEN_REF = os.path.join(
+        PLUGIN, "skills", "create-pr", "references", "ci-convention-check.md")
 
     def test_frozen_payload_section_is_still_reachable(self):
-        body = read(CREATE_PR_SKILL)
-        self.assertIn(self.FROZEN_HEADING, body)
-        idx = body.index(self.FROZEN_HEADING)
-        before = body[:idx]
-        self.assertRegex(
-            before, r"(?i)frozen-payload gotcha",
-            "a pointer into the frozen-payload section must exist earlier in the file",
-        )
+        self.assertIn(self.FROZEN_HEADING, read(self.FROZEN_REF))
+        self.assertIn("references/ci-convention-check.md", read(CREATE_PR_SKILL),
+                      "SKILL.md must route to the frozen-payload section")
 
     def test_frozen_payload_guidance_is_preserved(self):
-        body = read(CREATE_PR_SKILL)
+        body = read(self.FROZEN_REF)
         self.assertIn(
             "Never treat a rerun of a stale/superseded run as a valid re-check.",
             body,
@@ -450,7 +452,7 @@ class FrozenPayloadTest(unittest.TestCase):
         self.assertIn("Never call `rerun_workflow_run` on a stale/superseded run", body)
 
     def test_mcp_aside_removed_and_unverified_rule_added(self):
-        section = extract_section(read(CREATE_PR_SKILL), self.FROZEN_HEADING)
+        section = extract_section(read(self.FROZEN_REF), self.FROZEN_HEADING)
         self.assertNotIn("actions_list", section)
         self.assertNotIn("actions_get", section)
         self.assertNotIn("when `gh` is unavailable", section)
