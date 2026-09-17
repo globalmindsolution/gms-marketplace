@@ -81,4 +81,3 @@ Spawn the executors and the verifier as `${CLAUDE_PLUGIN_ROOT}/skills/code/refer
 model/effort resolution, the foreground-wait rule, the XML task and
 result contract, and the phase-artifact persistence are identical on
 every path.
-

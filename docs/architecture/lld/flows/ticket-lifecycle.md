@@ -95,4 +95,3 @@ records `delivery_path` plus `delivery_path_reason` on `pipeline-state.json`
 (`acs.py path set`). `ticket.json` is unchanged by that judgement, and a
 ticket minted by an older build that still carries `size`, `stakes` or `lane`
 is read as if it did not.
-
