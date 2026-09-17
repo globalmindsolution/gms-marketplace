@@ -25,13 +25,40 @@ default branch where that path exists. The release cut replaces the SHA with
 the new tag and re-asserts the path, together (`release.extra_refs` in
 `.acs/settings.json` sets `source/ref` and `source/path`).
 
-Offline and free: it asks the local clone. Where the ref is not present (a
-shallow CI clone with no tags) the check skips with that reason rather than
-failing on an absence it cannot distinguish from a defect.
+Then on 2026-09-17 the same entry broke a second way, and this file did not
+catch it either:
+
+    Failed to clone repository for git-subdir source: warning: Could not find
+    remote branch e7e633f1804... to clone.
+    fatal: Remote branch e7e633f1804... not found in upstream origin
+
+The 2026-09-16 fix pinned `ref` to a COMMIT on the default branch, which makes
+`path` resolve — `git cat-file -t <sha>:src/acs` is happy, so every assertion
+below passed. But the installer does not `cat-file` the ref, it CLONES with it:
+`git clone --branch <ref>`, which accepts a branch or a tag and rejects a bare
+SHA. Resolvable and cloneable are different properties, and only the first was
+tested.
+
+So a third constraint joins the two above: `ref` must NAME something — a branch
+or a tag — never a raw SHA. Between releases that means the default branch;
+`release.extra_refs` already rewrites it to `v{version}` at the cut, which is a
+tag and therefore cloneable. Note there is currently no OLDER tag that would
+work: `v0.4.9` predates the `plugins/acs` -> `src/acs` move, so `src/acs` does
+not exist there. Until v0.5.0 is tagged, the default branch is the only value
+that satisfies all three.
+
+Offline and free: it asks the local clone, reading the ref through
+`origin/<ref>` when the bare name is absent -- which is the normal case in a
+`pull_request` checkout, detached at the merge ref with no local branches.
+Where neither name resolves the check skips with that reason rather than
+failing on an absence it cannot distinguish from a defect. `ci.yml` checks
+out at `fetch-depth: 0` so that absence does not arise there; at the default
+depth 1 it arose on every run, which is how #540 shipped green.
 """
 
 import json
 import os
+import re
 import subprocess
 import unittest
 
@@ -44,6 +71,21 @@ SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 def git(*args):
     return subprocess.run(["git"] + list(args), cwd=REPO_ROOT,
                           capture_output=True, text=True)
+
+
+def resolve(ref):
+    """The name to read `ref` through in THIS clone, or None if absent.
+
+    A `pull_request` checkout is detached at the merge ref and carries no
+    local branches, so a `ref` of `main` fails `rev-parse` while
+    `origin/main` resolves -- and git does not DWIM the one into the other.
+    Skipping on that absence made the checks below inert in CI on exactly
+    the value the manifest holds between releases.
+    """
+    for name in (ref, "origin/" + ref):
+        if git("rev-parse", "--verify", "--quiet", name + "^{commit}").returncode == 0:
+            return name
+    return None
 
 
 def entries():
@@ -83,9 +125,10 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
                     # No ref means the marketplace tracks the default branch,
                     # and the working-tree check above is the whole of it.
                     continue
-                if git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
+                readable = resolve(ref)
+                if readable is None:
                     self.skipTest("ref %r not present in this clone (shallow fetch?)" % ref)
-                probe = git("cat-file", "-t", "%s:%s" % (ref, path))
+                probe = git("cat-file", "-t", "%s:%s" % (readable, path))
                 self.assertEqual(
                     probe.returncode, 0,
                     "%s: '%s' does not exist at ref '%s' — an install of this "
@@ -102,13 +145,80 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
             with self.subTest(plugin=name):
                 if not ref:
                     self.skipTest("entry tracks the default branch")
-                if git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
+                readable = resolve(ref)
+                if readable is None:
                     self.skipTest("ref %r not present in this clone" % ref)
-                target = "%s:%s/.claude-plugin/plugin.json" % (ref, path)
+                target = "%s:%s/.claude-plugin/plugin.json" % (readable, path)
                 self.assertEqual(
                     git("cat-file", "-e", target).returncode, 0,
                     "%s: no plugin.json at %s — the subdirectory resolves but "
                     "carries no plugin" % (name, target))
+
+
+class TheRefMustBeCloneableTest(unittest.TestCase):
+    """`git clone --branch <ref>` takes a branch or a tag, never a bare SHA.
+
+    This is the property the 2026-09-17 install failure exercised. It is
+    separate from "path resolves at ref": a commit SHA resolves fine and
+    clones not at all, which is exactly how the previous fix passed every
+    check in this file and still could not be installed.
+    """
+
+    #: A ref of 7-40 hex characters is a commit SHA by shape. Branch and tag
+    #: names in this repo are not (`main`, `v0.4.9` both carry non-hex
+    #: characters), so the shape alone decides it.
+    SHA = re.compile(r"\A[0-9a-f]{7,40}\Z")
+
+    def test_no_entry_pins_a_bare_sha(self):
+        """Lexical on purpose: no git call, so it holds in a SHALLOW clone.
+
+        The first draft of this test asked git to confirm the ref resolved
+        before calling it a SHA. That inverted the guard exactly where it
+        matters: `ci.yml` checks out at the default `fetch-depth: 1`, where
+        `rev-parse` on an arbitrary SHA FAILS, the `and` chain short-circuits,
+        and the assertion passes on the very value it exists to reject. A
+        guard that cannot fail in CI is the mistake this whole file is about,
+        so the check that carries the weight asks no questions it might not
+        get an answer to.
+        """
+        for name, source in entries():
+            ref = source.get("ref")
+            with self.subTest(plugin=name):
+                if not ref:
+                    continue  # tracks the default branch; nothing to clone by name
+                self.assertIsNone(
+                    self.SHA.fullmatch(ref),
+                    "%s: ref %r is a bare commit SHA. It resolves — every check "
+                    "above passes — but the installer runs `git clone --branch "
+                    "%s` and git refuses: 'Remote branch %s not found in "
+                    "upstream origin'. Use a branch name (the default branch "
+                    "between releases) or a tag." % (name, ref, ref, ref))
+
+    def test_the_ref_names_a_branch_or_a_tag(self):
+        """Best-effort companion: needs a clone that HAS the refs, so it skips
+        in CI's shallow checkout. The lexical test above is the load-bearing
+        one; this adds the case a SHA-shaped check cannot see — a ref that is
+        neither hex nor an existing branch or tag, e.g. a deleted branch."""
+        for name, source in entries():
+            ref = source.get("ref")
+            with self.subTest(plugin=name):
+                if not ref:
+                    continue
+                is_branch = git("show-ref", "--verify", "--quiet",
+                                "refs/heads/" + ref).returncode == 0
+                is_tag = git("show-ref", "--verify", "--quiet",
+                             "refs/tags/" + ref).returncode == 0
+                is_remote = git("show-ref", "--verify", "--quiet",
+                                "refs/remotes/origin/" + ref).returncode == 0
+                if not (is_branch or is_tag or is_remote):
+                    if resolve(ref) is None:
+                        self.skipTest(
+                            "ref %r not present in this clone (shallow fetch?)" % ref)
+                self.assertTrue(
+                    is_branch or is_tag or is_remote,
+                    "%s: ref %r is not a branch or a tag in this clone, so "
+                    "`git clone --branch %s` cannot resolve it."
+                    % (name, ref, ref))
 
 
 class TheCutMovesBothFieldsTogetherTest(unittest.TestCase):

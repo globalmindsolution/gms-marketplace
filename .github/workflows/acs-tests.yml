@@ -30,6 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # This job runs the same suite as ci.yml, so it needs the same refs:
+          # tests that ask git whether the marketplace ref resolves skip at the
+          # default depth 1, where neither tags nor branches are present. See
+          # the longer note on ci.yml's checkout.
+          fetch-depth: 0
 
       # Python is for the acs runner only; your suite uses the repo's own
       # toolchain (present on ubuntu-latest, deps installed by tests.setup).
