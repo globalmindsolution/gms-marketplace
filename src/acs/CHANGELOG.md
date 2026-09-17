@@ -77,7 +77,22 @@ the notes.
   verifier still runs the suite itself and still trusts nothing the executor
   recorded — deduplicating *within* an agent is free, deduplicating *across*
   them would remove the check that catches a padded coverage number.
-  `tests/acs/test_code_single_suite_run.py` pins both halves.
+
+- **The /acs:code verifier no longer runs the e2e suite; `/acs:run-e2e-tests`
+  owns it.** Each suite now has exactly one full-run owner, and the pipeline
+  decides which: `workflows/ship.yaml` orders `code → create-e2e-tests →
+  run-e2e-tests` and has no dedicated unit step, so the code verifier owns the
+  full unit run and the dedicated skill owns the full e2e run. Running e2e in
+  the verifier was not only the slowest suite twice per ticket — it ran
+  *before* `/acs:create-e2e-tests` had written the ticket's e2e tests, so a
+  green result there was a pass over a suite that was still missing them. What
+  the verifier keeps is the obligation rather than the run: a spec that
+  declared e2e impact with no matching e2e test change is still a blocking
+  finding. `settings.e2e.per_iteration` is accordingly **accepted and inert** —
+  it existed only to skip a verifier e2e run that no longer happens — and
+  `post_code_test` was already ON by default under exactly the condition that
+  gave the verifier its `e2e_command`, so no repo loses e2e gating by default.
+  `tests/acs/test_code_single_suite_run.py` pins all of this.
 
 - **⚠️ BREAKING: six Design-phase skills became internal legs (ADR 0091).**
   `/acs:create-docs <set|all>` is now the only user-facing command for the four

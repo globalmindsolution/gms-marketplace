@@ -60,9 +60,14 @@ Parse the printed context JSON. Fields you will use:
   executors),
   `formats.branch_name`,
   `formats.commit_message`, and `e2e` (may be unset — when set, pass
-  `<constraint name="e2e_command">`/`e2e_setup`/`e2e_teardown`/
-  `e2e_per_iteration` to executors and the verifier; e2e tests are part of
-  the changeset and the suite gates the verdict).
+  `<constraint name="e2e_command">`/`e2e_setup`/`e2e_teardown` to executors and
+  the verifier. `e2e_per_iteration` is still accepted and still passed, but
+  nothing reads it any more: it existed to let the verifier skip its full e2e
+  run on some iterations, and the verifier no longer has one — the full e2e
+  suite belongs to `/acs:run-e2e-tests`, which `workflows/ship.yaml` runs after
+  `/acs:create-e2e-tests` has written the tests. What still gates the verdict
+  here is the DIFF: a spec that declared e2e impact with no matching e2e test
+  change is a blocking finding).
 - `models` — per-role `{model, effort}` for executor/verifier (the planner
   entry is resolved for every skill; this one spawns no planner).
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
@@ -497,10 +502,10 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
 2. **Implement** until the tests pass. Iterate against the tests your change
-   touches — that is the feedback loop you actually act on. Once the spec is
-   done, run the full suite once, as the regression check. Running the whole
-   suite after every edit buys no information the affected tests did not
-   already give you, and on a large suite it is most of the run's wall clock.
+   touches — that is the feedback loop you actually act on. The full unit suite
+   runs **once per executor**, after its last spec, not once per spec and not
+   after every edit: it answers "did the assembled work break anything", and
+   that question has one answer per changeset, however many specs went into it.
    Code comments stay **minimal and idea-only**
    — one short single-responsibility line per new function (SOLID:
    one unit, one job), never a ticket id in source, and on edits only the

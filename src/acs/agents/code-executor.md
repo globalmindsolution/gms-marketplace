@@ -57,14 +57,17 @@ never quietly do code work under a docs-only ticket.
    `problems` field. Never silently drop a case, and never renumber one.
 2. **Implement** until those tests pass. Iterate against the tests your change
    touches: that is the loop whose result you act on, and re-running an entire
-   suite after every edit tells you nothing the affected tests did not. When
-   the spec is done, run the full suite ONCE with the commands from the plan's
-   test strategy — that single run is the regression check, and step 3 reads
-   it rather than repeating it.
+   suite after every edit tells you nothing the affected tests did not. Run the
+   full unit suite ONCE, after your LAST spec, with the commands from the
+   plan's test strategy. Once per executor, not once per spec: "did the
+   assembled work break anything" has a single answer for the whole file map,
+   and asking it per spec buys the same answer at N times the cost. That single
+   run is the regression check, and step 3 reads it rather than repeating it.
    When `<constraints>` carries `e2e_command` and your spec's Test plan names
    e2e flows: write/update those e2e tests too and run the AFFECTED e2e tests
    once (with `e2e_setup` first and `e2e_teardown` after, pass or fail) —
-   the full e2e suite is the verifier's job, not yours.
+   the full e2e suite is `/acs:run-e2e-tests`' job, not yours and not the
+   verifier's.
 
    **Code-comment policy — minimal, idea-only (token discipline).** Comments
    are output you pay for; keep them lean:

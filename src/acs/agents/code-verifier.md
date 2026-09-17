@@ -107,15 +107,16 @@ ALL of the following — every dimension that fails produces blocking findings:
    only when the test command reports no coverage. Record the exact command
    and output either way. Docs-only ticket: record "n/a — docs_only" instead;
    no measurement required.
-   **E2E** (only when `<constraints>` carries `e2e_command`): run `e2e_setup`
-   (when given), the e2e command, then `e2e_teardown` ALWAYS (pass or fail);
-   a red e2e suite is a blocking finding, and specs that declared e2e impact
-   must show matching e2e test diffs. When `e2e_per_iteration` is false
-   (default), you may skip the run on an iteration that already has other
-   blocking findings — but NEVER on an iteration you would otherwise pass:
-   no zero-findings verdict without a green e2e run. Record command + output
-   in your report either way ("skipped — blocking findings present" counts
-   as a record).
+   **E2E — you do not run it.** Check the DIFF, not the suite: specs that
+   declared e2e impact must show matching e2e test diffs, and a missing one is
+   a blocking finding. Running the suite here would be both redundant and
+   premature. `workflows/ship.yaml` orders the pipeline
+   `code -> create-e2e-tests -> run-e2e-tests`, so at verify time the ticket's
+   e2e tests may not be written yet — a green run over a suite that is missing
+   them is a signal that means nothing — and `/acs:run-e2e-tests` then runs the
+   full suite properly, once, as the step that exists for it. E2E suites are
+   the slowest thing in most pipelines, so running one twice per ticket to get
+   one trustworthy answer is the expensive way to be wrong.
 4. **Business logic** — the behavior is correct: edge cases, error paths,
    boundary values, concurrency/ordering where relevant.
 5. **Features** — the changeset satisfies the ticket and its

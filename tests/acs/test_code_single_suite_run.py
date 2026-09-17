@@ -92,18 +92,24 @@ class CoverageIsReadNotReMeasuredTest(unittest.TestCase):
                                  "redundant run" % phrase)
 
 
-class FullSuiteOncePerSpecNotPerEditTest(unittest.TestCase):
-    """The executor's fast loop is the affected tests; the full suite is a
-    boundary check, not an inner-loop one."""
+class FullUnitSuiteOncePerExecutorTest(unittest.TestCase):
+    """The executor's fast loop is the affected tests; the full unit suite is a
+    once-per-executor check, not a per-spec or per-edit one.
+
+    "Did the assembled work break anything" has ONE answer per changeset, so an
+    executor holding three specs in its file map asks it once, not three times.
+    """
 
     def test_coordinator_scopes_the_iteration_loop_to_affected_tests(self):
         body = norm(CODE_SKILL)
         self.assertIn("Iterate against the tests your change touches", body)
-        self.assertIn("run the full suite once, as the regression check", body)
+        self.assertIn("runs **once per executor**, after its last spec, not "
+                      "once per spec", body)
 
-    def test_executor_says_once_and_says_why(self):
+    def test_executor_says_once_per_executor_and_says_why(self):
         body = norm(CODE_EXECUTOR)
-        self.assertIn("run the full suite ONCE", body)
+        self.assertIn("Run the full unit suite ONCE, after your LAST spec", body)
+        self.assertIn("Once per executor, not once per spec", body)
         self.assertIn("re-running an entire suite after every edit tells you "
                       "nothing the affected tests did not", body)
 
@@ -113,6 +119,49 @@ class FullSuiteOncePerSpecNotPerEditTest(unittest.TestCase):
         self.assertIn("A single full run reports on every spec recorded "
                       "implemented at the same time", body)
 
+
+class EachSuiteHasOneFullRunOwnerTest(unittest.TestCase):
+    """The unit suite and the e2e suite each get run in full by exactly one
+    owner, and they are different owners because the pipeline is shaped that
+    way.
+
+    `workflows/ship.yaml` has a dedicated e2e step -- code -> create-e2e-tests
+    -> run-e2e-tests -- and no dedicated unit step. So the /code verifier is
+    the full-run owner for unit, and `/acs:run-e2e-tests` is the owner for e2e.
+    The verifier used to run BOTH, which cost the slowest suite in the pipeline
+    twice per ticket AND ran it at a point where `create-e2e-tests` had not yet
+    written the ticket's e2e tests -- a green result over an incomplete suite.
+    """
+
+    def test_verifier_does_not_run_the_e2e_suite(self):
+        body = norm(CODE_VERIFIER)
+        self.assertIn("**E2E — you do not run it.**", body)
+        self.assertIn("Check the DIFF, not the suite", body)
+
+    def test_verifier_says_why_running_it_there_was_premature(self):
+        body = norm(CODE_VERIFIER)
+        self.assertIn("code -> create-e2e-tests -> run-e2e-tests", body,
+                      "the ordering is the reason, and it should be stated")
+        self.assertIn("/acs:run-e2e-tests", body)
+
+    def test_the_e2e_diff_check_survives_the_removal(self):
+        """Dropping the run must not drop the obligation: a spec that declared
+        e2e impact still has to show a matching e2e test change."""
+        self.assertIn("declared e2e impact must show matching e2e test diffs",
+                      norm(CODE_VERIFIER))
+
+    def test_executor_points_full_e2e_at_the_dedicated_skill(self):
+        body = norm(CODE_EXECUTOR)
+        self.assertIn("run the AFFECTED e2e tests", body)
+        self.assertIn("the full e2e suite is `/acs:run-e2e-tests`' job", body)
+        self.assertNotIn("the full e2e suite is the verifier's job", body,
+                         "stale ownership: the verifier no longer runs it")
+
+    def test_the_dead_setting_is_named_as_dead_rather_than_left_looking_live(self):
+        """`e2e_per_iteration` only ever steered the verifier's e2e run. Leaving
+        it undocumented would leave operators tuning a knob wired to nothing."""
+        self.assertIn("`e2e_per_iteration` is still accepted and still passed, "
+                      "but nothing reads it any more", norm(CODE_SKILL))
 
 class NoCrossAgentTrustTest(unittest.TestCase):
     """The guard rail. Deduplicating WITHIN an agent is free; deduplicating
