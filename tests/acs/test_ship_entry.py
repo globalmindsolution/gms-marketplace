@@ -20,6 +20,15 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
+SHIP_FAILURE_PATHS = os.path.join(
+    PLUGIN, "skills", "ship", "references", "failure-paths.md")
+
+
+def ship_contract():
+    """SKILL.md plus the reference it points at. `on_fail` and `on_replan`
+    moved into `references/failure-paths.md` -- a pipeline whose steps all
+    complete never reads them -- so a pin on what the skill SAYS reads both."""
+    return read(SHIP_SKILL) + "\n" + read(SHIP_FAILURE_PATHS)
 
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
@@ -209,9 +218,14 @@ class LoopDelegationTest(unittest.TestCase):
                       "the fan-out mechanism is cited, not reinvented")
 
     def test_on_replan_and_on_fail_are_keyed_on_the_step_fields(self):
-        self.assertIn("## Replan", self.body)
-        self.assertIn("## Fix loop", self.body)
-        replan = section(self.body, "## Replan")
+        # Both sections now live in `references/failure-paths.md`; SKILL.md
+        # routes to them. What is pinned is that each stays keyed on its own
+        # step field, not which file states it.
+        contract = ship_contract()
+        self.assertIn("## Replan", contract)
+        self.assertIn("## Fix loop", contract)
+        self.assertIn("references/failure-paths.md", self.body)
+        replan = section(contract, "## Replan")
         self.assertIn("plan_superseded", replan)
         self.assertIn("on_replan", replan)
 

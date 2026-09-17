@@ -16,6 +16,10 @@ PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 PIPELINE_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "pipeline-state.schema.json")
 SETTINGS_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
+SHIP_REFERENCES = os.path.join(PLUGIN, "skills", "ship", "references")
+#: The fix loop and the replan path moved here under progressive disclosure:
+#: a pipeline whose steps all complete never enters either.
+SHIP_FAILURE_PATHS = os.path.join(SHIP_REFERENCES, "failure-paths.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 
 
@@ -106,7 +110,10 @@ class ShipSkillGateAndLoopTest(unittest.TestCase):
     FIX_LOOP_HEADING = "## Fix loop"
 
     def _body(self):
-        return read(SHIP_SKILL)
+        """SKILL.md plus its references: the fix loop the assertions below pin
+        now lives in `references/failure-paths.md`, and the pin is that the
+        skill states the rule, not which of its files does."""
+        return read(SHIP_SKILL) + "\n" + read(SHIP_FAILURE_PATHS)
 
     def _normalized_body(self):
         return re.sub(r"\s+", " ", self._body())

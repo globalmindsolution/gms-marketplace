@@ -352,88 +352,16 @@ re-judgement. Close with the standard completion report block below,
 This section changes only **when** the tail runs, never **which** steps run or
 in what order — that stays ship.yaml's to declare and the walk's to compute.
 
-## Fix loop (`on_fail`)
+## The failure-path reference, and when to open it
 
-A ready step may carry `on_fail: {relay_to: <step id>, max_loops: <int>}`.
-That step is allowed to fail and be fixed: on a failing run, relay the
-failure into the named step, re-run it, and try again — up to `max_loops`
-times. `max_loops` arrives already resolved (ship.yaml may name a settings
-key; the walk reads it for you). Resolve `relay_to`'s skill from
-`acs.py workflow show` (`workflow.steps[].id` → `.skill`) — never assume the
-id and the skill are spelled the same.
+Nearly all of this skill is one loop: ask `acs.py workflow next` what is
+ready, invoke it, record the outcome, ask again. One part is not — what to do
+when an invoked step comes back `failed` and its `ready[]` entry says the
+pipeline is allowed to recover rather than stop:
 
-Every write below goes through the `pipeline-step.py` CLI — never embedded
-Python (ADR 0001). `--set fix_loops=<n>` merges the counter onto the step
-entry and `--unset fix_loops` removes it; the step's own `status` and
-timestamps stay owned by the step's own run. Read the current value from
-`statuses` / `<partition>/pipeline-state.json.steps.<step id>.fix_loops`
-(default `0` when absent). `fix_loops` is independent of any step's own
-internal iteration cap — the two counters never interact.
-
-1. **Re-entry reset.** If the existing `steps.<step id>` entry is `failed`,
-   this is a resumed run re-entering the step after a previous cap. Reset the
-   counter first and treat `fix_loops` as `0` below:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status in_progress --unset fix_loops
-   ```
-
-   Without this the resumed run re-reads the capped value, falls straight
-   into case 4 on its first failure, and can never make progress.
-2. **The step completed** → it recorded its own `completed` entry. Clear the
-   counter and go back to the walk:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status completed --unset fix_loops
-   ```
-3. **The step failed and `fix_loops < max_loops`** → increment the counter,
-   then relay the failure output into `/acs:<relay_to skill> <ticket-id>`
-   **exactly via the existing "Re-invoke after needs_input" pattern** (see
-   "Single mode" above) — the failure output is the relayed context text, in
-   place of `Q: ... A: ...` lines; it is not a new mechanism. When that run
-   completes, go back to the walk, which offers the failed step again; this
-   is the fix-and-re-try loop.
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status in_progress \
-     --set fix_loops=<fix_loops + 1>
-   ```
-4. **The step failed and `fix_loops == max_loops`** → record the cap on the
-   step and STOP, mirroring the failed-handling shape below. A later resumed
-   run clears the counter via the re-entry reset in case 1:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-     --ticket <ticket-id> --skill <step id> --status failed \
-     --set fix_loops=<max_loops> --summary "fix_loops cap reached"
-   ```
-
-**Orchestration, not step-work.** The counter and its cap are /acs:ship's to
-keep; the step's own pass/fail outcome is recorded by the run that produced
-it. The split is what keeps the two from overwriting each other, and it is
-consistent with "You orchestrate; you never implement" above — the step's
-actual work stays entirely inside the step skill you invoked.
-
-## Replan (`on_replan`)
-
-A ready step may carry `on_replan: <step id>` — the step to re-run when this
-one discovers that the work it was given is wrong rather than merely broken.
-When such a step returns `failed` with `stop_reason: plan_superseded` (and
-only then), do NOT stop the pipeline:
-
-1. Resolve the named step's skill from `acs.py workflow show`, as above.
-2. Invoke it directly (`acs:<skill> <ticket-id>`) so it produces a fresh
-   artifact; the superseded one is preserved by that skill's own revocation
-   path, not by you.
-3. Go back to the walk. The boundary step is ready again — its own ledger
-   entry says `failed` — and runs against the new artifact.
-
-Any other `failed` reason is an ordinary stop (below). Do not re-run a step
-more than once for the same `plan_superseded` reason: a second one means the
-ticket needs a human, so stop and say so.
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/ship/references/failure-paths.md` | A step returned `failed` AND its `ready[]` entry carries `on_fail` (relay the failure into a named step and re-try, up to a cap this skill keeps as `fix_loops`) or `on_replan` (re-run a named step, but only for `stop_reason: plan_superseded`). A step that fails carrying neither is an ordinary stop — see "Handling the handoff" below. |
 
 ## Handling the handoff
 
@@ -451,8 +379,9 @@ Branch strictly on `status`:
   fixed cap, but if the same step returns needs_input three times with
   substantially the same questions, stop and surface the impasse to the user.
 - **failed** or **interrupted** — STOP the pipeline, unless the step carries
-  `on_replan` and the reason is `plan_superseded` (see "Replan"), or it
-  carries `on_fail` and the counter is under its cap (see "Fix loop").
+  `on_replan` and the reason is `plan_superseded`, or it carries `on_fail`
+  and the counter is under its cap — both in
+  `references/failure-paths.md`.
   Otherwise: surface the handoff `<summary>` verbatim, say where the state
   lives (`<partition>` and `<partition>/phases/<step>/`), and tell the user
   how to resume: `/acs:ship <ticket-id>` to retry the pipeline from this
@@ -461,7 +390,8 @@ Branch strictly on `status`:
 - **handed_off** — treat as interrupted: stop and print the same resume
   commands; the step flushed its own handoff context to the partition.
 - **fix-loop cap reached** — when an `on_fail` step's `fix_loops` counter
-  reaches its `max_loops` on a failing run (see "Fix loop" above), STOP the
+  reaches its `max_loops` on a failing run (`references/failure-paths.md`),
+  STOP the
   pipeline the same way as failed/interrupted: surface a "persistent failure"
   report, say where the state lives (`<partition>` and
   `<partition>/phases/<step>/`), and tell the user how to resume:

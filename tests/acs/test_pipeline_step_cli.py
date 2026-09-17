@@ -14,6 +14,7 @@ Run:  python3 -m unittest tests.acs.test_pipeline_step_cli -v
 """
 
 import json
+import glob
 import os
 import re
 import sys
@@ -211,7 +212,16 @@ class RunE2eTestsProseContractTest(unittest.TestCase):
 
 class ShipProseContractTest(unittest.TestCase):
     def setUp(self):
-        self.body = read(os.path.join(PLUGIN, "skills", "ship", "SKILL.md"))
+        # Every `pipeline-step.py` invocation /acs:ship makes belongs to the
+        # fix loop, which moved into `references/failure-paths.md` -- a
+        # pipeline whose steps all complete never runs one. The guard follows
+        # the invocations: what is pinned is that the skill writes the ledger
+        # through the CLI, never which of its files carries the command.
+        base = os.path.join(PLUGIN, "skills", "ship")
+        parts = [read(os.path.join(base, "SKILL.md"))]
+        parts += [read(q) for q in
+                  sorted(glob.glob(os.path.join(base, "references", "*.md")))]
+        self.body = "\n".join(parts)
 
     def test_ship_writes_the_ledger_through_the_cli_not_embedded_python(self):
         self.assertIn("pipeline-step.py", self.body)
