@@ -21,6 +21,12 @@ sys.path.insert(0, HOOKS_SCRIPTS)
 import acs_lib as lib  # noqa: E402
 
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
+#: /acs:code's three conditional lane-change branches moved out of SKILL.md
+#: into references/lane-changes.md under progressive disclosure -- they are
+#: entered by few runs but were loaded on every one. The prose pinned below is
+#: the same prose; only the file carrying it changed.
+CODE_LANE_CHANGES = os.path.join(
+    SKILLS_DIR, "code", "references", "lane-changes.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 
 # The exact breakdown-command wording landed in acs_lib's gate_code (T1,
@@ -36,6 +42,17 @@ GATE_DESIGN_FIRST_COMMAND = "/acs:create-design %s first if the epic has no desi
 def read(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def code_contract():
+    """/acs:code's full contract: SKILL.md plus its references/*.md.
+
+    The escalation and de-escalation branches moved into
+    references/lane-changes.md under progressive disclosure. Assertions about
+    what the SKILL says — as opposed to which of its files says it — read
+    both, so a later layout change cannot make a surviving rule look deleted.
+    """
+    return read(CODE_SKILL) + "\n" + read(CODE_LANE_CHANGES)
 
 
 def norm(text):
@@ -93,8 +110,7 @@ class StartStepBreakdownRecommendationTest(unittest.TestCase):
     breakdown recommendation."""
 
     def _start_section(self):
-        body = read(CODE_SKILL)
-        return section(body, "## Start", "## Branch")
+        return section(read(CODE_SKILL), "## Start", "## Branch")
 
     def test_start_step_names_size_large_and_complex_lane(self):
         body_norm = norm(self._start_section())
@@ -192,9 +208,8 @@ class EscalationStepBreakdownRecommendationTest(unittest.TestCase):
     mid-flight escalate_lane raise to COMPLEX for a non-epic ticket."""
 
     def _escalation_section(self):
-        body = read(CODE_SKILL)
         return section(
-            body,
+            read(CODE_LANE_CHANGES),
             "### In-loop escalation check (upward-only, MAR-57)",
             "### Boundary-only user-confirmed de-escalation (D3)")
 
@@ -221,7 +236,7 @@ class EscalationStepBreakdownRecommendationTest(unittest.TestCase):
         test_d4_no_restart_guarantee_anchored_near_detection_point: this
         module's own insertion must not have pushed the no-restart phrase
         outside 400 chars of 'detection point'."""
-        body = read(CODE_SKILL)
+        body = code_contract()
         self.assertIsNotNone(
             re.search(
                 r"(?i)detection point.{0,400}(no.restart|without restart|"
@@ -239,7 +254,7 @@ class NoFourthTriggerNegativeGuardTest(unittest.TestCase):
     describes no automatic de-escalation."""
 
     def _body(self):
-        return read(CODE_SKILL)
+        return code_contract()
 
     def test_frozen_three_trigger_sentence_still_present_verbatim(self):
         self.assertIn(

@@ -8,12 +8,11 @@ The lane (TRIVIAL / SMALL / STANDARD / COMPLEX) is derived from the ticket's
 and verify depth. Most runs never change it: the lane resolved at Start is the
 lane the run finishes on, and the coordinator never opens this file.
 
-Read this file when one of these is true, and only then — it is three
+Read this file when one of these is true, and only then — it is two
 conditional branches, not part of the main flow:
 
 | Situation | Section |
 |---|---|
-| The recomputed lane is COMPLEX on a non-epic ticket | [Non-epic COMPLEX breakdown recommendation](#non-epic-complex-breakdown-recommendation-surfaced-non-blocking-d7-c) |
 | A verifier finding, a `high_stakes_paths` match, or an explicit request suggests this ticket is bigger or higher-stakes than it was classified | [In-loop escalation check](#in-loop-escalation-check-upward-only-mar-57) |
 | The user asks, at an iteration or run boundary, to LOWER size/stakes | [Boundary-only user-confirmed de-escalation](#boundary-only-user-confirmed-de-escalation-d3) |
 
@@ -22,28 +21,6 @@ with a recorded human confirmation.** An automatic path may escalate on its own
 evidence, because being too careful costs time; only a person may de-escalate,
 because being too careless costs correctness, and `confirm_deescalation` is the
 one sanctioned lowering path in the system.
-
----
-
-### Non-epic COMPLEX breakdown recommendation (surfaced, non-blocking; D7-C)
-
-An epic ticket is refused outright by the `code` gate before this skill ever
-starts (`gate_code` raises `GateError` for `ticket.type == "epic"` — the
-message the user sees comes from the gate). Every ticket that reaches this
-step therefore has `ticket.type != "epic"`. If `ticket.type == "epic"`
-nonetheless reaches this step (a bypassed or best-effort pre-gate on some
-runtimes), STOP immediately and surface the same breakdown message
-`gate_code` would have raised — never implement an epic under any
-circumstance, regardless of what the pre-gate did or did not enforce.
-
-For this non-epic ticket, **recompute** `derive_lane(ticket.size,
-ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib/lanes.py`) fresh —
-never read the cached `ticket.lane`, which can be stale or hand-edited
-(NFR-S4). When the recomputed lane is `COMPLEX` (e.g. `size: large` → lane
-COMPLEX), **surface** — never block — a breakdown recommendation: note the
-`size: large → lane COMPLEX` reading and suggest promoting the ticket to an
-epic and running `/acs:create-design`. Then continue the run at full verify
-depth; nothing here refuses or pauses it.
 
 ---
 

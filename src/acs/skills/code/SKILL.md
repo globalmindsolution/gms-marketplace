@@ -73,29 +73,31 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `post_hook` — absolute path to `post-code.py`.
 
-### Non-epic COMPLEX tickets, and mid-run lane changes
+### Non-epic COMPLEX breakdown recommendation (surfaced, non-blocking; D7-C)
 
-An epic never reaches this skill — `gate_code` refuses `ticket.type == "epic"`
-before it starts, with a breakdown message. If one arrives anyway (a bypassed
-pre-gate on some runtime), STOP and surface that same message: never implement
-an epic, whatever the gate did or did not enforce.
+An epic ticket is refused outright by the `code` gate before this skill ever
+starts (`gate_code` raises `GateError` for `ticket.type == "epic"` — the
+message the user sees comes from the gate). Every ticket that reaches this
+step therefore has `ticket.type != "epic"`. If `ticket.type == "epic"`
+nonetheless reaches this step (a bypassed or best-effort pre-gate on some
+runtimes), STOP immediately and surface the same breakdown message
+`gate_code` would have raised — never implement an epic under any
+circumstance, regardless of what the pre-gate did or did not enforce.
 
-For every other ticket, **recompute** `derive_lane(ticket.size, ticket.stakes,
-ticket.needs_design, ticket.type)` (`acs_lib/lanes.py`) fresh rather than
-reading the cached `ticket.lane`, which can be stale or hand-edited (NFR-S4).
-That lane sets the iteration ceiling below.
+For this non-epic ticket, **recompute** `derive_lane(ticket.size,
+ticket.stakes, ticket.needs_design, ticket.type)` (`acs_lib/lanes.py`) fresh —
+never read the cached `ticket.lane`, which can be stale or hand-edited
+(NFR-S4). When the recomputed lane is `COMPLEX` (e.g. `size: large` → lane
+COMPLEX), **surface** — never block — a breakdown recommendation: note the
+`size: large → lane COMPLEX` reading and suggest promoting the ticket to an
+epic and running `/acs:create-design`. Then continue the run at full verify
+depth; nothing here refuses or pauses it.
 
-Three situations change the lane, or ask you to comment on it, and all three
-live in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/lane-changes.md` — read it only when one applies:
+When a mid-run signal says this ticket is bigger or higher-stakes than it was
+classified, or the user asks at a boundary to lower it, see
+`${CLAUDE_PLUGIN_ROOT}/skills/code/references/lane-changes.md` — read it only when one applies.
+Most runs hit neither and never open that file.
 
-- the recomputed lane is **COMPLEX** on this non-epic ticket (surface a
-  breakdown recommendation; never block);
-- something mid-run says the ticket is **bigger or higher-stakes** than it was
-  classified (escalate — upward only, on three specific triggers);
-- the user asks at a boundary to **lower** size or stakes (de-escalate — only
-  with a recorded confirmation).
-
-Most runs hit none of them and never open that file.
 ## Branch — FIRST, before any code
 
 All work happens on the ticket branch. Render `settings.formats.branch_name`

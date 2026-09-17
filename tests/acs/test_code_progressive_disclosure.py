@@ -1,10 +1,14 @@
 """/acs:code's conditional branches live in references/, and stay reachable.
 
 SKILL.md is loaded in full every time the skill runs. /acs:code's was 918 lines
-of which roughly a third described three branches most runs never enter -- the
-non-epic COMPLEX breakdown recommendation, the in-loop escalation check, and
-boundary-only de-escalation. Those moved to references/lane-changes.md, read on
-demand.
+of which roughly a third described two branches most runs never enter -- the in-loop
+escalation check and boundary-only de-escalation. Those moved to
+references/lane-changes.md, read on demand.
+
+The non-epic COMPLEX breakdown recommendation deliberately did NOT move. It is
+19 lines, it sits at Start where every run reads it anyway, and it carries the
+epic-refusal invariant that several tests pin verbatim -- moving it bought 19
+lines of context and cost a rewritten invariant, which is a bad trade.
 
 The failure mode a split like this introduces is silent: a pointer that does not
 resolve, or a rule the coordinator never learns it should go and read, costs
@@ -73,8 +77,7 @@ class TheReferenceExistsAndIsReachableTest(unittest.TestCase):
         """A reference nobody is told to open is a deleted section."""
         body = norm(CODE_SKILL)
         self.assertIn("read it only when one applies", body)
-        self.assertIn("Most runs hit none of them and never open that file",
-                      body)
+        self.assertIn("Most runs hit neither and never open that file", body)
 
 
 class TheMovedBranchesAreAllThereTest(unittest.TestCase):
@@ -82,8 +85,7 @@ class TheMovedBranchesAreAllThereTest(unittest.TestCase):
 
     def test_all_three_conditional_sections_landed(self):
         body = read(LANE_CHANGES)
-        for heading in ("### Non-epic COMPLEX breakdown recommendation",
-                        "### In-loop escalation check",
+        for heading in ("### In-loop escalation check",
                         "### Boundary-only user-confirmed de-escalation"):
             with self.subTest(section=heading):
                 self.assertIn(heading, body)

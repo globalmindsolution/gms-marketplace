@@ -107,8 +107,11 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         body = read(CODE_SKILL)
+        # The escalation heading that used to close this window moved to
+        # references/lane-changes.md; the pointer section that replaced it is
+        # the new boundary.
         cls.window = section(
-            body, "### Verify-depth", "### In-loop escalation check")
+            body, "### Verify-depth", "### Lane changes mid-run")
         cls.window_norm = norm(cls.window)
 
     def test_verify_depth_section_defines_an_iteration_as_an_execute_verify_round(self):
