@@ -16,6 +16,7 @@ tests/acs/test_code_loop_topology.py. Stdlib only (os, re, unittest). Run:
   python3 -m unittest tests.acs.test_create_impl_plan -v
 """
 
+import io
 import os
 import re
 import unittest
@@ -51,6 +52,29 @@ C9_STOP_REASON = "user chose to split; restructure required before implementatio
 
 # .md-anchored only — iter-<n>-plan.xml (the message snapshot) must NOT match.
 LEGACY_PLAN_LITERAL = re.compile(r"iter-(?:<n>|\{n\}|\*|\d+)-plan\.md")
+
+
+def _code_contract():
+    """/acs:code's contract: the dispatcher, the four delivery-path legs, and
+    the references they share.
+
+    ADR-0095 split one 750-line body this way. These assertions pin what the
+    SKILL SAYS, never which of its files says it, so reading the concatenation
+    keeps the pin honest while the layout stays free to change -- and a rule
+    that genuinely vanishes still fails.
+    """
+    import glob as _glob
+    base = os.path.join(PLUGIN, "skills")
+    parts = []
+    for name in ("code", "code-trivial", "code-small", "code-standard", "code-complex"):
+        path = os.path.join(base, name, "SKILL.md")
+        if os.path.isfile(path):
+            with io.open(path, encoding="utf-8") as fh:
+                parts.append(fh.read())
+    for path in sorted(_glob.glob(os.path.join(base, "code", "references", "*.md"))):
+        with io.open(path, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
 
 
 def read(path):
@@ -275,7 +299,7 @@ class FileMapTest(unittest.TestCase):
             r"(?i)an undeclared map means no enforcement at all")
 
     def test_code_still_redeclares_for_its_own_iterations(self):
-        code_norm = norm(read(CODE_SKILL))
+        code_norm = norm(_code_contract())
         self.assertIn("filemap set", code_norm)
         self.assertRegex(
             code_norm,
@@ -532,7 +556,7 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = _code_contract()
         cls.norm = norm(cls.body)
 
     def test_plan_authoring_sections_are_gone(self):

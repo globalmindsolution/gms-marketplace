@@ -12,6 +12,7 @@ Stdlib-only (glob, os, re, unittest). Run:
 """
 
 import glob
+import io
 import os
 import re
 import unittest
@@ -24,6 +25,29 @@ SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skill
 PRD_MD = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 
 VERIFY_HEADING = "### Verify (per iteration) — this IS the changeset review"
+
+
+def _code_contract():
+    """/acs:code's contract: the dispatcher, the four delivery-path legs, and
+    the references they share.
+
+    ADR-0095 split one 750-line body this way. These assertions pin what the
+    SKILL SAYS, never which of its files says it, so reading the concatenation
+    keeps the pin honest while the layout stays free to change -- and a rule
+    that genuinely vanishes still fails.
+    """
+    import glob as _glob
+    base = os.path.join(PLUGIN, "skills")
+    parts = []
+    for name in ("code", "code-trivial", "code-small", "code-standard", "code-complex"):
+        path = os.path.join(base, name, "SKILL.md")
+        if os.path.isfile(path):
+            with io.open(path, encoding="utf-8") as fh:
+                parts.append(fh.read())
+    for path in sorted(_glob.glob(os.path.join(base, "code", "references", "*.md"))):
+        with io.open(path, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
 
 
 def read(path):
@@ -49,8 +73,13 @@ def code_verifier_body():
     return read(os.path.join(PLUGIN, "agents", "code-verifier.md"))
 
 
+def leg_body(name):
+    """One delivery-path leg's SKILL.md."""
+    return read(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
+
+
 def skill_body():
-    return read(os.path.join(PLUGIN, "skills", "code", "SKILL.md"))
+    return _code_contract()
 
 
 class LensTableTest(unittest.TestCase):
@@ -178,93 +207,89 @@ class NewDimensionTest(unittest.TestCase):
                          "dimensions paragraph")
 
 
-class FullDepthSpawnTest(unittest.TestCase):
-    """AC-1: code/SKILL.md's Verify section documents the verify_depth==full
-    4-lens spawn + coordinator-performed merge pass."""
+class ComplexPathSpawnTest(unittest.TestCase):
+    """The four-lens spawn and the coordinator-performed merge, now owned by
+    the `code-complex` leg (ADR-0095).
 
-    def _verify_section(self):
-        return section(skill_body(), VERIFY_HEADING)
+    The branch used to be a `verify_depth == "full"` fork inside one body. It is
+    a whole leg now, which is why these read code-complex/SKILL.md directly: a
+    path that carries the spawn IS the deep path, and there is no depth to
+    compute."""
 
-    def test_full_depth_spawns_four_parallel_lens_subagents(self):
-        window = self._verify_section()
-        self.assertRegex(
-            window, r'(?i)verify_depth\s*==\s*"full"',
-            "Verify section must branch on verify_depth==\"full\"")
+    def _body(self):
+        return leg_body("code-complex")
+
+    def test_the_complex_path_spawns_four_parallel_lens_subagents(self):
+        window = self._body()
         self.assertIn("4 parallel", window,
-                       "must document spawning 4 parallel subagents")
+                      "must document spawning 4 parallel subagents")
         self.assertIn("acs:code-verifier", window,
-                       "must name the acs:code-verifier subagent")
+                      "must name the acs:code-verifier subagent")
         self.assertIn("verify_lens", window,
-                       "must document the verify_lens constraint passed to "
-                       "each lens spawn")
+                      "must document the verify_lens constraint passed to "
+                      "each lens spawn")
+
+    def test_it_does_not_branch_on_a_depth_that_no_longer_exists(self):
+        """A leg IS its depth. A surviving verify_depth fork would mean the
+        runtime computation ADR-0095 retired had come back."""
+        for token in ("verify_depth", "derive_lane", "VERIFY_ITERATION_CAP"):
+            with self.subTest(symbol=token):
+                self.assertNotIn(token, self._body())
 
     def test_merge_algorithm_documented(self):
-        window = self._verify_section()
-        self.assertRegex(
-            window, r"(?i)2 or more.{0,40}lenses",
-            "must document the >=2-lenses-corroborated rule")
-        self.assertRegex(
-            window, r"(?i)exactly.{0,10}one.{0,40}lens",
-            "must document the exactly-one-lens re-scrutiny rule")
-        self.assertRegex(
-            window, r"(?is)never silently.{0,10}dropped",
-            "must document the never-silently-dropped downgrade rule")
+        window = self._body()
+        self.assertRegex(window, r"(?i)2 or more.{0,40}lenses",
+                         "must document the >=2-lenses-corroborated rule")
+        self.assertRegex(window, r"(?i)exactly.{0,10}one.{0,40}lens",
+                         "must document the exactly-one-lens re-scrutiny rule")
+        self.assertRegex(window, r"(?is)never silently.{0,10}dropped",
+                         "must document the never-silently-dropped downgrade rule")
         self.assertIn('severity="info"', window,
-                       "must document the info-level downgrade")
+                      "must document the info-level downgrade")
 
     def test_coordinator_writes_single_merged_artifact(self):
-        window = self._verify_section()
-        self.assertRegex(
-            window, r"(?i)coordinator.{0,80}writes the single merged",
-            "must state the coordinator (never a subagent) writes the "
-            "single merged iter-<n>-verify.md")
+        window = self._body()
+        self.assertRegex(window, r"(?i)coordinator.{0,80}writes the single merged",
+                         "must state the coordinator (never a subagent) writes the "
+                         "single merged iter-<n>-verify.md")
         self.assertIn("never a subagent", window,
-                       "must state explicitly that no subagent writes the "
-                       "merged artifact")
+                      "must state explicitly that no subagent writes the "
+                      "merged artifact")
 
-    def test_escalation_trigger_a_reads_post_merge_output(self):
-        window = self._verify_section()
+    def test_the_merge_lands_before_the_next_iteration_reads_it(self):
+        """The merged list is what the next iteration's executors are given.
+        (It used to also feed escalation trigger (a), which ADR-0095 retired —
+        the ordering property outlived the consumer that motivated it.)"""
         self.assertRegex(
-            window, r"(?is)trigger.{0,10}\(a\).{0,220}(final.{0,10}merged|"
-                     r"merge write always happens before)",
-            "must wire escalation trigger (a) to read the FINAL merged "
-            "findings, after the merge write")
+            self._body(),
+            r"(?is)merge write always happens before the next iteration",
+            "must state that the merge write precedes the next iteration")
 
 
-class LightDepthUnchangedTest(unittest.TestCase):
-    """AC-2 (regression guard): the light-depth branch text is present and
-    describes exactly one acs:code-verifier spawn writing iter-n-verify.md
-    directly, with no verify_lens mention inside that branch's own text
-    window (a verify_lens mention elsewhere in the full-depth branch must
-    not false-fail this test)."""
+class SingleVerifierPathsTest(unittest.TestCase):
+    """Regression guard: the three cheaper paths spawn exactly one verifier,
+    write iter-<n>-verify.md directly, and never mention a lens constraint."""
 
-    def _light_window(self):
-        window = section(skill_body(), VERIFY_HEADING)
-        m = re.search(r'(?i)verify_depth\s*==\s*"light"', window)
-        self.assertIsNotNone(
-            m, "Verify section must document an explicit "
-               'verify_depth=="light" branch')
-        nxt = re.search(r"(?m)^(ALL findings block|### )", window[m.end():])
-        end = m.end() + nxt.start() if nxt else len(window)
-        return window[m.start():end]
+    SINGLE = ("code-trivial", "code-small", "code-standard")
 
-    def test_light_depth_single_spawn_documented(self):
-        light = self._light_window()
-        self.assertIn("acs:code-verifier", light)
-        self.assertRegex(
-            light, r"(?i)exactly one.{0,30}acs:code-verifier",
-            "light depth must spawn exactly one acs:code-verifier subagent")
+    def test_each_spawns_exactly_one_verifier(self):
+        for leg in self.SINGLE:
+            with self.subTest(leg=leg):
+                body = leg_body(leg)
+                self.assertIn("acs:code-verifier", body)
+                self.assertRegex(body, r"(?i)One `acs:code-verifier` spawn")
 
-    def test_light_depth_writes_verify_md_directly(self):
-        light = self._light_window()
-        self.assertIn("iter-<n>-verify.md", light)
+    def test_each_writes_the_verify_artifact_directly(self):
+        for leg in self.SINGLE:
+            with self.subTest(leg=leg):
+                self.assertIn("iter-<n>-verify.md", leg_body(leg))
 
-    def test_light_depth_window_never_mentions_verify_lens(self):
-        light = self._light_window()
-        self.assertNotIn(
-            "verify_lens", light,
-            "the light-depth branch's own text window must not mention "
-            "verify_lens at all -- light depth is untouched")
+    def test_none_of_them_passes_a_lens_constraint(self):
+        for leg in self.SINGLE:
+            with self.subTest(leg=leg):
+                self.assertNotIn("verify_lens", leg_body(leg),
+                                 "%s is a single-verifier path; a verify_lens "
+                                 "constraint here is drift" % leg)
 
 
 class Adr0067Test(unittest.TestCase):

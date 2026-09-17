@@ -15,6 +15,7 @@ never by line number (line numbers drift as prose is revised). Stdlib-only
 """
 
 import glob
+import io
 import os
 import re
 import unittest
@@ -24,6 +25,29 @@ PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
+
+
+def _code_contract():
+    """/acs:code's contract: the dispatcher, the four delivery-path legs, and
+    the references they share.
+
+    ADR-0095 split one 750-line body this way. These assertions pin what the
+    SKILL SAYS, never which of its files says it, so reading the concatenation
+    keeps the pin honest while the layout stays free to change -- and a rule
+    that genuinely vanishes still fails.
+    """
+    import glob as _glob
+    base = os.path.join(PLUGIN, "skills")
+    parts = []
+    for name in ("code", "code-trivial", "code-small", "code-standard", "code-complex"):
+        path = os.path.join(base, name, "SKILL.md")
+        if os.path.isfile(path):
+            with io.open(path, encoding="utf-8") as fh:
+                parts.append(fh.read())
+    for path in sorted(_glob.glob(os.path.join(base, "code", "references", "*.md"))):
+        with io.open(path, encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return "\n".join(parts)
 
 
 def read(path):
@@ -48,7 +72,7 @@ class NoPlanPhaseInCodeTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_SKILL)
+        cls.body = _code_contract()
         cls.norm = norm(cls.body)
 
     def test_no_planner_spawn_remains(self):
@@ -75,7 +99,7 @@ class FindingsRouteStraightToExecutorTest(unittest.TestCase):
     <context>, with no intervening planner spawn."""
 
     def test_findings_feed_the_executor_context_with_no_planner_in_between(self):
-        body_norm = norm(read(CODE_SKILL))
+        body_norm = norm(_code_contract())
         no_planner_re = re.compile(r"(?i)(no|never|without)\W{0,20}planner")
         for m in re.finditer(r"(?i)findings", body_norm):
             window = body_norm[max(0, m.start() - 300):m.end() + 300]
@@ -106,7 +130,7 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        body = read(CODE_SKILL)
+        body = _code_contract()
         # The escalation heading that used to close this window moved to
         # references/lane-changes.md; the pointer section that replaced it is
         # the new boundary.
@@ -136,7 +160,7 @@ class EscalationDetectionPointUnchangedTest(unittest.TestCase):
         # references/ (progressive disclosure), so read the whole
         # contract rather than SKILL.md alone.
         cls.body_norm = norm("\n".join(
-            [read(CODE_SKILL)]
+            [_code_contract()]
             + [read(p) for p in sorted(glob.glob(os.path.join(
                 PLUGIN, "skills", "code", "references", "*.md")))]))
 

@@ -122,6 +122,24 @@ Messaging rules (schemas/acs-messages.xsd):
 
 ---
 
+### Epics are never implemented
+
+An epic ticket is refused outright by the `code` gate before this skill ever
+starts (`gate_code` raises `GateError` for `ticket.type == "epic"` — the
+message the user sees comes from the gate). Every ticket that reaches this
+step therefore has `ticket.type != "epic"`. If `ticket.type == "epic"`
+nonetheless reaches this step (a bypassed or best-effort pre-gate on some
+runtimes), STOP immediately and surface the same breakdown message
+`gate_code` would have raised — never implement an epic under any
+circumstance, regardless of what the pre-gate did or did not enforce.
+
+This is defence in depth, and it is a rule of every delivery path: a leg that
+somehow received an epic must refuse it exactly as the gate would, not judge
+it onto a path and implement it.
+
+
+---
+
 ## Branch — FIRST, before any code
 
 All work happens on the ticket branch. Render `settings.formats.branch_name`
