@@ -32,6 +32,11 @@ ADR_0004 = os.path.join(ADR_DIR, "0004-reflection-with-independent-verifier.md")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
+#: The revocation escape hatch moved here under progressive disclosure -- it is
+#: reached only by a run revising a plan that already exists, so a first run
+#: never loads it.
+IMPL_PLAN_RERUN_REF = os.path.join(
+    PLUGIN, "skills", "create-impl-plan", "references", "not-a-first-run.md")
 MULTI_LENS_TEST = os.path.join(REPO_ROOT, "tests", "acs", "test_code_verifier_multi_lens.py")
 
 # Pinned at plan time from `main` (af0a11b), before any edit in this ticket --
@@ -285,19 +290,20 @@ class PlanRevocationTest(unittest.TestCase):
     citations stay resolvable."""
 
     def _section(self):
-        body = skill_body()
-        start = body.index("### Plan revocation")
-        end = body.index("### Docs-only tickets")
-        self.assertLess(start, end)
-        return body[start:end]
+        # Revocation is the last section of the re-run reference, so the slice
+        # runs to end of file.
+        body = read(IMPL_PLAN_RERUN_REF)
+        return body[body.index("### Plan revocation"):]
 
     def test_skill_documents_a_plan_revocation_subsection(self):
+        """The subsection must exist and SKILL.md must route to it. Where it
+        lives is the reference's business; that a run revising a plan can
+        still find it is this test's."""
+        self.assertIn("### Plan revocation", read(IMPL_PLAN_RERUN_REF))
         body = skill_body()
-        approval_idx = body.index("### Plan approval")
-        revocation_idx = body.index("### Plan revocation")
-        docs_only_idx = body.index("### Docs-only tickets")
-        self.assertLess(approval_idx, revocation_idx)
-        self.assertLess(revocation_idx, docs_only_idx)
+        self.assertIn("references/not-a-first-run.md", body)
+        self.assertLess(body.index("### Plan approval"),
+                        body.index("### Docs-only tickets"))
 
     def test_revocation_copies_never_moves(self):
         section = norm(self._section())
@@ -318,9 +324,9 @@ class PlanRevocationTest(unittest.TestCase):
         self.assertRegex(section, r"(?i)never\s+automatic|not\s+automatic")
 
     def test_reservation_sentence_retired(self):
-        body = skill_body()
-        self.assertNotIn(
-            "is not written or read by any behavior today", body)
+        for body in (skill_body(), read(IMPL_PLAN_RERUN_REF)):
+            self.assertNotIn(
+                "is not written or read by any behavior today", body)
         section = norm(self._section())
         self.assertRegex(
             section,

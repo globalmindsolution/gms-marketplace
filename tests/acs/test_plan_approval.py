@@ -682,24 +682,24 @@ class PlanApprovalContractTest(unittest.TestCase):
             "INTERNALS.md must record plan_approved on the code or the "
             "create-impl-plan states row")
 
-    def test_subsection_sits_between_plan_and_revocation(self):
-        """Re-bound to `### Plan revocation` (MAR-74, T2) instead of
-        `### Docs-only tickets`: the new subsection now sits between
-        `### Plan approval` and `### Docs-only tickets`, so slicing at the
-        old boundary would silently widen every slice-based assertion below
-        to include revocation prose too."""
+    def test_subsection_sits_after_execute_and_before_docs_only(self):
+        """The approval note's position is the pin, not which sibling follows
+        it. It was bound to `### Plan revocation` while that subsection sat
+        between approval and `### Docs-only tickets`; revocation has since
+        moved into `references/not-a-first-run.md`, so docs-only is the next
+        heading again and the slice below is exactly the approval note."""
         plan_idx = self.skill_body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.skill_body.index("### Plan approval")
-        revocation_idx = self.skill_body.index("### Plan revocation")
+        docs_only_idx = self.skill_body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
-        self.assertLess(approval_idx, revocation_idx)
+        self.assertLess(approval_idx, docs_only_idx)
 
     def test_the_plan_skill_says_approval_happens_later_and_why(self):
         """The reason is the load-bearing part: create-impl-plan produces the
         artifact the delivery path is judged FROM, so it cannot know whether
         approval is owed. A reader who misses that will put the call back."""
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Plan revocation")
+        end = self.skill_body.index("### Docs-only tickets")
         section_norm = _norm(self.skill_body[start:end])
         self.assertRegex(section_norm, r"(?i)`standard` and `complex` delivery paths")
         self.assertRegex(section_norm, r"(?i)before any path exists")
@@ -728,7 +728,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_subsection_avoids_forbidden_literals(self):
         start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Plan revocation")
+        end = self.skill_body.index("### Docs-only tickets")
         section = self.skill_body[start:end]
         self.assertNotIn("create-spec", section)
         self.assertNotIn("hld/data-model.md", section)

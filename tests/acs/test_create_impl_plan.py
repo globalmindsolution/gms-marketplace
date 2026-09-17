@@ -28,6 +28,11 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
+#: `## Resume & reconcile` and `### Plan revocation` moved here under
+#: progressive disclosure: both answer what a run does when the ticket already
+#: carries a prior run or a superseded plan, and a first run reads neither.
+IMPL_PLAN_RERUN_REF = os.path.join(
+    SKILLS_DIR, "create-impl-plan", "references", "not-a-first-run.md")
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 IMPL_PLAN_EXECUTOR = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")
 IMPL_PLAN_VERIFIER = os.path.join(AGENTS_DIR, "create-impl-plan-verifier.md")
@@ -270,16 +275,19 @@ class PlanApprovalContractTest(unittest.TestCase):
         cls.body = read(IMPL_PLAN_SKILL)
 
     def _section(self):
-        return slice_between(self.body, "### Plan approval", "### Plan revocation")
+        return slice_between(self.body, "### Plan approval", "### Docs-only tickets")
 
-    def test_subsection_sits_between_plan_and_revocation(self):
+    def test_subsection_sits_after_execute_and_before_docs_only(self):
+        """The pin is where the approval note sits, not which sibling follows
+        it: `### Plan revocation` used to, and has since moved into
+        `references/not-a-first-run.md`, leaving docs-only as the next
+        heading and the slice above as exactly the approval note."""
         plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan draft")
         approval_idx = self.body.index("### Plan approval")
-        revocation_idx = self.body.index("### Plan revocation")
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
-        self.assertLess(approval_idx, revocation_idx)
-        self.assertLess(revocation_idx, docs_only_idx)
+        self.assertLess(approval_idx, docs_only_idx)
+        self.assertNotIn("### Plan revocation", self.body)
 
     def test_subsection_says_which_paths_bind_and_where_the_call_went(self):
         section_norm = norm(self._section())
@@ -326,9 +334,10 @@ class PlanRevocationTest(unittest.TestCase):
     citations stay resolvable."""
 
     def _section(self):
-        body = read(IMPL_PLAN_SKILL)
-        return norm(slice_between(body, "### Plan revocation",
-                                  "### Docs-only tickets"))
+        # Revocation is the last section of the re-run reference, so the slice
+        # runs to end of file.
+        body = read(IMPL_PLAN_RERUN_REF)
+        return norm(body[body.index("### Plan revocation"):])
 
     def test_revocation_copies_never_moves(self):
         section = self._section()
