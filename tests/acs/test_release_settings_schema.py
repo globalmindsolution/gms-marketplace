@@ -205,7 +205,8 @@ class Mar129ReleaseSettingsProfileOneConformanceCase(unittest.TestCase):
         files = {entry["file"] for entry in settings["release"]["version_locations"]}
         self.assertEqual(
             files,
-            {".claude-plugin/marketplace.json", "src/acs/.claude-plugin/plugin.json"},
+            {".claude-plugin/marketplace.json", "src/acs/.claude-plugin/plugin.json",
+             "src/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
         )
 
 

@@ -50,7 +50,7 @@ jobs:
               echo "::error file=$f::invalid JSON"
               status=1
             fi
-          done < <(find .claude-plugin plugins src -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
+          done < <(find .claude-plugin .devin-plugin plugins src -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
           exit "$status"
 
       - name: Validate marketplace/plugin version consistency
@@ -111,6 +111,31 @@ jobs:
                   errors.append(
                       f"'{name}': marketplace entry version '{entry_version}' != plugin.json version "
                       f"'{pj_version}'. Remove the entry version or align them — plugin.json wins silently."
+                  )
+
+              devin_manifest = os.path.join(rel, ".devin-plugin", "plugin.json")
+              if os.path.exists(devin_manifest):
+                  with open(devin_manifest, encoding="utf-8") as fh:
+                      dm = json.load(fh)
+                  dm_name = dm.get("name")
+                  if dm_name and dm_name != name:
+                      errors.append(f"'{name}': marketplace entry name != .devin-plugin/plugin.json name '{dm_name}'")
+                  dm_version = dm.get("version")
+                  if pj_version is not None and dm_version is not None and dm_version != pj_version:
+                      errors.append(
+                          f"'{name}': .devin-plugin/plugin.json version '{dm_version}' != .claude-plugin "
+                          f"plugin.json version '{pj_version}' — the repo ships one shared version."
+                      )
+
+          # Root Devin meta-plugin shares the marketplace's version.
+          root_devin = ".devin-plugin/plugin.json"
+          if os.path.exists(root_devin):
+              with open(root_devin, encoding="utf-8") as fh:
+                  rm = json.load(fh)
+              if rm.get("version") and mkt.get("version") and rm["version"] != mkt["version"]:
+                  errors.append(
+                      f".devin-plugin/plugin.json version '{rm['version']}' != marketplace.json version "
+                      f"'{mkt['version']}' — the repo ships one shared version."
                   )
 
           for w in warnings:

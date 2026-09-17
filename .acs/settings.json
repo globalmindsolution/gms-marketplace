@@ -81,6 +81,14 @@
       {
         "file": "src/acs/.claude-plugin/plugin.json",
         "pointer": "/version"
+      },
+      {
+        "file": "src/acs/.devin-plugin/plugin.json",
+        "pointer": "/version"
+      },
+      {
+        "file": ".devin-plugin/plugin.json",
+        "pointer": "/version"
       }
     ],
     "extra_refs": [
@@ -105,6 +113,17 @@
           "set": "source/path"
         },
         "value_format": "src/acs"
+      },
+      {
+        "file": ".devin-plugin/plugin.json",
+        "selector": {
+          "pointer": "/requiredPlugins",
+          "match": {
+            "path": "src/acs"
+          },
+          "set": "ref"
+        },
+        "value_format": "v{version}"
       }
     ],
     "changelog_path": "src/acs/CHANGELOG.md",

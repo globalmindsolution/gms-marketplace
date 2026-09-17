@@ -295,12 +295,12 @@ class _CIShapeBase(unittest.TestCase):
         if step1_idx is not None:
             # Look for the 'find' command in the next ~15 lines
             step1_run_text = "".join(cls.lines[step1_idx:step1_idx + 15])
-            assert "find .claude-plugin plugins" in step1_run_text, (
-                "Step 1 (JSON-parse) run block must contain 'find .claude-plugin plugins' "
+            assert "find .claude-plugin .devin-plugin plugins" in step1_run_text, (
+                "Step 1 (JSON-parse) run block must contain 'find .claude-plugin .devin-plugin plugins' "
                 "(without '/acs') after generalization. Guard: generalization not yet applied."
             )
             assert "src/acs" not in step1_run_text or "src/acs/" not in step1_run_text.replace(
-                "find .claude-plugin plugins", ""
+                "find .claude-plugin .devin-plugin plugins", ""
             ), (
                 "Step 1 (JSON-parse) run block must NOT contain 'src/acs/' after "
                 "generalization. Guard: hardcode still present."
@@ -440,11 +440,11 @@ class TestJSONParse(unittest.TestCase):
         self.assertIsNotNone(step_idx, "Step 'Validate all JSON files parse' not found in ci.yml")
         # Get the run block (next ~15 lines)
         block = "".join(lines[step_idx:step_idx + 15])
-        # Must contain 'find .claude-plugin plugins' (widened, no /acs suffix)
+        # Must contain 'find .claude-plugin .devin-plugin plugins' (widened, no /acs suffix)
         self.assertIn(
-            "find .claude-plugin plugins",
+            "find .claude-plugin .devin-plugin plugins",
             block,
-            "JSON-parse step must use 'find .claude-plugin plugins' (widened) after generalization"
+            "JSON-parse step must use 'find .claude-plugin .devin-plugin plugins' (widened) after generalization"
         )
         # Must NOT have 'src/acs' as a distinct find target
         # (after widening, 'plugins' covers all plugins including acs)
