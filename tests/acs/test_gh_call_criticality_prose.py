@@ -103,6 +103,22 @@ def read(path):
         return fh.read()
 
 
+def merge_pr_contract():
+    """/acs:merge-pr's contract: SKILL.md plus the references it points at.
+
+    The exempt-PR mode moved into `references/exempt-pr-mode.md` so a routine
+    ticket merge never reads it. These assertions pin what the SKILL SAYS,
+    never which of its files says it, so reading the concatenation keeps the
+    pin honest while the layout stays free to change -- and a rule that
+    genuinely vanishes still fails.
+    """
+    parts = [read(MERGE_PR_SKILL)]
+    refs = os.path.join(PLUGIN, "skills", "merge-pr", "references", "*.md")
+    for path in sorted(glob.glob(refs)):
+        parts.append(read(path))
+    return "\n".join(parts)
+
+
 def norm(body):
     """Collapse whitespace runs so markdown line-wrap can never break a
     phrase-spanning match, and strip markdown blockquote `> ` line markers so
@@ -357,7 +373,7 @@ class MergePrExemptModeTest(unittest.TestCase):
     critical rule as the ticketed path's Step 1."""
 
     def test_merge_pr_exempt_mode_carries_the_same_merge_rule(self):
-        norm_body = norm(read(MERGE_PR_SKILL))
+        norm_body = norm(merge_pr_contract())
         # Target only the two REAL command invocations (Step 1's and the
         # exempt path's), not the classification section's own abbreviated
         # mention of the same command (`gh pr merge <number> --<strategy>`).
@@ -386,8 +402,12 @@ class McpRemovalTest(unittest.TestCase):
         self.assertNotIn("mcp__github__", body)
 
     def test_no_acs_skill_or_agent_offers_an_mcp_transport(self):
+        # References are scanned alongside SKILL.md: a skill that moves prose
+        # into `references/` must not thereby move an MCP mention out of this
+        # guard's reach -- the rule is about what the skill SAYS, not where.
         paths = (
             glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+            + glob.glob(os.path.join(PLUGIN, "skills", "*", "references", "*.md"))
             + glob.glob(os.path.join(PLUGIN, "agents", "*.md"))
         )
         self.assertTrue(paths, "expected to find skill/agent files to scan")

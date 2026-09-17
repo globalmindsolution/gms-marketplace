@@ -389,7 +389,10 @@ class TestExemptPrDocs(unittest.TestCase):
             fm, r'(?m)^argument-hint: "\[ticket-id\] \| --pr PRNUMBER"$')
 
     def test_merge_pr_has_exempt_mode_section(self):
-        body = read(self.skill_path("merge-pr"))
+        # Read the contract, not one file: the exempt mode moved into
+        # `references/exempt-pr-mode.md` so a routine ticket merge never loads
+        # it. What must not vanish is the mode, not its address.
+        body = read_skill_contract("merge-pr")
         self.assertIn("Exempt non-ticket PR mode", body)
 
     def test_setup_documents_claude_md_managed_block(self):
@@ -488,20 +491,23 @@ class TestMergePrBehindAutoUpdate(unittest.TestCase):
     def test_exempt_pr_path_behind_routes_to_update_branch(self):
         # C-10 extension: the BEHIND carve-out applies to the exempt --pr path
         # as well as the ticket path (clarifications.json:104-113).
-        body = read(self.skill_path("merge-pr"))
+        body = read_skill_contract("merge-pr")
         # Exempt section heading must be present (also asserted by TestExemptPrDocs).
+        # The section lives in `references/exempt-pr-mode.md`; the contract read
+        # keeps the proximity windows below measuring the same contiguous prose.
         self.assertIn("Exempt non-ticket PR mode", body,
-                      "SKILL.md must carry the 'Exempt non-ticket PR mode' section")
+                      "the merge-pr contract must carry the 'Exempt non-ticket "
+                      "PR mode' section")
         # update-branch must appear within 3000 chars after the exempt heading,
         # proving the exempt section itself was amended — not just the ticket path.
         self.assertIsNotNone(
             re.search(r"(?s)Exempt non-ticket PR mode.{0,3000}update-branch", body),
-            "SKILL.md exempt section must mention update-branch within 3000 chars "
+            "the exempt section must mention update-branch within 3000 chars "
             "of its heading (MAR-47 C-10)")
         # BEHIND must also appear within that window.
         self.assertIsNotNone(
             re.search(r"(?s)Exempt non-ticket PR mode.{0,3000}BEHIND", body),
-            "SKILL.md exempt section must mention BEHIND within 3000 chars "
+            "the exempt section must mention BEHIND within 3000 chars "
             "of its heading (MAR-47 C-10)")
 
 
