@@ -78,6 +78,30 @@ the notes.
   recorded — deduplicating *within* an agent is free, deduplicating *across*
   them would remove the check that catches a padded coverage number.
 
+- **`/acs:code`'s conditional lane-change branches move to `references/`.**
+  `skills/code/SKILL.md` was 918 lines and every one of them sat in the
+  coordinator's context on every run — including three branches that most runs
+  never enter: the non-epic COMPLEX breakdown recommendation, the in-loop
+  escalation check, and boundary-only de-escalation. They now live in
+  `skills/code/references/lane-changes.md`, which the coordinator reads only
+  when one of them applies, leaving SKILL.md at 742 lines. This is the first
+  acs skill to bundle a `references/` directory; `shutil.copytree` and the
+  git-subdir install both carry it, and the pointers use
+  `${CLAUDE_PLUGIN_ROOT}/skills/code/references/...` so they resolve wherever
+  the plugin is installed.
+
+  Nothing about the contract changed: the three sections moved **verbatim**,
+  which is what made the move auditable — the only test failures it could
+  produce were "wrong file", never "wrong wording". Those failures then earned
+  their keep twice over, by catching a block of general orchestration rules
+  (XML validation, phase persistence, the no-nested-subagents rule, the
+  executor and verifier agent names) that sat under the de-escalation heading
+  without a heading of its own and would have been carried out of the hot path
+  with it. The 21 assertions that legitimately followed the moved text now read
+  the skill's full contract — SKILL.md plus its `references/*.md` — through a
+  shared `read_skill_contract()` helper, because what they pin is what the
+  skill says, not which of its files says it.
+
 - **The /acs:code verifier no longer runs the e2e suite; `/acs:run-e2e-tests`
   owns it.** Each suite now has exactly one full-run owner, and the pipeline
   decides which: `workflows/ship.yaml` orders `code → create-e2e-tests →

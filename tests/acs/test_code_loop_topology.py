@@ -14,6 +14,7 @@ never by line number (line numbers drift as prose is revised). Stdlib-only
   python3 -m unittest tests.acs.test_code_loop_topology -v
 """
 
+import glob
 import os
 import re
 import unittest
@@ -128,7 +129,13 @@ class EscalationDetectionPointUnchangedTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body_norm = norm(read(CODE_SKILL))
+        # The escalation contract these pin now lives in the skill's
+        # references/ (progressive disclosure), so read the whole
+        # contract rather than SKILL.md alone.
+        cls.body_norm = norm("\n".join(
+            [read(CODE_SKILL)]
+            + [read(p) for p in sorted(glob.glob(os.path.join(
+                PLUGIN, "skills", "code", "references", "*.md")))]))
 
     def test_detection_point_stays_after_prior_verifier_and_before_current_execute(self):
         self.assertIn(

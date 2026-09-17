@@ -979,6 +979,28 @@ class TestProductSkillConventionWiring(unittest.TestCase):
                 "%s: render-title must co-occur with --provider within a bounded window" % skill)
 
 
+def read_skill_contract(name):
+    """A skill's full contract text: its SKILL.md plus any `references/*.md`.
+
+    /acs:code moved its three conditional lane-change branches (the COMPLEX
+    breakdown recommendation, in-loop escalation, boundary-only de-escalation)
+    into `references/lane-changes.md` under progressive disclosure: they are
+    entered by few runs but sat in the coordinator's context on every one.
+
+    The assertions below pin what the SKILL SAYS, not which of its files says
+    it, so they read the whole contract. Reading only SKILL.md would make a
+    later split look like a deleted rule; reading the concatenation keeps the
+    pin honest and lets the layout keep evolving. References are appended in
+    sorted order after SKILL.md, and each moved section stays contiguous, so
+    the proximity assertions (e.g. no-restart within 400 chars of the named
+    detection point) still measure what they always did.
+    """
+    base = os.path.join(PLUGIN, "skills", name)
+    parts = [read(os.path.join(base, "SKILL.md"))]
+    parts.extend(read(p) for p in
+                 sorted(glob.glob(os.path.join(base, "references", "*.md"))))
+    return "\n".join(parts)
+
 class TestCodeSkillEscalation(unittest.TestCase):
     """MAR-57 Spec 02 (AC-1, AC-2, AC-6): pin the in-loop escalation contract in
     src/acs/skills/code/SKILL.md. Doc-assertion tests that read the prose
@@ -990,7 +1012,7 @@ class TestCodeSkillEscalation(unittest.TestCase):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
     def _body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     # --- AC-6: exactly three triggers enumerated ---
 
@@ -1228,7 +1250,7 @@ class TestStageReintroduction(unittest.TestCase):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     # --- guard_axes must be referenced in code/SKILL.md escalation sequence ---
 
@@ -1373,7 +1395,7 @@ class TestBoundaryOnlyDeescalationContract(unittest.TestCase):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     def test_boundary_only_timing_gate(self):
         """AC-4: the subsection must state de-escalation fires only at an
@@ -1904,7 +1926,7 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
         return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     def _executor_body(self):
         return read(self.agent_path("code", "executor"))
@@ -2177,7 +2199,7 @@ class TestVerifierProductDocConsistency(unittest.TestCase):
         return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     def _verifier_body(self):
         return read(self.agent_path("code", "verifier"))
@@ -3785,7 +3807,7 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
         return read(self.agent_path("code-verifier.md"))
 
     def _code_body(self):
-        return read(self.skill_path("code"))
+        return read_skill_contract("code")
 
     def _ship_body(self):
         return read(self.skill_path("ship"))
