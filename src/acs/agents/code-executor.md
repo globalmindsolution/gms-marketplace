@@ -56,9 +56,13 @@ never quietly do code work under a docs-only ticket.
    `TC-n` id in the test's docstring so the verifier can trace it, and record
    any case you could not write — with the reason — in your execute report's
    `problems` field. Never silently drop a case, and never renumber one.
-2. **Implement** until those tests pass, iterating against the tests your
-   change touches — the ones you wrote plus any covering the code you edited.
-   That is the loop whose result you act on.
+2. **Implement** until those tests pass, iterating against the TARGETED set:
+   the tests you wrote in step 1, plus the suites the plan's test strategy
+   names for your file map, plus anything covering the code you edited. Run
+   them with the commands that strategy gives. `/acs:create-impl-plan` wrote
+   it — this skill does not plan — so which tests your work bears on is a
+   question already answered in `plan.md`, not one to re-derive here. That is
+   the loop whose result you act on.
 
    **You do not run the full unit suite.** /acs:code runs it exactly once per
    iteration, in the verify phase, and that run is both the regression check

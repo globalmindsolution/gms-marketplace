@@ -102,6 +102,24 @@ the notes.
   shared `read_skill_contract()` helper, because what they pin is what the
   skill says, not which of its files says it.
 
+- **That one run goes last, after the review, and the executor's targeted set
+  comes from the plan.** The verifier judges every dimension answered by
+  reading — the diff, the ticket, the plan, the specs — before reaching for the
+  suite, and defers the run when one of them already blocks: an iteration going
+  back to the executor does not need a suite run to say so, and the tree it
+  would measure is about to change. On a ticket that takes three iterations to
+  come clean, that is two full suite runs not spent. It is a rule about order
+  and never about skipping — a zero-findings verdict still requires a green run
+  on the iteration being passed, and a red suite under a changeset that reads
+  perfectly is exactly what this phase exists to catch. Coverage defers with
+  the run it is read from, and `verdict.schema.json` declares the
+  `{"skipped": "..."}` shape both take.
+
+  The executor's targeted set is now read from `plan.md`'s test strategy rather
+  than guessed per executor: `/acs:create-impl-plan` authors that plan and
+  `/acs:code` does not plan, so which suites the work bears on is already
+  answered — and a declared scope can be reviewed where an invented one cannot.
+
 - **`/acs:code` runs the full unit suite exactly once per iteration, in verify.**
   Executors no longer run it at all: they iterate against the tests their change
   touches, and the verifier's single independent run establishes both that the

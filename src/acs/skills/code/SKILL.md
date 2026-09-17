@@ -328,12 +328,15 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    silently dropping it. When the Test plan names e2e flows
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
-2. **Implement** until the tests pass, iterating against the tests the change
-   touches — that is the feedback loop the executor acts on. **Executors never
-   run the full unit suite.** It runs exactly once per iteration, in verify,
-   and that single run is both the regression check and the coverage
-   measurement; a second run of the same command on the same tree answers a
-   question already answered. Code comments stay **minimal and idea-only**
+2. **Implement** until the tests pass, iterating against the TARGETED set the
+   plan's test strategy names for that executor's file map — `plan.md` is
+   `/acs:create-impl-plan`'s output, so the scope is read, not re-derived.
+   **Executors never run the full unit suite.** It runs exactly once per
+   iteration, in verify, and only once the verifier's reading dimensions come
+   back clean: an iteration already going back to the executor does not need
+   a suite run to say so. The safety half is absolute — no zero-findings
+   verdict without a green full-suite run on the iteration being passed.
+   Code comments stay **minimal and idea-only**
    — one short single-responsibility line per new function (SOLID:
    one unit, one job), never a ticket id in source, and on edits only the
    comments the change actually invalidates (e.g. a changed parameter); no

@@ -136,7 +136,8 @@
       "properties": {
         "passed": {"type": "integer", "minimum": 0},
         "failed": {"type": "integer", "minimum": 0},
-        "command": {"type": "string"}
+        "command": {"type": "string"},
+        "skipped": {"type": "string", "description": "Why no run was taken on this iteration. The verifier judges the reading dimensions first and defers the suite when one of them already blocks -- the changeset is going back to the executor, so a run against this tree answers a question nobody will ask. A deferral is never a pass: a zero-findings verdict requires a green run on the iteration being passed."}
       },
       "additionalProperties": true
     },
@@ -145,7 +146,8 @@
       "description": "Coverage read off the SAME run recorded in `tests` (dimension 3), not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
       "properties": {
         "percent": {"type": "number", "minimum": 0, "maximum": 100},
-        "command": {"type": "string"}
+        "command": {"type": "string"},
+        "skipped": {"type": "string", "description": "Deferred with the dimension-2 run it is read from; same rule."}
       },
       "additionalProperties": true
     }

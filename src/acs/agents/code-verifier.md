@@ -51,7 +51,18 @@ the executor's reasoning is the entire value of this phase.
 
 Get the changeset yourself: `git diff <default_branch>...HEAD` and
 `git log <default_branch>..HEAD --oneline` on the ticket branch. Then check
-ALL of the following — every dimension that fails produces blocking findings:
+ALL of the following — every dimension that fails produces blocking findings.
+
+**Read before you run.** Every dimension except 2 and 3 is answered by reading
+— the diff, the ticket, the plan, the specs — and costs nothing but your
+attention. Dimensions 2 and 3 cost a full suite run, which on a large repo is
+most of this phase's wall clock. So judge the reading dimensions first, and
+reach for the suite only once nothing else blocks: an iteration that is already
+going back to the executor does not need the suite to tell it so, and running
+it there buys a number about a tree that is about to change.
+
+That is a rule about ORDER, never about skipping. Dimension 2 says what makes
+it safe: no pass without a green run, on the iteration where it counts.
 
 1. **Acceptance-criteria conformance** — the review loop's fixed point:
    extract every `ticket.acceptance_criteria`/DoD entry from
@@ -92,10 +103,24 @@ ALL of the following — every dimension that fails produces blocking findings:
 2. **Tests** — run the full suite with the repo's own commands; all green.
    This is the ONLY full-suite run in a /acs:code iteration: the executors
    iterate against the tests their changes touch, so yours is what establishes
-   that the assembled changeset is green. Once is enough, and the independence
-   that matters is that the run is YOURS — you are establishing the result
-   rather than believing a report of it. Keep the full output: dimension 3
-   reads it, and the numbers go in your verdict.
+   that the assembled changeset is green. The independence that matters is
+   that the run is YOURS — you are establishing the result rather than
+   believing a report of it. Keep the full output: dimension 3 reads it, and
+   the numbers go in your verdict.
+
+   **Run it last, after the reading dimensions, and only when none of them
+   blocks.** When something else has already produced a blocking finding, the
+   changeset is going back to the executor and will be a different tree next
+   iteration; a suite run against this one answers a question nobody will ask.
+   Record it as `"tests": {"skipped": "blocking findings present"}` and move
+   on.
+
+   **What makes that safe is the other half, and it is absolute: you cannot
+   return a zero-findings verdict without a green full-suite run on the
+   iteration you are passing.** If the reading dimensions come back clean, the
+   suite is not optional and its result is not a formality — a red suite on a
+   changeset that reads perfectly is exactly the finding this phase exists to
+   catch. Skipping is only ever a deferral to an iteration that will run it.
 
    Record `"tests": {"passed": n, "failed": n, "command": "..."}` in
    `iter-<n>-verdict.json`. That is not bookkeeping — `states.tests` in the
@@ -106,9 +131,12 @@ ALL of the following — every dimension that fails produces blocking findings:
    `<constraints>`): no new tests expected — the suite must still pass; a
    diff line touching executable code or tests is a blocking finding (the
    ticket's flag is then wrong).
-3. **Coverage** — the number meets `coverage_target`. Take it from your own
-   dimension-2 run when that command reports coverage, which is the usual
-   case: the repo's coverage gate and its test command are typically the same
+3. **Coverage** — the number meets `coverage_target`. It comes from the
+   dimension-2 run, so it is deferred with it: an iteration that skipped the
+   suite records `"coverage": {"skipped": "blocking findings present"}` and
+   measures nothing. On the iteration that passes, both exist, because that
+   iteration ran the suite. Take the number from your own dimension-2 run when
+   that command reports coverage, which is the usual case: the repo's coverage gate and its test command are typically the same
    invocation, so you have already measured. A second full run would produce
    the identical number at the same cost as the first. Measure separately only
    when the test command reports no coverage at all.

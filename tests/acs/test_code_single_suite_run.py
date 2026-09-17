@@ -10,9 +10,18 @@ tests, ~415s per instrumented run -- a three-spec ticket on a full-verify lane
 spent roughly fifteen full runs.
 
 It now runs ONCE per iteration, and the verifier owns it. The executors iterate
-against the tests their change touches; the verifier's single independent run
-establishes that the assembled changeset is green and, from the same output,
-what the coverage is.
+against the TARGETED set the plan's test strategy names for their file map --
+/acs:create-impl-plan answered that question, so /acs:code reads it rather than
+re-deriving it. The verifier's single independent run then establishes that the
+assembled changeset is green and, from the same output, what the coverage is.
+
+That run goes LAST, after the dimensions answered by reading, and only when
+none of them blocks: an iteration already going back to the executor does not
+need a suite run to say so, and the tree is about to change anyway. The half
+that makes the deferral safe is pinned beside it -- no zero-findings verdict
+without a green run on the iteration being passed -- because keeping the saving
+while losing that clause would turn this into a way to pass without ever
+running the suite.
 
 That is cheaper, but the reason it is also BETTER is worth stating, because it
 is what should stop a future reader "optimising" it back: states.tests used to
@@ -63,7 +72,7 @@ class OnlyTheVerifierRunsTheFullUnitSuiteTest(unittest.TestCase):
     def test_executor_is_told_not_to_run_it(self):
         body = norm(CODE_EXECUTOR)
         self.assertIn("**You do not run the full unit suite.**", body)
-        self.assertIn("iterating against the tests your change touches", body)
+        self.assertIn("iterating against the TARGETED set", body)
 
     def test_executor_is_told_why_its_affected_set_matters(self):
         """Removing the safety net without saying so would be a trap: the
@@ -80,6 +89,58 @@ class OnlyTheVerifierRunsTheFullUnitSuiteTest(unittest.TestCase):
         body = norm(CODE_SKILL)
         self.assertIn("**Executors never run the full unit suite.**", body)
         self.assertIn("It runs exactly once per iteration, in verify", body)
+
+
+class TheTargetedSetComesFromThePlanTest(unittest.TestCase):
+    """Which tests the work bears on is a question /acs:create-impl-plan has
+    already answered. /acs:code does not plan, so it reads plan.md's test
+    strategy rather than re-deriving the scope — and a scope that is declared
+    can be reviewed, where one invented per executor cannot."""
+
+    def test_executor_reads_the_scope_from_the_plan(self):
+        body = norm(CODE_EXECUTOR)
+        self.assertIn("the suites the plan's test strategy names for your file "
+                      "map", body)
+        self.assertIn("`/acs:create-impl-plan` wrote it — this skill does not "
+                      "plan", body)
+
+    def test_coordinator_says_the_same(self):
+        self.assertIn("the plan's test strategy names for that executor's file "
+                      "map", norm(CODE_SKILL))
+
+
+class TheSuiteRunsLastAndOnlyOnACleanReadTest(unittest.TestCase):
+    """Order, not skipping. An iteration already going back to the executor
+    does not need a suite run to say so; the tree is about to change anyway.
+
+    The deferral is only safe because of its other half, so both are pinned
+    together: removing the second while keeping the first would turn a saving
+    into a way to pass without ever running the suite.
+    """
+
+    def test_the_reading_dimensions_are_judged_first(self):
+        body = norm(CODE_VERIFIER)
+        self.assertIn("**Read before you run.**", body)
+        self.assertIn("reach for the suite only once nothing else blocks", body)
+
+    def test_it_is_explicitly_about_order_not_skipping(self):
+        self.assertIn("That is a rule about ORDER, never about skipping",
+                      norm(CODE_VERIFIER))
+
+    def test_a_pass_is_impossible_without_a_green_run(self):
+        self.assertIn("you cannot return a zero-findings verdict without a "
+                      "green full-suite run on the iteration you are passing",
+                      norm(CODE_VERIFIER))
+
+    def test_a_red_suite_on_clean_looking_code_is_the_point(self):
+        """Guards against the deferral decaying into a formality."""
+        self.assertIn("a red suite on a changeset that reads perfectly is "
+                      "exactly the finding this phase exists to catch",
+                      norm(CODE_VERIFIER))
+
+    def test_coverage_is_deferred_with_it_not_separately(self):
+        self.assertIn("It comes from the dimension-2 run, so it is deferred "
+                      "with it", norm(CODE_VERIFIER))
 
 
 class CoverageComesOffThatSameRunTest(unittest.TestCase):
@@ -101,8 +162,8 @@ class CoverageComesOffThatSameRunTest(unittest.TestCase):
 
     def test_verifier_takes_it_from_dimension_2_not_a_second_run(self):
         body = norm(CODE_VERIFIER)
-        self.assertIn("Take it from your own dimension-2 run when that command "
-                      "reports coverage", body)
+        self.assertIn("Take the number from your own dimension-2 run when "
+                      "that command reports coverage", body)
         self.assertIn("Measure separately only when the test command reports no "
                       "coverage at all", body)
 
