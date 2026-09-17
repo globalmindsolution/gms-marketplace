@@ -100,48 +100,46 @@ failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_
 in-process under a bounded alarm that fails closed (exit 2 blocks);
 `SessionEnd` → `dispatch.py session-end` (finalize `interrupted`, release lock).
 
-## Ticket classification fields (MAR-56)
+## Delivery path (ADR-0095)
 
-`ticket.json` carries three new optional fields (additive; legacy tickets without them remain valid):
-- `size` — authoritative axis (enum: `trivial`, `small`, `standard`, `large`; default `standard` when absent)
-- `stakes` — authoritative axis (enum: `low`, `normal`, `high`; default `normal` when absent)
-- `lane` — derived cache, recomputable via `derive_lane(size, stakes, needs_design, type)` (enum: `TRIVIAL`, `SMALL`, `STANDARD`, `COMPLEX`; default `STANDARD`). As of MAR-76, `needs_design` is accepted for signature stability but no longer affects the result — the lane derives from `size` × `stakes` plus the epic override only.
+`pipeline-state.json` carries the ticket's judged delivery path and the reason
+for it:
+- `delivery_path` — one of the names `workflows/ship.yaml`'s `delivery.paths`
+  declares (shipped vocabulary: `trivial`, `small`, `standard`, `complex`)
+- `delivery_path_reason` — one non-empty sentence naming what in `plan.md`
+  decided it, which is what the verifier's path-audit dimension judges the
+  changeset against
 
-`pipeline-state.json` records `lane` alongside `flow` (written by `update_pipeline`).
-`tickets-index.json` mirrors `lane` per entry alongside `needs_design` (written by `update_index`).
+`record_delivery_path(tdir, ticket_id, path, reason, doc=None)`
+(`acs_lib/workflow.py`, exposed as `acs.py path set`) is the ONLY writer. It
+refuses three things, and the third is the load-bearing one:
 
-## Escalation-event audit trail (MAR-106)
+1. a path the workflow does not declare;
+2. an empty reason — a path recorded without one cannot be audited later;
+3. moving a ticket that is already on a path. This is what makes a resumed run
+   READ the recorded path rather than judge it again, so one pipeline cannot
+   end up half at one rigor and half at another.
 
-`code-state.json` run entries carry an additive, optional `escalations` array
-(`runs[-1].escalations: [{...}]`), appended by `record_escalation_event(tdir,
-skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists via the
-existing pretty-printed `write_json`. Each event is a fixed 13-field dict:
-`ts, from_lane, to_lane, from_size, from_stakes, to_size, to_stakes, trigger,
-source, ceiling_before, ceiling_after, direction, confirmation_ref` —
-`direction` is `"up"` or `"down"`; `trigger` is `"a"`, `"b"`, `"c"`, or
-`"user_confirmed_deescalation"`; `confirmation_ref` is `null` for every
-upward/automatic event. No schema file edit is required — run-entry items
-already declare `additionalProperties: true`. Events are recorded at the
-iteration-start **detection point** (start of each iteration, after the prior
-verifier and before the current execute — MAR-107 D4); crossing the
-fast→full fold boundary raises the iteration ceiling and verify depth to the
-escalated lane's values only — monotonically, never lowered, with no stage
-re-entry and no re-spawn of any prior stage (`code/SKILL.md`'s "In-loop
-escalation check" section).
+`recorded_delivery_path` / `recorded_delivery_reason` are the read side. The
+walk (`next_steps`) reports `delivery: {path, reason, classify_after, paths,
+awaiting_classification}` and HOLDS at `delivery.classify_after` until a path
+is recorded, so nothing downstream of the branch point runs unclassified.
 
-`confirm_deescalation(tdir, ticket, confirmed_size, confirmed_stakes,
-clarify_ref)` (`acs_lib/state.py`, MAR-108) is the only writer capable of lowering
-`size`/`stakes`/`lane` below the ticket's current confirmed value. It hard-
-requires `clarify_ref` to resolve to a `clarify.py` ledger entry with
-`status == "answered"` exactly — a falsy ref, an unresolvable id, an `"open"`
-entry, or an `"assumed"` entry all raise `ValueError` with no write of any
-kind (ticket, pipeline, index, or escalation event). On success it recomputes
-`lane` via `derive_lane` (never hand-set), persists via the same three
-writers as the upward path (`save_ticket` / `update_pipeline` /
-`update_index`), and only then records a `direction:"down"` event via
-`record_escalation_event` with `trigger:"user_confirmed_deescalation"` and
-`confirmation_ref` set to the resolved `C-<n>` id — persist-then-record,
-mirroring the upward on-trigger sequence's ordering (design.md:506-518).
+**What this replaced.** MAR-56 put three optional fields on `ticket.json` —
+`size` (`trivial|small|standard|large`), `stakes` (`low|normal|high`) and a
+`lane` cache derived from them by `derive_lane` — mirrored onto
+`pipeline-state.json` and `tickets-index.json`. MAR-106 added an
+`escalations` array on `code-state.json` run entries, a fixed 13-field event
+appended by `record_escalation_event` at an iteration-start detection point,
+so that a mid-run lane change was never silent. MAR-108 added
+`confirm_deescalation`, the only writer able to lower those axes, unreachable
+without an *answered* `clarify.py` reference.
+
+All of it is retired. The axes were a guess made before anyone read the code;
+the escalation ledger and the de-escalation writer existed only to make that
+guess safe to revise mid-run. One judgement, made from the plan and recorded
+once, needs none of them. A ticket from an older build that still carries
+`size`, `stakes` or `lane` is read as if it did not.
 
 ## Guard-denial audit trail (MAR-578)
 
@@ -151,9 +149,11 @@ skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists v
 the same pretty-printed `write_json`. The state file is the denied executor's
 own (`code-state.json` is the common case, not the only one): the guard records
 under the active executor's skill, and the derivation below is skill-agnostic.
-Unlike `record_escalation_event`, it returns `False` instead of raising when
-there is no run entry to carry the event — its sole caller is a deny path whose
-verdict must not depend on the recording.
+It returns `False` instead of raising when there is no run entry to carry the
+event — its sole caller is a deny path whose verdict must not depend on the
+recording. (Its retired sibling `record_escalation_event` raised there, which
+was right for an audit write whose absence was itself the signal that a lane
+change went unrecorded; this recorder has the opposite obligation.)
 
 Each event is a fixed 7-field dict: `ts, skill, iteration, tool, target, reason,
 declared_count` — `iteration` is a **string** (the highest declared file-map
@@ -167,8 +167,9 @@ Two bounds hold at every deny site. An event is recorded **only on a deny** —
 every fail-open branch (not a write tool, no partition, no active executor)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
-lock. Unlike `escalations`, the item shape **is** declared in
-`src/acs/schemas/skill-state.schema.json`; run-entry items already declare
+lock. The item shape **is** declared in
+`src/acs/schemas/skill-state.schema.json` — the retired `escalations` array
+never was; run-entry items already declare
 `additionalProperties: true`, so that declaration documents the entry rather
 than tightening what a run entry may carry.
 
@@ -200,7 +201,7 @@ per-key merge local → project → user; validated by every pre-hook
 `test_coverage_percent`, `merge_strategy`, `prd_path`, `architecture_path`,
 `requirements_path?`, `requirements_layout?`, `adr_path?`, `principles_path?`,
 `standards_path?`, `quality_path?`, `operations_path?`, `e2e?`, `suites?`,
-`tests?`, `enforcement?`, `models`, `tracker`, `formats`, `high_stakes_paths?`
+`tests?`, `enforcement?`, `models`, `tracker`, `formats`
 (array of glob strings; absent key resolves to the seed default
 `["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
 `e2e?` is a deprecated compatibility alias, normalized at load time into

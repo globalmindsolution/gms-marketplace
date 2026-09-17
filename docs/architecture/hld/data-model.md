@@ -52,9 +52,6 @@ erDiagram
         bool needs_design "true for epics only; always false for story/task (MAR-76)"
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
-        enum size "trivial|small|standard|large (axis for derive_lane; MAR-56)"
-        enum stakes "low|normal|high (axis for derive_lane; MAR-56)"
-        enum lane "TRIVIAL|SMALL|STANDARD|COMPLEX (derived cache from size x stakes via derive_lane; MAR-56)"
     }
     SKILL_STATE {
         string skill PK

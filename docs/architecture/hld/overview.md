@@ -43,18 +43,21 @@ is published today:
 4. **Fail-safe prose**: a skill that forgets its post-hook leaves
    `runs[-1] = in_progress` — the next gate reads "not completed"; nothing
    unlocks by omission.
-5. **Complexity-adaptive delivery, verifier-as-gate**: each ticket is routed
-   into one of four lanes (TRIVIAL, SMALL, STANDARD, COMPLEX) on size × stakes
-   axes by `derive_lane()`. The `/code` verifier subagent is the in-loop quality
-   gate in *every* lane; the lane only scales the iteration ceiling
-   (light = 1, full = 3) via `verify_depth()`, never whether the verifier runs.
-   Spec content is authored inside `/code`'s plan phase on every lane when
-   `<partition>/specs/` is absent or empty (pre-existing specs are still read
-   when present); lanes escalate upward mid-flight — never
-   *automatically* downward — on the first higher-stakes signal. The one
-   exception is a user-confirmed de-escalation, offered only at an iteration/run
-   boundary and applied by a dedicated writer unreachable without an explicit
-   confirmation (`confirm_deescalation`, ADR 0042 D3).
+5. **Complexity-adaptive delivery, verifier-as-gate**: each ticket is judged
+   onto one of four DELIVERY PATHS (`trivial`, `small`, `standard`, `complex`)
+   — once, by `/ship`, from the implementation plan, and recorded on
+   `pipeline-state.json` as `delivery_path` plus the one-sentence reason for
+   it (ADR-0095). `/code` is a dispatcher over four legs, one per path. The
+   verifier subagent is the in-loop quality gate on *every* path; the path
+   scales the iteration ceiling (2 on the cheap paths, 3 on the deep ones) and
+   the review's shape, never whether the verifier runs. Spec content is
+   authored inside `/create-impl-plan`'s plan when `<partition>/specs/` is
+   absent or empty (pre-existing specs are still read when present). The path
+   never moves mid-run: this replaces the `size` × `stakes` axes, the lane
+   `derive_lane()` derived from them, the upward mid-flight escalation and the
+   user-confirmed de-escalation that balanced it. What catches a wrong
+   judgement is the verifier's path-audit dimension, whose remedy is a replan
+   (`stop_reason: plan_superseded`), not a re-route.
 6. **Entry-point folds over skill collapses**: where several skills form one
    user-facing job, the surface is narrowed by declaring an entry point, not by
    merging the skills. `workflows/phases.yaml`'s `internal` map names each

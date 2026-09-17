@@ -79,24 +79,20 @@ never happens during an epic's own creation run: it happens only in a
 `--fan-out` run (after the epic's design is approved) or a split/restructure
 run.
 
-## Ticket classification fields
+## The ticket carries no classification fields
 
-Every ticket carries three classification fields written at mint time and re-confirmed
-at create-ticket (MAR-56):
+MAR-56 put three on every ticket at mint time — `size`, `stakes`, and the
+`lane` cache `derive_lane` computed from them — mirrored into
+`pipeline-state.json` and `tickets-index.json` so metrics could slice by lane.
+ADR-0095 retired all three. They were a guess made at ticket time, before
+anyone had read the code, and every later mechanism (mid-flight escalation,
+its audit trail, the user-confirmed de-escalation writer) existed to revise
+that guess safely.
 
-- **`size`** — authoritative size axis, one of `trivial` | `small` | `standard` | `large`.
-  Default `standard` when absent. Set during `/create-ticket` analysis, user-confirmed.
+Rigor now lives on the PIPELINE, not the ticket: after `/create-impl-plan`
+publishes `plan.md`, `/ship` judges the ticket onto one delivery path and
+records `delivery_path` plus `delivery_path_reason` on `pipeline-state.json`
+(`acs.py path set`). `ticket.json` is unchanged by that judgement, and a
+ticket minted by an older build that still carries `size`, `stakes` or `lane`
+is read as if it did not.
 
-- **`stakes`** — authoritative stakes axis, one of `low` | `normal` | `high`.
-  Default `normal` when absent. Set during `/create-ticket` analysis, user-confirmed.
-  A path-glob match against `high_stakes_paths` in settings RECOMMENDS stakes=high;
-  the user confirms or overrides.
-
-- **`lane`** — derived cache: `derive_lane(size, stakes, needs_design, type)` maps the two
-  authoritative axes to one of `TRIVIAL` | `SMALL` | `STANDARD` | `COMPLEX`. The lane is
-  never accepted verbatim from user input; it is always recomputed from the axes at write
-  time to keep the cache consistent. `lane` is mirrored into `pipeline-state.json` and
-  `tickets-index.json` so the metrics layer can slice by lane (G14/G15).
-
-Conservative default: absent axes resolve to `size=standard`, `stakes=normal`, `lane=STANDARD`
-(full verification rigor — never a fast lane when inputs are unknown).

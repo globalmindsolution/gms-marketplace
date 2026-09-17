@@ -66,9 +66,10 @@ Epic-level scope (retrofit; built before dogfooding began):
   since ADR 0092 (the per-iteration re-plan went first — MAR-71 for
   `/acs:code`, then MAR-300, MAR-301, MAR-302, MAR-305 and the completion of
   that migration for the rest — then the planner role itself;
-  `/acs:create-impl-plan` keeps ADR 0074's lane rule with its executor in
-  the planner's place: spawned on STANDARD/COMPLEX, coordinator-authored
-  `plan.md` on TRIVIAL/SMALL), while
+  `/acs:create-impl-plan` kept ADR-0074's lane rule with its executor in the
+  planner's place until ADR-0095 retired the lanes; it now spawns that
+  executor on every run, because it runs before any delivery path exists),
+  while
   the three apply-work skills
   (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
   at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
@@ -120,13 +121,15 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 27 green across 31 probes (matches
-  `s04_skill_triggers.py`'s 27-skill routing coverage, up from the original 12,
-  which is 27 of the 28 shipped skill directories: only the `test` alias is
-  unprobed, since `run-e2e-tests` carries its probe. The two ADR 0091 legs
-  of `/acs:project` moved from description probes to explicit + no-auto-route
-  pairs; the four doc-set legs were folded into `/acs:create-docs` by ADR 0094
-  and its description probe covers them). The 20
+  routes to the right skill — target all 31 green across 37 probes (matches
+  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
+  which is 31 of the 32 shipped skill directories: only the `test` alias is
+  unprobed, since `run-e2e-tests` carries its probe. The six internal legs —
+  `/acs:project`'s two (ADR 0091) and `/acs:code`'s four delivery-path legs
+  (ADR-0095) — are probed by explicit invocation plus a negative saying a
+  description of the leg's subject must reach its entry point; the four doc-set
+  legs were folded into `/acs:create-docs` by ADR 0094 and its description probe
+  covers them). The 20
   description probes measured before the refactor are green; everything added
   since — the 3 MAR-575 probes, the 6 new Build/Test and umbrella probes, and
   the 6 legs' explicit + negative pairs — is authored and first measured by the
@@ -286,7 +289,7 @@ allowlist). *(Shipped.)*
 dogfood), PRD metrics G1–G5 and G7 are measured on real runs, and the
 `acs:metrics` dashboard skill ships and passes evals (E4).
 
-**Complexity-adaptive delivery shipped to main in v0.3.0** (MAR-56/57/58/59/60/61 merged): the size × stakes four-lane model (TRIVIAL/SMALL/STANDARD/COMPLEX via `derive_lane()`), verifier-as-gate + lane-driven verify depth, mid-flight lane escalation, apply-tier inlining (create-pr/merge-pr/create-ticket inline), in-process XML validation + clarify batching, and create-ticket classification + lane assembly. Traces **G14** (complexity-scaled delivery), **G15** (autonomous fast-lane), **G16** (human-gate on high-stakes).
+**Complexity-adaptive delivery shipped to main in v0.3.0** (MAR-56/57/58/59/60/61 merged): the size × stakes four-lane model (TRIVIAL/SMALL/STANDARD/COMPLEX via `derive_lane()`), verifier-as-gate + lane-driven verify depth, mid-flight lane escalation, apply-tier inlining (create-pr/merge-pr/create-ticket inline), in-process XML validation + clarify batching, and create-ticket classification + lane assembly. Traces **G14** (complexity-scaled delivery), **G15** (autonomous fast-lane), **G16** (human-gate on high-stakes). **Superseded in the v0.5.0 line by ADR-0095:** the goals stand, but the routing moved off the ticket and onto the pipeline — one judgement, made by `/acs:ship` from `plan.md`, recorded as a `delivery_path`. The axes, `derive_lane`, `verify_depth` and the mid-flight escalation are retired; apply-tier inlining and the XML/clarify work are untouched.
 
 ### M2.5 — v0.3.4 *(shipped)*
 
@@ -308,7 +311,10 @@ Four small, independently shippable fast-follows sequenced after the shipped v0.
 - **v0.3.5 — PR metadata acs sets on create/update (Group A core).** `/acs:create-pr` sets the PR **assignee** (always the PR author — the authenticated `gh` user running the pipeline, so 0 PRs are left unassigned), **labels beyond `ACS`** (e.g. the type label, mirroring the issue), and adds the **PR itself to the GitHub Project** with field values — on top of the existing `Closes #`/milestone. Delivers G22's PR-assignee metric.
 - **v0.3.6 — full-lifecycle ticket Status (Group B status).** Extends the shipped create-ticket (in-progress at create) and merge-pr (Status→Done) transitions with the missing **in-review** transition when `/acs:create-pr` opens the PR, so the GitHub Project Status matches the ticket's true pipeline stage at every stage. Delivers G22's status metric (0 tickets left stale at "in-progress" after PR/merge).
 - **v0.3.6 (same cut) — remaining sync fields (Group A reviewers + Group B fields).** Adds PR **reviewers** (source deferred to design) and syncs the remaining ticket fields — **priority**, **story points**, and **parent/epic link** as an explicit named Project field — completing G22's field coverage.
-- **v0.3.7 — Epic: dynamic (mid-flight) lane correctness (G25).** Hardens the
+- **v0.3.7 — Epic: dynamic (mid-flight) lane correctness (G25)** *(shipped;
+  its mechanism retired by ADR-0095 in the v0.5.0 line — the goal is now met
+  by judging the path from the plan instead of correcting a create-time guess
+  in flight)*. Hardens the
   v0.3.0-shipped mid-flight escalation (`prd.md` Complexity-adaptive delivery
   feature) from an implicit rider into a validated capability: define the in-flight
   higher-stakes/larger-scope signal set, wire escalation to re-select `verify_depth`
@@ -684,8 +690,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      until **G23** (Team-shared delivery state, post-GA — M8) / **G24** (Wave 4, v0.4.6+, above) ship. Maps to PRD's
      workflow-gap-promotions Should-have. **Traces G23, G24, G11.**
   2. **Team-mode init option (CODEOWNERS scaffolding)** — a `/acs:setup`
-     option scaffolding CODEOWNERS mirroring `high_stakes_paths` + docs-path
-     ownership; role gates live at the forge (**C-19**), not in acs. Maps to
+     option scaffolding CODEOWNERS mirroring the repo's load-bearing paths
+     (auth, payments, migrations, public API) + docs-path ownership; role
+     gates live at the forge (**C-19**), not in acs. This said
+     `high_stakes_paths` until ADR-0095 retired that setting with the stakes
+     axis; where the path list comes from is settled in the design phase. Maps to
      PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner
      mapping) is settled in this epic's design phase.
   3. **Design sign-off surface** — publish approved `design.md` (for
@@ -694,15 +703,12 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      machine-local role-separation gap. Maps to PRD's workflow-gap-promotions
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
-  4. **code-planner user-confirmed stakes-bump** — `/acs:create-impl-plan`'s
-     plan author (lane-conditional: `create-impl-plan-executor`'s survey — the
-     former `code-planner` charter — on STANDARD/COMPLEX, the coordinator on
-     TRIVIAL/SMALL, per ADR-0074) may
-     propose a user-confirmed ticket stakes bump on discovering a
-     high-stakes surface (metadata-accuracy only; composes with
-     **C-7**/**C-12**, does not alter
-     **G25**'s escalation mechanism). Maps to PRD **G25, C-12**. The
-     MECHANISM is settled in this epic's design phase.
+  4. **code-planner user-confirmed stakes-bump** *(RETIRED — ADR-0095)* —
+     this item let the plan's author propose a user-confirmed bump to the
+     ticket's `stakes` on discovering a high-stakes surface. There is no
+     `stakes` field to bump, and the discovery it was built around is now the
+     judgement itself: `/acs:ship` reads the same plan and puts the ticket on
+     `standard` or `complex` outright. No replacement is needed.
 
 #### Sequence & exit
 
@@ -745,8 +751,9 @@ scratch against the documented Codex primitives (see the Correction note in
   **unattended execution mode** — mechanically an **autonomous `/acs:ship`**
   (Agent SDK or CI-runner host), triggerable from a **tracker label / chat /
   CLI**. Governed by the **C-18 safety invariant**: unattended execution
-  **always** runs the COMPLEX/UNATTENDED lane (full verify) — no configuration
-  can assign it a fast lane — and **always stops before `/merge-pr`**.
+  **always** runs the `complex` delivery path — no configuration and no
+  plan-based judgement can put it on a cheap path — and **always stops before
+  `/merge-pr`**.
   **Validation:** ≥ 1 real runner-triggered `/acs:ship` run on the dogfood
   repo within 1 release of the capability shipping (the G34 metric). Maps to
   PRD **G34** and the acs Should-have "Headless unattended runner" feature.
