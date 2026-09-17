@@ -62,6 +62,23 @@ the notes.
 
 ### Changed
 
+- **`/acs:code` spends one full-suite run where it used to spend several.** A
+  repo's test command is one artifact that usually answers several questions at
+  once — did the tests pass, what is the coverage, does it clear the threshold —
+  but the skill asked each as its own numbered step, and a numbered step reads
+  as "run something". The executor ran the suite to reach green and again to
+  measure coverage; the verifier re-ran it for tests and again for coverage; and
+  resume re-ran it once per implemented spec. Each agent now reads the run it
+  already has, and the executor iterates against the tests its change touches,
+  keeping the full suite as a per-spec regression check rather than a per-edit
+  one. On a repo with a large instrumented suite this removes most of a
+  `/acs:code` run's test wall-clock; on a repo whose suite takes seconds it
+  changes nothing measurable. What did NOT change is the review's basis: the
+  verifier still runs the suite itself and still trusts nothing the executor
+  recorded — deduplicating *within* an agent is free, deduplicating *across*
+  them would remove the check that catches a padded coverage number.
+  `tests/acs/test_code_single_suite_run.py` pins both halves.
+
 - **⚠️ BREAKING: six Design-phase skills became internal legs (ADR 0091).**
   `/acs:create-docs <set|all>` is now the only user-facing command for the four
   doc-bootstrap sets, and a new unhooked `/acs:project` auto-detects bootstrap

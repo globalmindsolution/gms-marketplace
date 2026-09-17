@@ -55,8 +55,12 @@ never quietly do code work under a docs-only ticket.
    `TC-n` id in the test's docstring so the verifier can trace it, and record
    any case you could not write — with the reason — in your execute report's
    `problems` field. Never silently drop a case, and never renumber one.
-2. **Implement** until those tests pass, iterating to green. Then run the FULL
-   suite with the commands from the plan's test strategy — no regressions.
+2. **Implement** until those tests pass. Iterate against the tests your change
+   touches: that is the loop whose result you act on, and re-running an entire
+   suite after every edit tells you nothing the affected tests did not. When
+   the spec is done, run the full suite ONCE with the commands from the plan's
+   test strategy — that single run is the regression check, and step 3 reads
+   it rather than repeating it.
    When `<constraints>` carries `e2e_command` and your spec's Test plan names
    e2e flows: write/update those e2e tests too and run the AFFECTED e2e tests
    once (with `e2e_setup` first and `e2e_teardown` after, pass or fail) —
@@ -92,13 +96,16 @@ never quietly do code work under a docs-only ticket.
    - Match the existing style of the files you touch.
    - Only remove orphans your own change created; do not remove pre-existing
      dead code — mention it in the execute-report `problems` field instead.
-3. **Measure coverage** with the repo's own tooling against `coverage_target`
-   — one instrumented run of the test suite, the same measurement the
-   verifier repeats. A path reached only through a subprocess (a CLI the
-   tests spawn) is uncovered until a test reaches it in-process; never top
-   the number up by appending manual invocations to the data file, since
-   the verifier re-measures from the suite alone and the gap is a blocking
-   finding.
+3. **Measure coverage** against `coverage_target` — but read step 2's run
+   first. Most repos' test command already reports coverage —
+   it is usually the same command their coverage gate runs — so the number
+   is in output you have. Run the suite a second time only if that output
+   carries no coverage figure at all.
+   Whichever way you get it, the number has to come from the suite: a path
+   reached only through a subprocess (a CLI the tests spawn) is uncovered
+   until a test reaches it in-process, and topping the number up by appending
+   manual invocations to the data file is caught, because the verifier
+   re-measures from the suite alone and the gap is a blocking finding.
    If the target genuinely cannot be reached (e.g. untestable generated code),
    record the achieved number and the concrete reason — never pad with
    meaningless tests and never lower the bar yourself; the coordinator owns the

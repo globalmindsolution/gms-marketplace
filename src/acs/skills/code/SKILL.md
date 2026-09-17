@@ -121,9 +121,10 @@ BEFORE continuing:
    `<partition>/phases/code/iter-*-*.xml` / phase artifacts to see which specs
    were recorded implemented and where the prior run stopped.
 2. Check out the recorded `states.branch` (it should exist — see Branch).
-3. RE-RUN THE TEST SUITE for every spec recorded implemented, plus the
-   coverage measurement. Trust nothing that fails: a spec whose tests fail or
-   whose files are missing is NOT done, whatever the state file says.
+3. Re-run the test suite — once. A single full run reports on every spec
+   recorded implemented at the same time, and re-establishes coverage too when
+   the test command reports it. Trust nothing that fails: a spec whose tests
+   fail or whose files are missing is NOT done, whatever the state file says.
 4. Continue from the first unfinished spec/phase of the recorded iteration
    (e.g. an execute report with no verify output -> rerun verify against that
    changeset; spec 02 green but 03 untouched -> resume at 03).
@@ -495,8 +496,12 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    silently dropping it. When the Test plan names e2e flows
    and `settings.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
-2. **Implement** until the tests pass, iterating to green. Run the full suite,
-   not just the new tests — no regressions. Code comments stay **minimal and idea-only**
+2. **Implement** until the tests pass. Iterate against the tests your change
+   touches — that is the feedback loop you actually act on. Once the spec is
+   done, run the full suite once, as the regression check. Running the whole
+   suite after every edit buys no information the affected tests did not
+   already give you, and on a large suite it is most of the run's wall clock.
+   Code comments stay **minimal and idea-only**
    — one short single-responsibility line per new function (SOLID:
    one unit, one job), never a ticket id in source, and on edits only the
    comments the change actually invalidates (e.g. a changed parameter); no
@@ -505,8 +510,11 @@ or `iter-<n>-execute-<k>.json` when parallel) must, in order:
    the originating ticket reference lives in the module docstring.
    The executor also applies the **Simplicity First** and **Surgical
    Changes** authoring rules (see code-executor.md Charter) throughout.
-3. **Measure coverage** with the repo's own tooling against
-   `settings.test_coverage_percent`. If the target genuinely cannot be reached
+3. **Measure coverage** against `settings.test_coverage_percent`. Read step 2's
+   run first: a `tests.command` that already reports coverage has answered
+   this, and that is the common shape, because the same command usually backs
+   the repo's own coverage gate. Spend a second run only when the test command
+   genuinely produces no coverage number. If the target cannot be reached
    (e.g. untestable generated code), the executor reports the achieved number
    and the reason — see Coverage hard fail below.
 4. **Reconcile product-doc facts — part of the change, not a follow-up**:
